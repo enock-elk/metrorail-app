@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrorail Train Schedules</title>
+    
+    <!-- PWA / Mobile App Support -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1f2937">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Metrorail">
+    <!-- You will need to create this icon and place it in the same folder -->
+    <link rel="apple-touch-icon" href="icons/icon-192.png"> 
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+        }
+
+        /* Custom style for the "popping" loader */
+        @keyframes pop {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+        }
+
+        .pop-loader {
+            animation: pop 1.5s infinite;
+        }
+
+        /* Simple modal styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 100; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgb(0, 0, 0); /* Fallback color */
+            background-color: rgba(0, 0, 0, 0.6); /* Black w/ opacity */
+            padding-top: 60px;
+        }
+
+        .modal-content {
+            background-color: #1f2937; /* dark-gray */
+            color: #f3f4f6; /* light-gray */
+            margin: 5% auto;
+            padding: 24px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 0.5rem; /* rounded-lg */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #4b5563; /* gray-600 */
+            padding-bottom: 16px;
+        }
+        
+        .modal-title {
+            font-size: 1.25rem; /* xl */
+            font-weight: 700; /* bold */
+        }
+
+        .modal-close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .modal-close:hover,
+        .modal-close:focus {
+            color: #fff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .modal-body {
+            padding-top: 16px;
+            padding-bottom: 16px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        
+        .modal-footer {
+            padding-top: 16px;
+            border-top: 1px solid #4b5563; /* gray-600 */
+            text-align: right;
+        }
+
+        .modal-button {
+            background-color: #374151; /* gray-700 */
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 0.375rem; /* rounded-md */
+            cursor: pointer;
+        }
+        
+        .modal-button:hover {
+            background-color: #4b5563; /* gray-600 */
+        }
+        
+        /* Spinner for modal */
+        .spinner {
+            border: 4px solid #4b5563; /* gray-600 */
+            border-top: 4px solid #3b82f6; /* blue-500 */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+    </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center z-50">
+        <svg class="pop-loader h-16 w-16 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.828 0l-4.244-4.243a8 8 0 1111.314 0z" />
+        </svg>
+        <div class="text-xl font-bold text-gray-300 mt-4" id="loading-text">Loading latest schedules...</div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="main-content" class="w-full max-w-md bg-gray-800 rounded-lg shadow-2xl p-6 hidden">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-white">Metrorail Train Schedules</h1>
+            <p id="current-time" class="text-lg text-blue-400 font-medium"></p>
+            <p id="current-day" class="text-sm text-gray-400"></p>
+        </div>
+
+        <!-- Station Selector -->
+        <div class="mb-6">
+            <label for="station-select" class="block text-sm font-medium text-gray-300 mb-2">From Station:</label>
+            <select id="station-select" class="block w-full bg-gray-700 border-gray-600 text-white rounded-md shadow-sm p-3 text-lg focus:ring-blue-500 focus:border-blue-500">
+                <option value="">Select a station...</option>
+            </select>
+        </div>
+
+        <!-- Train Times -->
+        <div class="space-y-6">
+            <!-- Pretoria Card -->
+            <div class="bg-gray-700 rounded-lg p-4 shadow-lg">
+                <h2 id="pretoria-header" class="text-lg font-semibold text-white mb-2 text-center">
+                    Next train to <span class="text-blue-400">Pretoria</span>
+                </h2>
+                <div id="pretoria-time" class="text-center min-h-[60px] flex items-center justify-center">
+                    <!-- Content will be injected by JS -->
+                </div>
+            </div>
+
+            <!-- Pienaarspoort Card -->
+            <div class="bg-gray-700 rounded-lg p-4 shadow-lg">
+                <h2 id="pienaarspoort-header" class="text-lg font-semibold text-white mb-2 text-center">
+                    Next train to <span class="text-blue-400">Pienaarspoort</span>
+                </h2>
+                <div id="pienaarspoort-time" class="text-center min-h-[60px] flex items-center justify-center">
+                    <!-- Content will be injected by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Update Button -->
+        <div class="mt-8 text-center">
+            <button id="check-updates-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                ✨ Check for Service Updates
+            </button>
+            <p class="text-xs text-gray-500 mt-2">Uses Google AI. May not be 100% accurate.</p>
+        </div>
+    </div>
+    
+    <!-- Gemini API Modal -->
+    <div id="gemini-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">Service Updates</span>
+                <span id="modal-close-btn" class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body" id="gemini-modal-body">
+                <div id="gemini-spinner" class="spinner"></div>
+                <div id="gemini-response" class="text-gray-200"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-ok-btn" class="modal-button">OK</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- DOM Elements ---
+        const stationSelect = document.getElementById('station-select');
+        const pretoriaTimeEl = document.getElementById('pretoria-time');
+        const pienaarspoortTimeEl = document.getElementById('pienaarspoort-time');
+        const pretoriaHeader = document.getElementById('pretoria-header');
+        const pienaarspoortHeader = document.getElementById('pienaarspoort-header');
+        const currentTimeEl = document.getElementById('current-time');
+        const currentDayEl = document.getElementById('current-day');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        const mainContent = document.getElementById('main-content');
+        
+        // Gemini Modal Elements
+        const checkUpdatesBtn = document.getElementById('check-updates-btn');
+        const geminiModal = document.getElementById('gemini-modal');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+        const modalOkBtn = document.getElementById('modal-ok-btn');
+        const geminiSpinner = document.getElementById('gemini-spinner');
+        const geminiResponse = document.getElementById('gemini-response');
+        const geminiModalBody = document.getElementById('gemini-modal-body');
+
+        // --- Constants ---
+        const DESTINATION_PRETORIA = 'PRETORIA STATION';
+        const DESTINATION_PIENAARSPOORT = 'PIENAARSPOORT STATION';
+        // This is the station where the "To Pretoria" line terminates (e.g., Train 1120)
+        const TO_PRETORIA_TERMINATION_STATION = 'KOEDOESPOORT STATION';
+        // This is the station where the connecting train (e.g., 1166) can be boarded
+        const TO_PRETORIA_CONNECTION_STATION = 'KOEDOESPOORT STATION';
+        
+        // This is the public base URL for your Google Sheet
+        const sheetBaseUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQWJYv6XmGlTXuubFKucoIZNShBnW5I0J5TQ8ybwl6GtTZ6ioRUTOM2OcVN364mu36u36mS9Ey-sYG0/pub?output=csv';
+        
+        // These are the unique 'gid's for each tab
+        const sheetGids = {
+            weekday_to_pretoria: '0',
+            weekday_to_pienaarspoort: '840560909',
+            saturday_to_pretoria: '936760708',
+            saturday_to_pienaarspoort: '146806560'
+        };
+
+        // --- State ---
+        let schedules = {};
+        let allStations = [];
+        let currentTime = null;
+        let currentDayType = 'weekday'; // 'weekday' or 'saturday'
+        let currentDayIndex = 0; // 0=Sun, 1-5=Weekday, 6=Sat
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAllSchedules();
+            stationSelect.addEventListener('change', findNextTrains);
+        });
+
+        // --- Schedule Loading ---
+        
+        /**
+         * Fetches all 4 schedules from Google Sheets
+         */
+        async function loadAllSchedules() {
+            try {
+                const [
+                    wdPienPret,
+                    wdPretPien,
+                    satPienPret,
+                    satPretPien
+                ] = await Promise.all([
+                    fetchSchedule('weekday_to_pretoria', sheetGids.weekday_to_pretoria),
+                    fetchSchedule('weekday_to_pienaarspoort', sheetGids.weekday_to_pienaarspoort),
+                    fetchSchedule('saturday_to_pretoria', sheetGids.saturday_to_pretoria),
+                    fetchSchedule('saturday_to_pienaarspoort', sheetGids.saturday_to_pienaarspoort)
+                ]);
+
+                schedules = {
+                    weekday_to_pretoria: parseSchedule(wdPienPret),
+                    weekday_to_pienaarspoort: parseSchedule(wdPretPien),
+                    saturday_to_pretoria: parseSchedule(satPienPret),
+                    saturday_to_pienaarspoort: parseSchedule(satPretPien)
+                };
+                
+                // Populate the station list from all available schedules
+                populateStationList();
+                
+                // Start the clock and main app functions
+                startClock();
+
+                // Hide loading and show content
+                loadingOverlay.style.display = 'none';
+                mainContent.style.display = 'block';
+
+            } catch (error) {
+                console.error("Error loading schedules:", error);
+                loadingText.textContent = `Error: ${error.message}. Please check network.`;
+                loadingText.classList.add('text-red-500');
+            }
+        }
+
+        /**
+         * Fetches a single schedule CSV from Google Sheets
+         */
+        async function fetchSchedule(name, gid) {
+            const url = `${sheetBaseUrl}&gid=${gid}`;
+            const response = await fetch(url, { cache: 'no-cache' }); // Use no-cache to get updates
+            if (!response.ok) {
+                throw new Error(`${name}: Failed to fetch`);
+            }
+            return await response.text();
+        }
+
+        /**
+         * Parses raw CSV text into a structured object
+         */
+        function parseSchedule(csvText) {
+            const lines = csvText.trim().split(/\r\n|\n/);
+            // Find the first line that starts with "STATION"
+            let headerLineIndex = lines.findIndex(line => line.trim().toUpperCase().startsWith('STATION'));
+            if (headerLineIndex === -1) {
+                // Fallback if "STATION" isn't found, though it should be.
+                headerLineIndex = 0; 
+                console.warn("Could not find 'STATION' in CSV, assuming header is line 0.");
+            }
+            
+            const headers = lines[headerLineIndex].split(',').map(h => h.trim());
+            const stationColumnName = headers[0]; // e.g., "STATION"
+            
+            const rows = lines.slice(headerLineIndex + 1).map(line => {
+                const values = line.split(',');
+                const row = {};
+                
+                // Ensure the first value is a station name, not blank
+                if (!values[0] || values[0].trim() === "") {
+                    return null; // Skip empty rows
+                }
+                
+                row[stationColumnName] = values[0].trim();
+                
+                headers.slice(1).forEach((header, index) => {
+                    // Make sure header is not empty
+                    if (header && header !== "") {
+                         row[header] = values[index + 1] ? values[index + 1].trim() : null;
+                    }
+                });
+                return row;
+            }).filter(row => row !== null); // Filter out any skipped rows
+
+            return { headers, rows, stationColumnName };
+        }
+        
+        /**
+         * Populates the station dropdown from all schedules
+         */
+        function populateStationList() {
+            const stationSet = new Set();
+            
+            // Add stations from all 4 schedules
+            schedules.weekday_to_pretoria.rows.forEach(row => stationSet.add(row[schedules.weekday_to_pretoria.stationColumnName]));
+            schedules.weekday_to_pienaarspoort.rows.forEach(row => stationSet.add(row[schedules.weekday_to_pienaarspoort.stationColumnName]));
+            
+            allStations = Array.from(stationSet);
+            
+            // We need a defined order. We'll use the "To Pienaarspoort" order as the canonical list
+            // from Pretoria (index 0) to Pienaarspoort (last index).
+            allStations.sort((a, b) => {
+                const schedule = schedules.weekday_to_pienaarspoort;
+                const stationCol = schedule.stationColumnName;
+                const indexA = schedule.rows.findIndex(row => row[stationCol] === a);
+                const indexB = schedule.rows.findIndex(row => row[stationCol] === b);
+                return indexA - indexB;
+            });
+            
+            // Now that `allStations` is sorted, populate the dropdown
+            stationSelect.innerHTML = '<option value="">Select a station...</option>';
+            allStations.forEach(station => {
+                if (station) { // Avoid empty station names
+                    const option = document.createElement('option');
+                    option.value = station;
+                    option.textContent = station.replace(/ STATION/g, ''); // Make it cleaner
+                    stationSelect.appendChild(option);
+                }
+            });
+        }
+
+
+        // --- Clock and Time ---
+        
+        function pad(num) {
+            return num.toString().padStart(2, '0');
+        }
+
+        function startClock() {
+            updateTime();
+            setInterval(updateTime, 1000); // Update every second
+        }
+
+        function updateTime() {
+            let day;
+            let timeString;
+            
+            // --- FOR REAL-TIME USE ---
+            // 1. Comment out the "FOR TESTING" block below.
+            // 2. Uncomment these three lines.
+            const now = new Date(); // No longer needed
+            day = now.getDay(); 
+            timeString = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+            currentTimeEl.textContent = `Current Time: ${timeString}`;
+            
+            
+            // --- FOR TESTING ---
+            // 1. Comment out the three lines above.
+            // 2. Uncomment the three lines below to fake the time.
+            /*
+            const testTimeString = "17:30:00"; // Set any time, e.g., "16:20:00"
+            const testDay = 3; // Set any day: 0=Sun, 1-5=Weekday, 6=Sat
+            
+            timeString = testTimeString;
+            day = testDay;
+            currentTimeEl.textContent = `Current Time (TEST): ${timeString}`; // Show it's a test
+            */
+            
+            
+            // --- END OF TIME BLOCK ---
+
+            // Check if time or day has meaningfully changed
+            const newDayType = (day === 0 || day === 6) ? 'saturday' : 'weekday';
+            const newDayIndex = day;
+            
+            if (timeString.slice(0, 5) !== currentTime?.slice(0, 5) || newDayType !== currentDayType) {
+                // Update global state
+                currentTime = timeString;
+                currentDayType = newDayType;
+                currentDayIndex = newDayIndex;
+
+                // Update UI
+                const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                currentDayEl.textContent = `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
+                
+                if (day === 0) {
+                    currentDayEl.textContent = "Sunday (No Service)";
+                }
+
+                // Recalculate trains
+                findNextTrains();
+            }
+        }
+        
+        /**
+         * Calculates the time difference between now and a future time.
+         * Returns a formatted string like "(in 22m)" or "(in 1h 30m)".
+         */
+        function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
+            try {
+                const [nowH, nowM] = currentTime.split(':').map(Number);
+                const [depH, depM] = departureTimeStr.split(':').map(Number);
+
+                let nowTotalMinutes = (nowH * 60) + nowM;
+                let depTotalMinutes = (depH * 60) + depM;
+                
+                let diffInMinutes = (depTotalMinutes - nowTotalMinutes) + (dayOffset * 24 * 60);
+
+                if (diffInMinutes < 0) return ""; // Train has passed
+                if (diffInMinutes === 0) return "(Arriving now)";
+
+                const hours = Math.floor(diffInMinutes / 60);
+                const minutes = diffInMinutes % 60;
+                
+                if (hours > 0) {
+                    return `(in ${hours}h ${minutes}m)`;
+                } else {
+                    return `(in ${minutes}m)`;
+                }
+
+            } catch (e) {
+                console.error("Error calculating time diff:", e);
+                return ""; // Fail gracefully
+            }
+        }
+
+
+        // --- Core Train Finding Logic ---
+
+        function findNextTrains() {
+            const selectedStation = stationSelect.value;
+            
+            // Reset headers before finding trains
+            pretoriaHeader.innerHTML = 'Next train to <span class="text-blue-400">Pretoria</span>';
+            pienaarspoortHeader.innerHTML = 'Next train to <span class="text-blue-400">Pienaarspoort</span>';
+            
+            if (!selectedStation) {
+                pretoriaTimeEl.innerHTML = "";
+                pienaarspoortTimeEl.innerHTML = "";
+                return;
+            }
+            
+            if (currentDayIndex === 0) {
+                // Handle Sunday (No Service)
+                renderNoService(pretoriaTimeEl, 'pretoria');
+                renderNoService(pienaarspoortTimeEl, 'pienaarspoort');
+                return;
+            }
+
+            // --- Find Journey to Pretoria ---
+            if (selectedStation === DESTINATION_PRETORIA) {
+                renderAtDestination(pretoriaTimeEl);
+            } else {
+                const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_pretoria : schedules.saturday_to_pretoria;
+                const { nextJourney, firstTrainName, lastTrainName } = findNextJourneyToPretoria(selectedStation, currentTime, schedule);
+                
+                if (nextJourney) {
+                    // Mark if it's the first or last
+                    const journeyTrainName = nextJourney.train || nextJourney.train1.train;
+                    nextJourney.isFirstTrain = (journeyTrainName === firstTrainName);
+                    nextJourney.isLastTrain = (journeyTrainName === lastTrainName);
+                }
+                renderJourney(pretoriaTimeEl, pretoriaHeader, nextJourney, firstTrainName, DESTINATION_PRETORIA, 'pretoria');
+            }
+
+            // --- Find Journey to Pienaarspoort ---
+            if (selectedStation === DESTINATION_PIENAARSPOORT) {
+                renderAtDestination(pienaarspoortTimeEl);
+            } else {
+                const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_pienaarspoort : schedules.saturday_to_pienaarspoort;
+                // "To Pienaarspoort" is always a direct train, so we use a simpler function
+                const { allJourneys, firstTrainName, lastTrainName } = findNextDirectTrain(selectedStation, schedule, DESTINATION_PIENAARSPOORT);
+                
+                const remainingJourneys = allJourneys.filter(j => j.departureTime > currentTime);
+                
+                let nextJourney = null;
+                if (remainingJourneys.length > 0) {
+                    nextJourney = remainingJourneys[0];
+                    // Mark if it's the first or last
+                    nextJourney.isFirstTrain = (nextJourney.train === firstTrainName);
+                    // isLastTrain is true if it's the last one *and* it has the name of the last train
+                    const allRemainingTrainNames = new Set(remainingJourneys.map(j => j.train));
+                    nextJourney.isLastTrain = (allRemainingTrainNames.size === 1 && nextJourney.train === lastTrainName);
+                }
+                renderJourney(pienaarspoortTimeEl, pienaarspoortHeader, nextJourney, firstTrainName, DESTINATION_PIENAARSPOORT, 'pienaarspoort');
+            }
+        }
+        
+        /**
+         * Finds the next journey (direct or transfer) to Pretoria.
+         */
+        function findNextJourneyToPretoria(fromStation, timeNow, schedule) {
+            
+            // Find ALL direct trains for the whole day
+            const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, DESTINATION_PRETORIA);
+
+            // Find ALL transfer trains for the whole day
+            let allTransferJourneys = [];
+            
+            // Check if a transfer is even possible from this station
+            const fromStationIndex = allStations.indexOf(fromStation);
+            const terminationStationIndex = allStations.indexOf(TO_PRETORIA_TERMINATION_STATION);
+            
+            // Only find transfers if you are *at* or *before* the termination station
+            if (fromStationIndex <= terminationStationIndex) {
+                 const { allJourneys: allTransfers } = findNextTransferToPretoria(fromStation, schedule);
+                 allTransferJourneys = allTransfers;
+            }
+
+            // Combine all possible journeys
+            const allJourneys = [...allDirectJourneys, ...allTransferJourneys];
+
+            // Sort them by departure time
+            allJourneys.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+
+            // Find first/last train *name* based on schedule column order
+            const { firstTrainName, lastTrainName } = getFirstAndLastTrainNames(schedule, fromStation);
+            
+            // Find the next journey after timeNow
+            const remainingJourneys = allJourneys.filter(j => j.departureTime > timeNow);
+            
+            if (remainingJourneys.length === 0) {
+                return { nextJourney: null, firstTrainName, lastTrainName }; // No trains found
+            }
+
+            // Get the earliest (next) journey
+            const nextJourney = remainingJourneys[0];
+
+            return { nextJourney, firstTrainName, lastTrainName };
+        }
+        
+        
+        /**
+         * Finds all direct (non-transfer) trains for the whole day.
+         */
+        function findNextDirectTrain(fromStation, schedule, destinationStation) {
+            const stationCol = schedule.stationColumnName;
+            const trainHeaders = schedule.headers.slice(1);
+            let allJourneys = [];
+            
+            // Find first/last train *name* based on schedule column order
+            const { firstTrainName, lastTrainName } = getFirstAndLastTrainNames(schedule, fromStation);
+
+            for (const train of trainHeaders) {
+                // Ensure train header is valid
+                if (!train || train === "") continue;
+
+                const departureTime = schedule.rows
+                    .find(row => row[stationCol] === fromStation)?.[train];
+                
+                const destinationTime = schedule.rows
+                    .find(row => row[stationCol] === destinationStation)?.[train];
+                
+                // 1. Must have a time at the from station
+                // 2. Must have a time at the destination station (i.e., it's direct)
+                if (departureTime && destinationTime) {
+                    allJourneys.push({
+                        type: 'direct',
+                        train: train,
+                        departureTime: departureTime,
+                        arrivalTime: destinationTime
+                    });
+                }
+            }
+            // Sort all found journeys by time
+            allJourneys.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+            
+            return { allJourneys, firstTrainName, lastTrainName };
+        }
+
+        /**
+         * Finds all transfer journeys to Pretoria for the whole day.
+         */
+        function findNextTransferToPretoria(fromStation, schedule) {
+            const stationCol = schedule.stationColumnName;
+            const trainHeaders = schedule.headers.slice(1);
+            let allJourneys = [];
+
+            // 1. Find all trains from `fromStation` that terminate
+            for (const train1 of trainHeaders) {
+                // Ensure train header is valid
+                if (!train1 || train1 === "") continue;
+                
+                const departureTime = schedule.rows
+                    .find(row => row[stationCol] === fromStation)?.[train1];
+                
+                const terminationTime = schedule.rows
+                    .find(row => row[stationCol] === TO_PRETORIA_TERMINATION_STATION)?.[train1];
+                
+                const destinationTime = schedule.rows
+                    .find(row => row[stationCol] === DESTINATION_PRETORIA)?.[train1];
+
+                // This is a terminating train if:
+                // 1. It has a time at our station
+                // 2. It has a time at the termination station
+                // 3. It does NOT have a time at the final destination
+                if (departureTime && terminationTime && !destinationTime) {
+                    
+                    // 2. Find the earliest valid connection for THIS train
+                    // The connection must be after the train arrives at the transfer station
+                    const connection = findNextConnectingTrain(terminationTime, schedule);
+                    
+                    if (connection) {
+                        allJourneys.push({
+                            type: 'transfer',
+                            departureTime: departureTime, // Top-level departure time for sorting
+                            train1: {
+                                train: train1,
+                                departureTime: departureTime,
+                                arrivalAtTransfer: terminationTime,
+                                terminationStation: TO_PRETORIA_TERMINATION_STATION
+                            },
+                            connection: connection
+                        });
+                    }
+                }
+            }
+            // Sort all found journeys by time
+            allJourneys.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+            
+            return { allJourneys };
+        }
+
+        /**
+         * Finds the first available connecting train from the connection station.
+         */
+        function findNextConnectingTrain(arrivalTimeAtTransfer, schedule) {
+            const stationCol = schedule.stationColumnName;
+            const trainHeaders = schedule.headers.slice(1);
+            let possibleConnections = [];
+
+            for (const train of trainHeaders) {
+                // Ensure train header is valid
+                if (!train || train === "") continue;
+
+                // Find connection time at the *connection* station
+                const connectionTime = schedule.rows
+                    .find(row => row[stationCol] === TO_PRETORIA_CONNECTION_STATION)?.[train];
+                
+                // Find destination time at the *final* destination
+                const destinationTime = schedule.rows
+                    .find(row => row[stationCol] === DESTINATION_PRETORIA)?.[train];
+
+                // A valid connection is:
+                // 1. A train that has a time at the connection station
+                // 2. A train that has a time at the final destination
+                // 3. A train that leaves AFTER the first train arrives
+                if (connectionTime && destinationTime && connectionTime >= arrivalTimeAtTransfer) {
+                    possibleConnections.push({
+                        train: train,
+                        departureTime: connectionTime,
+                        arrivalTime: destinationTime,
+                        connectionStation: TO_PRETORIA_CONNECTION_STATION
+                    });
+                }
+            }
+            
+            // Sort connections by time and return the earliest one
+            if (possibleConnections.length === 0) {
+                return null;
+            }
+            // Return the one that leaves *soonest* after the arrival
+            return possibleConnections.sort((a, b) => a.departureTime.localeCompare(b.departureTime))[0];
+        }
+        
+        /**
+         * Gets the column name of the first and last trains from the schedule headers
+         * that have a time at the specified station.
+         */
+        function getFirstAndLastTrainNames(schedule, fromStation) {
+            const stationCol = schedule.stationColumnName;
+            const trainHeaders = schedule.headers.slice(1).filter(h => h && h !== ""); // Filter out empty headers
+            
+            const stationRow = schedule.rows.find(row => row[stationCol] === fromStation);
+            
+            if (!stationRow) {
+                return { firstTrainName: null, lastTrainName: null };
+            }
+
+            // Find first train (left-most column) with a time
+            let firstTrainName = null;
+            for (const trainName of trainHeaders) {
+                if (stationRow[trainName]) {
+                    firstTrainName = trainName;
+                    break;
+                }
+            }
+
+            // Find last train (right-most column) with a time
+            let lastTrainName = null;
+            // Iterate in reverse to find the last valid train
+            for (let i = trainHeaders.length - 1; i >= 0; i--) {
+                const trainName = trainHeaders[i];
+                if (stationRow[trainName]) {
+                    lastTrainName = trainName;
+                    break;
+                }
+            }
+            
+            return { firstTrainName, lastTrainName };
+        }
+
+
+        // --- UI Rendering ---
+
+        function renderJourney(element, headerElement, journey, firstTrainName, destination, scheduleKey) {
+            if (!journey) {
+                // No more trains *today*. Find tomorrow's first train.
+                renderNextAvailableTrain(element, destination, scheduleKey, firstTrainName);
+                return;
+            }
+
+            // Check for last/first train
+            let timeClass = "bg-gray-900";
+            
+            if (journey.isLastTrain) {
+                timeClass = "bg-red-900 border-2 border-red-500"; // Red-bordered background
+                // Update header
+                headerElement.innerHTML += ' <span class="text-red-400 text-base">(Last train)</span>';
+            } else if (journey.isFirstTrain) {
+                timeClass = "bg-green-900 border-2 border-green-500"; // Green-bordered background
+                // Per request, no text for first train, just color
+            }
+            
+            const departureTime = journey.departureTime || journey.train1.departureTime;
+            const timeDiffStr = calculateTimeDiffString(departureTime);
+
+            if (journey.type === 'direct') {
+                element.innerHTML = `
+                    <div class="text-center p-4 ${timeClass} rounded-md transition-all">
+                        <div class="text-3xl font-bold">${journey.departureTime}</div>
+                        <div class="text-lg text-gray-300 font-medium">${timeDiffStr}</div>
+                    </div>
+                    <p class="text-sm text-yellow-400 mt-2 text-center">
+                        Direct train (${journey.train}). Arrives ${journey.arrivalTime}.
+                    </p>
+                `;
+            }
+
+            if (journey.type === 'transfer') {
+                element.innerHTML = `
+                    <div class="text-center p-4 ${timeClass} rounded-md transition-all">
+                        <div class="text-3xl font-bold">${journey.train1.departureTime}</div>
+                        <div class="text-lg text-gray-300 font-medium">${timeDiffStr}</div>
+                    </div>
+                    <div class="text-sm text-yellow-400 mt-2 text-center space-y-1">
+                        <p>
+                            Train ${journey.train1.train} (Terminates at ${journey.train1.terminationStation} at ${journey.train1.arrivalAtTransfer})
+                        </p>
+                        <p class="font-bold text-lg">TRANSFER REQUIRED</p>
+                        <p>
+                            Connect to Train ${journey.connection.train} from ${journey.connection.connectionStation} at ${journey.connection.departureTime}.
+                        </p>
+                    </div>
+                `;
+            }
+        }
+        
+        function renderNextAvailableTrain(element, destination, scheduleKey, firstTrainNameFromToday) {
+            let nextDay = "";
+            let nextDayScheduleKey = "";
+            let dayOffset = 1; // 1 = tomorrow
+            
+            if (currentDayIndex === 6) { // It's Saturday
+                nextDay = "Monday";
+                dayOffset = 2; // Sat -> Mon
+                nextDayScheduleKey = (scheduleKey === 'pretoria') ? 'weekday_to_pretoria' : 'weekday_to_pienaarspoort';
+            } else { // It's a Weekday
+                nextDay = (currentDayIndex === 5) ? "Saturday" : "tomorrow"; // Friday -> Saturday
+                dayOffset = 1;
+                nextDayScheduleKey = (currentDayIndex === 5) ? 
+                    (scheduleKey === 'pretoria' ? 'saturday_to_pretoria' : 'saturday_to_pienaarspoort') :
+                    (scheduleKey === 'pretoria' ? 'weekday_to_pretoria' : 'weekday_to_pienaarspoort');
+            }
+            
+            // We need to find the first train on the *next day's* schedule
+            const nextSchedule = schedules[nextDayScheduleKey];
+            const selectedStation = stationSelect.value;
+            let firstTrainOfNextDay = null;
+            
+            if (scheduleKey === 'pretoria') {
+                const { nextJourney } = findNextJourneyToPretoria(selectedStation, "00:00:00", nextSchedule);
+                firstTrainOfNextDay = nextJourney;
+            } else {
+                 const { allJourneys } = findNextDirectTrain(selectedStation, nextSchedule, DESTINATION_PIENAARSPOORT);
+                 firstTrainOfNextDay = (allJourneys.length > 0) ? allJourneys[0] : null;
+            }
+            
+
+            if (!firstTrainOfNextDay) {
+                // This should not happen if data is valid
+                element.innerHTML = `
+                    <div class="text-xl font-bold text-gray-400">
+                        No trains found for ${nextDay}.
+                    </div>
+                `;
+                return;
+            }
+            
+            const departureTime = firstTrainOfNextDay.departureTime || firstTrainOfNextDay.train1.departureTime;
+            const timeDiffStr = calculateTimeDiffString(departureTime, dayOffset);
+
+            element.innerHTML = `
+                <div class="text-lg font-bold text-gray-400">
+                    No more trains today.
+                </div>
+                <p class="text-sm text-gray-500 mt-2">First train ${nextDay} is at:</p>
+                <div class="text-center p-3 bg-gray-900 rounded-md transition-all mt-2">
+                    <div class="text-2xl font-bold">${departureTime}</div>
+                    <div class="text-base text-gray-300 font-medium">${timeDiffStr}</div>
+                </div>
+            `;
+        }
+
+
+        function renderAtDestination(element) {
+            element.innerHTML = `
+                <div class="text-xl font-bold text-green-400">
+                    You are at this station.
+                </div>
+            `;
+        }
+
+        function renderNoService(element, destination) {
+             
+            // Extra: Find Monday's first train
+            const scheduleKey = (destination === 'pretoria') ? 'weekday_to_pretoria' : 'weekday_to_pienaarspoort';
+            const schedule = schedules[scheduleKey];
+            const selectedStation = stationSelect.value;
+            let firstTrain = null;
+            
+            if (destination === 'pretoria') {
+                 const { nextJourney } = findNextJourneyToPretoria(selectedStation, "00:00:00", schedule);
+                 firstTrain = nextJourney;
+            } else {
+                 const { allJourneys } = findNextDirectTrain(selectedStation, schedule, DESTINATION_PIENAARSPOORT);
+                 firstTrain = (allJourneys.length > 0) ? allJourneys[0] : null;
+            }
+            
+            let timeHTML = 'N/A';
+            if (firstTrain) {
+                const departureTime = firstTrain.departureTime || firstTrain.train1.departureTime;
+                const timeDiffStr = calculateTimeDiffString(departureTime, 1); // 1 = tomorrow (Monday)
+                timeHTML = `
+                    <div class="text-2xl font-bold">${departureTime}</div>
+                    <div class="text-base text-gray-300 font-medium">${timeDiffStr}</div>
+                `;
+            }
+
+             element.innerHTML = `
+                <div class="text-xl font-bold text-gray-400">
+                    No service on Sundays.
+                </div>
+                <p class="text-sm text-gray-500 mt-2">First train Monday is at:</p>
+                <div id="next-day-${destination}-time" class="text-center p-3 bg-gray-900 rounded-md transition-all mt-2">
+                    ${timeHTML}
+                </div>
+            `;
+        }
+
+
+        // --- Gemini API ---
+        
+        checkUpdatesBtn.addEventListener('click', () => {
+            // Show modal
+            geminiModal.style.display = 'block';
+            geminiResponse.innerHTML = '';
+            geminiSpinner.style.display = 'block';
+            
+            // Call API
+            callGeminiAPI();
+        });
+        
+        modalCloseBtn.onclick = () => geminiModal.style.display = 'none';
+        modalOkBtn.onclick = () => geminiModal.style.display = 'none';
+        window.onclick = (event) => {
+            if (event.target == geminiModal) {
+                geminiModal.style.display = 'none';
+            }
+        }
+
+        async function callGeminiAPI() {
+            // This is a placeholder for the API key.
+            // In a real, secure environment, this key should not be hardcoded.
+            // For this specific setup, we'll leave it empty as it might be
+            // injected by the environment.
+            const apiKey = ""; // Leave empty
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            // We use Google Search to ground the response in real-time information.
+            // This is crucial for service updates.
+            const userQuery = "Are there any service disruptions, delays, or strikes affecting the Metrorail train line between Pretoria and Pienaarspoort today? Check news and social media.";
+
+            const payload = {
+                contents: [{
+                    parts: [{ text: userQuery }]
+                }],
+                // Enable Google Search grounding
+                tools: [{
+                    "google_search": {}
+                }],
+                // Guide the model's persona
+                systemInstruction: {
+                    parts: [{
+                        text: "You are a helpful transit assistant. You must check for any service disruptions (like delays, strikes, or schedule changes) on the Pretoria-Pienaarspoort Metrorail line. Provide a concise, bulleted summary. If no specific information is found, just say 'No specific disruptions reported.' Do not invent information. Base your response *only* on the provided search results."
+                    }]
+                },
+            };
+
+            try {
+                // Implement exponential backoff for retries
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    // Get the text and the sources
+                    const text = candidate.content.parts[0].text;
+                    let sources = [];
+                    const groundingMetadata = candidate.groundingMetadata;
+
+                    if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                        sources = groundingMetadata.groundingAttributions
+                            .map(attr => ({
+                                uri: attr.web?.uri,
+                                title: attr.web?.title,
+                            }))
+                            .filter(source => source.uri && source.title); // Ensure sources are valid
+                    }
+                    
+                    // Format and display
+                    displayGeminiResponse(text, sources);
+
+                } else {
+                    throw new Error("No content found in API response.");
+                }
+
+            } catch (error) {
+                console.error("Error calling Gemini API:", error);
+                displayGeminiResponse(`Error: Could not fetch updates. ${error.message}`, []);
+            }
+        }
+        
+        /**
+         * A simple fetch wrapper with exponential backoff.
+         */
+        async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
+            try {
+                const response = await fetch(url, options);
+                if (response.status === 429 || response.status >= 500) { // Throttling or server error
+                    if (retries > 0) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return fetchWithRetry(url, options, retries - 1, delay * 2);
+                    }
+                }
+                return response;
+            } catch (error) {
+                if (retries > 0) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return fetchWithRetry(url, options, retries - 1, delay * 2);
+                }
+                throw error; // Re-throw last error
+            }
+        }
+        
+        function displayGeminiResponse(text, sources) {
+            geminiSpinner.style.display = 'none';
+            
+            // Format the text (simple markdown-like lists)
+            let formattedText = text
+                .replace(/\n\s*-\s/g, '<br>• ') // Bullets
+                .replace(/\n/g, '<br>');
+
+            let sourcesHtml = '';
+            if (sources.length > 0) {
+                sourcesHtml = '<div class="mt-4 pt-4 border-t border-gray-600"><p class="font-bold text-sm text-gray-400 mb-2">Sources:</p><ul class="list-disc list-inside text-sm space-y-1">';
+                sources.forEach(source => {
+                    sourcesHtml += `<li><a href="${source.uri}" target="_blank" class="text-blue-400 hover:underline">${source.title}</a></li>`;
+                });
+                sourcesHtml += '</ul></div>';
+            }
+
+            geminiResponse.innerHTML = `<p>${formattedText}</p>${sourcesHtml}`;
+        }
+
+    </script>
+
+</body>
+</html>
