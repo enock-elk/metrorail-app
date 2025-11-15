@@ -6,14 +6,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Metrorail Train Schedules</title>
     
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FH8XHJVTPW"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+    
+      gtag('config', 'G-FH8XHJVTPW');
+    </script>
+
     <!-- PWA / Mobile App Support -->
-    <link rel="manifest" href="manifest.json">
+    <!-- FIX: Using absolute paths for manifest and icons -->
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#1f2937">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Metrorail">
-    <!-- You will need to create this icon and place it in the same folder -->
-    <link rel="apple-touch-icon" href="icons/icon-192.png"> 
+    <link rel="apple-touch-icon" href="/icons/icon-192.png"> 
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -201,7 +211,13 @@
          * Fetches a single schedule CSV from Google Sheets
          */
         async function fetchSchedule(name, gid) {
-            const url = `${sheetBaseUrl}&gid=${gid}`;
+            // --- FIX for "Failed to fetch" (CORS) ---
+            // We use a free proxy to bypass the browser's security block.
+            const proxyUrl = 'https://corsproxy.io/?';
+            const originalUrl = `${sheetBaseUrl}&gid=${gid}`;
+            const url = `${proxyUrl}${encodeURIComponent(originalUrl)}`; // Correctly encode the URL
+            // --- END FIX ---
+            
             const response = await fetch(url, { cache: 'no-cache' }); // Use no-cache to get updates
             if (!response.ok) {
                 throw new Error(`${name}: Failed to fetch`);
@@ -364,15 +380,24 @@
          */
         function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
             try {
-                const [nowH, nowM] = currentTime.split(':').map(Number);
-                const [depH, depM] = departureTimeStr.split(':').map(Number);
+                // --- BUG FIX: Use full HH:MM:SS for "now" ---
+                const [nowH, nowM, nowS] = currentTime.split(':').map(Number);
+                // Use HH:MM:SS for departure, adding :00 if missing
+                const depParts = departureTimeStr.split(':').map(Number);
+                const depH = depParts[0];
+                const depM = depParts[1];
+                const depS = depParts[2] || 0; // Assume 00 seconds if not provided
 
-                let nowTotalMinutes = (nowH * 60) + nowM;
-                let depTotalMinutes = (depH * 60) + depM;
+                let nowTotalSeconds = (nowH * 3600) + (nowM * 60) + nowS;
+                let depTotalSeconds = (depH * 3600) + (depM * 60) + depS;
                 
-                let diffInMinutes = (depTotalMinutes - nowTotalMinutes) + (dayOffset * 24 * 60);
+                let diffInSeconds = (depTotalSeconds - nowTotalSeconds) + (dayOffset * 24 * 60 * 60);
 
-                if (diffInMinutes < 0) return ""; // Train has passed
+                if (diffInSeconds < 0) return ""; // Train has passed
+                
+                // --- BUG FIX: Use ceil to round up ---
+                let diffInMinutes = Math.ceil(diffInSeconds / 60);
+                
                 if (diffInMinutes === 0) return "(Arriving now)";
 
                 const hours = Math.floor(diffInMinutes / 60);
@@ -392,12 +417,15 @@
 
         // --- *** NEW HELPER FUNCTION *** ---
         /**
-         * Converts a "HH:MM:SS" string to total minutes for comparison.
+         * Converts a "HH:MM:SS" string to total seconds for comparison.
          */
-        function timeToMinutes(timeStr) {
+        function timeToSeconds(timeStr) {
             try {
-                const [h, m] = timeStr.split(':').map(Number);
-                return (h * 60) + m;
+                const parts = timeStr.split(':').map(Number);
+                const h = parts[0] || 0;
+                const m = parts[1] || 0;
+                const s = parts[2] || 0;
+                return (h * 3600) + (m * 60) + s;
             } catch (e) {
                 console.error(`Invalid time string: ${timeStr}`);
                 return 0;
@@ -410,13 +438,16 @@
         function findNextTrains() {
             const selectedStation = stationSelect.value;
             
+            // --- BUG FIX: Clear old content before every calculation ---
+            pretoriaTimeEl.innerHTML = "";
+            pienaarspoortTimeEl.innerHTML = "";
+            // --- END BUG FIX ---
+            
             // Reset headers before finding trains
             pretoriaHeader.innerHTML = 'Next train to <span class="text-blue-400">Pretoria</span>';
             pienaarspoortHeader.innerHTML = 'Next train to <span class="text-blue-400">Pienaarspoort</span>';
             
             if (!selectedStation) {
-                pretoriaTimeEl.innerHTML = "";
-                pienaarspoortTimeEl.innerHTML = "";
                 return;
             }
             
@@ -452,9 +483,9 @@
                 // "To Pienaarspoort" is always a direct train, so we use a simpler function
                 const { allJourneys, firstTrainName, lastTrainName } = findNextDirectTrain(selectedStation, schedule, DESTINATION_PIENAARSPOORT);
                 
-                // --- *** BUG FIX: Compare minutes, not strings *** ---
-                const nowInMinutes = timeToMinutes(currentTime);
-                const remainingJourneys = allJourneys.filter(j => timeToMinutes(j.departureTime) > nowInMinutes);
+                // --- *** BUG FIX: Compare seconds, not strings, and use >= *** ---
+                const nowInSeconds = timeToSeconds(currentTime);
+                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime) >= nowInSeconds);
                 
                 let nextJourney = null;
                 if (remainingJourneys.length > 0) {
@@ -494,15 +525,15 @@
             const allJourneys = [...allDirectJourneys, ...allTransferJourneys];
 
             // Sort them by departure time
-            allJourneys.sort((a, b) => timeToMinutes(a.departureTime) - timeToMinutes(b.departureTime));
+            allJourneys.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
 
             // Find first/last train *name* based on schedule column order
             const { firstTrainName, lastTrainName } = getFirstAndLastTrainNames(schedule, fromStation);
             
-            // --- *** BUG FIX: Compare minutes, not strings *** ---
-            const nowInMinutes = timeToMinutes(timeNow);
+            // --- *** BUG FIX: Compare seconds, not strings, and use >= *** ---
+            const nowInSeconds = timeToSeconds(timeNow);
             // Find the next journey after timeNow
-            const remainingJourneys = allJourneys.filter(j => timeToMinutes(j.departureTime) > nowInMinutes);
+            const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime) >= nowInSeconds);
             
             if (remainingJourneys.length === 0) {
                 return { nextJourney: null, firstTrainName, lastTrainName }; // No trains found
@@ -548,7 +579,7 @@
                 }
             }
             // Sort all found journeys by time
-            allJourneys.sort((a, b) => timeToMinutes(a.departureTime) - timeToMinutes(b.departureTime));
+            allJourneys.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
             
             return { allJourneys, firstTrainName, lastTrainName };
         }
@@ -601,7 +632,7 @@
                 }
             }
             // Sort all found journeys by time
-            allJourneys.sort((a, b) => timeToMinutes(a.departureTime) - timeToMinutes(b.departureTime));
+            allJourneys.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
             
             return { allJourneys };
         }
@@ -630,8 +661,8 @@
                 // 1. A train that has a time at the connection station
                 // 2. A train that has a time at the final destination
                 // 3. A train that leaves AFTER the first train arrives
-                // --- *** BUG FIX: Compare minutes, not strings *** ---
-                if (connectionTime && destinationTime && timeToMinutes(connectionTime) >= timeToMinutes(arrivalTimeAtTransfer)) {
+                // --- *** BUG FIX: Compare seconds, not strings, and use >= *** ---
+                if (connectionTime && destinationTime && timeToSeconds(connectionTime) >= timeToSeconds(arrivalTimeAtTransfer)) {
                     possibleConnections.push({
                         train: train,
                         departureTime: connectionTime,
@@ -646,7 +677,7 @@
                 return null;
             }
             // Return the one that leaves *soonest* after the arrival
-            return possibleConnections.sort((a, b) => timeToMinutes(a.departureTime) - timeToMinutes(b.departureTime))[0];
+            return possibleConnections.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime))[0];
         }
         
         /**
@@ -690,6 +721,10 @@
         // --- UI Rendering ---
 
         function renderJourney(element, headerElement, journey, firstTrainName, destination, scheduleKey) {
+            // --- BUG FIX: Clear element content ---
+            element.innerHTML = "";
+            // --- END BUG FIX ---
+
             if (!journey) {
                 // No more trains *today*. Find tomorrow's first train.
                 renderNextAvailableTrain(element, destination, scheduleKey);
@@ -847,7 +882,7 @@
                 `;
             }
 
-               element.innerHTML = `
+             element.innerHTML = `
                 <div class="text-xl font-bold text-gray-400">
                     No service on Sundays.
                 </div>
