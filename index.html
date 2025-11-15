@@ -260,7 +260,7 @@
         let schedules = {};
         let allStations = [];
         let currentTime = null;
-        let currentDayType = 'weekday'; // 'weekday' or 'saturday'
+        let currentDayType = 'weekday'; // 'weekday', 'saturday', or 'sunday'
         let currentDayIndex = 0; // 0=Sun, 1-5=Weekday, 6=Sat
 
         // --- Initialization ---
@@ -416,7 +416,7 @@
             // --- FOR REAL-TIME USE ---
             // 1. Comment out the "FOR TESTING" block below.
             // 2. Uncomment these three lines.
-            const now = new Date(); // No longer needed
+            const now = new Date(); 
             day = now.getDay(); 
             timeString = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
             currentTimeEl.textContent = `Current Time: ${timeString}`;
@@ -427,7 +427,7 @@
             // 2. Uncomment the three lines below to fake the time.
             /*
             const testTimeString = "17:30:00"; // Set any time, e.g., "16:20:00"
-            const testDay = 3; // Set any day: 0=Sun, 1-5=Weekday, 6=Sat
+            const testDay = 6; // Set any day: 0=Sun, 1-5=Weekday, 6=Sat
             
             timeString = testTimeString;
             day = testDay;
@@ -437,24 +437,37 @@
             
             // --- END OF TIME BLOCK ---
 
+            // --- *** CORRECTED DAY LOGIC *** ---
             // Check if time or day has meaningfully changed
-            const newDayType = (day === 0 || day === 6) ? 'saturday' : 'weekday';
+            let newDayType;
+            if (day === 0) {
+                newDayType = 'sunday';
+            } else if (day === 6) {
+                newDayType = 'saturday';
+            } else {
+                newDayType = 'weekday';
+            }
+            // --- *** END OF CORRECTION *** ---
+            
             const newDayIndex = day;
             
             if (timeString.slice(0, 5) !== currentTime?.slice(0, 5) || newDayType !== currentDayType) {
                 // Update global state
                 currentTime = timeString;
                 currentDayType = newDayType;
-                currentDayIndex = newDayIndex;
+                currentDayIndex = day; // Use the 0-6 index directly
 
                 // Update UI
                 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-                currentDayEl.textContent = `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
                 
-                if (day === 0) {
+                if (currentDayType === 'sunday') {
                     currentDayEl.textContent = "Sunday (No Service)";
+                } else if (currentDayType === 'saturday') {
+                    currentDayEl.textContent = "Saturday (Saturday Schedule)";
+                } else {
+                    currentDayEl.textContent = `${dayNames[day]} (Weekday Schedule)`;
                 }
-
+                
                 // Recalculate trains
                 findNextTrains();
             }
@@ -464,6 +477,7 @@
          * Calculates the time difference between now and a future time.
          * Returns a formatted string like "(in 22m)" or "(in 1h 30m)".
          */
+        // --- *** SYNTAX FIX: Restored function body *** ---
         function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
             try {
                 const [nowH, nowM] = currentTime.split(':').map(Number);
@@ -491,6 +505,21 @@
                 return ""; // Fail gracefully
             }
         }
+        // --- *** END OF FIX *** ---
+
+        // --- *** NEW HELPER FUNCTION *** ---
+        /**
+         * Converts a "HH:MM:SS" string to total minutes for comparison.
+         */
+        function timeToMinutes(timeStr) {
+            try {
+                const [h, m] = timeStr.split(':').map(Number);
+                return (h * 60) + m;
+            } catch (e) {
+                console.error(`Invalid time string: ${timeStr}`);
+                return 0;
+            }
+        }
 
 
         // --- Core Train Finding Logic ---
@@ -508,7 +537,8 @@
                 return;
             }
             
-            if (currentDayIndex === 0) {
+            // --- *** Use currentDayType for Sunday check *** ---
+            if (currentDayType === 'sunday') {
                 // Handle Sunday (No Service)
                 renderNoService(pretoriaTimeEl, 'pretoria');
                 renderNoService(pienaarspoortTimeEl, 'pienaarspoort');
@@ -539,7 +569,9 @@
                 // "To Pienaarspoort" is always a direct train, so we use a simpler function
                 const { allJourneys, firstTrainName, lastTrainName } = findNextDirectTrain(selectedStation, schedule, DESTINATION_PIENAARSPOORT);
                 
-                const remainingJourneys = allJourneys.filter(j => j.departureTime > currentTime);
+                // --- *** BUG FIX: Compare minutes, not strings *** ---
+                const nowInMinutes = timeToMinutes(currentTime);
+                const remainingJourneys = allJourneys.filter(j => timeToMinutes(j.departureTime) > nowInMinutes);
                 
                 let nextJourney = null;
                 if (remainingJourneys.length > 0) {
@@ -579,13 +611,15 @@
             const allJourneys = [...allDirectJourneys, ...allTransferJourneys];
 
             // Sort them by departure time
-            allJourneys.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+            allJourneys.sort((a, b) => timeToMinutes(a.departureTime) - timeToMinutes(b.departureTime));
 
             // Find first/last train *name* based on schedule column order
             const { firstTrainName, lastTrainName } = getFirstAndLastTrainNames(schedule, fromStation);
             
+            // --- *** BUG FIX: Compare minutes, not strings *** ---
+            const nowInMinutes = timeToMinutes(timeNow);
             // Find the next journey after timeNow
-            const remainingJourneys = allJourneys.filter(j => j.departureTime > timeNow);
+            const remainingJourneys = allJourneys.filter(j => timeToMinutes(j.departureTime) > nowInMinutes);
             
             if (remainingJourneys.length === 0) {
                 return { nextJourney: null, firstTrainName, lastTrainName }; // No trains found
@@ -631,7 +665,7 @@
                 }
             }
             // Sort all found journeys by time
-            allJourneys.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+            allJourneys.sort((a, b) => timeToMinutes(a.departureTime) - timeToMinutes(b.departureTime));
             
             return { allJourneys, firstTrainName, lastTrainName };
         }
@@ -684,7 +718,7 @@
                 }
             }
             // Sort all found journeys by time
-            allJourneys.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+            allJourneys.sort((a, b) => timeToMinutes(a.departureTime) - timeToMinutes(b.departureTime));
             
             return { allJourneys };
         }
@@ -713,7 +747,8 @@
                 // 1. A train that has a time at the connection station
                 // 2. A train that has a time at the final destination
                 // 3. A train that leaves AFTER the first train arrives
-                if (connectionTime && destinationTime && connectionTime >= arrivalTimeAtTransfer) {
+                // --- *** BUG FIX: Compare minutes, not strings *** ---
+                if (connectionTime && destinationTime && timeToMinutes(connectionTime) >= timeToMinutes(arrivalTimeAtTransfer)) {
                     possibleConnections.push({
                         train: train,
                         departureTime: connectionTime,
@@ -728,7 +763,7 @@
                 return null;
             }
             // Return the one that leaves *soonest* after the arrival
-            return possibleConnections.sort((a, b) => a.departureTime.localeCompare(b.departureTime))[0];
+            return possibleConnections.sort((a, b) => timeToMinutes(a.departureTime) - timeToMinutes(b.departureTime))[0];
         }
         
         /**
@@ -774,7 +809,7 @@
         function renderJourney(element, headerElement, journey, firstTrainName, destination, scheduleKey) {
             if (!journey) {
                 // No more trains *today*. Find tomorrow's first train.
-                renderNextAvailableTrain(element, destination, scheduleKey, firstTrainName);
+                renderNextAvailableTrain(element, destination, scheduleKey);
                 return;
             }
 
@@ -824,42 +859,55 @@
             }
         }
         
-        function renderNextAvailableTrain(element, destination, scheduleKey, firstTrainNameFromToday) {
-            let nextDay = "";
+        // --- *** NEW, IMPROVED renderNextAvailableTrain FUNCTION *** ---
+        function renderNextAvailableTrain(element, destination, scheduleKey) {
+            let nextDayName = "";
             let nextDayScheduleKey = "";
             let dayOffset = 1; // 1 = tomorrow
-            
-            if (currentDayIndex === 6) { // It's Saturday
-                nextDay = "Monday";
-                dayOffset = 2; // Sat -> Mon
-                nextDayScheduleKey = (scheduleKey === 'pretoria') ? 'weekday_to_pretoria' : 'weekday_to_pienaarspoort';
-            } else { // It's a Weekday
-                nextDay = (currentDayIndex === 5) ? "Saturday" : "tomorrow"; // Friday -> Saturday
-                dayOffset = 1;
-                nextDayScheduleKey = (currentDayIndex === 5) ? 
-                    (scheduleKey === 'pretoria' ? 'saturday_to_pretoria' : 'saturday_to_pienaarspoort') :
-                    (scheduleKey === 'pretoria' ? 'weekday_to_pretoria' : 'weekday_to_pienaarspoort');
+
+            // currentDayIndex: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+            switch (currentDayIndex) {
+                case 6: // Saturday
+                    nextDayName = "Monday";
+                    dayOffset = 2; // Sat -> Mon is 2 days
+                    nextDayScheduleKey = (scheduleKey === 'pretoria') ? 'weekday_to_pretoria' : 'weekday_to_pienaarspoort';
+                    break;
+                case 5: // Friday
+                    nextDayName = "Saturday";
+                    dayOffset = 1;
+                    nextDayScheduleKey = (scheduleKey === 'pretoria') ? 'saturday_to_pretoria' : 'saturday_to_pienaarspoort';
+                    break;
+                default: // Mon-Thu
+                    nextDayName = "tomorrow";
+                    dayOffset = 1;
+                    nextDayScheduleKey = (scheduleKey === 'pretoria') ? 'weekday_to_pretoria' : 'weekday_to_pienaarspoort';
+                    break;
             }
             
-            // We need to find the first train on the *next day's* schedule
             const nextSchedule = schedules[nextDayScheduleKey];
+            if (!nextSchedule) {
+                console.error(`Could not find next schedule for key: ${nextDayScheduleKey}`);
+                element.innerHTML = `<div class="text-xl font-bold text-gray-400">No schedule found for next service day.</div>`;
+                return;
+            }
+
             const selectedStation = stationSelect.value;
             let firstTrainOfNextDay = null;
-            
+
             if (scheduleKey === 'pretoria') {
+                // Find first journey (direct or transfer) to Pretoria
                 const { nextJourney } = findNextJourneyToPretoria(selectedStation, "00:00:00", nextSchedule);
                 firstTrainOfNextDay = nextJourney;
             } else {
-                 const { allJourneys } = findNextDirectTrain(selectedStation, nextSchedule, DESTINATION_PIENAARSPOORT);
-                 firstTrainOfNextDay = (allJourneys.length > 0) ? allJourneys[0] : null;
+                // Find first direct train to Pienaarspoort
+                const { allJourneys } = findNextDirectTrain(selectedStation, nextSchedule, DESTINATION_PIENAARSPOORT);
+                firstTrainOfNextDay = (allJourneys.length > 0) ? allJourneys[0] : null;
             }
-            
 
             if (!firstTrainOfNextDay) {
-                // This should not happen if data is valid
                 element.innerHTML = `
                     <div class="text-xl font-bold text-gray-400">
-                        No trains found for ${nextDay}.
+                        No trains found for ${nextDayName}.
                     </div>
                 `;
                 return;
@@ -872,13 +920,14 @@
                 <div class="text-lg font-bold text-gray-400">
                     No more trains today.
                 </div>
-                <p class="text-sm text-gray-500 mt-2">First train ${nextDay} is at:</p>
+                <p class="text-sm text-gray-500 mt-2">First train ${nextDayName} is at:</p>
                 <div class="text-center p-3 bg-gray-900 rounded-md transition-all mt-2">
                     <div class="text-2xl font-bold">${departureTime}</div>
                     <div class="text-base text-gray-300 font-medium">${timeDiffStr}</div>
                 </div>
             `;
         }
+        // --- *** END OF NEW FUNCTION *** ---
 
 
         function renderAtDestination(element) {
@@ -890,8 +939,8 @@
         }
 
         function renderNoService(element, destination) {
-             
-            // Extra: Find Monday's first train
+            
+            // On Sunday, find Monday's first train
             const scheduleKey = (destination === 'pretoria') ? 'weekday_to_pretoria' : 'weekday_to_pienaarspoort';
             const schedule = schedules[scheduleKey];
             const selectedStation = stationSelect.value;
@@ -915,7 +964,7 @@
                 `;
             }
 
-             element.innerHTML = `
+               element.innerHTML = `
                 <div class="text-xl font-bold text-gray-400">
                     No service on Sundays.
                 </div>
@@ -952,7 +1001,22 @@
             // In a real, secure environment, this key should not be hardcoded.
             // For this specific setup, we'll leave it empty as it might be
             // injected by the environment.
-            const apiKey = ""; // Leave empty
+            
+            // --- *** API KEY FIX *** ---
+            // PASTE YOUR API KEY (from Google AI Studio) HERE.
+            // WARNING: This is NOT secure for a public website.
+            // Anyone can view your code and steal your key.
+            // For personal use or testing, this is okay.
+            const apiKey = "AIzaSyD-epkb9chGftoz41CcQsbCo8nY7zUHa7w"; // <-- FIX (Added quotes)
+            
+            if (apiKey === "AIzaSyD-epkb9chGftoz41CcQsbCo8nY7zUHa7w" || apiKey === "") { // <-- FIX (Added quotes)
+                displayGeminiResponse("Error: API Key is missing. Please add your Google AI Studio API key to the `apiKey` variable in `index.html`.", []);
+                return;
+            }
+            // --- *** END OF FIX *** ---
+            
+            // --- *** CORRECTED API MODEL *** ---
+            // Using the model you specified, which is correct.
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
             // We use Google Search to ground the response in real-time information.
@@ -984,7 +1048,9 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                    const errorBody = await response.text();
+                    console.error("API Error Body:", errorBody);
+                    throw new Error(`API Error: ${response.status} ${response.statusText}. Check console for details.`);
                 }
 
                 const result = await response.json();
@@ -1009,6 +1075,7 @@
                     displayGeminiResponse(text, sources);
 
                 } else {
+                    console.warn("API Response missing content:", result);
                     throw new Error("No content found in API response.");
                 }
 
@@ -1046,6 +1113,7 @@
             // Format the text (simple markdown-like lists)
             let formattedText = text
                 .replace(/\n\s*-\s/g, '<br>• ') // Bullets
+                .replace(/\n\s*\*\s/g, '<br>• ') // Bullets
                 .replace(/\n/g, '<br>');
 
             let sourcesHtml = '';
