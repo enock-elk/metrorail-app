@@ -41,7 +41,36 @@
         body {
             font-family: 'Inter', sans-serif;
             touch-action: manipulation;
+            /* NEW: Prevent scrolling when sidenav is open */
         }
+        
+        body.sidenav-open {
+            overflow: hidden;
+        }
+
+        /* * NEW: Custom styles for a modern <select> dropdown
+         * This adds a custom arrow, since we use "appearance-none" in the HTML.
+        */
+        #station-select {
+            /* Creates space on the right for our custom arrow */
+            padding-right: 2.5rem; 
+
+            /* * This adds a clean SVG arrow as a background image.
+             * The color #6b7280 is a medium gray for light mode.
+            */
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+        }
+
+        /* * This rule targets the select box ONLY when dark mode is active
+         * and swaps the arrow for a lighter gray (#9ca3af).
+        */
+        .dark #station-select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+        }
+
 
         /* Custom style for the "popping" loader */
         @keyframes pop {
@@ -58,11 +87,262 @@
         .pop-loader {
             animation: pop 1.5s infinite;
         }
+        
+        /* NEW: Styles for the side navigation */
+        #sidenav-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out;
+        }
+        
+        #sidenav-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        #sidenav {
+            position: fixed;
+            top: 0;
+            left: -280px; /* Hidden by default */
+            width: 280px;
+            height: 100%;
+            background-color: #1f2937; /* dark:bg-gray-800 */
+            z-index: 1000;
+            transition: left 0.3s ease-in-out;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #sidenav.open {
+            left: 0;
+        }
+
+        /* NEW: Light mode styles for sidenav */
+        html:not(.dark) #sidenav {
+             background-color: #ffffff; /* bg-white */
+        }
+        
+        #sidenav h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #4b5563; /* dark:border-gray-600 */
+        }
+        
+        html:not(.dark) #sidenav h2 {
+            border-bottom-color: #e5e7eb; /* border-gray-200 */
+        }
+
+        #sidenav ul {
+            list-style: none;
+            padding: 0;
+            margin-top: 20px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        
+        /* NEW: Styles for route list */
+        #sidenav .route-category {
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 600; /* font-semibold */
+            color: #9ca3af; /* dark:text-gray-400 */
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 16px 16px 8px 16px;
+        }
+        
+        html:not(.dark) #sidenav .route-category {
+            color: #6b7280; /* text-gray-500 */
+        }
+        
+        #sidenav li .route-item {
+            display: flex;
+            /* MODIFIED: Removed justify-content */
+            align-items: center;
+            border-radius: 0.5rem;
+            margin-left: 1rem; /* Indent sub-items */
+            transition: background-color 0.2s;
+        }
+        
+        #sidenav li a {
+            /* * FIX: Replaced 'display: block' with 'flex-grow: 1'
+             * This tells the link to fill the space,
+             * keeping it on the same line as the button.
+            */
+            flex-grow: 1;
+            padding: 10px 4px 10px 12px;
+            font-size: 0.9rem; 
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        #sidenav li .route-item:hover {
+            background-color: #374151; /* dark:bg-gray-700 */
+        }
+        
+        html:not(.dark) #sidenav li .route-item:hover {
+            background-color: #f3f4f6; /* bg-gray-100 */
+        }
+        
+        #sidenav li .route-item a.active {
+            background-color: #3b82f6; /* bg-blue-500 */
+            color: #ffffff; /* text-white */
+            border-radius: 0.5rem;
+        }
+        
+        #sidenav li .route-item a.disabled {
+            color: #6b7280; /* dark:text-gray-500 */
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        
+        html:not(.dark) #sidenav li .route-item a.disabled {
+            color: #9ca3af; /* text-gray-400 */
+        }
+        
+        #sidenav .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 2rem;
+            font-weight: bold;
+            line-height: 1;
+            cursor: pointer;
+        }
+        
+        /* NEW: Bookmark button styles */
+        .bookmark-btn {
+            /* MODIFIED: Adjusted padding */
+            padding: 8px 8px 8px 4px;
+            border-radius: 0.5rem;
+            flex-shrink: 0;
+        }
+        .bookmark-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        /* NEW: Toast (pop-up) notification styles */
+        #toast {
+            position: fixed;
+            bottom: -100px; /* Start hidden */
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            z-index: 2000;
+            transition: bottom 0.5s ease-in-out;
+            max-width: 90%;
+            text-align: center;
+        }
+        
+        #toast.show {
+            bottom: 20px;
+        }
+        
+        /* Toast themes */
+        .toast-info {
+            background-color: #2563eb; /* bg-blue-600 */
+            color: white;
+        }
+        .toast-success {
+            background-color: #16a34a; /* bg-green-600 */
+            color: white;
+        }
+        .toast-error {
+            background-color: #dc2626; /* bg-red-600 */
+            color: white;
+        }
+
     </style>
 </head>
 
 <!-- NEW: Added light/dark mode classes -->
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4 transition-colors duration-300">
+
+    <!-- NEW: Sidenav & Overlay -->
+    <div id="sidenav-overlay"></div>
+    <div id="sidenav">
+        <button id="close-nav-btn" class="close-btn text-gray-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-300">&times;</button>
+        <h2 class="text-gray-900 dark:text-white">Select Route</h2>
+        <!-- NEW: Updated Route List Structure with Bookmarks -->
+        <ul id="route-list">
+            <!-- RESTORED: Route list based on map -->
+            <li class="route-category">Pretoria Station</li>
+            <li class="route-item">
+                <a class="active" data-route-id="pta-pien">Pretoria <-> Pienaarspoort</a>
+                <button class="bookmark-btn" data-route-id="pta-pien">
+                    <svg class="star-outline-icon w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                </button>
+            </li>
+            <li class="route-item">
+                <a class="disabled" data-route-id="pta-saul">Pretoria <-> Saulsville</a>
+                <button class="bookmark-btn" data-route-id="pta-saul" disabled>
+                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                </button>
+            </li>
+             <li class="route-item">
+                <a class="disabled" data-route-id="pta-dewildt">Pretoria <-> De Wildt</a>
+                <button class="bookmark-btn" data-route-id="pta-dewildt" disabled>
+                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                </button>
+            </li>
+            
+            <li class="route-category">Johannesburg Park Station</li>
+            <li class="route-item">
+                <a class="disabled" data-route-id="jhb-soweto">JHB <-> Soweto</a>
+                <button class="bookmark-btn" data-route-id="jhb-soweto" disabled>
+                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                </button>
+            </li>
+            <li class="route-item">
+                <a class="disabled" data-route-id="jhb-springs">JHB <-> Springs</a>
+                <button class="bookmark-btn" data-route-id="jhb-springs" disabled>
+                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                </button>
+            </li>
+            <!-- NEW: Added missing routes -->
+            <li class="route-item">
+                <a class="disabled" data-route-id="jhb-daveyton">JHB <-> Daveyton</a>
+                <button class="bookmark-btn" data-route-id="jhb-daveyton" disabled>
+                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                </button>
+            </li>
+            <li class="route-item">
+                <a class="disabled" data-route-id="jhb-vereeniging">JHB <-> Vereeniging</a>
+                <button class="bookmark-btn" data-route-id="jhb-vereeniging" disabled>
+                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                </button>
+            </li>
+
+            <li class="route-category">Germiston Station</li>
+            <li class="route-item">
+                <a class="disabled" data-route-id="germ-newcanada">Germiston <-> New Canada</a>
+                <button class="bookmark-btn" data-route-id="germ-newcanada" disabled>
+                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                </button>
+            </li>
+        </ul>
+    </div>
+
 
     <!-- Loading Overlay -->
     <!-- NEW: Added light/dark mode classes -->
@@ -78,26 +358,42 @@
     <!-- NEW: Added light/dark mode classes -->
     <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 hidden">
         
-        <!-- NEW: Light/Dark Mode Toggle -->
-        <div class="absolute top-4 right-4">
-            <button id="theme-toggle-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <!-- Moon Icon (shown in light mode) -->
-                <svg id="theme-toggle-dark-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-                <!-- Sun Icon (shown in dark mode) -->
-                <svg id="theme-toggle-light-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 13a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm6.293-8.707a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 15.586a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM15.586 4.414a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 5.828A1 1 0 003 4.414l-.707.707a1 1 0 001.414 1.414l.707-.707z"></path></svg>
+        <!-- NEW: Header layout with Hamburger Menu -->
+        <div class="flex items-center justify-between relative mb-4">
+            <!-- Hamburger Menu Button -->
+            <button id="open-nav-btn" class="p-2 -ml-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
             </button>
+            
+            <!-- Theme Toggle Button -->
+            <div class="absolute top-0 right-0">
+                <button id="theme-toggle-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <!-- Moon Icon -->
+                    <svg id="theme-toggle-dark-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                    <!-- Sun Icon -->
+                    <svg id="theme-toggle-light-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 13a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm6.293-8.707a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 15.586a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM15.586 4.414a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 5.828A1 1 0 003 4.414l-.707.707a1 1 0 001.414 1.414l.707-.707z"></path></svg>
+                </button>
+            </div>
         </div>
 
+        <!-- Main Title and Subtitle -->
         <div class="text-center mb-6">
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Metrorail Train Schedules</h1>
-            <p id="current-time" class="text-lg text-blue-500 dark:text-blue-400 font-medium"></p>
+            <!-- NEW: Route Subtitle -->
+            <p id="route-subtitle" class="text-lg text-blue-500 dark:text-blue-400 font-medium">Pretoria <-> Pienaarspoort</p>
+            <!-- Adjusted text size for better balance -->
+            <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium"></p>
             <p id="current-day" class="text-sm text-gray-500 dark:text-gray-400"></p>
         </div>
 
         <!-- Station Selector -->
         <div class="mb-6">
             <label for="station-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Station:</label>
-            <select id="station-select" class="block w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-md shadow-sm p-3 text-lg focus:ring-blue-500 focus:border-blue-500">
+            <!-- 
+              FIX: Added 'appearance-none' class to remove default OS styling.
+              The custom arrow is now added via the new CSS block in the <style> tag.
+            -->
+            <select id="station-select" class="block w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-md shadow-sm p-3 text-lg focus:ring-blue-500 focus:border-blue-500 appearance-none">
                 <option value="">Select a station...</option>
             </select>
         </div>
@@ -133,7 +429,7 @@
             <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Opens the official Facebook page.</p>
         </div>
 
-        <!-- NEW: Share and Install Buttons -->
+        <!-- NEW: Share and Feedback Buttons -->
         <div class="mt-6 grid grid-cols-2 gap-4">
             <!-- Share Button -->
             <button id="share-app-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
@@ -141,10 +437,22 @@
                 Share App
             </button>
 
-            <!-- Install Button (hidden by default) -->
+            <!-- Feedback Button -->
+            <!-- 
+                FIXED: This is now a <button> and is handled by JavaScript
+                to show a "coming soon" message.
+            -->
+            <button id="feedback-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                 <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                Feedback
+            </button>
+        </div>
+        
+        <!-- NEW: Install Button (Full-width, hidden by default) -->
+        <div class="mt-4">
             <button id="install-app-btn" class="hidden flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">
                 <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
-                Install App
+                Install App on this Device
             </button>
         </div>
         
@@ -154,6 +462,9 @@
         </div>
 
     </div>
+    
+    <!-- NEW: Toast (pop-up) notification -->
+    <div id="toast" class=""></div>
 
     <script>
         // --- DOM Elements ---
@@ -173,8 +484,21 @@
         const darkIcon = document.getElementById('theme-toggle-dark-icon');
         const lightIcon = document.getElementById('theme-toggle-light-icon');
         const shareBtn = document.getElementById('share-app-btn');
+        const feedbackBtn = document.getElementById('feedback-btn'); // NEW
         const installBtn = document.getElementById('install-app-btn');
         const copiedMessage = document.getElementById('copied-message');
+        
+        // NEW: Sidenav Elements
+        const openNavBtn = document.getElementById('open-nav-btn');
+        const closeNavBtn = document.getElementById('close-nav-btn');
+        const sidenav = document.getElementById('sidenav');
+        const sidenavOverlay = document.getElementById('sidenav-overlay');
+        const routeList = document.getElementById('route-list'); // NEW
+        const routeSubtitle = document.getElementById('route-subtitle'); // NEW
+        
+        // NEW: Toast Element
+        const toast = document.getElementById('toast');
+        let toastTimeout;
 
         // --- Constants ---
         const DESTINATION_PRETORIA = 'PRETORIA STATION';
@@ -191,6 +515,22 @@
             saturday_to_pretoria: '936760708',
             saturday_to_pienaarspoort: '146806560'
         };
+        
+        // NEW: Route database for V2
+        // In V2, we will load this dynamically
+        const allRoutes = {
+            'pta-pien': {
+                name: 'Pretoria <-> Pienaarspoort',
+                gids: {
+                    to_a: '936760708', // sat-to-pretoria (placeholder)
+                    from_a: '146806560', // sat-to-pienaarspoort (placeholder)
+                    to_a_weekday: '0',
+                    from_a_weekday: '840560909',
+                },
+                stations: [] // This will be populated by parseSchedule
+            }
+            // Add other routes here when data is available
+        };
 
         // --- State ---
         let schedules = {};
@@ -202,46 +542,116 @@
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
-            loadAllSchedules();
+            loadAllSchedules(); // This will now load from cache first
             stationSelect.addEventListener('change', findNextTrains);
-            setupFeatureButtons(); // NEW: Setup listeners for new buttons
+            setupFeatureButtons(); // Setup listeners for new buttons
         });
 
         // --- Schedule Loading ---
         
+        /**
+         * NEW: Offline Caching Logic
+         * Loads schedules from cache immediately, then fetches updates.
+         */
         async function loadAllSchedules() {
+            // 1. Try to load from cache first
+            const cachedSchedules = localStorage.getItem('cachedSchedules');
+            if (cachedSchedules) {
+                try {
+                    schedules = JSON.parse(cachedSchedules);
+                    console.log("Loaded schedules from cache.");
+                    initializeApp(); // Load app instantly
+                    // Show a toast that we're using cached data
+                    showToast("Using saved schedule. Checking for updates...", "info", 3000);
+                } catch (e) {
+                    console.error("Failed to parse cached schedules:", e);
+                    localStorage.removeItem('cachedSchedules'); // Clear bad data
+                }
+            } else {
+                // No cache, show full loading screen
+                loadingOverlay.style.display = 'flex';
+            }
+
+            // 2. In parallel, fetch latest schedules
             try {
-                const [
-                    wdPienPret,
-                    wdPretPien,
-                    satPienPret,
-                    satPretPien
-                ] = await Promise.all([
-                    fetchSchedule('weekday_to_pretoria', sheetGids.weekday_to_pretoria),
-                    fetchSchedule('weekday_to_pienaarspoort', sheetGids.weekday_to_pienaarspoort),
-                    fetchSchedule('saturday_to_pretoria', sheetGids.saturday_to_pretoria),
-                    fetchSchedule('saturday_to_pienaarspoort', sheetGids.saturday_to_pienaarspoort)
-                ]);
-
-                schedules = {
-                    weekday_to_pretoria: parseSchedule(wdPienPret),
-                    weekday_to_pienaarspoort: parseSchedule(wdPretPien),
-                    saturday_to_pretoria: parseSchedule(satPienPret),
-                    saturday_to_pienaarspoort: parseSchedule(satPretPien)
-                };
+                const newSchedules = await fetchLatestSchedules();
                 
-                populateStationList();
-                startClock();
-
-                loadingOverlay.style.display = 'none';
-                mainContent.style.display = 'block';
+                // 3. Compare and update if different
+                if (JSON.stringify(newSchedules) !== JSON.stringify(schedules)) {
+                    schedules = newSchedules; // Update global state
+                    localStorage.setItem('cachedSchedules', JSON.stringify(newSchedules));
+                    console.log("Fetched and updated schedules.");
+                    
+                    // If app is already running, refresh it
+                    if (mainContent.style.display === 'block') {
+                        populateStationList(); // Re-populate stations
+                        findNextTrains(); // Re-find trains
+                        showToast("Schedule updated!", "success", 3000);
+                    } else {
+                        // This is the first load
+                        initializeApp();
+                    }
+                } else {
+                    console.log("Schedules are up-to-date.");
+                    if (!cachedSchedules) {
+                        // First load, no cache, but fetch was successful
+                         initializeApp();
+                    }
+                }
+                
+                // If we were showing the "checking" toast, hide it
+                if (toast.textContent.includes("Checking")) {
+                    toast.classList.remove('show');
+                }
 
             } catch (error) {
                 console.error("Error loading schedules:", error);
-                loadingText.textContent = `Error: ${error.message}. Please check network.`;
-                loadingText.classList.add('text-red-500');
+                
+                if (!cachedSchedules) {
+                    // First load failed, no cache: show fatal error
+                    loadingText.textContent = `Error: ${error.message}. Please check network.`;
+                    loadingText.classList.add('text-red-500');
+                } else {
+                    // App is running on cache, but update failed
+                    showToast("Offline. Using last saved schedule.", "error", 4000);
+                }
             }
         }
+        
+        /**
+         * NEW: Helper to fetch all schedules from network
+         */
+        async function fetchLatestSchedules() {
+            const [
+                wdPienPret,
+                wdPretPien,
+                satPienPret,
+                satPretPien
+            ] = await Promise.all([
+                fetchSchedule('weekday_to_pretoria', sheetGids.weekday_to_pretoria),
+                fetchSchedule('weekday_to_pienaarspoort', sheetGids.weekday_to_pienaarspoort),
+                fetchSchedule('saturday_to_pretoria', sheetGids.saturday_to_pretoria),
+                fetchSchedule('saturday_to_pienaarspoort', sheetGids.saturday_to_pienaarspoort)
+            ]);
+
+            return {
+                weekday_to_pretoria: parseSchedule(wdPienPret),
+                weekday_to_pienaarspoort: parseSchedule(wdPretPien),
+                saturday_to_pretoria: parseSchedule(satPienPret),
+                saturday_to_pienaarspoort: parseSchedule(satPretPien)
+            };
+        }
+        
+        /**
+         * NEW: Helper to run all setup tasks once schedules are ready
+         */
+        function initializeApp() {
+            populateStationList();
+            startClock();
+            loadingOverlay.style.display = 'none';
+            mainContent.style.display = 'block';
+        }
+
 
         async function fetchSchedule(name, gid) {
             // FIX for "Failed to fetch" (CORS)
@@ -291,6 +701,7 @@
         function populateStationList() {
             const stationSet = new Set();
             
+            // TODO: In V2, this will check the 'currentRoute'
             schedules.weekday_to_pretoria.rows.forEach(row => stationSet.add(row[schedules.weekday_to_pretoria.stationColumnName]));
             schedules.weekday_to_pienaarspoort.rows.forEach(row => stationSet.add(row[schedules.weekday_to_pienaarspoort.stationColumnName]));
             
@@ -304,6 +715,9 @@
                 return indexA - indexB;
             });
             
+            // Save the current value to re-select it
+            const currentSelectedStation = stationSelect.value;
+            
             stationSelect.innerHTML = '<option value="">Select a station...</option>';
             allStations.forEach(station => {
                 if (station) {
@@ -313,6 +727,11 @@
                     stationSelect.appendChild(option);
                 }
             });
+            
+            // Re-select the previous station if it's still valid
+            if (allStations.includes(currentSelectedStation)) {
+                stationSelect.value = currentSelectedStation;
+            }
         }
 
 
@@ -811,14 +1230,16 @@
         function setupFeatureButtons() {
             
             // 1. Light/Dark Mode Toggle
-            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.classList.add('dark');
-                darkIcon.classList.remove('hidden');
-                lightIcon.classList.add('hidden');
-            } else {
+            // NEW: Default to dark unless 'light' is explicitly set
+            if (localStorage.theme === 'light') {
                 document.documentElement.classList.remove('dark');
                 darkIcon.classList.add('hidden');
                 lightIcon.classList.remove('hidden');
+            } else {
+                localStorage.theme = 'dark'; // Set dark as default
+                document.documentElement.classList.add('dark');
+                darkIcon.classList.remove('hidden');
+                lightIcon.classList.add('hidden');
             }
 
             themeToggleBtn.addEventListener('click', () => {
@@ -858,19 +1279,13 @@
 
             // 3. PWA Install Button
             window.addEventListener('beforeinstallprompt', (e) => {
-                // Prevent the mini-infobar from appearing
                 e.preventDefault();
-                // Stash the event so it can be triggered later.
                 deferredPrompt = e;
-                // Update UI to notify the user they can install the PWA
                 installBtn.classList.remove('hidden');
                 
                 installBtn.addEventListener('click', () => {
-                    // Hide the install button
                     installBtn.classList.add('hidden');
-                    // Show the prompt
                     deferredPrompt.prompt();
-                    // Wait for the user to respond to the prompt
                     deferredPrompt.userChoice.then((choiceResult) => {
                         if (choiceResult.outcome === 'accepted') {
                             console.log('User accepted the install prompt');
@@ -881,14 +1296,84 @@
                     });
                 });
             });
+            
+            // 4. Sidenav Toggle Listeners
+            openNavBtn.addEventListener('click', () => {
+                sidenav.classList.add('open');
+                sidenavOverlay.classList.add('open');
+                document.body.classList.add('sidenav-open');
+            });
+
+            const closeNav = () => {
+                sidenav.classList.remove('open');
+                sidenavOverlay.classList.remove('open');
+                document.body.classList.remove('sidenav-open');
+            };
+            closeNavBtn.addEventListener('click', closeNav);
+            sidenavOverlay.addEventListener('click', closeNav);
+            
+            // 5. Feedback Button (FIXED: Shows toast message)
+            feedbackBtn.addEventListener('click', (e) => {
+                e.preventDefault(); 
+                showToast("Feedback feature coming soon.", "info", 3000);
+            });
+            
+            // 6. Route Bookmarking
+            loadDefaultRoute(); // Load saved preference
+            
+            routeList.addEventListener('click', (e) => {
+                const bookmarkBtn = e.target.closest('.bookmark-btn');
+                if (bookmarkBtn) {
+                    const routeId = bookmarkBtn.dataset.routeId;
+                    if (routeId) {
+                        setDefaultRoute(routeId);
+                    }
+                }
+            });
+        }
+        
+        // NEW: Load default route from localStorage
+        function loadDefaultRoute() {
+            const defaultRoute = localStorage.getItem('defaultRoute') || 'pta-pien'; // Default to first route
+            updateBookmarkIcons(defaultRoute);
+            
+            // TODO: In V2, this function will also update the
+            // routeSubtitle.textContent and trigger a reload of schedules/stations.
+            // For V1, it just updates the icon.
+        }
+        
+        // NEW: Set default route in localStorage and update UI
+        function setDefaultRoute(routeId) {
+            localStorage.setItem('defaultRoute', routeId);
+            updateBookmarkIcons(routeId);
+            showToast("Default route saved!", "success", 2000);
+            
+            // In V2, you would add:
+            // routeSubtitle.textContent = ...
+            // loadAllSchedules();
+        }
+        
+        // NEW: Update all bookmark icons to show the active one
+        function updateBookmarkIcons(activeRouteId) {
+            const allBookmarkBtns = document.querySelectorAll('.bookmark-btn');
+            allBookmarkBtns.forEach(btn => {
+                const outlineIcon = btn.querySelector('.star-outline-icon');
+                const filledIcon = btn.querySelector('.star-filled-icon');
+                
+                if (btn.dataset.routeId === activeRouteId) {
+                    outlineIcon.classList.add('hidden');
+                    filledIcon.classList.remove('hidden');
+                } else {
+                    outlineIcon.classList.remove('hidden');
+                    filledIcon.classList.add('hidden');
+                }
+            });
         }
         
         // NEW: Fallback copy-to-clipboard function for sharing
         function copyToClipboard(text) {
             const textArea = document.createElement('textarea');
             textArea.value = text;
-            
-            // Avoid scrolling to bottom
             textArea.style.top = "0";
             textArea.style.left = "0";
             textArea.style.position = "fixed";
@@ -900,16 +1385,38 @@
             try {
                 const successful = document.execCommand('copy');
                 if (successful) {
-                    copiedMessage.classList.remove('hidden');
-                    setTimeout(() => {
-                        copiedMessage.classList.add('hidden');
-                    }, 2000);
+                    showToast("Link copied to clipboard!", "success", 2000);
                 }
             } catch (err) {
                 console.error('Fallback: Oops, unable to copy', err);
             }
 
             document.body.removeChild(textArea);
+        }
+        
+        // NEW: Toast (pop-up) notification function
+        function showToast(message, type = 'info', duration = 3000) {
+            // Clear any existing toast
+            if (toastTimeout) {
+                clearTimeout(toastTimeout);
+            }
+
+            // Set message and style
+            toast.textContent = message;
+            toast.className = `toast-info`; // Reset
+            if (type === 'success') {
+                toast.classList.add('toast-success');
+            } else if (type === 'error') {
+                toast.classList.add('toast-error');
+            }
+            
+            // Show the toast
+            toast.classList.add('show');
+
+            // Hide after duration
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
         }
 
     </script>
