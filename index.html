@@ -461,6 +461,9 @@
             Link copied to clipboard!
         </div>
 
+        <!-- NEW: "Last Updated" date display -->
+        <p id="last-updated-date" class="text-xs text-gray-500 dark:text-gray-400 text-center mt-6"></p>
+
     </div>
     
     <!-- NEW: Toast (pop-up) notification -->
@@ -500,6 +503,9 @@
         const toast = document.getElementById('toast');
         let toastTimeout;
 
+        // NEW: Last Updated Date Element
+        const lastUpdatedEl = document.getElementById('last-updated-date');
+
         // --- Constants ---
         const DESTINATION_PRETORIA = 'PRETORIA STATION';
         const DESTINATION_PIENAARSPOORT = 'PIENAARSPOORT STATION';
@@ -516,22 +522,6 @@
             saturday_to_pienaarspoort: '146806560'
         };
         
-        // NEW: Route database for V2
-        // In V2, we will load this dynamically
-        const allRoutes = {
-            'pta-pien': {
-                name: 'Pretoria <-> Pienaarspoort',
-                gids: {
-                    to_a: '936760708', // sat-to-pretoria (placeholder)
-                    from_a: '146806560', // sat-to-pienaarspoort (placeholder)
-                    to_a_weekday: '0',
-                    from_a_weekday: '840560909',
-                },
-                stations: [] // This will be populated by parseSchedule
-            }
-            // Add other routes here when data is available
-        };
-
         // --- State ---
         let schedules = {};
         let allStations = [];
@@ -540,104 +530,80 @@
         let currentDayIndex = 0; 
         let deferredPrompt; // For PWA install
 
-        // NEW: Add a cache version. When you want to force all users
-        // to update, change this number (e.g., to 2, then 3).
-        const CACHE_VERSION = 1;
-
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
-            loadAllSchedules(); // This will now load from cache first
+            // MODIFIED: Removed caching, always fetch live.
+            loadAllSchedules(); 
             stationSelect.addEventListener('change', findNextTrains);
             setupFeatureButtons(); // Setup listeners for new buttons
         });
 
-        // --- Schedule Loading ---
+        // --- NEW: Function to check the "Last Updated" date from your sheet ---
+        /**
+         * Fetches the "Last Updated" date from cell B100 of the main sheet.
+         */
+        async function fetchLastUpdatedDate() {
+            // This URL fetches *only* cell B100 from the sheet with gid=0
+            const proxyUrl = 'https://corsproxy.io/?';
+            const gid = sheetGids.weekday_to_pretoria; // GID '0'
+            const range = 'B100:B100';
+            const checkUrl = `${sheetBaseUrl}&gid=${gid}&range=${range}`;
+            
+            const url = `${proxyUrl}${encodeURIComponent(checkUrl)}`;
+            
+            try {
+                const response = await fetch(url, { cache: 'no-cache' });
+                if (!response.ok) {
+                    throw new Error('Failed to fetch update date.');
+                }
+                const csvText = await response.text();
+                // The CSV text will just be the date, e.g., "21-Aug-2025". Trim any whitespace.
+                return csvText.trim();
+            } catch (error) {
+                console.error("Could not fetch last updated date:", error);
+                return null; // Fail gracefully
+            }
+        }
+
+
+        // --- Schedule Loading (REMOVED CACHING) ---
         
         /**
-         * NEW: Offline Caching Logic
-         * Loads schedules from cache immediately, then fetches updates.
+         * Loads schedules directly from the network every time.
+         * No caching is used.
          */
         async function loadAllSchedules() {
-            // 1. Try to load from cache first
-            // NEW: Check cache version
-            const savedVersion = localStorage.getItem('cacheVersion');
-            const cachedSchedules = localStorage.getItem('cachedSchedules');
-            
-            if (cachedSchedules && savedVersion && parseInt(savedVersion) === CACHE_VERSION) {
-                try {
-                    schedules = JSON.parse(cachedSchedules);
-                    console.log(`Loaded schedules from cache (Version ${CACHE_VERSION}).`);
-                    initializeApp(); // Load app instantly
-                    // Show a toast that we're using cached data
-                    showToast("Using saved schedule. Checking for updates...", "info", 3000);
-                } catch (e) {
-                    console.error("Failed to parse cached schedules:", e);
-                    localStorage.removeItem('cachedSchedules'); // Clear bad data
-                    localStorage.removeItem('cacheVersion');
-                    loadingOverlay.style.display = 'flex'; // Show loading screen
-                }
-            } else {
-                // No cache, or version is wrong. Show loading screen and fetch.
-                if (!cachedSchedules) {
-                    console.log("No cache found.");
-                } else {
-                    console.log(`Cache version mismatch. Old: ${savedVersion}, New: ${CACHE_VERSION}. Forcing update.`);
-                    localStorage.removeItem('cachedSchedules'); // Clear old data
-                    localStorage.removeItem('cacheVersion');
-                }
-                loadingOverlay.style.display = 'flex';
-            }
+            // Always show loading screen on start
+            loadingOverlay.style.display = 'flex';
 
-            // 2. In parallel (or on first load), fetch latest schedules
             try {
-                const newSchedules = await fetchLatestSchedules();
+                // Fetch schedules and last updated date at the same time
+                const [newSchedules, lastUpdatedDate] = await Promise.all([
+                    fetchLatestSchedules(),
+                    fetchLastUpdatedDate()
+                ]);
+
+                // Set the global schedules
+                schedules = newSchedules; 
                 
-                // 3. Compare and update if different
-                // NEW: Only update if the new data is different from what's running
-                if (JSON.stringify(newSchedules) !== JSON.stringify(schedules)) {
-                    schedules = newSchedules; // Update global state
-                    localStorage.setItem('cachedSchedules', JSON.stringify(newSchedules));
-                    localStorage.setItem('cacheVersion', CACHE_VERSION); // NEW: Set the version
-                    console.log(`Fetched and updated schedules to Version ${CACHE_VERSION}.`);
-                    
-                    // If app is already running, refresh it
-                    if (mainContent.style.display === 'block') {
-                        populateStationList(); // Re-populate stations
-                        findNextTrains(); // Re-find trains
-                        showToast("Schedule updated!", "success", 3000);
-                    } else {
-                        // This is the first load
-                        initializeApp();
-                    }
-                } else {
-                    console.log("Schedules are up-to-date.");
-                    if (!cachedSchedules || parseInt(savedVersion) !== CACHE_VERSION) {
-                        // This was a first load or a version-mismatch load
-                        initializeApp();
-                    }
+                // Set the "Last Updated" text in the UI
+                if (lastUpdatedDate) {
+                    lastUpdatedEl.textContent = `Schedule updated: ${lastUpdatedDate}`;
                 }
-                
-                // If we were showing the "checking" toast, hide it
-                if (toast.textContent.includes("Checking")) {
-                    toast.classList.remove('show');
-                }
+
+                // Initialize the app (populates stations, starts clock, hides loading)
+                initializeApp();
 
             } catch (error) {
+                // Fatal error on load
                 console.error("Error loading schedules:", error);
-                
-                if (!schedules || Object.keys(schedules).length === 0) {
-                    // First load failed, no cache: show fatal error
-                    loadingText.textContent = `Error: ${error.message}. Please check network.`;
-                    loadingText.classList.add('text-red-500');
-                } else {
-                    // App is running on cache, but update failed
-                    showToast("Offline. Using last saved schedule.", "error", 4000);
-                }
+                loadingText.textContent = `Error: ${error.message}. Please check network.`;
+                loadingText.classList.add('text-red-500');
             }
         }
         
         /**
-         * NEW: Helper to fetch all schedules from network
+         * Helper to fetch all schedules from network
          */
         async function fetchLatestSchedules() {
             const [
@@ -661,7 +627,7 @@
         }
         
         /**
-         * NEW: Helper to run all setup tasks once schedules are ready
+         * Helper to run all setup tasks once schedules are ready
          */
         function initializeApp() {
             populateStationList();
@@ -677,7 +643,8 @@
             const originalUrl = `${sheetBaseUrl}&gid=${gid}`;
             const url = `${proxyUrl}${encodeURIComponent(originalUrl)}`;
             
-            const response = await fetch(url, { cache: 'no-cache' });
+            // Use 'no-cache' to always get the freshest version
+            const response = await fetch(url, { cache: 'no-cache' }); 
             if (!response.ok) {
                 throw new Error(`${name}: Failed to fetch`);
             }
@@ -699,7 +666,8 @@
                 const values = line.split(',');
                 const row = {};
                 
-                if (!values[0] || values[0].trim() === "") {
+                // This will filter out empty lines AND your "Last Updated" row
+                if (!values[0] || values[0].trim() === "" || values[0].trim().toUpperCase() === "LAST UPDATED:") {
                     return null;
                 }
                 
@@ -711,7 +679,7 @@
                     }
                 });
                 return row;
-            }).filter(row => row !== null);
+            }).filter(row => row !== null); // Filter out the null rows
 
             return { headers, rows, stationColumnName };
         }
@@ -719,14 +687,17 @@
         function populateStationList() {
             const stationSet = new Set();
             
-            // TODO: In V2, this will check the 'currentRoute'
             schedules.weekday_to_pretoria.rows.forEach(row => stationSet.add(row[schedules.weekday_to_pretoria.stationColumnName]));
             schedules.weekday_to_pienaarspoort.rows.forEach(row => stationSet.add(row[schedules.weekday_to_pienaarspoort.stationColumnName]));
             
             allStations = Array.from(stationSet);
             
             allStations.sort((a, b) => {
-                const schedule = schedules.weekday_to_pienaarspoort;
+                // ***** THIS IS THE CRITICAL FIX *****
+                // Sort by the Pienaarspoort -> Pretoria direction
+                const schedule = schedules.weekday_to_pretoria;
+                // ************************************
+                
                 const stationCol = schedule.stationColumnName;
                 const indexA = schedule.rows.findIndex(row => row[stationCol] === a);
                 const indexB = schedule.rows.findIndex(row => row[stationCol] === b);
@@ -777,8 +748,8 @@
             
             // --- FOR TESTING ---
             /*
-            const testTimeString = "17:30:00"; // Set any time
-            const testDay = 6; // Set any day: 0=Sun, 1-5=Weekday, 6=Sat
+            const testTimeString = "04:30:00"; // Set any time
+            const testDay = 1; // Set any day: 0=Sun, 1-5=Weekday, 6=Sat
             
             timeString = testTimeString;
             day = testDay;
@@ -897,6 +868,7 @@
                 renderAtDestination(pienaarspoortTimeEl);
             } else {
                 const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_pienaarspoort : schedules.saturday_to_pienaarspoort;
+                // FIX: Removed the 'allStations' parameter
                 const { allJourneys, firstTrainName, lastTrainName } = findNextDirectTrain(selectedStation, schedule, DESTINATION_PIENAARSPOORT);
                 
                 const nowInSeconds = timeToSeconds(currentTime);
@@ -915,13 +887,17 @@
         
         function findNextJourneyToPretoria(fromStation, timeNow, schedule) {
             
+            // FIX: Removed the 'allStations' parameter
             const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, DESTINATION_PRETORIA);
 
             let allTransferJourneys = [];
+            // Use the master list 'allStations' which is sorted Pien->Pta
             const fromStationIndex = allStations.indexOf(fromStation);
             const terminationStationIndex = allStations.indexOf(TO_PRETORIA_TERMINATION_STATION);
             
-            if (fromStationIndex <= terminationStationIndex) {
+            // This logic is correct: only look for transfers if you are
+            // at or before the termination station (closer to Pienaarspoort)
+            if (fromStationIndex >= 0 && terminationStationIndex >= 0 && fromStationIndex <= terminationStationIndex) {
                  const { allJourneys: allTransfers } = findNextTransferToPretoria(fromStation, schedule);
                  allTransferJourneys = allTransfers;
             }
@@ -944,6 +920,9 @@
         }
         
         
+        // --- *** UPDATED FUNCTION *** ---
+        // This function is now smart enough to handle different
+        // station orders and trains that don't run the full route.
         function findNextDirectTrain(fromStation, schedule, destinationStation) {
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
@@ -957,16 +936,47 @@
                 const departureTime = schedule.rows
                     .find(row => row[stationCol] === fromStation)?.[train];
                 
-                const destinationTime = schedule.rows
-                    .find(row => row[stationCol] === destinationStation)?.[train];
+                // 1. If there's no departure time from this station, skip this train
+                if (!departureTime) {
+                    continue;
+                }
+
+                // 2. Find the *actual* last stop for this train
+                let actualLastStop = null;
+                let actualArrivalTime = null;
                 
-                if (departureTime && destinationTime) {
-                    allJourneys.push({
-                        type: 'direct',
-                        train: train,
-                        departureTime: departureTime,
-                        arrivalTime: destinationTime
-                    });
+                // Iterate backwards through the *sheet's rows* to find the last non-empty time
+                for (let i = schedule.rows.length - 1; i >= 0; i--) {
+                    const stationName = schedule.rows[i][stationCol];
+                    const time = schedule.rows[i][train];
+                    if (time) {
+                        actualLastStop = stationName;
+                        actualArrivalTime = time;
+                        break; // Found the last stop
+                    }
+                }
+                
+                // 3. Check if this is a valid journey
+                const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
+                const destRow = schedule.rows.find(row => row[stationCol] === actualLastStop);
+                
+                if (fromRow && destRow) {
+                    const fromIndex = schedule.rows.indexOf(fromRow);
+                    const destIndex = schedule.rows.indexOf(destRow);
+
+                    // 4. THE FIX:
+                    // If the 'from' station row comes *before* the 'destination' row
+                    // *in this specific sheet's order*, it's a valid train.
+                    if (fromIndex < destIndex) { 
+                        allJourneys.push({
+                            type: 'direct',
+                            train: train,
+                            departureTime: departureTime,
+                            arrivalTime: actualArrivalTime,
+                            actualDestination: actualLastStop // Add this info
+                        });
+                    }
+                    // else: This is a train going the wrong way, so we ignore it.
                 }
             }
             allJourneys.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
@@ -991,6 +1001,10 @@
                 const destinationTime = schedule.rows
                     .find(row => row[stationCol] === DESTINATION_PRETORIA)?.[train1];
 
+                // This logic is for transfers:
+                // Find a train that has a departure time,
+                // has a termination time at Koedoespoort,
+                // AND does *not* go all the way to Pretoria.
                 if (departureTime && terminationTime && !destinationTime) {
                     
                     const connection = findNextConnectingTrain(terminationTime, schedule);
@@ -1029,6 +1043,8 @@
                 const destinationTime = schedule.rows
                     .find(row => row[stationCol] === DESTINATION_PRETORIA)?.[train];
 
+                // Find a train that *does* go to Pretoria,
+                // and leaves *after* the first train arrives.
                 if (connectionTime && destinationTime && timeToSeconds(connectionTime) >= timeToSeconds(arrivalTimeAtTransfer)) {
                     possibleConnections.push({
                         train: train,
@@ -1042,6 +1058,7 @@
             if (possibleConnections.length === 0) {
                 return null;
             }
+            // Return the earliest connection
             return possibleConnections.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime))[0];
         }
         
@@ -1101,13 +1118,29 @@
 
             // NEW: Apply light/dark mode classes for text
             if (journey.type === 'direct') {
+                
+                // --- *** UPDATED LOGIC *** ---
+                // This now shows the *actual* final destination
+                // if it's not the one the user expected.
+                
+                const expectedDestination = (destination === DESTINATION_PRETORIA) 
+                    ? DESTINATION_PRETORIA 
+                    : DESTINATION_PIENAARSPOORT;
+
+                let destinationText;
+                if (journey.actualDestination && journey.actualDestination !== expectedDestination) {
+                    destinationText = `Terminates at ${journey.actualDestination.replace(/ STATION/g, '')}.`;
+                } else {
+                    destinationText = `Arrives ${journey.arrivalTime}.`;
+                }
+
                 element.innerHTML = `
                     <div class="text-center p-4 ${timeClass} rounded-md transition-all">
                         <div class="text-3xl font-bold text-gray-900 dark:text-white">${journey.departureTime}</div>
                         <div class="text-lg text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
                     </div>
                     <p class="text-sm text-yellow-600 dark:text-yellow-400 mt-2 text-center">
-                        Direct train (${journey.train}). Arrives ${journey.arrivalTime}.
+                        Direct train (${journey.train}). ${destinationText}
                     </p>
                 `;
             }
@@ -1120,11 +1153,11 @@
                     </div>
                     <div class="text-sm text-yellow-600 dark:text-yellow-400 mt-2 text-center space-y-1">
                         <p>
-                            Train ${journey.train1.train} (Terminates at ${journey.train1.terminationStation} at ${journey.train1.arrivalAtTransfer})
+                            Train ${journey.train1.train} (Terminates at ${journey.train1.terminationStation.replace(/ STATION/g, '')} at ${journey.train1.arrivalAtTransfer})
                         </p>
                         <p class="font-bold text-lg">TRANSFER REQUIRED</p>
                         <p>
-                            Connect to Train ${journey.connection.train} from ${journey.connection.connectionStation} at ${journey.connection.departureTime}.
+                            Connect to Train ${journey.connection.train} from ${journey.connection.connectionStation.replace(/ STATION/g, '')} at ${journey.connection.departureTime}.
                         </p>
                     </div>
                 `;
@@ -1168,6 +1201,7 @@
                 const { nextJourney } = findNextJourneyToPretoria(selectedStation, "00:00:00", nextSchedule);
                 firstTrainOfNextDay = nextJourney;
             } else {
+                // FIX: Removed 'allStations' parameter
                 const { allJourneys } = findNextDirectTrain(selectedStation, nextSchedule, DESTINATION_PIENAARSPOORT);
                 firstTrainOfNextDay = (allJourneys.length > 0) ? allJourneys[0] : null;
             }
@@ -1217,6 +1251,7 @@
                  const { nextJourney } = findNextJourneyToPretoria(selectedStation, "00:00:00", schedule);
                  firstTrain = nextJourney;
             } else {
+                 // FIX: Removed 'allStations' parameter
                  const { allJourneys } = findNextDirectTrain(selectedStation, schedule, DESTINATION_PIENAARSPOORT);
                  firstTrain = (allJourneys.length > 0) ? allJourneys[0] : null;
             }
