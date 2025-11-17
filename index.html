@@ -83,6 +83,19 @@
                 transform: scale(1.1);
             }
         }
+        
+        /* NEW: Add animation for the refresh button */
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        .spinning {
+            animation: spin 1s linear infinite;
+        }
 
         .pop-loader {
             animation: pop 1.5s infinite;
@@ -366,7 +379,11 @@
             </button>
             
             <!-- Theme Toggle Button -->
-            <div class="absolute top-0 right-0">
+            <div class="absolute top-0 right-0 flex space-x-2">
+                <!-- NEW: Force Reload Button -->
+                <button id="force-reload-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <svg id="reload-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
+                </button>
                 <button id="theme-toggle-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <!-- Moon Icon -->
                     <svg id="theme-toggle-dark-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
@@ -490,6 +507,7 @@
         const feedbackBtn = document.getElementById('feedback-btn'); // NEW
         const installBtn = document.getElementById('install-app-btn');
         const copiedMessage = document.getElementById('copied-message');
+        const forceReloadBtn = document.getElementById('force-reload-btn'); // NEW
         
         // NEW: Sidenav Elements
         const openNavBtn = document.getElementById('open-nav-btn');
@@ -509,8 +527,8 @@
         // --- Constants ---
         const DESTINATION_PRETORIA = 'PRETORIA STATION';
         const DESTINATION_PIENAARSPOORT = 'PIENAARSPOORT STATION';
-        const TO_PRETORIA_TERMINATION_STATION = 'KOEDOESPOORT STATION';
-        const TO_PRETORIA_CONNECTION_STATION = 'KOEDOESPOORT STATION';
+        // *** NEW: Renamed constant for clarity ***
+        const TRANSFER_STATION = 'KOEDOESPOORT STATION';
         
         // FIX: Re-added CORS proxy
         const sheetBaseUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQWJYv6XmGlTXuubFKucoIZNShBnW5I0J5TQ8ybwl6GtTZ6ioRUTOM2OcVN364mu36u36mS9Ey-sYG0/pub?output=csv';
@@ -532,22 +550,20 @@
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
-            // MODIFIED: Removed caching, always fetch live.
             loadAllSchedules(); 
             stationSelect.addEventListener('change', findNextTrains);
             setupFeatureButtons(); // Setup listeners for new buttons
         });
 
         // --- NEW: Function to check the "Last Updated" date from your sheet ---
-        /**
-         * Fetches the "Last Updated" date from cell B100 of the main sheet.
-         */
         async function fetchLastUpdatedDate() {
             // This URL fetches *only* cell B100 from the sheet with gid=0
             const proxyUrl = 'https://corsproxy.io/?';
             const gid = sheetGids.weekday_to_pretoria; // GID '0'
             const range = 'B100:B100';
-            const checkUrl = `${sheetBaseUrl}&gid=${gid}&range=${range}`;
+            // NEW: Add cache buster to this fetch as well
+            const cacheBuster = `_=${new Date().getTime()}`;
+            const checkUrl = `${sheetBaseUrl}&gid=${gid}&range=${range}&${cacheBuster}`;
             
             const url = `${proxyUrl}${encodeURIComponent(checkUrl)}`;
             
@@ -557,7 +573,6 @@
                     throw new Error('Failed to fetch update date.');
                 }
                 const csvText = await response.text();
-                // The CSV text will just be the date, e.g., "21-Aug-2025". Trim any whitespace.
                 return csvText.trim();
             } catch (error) {
                 console.error("Could not fetch last updated date:", error);
@@ -575,6 +590,14 @@
         async function loadAllSchedules() {
             // Always show loading screen on start
             loadingOverlay.style.display = 'flex';
+            loadingText.textContent = "Loading latest schedules...";
+            loadingText.classList.remove('text-red-500');
+
+            // NEW: Disable reload button while loading
+            const reloadIcon = forceReloadBtn.querySelector('svg');
+            forceReloadBtn.disabled = true;
+            reloadIcon.classList.add('spinning');
+
 
             try {
                 // Fetch schedules and last updated date at the same time
@@ -599,6 +622,10 @@
                 console.error("Error loading schedules:", error);
                 loadingText.textContent = `Error: ${error.message}. Please check network.`;
                 loadingText.classList.add('text-red-500');
+            } finally {
+                // NEW: Re-enable reload button
+                forceReloadBtn.disabled = false;
+                reloadIcon.classList.remove('spinning');
             }
         }
         
@@ -640,7 +667,9 @@
         async function fetchSchedule(name, gid) {
             // FIX for "Failed to fetch" (CORS)
             const proxyUrl = 'https://corsproxy.io/?';
-            const originalUrl = `${sheetBaseUrl}&gid=${gid}`;
+            // NEW: Add a random query parameter to bust the cache
+            const cacheBuster = `_=${new Date().getTime()}`;
+            const originalUrl = `${sheetBaseUrl}&gid=${gid}&${cacheBuster}`;
             const url = `${proxyUrl}${encodeURIComponent(originalUrl)}`;
             
             // Use 'no-cache' to always get the freshest version
@@ -748,7 +777,7 @@
             
             // --- FOR TESTING ---
             /*
-            const testTimeString = "04:30:00"; // Set any time
+            const testTimeString = "16:04:55"; // Set any time
             const testDay = 1; // Set any day: 0=Sun, 1-5=Weekday, 6=Sat
             
             timeString = testTimeString;
@@ -815,6 +844,8 @@
 
         function timeToSeconds(timeStr) {
             try {
+                // NEW FIX: Handle null or empty strings
+                if (!timeStr) return 0;
                 const parts = timeStr.split(':').map(Number);
                 const h = parts[0] || 0;
                 const m = parts[1] || 0;
@@ -853,12 +884,28 @@
                 renderAtDestination(pretoriaTimeEl);
             } else {
                 const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_pretoria : schedules.saturday_to_pretoria;
-                const { nextJourney, firstTrainName, lastTrainName } = findNextJourneyToPretoria(selectedStation, currentTime, schedule);
+                
+                // *** BUG FIX (Line 1419): Get ALL journeys first ***
+                const { allJourneys } = findNextJourneyToPretoria(selectedStation, "00:00:00", schedule);
+                
+                // *** BUG FIX: Now find the next journey from the full list ***
+                const nowInSeconds = timeToSeconds(currentTime);
+                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
+                const nextJourney = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
+
+                // *** BUG FIX: Get first/last names from the full list ***
+                const firstTrainName = allJourneys.length > 0 ? (allJourneys[0].train || allJourneys[0].train1.train) : null;
+                const lastTrainName = allJourneys.length > 0 ? (allJourneys[allJourneys.length - 1].train || allJourneys[allJourneys.length - 1].train1.train) : null;
                 
                 if (nextJourney) {
                     const journeyTrainName = nextJourney.train || nextJourney.train1.train;
                     nextJourney.isFirstTrain = (journeyTrainName === firstTrainName);
-                    nextJourney.isLastTrain = (journeyTrainName === lastTrainName);
+                    
+                    // *** BUG FIX (Line 1439): Check remaining train *names* ***
+                    const allRemainingTrainNames = new Set(
+                        remainingJourneys.map(j => j.train || j.train1.train)
+                    );
+                    nextJourney.isLastTrain = (allRemainingTrainNames.size === 1);
                 }
                 renderJourney(pretoriaTimeEl, pretoriaHeader, nextJourney, firstTrainName, DESTINATION_PRETORIA, 'pretoria');
             }
@@ -868,18 +915,24 @@
                 renderAtDestination(pienaarspoortTimeEl);
             } else {
                 const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_pienaarspoort : schedules.saturday_to_pienaarspoort;
-                // FIX: Removed the 'allStations' parameter
-                const { allJourneys, firstTrainName, lastTrainName } = findNextDirectTrain(selectedStation, schedule, DESTINATION_PIENAARSPOORT);
+                
+                // *** NEW: Call the new journey function ***
+                const { allJourneys } = findNextJourneyToPienaarspoort(selectedStation, "00:00:00", schedule);
                 
                 const nowInSeconds = timeToSeconds(currentTime);
-                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime) >= nowInSeconds);
+                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
+                const nextJourney = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
                 
-                let nextJourney = null;
-                if (remainingJourneys.length > 0) {
-                    nextJourney = remainingJourneys[0];
-                    nextJourney.isFirstTrain = (nextJourney.train === firstTrainName);
-                    const allRemainingTrainNames = new Set(remainingJourneys.map(j => j.train));
-                    nextJourney.isLastTrain = (allRemainingTrainNames.size === 1 && nextJourney.train === lastTrainName);
+                const firstTrainName = allJourneys.length > 0 ? (allJourneys[0].train || allJourneys[0].train1.train) : null;
+                const lastTrainName = allJourneys.length > 0 ? (allJourneys[allJourneys.length - 1].train || allJourneys[allJourneys.length - 1].train1.train) : null;
+
+                if (nextJourney) {
+                    const journeyTrainName = nextJourney.train || nextJourney.train1.train;
+                    nextJourney.isFirstTrain = (journeyTrainName === firstTrainName);
+                    const allRemainingTrainNames = new Set(
+                        remainingJourneys.map(j => j.train || j.train1.train)
+                    );
+                    nextJourney.isLastTrain = (allRemainingTrainNames.size === 1);
                 }
                 renderJourney(pienaarspoortTimeEl, pienaarspoortHeader, nextJourney, firstTrainName, DESTINATION_PIENAARSPOORT, 'pienaarspoort');
             }
@@ -887,40 +940,94 @@
         
         function findNextJourneyToPretoria(fromStation, timeNow, schedule) {
             
-            // FIX: Removed the 'allStations' parameter
             const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, DESTINATION_PRETORIA);
 
             let allTransferJourneys = [];
             // Use the master list 'allStations' which is sorted Pien->Pta
             const fromStationIndex = allStations.indexOf(fromStation);
-            const terminationStationIndex = allStations.indexOf(TO_PRETORIA_TERMINATION_STATION);
+            const terminationStationIndex = allStations.indexOf(TRANSFER_STATION);
             
-            // This logic is correct: only look for transfers if you are
-            // at or before the termination station (closer to Pienaarspoort)
             if (fromStationIndex >= 0 && terminationStationIndex >= 0 && fromStationIndex <= terminationStationIndex) {
-                 const { allJourneys: allTransfers } = findNextTransferToPretoria(fromStation, schedule);
+                 // *** UPDATED: Call to generic findTransfers ***
+                 const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, TRANSFER_STATION, DESTINATION_PRETORIA);
                  allTransferJourneys = allTransfers;
             }
 
             const allJourneys = [...allDirectJourneys, ...allTransferJourneys];
-            allJourneys.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
+            
+            // --- UPDATED SORT LOGIC ---
+            allJourneys.sort((a, b) => {
+                const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
+                const timeB = timeToSeconds(b.departureTime || b.train1.departureTime);
 
-            const { firstTrainName, lastTrainName } = getFirstAndLastTrainNames(schedule, fromStation);
+                if (timeA !== timeB) {
+                    return timeA - timeB; // Primary sort: earliest time first
+                }
+
+                // Secondary sort: Times are equal!
+                // Prefer 'transfer' (a full journey) over 'direct' (which may terminate early).
+                if (a.type === 'transfer' && b.type === 'direct') {
+                    return -1; // 'a' (transfer) comes before 'b' (direct)
+                }
+                if (a.type === 'direct' && b.type === 'transfer') {
+                    return 1; // 'b' (transfer) comes before 'a' (direct)
+                }
+                
+                return 0; // Both are same type, or something else.
+            });
+            // --- END OF UPDATE ---
             
-            const nowInSeconds = timeToSeconds(timeNow);
-            const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime) >= nowInSeconds);
-            
-            if (remainingJourneys.length === 0) {
-                return { nextJourney: null, firstTrainName, lastTrainName };
+            // Return all journeys; filtering will happen in findNextTrains
+            return { allJourneys };
+        }
+
+        // *** NEW FUNCTION ***
+        function findNextJourneyToPienaarspoort(fromStation, timeNow, schedule) {
+            // 1. Get Direct Trains
+            const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, DESTINATION_PIENAARSPOORT);
+
+            // 2. Get Transfer Trains
+            let allTransferJourneys = [];
+            const fromStationIndex = allStations.indexOf(fromStation); // Uses master list (Pien->Pta)
+            const terminationStationIndex = allStations.indexOf(TRANSFER_STATION); // Uses master list (Pien->Pta)
+
+            // This logic is for Pta -> Pien: fromIndex must be >= terminationIndex
+            // (e.g., Rissik (9) > Koedoespoort (7) on master list)
+            if (fromStationIndex >= 0 && terminationStationIndex >= 0 && fromStationIndex >= terminationStationIndex) {
+                 const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, TRANSFER_STATION, DESTINATION_PIENAARSPOORT);
+                 allTransferJourneys = allTransfers;
             }
 
-            const nextJourney = remainingJourneys[0];
+            const allJourneys = [...allDirectJourneys, ...allTransferJourneys];
+            
+            // --- UPDATED SORT LOGIC ---
+            allJourneys.sort((a, b) => {
+                const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
+                const timeB = timeToSeconds(b.departureTime || b.train1.departureTime);
 
-            return { nextJourney, firstTrainName, lastTrainName };
+                if (timeA !== timeB) {
+                    return timeA - timeB; // Primary sort: earliest time first
+                }
+
+                // Secondary sort: Times are equal!
+                // Prefer 'transfer' (a full journey) over 'direct' (which may terminate early).
+                if (a.type === 'transfer' && b.type === 'direct') {
+                    return -1; // 'a' (transfer) comes before 'b' (direct)
+                }
+                if (a.type === 'direct' && b.type === 'transfer') {
+                    return 1; // 'b' (transfer) comes before 'a' (direct)
+                }
+                
+                return 0; // Both are same type, or something else.
+            });
+            // --- END OF UPDATE ---
+            
+            // Return all journeys; filtering will happen in findNextTrains
+            return { allJourneys };
         }
         
         
-        // --- *** UPDATED FUNCTION *** ---
+        // --- *** UPDATED FUNCTION (BUG FIX) *** ---
         // This function is now smart enough to handle different
         // station orders and trains that don't run the full route.
         function findNextDirectTrain(fromStation, schedule, destinationStation) {
@@ -928,14 +1035,12 @@
             const trainHeaders = schedule.headers.slice(1);
             let allJourneys = [];
             
-            const { firstTrainName, lastTrainName } = getFirstAndLastTrainNames(schedule, fromStation);
-
             for (const train of trainHeaders) {
                 if (!train || train === "") continue;
-
-                const departureTime = schedule.rows
-                    .find(row => row[stationCol] === fromStation)?.[train];
                 
+                const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
+                const departureTime = fromRow ? fromRow[train] : null;
+
                 // 1. If there's no departure time from this station, skip this train
                 if (!departureTime) {
                     continue;
@@ -944,22 +1049,20 @@
                 // 2. Find the *actual* last stop for this train
                 let actualLastStop = null;
                 let actualArrivalTime = null;
+                let destRow = null; 
                 
                 // Iterate backwards through the *sheet's rows* to find the last non-empty time
                 for (let i = schedule.rows.length - 1; i >= 0; i--) {
-                    const stationName = schedule.rows[i][stationCol];
                     const time = schedule.rows[i][train];
                     if (time) {
-                        actualLastStop = stationName;
+                        actualLastStop = schedule.rows[i][stationCol];
                         actualArrivalTime = time;
+                        destRow = schedule.rows[i]; 
                         break; // Found the last stop
                     }
                 }
                 
                 // 3. Check if this is a valid journey
-                const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
-                const destRow = schedule.rows.find(row => row[stationCol] === actualLastStop);
-                
                 if (fromRow && destRow) {
                     const fromIndex = schedule.rows.indexOf(fromRow);
                     const destIndex = schedule.rows.indexOf(destRow);
@@ -981,10 +1084,16 @@
             }
             allJourneys.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
             
-            return { allJourneys, firstTrainName, lastTrainName };
+            // Re-calculate first/last train *after* sorting and filtering
+            const validTrainNames = allJourneys.map(j => j.train);
+            const newFirstTrain = validTrainNames[0] || null;
+            const newLastTrain = validTrainNames[validTrainNames.length - 1] || null;
+
+            return { allJourneys, firstTrainName: newFirstTrain, lastTrainName: newLastTrain };
         }
 
-        function findNextTransferToPretoria(fromStation, schedule) {
+        // *** NEW GENERIC FUNCTION ***
+        function findTransfers(fromStation, schedule, terminalStation, finalDestination) {
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let allJourneys = [];
@@ -992,65 +1101,78 @@
             for (const train1 of trainHeaders) {
                 if (!train1 || train1 === "") continue;
                 
-                const departureTime = schedule.rows
-                    .find(row => row[stationCol] === fromStation)?.[train1];
+                // Check if this train runs on the right part of the track
+                const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
+                const termRow = schedule.rows.find(row => row[stationCol] === terminalStation);
+                if (!fromRow || !termRow) continue; // Station not on this route
+
+                const fromIndex = schedule.rows.indexOf(fromRow);
+                const termIndex = schedule.rows.indexOf(termRow);
                 
-                const terminationTime = schedule.rows
-                    .find(row => row[stationCol] === TO_PRETORIA_TERMINATION_STATION)?.[train1];
+                // If 'from' is *after* 'terminal' in this sheet, it's not a valid transfer train
+                if (fromIndex > termIndex) continue;
+
+                const departureTime = fromRow[train1];
+                const terminationTime = termRow[train1];
                 
                 const destinationTime = schedule.rows
-                    .find(row => row[stationCol] === DESTINATION_PRETORIA)?.[train1];
+                    .find(row => row[stationCol] === finalDestination)?.[train1];
 
-                // This logic is for transfers:
-                // Find a train that has a departure time,
-                // has a termination time at Koedoespoort,
-                // AND does *not* go all the way to Pretoria.
+                // Find a train that:
+                // 1. Has a departure time
+                // 2. Has a termination time
+                // 3. Does NOT go to the final destination
                 if (departureTime && terminationTime && !destinationTime) {
                     
-                    const connection = findNextConnectingTrain(terminationTime, schedule);
+                    const connection = findConnections(terminationTime, schedule, terminalStation, finalDestination);
                     
                     if (connection) {
                         allJourneys.push({
                             type: 'transfer',
-                            departureTime: departureTime, 
                             train1: {
                                 train: train1,
                                 departureTime: departureTime,
                                 arrivalAtTransfer: terminationTime,
-                                terminationStation: TO_PRETORIA_TERMINATION_STATION
+                                terminationStation: terminalStation
                             },
                             connection: connection
                         });
                     }
                 }
             }
-            allJourneys.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
-            
             return { allJourneys };
         }
 
-        function findNextConnectingTrain(arrivalTimeAtTransfer, schedule) {
+        // *** NEW GENERIC FUNCTION ***
+        function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination) {
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let possibleConnections = [];
 
+            const connRow = schedule.rows.find(row => row[stationCol] === connectionStation);
+            const destRow = schedule.rows.find(row => row[stationCol] === finalDestination);
+            if (!connRow || !destRow) return null; // Stations not on this route
+
+            const connIndex = schedule.rows.indexOf(connRow);
+            const destIndex = schedule.rows.indexOf(destRow);
+
             for (const train of trainHeaders) {
                 if (!train || train === "") continue;
 
-                const connectionTime = schedule.rows
-                    .find(row => row[stationCol] === TO_PRETORIA_CONNECTION_STATION)?.[train];
-                
-                const destinationTime = schedule.rows
-                    .find(row => row[stationCol] === DESTINATION_PRETORIA)?.[train];
+                const connectionTime = connRow[train];
+                const destinationTime = destRow[train];
 
-                // Find a train that *does* go to Pretoria,
-                // and leaves *after* the first train arrives.
-                if (connectionTime && destinationTime && timeToSeconds(connectionTime) >= timeToSeconds(arrivalTimeAtTransfer)) {
+                // Check if this is a valid connecting train:
+                // 1. It must run from the connection station to the destination
+                // 2. The connection must be *after* the destination in the sheet
+                // 3. It must leave *after* the first train arrives
+                if (connectionTime && destinationTime && (connIndex < destIndex) &&
+                    timeToSeconds(connectionTime) >= timeToSeconds(arrivalTimeAtTransfer)) {
                     possibleConnections.push({
                         train: train,
                         departureTime: connectionTime,
                         arrivalTime: destinationTime,
-                        connectionStation: TO_PRETORIA_CONNECTION_STATION
+                        connectionStation: connectionStation
                     });
                 }
             }
@@ -1061,8 +1183,21 @@
             // Return the earliest connection
             return possibleConnections.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime))[0];
         }
+
         
-        function getFirstAndLastTrainNames(schedule, fromStation) {
+        // MODIFIED: Use the *full* journey list to find first/last train
+        function getFirstAndLastTrainNames(schedule, fromStation, allJourneys = null) {
+            
+            if (allJourneys) {
+                // Use the pre-compiled, sorted list if provided
+                const trainNames = allJourneys.map(j => j.train || j.train1.train);
+                return {
+                    firstTrainName: trainNames[0] || null,
+                    lastTrainName: trainNames[trainNames.length - 1] || null
+                }
+            }
+
+            // Fallback: just find first/last in the raw sheet data (less accurate for transfers)
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1).filter(h => h && h !== ""); 
             
@@ -1128,15 +1263,19 @@
                     : DESTINATION_PIENAARSPOORT;
 
                 let destinationText;
-                if (journey.actualDestination && journey.actualDestination !== expectedDestination) {
+                // FIX: Check for null arrivalTime
+                if (journey.arrivalTime && journey.actualDestination && journey.actualDestination !== expectedDestination) {
                     destinationText = `Terminates at ${journey.actualDestination.replace(/ STATION/g, '')}.`;
-                } else {
+                } else if (journey.arrivalTime) {
                     destinationText = `Arrives ${journey.arrivalTime}.`;
+                } else {
+                    // This handles the "0:00:00" bug data until the cache clears
+                    destinationText = "Arrival time not available."; // Fallback
                 }
 
                 element.innerHTML = `
                     <div class="text-center p-4 ${timeClass} rounded-md transition-all">
-                        <div class="text-3xl font-bold text-gray-900 dark:text-white">${journey.departureTime}</div>
+                        <div class="text-3xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
                         <div class="text-lg text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
                     </div>
                     <p class="text-sm text-yellow-600 dark:text-yellow-400 mt-2 text-center">
@@ -1198,12 +1337,16 @@
             let firstTrainOfNextDay = null;
 
             if (scheduleKey === 'pretoria') {
-                const { nextJourney } = findNextJourneyToPretoria(selectedStation, "00:00:00", nextSchedule);
-                firstTrainOfNextDay = nextJourney;
+                // *** BUG FIX: Use the corrected logic from findNextTrains ***
+                const { allJourneys } = findNextJourneyToPretoria(selectedStation, "00:00:00", nextSchedule);
+                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
+                firstTrainOfNextDay = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
+
             } else {
-                // FIX: Removed 'allStations' parameter
-                const { allJourneys } = findNextDirectTrain(selectedStation, nextSchedule, DESTINATION_PIENAARSPOORT);
-                firstTrainOfNextDay = (allJourneys.length > 0) ? allJourneys[0] : null;
+                // *** NEW: Call the new journey function ***
+                const { allJourneys } = findNextJourneyToPienaarspoort(selectedStation, "00:00:00", nextSchedule);
+                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
+                firstTrainOfNextDay = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
             }
 
             if (!firstTrainOfNextDay) {
@@ -1248,12 +1391,15 @@
             let firstTrain = null;
             
             if (destination === 'pretoria') {
-                 const { nextJourney } = findNextJourneyToPretoria(selectedStation, "00:00:00", schedule);
-                 firstTrain = nextJourney;
+                 // *** BUG FIX: Use the corrected logic from findNextTrains ***
+                const { allJourneys } = findNextJourneyToPretoria(selectedStation, "00:00:00", schedule);
+                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
+                firstTrain = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
             } else {
-                 // FIX: Removed 'allStations' parameter
-                 const { allJourneys } = findNextDirectTrain(selectedStation, schedule, DESTINATION_PIENAARSPOORT);
-                 firstTrain = (allJourneys.length > 0) ? allJourneys[0] : null;
+                 // *** NEW: Call the new journey function ***
+                 const { allJourneys } = findNextJourneyToPienaarspoort(selectedStation, "00:00:00", schedule);
+                 const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
+                 firstTrain = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
             }
             
             let timeHTML = 'N/A';
@@ -1382,6 +1528,12 @@
                         setDefaultRoute(routeId);
                     }
                 }
+            });
+
+            // 7. NEW: Force Reload Button
+            forceReloadBtn.addEventListener('click', () => {
+                showToast("Forcing schedule reload...", "info", 2000);
+                loadAllSchedules();
             });
         }
         
