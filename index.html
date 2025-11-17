@@ -540,6 +540,10 @@
         let currentDayIndex = 0; 
         let deferredPrompt; // For PWA install
 
+        // NEW: Add a cache version. When you want to force all users
+        // to update, change this number (e.g., to 2, then 3).
+        const CACHE_VERSION = 1;
+
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             loadAllSchedules(); // This will now load from cache first
@@ -555,32 +559,46 @@
          */
         async function loadAllSchedules() {
             // 1. Try to load from cache first
+            // NEW: Check cache version
+            const savedVersion = localStorage.getItem('cacheVersion');
             const cachedSchedules = localStorage.getItem('cachedSchedules');
-            if (cachedSchedules) {
+            
+            if (cachedSchedules && savedVersion && parseInt(savedVersion) === CACHE_VERSION) {
                 try {
                     schedules = JSON.parse(cachedSchedules);
-                    console.log("Loaded schedules from cache.");
+                    console.log(`Loaded schedules from cache (Version ${CACHE_VERSION}).`);
                     initializeApp(); // Load app instantly
                     // Show a toast that we're using cached data
                     showToast("Using saved schedule. Checking for updates...", "info", 3000);
                 } catch (e) {
                     console.error("Failed to parse cached schedules:", e);
                     localStorage.removeItem('cachedSchedules'); // Clear bad data
+                    localStorage.removeItem('cacheVersion');
+                    loadingOverlay.style.display = 'flex'; // Show loading screen
                 }
             } else {
-                // No cache, show full loading screen
+                // No cache, or version is wrong. Show loading screen and fetch.
+                if (!cachedSchedules) {
+                    console.log("No cache found.");
+                } else {
+                    console.log(`Cache version mismatch. Old: ${savedVersion}, New: ${CACHE_VERSION}. Forcing update.`);
+                    localStorage.removeItem('cachedSchedules'); // Clear old data
+                    localStorage.removeItem('cacheVersion');
+                }
                 loadingOverlay.style.display = 'flex';
             }
 
-            // 2. In parallel, fetch latest schedules
+            // 2. In parallel (or on first load), fetch latest schedules
             try {
                 const newSchedules = await fetchLatestSchedules();
                 
                 // 3. Compare and update if different
+                // NEW: Only update if the new data is different from what's running
                 if (JSON.stringify(newSchedules) !== JSON.stringify(schedules)) {
                     schedules = newSchedules; // Update global state
                     localStorage.setItem('cachedSchedules', JSON.stringify(newSchedules));
-                    console.log("Fetched and updated schedules.");
+                    localStorage.setItem('cacheVersion', CACHE_VERSION); // NEW: Set the version
+                    console.log(`Fetched and updated schedules to Version ${CACHE_VERSION}.`);
                     
                     // If app is already running, refresh it
                     if (mainContent.style.display === 'block') {
@@ -593,9 +611,9 @@
                     }
                 } else {
                     console.log("Schedules are up-to-date.");
-                    if (!cachedSchedules) {
-                        // First load, no cache, but fetch was successful
-                         initializeApp();
+                    if (!cachedSchedules || parseInt(savedVersion) !== CACHE_VERSION) {
+                        // This was a first load or a version-mismatch load
+                        initializeApp();
                     }
                 }
                 
@@ -607,7 +625,7 @@
             } catch (error) {
                 console.error("Error loading schedules:", error);
                 
-                if (!cachedSchedules) {
+                if (!schedules || Object.keys(schedules).length === 0) {
                     // First load failed, no cache: show fatal error
                     loadingText.textContent = `Error: ${error.message}. Please check network.`;
                     loadingText.classList.add('text-red-500');
