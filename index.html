@@ -1124,9 +1124,11 @@
                 // 3. Does NOT go to the final destination
                 if (departureTime && terminationTime && !destinationTime) {
                     
-                    const connection = findConnections(terminationTime, schedule, terminalStation, finalDestination);
+                    // --- LOGIC UPDATED ---
+                    // findConnections now returns an object { earliest, fullJourney }
+                    const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination);
                     
-                    if (connection) {
+                    if (connectionData && connectionData.earliest) {
                         allJourneys.push({
                             type: 'transfer',
                             train1: {
@@ -1135,7 +1137,8 @@
                                 arrivalAtTransfer: terminationTime,
                                 terminationStation: terminalStation
                             },
-                            connection: connection
+                            connection: connectionData.earliest,     // Pass the earliest connection
+                            nextFullJourney: connectionData.fullJourney // Pass the fallback full journey
                         });
                     }
                 }
@@ -1144,44 +1147,95 @@
         }
 
         // *** NEW GENERIC FUNCTION ***
+        // --- LOGIC UPDATED: This function now finds the earliest connection
+        //     AND the next full-journey connection, if they are different.
         function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination) {
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let possibleConnections = [];
 
             const connRow = schedule.rows.find(row => row[stationCol] === connectionStation);
-            const destRow = schedule.rows.find(row => row[stationCol] === finalDestination);
+            const destRow = schedule.rows.find(row => row[stationCol] === finalDestination); // Still used for direction
             if (!connRow || !destRow) return null; // Stations not on this route
 
             const connIndex = schedule.rows.indexOf(connRow);
             const destIndex = schedule.rows.indexOf(destRow);
 
+            // This direction check is vital.
+            // e.g., for Pta -> Pien, connIndex (Koedoespoort) < destIndex (Pienaarspoort)
+            // This logic relies on the row order of the *specific sheet* being used.
+            if (connIndex >= destIndex) return null; 
+
             for (const train of trainHeaders) {
                 if (!train || train === "") continue;
 
                 const connectionTime = connRow[train];
-                const destinationTime = destRow[train];
 
-                // Check if this is a valid connecting train:
-                // 1. It must run from the connection station to the destination
-                // 2. The connection must be *after* the destination in the sheet
-                // 3. It must leave *after* the first train arrives
-                if (connectionTime && destinationTime && (connIndex < destIndex) &&
-                    timeToSeconds(connectionTime) >= timeToSeconds(arrivalTimeAtTransfer)) {
-                    possibleConnections.push({
-                        train: train,
-                        departureTime: connectionTime,
-                        arrivalTime: destinationTime,
-                        connectionStation: connectionStation
-                    });
+                // 1. Is it a valid connection?
+                //    - Must have a departure time from the connection station.
+                //    - Must leave *after* the first train arrives.
+                if (connectionTime && timeToSeconds(connectionTime) >= timeToSeconds(arrivalTimeAtTransfer)) {
+                    
+                    // 2. Find its *actual* last stop (just like in findNextDirectTrain)
+                    let actualLastStop = null;
+                    let actualArrivalTime = null;
+                    let lastStopRow = null; 
+                    
+                    // Iterate backwards from the end of the sheet *to the connection station*
+                    // to find the last *valid* stop for this train.
+                    for (let i = schedule.rows.length - 1; i >= connIndex; i--) {
+                        const time = schedule.rows[i][train];
+                        if (time) {
+                            actualLastStop = schedule.rows[i][stationCol];
+                            actualArrivalTime = time;
+                            lastStopRow = schedule.rows[i];
+                            break; // Found the last stop *for this train*
+                        }
+                    }
+
+                    // 3. Is this a valid *onward* journey?
+                    //    - We found a last stop (lastStopRow is not null)
+                    //    - The index of that last stop must be *after* the connection station's index.
+                    if (lastStopRow) {
+                         const lastStopIndex = schedule.rows.indexOf(lastStopRow);
+                         if (lastStopIndex > connIndex) {
+                            // This is a valid train going in the right direction.
+                            possibleConnections.push({
+                                train: train,
+                                departureTime: connectionTime,
+                                arrivalTime: actualArrivalTime,       // Arrival at *actual last stop*
+                                actualDestination: actualLastStop,    // *Actual last stop*
+                                connectionStation: connectionStation
+                            });
+                         }
+                    }
                 }
             }
             
             if (possibleConnections.length === 0) {
-                return null;
+                return null; // No connections found at all
             }
-            // Return the earliest connection
-            return possibleConnections.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime))[0];
+            
+            // Sort by departure time
+            possibleConnections.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
+            
+            const earliestConnection = possibleConnections[0];
+            let earliestFullJourneyConnection = null;
+
+            // NEW LOGIC:
+            // Check if the earliest connection is *not* a full journey
+            if (earliestConnection.actualDestination !== finalDestination) {
+                // Find the next connection that *is* a full journey
+                earliestFullJourneyConnection = possibleConnections.find(
+                    conn => conn.actualDestination === finalDestination
+                ) || null; // Find the first one in the sorted list
+            }
+
+            // Return both
+            return {
+                earliest: earliestConnection,
+                fullJourney: earliestFullJourneyConnection
+            };
         }
 
         
@@ -1284,20 +1338,65 @@
                 `;
             }
 
+            // --- RENDER LOGIC UPDATED ---
+            // Formats the transfer info based on user feedback (cleaner, conditional bullets)
             if (journey.type === 'transfer') {
+                const conn = journey.connection; // This is the EARLIEST connection
+                const nextFull = journey.nextFullJourney; // This is the fallback full journey
+                
+                const expectedDestination = (destination === DESTINATION_PRETORIA) 
+                    ? DESTINATION_PRETORIA 
+                    : DESTINATION_PIENAARSPOORT;
+                
+                // 1. Build info for the first train
+                const train1Info = `Train ${journey.train1.train} (Terminates at ${journey.train1.terminationStation.replace(/ STATION/g, '')} at ${journey.train1.arrivalAtTransfer})`;
+                
+                let connectionInfoHTML = "";
+
+                // Check if the earliest connection terminates early AND there is a next full journey
+                if (conn.actualDestination !== expectedDestination && nextFull) {
+                    // SCENARIO: Show bullet points
+                    
+                    // Point 1: Earliest connection (e.g., to Mamelodi)
+                    const conn1DestName = `(to ${conn.actualDestination.replace(/ STATION/g, '')})`;
+                    const connection1Text = `Connect to Train ${conn.train} ${conn1DestName} at <b>${conn.departureTime}</b>`;
+
+                    // Point 2: Next full journey (e.g., to Pienaarspoort)
+                    const nextFullDestName = `(to ${nextFull.actualDestination.replace(/ STATION/g, '')})`;
+                    const connection2Text = `Next Train ${nextFull.train} ${nextFullDestName} is at <b>${nextFull.departureTime}</b>`;
+
+                    // --- UPDATED: Use inline-block and text-left for centered bullets ---
+                    connectionInfoHTML = `
+                        <ul class="inline-block text-left list-disc list-inside space-y-1">
+                            <li class="text-yellow-600 dark:text-yellow-400">${connection1Text}</li>
+                            <li class="text-gray-500 dark:text-gray-400">${connection2Text}</li>
+                        </ul>
+                    `;
+                } else {
+                    // SCENARIO: Show simple connection info
+                    // This happens if the earliest connection IS the full journey
+                    let connDestName = `(Arrives ${conn.arrivalTime})`; // User wants concise arrival
+                    
+                    const connectionText = `Connect to Train ${conn.train} at <b>${conn.departureTime}</b> ${connDestName}`;
+
+                    // --- UPDATED: Apply text color directly ---
+                    connectionInfoHTML = `
+                        <p class="text-gray-500 dark:text-gray-400">${connectionText}</p>
+                    `;
+                }
+
                 element.innerHTML = `
                     <div class="text-center p-4 ${timeClass} rounded-md transition-all">
                         <div class="text-3xl font-bold text-gray-900 dark:text-white">${journey.train1.departureTime}</div>
                         <div class="text-lg text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
                     </div>
                     <div class="text-sm text-yellow-600 dark:text-yellow-400 mt-2 text-center space-y-1">
-                        <p>
-                            Train ${journey.train1.train} (Terminates at ${journey.train1.terminationStation.replace(/ STATION/g, '')} at ${journey.train1.arrivalAtTransfer})
-                        </p>
-                        <p class="font-bold text-lg">TRANSFER REQUIRED</p>
-                        <p>
-                            Connect to Train ${journey.connection.train} from ${journey.connection.connectionStation.replace(/ STATION/g, '')} at ${journey.connection.departureTime}.
-                        </p>
+                        <p>${train1Info}</p>
+                        <p class="font-bold text-lg my-2">TRANSFER REQUIRED</p>
+                        <!-- UPDATED: Wrapper no longer has color, text-center handles alignment -->
+                        <div class="font-medium text-center">
+                           ${connectionInfoHTML}
+                        </div>
                     </div>
                 `;
             }
