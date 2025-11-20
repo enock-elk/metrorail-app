@@ -1365,9 +1365,9 @@
                     const nextFullDestName = `(to ${nextFull.actualDestination.replace(/ STATION/g, '')})`;
                     const connection2Text = `Next Train ${nextFull.train} ${nextFullDestName} is at <b>${nextFull.departureTime}</b>`;
 
-                    // --- UPDATED: Use inline-block and text-left for centered bullets ---
+                    // --- UPDATED: Use text-center list-inside for centered bullets ---
                     connectionInfoHTML = `
-                        <ul class="inline-block text-left list-disc list-inside space-y-1">
+                        <ul class="text-center list-inside list-disc space-y-1">
                             <li class="text-yellow-600 dark:text-yellow-400">${connection1Text}</li>
                             <li class="text-gray-500 dark:text-gray-400">${connection2Text}</li>
                         </ul>
