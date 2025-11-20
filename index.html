@@ -32,8 +32,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- NEW: Configure Tailwind for dark mode -->
     <script>
-        tailwind.config = {
-            darkMode: 'class', // 'class' enables manual toggling
+        // FIX: Added check to prevent ReferenceError if Tailwind fails to load
+        if (typeof tailwind !== 'undefined') {
+            tailwind.config = {
+                darkMode: 'class', // 'class' enables manual toggling
+            }
+        } else {
+            console.warn("Tailwind CSS failed to load. Styles may be missing.");
         }
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -50,14 +55,14 @@
 
         /* * NEW: Custom styles for a modern <select> dropdown
          * This adds a custom arrow, since we use "appearance-none" in the HTML.
-        */
+         */
         #station-select {
             /* Creates space on the right for our custom arrow */
             padding-right: 2.5rem; 
 
             /* * This adds a clean SVG arrow as a background image.
              * The color #6b7280 is a medium gray for light mode.
-            */
+             */
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
             background-position: right 0.5rem center;
             background-repeat: no-repeat;
@@ -66,7 +71,7 @@
 
         /* * This rule targets the select box ONLY when dark mode is active
          * and swaps the arrow for a lighter gray (#9ca3af).
-        */
+         */
         .dark #station-select {
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
         }
@@ -190,7 +195,7 @@
             /* * FIX: Replaced 'display: block' with 'flex-grow: 1'
              * This tells the link to fill the space,
              * keeping it on the same line as the button.
-            */
+             */
             flex-grow: 1;
             padding: 10px 4px 10px 12px;
             font-size: 0.9rem; 
@@ -480,6 +485,8 @@
 
         <!-- NEW: "Last Updated" date display -->
         <p id="last-updated-date" class="text-xs text-gray-500 dark:text-gray-400 text-center mt-6"></p>
+        <!-- UPDATED: Added 'Kazembe CodeWorks' footer -->
+        <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">2025 &copy; Kazembe CodeWorks. All rights reserved.</p>
 
     </div>
     
@@ -530,7 +537,6 @@
         // *** NEW: Renamed constant for clarity ***
         const TRANSFER_STATION = 'KOEDOESPOORT STATION';
         
-        // FIX: Re-added CORS proxy
         const sheetBaseUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQWJYv6XmGlTXuubFKucoIZNShBnW5I0J5TQ8ybwl6GtTZ6ioRUTOM2OcVN364mu36u36mS9Ey-sYG0/pub?output=csv';
         
         const sheetGids = {
@@ -539,6 +545,15 @@
             saturday_to_pretoria: '936760708',
             saturday_to_pienaarspoort: '146806560'
         };
+
+        // NEW: List of proxies to try in order
+        // Updated order: api.allorigins.win is first to bypass Cloudflare issue
+        const PROXIES = [
+            'https://api.allorigins.win/raw?url=',
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://corsproxy.io/?',
+            'https://thingproxy.freeboard.io/fetch/'
+        ];
         
         // --- State ---
         let schedules = {};
@@ -555,24 +570,45 @@
             setupFeatureButtons(); // Setup listeners for new buttons
         });
 
+        // --- NEW: Robust Fetch Function with Proxy Fallback ---
+        async function fetchUrlWithProxies(targetUrl) {
+            let lastError = null;
+            for (const proxy of PROXIES) {
+                try {
+                    const fullUrl = proxy + encodeURIComponent(targetUrl);
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+                    const response = await fetch(fullUrl, { 
+                        cache: 'no-cache',
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+
+                    if (response.ok) {
+                        return await response.text();
+                    } else {
+                        // If response not ok (e.g. 404, 500), throw to catch block to try next proxy
+                        throw new Error(`Status: ${response.status}`);
+                    }
+                } catch (e) {
+                    console.warn(`Proxy ${proxy} failed:`, e);
+                    lastError = e;
+                }
+            }
+            throw new Error("All proxies failed to fetch data. Please check your internet connection.");
+        }
+
         // --- NEW: Function to check the "Last Updated" date from your sheet ---
         async function fetchLastUpdatedDate() {
-            // This URL fetches *only* cell B100 from the sheet with gid=0
-            const proxyUrl = 'https://corsproxy.io/?';
             const gid = sheetGids.weekday_to_pretoria; // GID '0'
             const range = 'B100:B100';
-            // NEW: Add cache buster to this fetch as well
             const cacheBuster = `_=${new Date().getTime()}`;
             const checkUrl = `${sheetBaseUrl}&gid=${gid}&range=${range}&${cacheBuster}`;
             
-            const url = `${proxyUrl}${encodeURIComponent(checkUrl)}`;
-            
             try {
-                const response = await fetch(url, { cache: 'no-cache' });
-                if (!response.ok) {
-                    throw new Error('Failed to fetch update date.');
-                }
-                const csvText = await response.text();
+                // Use the new robust fetcher
+                const csvText = await fetchUrlWithProxies(checkUrl);
                 return csvText.trim();
             } catch (error) {
                 console.error("Could not fetch last updated date:", error);
@@ -620,7 +656,7 @@
             } catch (error) {
                 // Fatal error on load
                 console.error("Error loading schedules:", error);
-                loadingText.textContent = `Error: ${error.message}. Please check network.`;
+                loadingText.textContent = `Error: ${error.message}`;
                 loadingText.classList.add('text-red-500');
             } finally {
                 // NEW: Re-enable reload button
@@ -665,19 +701,16 @@
 
 
         async function fetchSchedule(name, gid) {
-            // FIX for "Failed to fetch" (CORS)
-            const proxyUrl = 'https://corsproxy.io/?';
             // NEW: Add a random query parameter to bust the cache
             const cacheBuster = `_=${new Date().getTime()}`;
             const originalUrl = `${sheetBaseUrl}&gid=${gid}&${cacheBuster}`;
-            const url = `${proxyUrl}${encodeURIComponent(originalUrl)}`;
             
-            // Use 'no-cache' to always get the freshest version
-            const response = await fetch(url, { cache: 'no-cache' }); 
-            if (!response.ok) {
+            try {
+                // Use the new robust fetcher
+                return await fetchUrlWithProxies(originalUrl);
+            } catch (error) {
                 throw new Error(`${name}: Failed to fetch`);
             }
-            return await response.text();
         }
 
         function parseSchedule(csvText) {
@@ -1148,7 +1181,7 @@
 
         // *** NEW GENERIC FUNCTION ***
         // --- LOGIC UPDATED: This function now finds the earliest connection
-        //     AND the next full-journey connection, if they are different.
+        //      AND the next full-journey connection, if they are different.
         function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination) {
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
@@ -1365,9 +1398,9 @@
                     const nextFullDestName = `(to ${nextFull.actualDestination.replace(/ STATION/g, '')})`;
                     const connection2Text = `Next Train ${nextFull.train} ${nextFullDestName} is at <b>${nextFull.departureTime}</b>`;
 
-                    // --- UPDATED: Use text-center list-inside for centered bullets ---
+                    // --- UPDATED: Use inline-block and text-left for centered bullets ---
                     connectionInfoHTML = `
-                        <ul class="text-center list-inside list-disc space-y-1">
+                        <ul class="inline-block text-left list-disc list-inside space-y-1">
                             <li class="text-yellow-600 dark:text-yellow-400">${connection1Text}</li>
                             <li class="text-gray-500 dark:text-gray-400">${connection2Text}</li>
                         </ul>
@@ -1610,10 +1643,11 @@
             closeNavBtn.addEventListener('click', closeNav);
             sidenavOverlay.addEventListener('click', closeNav);
             
-            // 5. Feedback Button (FIXED: Shows toast message)
+            // 5. Feedback Button (UPDATED: Opens YOUR Google Form)
             feedbackBtn.addEventListener('click', (e) => {
                 e.preventDefault(); 
-                showToast("Feedback feature coming soon.", "info", 3000);
+                // This is your actual form link
+                window.open('https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform', '_blank');
             });
             
             // 6. Route Bookmarking
