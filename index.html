@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  V2.20 FORMATTING CONFIRMATION - SHARE TEXT
-  - Confirmed: Share text uses '\n\n' to ensure a blank line between the message and the URL.
-  - Share Text format: "Check the next train times with the Metrorail App!\n\nhttps://metrorail-app.netlify.app"
-  - Maintains all previous stability fixes (Background Prefetch, Undefined Route Checks, etc.).
+  V2.26 UI UPDATE - INTEGRATED BUTTON
+  - Moved "See Full Schedule" button inside the Time Box (Left).
+  - Reverted Right Side to display only train details for a cleaner look.
+  - Added bottom padding to Time Box to accommodate the absolute positioned button.
 -->
 <html lang="en" class="dark">
 
@@ -260,6 +260,24 @@
         <div class="text-xl font-bold text-gray-700 dark:text-gray-300 mt-4" id="loading-text">Loading latest schedules...</div>
     </div>
 
+    <!-- FULL SCHEDULE MODAL (NEW V2.21) -->
+    <div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col transform transition-transform duration-300 scale-95" id="modal-content">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
+                <h3 id="modal-title" class="text-lg font-bold text-gray-900 dark:text-white">Full Schedule</h3>
+                <button id="close-modal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div id="modal-list" class="p-2 overflow-y-auto flex-grow space-y-2 bg-gray-100 dark:bg-gray-800">
+                <!-- Schedule items injected here -->
+            </div>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-xl">
+                <button id="close-modal-btn-2" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 hidden relative overflow-hidden">
         
         <div id="offline-indicator">OFFLINE MODE - USING SAVED SCHEDULE</div>
@@ -370,6 +388,14 @@
         const mainContent = document.getElementById('main-content');
         const offlineIndicator = document.getElementById('offline-indicator');
         
+        // Modal Elements
+        const scheduleModal = document.getElementById('schedule-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalList = document.getElementById('modal-list');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const closeModalBtn2 = document.getElementById('close-modal-btn-2');
+        const modalContent = document.getElementById('modal-content');
+
         const themeToggleBtn = document.getElementById('theme-toggle-btn');
         const darkIcon = document.getElementById('theme-toggle-dark-icon');
         const lightIcon = document.getElementById('theme-toggle-light-icon');
@@ -487,6 +513,9 @@
         // V2.14: Session Cache Variables
         const routeCache = {};
         const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+        
+        // V2.21: Global store for Modal Data
+        let currentScheduleData = {};
 
         document.addEventListener('DOMContentLoaded', () => {
             // V2.12: Check for pinned route on startup
@@ -499,10 +528,67 @@
             stationSelect.addEventListener('change', findNextTrains);
             setupFeatureButtons();
             updatePinUI(); // Initial UI check
+            setupModalButtons(); // V2.21
             
             // V2.17: Start Auto-Refresh Timer (every 1 min check)
             setInterval(autoRefreshData, 60 * 1000);
         });
+        
+        // --- V2.21 MODAL LOGIC ---
+        function setupModalButtons() {
+            const close = () => {
+                scheduleModal.classList.add('hidden');
+                modalContent.classList.remove('scale-100');
+                modalContent.classList.add('scale-95');
+            };
+            closeModalBtn.addEventListener('click', close);
+            closeModalBtn2.addEventListener('click', close);
+            scheduleModal.addEventListener('click', (e) => {
+                if (e.target === scheduleModal) close();
+            });
+        }
+
+        window.openScheduleModal = function(destination) {
+            const journeys = currentScheduleData[destination];
+            if (!journeys || journeys.length === 0) return;
+
+            modalTitle.textContent = `Today's Schedule to ${destination.replace(' STATION', '')}`;
+            modalList.innerHTML = '';
+            
+            journeys.forEach(journey => {
+                // Determine time
+                const time = journey.departureTime || journey.train1.departureTime;
+                const isTransfer = journey.type === 'transfer';
+                
+                // Build List Item
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center bg-white dark:bg-gray-700 p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-600";
+                
+                let trainInfo = `
+                    <span class="font-bold text-lg text-gray-900 dark:text-white">${time}</span>
+                `;
+                
+                let details = "";
+                if (isTransfer) {
+                    details = `<span class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-bold">Transfer @ ${journey.train1.terminationStation.replace(' STATION','')}</span>`;
+                } else {
+                    details = `<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">Direct</span>`;
+                }
+
+                div.innerHTML = `
+                    <div>${trainInfo}</div>
+                    <div>${details}</div>
+                `;
+                modalList.appendChild(div);
+            });
+
+            scheduleModal.classList.remove('hidden');
+            // Slight delay for animation
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95');
+                modalContent.classList.add('scale-100');
+            }, 10);
+        };
         
         // V2.17: Auto Refresh Logic
         function autoRefreshData() {
@@ -1094,8 +1180,13 @@
                 return;
             }
 
+            // Helper for station comparison
+            const normalize = (s) => s ? s.toUpperCase().replace(/ STATION/g, '').trim() : '';
+            const isAtStation = (s1, s2) => normalize(s1) === normalize(s2);
+
             // --- GENERIC ROUTE LOGIC ---
-            if (selectedStation === currentRoute.destA) {
+            // 1. Find Train to Destination A (Up)
+            if (isAtStation(selectedStation, currentRoute.destA)) {
                 renderAtDestination(pretoriaTimeEl);
             } else {
                 const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_a : schedules.saturday_to_a;
@@ -1103,7 +1194,8 @@
                 processAndRenderJourney(allJourneys, pretoriaTimeEl, pretoriaHeader, currentRoute.destA);
             }
 
-            if (selectedStation === currentRoute.destB) {
+            // 2. Find Train to Destination B (Down)
+            if (isAtStation(selectedStation, currentRoute.destB)) {
                 renderAtDestination(pienaarspoortTimeEl);
             } else {
                 const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_b : schedules.saturday_to_b;
@@ -1120,6 +1212,11 @@
             const firstTrainName = allJourneys.length > 0 ? (allJourneys[0].train || allJourneys[0].train1.train) : null;
             
             if (nextJourney) {
+                // V2.21: Save data for the modal
+                // Ensure currentScheduleData exists
+                if (!currentScheduleData) currentScheduleData = {};
+                currentScheduleData[destination] = remainingJourneys;
+
                 const journeyTrainName = nextJourney.train || nextJourney.train1.train;
                 nextJourney.isFirstTrain = (journeyTrainName === firstTrainName);
                 
@@ -1365,6 +1462,13 @@
             const departureTime = journey.departureTime || journey.train1.departureTime;
             const timeDiffStr = calculateTimeDiffString(departureTime);
 
+            // BUTTON HTML
+            const buttonHtml = `
+                <button onclick="openScheduleModal('${destination.replace(/'/g, "\\'")}')" class="absolute bottom-0 left-0 w-full text-[10px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">
+                    See Full Schedule
+                </button>
+            `;
+
             if (journey.type === 'direct') {
                 let destinationText;
                 if (journey.arrivalTime && journey.actualDestination && journey.actualDestination !== destination) {
@@ -1375,14 +1479,24 @@
                     destinationText = "Arrival time not available."; 
                 }
 
+                // V2.26: Use Flexbox layout, but with Button inside the left Time Box
                 element.innerHTML = `
-                    <div class="text-center p-4 ${timeClass} rounded-md transition-all">
-                        <div class="text-3xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
-                        <div class="text-lg text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
+                    <div class="flex flex-row items-stretch space-x-3">
+                        <!-- Left: Time Box -->
+                        <div class="relative flex-shrink-0 w-1/2 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-md transition-all">
+                            <div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
+                            <div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
+                            ${buttonHtml}
+                        </div>
+
+                        <!-- Right: Details Only -->
+                        <div class="flex-grow flex flex-col justify-center space-y-1">
+                            <p class="text-sm text-gray-800 dark:text-gray-200 leading-tight">
+                                <span class="font-bold text-yellow-600 dark:text-yellow-400">Direct train (${journey.train})</span>.<br>
+                                ${destinationText}
+                            </p>
+                        </div>
                     </div>
-                    <p class="text-sm text-yellow-600 dark:text-yellow-400 mt-2 text-center">
-                        Direct train (${journey.train}). ${destinationText}
-                    </p>
                 `;
             }
 
@@ -1416,15 +1530,26 @@
                 }
 
                 element.innerHTML = `
-                    <div class="text-center p-4 ${timeClass} rounded-md transition-all">
-                        <div class="text-3xl font-bold text-gray-900 dark:text-white">${journey.train1.departureTime}</div>
-                        <div class="text-lg text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
-                    </div>
-                    <div class="text-sm text-yellow-600 dark:text-yellow-400 mt-2 text-center space-y-1">
-                        <p>${train1Info}</p>
-                        <p class="font-bold text-lg my-2">TRANSFER REQUIRED</p>
-                        <div class="font-medium text-center">
-                           ${connectionInfoHTML}
+                    <div class="flex flex-col space-y-2">
+                         <div class="flex flex-row items-stretch space-x-3">
+                            <!-- Left: Time Box -->
+                            <div class="relative flex-shrink-0 w-1/2 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-md transition-all">
+                                <div class="text-2xl font-bold text-gray-900 dark:text-white">${journey.train1.departureTime}</div>
+                                <div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
+                                ${buttonHtml}
+                            </div>
+                             <!-- Right: Simple Info -->
+                            <div class="flex-grow flex flex-col justify-center space-y-1">
+                                <p class="text-sm text-gray-800 dark:text-gray-200 leading-tight">
+                                   ${train1Info}
+                                </p>
+                            </div>
+                         </div>
+                        <div class="text-xs text-center bg-yellow-50 dark:bg-gray-800 p-2 rounded border border-yellow-200 dark:border-gray-600">
+                            <p class="font-bold text-yellow-700 dark:text-yellow-500 mb-1">TRANSFER REQUIRED</p>
+                            <div class="font-medium">
+                               ${connectionInfoHTML}
+                            </div>
                         </div>
                     </div>
                 `;
