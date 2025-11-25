@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  V2.18 STABILITY FIX - UNDEFINED ROUTE PREVENTION
-  - Added rigorous null-checking for `currentRoute` in `loadAllSchedules` and `findNextTrains`.
-  - Prevents "Cannot read properties of undefined (reading 'name')" and "(reading 'destA')" crashes.
-  - Ensures app fails gracefully (logs error) instead of breaking the UI if a route ID is invalid.
-  - Maintains V2.17 Background Prefetching and V2.14 Session Caching.
+  V2.20 FORMATTING CONFIRMATION - SHARE TEXT
+  - Confirmed: Share text uses '\n\n' to ensure a blank line between the message and the URL.
+  - Share Text format: "Check the next train times with the Metrorail App!\n\nhttps://metrorail-app.netlify.app"
+  - Maintains all previous stability fixes (Background Prefetch, Undefined Route Checks, etc.).
 -->
 <html lang="en" class="dark">
 
@@ -1068,6 +1067,9 @@
             const selectedStation = stationSelect.value;
             const currentRoute = ROUTES[currentRouteId];
             
+            // V2.15 Fix: Guard against invalid route
+            if (!currentRoute) return;
+
             const msgDefault = `<div class="text-gray-500 mt-4">Select a station to see times</div>`;
             pretoriaTimeEl.innerHTML = "";
             pienaarspoortTimeEl.innerHTML = "";
@@ -1583,7 +1585,7 @@
             shareBtn.addEventListener('click', async () => {
                 const shareData = {
                     title: 'Metrorail Train Schedules',
-                    text: 'Check the next train times with the Metrorail App.\n\n[https://metrorail-app.netlify.app/](https://metrorail-app.netlify.app/)',
+                    text: 'Check the next train times with the Metrorail App!\n\nhttps://metrorail-app.netlify.app',
                     url: window.location.href
                 };
                 try {
@@ -1682,7 +1684,7 @@
             
             feedbackBtn.addEventListener('click', (e) => {
                 e.preventDefault(); 
-                window.open('[https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform](https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform)', '_blank');
+                window.open('https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform', '_blank');
             });
         }
         
