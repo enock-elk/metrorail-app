@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  NEW: Added classes for light/dark mode support.
-  Default is "dark" as you designed it.
+  V2.11 LOGIC FIX - MISSING SHEET HANDLING
+  - Configured Mabopane Route to explicitly ignore missing Saturday sheets.
+  - Added "Smart Next Day" logic: If Friday night & no Saturday schedule exists, it automatically looks ahead to Monday.
+  - Prevents crashes when switching days if a specific schedule is missing.
 -->
 <html lang="en" class="dark">
 
@@ -20,22 +22,22 @@
       gtag('config', 'G-FH8XHJVTPW');
     </script>
 
-    <!-- PWA / Mobile App Support (FIXED with absolute paths) -->
-    <link rel="manifest" href="/manifest.json">
-    <link rel="icon" href="/icons/icon-192.png" type="image/png"> <!-- Browser tab icon -->
+    <!-- PWA / Mobile App Support -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png" type="image/png"> 
+    <link rel="shortcut icon" href="icons/icon-192.png" type="image/png">
+    
     <meta name="theme-color" content="#1f2937">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Metrorail">
-    <link rel="apple-touch-icon" href="/icons/icon-192.png"> 
+    <link rel="apple-touch-icon" href="icons/icon-192.png"> 
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- NEW: Configure Tailwind for dark mode -->
     <script>
-        // FIX: Added check to prevent ReferenceError if Tailwind fails to load
         if (typeof tailwind !== 'undefined') {
             tailwind.config = {
-                darkMode: 'class', // 'class' enables manual toggling
+                darkMode: 'class',
             }
         } else {
             console.warn("Tailwind CSS failed to load. Styles may be missing.");
@@ -46,324 +48,221 @@
         body {
             font-family: 'Inter', sans-serif;
             touch-action: manipulation;
-            /* NEW: Prevent scrolling when sidenav is open */
         }
         
         body.sidenav-open {
             overflow: hidden;
         }
 
-        /* * NEW: Custom styles for a modern <select> dropdown
-         * This adds a custom arrow, since we use "appearance-none" in the HTML.
-         */
         #station-select {
-            /* Creates space on the right for our custom arrow */
             padding-right: 2.5rem; 
-
-            /* * This adds a clean SVG arrow as a background image.
-             * The color #6b7280 is a medium gray for light mode.
-             */
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
             background-position: right 0.5rem center;
             background-repeat: no-repeat;
             background-size: 1.5em 1.5em;
         }
 
-        /* * This rule targets the select box ONLY when dark mode is active
-         * and swaps the arrow for a lighter gray (#9ca3af).
-         */
         .dark #station-select {
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
         }
 
-
-        /* Custom style for the "popping" loader */
         @keyframes pop {
-
-            0%,
-            100% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.1);
-            }
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
         }
         
-        /* NEW: Add animation for the refresh button */
         @keyframes spin {
-            from {
-                transform: rotate(0deg);
-            }
-            to {
-                transform: rotate(360deg);
-            }
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
-        .spinning {
-            animation: spin 1s linear infinite;
-        }
-
-        .pop-loader {
-            animation: pop 1.5s infinite;
-        }
+        .spinning { animation: spin 1s linear infinite; }
+        .pop-loader { animation: pop 1.5s infinite; }
         
-        /* NEW: Styles for the side navigation */
+        /* Sidenav Styles */
         #sidenav-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease-in-out;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); z-index: 999;
+            opacity: 0; visibility: hidden; transition: opacity 0.3s ease-in-out;
         }
-        
-        #sidenav-overlay.open {
-            opacity: 1;
-            visibility: visible;
-        }
+        #sidenav-overlay.open { opacity: 1; visibility: visible; }
         
         #sidenav {
-            position: fixed;
-            top: 0;
-            left: -280px; /* Hidden by default */
-            width: 280px;
-            height: 100%;
-            background-color: #1f2937; /* dark:bg-gray-800 */
-            z-index: 1000;
-            transition: left 0.3s ease-in-out;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
+            position: fixed; top: 0; left: -280px; width: 280px; height: 100%;
+            background-color: #1f2937; z-index: 1000;
+            transition: left 0.3s ease-in-out; box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            padding: 20px; display: flex; flex-direction: column;
         }
-        
-        #sidenav.open {
-            left: 0;
-        }
-
-        /* NEW: Light mode styles for sidenav */
-        html:not(.dark) #sidenav {
-             background-color: #ffffff; /* bg-white */
-        }
+        #sidenav.open { left: 0; }
+        html:not(.dark) #sidenav { background-color: #ffffff; }
         
         #sidenav h2 {
-            font-size: 1.25rem;
-            font-weight: 700;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #4b5563; /* dark:border-gray-600 */
+            font-size: 1.25rem; font-weight: 700; padding-bottom: 10px;
+            border-bottom: 1px solid #4b5563;
         }
-        
-        html:not(.dark) #sidenav h2 {
-            border-bottom-color: #e5e7eb; /* border-gray-200 */
-        }
+        html:not(.dark) #sidenav h2 { border-bottom-color: #e5e7eb; }
 
         #sidenav ul {
-            list-style: none;
-            padding: 0;
-            margin-top: 20px;
-            flex-grow: 1;
-            overflow-y: auto;
+            list-style: none; padding: 0; margin-top: 20px;
+            flex-grow: 1; overflow-y: auto;
         }
         
-        /* NEW: Styles for route list */
         #sidenav .route-category {
-            font-size: 0.875rem; /* text-sm */
-            font-weight: 600; /* font-semibold */
-            color: #9ca3af; /* dark:text-gray-400 */
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            font-size: 0.75rem; font-weight: 700; color: #9ca3af;
+            text-transform: uppercase; letter-spacing: 0.05em;
             padding: 16px 16px 8px 16px;
+            border-top: 1px solid #374151;
+            margin-top: 8px;
         }
-        
-        html:not(.dark) #sidenav .route-category {
-            color: #6b7280; /* text-gray-500 */
-        }
+        #sidenav .route-category:first-child { border-top: none; margin-top: 0; }
+        html:not(.dark) #sidenav .route-category { color: #6b7280; border-top-color: #e5e7eb; }
         
         #sidenav li .route-item {
-            display: flex;
-            /* MODIFIED: Removed justify-content */
-            align-items: center;
-            border-radius: 0.5rem;
-            margin-left: 1rem; /* Indent sub-items */
-            transition: background-color 0.2s;
+            display: flex; align-items: center; border-radius: 0.5rem;
+            margin-left: 0.5rem; transition: background-color 0.2s;
+            padding: 2px 0;
         }
         
         #sidenav li a {
-            /* * FIX: Replaced 'display: block' with 'flex-grow: 1'
-             * This tells the link to fill the space,
-             * keeping it on the same line as the button.
-             */
-            flex-grow: 1;
-            padding: 10px 4px 10px 12px;
-            font-size: 0.9rem; 
-            font-weight: 500;
-            cursor: pointer;
+            flex-grow: 1; padding: 10px 4px 10px 12px;
+            font-size: 0.9rem; font-weight: 500; cursor: pointer;
+            display: flex; align-items: center;
         }
 
-        #sidenav li .route-item:hover {
-            background-color: #374151; /* dark:bg-gray-700 */
-        }
-        
-        html:not(.dark) #sidenav li .route-item:hover {
-            background-color: #f3f4f6; /* bg-gray-100 */
-        }
+        #sidenav li .route-item:hover { background-color: #374151; }
+        html:not(.dark) #sidenav li .route-item:hover { background-color: #f3f4f6; }
         
         #sidenav li .route-item a.active {
-            background-color: #3b82f6; /* bg-blue-500 */
-            color: #ffffff; /* text-white */
-            border-radius: 0.5rem;
+            background-color: #3b82f6; color: #ffffff; border-radius: 0.5rem;
         }
         
         #sidenav li .route-item a.disabled {
-            color: #6b7280; /* dark:text-gray-500 */
-            cursor: not-allowed;
-            opacity: 0.6;
+            color: #6b7280; cursor: pointer; 
+            opacity: 0.8;
         }
-        
-        html:not(.dark) #sidenav li .route-item a.disabled {
-            color: #9ca3af; /* text-gray-400 */
-        }
+        html:not(.dark) #sidenav li .route-item a.disabled { color: #4b5563; }
         
         #sidenav .close-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            font-size: 2rem;
-            font-weight: bold;
-            line-height: 1;
-            cursor: pointer;
+            position: absolute; top: 10px; right: 10px;
+            font-size: 2rem; font-weight: bold; line-height: 1; cursor: pointer;
         }
         
-        /* NEW: Bookmark button styles */
         .bookmark-btn {
-            /* MODIFIED: Adjusted padding */
-            padding: 8px 8px 8px 4px;
-            border-radius: 0.5rem;
-            flex-shrink: 0;
+            padding: 8px 8px 8px 4px; border-radius: 0.5rem; flex-shrink: 0;
         }
-        .bookmark-btn svg {
-            width: 20px;
-            height: 20px;
-        }
+        .bookmark-btn svg { width: 20px; height: 20px; }
         
-        /* NEW: Toast (pop-up) notification styles */
+        /* Color Dots for Routes */
+        .route-dot {
+            width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 10px;
+        }
+        .dot-green { background-color: #22c55e; }
+        .dot-orange { background-color: #f97316; }
+        .dot-purple { background-color: #a855f7; }
+        .dot-red { background-color: #ef4444; }
+        .dot-yellow { background-color: #eab308; }
+        .dot-blue { background-color: #3b82f6; }
+        
         #toast {
-            position: fixed;
-            bottom: -100px; /* Start hidden */
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 12px 24px;
-            border-radius: 0.5rem;
-            font-weight: 500;
-            z-index: 2000;
-            transition: bottom 0.5s ease-in-out;
-            max-width: 90%;
+            position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; border-radius: 0.5rem; font-weight: 500;
+            z-index: 2000; transition: bottom 0.5s ease-in-out;
+            max-width: 90%; text-align: center;
+        }
+        #toast.show { bottom: 20px; }
+        .toast-info { background-color: #2563eb; color: white; }
+        .toast-success { background-color: #16a34a; color: white; }
+        .toast-error { background-color: #dc2626; color: white; }
+        
+        #offline-indicator {
+            display: none;
+            background-color: #f59e0b;
+            color: white;
             text-align: center;
-        }
-        
-        #toast.show {
-            bottom: 20px;
-        }
-        
-        /* Toast themes */
-        .toast-info {
-            background-color: #2563eb; /* bg-blue-600 */
-            color: white;
-        }
-        .toast-success {
-            background-color: #16a34a; /* bg-green-600 */
-            color: white;
-        }
-        .toast-error {
-            background-color: #dc2626; /* bg-red-600 */
-            color: white;
+            padding: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            width: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 40;
         }
 
     </style>
 </head>
 
-<!-- NEW: Added light/dark mode classes -->
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4 transition-colors duration-300">
 
-    <!-- NEW: Sidenav & Overlay -->
     <div id="sidenav-overlay"></div>
     <div id="sidenav">
         <button id="close-nav-btn" class="close-btn text-gray-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-300">&times;</button>
         <h2 class="text-gray-900 dark:text-white">Select Route</h2>
-        <!-- NEW: Updated Route List Structure with Bookmarks -->
         <ul id="route-list">
-            <!-- RESTORED: Route list based on map -->
-            <li class="route-category">Pretoria Station</li>
+            
+            <!-- NORTHERN CORRIDOR -->
+            <li class="route-category">Northern Corridor (Pretoria)</li>
+            
             <li class="route-item">
-                <a class="active" data-route-id="pta-pien">Pretoria <-> Pienaarspoort</a>
+                <a class="active" data-route-id="pta-pien">
+                    <span class="route-dot dot-green"></span>Pretoria <-> Pienaarspoort
+                </a>
                 <button class="bookmark-btn" data-route-id="pta-pien">
                     <svg class="star-outline-icon w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
                     <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
                 </button>
             </li>
-            <li class="route-item">
-                <a class="disabled" data-route-id="pta-saul">Pretoria <-> Saulsville</a>
-                <button class="bookmark-btn" data-route-id="pta-saul" disabled>
-                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                </button>
-            </li>
-             <li class="route-item">
-                <a class="disabled" data-route-id="pta-dewildt">Pretoria <-> De Wildt</a>
-                <button class="bookmark-btn" data-route-id="pta-dewildt" disabled>
-                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                </button>
-            </li>
             
-            <li class="route-category">Johannesburg Park Station</li>
+            <!-- MABOPANE ROUTE LIVE -->
             <li class="route-item">
-                <a class="disabled" data-route-id="jhb-soweto">JHB <-> Soweto</a>
-                <button class="bookmark-btn" data-route-id="jhb-soweto" disabled>
-                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                </button>
-            </li>
-            <li class="route-item">
-                <a class="disabled" data-route-id="jhb-springs">JHB <-> Springs</a>
-                <button class="bookmark-btn" data-route-id="jhb-springs" disabled>
-                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                </button>
-            </li>
-            <!-- NEW: Added missing routes -->
-            <li class="route-item">
-                <a class="disabled" data-route-id="jhb-daveyton">JHB <-> Daveyton</a>
-                <button class="bookmark-btn" data-route-id="jhb-daveyton" disabled>
-                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                </button>
-            </li>
-            <li class="route-item">
-                <a class="disabled" data-route-id="jhb-vereeniging">JHB <-> Vereeniging</a>
-                <button class="bookmark-btn" data-route-id="jhb-vereeniging" disabled>
-                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
+                <a class="" data-route-id="pta-mabopane">
+                    <span class="route-dot dot-orange"></span>Pretoria <-> Mabopane
+                </a>
+                <button class="bookmark-btn" data-route-id="pta-mabopane">
+                    <svg class="star-outline-icon w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
                     <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
                 </button>
             </li>
 
-            <li class="route-category">Germiston Station</li>
             <li class="route-item">
-                <a class="disabled" data-route-id="germ-newcanada">Germiston <-> New Canada</a>
-                <button class="bookmark-btn" data-route-id="germ-newcanada" disabled>
-                    <svg class="star-outline-icon w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                </button>
+                <a class="disabled" data-route-id="pta-saul">
+                    <span class="route-dot dot-green"></span>Pretoria <-> Saulsville
+                </a>
+                <button class="bookmark-btn" disabled><svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg></button>
+            </li>
+            
+            <!-- SOUTHERN CORRIDOR -->
+            <li class="route-category">Southern Corridor</li>
+            
+            <li class="route-item">
+                <a class="disabled" data-route-id="jhb-vereeniging">
+                    <span class="route-dot dot-purple"></span>JHB <-> Vereeniging
+                </a>
+                <button class="bookmark-btn" disabled><svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg></button>
+            </li>
+
+            <!-- EASTERN CORRIDOR -->
+            <li class="route-category">Eastern Corridor</li>
+            
+            <li class="route-item">
+                <a class="disabled" data-route-id="jhb-springs">
+                    <span class="route-dot dot-red"></span>JHB <-> Springs
+                </a>
+                <button class="bookmark-btn" disabled><svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg></button>
+            </li>
+            
+            <!-- SOWETO CORRIDOR -->
+            <li class="route-category">Soweto Corridor</li>
+            
+            <li class="route-item">
+                <a class="disabled" data-route-id="jhb-soweto">
+                    <span class="route-dot dot-yellow"></span>JHB <-> Naledi
+                </a>
+                <button class="bookmark-btn" disabled><svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg></button>
             </li>
         </ul>
     </div>
 
 
-    <!-- Loading Overlay -->
-    <!-- NEW: Added light/dark mode classes -->
     <div id="loading-overlay" class="absolute inset-0 bg-gray-100 dark:bg-gray-900 flex flex-col items-center justify-center z-50">
         <svg class="pop-loader h-16 w-16 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -372,78 +271,58 @@
         <div class="text-xl font-bold text-gray-700 dark:text-gray-300 mt-4" id="loading-text">Loading latest schedules...</div>
     </div>
 
-    <!-- Main Content -->
-    <!-- NEW: Added light/dark mode classes -->
-    <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 hidden">
+    <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 hidden relative overflow-hidden">
         
-        <!-- NEW: Header layout with Hamburger Menu -->
-        <div class="flex items-center justify-between relative mb-4">
-            <!-- Hamburger Menu Button -->
+        <div id="offline-indicator">OFFLINE MODE - USING SAVED SCHEDULE</div>
+
+        <div class="flex items-center justify-between relative mb-4 mt-4">
             <button id="open-nav-btn" class="p-2 -ml-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
             </button>
             
-            <!-- Theme Toggle Button -->
             <div class="absolute top-0 right-0 flex space-x-2">
-                <!-- NEW: Force Reload Button -->
                 <button id="force-reload-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <svg id="reload-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                 </button>
                 <button id="theme-toggle-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <!-- Moon Icon -->
                     <svg id="theme-toggle-dark-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-                    <!-- Sun Icon -->
                     <svg id="theme-toggle-light-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 13a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm6.293-8.707a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 15.586a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM15.586 4.414a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 5.828A1 1 0 003 4.414l-.707.707a1 1 0 001.414 1.414l.707-.707z"></path></svg>
                 </button>
             </div>
         </div>
 
-        <!-- Main Title and Subtitle -->
         <div class="text-center mb-6">
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Metrorail Train Schedules</h1>
-            <!-- NEW: Route Subtitle -->
             <p id="route-subtitle" class="text-lg text-blue-500 dark:text-blue-400 font-medium">Pretoria <-> Pienaarspoort</p>
-            <!-- Adjusted text size for better balance -->
             <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium"></p>
             <p id="current-day" class="text-sm text-gray-500 dark:text-gray-400"></p>
         </div>
 
-        <!-- Station Selector -->
         <div class="mb-6">
             <label for="station-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Station:</label>
-            <!-- 
-              FIX: Added 'appearance-none' class to remove default OS styling.
-              The custom arrow is now added via the new CSS block in the <style> tag.
-            -->
             <select id="station-select" class="block w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-md shadow-sm p-3 text-lg focus:ring-blue-500 focus:border-blue-500 appearance-none">
                 <option value="">Select a station...</option>
             </select>
         </div>
 
-        <!-- Train Times -->
         <div class="space-y-6">
-            <!-- Pretoria Card -->
             <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 shadow-lg">
                 <h2 id="pretoria-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">
                     Next train to <span class="text-blue-500 dark:text-blue-400">Pretoria</span>
                 </h2>
                 <div id="pretoria-time" class="text-center min-h-[60px] flex items-center justify-center">
-                    <!-- Content will be injected by JS -->
                 </div>
             </div>
 
-            <!-- Pienaarspoort Card -->
             <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 shadow-lg">
                 <h2 id="pienaarspoort-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">
                     Next train to <span class="text-blue-500 dark:text-blue-400">Pienaarspoort</span>
                 </h2>
                 <div id="pienaarspoort-time" class="text-center min-h-[60px] flex items-center justify-center">
-                    <!-- Content will be injected by JS -->
                 </div>
             </div>
         </div>
 
-        <!-- Official Updates Button -->
         <div class="mt-8 text-center">
             <a href="https://www.facebook.com/metrorailgp" target="_blank" rel="noopener noreferrer" id="check-updates-btn" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105">
                 🚄 View Official Metrorail Updates
@@ -451,26 +330,18 @@
             <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Opens the official Facebook page.</p>
         </div>
 
-        <!-- NEW: Share and Feedback Buttons -->
         <div class="mt-6 grid grid-cols-2 gap-4">
-            <!-- Share Button -->
             <button id="share-app-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
                 <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg>
                 Share App
             </button>
 
-            <!-- Feedback Button -->
-            <!-- 
-                FIXED: This is now a <button> and is handled by JavaScript
-                to show a "coming soon" message.
-            -->
             <button id="feedback-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
                  <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
                 Feedback
             </button>
         </div>
         
-        <!-- NEW: Install Button (Full-width, hidden by default) -->
         <div class="mt-4">
             <button id="install-app-btn" class="hidden flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">
                 <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
@@ -478,23 +349,18 @@
             </button>
         </div>
         
-        <!-- NEW: "Copied!" message (hidden by default) -->
         <div id="copied-message" class="hidden text-center text-green-500 font-medium mt-2">
             Link copied to clipboard!
         </div>
 
-        <!-- NEW: "Last Updated" date display -->
         <p id="last-updated-date" class="text-xs text-gray-500 dark:text-gray-400 text-center mt-6"></p>
-        <!-- UPDATED: Added 'Kazembe CodeWorks' footer -->
         <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">2025 &copy; Kazembe CodeWorks. All rights reserved.</p>
 
     </div>
     
-    <!-- NEW: Toast (pop-up) notification -->
     <div id="toast" class=""></div>
 
     <script>
-        // --- DOM Elements ---
         const stationSelect = document.getElementById('station-select');
         const pretoriaTimeEl = document.getElementById('pretoria-time');
         const pienaarspoortTimeEl = document.getElementById('pienaarspoort-time');
@@ -505,79 +371,144 @@
         const loadingOverlay = document.getElementById('loading-overlay');
         const loadingText = document.getElementById('loading-text');
         const mainContent = document.getElementById('main-content');
+        const offlineIndicator = document.getElementById('offline-indicator');
         
-        // NEW: Feature Buttons
         const themeToggleBtn = document.getElementById('theme-toggle-btn');
         const darkIcon = document.getElementById('theme-toggle-dark-icon');
         const lightIcon = document.getElementById('theme-toggle-light-icon');
         const shareBtn = document.getElementById('share-app-btn');
-        const feedbackBtn = document.getElementById('feedback-btn'); // NEW
+        const feedbackBtn = document.getElementById('feedback-btn');
         const installBtn = document.getElementById('install-app-btn');
         const copiedMessage = document.getElementById('copied-message');
-        const forceReloadBtn = document.getElementById('force-reload-btn'); // NEW
+        const forceReloadBtn = document.getElementById('force-reload-btn');
         
-        // NEW: Sidenav Elements
         const openNavBtn = document.getElementById('open-nav-btn');
         const closeNavBtn = document.getElementById('close-nav-btn');
         const sidenav = document.getElementById('sidenav');
         const sidenavOverlay = document.getElementById('sidenav-overlay');
-        const routeList = document.getElementById('route-list'); // NEW
-        const routeSubtitle = document.getElementById('route-subtitle'); // NEW
+        const routeList = document.getElementById('route-list');
+        const routeSubtitle = document.getElementById('route-subtitle');
         
-        // NEW: Toast Element
         const toast = document.getElementById('toast');
         let toastTimeout;
 
-        // NEW: Last Updated Date Element
         const lastUpdatedEl = document.getElementById('last-updated-date');
 
-        // --- Constants ---
-        const DESTINATION_PRETORIA = 'PRETORIA STATION';
-        const DESTINATION_PIENAARSPOORT = 'PIENAARSPOORT STATION';
-        // *** NEW: Renamed constant for clarity ***
-        const TRANSFER_STATION = 'KOEDOESPOORT STATION';
+        // --- V2.0 CONFIG: ROUTES OBJECT ---
+        const ROUTES = {
+            'pta-pien': {
+                id: 'pta-pien',
+                name: "Pretoria <-> Pienaarspoort",
+                isActive: true,
+                destA: 'PRETORIA STATION',
+                destB: 'PIENAARSPOORT STATION',
+                transferStation: 'KOEDOESPOORT STATION',
+                sheetGids: {
+                    weekday_to_a: '0',          // Maps to PIEN-to-PTA_Weekday
+                    weekday_to_b: '840560909',  // Maps to PTA-to-PIEN_Weekday
+                    saturday_to_a: '936760708', // Maps to PIEN-to-PTA_Sat
+                    saturday_to_b: '146806560'  // Maps to PTA-to-PIEN_Sat
+                }
+            },
+            'pta-mabopane': {
+                id: 'pta-mabopane',
+                name: "Pretoria <-> Mabopane",
+                isActive: true, // ENABLED!
+                destA: 'PRETORIA STATION',
+                destB: 'MABOPANE STATION',
+                transferStation: null, // No transfers needed for this direct line
+                sheetGids: {
+                    weekday_to_a: '651285244', // Maps to MAB-to-PTA_Weekday
+                    weekday_to_b: '1536230875', // Maps to PTA-to-MAB_Weekday
+                    saturday_to_a: '', // DISABLED: No Saturday Sheet yet
+                    saturday_to_b: ''  // DISABLED: No Saturday Sheet yet
+                }
+            },
+            'pta-saul': {
+                id: 'pta-saul',
+                name: "Pretoria <-> Saulsville",
+                isActive: false,
+                destA: 'PRETORIA STATION',
+                destB: 'SAULSVILLE STATION',
+                transferStation: null,
+                sheetGids: {}
+            },
+            // ... other routes ...
+        };
+
+        let currentRouteId = 'pta-pien'; // Default route
         
         const sheetBaseUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQWJYv6XmGlTXuubFKucoIZNShBnW5I0J5TQ8ybwl6GtTZ6ioRUTOM2OcVN364mu36u36mS9Ey-sYG0/pub?output=csv';
         
-        const sheetGids = {
-            weekday_to_pretoria: '0',
-            weekday_to_pienaarspoort: '840560909',
-            saturday_to_pretoria: '936760708',
-            saturday_to_pienaarspoort: '146806560'
-        };
-
-        // NEW: List of proxies to try in order
-        // Updated order: api.allorigins.win is first to bypass Cloudflare issue
+        // V2.7 UPDATE: Proxy shuffling will be handled in code to avoid fixed order
         const PROXIES = [
+            '', // Direct fetch attempt (Keep first)
             'https://api.allorigins.win/raw?url=',
             'https://api.codetabs.com/v1/proxy?quest=',
-            'https://corsproxy.io/?',
-            'https://thingproxy.freeboard.io/fetch/'
+            'https://thingproxy.freeboard.io/fetch/', 
+            'https://corsproxy.io/?'
         ];
         
-        // --- State ---
         let schedules = {};
         let allStations = [];
         let currentTime = null;
         let currentDayType = 'weekday'; 
         let currentDayIndex = 0; 
-        let deferredPrompt; // For PWA install
+        let deferredPrompt; 
 
-        // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             loadAllSchedules(); 
             stationSelect.addEventListener('change', findNextTrains);
-            setupFeatureButtons(); // Setup listeners for new buttons
+            setupFeatureButtons();
         });
 
-        // --- NEW: Robust Fetch Function with Proxy Fallback ---
+        // --- V2.7 CACHING HELPERS ---
+        function saveToLocalCache(routeId, scheduleData, lastUpdated) {
+            try {
+                const cacheKey = `metro_schedule_${routeId}`;
+                const data = {
+                    timestamp: new Date().getTime(),
+                    schedules: scheduleData,
+                    lastUpdatedDate: lastUpdated
+                };
+                localStorage.setItem(cacheKey, JSON.stringify(data));
+                console.log(`Saved schedule for ${routeId} to cache.`);
+            } catch (e) {
+                console.warn("Failed to save to local cache (storage full?)", e);
+            }
+        }
+
+        function loadFromLocalCache(routeId) {
+            try {
+                const cacheKey = `metro_schedule_${routeId}`;
+                const stored = localStorage.getItem(cacheKey);
+                if (stored) {
+                    return JSON.parse(stored);
+                }
+            } catch (e) {
+                console.warn("Failed to load from local cache", e);
+            }
+            return null;
+        }
+
         async function fetchUrlWithProxies(targetUrl) {
             let lastError = null;
-            for (const proxy of PROXIES) {
+            
+            // V2.7: Shuffle proxies (except the first one 'Direct')
+            const direct = PROXIES[0];
+            const proxiesToShuffle = PROXIES.slice(1);
+            // Simple shuffle
+            proxiesToShuffle.sort(() => Math.random() - 0.5);
+            const activeProxyList = [direct, ...proxiesToShuffle];
+
+            for (const proxy of activeProxyList) {
                 try {
-                    const fullUrl = proxy + encodeURIComponent(targetUrl);
+                    const fullUrl = proxy ? proxy + encodeURIComponent(targetUrl) : targetUrl;
+                    
+                    console.log(`Attempting fetch via: ${proxy ? proxy : 'Direct'}...`); 
+
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+                    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
                     const response = await fetch(fullUrl, { 
                         cache: 'no-cache',
@@ -586,112 +517,191 @@
                     clearTimeout(timeoutId);
 
                     if (response.ok) {
-                        return await response.text();
+                        const text = await response.text();
+                        // Validation: Junk Filter
+                        if (text.trim().startsWith('<') || 
+                            text.includes('<!DOCTYPE') || 
+                            text.includes('sourceMappingURL') || 
+                            text.includes('function(') ||
+                            text.includes('var a=new')) {
+                             console.warn(`Junk data detected from ${proxy || 'Direct'}. Skipping.`);
+                             // V2.8 Specifc Error for debugging
+                             throw new Error("SHEET_NOT_PUBLISHED_OR_HTML_JUNK");
+                        }
+                        return text;
                     } else {
-                        // If response not ok (e.g. 404, 500), throw to catch block to try next proxy
+                        if (response.status === 0) {
+                             throw new Error("CORS/Opaque response (Direct fetch failed)");
+                        }
                         throw new Error(`Status: ${response.status}`);
                     }
                 } catch (e) {
-                    console.warn(`Proxy ${proxy} failed:`, e);
+                    console.warn(`Fetch failed via ${proxy || 'Direct'}:`, e);
                     lastError = e;
+                    // Stop trying other proxies if it's clearly a publishing issue
+                    if (e.message === "SHEET_NOT_PUBLISHED_OR_HTML_JUNK") {
+                        throw e;
+                    }
                 }
+            }
+            if (lastError && lastError.message === "SHEET_NOT_PUBLISHED_OR_HTML_JUNK") {
+                throw new Error("SHEET_NOT_PUBLISHED");
             }
             throw new Error("All proxies failed to fetch data. Please check your internet connection.");
         }
 
-        // --- NEW: Function to check the "Last Updated" date from your sheet ---
         async function fetchLastUpdatedDate() {
-            const gid = sheetGids.weekday_to_pretoria; // GID '0'
+            const currentRoute = ROUTES[currentRouteId];
+            const gid = currentRoute.sheetGids.weekday_to_a || '0'; 
             const range = 'B100:B100';
             const cacheBuster = `_=${new Date().getTime()}`;
             const checkUrl = `${sheetBaseUrl}&gid=${gid}&range=${range}&${cacheBuster}`;
             
             try {
-                // Use the new robust fetcher
                 const csvText = await fetchUrlWithProxies(checkUrl);
                 return csvText.trim();
             } catch (error) {
-                console.error("Could not fetch last updated date:", error);
-                return null; // Fail gracefully
+                console.warn("Could not fetch last updated date (Non-critical):", error);
+                return null; 
             }
         }
 
+        const delay = ms => new Promise(res => setTimeout(res, ms));
 
-        // --- Schedule Loading (REMOVED CACHING) ---
-        
-        /**
-         * Loads schedules directly from the network every time.
-         * No caching is used.
-         */
         async function loadAllSchedules() {
-            // Always show loading screen on start
+            const currentRoute = ROUTES[currentRouteId];
+            
+            // 1. UPDATE UI TEXT
+            routeSubtitle.textContent = currentRoute.name;
+            pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
+            pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
+            offlineIndicator.style.display = 'none'; // Reset offline badge
+
+            // 2. CHECK ACTIVE STATUS
+            if (!currentRoute.isActive) {
+                renderComingSoon(currentRoute.name);
+                mainContent.style.display = 'block';
+                loadingOverlay.style.display = 'none';
+                return; 
+            }
+
+            // 3. FETCH DATA
             loadingOverlay.style.display = 'flex';
             loadingText.textContent = "Loading latest schedules...";
             loadingText.classList.remove('text-red-500');
+            // Reset loader UI
+            loadingOverlay.innerHTML = `
+                <svg class="pop-loader h-16 w-16 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.828 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                </svg>
+                <div class="text-xl font-bold text-gray-700 dark:text-gray-300 mt-4" id="loading-text">Loading latest schedules...</div>
+            `;
 
-            // NEW: Disable reload button while loading
             const reloadIcon = forceReloadBtn.querySelector('svg');
             forceReloadBtn.disabled = true;
             reloadIcon.classList.add('spinning');
 
-
             try {
-                // Fetch schedules and last updated date at the same time
-                const [newSchedules, lastUpdatedDate] = await Promise.all([
-                    fetchLatestSchedules(),
-                    fetchLastUpdatedDate()
-                ]);
-
-                // Set the global schedules
-                schedules = newSchedules; 
+                // Fetch date (Soft fail allowed)
+                let lastUpdatedDate = await fetchLastUpdatedDate();
                 
-                // Set the "Last Updated" text in the UI
+                await delay(200);
+
+                // Fetch schedules sequentially
+                const newSchedules = await fetchLatestSchedulesSequentially(currentRoute);
+
+                // SUCCESS! Save to Cache
+                schedules = newSchedules; 
+                saveToLocalCache(currentRouteId, newSchedules, lastUpdatedDate);
+                
                 if (lastUpdatedDate) {
                     lastUpdatedEl.textContent = `Schedule updated: ${lastUpdatedDate}`;
+                } else {
+                    lastUpdatedEl.textContent = 'Schedule date unavailable';
                 }
 
-                // Initialize the app (populates stations, starts clock, hides loading)
                 initializeApp();
 
             } catch (error) {
-                // Fatal error on load
-                console.error("Error loading schedules:", error);
-                loadingText.textContent = `Error: ${error.message}`;
-                loadingText.classList.add('text-red-500');
+                console.error("Network/Proxy Error:", error);
+                
+                // --- V2.7 OFFLINE FALLBACK ---
+                const cachedData = loadFromLocalCache(currentRouteId);
+                if (cachedData) {
+                    console.log("Using cached data due to network failure.");
+                    schedules = cachedData.schedules;
+                    const cachedDate = cachedData.lastUpdatedDate || "Unknown";
+                    lastUpdatedEl.textContent = `Schedule updated: ${cachedDate} (Offline Copy)`;
+                    
+                    // Show Offline Indicator
+                    offlineIndicator.style.display = 'block';
+                    
+                    initializeApp();
+                    showToast("Network failed. Showing cached schedule.", "info", 4000);
+                } else {
+                    // V2.9: NON-BLOCKING ERROR HANDLING
+                    loadingOverlay.style.display = 'none';
+                    mainContent.style.display = 'block';
+                    renderRouteError(error);
+                }
             } finally {
-                // NEW: Re-enable reload button
                 forceReloadBtn.disabled = false;
                 reloadIcon.classList.remove('spinning');
             }
         }
         
-        /**
-         * Helper to fetch all schedules from network
-         */
-        async function fetchLatestSchedules() {
-            const [
-                wdPienPret,
-                wdPretPien,
-                satPienPret,
-                satPretPien
-            ] = await Promise.all([
-                fetchSchedule('weekday_to_pretoria', sheetGids.weekday_to_pretoria),
-                fetchSchedule('weekday_to_pienaarspoort', sheetGids.weekday_to_pienaarspoort),
-                fetchSchedule('saturday_to_pretoria', sheetGids.saturday_to_pretoria),
-                fetchSchedule('saturday_to_pienaarspoort', sheetGids.saturday_to_pienaarspoort)
-            ]);
-
-            return {
-                weekday_to_pretoria: parseSchedule(wdPienPret),
-                weekday_to_pienaarspoort: parseSchedule(wdPretPien),
-                saturday_to_pretoria: parseSchedule(satPienPret),
-                saturday_to_pienaarspoort: parseSchedule(satPretPien)
-            };
+        // V2.9: New function to render errors inside the schedule cards
+        function renderRouteError(error) {
+            const isPublishError = error.message.includes("SHEET_NOT_PUBLISHED");
+            const msg = isPublishError 
+                ? "Schedule data not accessible (Not Published). Please check Google Sheet settings."
+                : "Connection failed. Please check internet or try again later.";
+            
+            const html = `
+                <div class="text-center p-4 bg-red-100 dark:bg-red-900 rounded-md border border-red-400 dark:border-red-700">
+                    <div class="text-2xl mb-2">⚠️</div>
+                    <p class="text-red-800 dark:text-red-200 font-medium">${msg}</p>
+                    ${isPublishError ? '<p class="text-xs text-red-600 dark:text-red-300 mt-2">Owner: Go to File > Share > Publish to web > Ensure all new sheets are selected.</p>' : ''}
+                </div>
+            `;
+            
+            pretoriaTimeEl.innerHTML = html;
+            pienaarspoortTimeEl.innerHTML = html;
+            
+            // Clear dropdown so users don't try to select stations on a broken route
+            stationSelect.innerHTML = '<option>Unable to load stations</option>';
         }
         
-        /**
-         * Helper to run all setup tasks once schedules are ready
-         */
+        async function fetchLatestSchedulesSequentially(route) {
+            const results = {};
+            
+            // 1. Weekday Up
+            results.weekday_to_a = parseSchedule(await fetchSchedule('weekday_to_a', route.sheetGids.weekday_to_a));
+            await delay(200); 
+
+            // 2. Weekday Down
+            results.weekday_to_b = parseSchedule(await fetchSchedule('weekday_to_b', route.sheetGids.weekday_to_b));
+            await delay(200);
+
+            // 3. Saturday Up (Check if configured first!)
+            if (route.sheetGids.saturday_to_a) {
+                results.saturday_to_a = parseSchedule(await fetchSchedule('saturday_to_a', route.sheetGids.saturday_to_a));
+                await delay(200);
+            } else {
+                results.saturday_to_a = parseSchedule(""); // Empty dummy
+            }
+
+            // 4. Saturday Down (Check if configured first!)
+            if (route.sheetGids.saturday_to_b) {
+                results.saturday_to_b = parseSchedule(await fetchSchedule('saturday_to_b', route.sheetGids.saturday_to_b));
+            } else {
+                results.saturday_to_b = parseSchedule(""); // Empty dummy
+            }
+            
+            return results;
+        }
+        
         function initializeApp() {
             populateStationList();
             startClock();
@@ -699,26 +709,32 @@
             mainContent.style.display = 'block';
         }
 
-
         async function fetchSchedule(name, gid) {
-            // NEW: Add a random query parameter to bust the cache
+            if (!gid) return ""; 
+            
             const cacheBuster = `_=${new Date().getTime()}`;
             const originalUrl = `${sheetBaseUrl}&gid=${gid}&${cacheBuster}`;
             
             try {
-                // Use the new robust fetcher
                 return await fetchUrlWithProxies(originalUrl);
             } catch (error) {
-                throw new Error(`${name}: Failed to fetch`);
+                console.warn(`${name}: Failed to fetch (GID: ${gid})`);
+                throw error; // Throw so main loader knows to use cache
             }
         }
 
         function parseSchedule(csvText) {
+            if (!csvText) return { headers: [], rows: [], stationColumnName: '' };
+
+            if (csvText.includes('<!DOCTYPE') || csvText.includes('<script') || csvText.includes('function(')) {
+                console.error("Parser Safety: Detected HTML/JS instead of CSV data.");
+                return { headers: [], rows: [], stationColumnName: '' };
+            }
+
             const lines = csvText.trim().split(/\r\n|\n/);
             let headerLineIndex = lines.findIndex(line => line.trim().toUpperCase().startsWith('STATION'));
             if (headerLineIndex === -1) {
                 headerLineIndex = 0; 
-                console.warn("Could not find 'STATION' in CSV, assuming header is line 0.");
             }
             
             const headers = lines[headerLineIndex].split(',').map(h => h.trim());
@@ -726,13 +742,18 @@
             
             const rows = lines.slice(headerLineIndex + 1).map(line => {
                 const values = line.split(',');
-                const row = {};
                 
-                // This will filter out empty lines AND your "Last Updated" row
-                if (!values[0] || values[0].trim() === "" || values[0].trim().toUpperCase() === "LAST UPDATED:") {
+                if (!values[0] || values[0].trim() === "" || values[0].trim().toUpperCase().startsWith("LAST UPDATED")) {
                     return null;
                 }
+
+                const hasTimes = values.slice(1).some(val => val && val.trim().length > 0);
+
+                if (!hasTimes) {
+                    return null; 
+                }
                 
+                const row = {};
                 row[stationColumnName] = values[0].trim();
                 
                 headers.slice(1).forEach((header, index) => {
@@ -741,32 +762,28 @@
                     }
                 });
                 return row;
-            }).filter(row => row !== null); // Filter out the null rows
+            }).filter(row => row !== null); 
 
             return { headers, rows, stationColumnName };
         }
         
         function populateStationList() {
             const stationSet = new Set();
+            const currentRoute = ROUTES[currentRouteId];
             
-            schedules.weekday_to_pretoria.rows.forEach(row => stationSet.add(row[schedules.weekday_to_pretoria.stationColumnName]));
-            schedules.weekday_to_pienaarspoort.rows.forEach(row => stationSet.add(row[schedules.weekday_to_pienaarspoort.stationColumnName]));
+            if(schedules.weekday_to_a.rows) schedules.weekday_to_a.rows.forEach(row => stationSet.add(row[schedules.weekday_to_a.stationColumnName]));
+            if(schedules.weekday_to_b.rows) schedules.weekday_to_b.rows.forEach(row => stationSet.add(row[schedules.weekday_to_b.stationColumnName]));
             
             allStations = Array.from(stationSet);
             
             allStations.sort((a, b) => {
-                // ***** THIS IS THE CRITICAL FIX *****
-                // Sort by the Pienaarspoort -> Pretoria direction
-                const schedule = schedules.weekday_to_pretoria;
-                // ************************************
-                
+                const schedule = schedules.weekday_to_a;
                 const stationCol = schedule.stationColumnName;
                 const indexA = schedule.rows.findIndex(row => row[stationCol] === a);
                 const indexB = schedule.rows.findIndex(row => row[stationCol] === b);
                 return indexA - indexB;
             });
             
-            // Save the current value to re-select it
             const currentSelectedStation = stationSelect.value;
             
             stationSelect.innerHTML = '<option value="">Select a station...</option>';
@@ -779,15 +796,14 @@
                 }
             });
             
-            // Re-select the previous station if it's still valid
             if (allStations.includes(currentSelectedStation)) {
                 stationSelect.value = currentSelectedStation;
+            } else {
+                stationSelect.value = ""; 
             }
         }
 
 
-        // --- Clock and Time ---
-        
         function pad(num) {
             return num.toString().padStart(2, '0');
         }
@@ -801,26 +817,11 @@
             let day;
             let timeString;
             
-            // --- FOR REAL-TIME USE ---
             const now = new Date();
             day = now.getDay(); 
             timeString = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
             currentTimeEl.textContent = `Current Time: ${timeString}`;
             
-            
-            // --- FOR TESTING ---
-            /*
-            const testTimeString = "16:04:55"; // Set any time
-            const testDay = 1; // Set any day: 0=Sun, 1-5=Weekday, 6=Sat
-            
-            timeString = testTimeString;
-            day = testDay;
-            currentTimeEl.textContent = `Current Time (TEST): ${timeString}`;
-            */
-            
-            
-            // --- END OF TIME BLOCK ---
-
             const newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
             const newDayIndex = day;
             
@@ -877,7 +878,6 @@
 
         function timeToSeconds(timeStr) {
             try {
-                // NEW FIX: Handle null or empty strings
                 if (!timeStr) return 0;
                 const parts = timeStr.split(':').map(Number);
                 const h = parts[0] || 0;
@@ -891,179 +891,108 @@
         }
 
 
-        // --- Core Train Finding Logic ---
-
         function findNextTrains() {
             const selectedStation = stationSelect.value;
+            const currentRoute = ROUTES[currentRouteId];
             
+            const msgDefault = `<div class="text-gray-500 mt-4">Select a station to see times</div>`;
             pretoriaTimeEl.innerHTML = "";
             pienaarspoortTimeEl.innerHTML = "";
             
-            pretoriaHeader.innerHTML = 'Next train to <span class="text-blue-500 dark:text-blue-400">Pretoria</span>';
-            pienaarspoortHeader.innerHTML = 'Next train to <span class="text-blue-500 dark:text-blue-400">Pienaarspoort</span>';
+            pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
+            pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
             
-            if (!selectedStation) {
+            if (!selectedStation) return;
+            
+            const selectedOption = stationSelect.options[stationSelect.selectedIndex];
+            
+            if (selectedOption.textContent.includes("(No Service)")) {
+                const msg = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No trains stop here.</div>`;
+                pretoriaTimeEl.innerHTML = msg;
+                pienaarspoortTimeEl.innerHTML = msg;
                 return;
             }
             
             if (currentDayType === 'sunday') {
-                renderNoService(pretoriaTimeEl, 'pretoria');
-                renderNoService(pienaarspoortTimeEl, 'pienaarspoort');
+                renderNoService(pretoriaTimeEl, currentRoute.destA);
+                renderNoService(pienaarspoortTimeEl, currentRoute.destB);
                 return;
             }
 
-            // --- Find Journey to Pretoria ---
-            if (selectedStation === DESTINATION_PRETORIA) {
+            // --- GENERIC ROUTE LOGIC ---
+            if (selectedStation === currentRoute.destA) {
                 renderAtDestination(pretoriaTimeEl);
             } else {
-                const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_pretoria : schedules.saturday_to_pretoria;
-                
-                // *** BUG FIX (Line 1419): Get ALL journeys first ***
-                const { allJourneys } = findNextJourneyToPretoria(selectedStation, "00:00:00", schedule);
-                
-                // *** BUG FIX: Now find the next journey from the full list ***
-                const nowInSeconds = timeToSeconds(currentTime);
-                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
-                const nextJourney = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
-
-                // *** BUG FIX: Get first/last names from the full list ***
-                const firstTrainName = allJourneys.length > 0 ? (allJourneys[0].train || allJourneys[0].train1.train) : null;
-                const lastTrainName = allJourneys.length > 0 ? (allJourneys[allJourneys.length - 1].train || allJourneys[allJourneys.length - 1].train1.train) : null;
-                
-                if (nextJourney) {
-                    const journeyTrainName = nextJourney.train || nextJourney.train1.train;
-                    nextJourney.isFirstTrain = (journeyTrainName === firstTrainName);
-                    
-                    // *** BUG FIX (Line 1439): Check remaining train *names* ***
-                    const allRemainingTrainNames = new Set(
-                        remainingJourneys.map(j => j.train || j.train1.train)
-                    );
-                    nextJourney.isLastTrain = (allRemainingTrainNames.size === 1);
-                }
-                renderJourney(pretoriaTimeEl, pretoriaHeader, nextJourney, firstTrainName, DESTINATION_PRETORIA, 'pretoria');
+                const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_a : schedules.saturday_to_a;
+                const { allJourneys } = findNextJourney(selectedStation, "00:00:00", schedule, currentRoute.destA, currentRoute.transferStation);
+                processAndRenderJourney(allJourneys, pretoriaTimeEl, pretoriaHeader, currentRoute.destA);
             }
 
-            // --- Find Journey to Pienaarspoort ---
-            if (selectedStation === DESTINATION_PIENAARSPOORT) {
+            if (selectedStation === currentRoute.destB) {
                 renderAtDestination(pienaarspoortTimeEl);
             } else {
-                const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_pienaarspoort : schedules.saturday_to_pienaarspoort;
-                
-                // *** NEW: Call the new journey function ***
-                const { allJourneys } = findNextJourneyToPienaarspoort(selectedStation, "00:00:00", schedule);
-                
-                const nowInSeconds = timeToSeconds(currentTime);
-                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
-                const nextJourney = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
-                
-                const firstTrainName = allJourneys.length > 0 ? (allJourneys[0].train || allJourneys[0].train1.train) : null;
-                const lastTrainName = allJourneys.length > 0 ? (allJourneys[allJourneys.length - 1].train || allJourneys[allJourneys.length - 1].train1.train) : null;
-
-                if (nextJourney) {
-                    const journeyTrainName = nextJourney.train || nextJourney.train1.train;
-                    nextJourney.isFirstTrain = (journeyTrainName === firstTrainName);
-                    const allRemainingTrainNames = new Set(
-                        remainingJourneys.map(j => j.train || j.train1.train)
-                    );
-                    nextJourney.isLastTrain = (allRemainingTrainNames.size === 1);
-                }
-                renderJourney(pienaarspoortTimeEl, pienaarspoortHeader, nextJourney, firstTrainName, DESTINATION_PIENAARSPOORT, 'pienaarspoort');
+                const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_b : schedules.saturday_to_b;
+                const { allJourneys } = findNextJourney(selectedStation, "00:00:00", schedule, currentRoute.destB, currentRoute.transferStation);
+                processAndRenderJourney(allJourneys, pienaarspoortTimeEl, pienaarspoortHeader, currentRoute.destB);
             }
         }
         
-        function findNextJourneyToPretoria(fromStation, timeNow, schedule) {
+        function processAndRenderJourney(allJourneys, element, header, destination) {
+            const nowInSeconds = timeToSeconds(currentTime);
+            const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
+            const nextJourney = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
+
+            const firstTrainName = allJourneys.length > 0 ? (allJourneys[0].train || allJourneys[0].train1.train) : null;
             
-            const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, DESTINATION_PRETORIA);
+            if (nextJourney) {
+                const journeyTrainName = nextJourney.train || nextJourney.train1.train;
+                nextJourney.isFirstTrain = (journeyTrainName === firstTrainName);
+                
+                const allRemainingTrainNames = new Set(
+                    remainingJourneys.map(j => j.train || j.train1.train)
+                );
+                nextJourney.isLastTrain = (allRemainingTrainNames.size === 1);
+            }
+            renderJourney(element, header, nextJourney, firstTrainName, destination);
+        }
+
+        // --- GENERIC JOURNEY FINDER ---
+        function findNextJourney(fromStation, timeNow, schedule, destination, transferStation) {
+            const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, destination);
 
             let allTransferJourneys = [];
-            // Use the master list 'allStations' which is sorted Pien->Pta
-            const fromStationIndex = allStations.indexOf(fromStation);
-            const terminationStationIndex = allStations.indexOf(TRANSFER_STATION);
             
-            if (fromStationIndex >= 0 && terminationStationIndex >= 0 && fromStationIndex <= terminationStationIndex) {
-                 // *** UPDATED: Call to generic findTransfers ***
-                 const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, TRANSFER_STATION, DESTINATION_PRETORIA);
-                 allTransferJourneys = allTransfers;
+            if (transferStation) {
+                const fromIndex = allStations.indexOf(fromStation);
+                const termIndex = allStations.indexOf(transferStation);
+                const destIndex = allStations.indexOf(destination); 
+
+                const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferStation, destination);
+                allTransferJourneys = allTransfers;
             }
 
             const allJourneys = [...allDirectJourneys, ...allTransferJourneys];
             
-            // --- UPDATED SORT LOGIC ---
             allJourneys.sort((a, b) => {
                 const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
                 const timeB = timeToSeconds(b.departureTime || b.train1.departureTime);
 
-                if (timeA !== timeB) {
-                    return timeA - timeB; // Primary sort: earliest time first
-                }
-
-                // Secondary sort: Times are equal!
-                // Prefer 'transfer' (a full journey) over 'direct' (which may terminate early).
-                if (a.type === 'transfer' && b.type === 'direct') {
-                    return -1; // 'a' (transfer) comes before 'b' (direct)
-                }
-                if (a.type === 'direct' && b.type === 'transfer') {
-                    return 1; // 'b' (transfer) comes before 'a' (direct)
-                }
-                
-                return 0; // Both are same type, or something else.
+                if (timeA !== timeB) return timeA - timeB; 
+                if (a.type === 'transfer' && b.type === 'direct') return -1; 
+                if (a.type === 'direct' && b.type === 'transfer') return 1; 
+                return 0; 
             });
-            // --- END OF UPDATE ---
             
-            // Return all journeys; filtering will happen in findNextTrains
-            return { allJourneys };
-        }
-
-        // *** NEW FUNCTION ***
-        function findNextJourneyToPienaarspoort(fromStation, timeNow, schedule) {
-            // 1. Get Direct Trains
-            const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, DESTINATION_PIENAARSPOORT);
-
-            // 2. Get Transfer Trains
-            let allTransferJourneys = [];
-            const fromStationIndex = allStations.indexOf(fromStation); // Uses master list (Pien->Pta)
-            const terminationStationIndex = allStations.indexOf(TRANSFER_STATION); // Uses master list (Pien->Pta)
-
-            // This logic is for Pta -> Pien: fromIndex must be >= terminationIndex
-            // (e.g., Rissik (9) > Koedoespoort (7) on master list)
-            if (fromStationIndex >= 0 && terminationStationIndex >= 0 && fromStationIndex >= terminationStationIndex) {
-                 const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, TRANSFER_STATION, DESTINATION_PIENAARSPOORT);
-                 allTransferJourneys = allTransfers;
-            }
-
-            const allJourneys = [...allDirectJourneys, ...allTransferJourneys];
-            
-            // --- UPDATED SORT LOGIC ---
-            allJourneys.sort((a, b) => {
-                const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
-                const timeB = timeToSeconds(b.departureTime || b.train1.departureTime);
-
-                if (timeA !== timeB) {
-                    return timeA - timeB; // Primary sort: earliest time first
-                }
-
-                // Secondary sort: Times are equal!
-                // Prefer 'transfer' (a full journey) over 'direct' (which may terminate early).
-                if (a.type === 'transfer' && b.type === 'direct') {
-                    return -1; // 'a' (transfer) comes before 'b' (direct)
-                }
-                if (a.type === 'direct' && b.type === 'transfer') {
-                    return 1; // 'b' (transfer) comes before 'a' (direct)
-                }
-                
-                return 0; // Both are same type, or something else.
-            });
-            // --- END OF UPDATE ---
-            
-            // Return all journeys; filtering will happen in findNextTrains
             return { allJourneys };
         }
         
         
-        // --- *** UPDATED FUNCTION (BUG FIX) *** ---
-        // This function is now smart enough to handle different
-        // station orders and trains that don't run the full route.
         function findNextDirectTrain(fromStation, schedule, destinationStation) {
+            // V2.11: Safety check if schedule is empty/missing
+            if (!schedule || !schedule.rows || schedule.rows.length === 0) {
+                return { allJourneys: [] };
+            }
+
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let allJourneys = [];
@@ -1074,59 +1003,50 @@
                 const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
                 const departureTime = fromRow ? fromRow[train] : null;
 
-                // 1. If there's no departure time from this station, skip this train
-                if (!departureTime) {
-                    continue;
-                }
+                if (!departureTime) continue;
 
-                // 2. Find the *actual* last stop for this train
                 let actualLastStop = null;
                 let actualArrivalTime = null;
                 let destRow = null; 
                 
-                // Iterate backwards through the *sheet's rows* to find the last non-empty time
                 for (let i = schedule.rows.length - 1; i >= 0; i--) {
                     const time = schedule.rows[i][train];
                     if (time) {
                         actualLastStop = schedule.rows[i][stationCol];
                         actualArrivalTime = time;
                         destRow = schedule.rows[i]; 
-                        break; // Found the last stop
+                        break; 
                     }
                 }
                 
-                // 3. Check if this is a valid journey
                 if (fromRow && destRow) {
                     const fromIndex = schedule.rows.indexOf(fromRow);
                     const destIndex = schedule.rows.indexOf(destRow);
 
-                    // 4. THE FIX:
-                    // If the 'from' station row comes *before* the 'destination' row
-                    // *in this specific sheet's order*, it's a valid train.
                     if (fromIndex < destIndex) { 
                         allJourneys.push({
                             type: 'direct',
                             train: train,
                             departureTime: departureTime,
                             arrivalTime: actualArrivalTime,
-                            actualDestination: actualLastStop // Add this info
+                            actualDestination: actualLastStop 
                         });
                     }
-                    // else: This is a train going the wrong way, so we ignore it.
                 }
             }
             allJourneys.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
             
-            // Re-calculate first/last train *after* sorting and filtering
             const validTrainNames = allJourneys.map(j => j.train);
             const newFirstTrain = validTrainNames[0] || null;
-            const newLastTrain = validTrainNames[validTrainNames.length - 1] || null;
 
-            return { allJourneys, firstTrainName: newFirstTrain, lastTrainName: newLastTrain };
+            return { allJourneys, firstTrainName: newFirstTrain };
         }
 
-        // *** NEW GENERIC FUNCTION ***
         function findTransfers(fromStation, schedule, terminalStation, finalDestination) {
+            if (!schedule || !schedule.rows || schedule.rows.length === 0) {
+                return { allJourneys: [] };
+            }
+
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let allJourneys = [];
@@ -1134,15 +1054,13 @@
             for (const train1 of trainHeaders) {
                 if (!train1 || train1 === "") continue;
                 
-                // Check if this train runs on the right part of the track
                 const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
                 const termRow = schedule.rows.find(row => row[stationCol] === terminalStation);
-                if (!fromRow || !termRow) continue; // Station not on this route
+                if (!fromRow || !termRow) continue; 
 
                 const fromIndex = schedule.rows.indexOf(fromRow);
                 const termIndex = schedule.rows.indexOf(termRow);
                 
-                // If 'from' is *after* 'terminal' in this sheet, it's not a valid transfer train
                 if (fromIndex > termIndex) continue;
 
                 const departureTime = fromRow[train1];
@@ -1151,16 +1069,8 @@
                 const destinationTime = schedule.rows
                     .find(row => row[stationCol] === finalDestination)?.[train1];
 
-                // Find a train that:
-                // 1. Has a departure time
-                // 2. Has a termination time
-                // 3. Does NOT go to the final destination
                 if (departureTime && terminationTime && !destinationTime) {
-                    
-                    // --- LOGIC UPDATED ---
-                    // findConnections now returns an object { earliest, fullJourney }
                     const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination);
-                    
                     if (connectionData && connectionData.earliest) {
                         allJourneys.push({
                             type: 'transfer',
@@ -1170,8 +1080,8 @@
                                 arrivalAtTransfer: terminationTime,
                                 terminationStation: terminalStation
                             },
-                            connection: connectionData.earliest,     // Pass the earliest connection
-                            nextFullJourney: connectionData.fullJourney // Pass the fallback full journey
+                            connection: connectionData.earliest,     
+                            nextFullJourney: connectionData.fullJourney 
                         });
                     }
                 }
@@ -1179,24 +1089,18 @@
             return { allJourneys };
         }
 
-        // *** NEW GENERIC FUNCTION ***
-        // --- LOGIC UPDATED: This function now finds the earliest connection
-        //      AND the next full-journey connection, if they are different.
         function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination) {
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let possibleConnections = [];
 
             const connRow = schedule.rows.find(row => row[stationCol] === connectionStation);
-            const destRow = schedule.rows.find(row => row[stationCol] === finalDestination); // Still used for direction
-            if (!connRow || !destRow) return null; // Stations not on this route
+            const destRow = schedule.rows.find(row => row[stationCol] === finalDestination); 
+            if (!connRow || !destRow) return null; 
 
             const connIndex = schedule.rows.indexOf(connRow);
             const destIndex = schedule.rows.indexOf(destRow);
 
-            // This direction check is vital.
-            // e.g., for Pta -> Pien, connIndex (Koedoespoort) < destIndex (Pienaarspoort)
-            // This logic relies on the row order of the *specific sheet* being used.
             if (connIndex >= destIndex) return null; 
 
             for (const train of trainHeaders) {
@@ -1204,40 +1108,29 @@
 
                 const connectionTime = connRow[train];
 
-                // 1. Is it a valid connection?
-                //    - Must have a departure time from the connection station.
-                //    - Must leave *after* the first train arrives.
                 if (connectionTime && timeToSeconds(connectionTime) >= timeToSeconds(arrivalTimeAtTransfer)) {
-                    
-                    // 2. Find its *actual* last stop (just like in findNextDirectTrain)
                     let actualLastStop = null;
                     let actualArrivalTime = null;
                     let lastStopRow = null; 
                     
-                    // Iterate backwards from the end of the sheet *to the connection station*
-                    // to find the last *valid* stop for this train.
                     for (let i = schedule.rows.length - 1; i >= connIndex; i--) {
                         const time = schedule.rows[i][train];
                         if (time) {
                             actualLastStop = schedule.rows[i][stationCol];
                             actualArrivalTime = time;
                             lastStopRow = schedule.rows[i];
-                            break; // Found the last stop *for this train*
+                            break; 
                         }
                     }
 
-                    // 3. Is this a valid *onward* journey?
-                    //    - We found a last stop (lastStopRow is not null)
-                    //    - The index of that last stop must be *after* the connection station's index.
                     if (lastStopRow) {
                          const lastStopIndex = schedule.rows.indexOf(lastStopRow);
                          if (lastStopIndex > connIndex) {
-                            // This is a valid train going in the right direction.
                             possibleConnections.push({
                                 train: train,
                                 departureTime: connectionTime,
-                                arrivalTime: actualArrivalTime,       // Arrival at *actual last stop*
-                                actualDestination: actualLastStop,    // *Actual last stop*
+                                arrivalTime: actualArrivalTime,       
+                                actualDestination: actualLastStop,    
                                 connectionStation: connectionStation
                             });
                          }
@@ -1245,26 +1138,19 @@
                 }
             }
             
-            if (possibleConnections.length === 0) {
-                return null; // No connections found at all
-            }
+            if (possibleConnections.length === 0) return null; 
             
-            // Sort by departure time
             possibleConnections.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
             
             const earliestConnection = possibleConnections[0];
             let earliestFullJourneyConnection = null;
 
-            // NEW LOGIC:
-            // Check if the earliest connection is *not* a full journey
             if (earliestConnection.actualDestination !== finalDestination) {
-                // Find the next connection that *is* a full journey
                 earliestFullJourneyConnection = possibleConnections.find(
                     conn => conn.actualDestination === finalDestination
-                ) || null; // Find the first one in the sorted list
+                ) || null; 
             }
 
-            // Return both
             return {
                 earliest: earliestConnection,
                 fullJourney: earliestFullJourneyConnection
@@ -1272,60 +1158,26 @@
         }
 
         
-        // MODIFIED: Use the *full* journey list to find first/last train
         function getFirstAndLastTrainNames(schedule, fromStation, allJourneys = null) {
-            
             if (allJourneys) {
-                // Use the pre-compiled, sorted list if provided
                 const trainNames = allJourneys.map(j => j.train || j.train1.train);
                 return {
                     firstTrainName: trainNames[0] || null,
                     lastTrainName: trainNames[trainNames.length - 1] || null
                 }
             }
-
-            // Fallback: just find first/last in the raw sheet data (less accurate for transfers)
-            const stationCol = schedule.stationColumnName;
-            const trainHeaders = schedule.headers.slice(1).filter(h => h && h !== ""); 
-            
-            const stationRow = schedule.rows.find(row => row[stationCol] === fromStation);
-            
-            if (!stationRow) {
-                return { firstTrainName: null, lastTrainName: null };
-            }
-
-            let firstTrainName = null;
-            for (const trainName of trainHeaders) {
-                if (stationRow[trainName]) {
-                    firstTrainName = trainName;
-                    break;
-                }
-            }
-
-            let lastTrainName = null;
-            for (let i = trainHeaders.length - 1; i >= 0; i--) {
-                const trainName = trainHeaders[i];
-                if (stationRow[trainName]) {
-                    lastTrainName = trainName;
-                    break;
-                }
-            }
-            
-            return { firstTrainName, lastTrainName };
+            return { firstTrainName: null, lastTrainName: null };
         }
 
 
-        // --- UI Rendering ---
-
-        function renderJourney(element, headerElement, journey, firstTrainName, destination, scheduleKey) {
+        function renderJourney(element, headerElement, journey, firstTrainName, destination) {
             element.innerHTML = "";
 
             if (!journey) {
-                renderNextAvailableTrain(element, destination, scheduleKey);
+                renderNextAvailableTrain(element, destination);
                 return;
             }
 
-            // NEW: Apply light/dark mode classes for borders
             let timeClass = "bg-gray-200 dark:bg-gray-900";
             
             if (journey.isLastTrain) {
@@ -1338,26 +1190,14 @@
             const departureTime = journey.departureTime || journey.train1.departureTime;
             const timeDiffStr = calculateTimeDiffString(departureTime);
 
-            // NEW: Apply light/dark mode classes for text
             if (journey.type === 'direct') {
-                
-                // --- *** UPDATED LOGIC *** ---
-                // This now shows the *actual* final destination
-                // if it's not the one the user expected.
-                
-                const expectedDestination = (destination === DESTINATION_PRETORIA) 
-                    ? DESTINATION_PRETORIA 
-                    : DESTINATION_PIENAARSPOORT;
-
                 let destinationText;
-                // FIX: Check for null arrivalTime
-                if (journey.arrivalTime && journey.actualDestination && journey.actualDestination !== expectedDestination) {
+                if (journey.arrivalTime && journey.actualDestination && journey.actualDestination !== destination) {
                     destinationText = `Terminates at ${journey.actualDestination.replace(/ STATION/g, '')}.`;
                 } else if (journey.arrivalTime) {
                     destinationText = `Arrives ${journey.arrivalTime}.`;
                 } else {
-                    // This handles the "0:00:00" bug data until the cache clears
-                    destinationText = "Arrival time not available."; // Fallback
+                    destinationText = "Arrival time not available."; 
                 }
 
                 element.innerHTML = `
@@ -1371,34 +1211,21 @@
                 `;
             }
 
-            // --- RENDER LOGIC UPDATED ---
-            // Formats the transfer info based on user feedback (cleaner, conditional bullets)
             if (journey.type === 'transfer') {
-                const conn = journey.connection; // This is the EARLIEST connection
-                const nextFull = journey.nextFullJourney; // This is the fallback full journey
+                const conn = journey.connection; 
+                const nextFull = journey.nextFullJourney; 
                 
-                const expectedDestination = (destination === DESTINATION_PRETORIA) 
-                    ? DESTINATION_PRETORIA 
-                    : DESTINATION_PIENAARSPOORT;
-                
-                // 1. Build info for the first train
                 const train1Info = `Train ${journey.train1.train} (Terminates at ${journey.train1.terminationStation.replace(/ STATION/g, '')} at ${journey.train1.arrivalAtTransfer})`;
                 
                 let connectionInfoHTML = "";
 
-                // Check if the earliest connection terminates early AND there is a next full journey
-                if (conn.actualDestination !== expectedDestination && nextFull) {
-                    // SCENARIO: Show bullet points
-                    
-                    // Point 1: Earliest connection (e.g., to Mamelodi)
+                if (conn.actualDestination !== destination && nextFull) {
                     const conn1DestName = `(to ${conn.actualDestination.replace(/ STATION/g, '')})`;
                     const connection1Text = `Connect to Train ${conn.train} ${conn1DestName} at <b>${conn.departureTime}</b>`;
 
-                    // Point 2: Next full journey (e.g., to Pienaarspoort)
                     const nextFullDestName = `(to ${nextFull.actualDestination.replace(/ STATION/g, '')})`;
                     const connection2Text = `Next Train ${nextFull.train} ${nextFullDestName} is at <b>${nextFull.departureTime}</b>`;
 
-                    // --- UPDATED: Use inline-block and text-left for centered bullets ---
                     connectionInfoHTML = `
                         <ul class="inline-block text-left list-disc list-inside space-y-1">
                             <li class="text-yellow-600 dark:text-yellow-400">${connection1Text}</li>
@@ -1406,13 +1233,8 @@
                         </ul>
                     `;
                 } else {
-                    // SCENARIO: Show simple connection info
-                    // This happens if the earliest connection IS the full journey
-                    let connDestName = `(Arrives ${conn.arrivalTime})`; // User wants concise arrival
-                    
+                    let connDestName = `(Arrives ${conn.arrivalTime})`; 
                     const connectionText = `Connect to Train ${conn.train} at <b>${conn.departureTime}</b> ${connDestName}`;
-
-                    // --- UPDATED: Apply text color directly ---
                     connectionInfoHTML = `
                         <p class="text-gray-500 dark:text-gray-400">${connectionText}</p>
                     `;
@@ -1426,7 +1248,6 @@
                     <div class="text-sm text-yellow-600 dark:text-yellow-400 mt-2 text-center space-y-1">
                         <p>${train1Info}</p>
                         <p class="font-bold text-lg my-2">TRANSFER REQUIRED</p>
-                        <!-- UPDATED: Wrapper no longer has color, text-center handles alignment -->
                         <div class="font-medium text-center">
                            ${connectionInfoHTML}
                         </div>
@@ -1435,51 +1256,60 @@
             }
         }
         
-        function renderNextAvailableTrain(element, destination, scheduleKey) {
+        function renderNextAvailableTrain(element, destination) {
+            const currentRoute = ROUTES[currentRouteId];
             let nextDayName = "";
-            let nextDayScheduleKey = "";
+            let nextDaySheetKey = ""; 
             let dayOffset = 1; 
 
-            switch (currentDayIndex) {
-                case 6: // Saturday
-                    nextDayName = "Monday";
-                    dayOffset = 2; 
-                    nextDayScheduleKey = (scheduleKey === 'pretoria') ? 'weekday_to_pretoria' : 'weekday_to_pienaarspoort';
-                    break;
-                case 5: // Friday
+            // V2.11: SMART "MISSING DAY" LOGIC
+            // Default logic assumes:
+            // Friday (5) -> Next is Saturday (Sheet: sat_to_x)
+            // Saturday (6) -> Next is Monday (Sheet: wd_to_x)
+            
+            // But if Sat sheet is missing, Friday should jump to Monday.
+            
+            if (currentDayIndex === 5) { // It is Friday
+                // Check if Saturday schedule exists
+                const satKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b';
+                const satSchedule = schedules[satKey];
+                
+                if (satSchedule && satSchedule.rows && satSchedule.rows.length > 0) {
+                    // Saturday schedule exists, proceed as normal
                     nextDayName = "Saturday";
+                    nextDaySheetKey = satKey;
                     dayOffset = 1;
-                    nextDayScheduleKey = (scheduleKey === 'pretoria') ? 'saturday_to_pretoria' : 'saturday_to_pienaarspoort';
-                    break;
-                default: // Mon-Thu
-                    nextDayName = "tomorrow";
-                    dayOffset = 1;
-                    nextDayScheduleKey = (scheduleKey === 'pretoria') ? 'weekday_to_pretoria' : 'weekday_to_pienaarspoort';
-                    break;
+                } else {
+                    // Saturday is MISSING or EMPTY. Skip to Monday.
+                    nextDayName = "Monday";
+                    nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
+                    dayOffset = 3; // Fri -> Sat -> Sun -> Mon
+                }
+            } else if (currentDayIndex === 6) { // It is Saturday
+                 nextDayName = "Monday";
+                 dayOffset = 2; 
+                 nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
+            } else { // Sun-Thu
+                 nextDayName = "tomorrow";
+                 dayOffset = 1;
+                 nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
             }
             
-            const nextSchedule = schedules[nextDayScheduleKey];
-            if (!nextSchedule) {
-                console.error(`Could not find next schedule for key: ${nextDayScheduleKey}`);
+            const nextSchedule = schedules[nextDaySheetKey];
+            
+            if (!nextSchedule || !nextSchedule.rows || nextSchedule.rows.length === 0) {
                 element.innerHTML = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No schedule found for next service day.</div>`;
                 return;
             }
 
             const selectedStation = stationSelect.value;
-            let firstTrainOfNextDay = null;
-
-            if (scheduleKey === 'pretoria') {
-                // *** BUG FIX: Use the corrected logic from findNextTrains ***
-                const { allJourneys } = findNextJourneyToPretoria(selectedStation, "00:00:00", nextSchedule);
-                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
-                firstTrainOfNextDay = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
-
-            } else {
-                // *** NEW: Call the new journey function ***
-                const { allJourneys } = findNextJourneyToPienaarspoort(selectedStation, "00:00:00", nextSchedule);
-                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
-                firstTrainOfNextDay = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
-            }
+            
+            // Re-use generic finder
+            const { allJourneys } = findNextJourney(selectedStation, "00:00:00", nextSchedule, destination, currentRoute.transferStation);
+            
+            // Filter for first train of day (time >= 00:00:00)
+            const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
+            const firstTrainOfNextDay = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
 
             if (!firstTrainOfNextDay) {
                 element.innerHTML = `
@@ -1493,7 +1323,6 @@
             const departureTime = firstTrainOfNextDay.departureTime || firstTrainOfNextDay.train1.departureTime;
             const timeDiffStr = calculateTimeDiffString(departureTime, dayOffset);
 
-            // NEW: Apply light/dark mode classes
             element.innerHTML = `
                 <div class="text-lg font-bold text-gray-600 dark:text-gray-400">
                     No more trains today.
@@ -1516,58 +1345,64 @@
         }
 
         function renderNoService(element, destination) {
-            
-            const scheduleKey = (destination === 'pretoria') ? 'weekday_to_pretoria' : 'weekday_to_pienaarspoort';
-            const schedule = schedules[scheduleKey];
+            // Similar logic to renderNextAvailableTrain but hardcoded to look for Monday/Weekday
+            const currentRoute = ROUTES[currentRouteId];
+            const sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
+            const schedule = schedules[sheetKey];
             const selectedStation = stationSelect.value;
-            let firstTrain = null;
             
-            if (destination === 'pretoria') {
-                 // *** BUG FIX: Use the corrected logic from findNextTrains ***
-                const { allJourneys } = findNextJourneyToPretoria(selectedStation, "00:00:00", schedule);
-                const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
-                firstTrain = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
-            } else {
-                 // *** NEW: Call the new journey function ***
-                 const { allJourneys } = findNextJourneyToPienaarspoort(selectedStation, "00:00:00", schedule);
-                 const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
-                 firstTrain = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
-            }
+            const { allJourneys } = findNextJourney(selectedStation, "00:00:00", schedule, destination, currentRoute.transferStation);
+            const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
+            const firstTrain = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
             
             let timeHTML = 'N/A';
             if (firstTrain) {
                 const departureTime = firstTrain.departureTime || firstTrain.train1.departureTime;
-                const timeDiffStr = calculateTimeDiffString(departureTime, 1); // 1 = tomorrow (Monday)
+                const timeDiffStr = calculateTimeDiffString(departureTime, 1); 
                 timeHTML = `
                     <div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
                     <div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
                 `;
             }
 
-            // NEW: Apply light/dark mode classes
              element.innerHTML = `
                 <div class="text-xl font-bold text-gray-600 dark:text-gray-400">
                     No service on Sundays.
                 </div>
                 <p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train Monday is at:</p>
-                <div id="next-day-${destination}-time" class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2">
+                <div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2">
                     ${timeHTML}
                 </div>
             `;
         }
-
-        // --- NEW: Feature Button Logic ---
+        
+        function renderComingSoon(routeName) {
+            const msg = `
+                <div class="text-center p-6 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
+                    <h3 class="text-xl font-bold text-yellow-700 dark:text-yellow-300 mb-2">🚧 Coming Soon</h3>
+                    <p class="text-gray-700 dark:text-gray-300">
+                        We are working on the <strong>${routeName}</strong> schedule.
+                    </p>
+                    <p class="text-sm mt-4 text-gray-500">
+                        Have a photo of this schedule? Use the Feedback button to send it to us!
+                    </p>
+                </div>
+            `;
+            pretoriaTimeEl.innerHTML = msg;
+            pienaarspoortTimeEl.innerHTML = msg;
+            
+            // Clear station select
+            stationSelect.innerHTML = '<option>Route not available</option>';
+        }
 
         function setupFeatureButtons() {
             
-            // 1. Light/Dark Mode Toggle
-            // NEW: Default to dark unless 'light' is explicitly set
             if (localStorage.theme === 'light') {
                 document.documentElement.classList.remove('dark');
                 darkIcon.classList.add('hidden');
                 lightIcon.classList.remove('hidden');
             } else {
-                localStorage.theme = 'dark'; // Set dark as default
+                localStorage.theme = 'dark'; 
                 document.documentElement.classList.add('dark');
                 darkIcon.classList.remove('hidden');
                 lightIcon.classList.add('hidden');
@@ -1587,7 +1422,6 @@
                 }
             });
 
-            // 2. Share App Button
             shareBtn.addEventListener('click', async () => {
                 const shareData = {
                     title: 'Metrorail Train Schedules',
@@ -1598,17 +1432,14 @@
                     if (navigator.share) {
                         await navigator.share(shareData);
                     } else {
-                        // Fallback for desktop or unsupported browsers
                         copyToClipboard(window.location.href);
                     }
                 } catch (err) {
                     console.error('Share failed:', err);
-                    // Fallback if native share fails
                     copyToClipboard(window.location.href);
                 }
             });
 
-            // 3. PWA Install Button
             window.addEventListener('beforeinstallprompt', (e) => {
                 e.preventDefault();
                 deferredPrompt = e;
@@ -1628,7 +1459,6 @@
                 });
             });
             
-            // 4. Sidenav Toggle Listeners
             openNavBtn.addEventListener('click', () => {
                 sidenav.classList.add('open');
                 sidenavOverlay.classList.add('open');
@@ -1643,19 +1473,30 @@
             closeNavBtn.addEventListener('click', closeNav);
             sidenavOverlay.addEventListener('click', closeNav);
             
-            // 5. Feedback Button (UPDATED: Opens YOUR Google Form)
-            feedbackBtn.addEventListener('click', (e) => {
-                e.preventDefault(); 
-                // This is your actual form link
-                window.open('https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform', '_blank');
-            });
-            
-            // 6. Route Bookmarking
-            loadDefaultRoute(); // Load saved preference
-            
+            // Route Switching Logic
             routeList.addEventListener('click', (e) => {
+                // Check if user clicked a route link
+                const routeLink = e.target.closest('a');
+                if (routeLink) {
+                    const routeId = routeLink.dataset.routeId;
+                    if (routeId) {
+                        // Update active class in menu
+                        document.querySelectorAll('#route-list a').forEach(a => a.classList.remove('active'));
+                        routeLink.classList.add('active');
+                        
+                        // Close menu
+                        closeNav();
+                        
+                        // Switch Route!
+                        currentRouteId = routeId;
+                        loadAllSchedules(); // Reload app with new route data
+                    }
+                }
+                
+                // Handle Bookmarks separately
                 const bookmarkBtn = e.target.closest('.bookmark-btn');
                 if (bookmarkBtn) {
+                    e.stopPropagation(); // Prevent triggering the route switch
                     const routeId = bookmarkBtn.dataset.routeId;
                     if (routeId) {
                         setDefaultRoute(routeId);
@@ -1663,52 +1504,51 @@
                 }
             });
 
-            // 7. NEW: Force Reload Button
             forceReloadBtn.addEventListener('click', () => {
                 showToast("Forcing schedule reload...", "info", 2000);
                 loadAllSchedules();
             });
-        }
-        
-        // NEW: Load default route from localStorage
-        function loadDefaultRoute() {
-            const defaultRoute = localStorage.getItem('defaultRoute') || 'pta-pien'; // Default to first route
-            updateBookmarkIcons(defaultRoute);
             
-            // TODO: In V2, this function will also update the
-            // routeSubtitle.textContent and trigger a reload of schedules/stations.
-            // For V1, it just updates the icon.
+            feedbackBtn.addEventListener('click', (e) => {
+                e.preventDefault(); 
+                window.open('https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform', '_blank');
+            });
+            
+            loadDefaultRoute();
         }
         
-        // NEW: Set default route in localStorage and update UI
+        function loadDefaultRoute() {
+            const defaultRoute = localStorage.getItem('defaultRoute') || 'pta-pien'; 
+            updateBookmarkIcons(defaultRoute);
+            // Optional: Auto-switch to bookmark on load? 
+            // For now, we just highlight the bookmark icon.
+        }
+        
         function setDefaultRoute(routeId) {
             localStorage.setItem('defaultRoute', routeId);
             updateBookmarkIcons(routeId);
             showToast("Default route saved!", "success", 2000);
-            
-            // In V2, you would add:
-            // routeSubtitle.textContent = ...
-            // loadAllSchedules();
         }
         
-        // NEW: Update all bookmark icons to show the active one
         function updateBookmarkIcons(activeRouteId) {
             const allBookmarkBtns = document.querySelectorAll('.bookmark-btn');
             allBookmarkBtns.forEach(btn => {
                 const outlineIcon = btn.querySelector('.star-outline-icon');
                 const filledIcon = btn.querySelector('.star-filled-icon');
                 
-                if (btn.dataset.routeId === activeRouteId) {
-                    outlineIcon.classList.add('hidden');
-                    filledIcon.classList.remove('hidden');
-                } else {
-                    outlineIcon.classList.remove('hidden');
-                    filledIcon.classList.add('hidden');
+                // **FIX: Added null check for icon elements**
+                if (outlineIcon && filledIcon) {
+                    if (btn.dataset.routeId === activeRouteId) {
+                        outlineIcon.classList.add('hidden');
+                        filledIcon.classList.remove('hidden');
+                    } else {
+                        outlineIcon.classList.remove('hidden');
+                        filledIcon.classList.add('hidden');
+                    }
                 }
             });
         }
         
-        // NEW: Fallback copy-to-clipboard function for sharing
         function copyToClipboard(text) {
             const textArea = document.createElement('textarea');
             textArea.value = text;
@@ -1732,26 +1572,21 @@
             document.body.removeChild(textArea);
         }
         
-        // NEW: Toast (pop-up) notification function
         function showToast(message, type = 'info', duration = 3000) {
-            // Clear any existing toast
             if (toastTimeout) {
                 clearTimeout(toastTimeout);
             }
 
-            // Set message and style
             toast.textContent = message;
-            toast.className = `toast-info`; // Reset
+            toast.className = `toast-info`; 
             if (type === 'success') {
                 toast.classList.add('toast-success');
             } else if (type === 'error') {
                 toast.classList.add('toast-error');
             }
             
-            // Show the toast
             toast.classList.add('show');
 
-            // Hide after duration
             toastTimeout = setTimeout(() => {
                 toast.classList.remove('show');
             }, duration);
