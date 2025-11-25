@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <!-- 
-  V2.11 LOGIC FIX - MISSING SHEET HANDLING
-  - Configured Mabopane Route to explicitly ignore missing Saturday sheets.
-  - Added "Smart Next Day" logic: If Friday night & no Saturday schedule exists, it automatically looks ahead to Monday.
-  - Prevents crashes when switching days if a specific schedule is missing.
+  V2.18 STABILITY FIX - UNDEFINED ROUTE PREVENTION
+  - Added rigorous null-checking for `currentRoute` in `loadAllSchedules` and `findNextTrains`.
+  - Prevents "Cannot read properties of undefined (reading 'name')" and "(reading 'destA')" crashes.
+  - Ensures app fails gracefully (logs error) instead of breaking the UI if a route ID is invalid.
+  - Maintains V2.17 Background Prefetching and V2.14 Session Caching.
 -->
 <html lang="en" class="dark">
 
@@ -146,11 +147,6 @@
             font-size: 2rem; font-weight: bold; line-height: 1; cursor: pointer;
         }
         
-        .bookmark-btn {
-            padding: 8px 8px 8px 4px; border-radius: 0.5rem; flex-shrink: 0;
-        }
-        .bookmark-btn svg { width: 20px; height: 20px; }
-        
         /* Color Dots for Routes */
         .route-dot {
             width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 10px;
@@ -199,6 +195,12 @@
         <h2 class="text-gray-900 dark:text-white">Select Route</h2>
         <ul id="route-list">
             
+            <!-- PINNED SECTION (Dynamically Populated) -->
+            <div id="pinned-section" class="hidden border-b border-gray-700 dark:border-gray-600 pb-2 mb-2">
+                <li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li>
+                <!-- Pinned item goes here -->
+            </div>
+
             <!-- NORTHERN CORRIDOR -->
             <li class="route-category">Northern Corridor (Pretoria)</li>
             
@@ -206,10 +208,6 @@
                 <a class="active" data-route-id="pta-pien">
                     <span class="route-dot dot-green"></span>Pretoria <-> Pienaarspoort
                 </a>
-                <button class="bookmark-btn" data-route-id="pta-pien">
-                    <svg class="star-outline-icon w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                </button>
             </li>
             
             <!-- MABOPANE ROUTE LIVE -->
@@ -217,17 +215,12 @@
                 <a class="" data-route-id="pta-mabopane">
                     <span class="route-dot dot-orange"></span>Pretoria <-> Mabopane
                 </a>
-                <button class="bookmark-btn" data-route-id="pta-mabopane">
-                    <svg class="star-outline-icon w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                    <svg class="star-filled-icon hidden w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg>
-                </button>
             </li>
 
             <li class="route-item">
                 <a class="disabled" data-route-id="pta-saul">
                     <span class="route-dot dot-green"></span>Pretoria <-> Saulsville
                 </a>
-                <button class="bookmark-btn" disabled><svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg></button>
             </li>
             
             <!-- SOUTHERN CORRIDOR -->
@@ -237,7 +230,6 @@
                 <a class="disabled" data-route-id="jhb-vereeniging">
                     <span class="route-dot dot-purple"></span>JHB <-> Vereeniging
                 </a>
-                <button class="bookmark-btn" disabled><svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg></button>
             </li>
 
             <!-- EASTERN CORRIDOR -->
@@ -247,7 +239,6 @@
                 <a class="disabled" data-route-id="jhb-springs">
                     <span class="route-dot dot-red"></span>JHB <-> Springs
                 </a>
-                <button class="bookmark-btn" disabled><svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg></button>
             </li>
             
             <!-- SOWETO CORRIDOR -->
@@ -257,7 +248,6 @@
                 <a class="disabled" data-route-id="jhb-soweto">
                     <span class="route-dot dot-yellow"></span>JHB <-> Naledi
                 </a>
-                <button class="bookmark-btn" disabled><svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.534 4.736a1 1 0 00.95.69h4.98c.969 0 1.371 1.24.588 1.81l-4.027 2.927a1 1 0 00-.364 1.118l1.534 4.736c.3.921-.755 1.688-1.54 1.118l-4.027-2.927a1 1 0 00-1.175 0l-4.027 2.927c-.784.57-1.838-.197-1.54-1.118l1.534-4.736a1 1 0 00-.364-1.118L2.04 10.163c-.783-.57-.38-1.81.588-1.81h4.98a1 1 0 00.95-.69L9.1 2.927z"></path></svg></button>
             </li>
         </ul>
     </div>
@@ -281,6 +271,14 @@
             </button>
             
             <div class="absolute top-0 right-0 flex space-x-2">
+                <!-- PIN BUTTON (NEW) -->
+                <button id="pin-route-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500" title="Pin this route as default">
+                    <!-- Outline Pin (Default) -->
+                    <svg id="pin-outline" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+                    <!-- Filled Pin (Active) -->
+                    <svg id="pin-filled" class="w-5 h-5 hidden text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+                </button>
+
                 <button id="force-reload-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <svg id="reload-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                 </button>
@@ -381,6 +379,9 @@
         const installBtn = document.getElementById('install-app-btn');
         const copiedMessage = document.getElementById('copied-message');
         const forceReloadBtn = document.getElementById('force-reload-btn');
+        const pinRouteBtn = document.getElementById('pin-route-btn');
+        const pinOutline = document.getElementById('pin-outline');
+        const pinFilled = document.getElementById('pin-filled');
         
         const openNavBtn = document.getElementById('open-nav-btn');
         const closeNavBtn = document.getElementById('close-nav-btn');
@@ -388,6 +389,7 @@
         const sidenavOverlay = document.getElementById('sidenav-overlay');
         const routeList = document.getElementById('route-list');
         const routeSubtitle = document.getElementById('route-subtitle');
+        const pinnedSection = document.getElementById('pinned-section');
         
         const toast = document.getElementById('toast');
         let toastTimeout;
@@ -433,7 +435,34 @@
                 transferStation: null,
                 sheetGids: {}
             },
-            // ... other routes ...
+            // V2.16 Added Routes
+            'jhb-vereeniging': {
+                id: 'jhb-vereeniging',
+                name: "JHB <-> Vereeniging",
+                isActive: false,
+                destA: 'JOHANNESBURG STATION',
+                destB: 'VEREENIGING STATION',
+                transferStation: null,
+                sheetGids: {}
+            },
+            'jhb-springs': {
+                id: 'jhb-springs',
+                name: "JHB <-> Springs",
+                isActive: false,
+                destA: 'JOHANNESBURG STATION',
+                destB: 'SPRINGS STATION',
+                transferStation: null,
+                sheetGids: {}
+            },
+            'jhb-soweto': {
+                id: 'jhb-soweto',
+                name: "JHB <-> Naledi",
+                isActive: false,
+                destA: 'JOHANNESBURG STATION',
+                destB: 'NALEDI STATION',
+                transferStation: null,
+                sheetGids: {}
+            }
         };
 
         let currentRouteId = 'pta-pien'; // Default route
@@ -455,12 +484,108 @@
         let currentDayType = 'weekday'; 
         let currentDayIndex = 0; 
         let deferredPrompt; 
+        
+        // V2.14: Session Cache Variables
+        const routeCache = {};
+        const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
         document.addEventListener('DOMContentLoaded', () => {
+            // V2.12: Check for pinned route on startup
+            const savedDefault = localStorage.getItem('defaultRoute');
+            if (savedDefault && ROUTES[savedDefault]) {
+                currentRouteId = savedDefault;
+            }
+            
             loadAllSchedules(); 
             stationSelect.addEventListener('change', findNextTrains);
             setupFeatureButtons();
+            updatePinUI(); // Initial UI check
+            
+            // V2.17: Start Auto-Refresh Timer (every 1 min check)
+            setInterval(autoRefreshData, 60 * 1000);
         });
+        
+        // V2.17: Auto Refresh Logic
+        function autoRefreshData() {
+            const cached = routeCache[currentRouteId];
+            const now = Date.now();
+            
+            // If cache exists but is older than 5 mins, refresh silently
+            if (cached && (now - cached.timestamp > CACHE_TTL)) {
+                console.log("Auto-refreshing stale data...");
+                loadAllSchedules(); // This will re-fetch and update UI without blocking
+            }
+        }
+        
+        // V2.17: Background Prefetching
+        async function prefetchBackgroundRoutes() {
+            console.log("Starting background prefetch for other routes...");
+            const routeKeys = Object.keys(ROUTES);
+            
+            for (const routeId of routeKeys) {
+                // Skip current route (already loaded) and inactive routes
+                if (routeId === currentRouteId || !ROUTES[routeId].isActive) continue;
+                
+                // Check if already cached
+                if (routeCache[routeId]) continue;
+                
+                try {
+                    // Fetch sequentially with delay to be polite
+                    await delay(1000); 
+                    console.log(`Prefetching ${routeId}...`);
+                    
+                    const routeConfig = ROUTES[routeId];
+                    const newSchedules = await fetchLatestSchedulesSequentially(routeConfig);
+                    
+                    // Cache it!
+                    routeCache[routeId] = {
+                        schedules: newSchedules,
+                        lastUpdatedDate: new Date().toLocaleDateString(), // Placeholder date
+                        timestamp: Date.now()
+                    };
+                    console.log(`Prefetched ${routeId} successfully.`);
+                    
+                } catch (e) {
+                    console.warn(`Failed to prefetch ${routeId}`, e);
+                }
+            }
+        }
+
+        // --- V2.12 PINNING LOGIC ---
+        function updatePinUI() {
+            const savedDefault = localStorage.getItem('defaultRoute');
+            const isPinned = savedDefault === currentRouteId;
+            
+            // 1. Update Header Icon
+            if (isPinned) {
+                pinOutline.classList.add('hidden');
+                pinFilled.classList.remove('hidden');
+            } else {
+                pinOutline.classList.remove('hidden');
+                pinFilled.classList.add('hidden');
+            }
+            
+            // 2. Update Sidebar "Pinned Route" Section
+            // Clear previous
+            const existingPinned = pinnedSection.querySelector('.pinned-item');
+            if(existingPinned) existingPinned.remove();
+            
+            if (savedDefault && ROUTES[savedDefault]) {
+                pinnedSection.classList.remove('hidden');
+                
+                // Create new pinned item DOM
+                const li = document.createElement('li');
+                li.className = 'route-item pinned-item mb-2';
+                li.innerHTML = `
+                    <a class="active font-bold" data-route-id="${savedDefault}">
+                        <span class="route-dot dot-blue"></span>${ROUTES[savedDefault].name}
+                    </a>
+                `;
+                pinnedSection.appendChild(li);
+            } else {
+                pinnedSection.classList.add('hidden');
+            }
+        }
 
         // --- V2.7 CACHING HELPERS ---
         function saveToLocalCache(routeId, scheduleData, lastUpdated) {
@@ -505,7 +630,7 @@
                 try {
                     const fullUrl = proxy ? proxy + encodeURIComponent(targetUrl) : targetUrl;
                     
-                    console.log(`Attempting fetch via: ${proxy ? proxy : 'Direct'}...`); 
+                    // console.log(`Attempting fetch via: ${proxy ? proxy : 'Direct'}...`); 
 
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
@@ -525,6 +650,8 @@
                             text.includes('function(') ||
                             text.includes('var a=new')) {
                              console.warn(`Junk data detected from ${proxy || 'Direct'}. Skipping.`);
+                             // V2.10: DEBUGGING HELP
+                             console.error("FAILED URL (Copy & Paste to Browser to test):", fullUrl);
                              // V2.8 Specifc Error for debugging
                              throw new Error("SHEET_NOT_PUBLISHED_OR_HTML_JUNK");
                         }
@@ -552,6 +679,9 @@
 
         async function fetchLastUpdatedDate() {
             const currentRoute = ROUTES[currentRouteId];
+            // V2.15 Fix: Check if currentRoute exists before access
+            if (!currentRoute) return null;
+
             const gid = currentRoute.sheetGids.weekday_to_a || '0'; 
             const range = 'B100:B100';
             const cacheBuster = `_=${new Date().getTime()}`;
@@ -571,11 +701,24 @@
         async function loadAllSchedules() {
             const currentRoute = ROUTES[currentRouteId];
             
+            // V2.15 Fix: Guard against invalid route ID
+            if (!currentRoute) {
+                console.error("Invalid Route ID:", currentRouteId);
+                return;
+            }
+            
             // 1. UPDATE UI TEXT
             routeSubtitle.textContent = currentRoute.name;
             pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
             pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
+            
+            // V2.13: Explicitly clear old schedule cards to prevent stale data
+            pretoriaTimeEl.innerHTML = "";
+            pienaarspoortTimeEl.innerHTML = "";
+            
             offlineIndicator.style.display = 'none'; // Reset offline badge
+            
+            updatePinUI(); // Ensure pin state is correct for loaded route
 
             // 2. CHECK ACTIVE STATUS
             if (!currentRoute.isActive) {
@@ -583,6 +726,23 @@
                 mainContent.style.display = 'block';
                 loadingOverlay.style.display = 'none';
                 return; 
+            }
+            
+            // V2.14: Check Memory Cache first (Smart Session Caching)
+            const cached = routeCache[currentRouteId];
+            const now = Date.now();
+            
+            if (cached && (now - cached.timestamp < CACHE_TTL)) {
+                console.log(`Loading ${currentRouteId} from session cache.`);
+                schedules = cached.schedules;
+                if (cached.lastUpdatedDate) {
+                    lastUpdatedEl.textContent = `Schedule updated: ${cached.lastUpdatedDate}`;
+                } else {
+                    lastUpdatedEl.textContent = 'Schedule date unavailable';
+                }
+                
+                initializeApp();
+                return; // Skip network fetch
             }
 
             // 3. FETCH DATA
@@ -613,6 +773,14 @@
 
                 // SUCCESS! Save to Cache
                 schedules = newSchedules; 
+                
+                // V2.14: Save to Session Cache
+                routeCache[currentRouteId] = {
+                    schedules: newSchedules,
+                    lastUpdatedDate: lastUpdatedDate,
+                    timestamp: Date.now()
+                };
+                
                 saveToLocalCache(currentRouteId, newSchedules, lastUpdatedDate);
                 
                 if (lastUpdatedDate) {
@@ -622,6 +790,8 @@
                 }
 
                 initializeApp();
+                // V2.17: Trigger background prefetch after main load success
+                prefetchBackgroundRoutes();
 
             } catch (error) {
                 console.error("Network/Proxy Error:", error);
@@ -705,6 +875,9 @@
         function initializeApp() {
             populateStationList();
             startClock();
+            // V2.13: Force an immediate UI refresh when app/route initializes
+            // This clears any stale cards from previous routes.
+            findNextTrains(); 
             loadingOverlay.style.display = 'none';
             mainContent.style.display = 'block';
         }
@@ -1262,42 +1435,27 @@
             let nextDaySheetKey = ""; 
             let dayOffset = 1; 
 
-            // V2.11: SMART "MISSING DAY" LOGIC
-            // Default logic assumes:
-            // Friday (5) -> Next is Saturday (Sheet: sat_to_x)
-            // Saturday (6) -> Next is Monday (Sheet: wd_to_x)
-            
-            // But if Sat sheet is missing, Friday should jump to Monday.
-            
-            if (currentDayIndex === 5) { // It is Friday
-                // Check if Saturday schedule exists
-                const satKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b';
-                const satSchedule = schedules[satKey];
-                
-                if (satSchedule && satSchedule.rows && satSchedule.rows.length > 0) {
-                    // Saturday schedule exists, proceed as normal
-                    nextDayName = "Saturday";
-                    nextDaySheetKey = satKey;
-                    dayOffset = 1;
-                } else {
-                    // Saturday is MISSING or EMPTY. Skip to Monday.
+            switch (currentDayIndex) {
+                case 6: 
                     nextDayName = "Monday";
+                    dayOffset = 2; 
                     nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
-                    dayOffset = 3; // Fri -> Sat -> Sun -> Mon
-                }
-            } else if (currentDayIndex === 6) { // It is Saturday
-                 nextDayName = "Monday";
-                 dayOffset = 2; 
-                 nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
-            } else { // Sun-Thu
-                 nextDayName = "tomorrow";
-                 dayOffset = 1;
-                 nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
+                    break;
+                case 5: 
+                    nextDayName = "Saturday";
+                    dayOffset = 1;
+                    nextDaySheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b';
+                    break;
+                default: 
+                    nextDayName = "tomorrow";
+                    dayOffset = 1;
+                    nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
+                    break;
             }
             
             const nextSchedule = schedules[nextDaySheetKey];
             
-            if (!nextSchedule || !nextSchedule.rows || nextSchedule.rows.length === 0) {
+            if (!nextSchedule) {
                 element.innerHTML = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No schedule found for next service day.</div>`;
                 return;
             }
@@ -1425,18 +1583,18 @@
             shareBtn.addEventListener('click', async () => {
                 const shareData = {
                     title: 'Metrorail Train Schedules',
-                    text: 'Check the next train times for the Pretoria line.',
+                    text: 'Check the next train times with the Metrorail App.\n\n[https://metrorail-app.netlify.app/](https://metrorail-app.netlify.app/)',
                     url: window.location.href
                 };
                 try {
                     if (navigator.share) {
                         await navigator.share(shareData);
                     } else {
-                        copyToClipboard(window.location.href);
+                        copyToClipboard(shareData.text);
                     }
                 } catch (err) {
                     console.error('Share failed:', err);
-                    copyToClipboard(window.location.href);
+                    copyToClipboard(shareData.text);
                 }
             });
 
@@ -1480,6 +1638,13 @@
                 if (routeLink) {
                     const routeId = routeLink.dataset.routeId;
                     if (routeId) {
+                        // CHECK IF ALREADY ACTIVE
+                        if (routeId === currentRouteId) {
+                            showToast("You are already viewing this route.", "info", 1500);
+                            closeNav();
+                            return;
+                        }
+
                         // Update active class in menu
                         document.querySelectorAll('#route-list a').forEach(a => a.classList.remove('active'));
                         routeLink.classList.add('active');
@@ -1492,16 +1657,6 @@
                         loadAllSchedules(); // Reload app with new route data
                     }
                 }
-                
-                // Handle Bookmarks separately
-                const bookmarkBtn = e.target.closest('.bookmark-btn');
-                if (bookmarkBtn) {
-                    e.stopPropagation(); // Prevent triggering the route switch
-                    const routeId = bookmarkBtn.dataset.routeId;
-                    if (routeId) {
-                        setDefaultRoute(routeId);
-                    }
-                }
             });
 
             forceReloadBtn.addEventListener('click', () => {
@@ -1509,43 +1664,25 @@
                 loadAllSchedules();
             });
             
-            feedbackBtn.addEventListener('click', (e) => {
-                e.preventDefault(); 
-                window.open('https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform', '_blank');
+            // V2.12: Pin Button Logic
+            pinRouteBtn.addEventListener('click', () => {
+                const savedDefault = localStorage.getItem('defaultRoute');
+                
+                if (savedDefault === currentRouteId) {
+                    // Unpin
+                    localStorage.removeItem('defaultRoute');
+                    showToast("Route unpinned from top.", "info", 2000);
+                } else {
+                    // Pin
+                    localStorage.setItem('defaultRoute', currentRouteId);
+                    showToast("Route pinned to top of menu!", "success", 2000);
+                }
+                updatePinUI();
             });
             
-            loadDefaultRoute();
-        }
-        
-        function loadDefaultRoute() {
-            const defaultRoute = localStorage.getItem('defaultRoute') || 'pta-pien'; 
-            updateBookmarkIcons(defaultRoute);
-            // Optional: Auto-switch to bookmark on load? 
-            // For now, we just highlight the bookmark icon.
-        }
-        
-        function setDefaultRoute(routeId) {
-            localStorage.setItem('defaultRoute', routeId);
-            updateBookmarkIcons(routeId);
-            showToast("Default route saved!", "success", 2000);
-        }
-        
-        function updateBookmarkIcons(activeRouteId) {
-            const allBookmarkBtns = document.querySelectorAll('.bookmark-btn');
-            allBookmarkBtns.forEach(btn => {
-                const outlineIcon = btn.querySelector('.star-outline-icon');
-                const filledIcon = btn.querySelector('.star-filled-icon');
-                
-                // **FIX: Added null check for icon elements**
-                if (outlineIcon && filledIcon) {
-                    if (btn.dataset.routeId === activeRouteId) {
-                        outlineIcon.classList.add('hidden');
-                        filledIcon.classList.remove('hidden');
-                    } else {
-                        outlineIcon.classList.remove('hidden');
-                        filledIcon.classList.add('hidden');
-                    }
-                }
+            feedbackBtn.addEventListener('click', (e) => {
+                e.preventDefault(); 
+                window.open('[https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform](https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform)', '_blank');
             });
         }
         
