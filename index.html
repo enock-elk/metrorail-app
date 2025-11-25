@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  V2.26 UI UPDATE - INTEGRATED BUTTON
-  - Moved "See Full Schedule" button inside the Time Box (Left).
-  - Reverted Right Side to display only train details for a cleaner look.
-  - Added bottom padding to Time Box to accommodate the absolute positioned button.
+  V2.27 UI UPDATE - REDIRECT NOTICES
+  - Added Redirect Modal for external links (Facebook & Feedback).
+  - Intercepted external link clicks to show confirmation dialog.
+  - Maintained V2.26 "See Full Schedule" button placement.
 -->
 <html lang="en" class="dark">
 
@@ -278,6 +278,29 @@
         </div>
     </div>
 
+    <!-- REDIRECT CONFIRMATION MODAL (NEW V2.27) -->
+    <div id="redirect-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[60] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95" id="redirect-modal-content">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 mb-4">
+                    <svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Leave App?</h3>
+                <p id="redirect-message" class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                    You are about to visit an external website.
+                </p>
+                <div class="flex space-x-3">
+                    <button id="redirect-cancel-btn" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg transition-colors">
+                        Cancel
+                    </button>
+                    <button id="redirect-confirm-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">
+                        Continue
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 hidden relative overflow-hidden">
         
         <div id="offline-indicator">OFFLINE MODE - USING SAVED SCHEDULE</div>
@@ -396,11 +419,19 @@
         const closeModalBtn2 = document.getElementById('close-modal-btn-2');
         const modalContent = document.getElementById('modal-content');
 
+        // Redirect Modal Elements (V2.27)
+        const redirectModal = document.getElementById('redirect-modal');
+        const redirectModalContent = document.getElementById('redirect-modal-content');
+        const redirectMessage = document.getElementById('redirect-message');
+        const redirectConfirmBtn = document.getElementById('redirect-confirm-btn');
+        const redirectCancelBtn = document.getElementById('redirect-cancel-btn');
+
         const themeToggleBtn = document.getElementById('theme-toggle-btn');
         const darkIcon = document.getElementById('theme-toggle-dark-icon');
         const lightIcon = document.getElementById('theme-toggle-light-icon');
         const shareBtn = document.getElementById('share-app-btn');
         const feedbackBtn = document.getElementById('feedback-btn');
+        const checkUpdatesBtn = document.getElementById('check-updates-btn'); // Facebook button
         const installBtn = document.getElementById('install-app-btn');
         const copiedMessage = document.getElementById('copied-message');
         const forceReloadBtn = document.getElementById('force-reload-btn');
@@ -529,11 +560,72 @@
             setupFeatureButtons();
             updatePinUI(); // Initial UI check
             setupModalButtons(); // V2.21
+            setupRedirectLogic(); // V2.27
             
             // V2.17: Start Auto-Refresh Timer (every 1 min check)
             setInterval(autoRefreshData, 60 * 1000);
         });
         
+        // --- V2.27 REDIRECT MODAL LOGIC ---
+        function setupRedirectLogic() {
+            let redirectUrl = '';
+
+            const closeRedirectModal = () => {
+                redirectModal.classList.add('hidden');
+                redirectModalContent.classList.remove('scale-100');
+                redirectModalContent.classList.add('scale-95');
+                redirectUrl = ''; // Clear URL
+            };
+
+            const openRedirectModal = (url, message) => {
+                redirectUrl = url;
+                redirectMessage.textContent = message;
+                redirectModal.classList.remove('hidden');
+                setTimeout(() => {
+                    redirectModalContent.classList.remove('scale-95');
+                    redirectModalContent.classList.add('scale-100');
+                }, 10);
+            };
+
+            // 1. Handle Facebook Button
+            if (checkUpdatesBtn) {
+                checkUpdatesBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    openRedirectModal(
+                        'https://www.facebook.com/metrorailgp',
+                        'You are leaving the app to view the official Metrorail Facebook page.'
+                    );
+                });
+            }
+
+            // 2. Handle Feedback Button
+            if (feedbackBtn) {
+                feedbackBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    openRedirectModal(
+                        'https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform',
+                        'You are leaving the app to open the Feedback form.'
+                    );
+                });
+            }
+
+            // Confirm Button Action
+            redirectConfirmBtn.addEventListener('click', () => {
+                if (redirectUrl) {
+                    window.open(redirectUrl, '_blank');
+                    closeRedirectModal();
+                }
+            });
+
+            // Cancel Button Action
+            redirectCancelBtn.addEventListener('click', closeRedirectModal);
+            
+            // Close on overlay click
+            redirectModal.addEventListener('click', (e) => {
+                if (e.target === redirectModal) closeRedirectModal();
+            });
+        }
+
         // --- V2.21 MODAL LOGIC ---
         function setupModalButtons() {
             const close = () => {
@@ -1352,7 +1444,7 @@
                                 arrivalAtTransfer: terminationTime,
                                 terminationStation: terminalStation
                             },
-                            connection: connectionData.earliest,     
+                            connection: connectionData.earliest,      
                             nextFullJourney: connectionData.fullJourney 
                         });
                     }
@@ -1807,10 +1899,8 @@
                 updatePinUI();
             });
             
-            feedbackBtn.addEventListener('click', (e) => {
-                e.preventDefault(); 
-                window.open('https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform', '_blank');
-            });
+            // Note: Feedback button listener removed from here. 
+            // It is now handled in setupRedirectLogic() to ensure consistent modal behavior.
         }
         
         function copyToClipboard(text) {
