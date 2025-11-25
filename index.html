@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  V2.27 UI UPDATE - REDIRECT NOTICES
-  - Added Redirect Modal for external links (Facebook & Feedback).
-  - Intercepted external link clicks to show confirmation dialog.
-  - Maintained V2.26 "See Full Schedule" button placement.
+  V2.29 BUG FIX - COMING SOON PERSISTENCE
+  - Fixed bug where auto-refresh/clock updates cleared the "Coming Soon" message.
+  - Added guard clause to findNextTrains() to respect isActive: false status.
 -->
 <html lang="en" class="dark">
 
@@ -219,6 +218,27 @@
             <li class="route-item">
                 <a class="disabled" data-route-id="pta-saul">
                     <span class="route-dot dot-green"></span>Pretoria <-> Saulsville
+                </a>
+            </li>
+
+            <!-- PRETORIA - JHB LINE (New Routes) -->
+            <li class="route-category">Pretoria - JHB Line</li>
+
+            <li class="route-item">
+                <a class="disabled" data-route-id="pta-irene">
+                    <span class="route-dot dot-blue"></span>Pretoria <-> Irene
+                </a>
+            </li>
+
+            <li class="route-item">
+                <a class="disabled" data-route-id="pta-kempton">
+                    <span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park
+                </a>
+            </li>
+
+            <li class="route-item">
+                <a class="disabled" data-route-id="pta-germiston">
+                    <span class="route-dot dot-blue"></span>Pretoria <-> Germiston
                 </a>
             </li>
             
@@ -462,8 +482,8 @@
                 destB: 'PIENAARSPOORT STATION',
                 transferStation: 'KOEDOESPOORT STATION',
                 sheetGids: {
-                    weekday_to_a: '0',          // Maps to PIEN-to-PTA_Weekday
-                    weekday_to_b: '840560909',  // Maps to PTA-to-PIEN_Weekday
+                    weekday_to_a: '0',           // Maps to PIEN-to-PTA_Weekday
+                    weekday_to_b: '840560909',   // Maps to PTA-to-PIEN_Weekday
                     saturday_to_a: '936760708', // Maps to PIEN-to-PTA_Sat
                     saturday_to_b: '146806560'  // Maps to PTA-to-PIEN_Sat
                 }
@@ -491,6 +511,51 @@
                 transferStation: null,
                 sheetGids: {}
             },
+            
+            // --- NEW PRETORIA - JHB ROUTES (V2.28) ---
+            'pta-irene': {
+                id: 'pta-irene',
+                name: "Pretoria <-> Irene",
+                isActive: false, // Inactive: Shows "Coming Soon"
+                destA: 'PRETORIA STATION',
+                destB: 'IRENE STATION',
+                transferStation: null,
+                sheetGids: {
+                    weekday_to_a: '', 
+                    weekday_to_b: '', 
+                    saturday_to_a: '', 
+                    saturday_to_b: ''
+                }
+            },
+            'pta-kempton': {
+                id: 'pta-kempton',
+                name: "Pretoria <-> Kempton Park",
+                isActive: false, // Inactive: Shows "Coming Soon"
+                destA: 'PRETORIA STATION',
+                destB: 'KEMPTON PARK STATION',
+                transferStation: null,
+                sheetGids: {
+                    weekday_to_a: '', 
+                    weekday_to_b: '', 
+                    saturday_to_a: '', 
+                    saturday_to_b: ''
+                }
+            },
+            'pta-germiston': {
+                id: 'pta-germiston',
+                name: "Pretoria <-> Germiston",
+                isActive: false, // Inactive: Shows "Coming Soon"
+                destA: 'PRETORIA STATION',
+                destB: 'GERMISTON STATION',
+                transferStation: null,
+                sheetGids: {
+                    weekday_to_a: '', 
+                    weekday_to_b: '', 
+                    saturday_to_a: '', 
+                    saturday_to_b: ''
+                }
+            },
+
             // V2.16 Added Routes
             'jhb-vereeniging': {
                 id: 'jhb-vereeniging',
@@ -1108,7 +1173,7 @@
                 
                 headers.slice(1).forEach((header, index) => {
                     if (header && header !== "") {
-                         row[header] = values[index + 1] ? values[index + 1].trim() : null;
+                          row[header] = values[index + 1] ? values[index + 1].trim() : null;
                     }
                 });
                 return row;
@@ -1185,7 +1250,7 @@
                 if (currentDayType === 'sunday') {
                     currentDayEl.textContent = "Sunday (No Service)";
                 } else {
-                     currentDayEl.textContent = `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
+                      currentDayEl.textContent = `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
                 }
 
                 findNextTrains();
@@ -1247,6 +1312,13 @@
             
             // V2.15 Fix: Guard against invalid route
             if (!currentRoute) return;
+
+            // FIX: If route is inactive, keep showing "Coming Soon" and stop here.
+            // This prevents auto-refresh or clock ticks from clearing the "Coming Soon" message.
+            if (!currentRoute.isActive) {
+                renderComingSoon(currentRoute.name);
+                return;
+            }
 
             const msgDefault = `<div class="text-gray-500 mt-4">Select a station to see times</div>`;
             pretoriaTimeEl.innerHTML = "";
@@ -1444,7 +1516,7 @@
                                 arrivalAtTransfer: terminationTime,
                                 terminationStation: terminalStation
                             },
-                            connection: connectionData.earliest,      
+                            connection: connectionData.earliest,       
                             nextFullJourney: connectionData.fullJourney 
                         });
                     }
@@ -1490,7 +1562,7 @@
                     if (lastStopRow) {
                          const lastStopIndex = schedule.rows.indexOf(lastStopRow);
                          if (lastStopIndex > connIndex) {
-                            possibleConnections.push({
+                           possibleConnections.push({
                                 train: train,
                                 departureTime: connectionTime,
                                 arrivalTime: actualArrivalTime,       
