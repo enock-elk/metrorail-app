@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <!-- 
-  V2.29 BUG FIX - COMING SOON PERSISTENCE
-  - Fixed bug where auto-refresh/clock updates cleared the "Coming Soon" message.
-  - Added guard clause to findNextTrains() to respect isActive: false status.
+  SATrains V2.35
+  - UI FIX: Set Time Box to fixed height (h-40) so it never stretches with text.
+  - UI FIX: Both Time Boxes (Direct & Transfer) are now guaranteed to be identical height.
+  - UI FIX: Removed the yellow vertical border line from the Transfer info section.
+  - LAYOUT: Maintained side-by-side layout (Time Left, Info Right).
 -->
 <html lang="en" class="dark">
 
@@ -368,7 +370,8 @@
                 <h2 id="pretoria-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">
                     Next train to <span class="text-blue-500 dark:text-blue-400">Pretoria</span>
                 </h2>
-                <div id="pretoria-time" class="text-center min-h-[60px] flex items-center justify-center">
+                <!-- UPDATED: Flexible container, content will determine size -->
+                <div id="pretoria-time" class="text-center flex items-center justify-center">
                 </div>
             </div>
 
@@ -376,7 +379,8 @@
                 <h2 id="pienaarspoort-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">
                     Next train to <span class="text-blue-500 dark:text-blue-400">Pienaarspoort</span>
                 </h2>
-                <div id="pienaarspoort-time" class="text-center min-h-[60px] flex items-center justify-center">
+                <!-- UPDATED: Flexible container, content will determine size -->
+                <div id="pienaarspoort-time" class="text-center flex items-center justify-center">
                 </div>
             </div>
         </div>
@@ -482,8 +486,8 @@
                 destB: 'PIENAARSPOORT STATION',
                 transferStation: 'KOEDOESPOORT STATION',
                 sheetGids: {
-                    weekday_to_a: '0',           // Maps to PIEN-to-PTA_Weekday
-                    weekday_to_b: '840560909',   // Maps to PTA-to-PIEN_Weekday
+                    weekday_to_a: '0',            // Maps to PIEN-to-PTA_Weekday
+                    weekday_to_b: '840560909',    // Maps to PTA-to-PIEN_Weekday
                     saturday_to_a: '936760708', // Maps to PIEN-to-PTA_Sat
                     saturday_to_b: '146806560'  // Maps to PTA-to-PIEN_Sat
                 }
@@ -608,7 +612,7 @@
         
         // V2.14: Session Cache Variables
         const routeCache = {};
-        const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+        const CACHE_TTL = 60 * 60 * 1000; // 1 hour (was 5 minutes)
         
         // V2.21: Global store for Modal Data
         let currentScheduleData = {};
@@ -752,9 +756,9 @@
             const cached = routeCache[currentRouteId];
             const now = Date.now();
             
-            // If cache exists but is older than 5 mins, refresh silently
+            // If cache exists but is older than 1 HOUR, refresh silently
             if (cached && (now - cached.timestamp > CACHE_TTL)) {
-                console.log("Auto-refreshing stale data...");
+                console.log("Auto-refreshing stale data (older than 1 hour)...");
                 loadAllSchedules(); // This will re-fetch and update UI without blocking
             }
         }
@@ -940,7 +944,7 @@
 
         const delay = ms => new Promise(res => setTimeout(res, ms));
 
-        async function loadAllSchedules() {
+        async function loadAllSchedules(force = false) {
             const currentRoute = ROUTES[currentRouteId];
             
             // V2.15 Fix: Guard against invalid route ID
@@ -974,7 +978,8 @@
             const cached = routeCache[currentRouteId];
             const now = Date.now();
             
-            if (cached && (now - cached.timestamp < CACHE_TTL)) {
+            // 1. Check Memory (Skipped if forced)
+            if (!force && cached && (now - cached.timestamp < CACHE_TTL)) {
                 console.log(`Loading ${currentRouteId} from session cache.`);
                 schedules = cached.schedules;
                 if (cached.lastUpdatedDate) {
@@ -985,6 +990,31 @@
                 
                 initializeApp();
                 return; // Skip network fetch
+            }
+
+            // 2. NEW: Check Persistent Storage (LocalStorage) to minimize network calls on reload
+            // (Skipped if forced)
+            if (!force) {
+                const localData = loadFromLocalCache(currentRouteId);
+                if (localData && (now - localData.timestamp < CACHE_TTL)) {
+                      console.log(`Loading ${currentRouteId} from local storage cache (fresh enough).`);
+                      schedules = localData.schedules;
+                      if (localData.lastUpdatedDate) {
+                          lastUpdatedEl.textContent = `Schedule updated: ${localData.lastUpdatedDate}`;
+                      } else {
+                          lastUpdatedEl.textContent = 'Schedule date unavailable';
+                      }
+                      
+                      // Hydrate memory cache
+                      routeCache[currentRouteId] = {
+                        schedules: localData.schedules,
+                        lastUpdatedDate: localData.lastUpdatedDate,
+                        timestamp: localData.timestamp // Keep original timestamp
+                      };
+
+                      initializeApp();
+                      return; // Skip network
+                }
             }
 
             // 3. FETCH DATA
@@ -1173,7 +1203,7 @@
                 
                 headers.slice(1).forEach((header, index) => {
                     if (header && header !== "") {
-                          row[header] = values[index + 1] ? values[index + 1].trim() : null;
+                           row[header] = values[index + 1] ? values[index + 1].trim() : null;
                     }
                 });
                 return row;
@@ -1250,7 +1280,7 @@
                 if (currentDayType === 'sunday') {
                     currentDayEl.textContent = "Sunday (No Service)";
                 } else {
-                      currentDayEl.textContent = `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
+                       currentDayEl.textContent = `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
                 }
 
                 findNextTrains();
@@ -1506,7 +1536,8 @@
                     .find(row => row[stationCol] === finalDestination)?.[train1];
 
                 if (departureTime && terminationTime && !destinationTime) {
-                    const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination);
+                    // V2.30 FIX: Pass train1 (incoming train name) to ignore self-transfers
+                    const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination, train1);
                     if (connectionData && connectionData.earliest) {
                         allJourneys.push({
                             type: 'transfer',
@@ -1525,7 +1556,7 @@
             return { allJourneys };
         }
 
-        function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination) {
+        function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination, incomingTrainName) {
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let possibleConnections = [];
@@ -1542,7 +1573,13 @@
             for (const train of trainHeaders) {
                 if (!train || train === "") continue;
 
+                // V2.30 FIX: Prevent Self-Transfer (Don't connect to the same train you just arrived on)
+                if (train === incomingTrainName) continue;
+
                 const connectionTime = connRow[train];
+
+                // V2.30 FIX: Validate time format to ignore junk data (e.g., #REF!, formulas, or empty cells)
+                if (!connectionTime || !connectionTime.includes(':')) continue;
 
                 if (connectionTime && timeToSeconds(connectionTime) >= timeToSeconds(arrivalTimeAtTransfer)) {
                     let actualLastStop = null;
@@ -1565,8 +1602,8 @@
                            possibleConnections.push({
                                 train: train,
                                 departureTime: connectionTime,
-                                arrivalTime: actualArrivalTime,       
-                                actualDestination: actualLastStop,    
+                                arrivalTime: actualArrivalTime,        
+                                actualDestination: actualLastStop,     
                                 connectionStation: connectionStation
                             });
                          }
@@ -1643,22 +1680,24 @@
                     destinationText = "Arrival time not available."; 
                 }
 
-                // V2.26: Use Flexbox layout, but with Button inside the left Time Box
+                // V2.35: Fixed Height (h-40), no stretching (items-center)
                 element.innerHTML = `
-                    <div class="flex flex-row items-stretch space-x-3">
-                        <!-- Left: Time Box -->
-                        <div class="relative flex-shrink-0 w-1/2 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-md transition-all">
-                            <div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
-                            <div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
+                    <div class="flex flex-row items-center w-full space-x-3">
+                        <!-- Left: Time Box (Fixed Height) -->
+                        <div class="relative w-1/2 h-40 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0">
+                            <div class="text-3xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
+                            <div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>
                             ${buttonHtml}
                         </div>
 
-                        <!-- Right: Details Only -->
-                        <div class="flex-grow flex flex-col justify-center space-y-1">
-                            <p class="text-sm text-gray-800 dark:text-gray-200 leading-tight">
-                                <span class="font-bold text-yellow-600 dark:text-yellow-400">Direct train (${journey.train})</span>.<br>
+                        <!-- Right: Details -->
+                        <div class="w-1/2 flex flex-col justify-center text-left space-y-1">
+                            <div class="text-sm text-gray-800 dark:text-gray-200 font-medium leading-tight">
+                                <span class="font-bold text-yellow-600 dark:text-yellow-400">Direct train (${journey.train})</span>
+                            </div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400 leading-tight">
                                 ${destinationText}
-                            </p>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -1680,7 +1719,7 @@
                     const connection2Text = `Next Train ${nextFull.train} ${nextFullDestName} is at <b>${nextFull.departureTime}</b>`;
 
                     connectionInfoHTML = `
-                        <ul class="inline-block text-left list-disc list-inside space-y-1">
+                        <ul class="list-disc list-inside space-y-1">
                             <li class="text-yellow-600 dark:text-yellow-400">${connection1Text}</li>
                             <li class="text-gray-500 dark:text-gray-400">${connection2Text}</li>
                         </ul>
@@ -1693,26 +1732,29 @@
                     `;
                 }
 
+                // V2.35: Fixed Height (h-40), Removed Yellow Line
                 element.innerHTML = `
-                    <div class="flex flex-col space-y-2">
-                         <div class="flex flex-row items-stretch space-x-3">
-                            <!-- Left: Time Box -->
-                            <div class="relative flex-shrink-0 w-1/2 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-md transition-all">
-                                <div class="text-2xl font-bold text-gray-900 dark:text-white">${journey.train1.departureTime}</div>
-                                <div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
-                                ${buttonHtml}
+                    <div class="flex flex-row items-center w-full space-x-3">
+                        <!-- Left: Time Box (Fixed Height) -->
+                        <div class="relative w-1/2 h-40 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0">
+                            <div class="text-3xl font-bold text-gray-900 dark:text-white">${journey.train1.departureTime}</div>
+                            <div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>
+                            ${buttonHtml}
+                        </div>
+
+                        <!-- Right: Details -->
+                        <div class="w-1/2 flex flex-col justify-center text-left space-y-1">
+                            <!-- Train 1 -->
+                            <div class="text-xs text-gray-800 dark:text-gray-200 leading-tight">
+                               ${train1Info}
                             </div>
-                             <!-- Right: Simple Info -->
-                            <div class="flex-grow flex flex-col justify-center space-y-1">
-                                <p class="text-sm text-gray-800 dark:text-gray-200 leading-tight">
-                                   ${train1Info}
-                                </p>
-                            </div>
-                         </div>
-                        <div class="text-xs text-center bg-yellow-50 dark:bg-gray-800 p-2 rounded border border-yellow-200 dark:border-gray-600">
-                            <p class="font-bold text-yellow-700 dark:text-yellow-500 mb-1">TRANSFER REQUIRED</p>
-                            <div class="font-medium">
-                               ${connectionInfoHTML}
+                            
+                            <!-- Transfer Warning (No Border) -->
+                            <div class="text-xs mt-1">
+                                <p class="font-bold text-yellow-600 dark:text-yellow-400 uppercase text-[10px] tracking-wider mb-0.5">Transfer Required</p>
+                                <div class="text-gray-500 dark:text-gray-400 leading-tight">
+                                   ${connectionInfoHTML}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1952,7 +1994,7 @@
 
             forceReloadBtn.addEventListener('click', () => {
                 showToast("Forcing schedule reload...", "info", 2000);
-                loadAllSchedules();
+                loadAllSchedules(true);
             });
             
             // V2.12: Pin Button Logic
