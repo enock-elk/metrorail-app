@@ -1,12 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V2.43
-  - FEATURE: Implemented "Smart Refresh" Logic.
-    - Pauses refreshing when tab is hidden or during night hours (9PM - 4AM).
-    - Increases refresh rate to 1 min when a train is < 15 mins away.
-    - Uses standard 5 min refresh otherwise.
-  - UPDATE: Revised Share Button text and formatting.
-  - META: Retained Open Graph tags.
+  Metrorail Next Train V2.52 (Fixed)
+  - LOGIC FIX: The parser now completely stops reading data when it encounters 
+    "Inter-station times" or "Last Updated". This prevents the app from reading 
+    trip duration tables as if they were train schedules.
 -->
 <html lang="en" class="dark">
 
@@ -20,7 +17,7 @@
     <meta property="og:image" content="https://nexttrain.co.za/icons/icon-512.png" />
     <meta property="og:url" content="https://nexttrain.co.za/" />
     <meta property="og:type" content="website" />
-  
+   
     <!-- Canonical Link for SEO -->
     <link rel="canonical" href="https://nexttrain.co.za/" />
     
@@ -487,7 +484,13 @@
 
         const lastUpdatedEl = document.getElementById('last-updated-date');
 
+        // --- V2.44 DATABASE CONFIG ---
+        // Switched from Google Sheets CSV to Firebase Realtime Database
+        const DATABASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/schedules.json";
+
         // --- V2.0 CONFIG: ROUTES OBJECT ---
+        // Note: sheetGids are no longer needed for fetching, but we keep the keys
+        // to match the Firebase data structure (e.g., "pien_to_pta_weekday")
         const ROUTES = {
             'pta-pien': {
                 id: 'pta-pien',
@@ -496,25 +499,26 @@
                 destA: 'PRETORIA STATION',
                 destB: 'PIENAARSPOORT STATION',
                 transferStation: 'KOEDOESPOORT STATION',
-                sheetGids: {
-                    weekday_to_a: '0',            // Maps to PIEN-to-PTA_Weekday
-                    weekday_to_b: '840560909',    // Maps to PTA-to-PIEN_Weekday
-                    saturday_to_a: '936760708', // Maps to PIEN-to-PTA_Sat
-                    saturday_to_b: '146806560'  // Maps to PTA-to-PIEN_Sat
+                // Firebase keys are sanitized (lowercase, underscores)
+                sheetKeys: {
+                    weekday_to_a: 'pien_to_pta_weekday', 
+                    weekday_to_b: 'pta_to_pien_weekday',    
+                    saturday_to_a: 'pien_to_pta_sat', 
+                    saturday_to_b: 'pta_to_pien_sat'
                 }
             },
             'pta-mabopane': {
                 id: 'pta-mabopane',
                 name: "Pretoria <-> Mabopane",
-                isActive: true, // ENABLED!
+                isActive: true, 
                 destA: 'PRETORIA STATION',
                 destB: 'MABOPANE STATION',
-                transferStation: null, // No transfers needed for this direct line
-                sheetGids: {
-                    weekday_to_a: '651285244', // Maps to MAB-to-PTA_Weekday
-                    weekday_to_b: '1536230875', // Maps to PTA-to-MAB_Weekday
-                    saturday_to_a: '', // DISABLED: No Saturday Sheet yet
-                    saturday_to_b: ''  // DISABLED: No Saturday Sheet yet
+                transferStation: null, 
+                sheetKeys: {
+                    weekday_to_a: 'mab_to_pta_weekday', 
+                    weekday_to_b: 'pta_to_mab_weekday', 
+                    saturday_to_a: '', // Unpublished
+                    saturday_to_b: ''  // Unpublished
                 }
             },
             'pta-saul': {
@@ -524,95 +528,23 @@
                 destA: 'PRETORIA STATION',
                 destB: 'SAULSVILLE STATION',
                 transferStation: null,
-                sheetGids: {}
+                sheetKeys: {}
             },
             
-            // --- NEW PRETORIA - JHB ROUTES (V2.28) ---
-            'pta-irene': {
-                id: 'pta-irene',
-                name: "Pretoria <-> Irene",
-                isActive: false, // Inactive: Shows "Coming Soon"
-                destA: 'PRETORIA STATION',
-                destB: 'IRENE STATION',
-                transferStation: null,
-                sheetGids: {
-                    weekday_to_a: '', 
-                    weekday_to_b: '', 
-                    saturday_to_a: '', 
-                    saturday_to_b: ''
-                }
-            },
-            'pta-kempton': {
-                id: 'pta-kempton',
-                name: "Pretoria <-> Kempton Park",
-                isActive: false, // Inactive: Shows "Coming Soon"
-                destA: 'PRETORIA STATION',
-                destB: 'KEMPTON PARK STATION',
-                transferStation: null,
-                sheetGids: {
-                    weekday_to_a: '', 
-                    weekday_to_b: '', 
-                    saturday_to_a: '', 
-                    saturday_to_b: ''
-                }
-            },
-            'pta-germiston': {
-                id: 'pta-germiston',
-                name: "Pretoria <-> Germiston",
-                isActive: false, // Inactive: Shows "Coming Soon"
-                destA: 'PRETORIA STATION',
-                destB: 'GERMISTON STATION',
-                transferStation: null,
-                sheetGids: {
-                    weekday_to_a: '', 
-                    weekday_to_b: '', 
-                    saturday_to_a: '', 
-                    saturday_to_b: ''
-                }
-            },
-
-            // V2.16 Added Routes
-            'jhb-vereeniging': {
-                id: 'jhb-vereeniging',
-                name: "JHB <-> Vereeniging",
-                isActive: false,
-                destA: 'JOHANNESBURG STATION',
-                destB: 'VEREENIGING STATION',
-                transferStation: null,
-                sheetGids: {}
-            },
-            'jhb-springs': {
-                id: 'jhb-springs',
-                name: "JHB <-> Springs",
-                isActive: false,
-                destA: 'JOHANNESBURG STATION',
-                destB: 'SPRINGS STATION',
-                transferStation: null,
-                sheetGids: {}
-            },
-            'jhb-soweto': {
-                id: 'jhb-soweto',
-                name: "JHB <-> Naledi",
-                isActive: false,
-                destA: 'JOHANNESBURG STATION',
-                destB: 'NALEDI STATION',
-                transferStation: null,
-                sheetGids: {}
-            }
+            // ... (Other inactive routes preserved) ...
+             'pta-irene': { id: 'pta-irene', name: "Pretoria <-> Irene", isActive: false, destA: 'PRETORIA STATION', destB: 'IRENE STATION', transferStation: null, sheetKeys: {} },
+             'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
+             'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
+             'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
+             'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} },
+             'jhb-soweto': { id: 'jhb-soweto', name: "JHB <-> Naledi", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'NALEDI STATION', transferStation: null, sheetKeys: {} }
         };
 
-        let currentRouteId = 'pta-pien'; // Default route
+        let currentRouteId = 'pta-pien'; 
         
-        const sheetBaseUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQWJYv6XmGlTXuubFKucoIZNShBnW5I0J5TQ8ybwl6GtTZ6ioRUTOM2OcVN364mu36u36mS9Ey-sYG0/pub?output=csv';
-        
-        // V2.7 UPDATE: Proxy shuffling will be handled in code to avoid fixed order
-        const PROXIES = [
-            '', // Direct fetch attempt (Keep first)
-            'https://api.allorigins.win/raw?url=',
-            'https://api.codetabs.com/v1/proxy?quest=',
-            'https://thingproxy.freeboard.io/fetch/', 
-            'https://corsproxy.io/?'
-        ];
+        // GLOBAL DATA STORE
+        // We fetch the entire DB once and store it here.
+        let fullDatabase = null; 
         
         let schedules = {};
         let allStations = [];
@@ -623,83 +555,55 @@
         
         // V2.14: Session Cache Variables
         const routeCache = {};
-        const CACHE_TTL = 60 * 60 * 1000; // 1 hour (was 5 minutes)
+        const CACHE_TTL = 60 * 60 * 1000; // 1 hour
         
         // V2.21: Global store for Modal Data
         let currentScheduleData = {};
 
         // --- SMARTER REFRESH LOGIC ---
         const REFRESH_CONFIG = {
-            standardInterval: 5 * 60 * 1000, // Check every 5 mins normally
-            activeInterval: 60 * 1000,       // Check every 1 min if train is arriving soon (<15 mins)
-            nightModeStart: 21,              // 9 PM (No trains run usually)
-            nightModeEnd: 4                  // 4 AM
+            standardInterval: 5 * 60 * 1000, // 5 mins
+            activeInterval: 60 * 1000,       // 1 min
+            nightModeStart: 21,              
+            nightModeEnd: 4                  
         };
 
         let refreshTimer = null;
 
         function startSmartRefresh() {
-            // Clear any existing timer to avoid duplicates
             if (refreshTimer) clearTimeout(refreshTimer);
-            
-            // Run the logic
             scheduleNextRefresh();
         }
 
         function scheduleNextRefresh() {
-            // CHECK 1: Is the tab hidden? 
-            // If user is not looking, stop polling completely. 
-            // We will refresh immediately when they come back (see visibility listener below).
-            if (document.hidden) {
-                console.log("Tab hidden. Pausing auto-refresh.");
-                return; 
-            }
+            if (document.hidden) return; 
 
-            // CHECK 2: Is it Night Time?
             const hour = new Date().getHours();
             if (hour >= REFRESH_CONFIG.nightModeStart || hour < REFRESH_CONFIG.nightModeEnd) {
-                console.log("Night mode. Pausing refresh until morning.");
-                // Check again in 1 hour just in case they leave the tab open overnight
                 refreshTimer = setTimeout(scheduleNextRefresh, 60 * 60 * 1000);
                 return;
             }
 
-            // CHECK 3: Dynamic Interval Calculation
-            // If the next train is far away, we don't need to check often.
-            // If the next train is soon, we want live updates on delays.
             let nextInterval = REFRESH_CONFIG.standardInterval;
-            
-            // Look at the currently displayed times to decide urgency
-            // (This assumes you have data loaded)
             const nextTrainSeconds = getSecondsToNextTrain(); 
-            if (nextTrainSeconds > 0 && nextTrainSeconds < 900) { // If train is < 15 mins away
-                nextInterval = REFRESH_CONFIG.activeInterval; // Switch to 1 minute refresh
-                console.log("Train approaching! Switching to fast refresh.");
+            if (nextTrainSeconds > 0 && nextTrainSeconds < 900) { 
+                nextInterval = REFRESH_CONFIG.activeInterval; 
             }
 
-            console.log(`Next background refresh in ${nextInterval / 1000} seconds.`);
-
             refreshTimer = setTimeout(async () => {
-                await autoRefreshData();
-                scheduleNextRefresh(); // Recurse
+                await loadAllSchedules(); // Re-fetch DB
+                scheduleNextRefresh(); 
             }, nextInterval);
         }
 
-        // Helper to guess urgency based on your current variables
         function getSecondsToNextTrain() {
-            // This is a simplified check. You can make it smarter by reading your `schedules` object.
-            // For now, if we don't know, return a high number to keep standard interval.
-            // To make this fully "smart", we would parse the displayed times on screen.
-            // But just returning a safe default prevents errors if data isn't loaded.
-            return 9999; 
+            return 9999; // Placeholder logic
         }
 
-        // LISTEN: When user switches tabs back to your app, refresh immediately!
         document.addEventListener("visibilitychange", () => {
             if (!document.hidden) {
-                console.log("User returned! Force refreshing data...");
-                loadAllSchedules(); // Immediate fetch
-                startSmartRefresh(); // Restart the timer
+                loadAllSchedules(); 
+                startSmartRefresh(); 
             }
         });
 
@@ -713,346 +617,28 @@
             loadAllSchedules(); 
             stationSelect.addEventListener('change', findNextTrains);
             setupFeatureButtons();
-            updatePinUI(); // Initial UI check
-            setupModalButtons(); // V2.21
-            setupRedirectLogic(); // V2.27
-            
-            // Start the smart refresh loop
+            updatePinUI(); 
+            setupModalButtons(); 
+            setupRedirectLogic(); 
             startSmartRefresh();
         });
         
-        // --- V2.27 REDIRECT MODAL LOGIC ---
-        function setupRedirectLogic() {
-            let redirectUrl = '';
-
-            const closeRedirectModal = () => {
-                redirectModal.classList.add('hidden');
-                redirectModalContent.classList.remove('scale-100');
-                redirectModalContent.classList.add('scale-95');
-                redirectUrl = ''; // Clear URL
-            };
-
-            const openRedirectModal = (url, message) => {
-                redirectUrl = url;
-                redirectMessage.textContent = message;
-                redirectModal.classList.remove('hidden');
-                setTimeout(() => {
-                    redirectModalContent.classList.remove('scale-95');
-                    redirectModalContent.classList.add('scale-100');
-                }, 10);
-            };
-
-            // 1. Handle Facebook Button
-            if (checkUpdatesBtn) {
-                checkUpdatesBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    openRedirectModal(
-                        'https://www.facebook.com/metrorailgp',
-                        'You are leaving the app to view the official Metrorail Facebook page.'
-                    );
-                });
-            }
-
-            // 2. Handle Feedback Button
-            if (feedbackBtn) {
-                feedbackBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    openRedirectModal(
-                        'https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform',
-                        'You are leaving the app to open the Feedback form.'
-                    );
-                });
-            }
-
-            // Confirm Button Action
-            redirectConfirmBtn.addEventListener('click', () => {
-                if (redirectUrl) {
-                    window.open(redirectUrl, '_blank');
-                    closeRedirectModal();
-                }
-            });
-
-            // Cancel Button Action
-            redirectCancelBtn.addEventListener('click', closeRedirectModal);
-            
-            // Close on overlay click
-            redirectModal.addEventListener('click', (e) => {
-                if (e.target === redirectModal) closeRedirectModal();
-            });
-        }
-
-        // --- V2.21 MODAL LOGIC ---
-        function setupModalButtons() {
-            const close = () => {
-                scheduleModal.classList.add('hidden');
-                modalContent.classList.remove('scale-100');
-                modalContent.classList.add('scale-95');
-            };
-            closeModalBtn.addEventListener('click', close);
-            closeModalBtn2.addEventListener('click', close);
-            scheduleModal.addEventListener('click', (e) => {
-                if (e.target === scheduleModal) close();
-            });
-        }
-
-        window.openScheduleModal = function(destination) {
-            const journeys = currentScheduleData[destination];
-            if (!journeys || journeys.length === 0) return;
-
-            modalTitle.textContent = `Today's Schedule to ${destination.replace(' STATION', '')}`;
-            modalList.innerHTML = '';
-            
-            journeys.forEach(journey => {
-                // Determine time
-                const time = journey.departureTime || journey.train1.departureTime;
-                const isTransfer = journey.type === 'transfer';
-                
-                // Build List Item
-                const div = document.createElement('div');
-                div.className = "flex justify-between items-center bg-white dark:bg-gray-700 p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-600";
-                
-                let trainInfo = `
-                    <span class="font-bold text-lg text-gray-900 dark:text-white">${time}</span>
-                `;
-                
-                let details = "";
-                if (isTransfer) {
-                    details = `<span class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-bold">Transfer @ ${journey.train1.terminationStation.replace(' STATION','')}</span>`;
-                } else {
-                    details = `<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">Direct</span>`;
-                }
-
-                div.innerHTML = `
-                    <div>${trainInfo}</div>
-                    <div>${details}</div>
-                `;
-                modalList.appendChild(div);
-            });
-
-            scheduleModal.classList.remove('hidden');
-            // Slight delay for animation
-            setTimeout(() => {
-                modalContent.classList.remove('scale-95');
-                modalContent.classList.add('scale-100');
-            }, 10);
-        };
-        
-        // V2.17: Auto Refresh Logic
-        function autoRefreshData() {
-            const cached = routeCache[currentRouteId];
-            const now = Date.now();
-            
-            // If cache exists but is older than 1 HOUR, refresh silently
-            if (cached && (now - cached.timestamp > CACHE_TTL)) {
-                console.log("Auto-refreshing stale data (older than 1 hour)...");
-                loadAllSchedules(); // This will re-fetch and update UI without blocking
-            }
-        }
-        
-        // V2.17: Background Prefetching
-        async function prefetchBackgroundRoutes() {
-            console.log("Starting background prefetch for other routes...");
-            const routeKeys = Object.keys(ROUTES);
-            
-            for (const routeId of routeKeys) {
-                // Skip current route (already loaded) and inactive routes
-                if (routeId === currentRouteId || !ROUTES[routeId].isActive) continue;
-                
-                // Check if already cached
-                if (routeCache[routeId]) continue;
-                
-                try {
-                    // Fetch sequentially with delay to be polite
-                    await delay(1000); 
-                    console.log(`Prefetching ${routeId}...`);
-                    
-                    const routeConfig = ROUTES[routeId];
-                    const newSchedules = await fetchLatestSchedulesSequentially(routeConfig);
-                    
-                    // Cache it!
-                    routeCache[routeId] = {
-                        schedules: newSchedules,
-                        lastUpdatedDate: new Date().toLocaleDateString(), // Placeholder date
-                        timestamp: Date.now()
-                    };
-                    console.log(`Prefetched ${routeId} successfully.`);
-                    
-                } catch (e) {
-                    console.warn(`Failed to prefetch ${routeId}`, e);
-                }
-            }
-        }
-
-        // --- V2.12 PINNING LOGIC ---
-        function updatePinUI() {
-            const savedDefault = localStorage.getItem('defaultRoute');
-            const isPinned = savedDefault === currentRouteId;
-            
-            // 1. Update Header Icon
-            if (isPinned) {
-                pinOutline.classList.add('hidden');
-                pinFilled.classList.remove('hidden');
-            } else {
-                pinOutline.classList.remove('hidden');
-                pinFilled.classList.add('hidden');
-            }
-            
-            // 2. Update Sidebar "Pinned Route" Section
-            // Clear previous
-            const existingPinned = pinnedSection.querySelector('.pinned-item');
-            if(existingPinned) existingPinned.remove();
-            
-            if (savedDefault && ROUTES[savedDefault]) {
-                pinnedSection.classList.remove('hidden');
-                
-                // Create new pinned item DOM
-                const li = document.createElement('li');
-                li.className = 'route-item pinned-item mb-2';
-                li.innerHTML = `
-                    <a class="active font-bold" data-route-id="${savedDefault}">
-                        <span class="route-dot dot-blue"></span>${ROUTES[savedDefault].name}
-                    </a>
-                `;
-                pinnedSection.appendChild(li);
-            } else {
-                pinnedSection.classList.add('hidden');
-            }
-        }
-
-        // --- V2.7 CACHING HELPERS ---
-        function saveToLocalCache(routeId, scheduleData, lastUpdated) {
-            try {
-                const cacheKey = `metro_schedule_${routeId}`;
-                const data = {
-                    timestamp: new Date().getTime(),
-                    schedules: scheduleData,
-                    lastUpdatedDate: lastUpdated
-                };
-                localStorage.setItem(cacheKey, JSON.stringify(data));
-                console.log(`Saved schedule for ${routeId} to cache.`);
-            } catch (e) {
-                console.warn("Failed to save to local cache (storage full?)", e);
-            }
-        }
-
-        function loadFromLocalCache(routeId) {
-            try {
-                const cacheKey = `metro_schedule_${routeId}`;
-                const stored = localStorage.getItem(cacheKey);
-                if (stored) {
-                    return JSON.parse(stored);
-                }
-            } catch (e) {
-                console.warn("Failed to load from local cache", e);
-            }
-            return null;
-        }
-
-        async function fetchUrlWithProxies(targetUrl) {
-            let lastError = null;
-            
-            // V2.7: Shuffle proxies (except the first one 'Direct')
-            const direct = PROXIES[0];
-            const proxiesToShuffle = PROXIES.slice(1);
-            // Simple shuffle
-            proxiesToShuffle.sort(() => Math.random() - 0.5);
-            const activeProxyList = [direct, ...proxiesToShuffle];
-
-            for (const proxy of activeProxyList) {
-                try {
-                    const fullUrl = proxy ? proxy + encodeURIComponent(targetUrl) : targetUrl;
-                    
-                    // console.log(`Attempting fetch via: ${proxy ? proxy : 'Direct'}...`); 
-
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-
-                    const response = await fetch(fullUrl, { 
-                        cache: 'no-cache',
-                        signal: controller.signal
-                    });
-                    clearTimeout(timeoutId);
-
-                    if (response.ok) {
-                        const text = await response.text();
-                        // Validation: Junk Filter
-                        if (text.trim().startsWith('<') || 
-                            text.includes('<!DOCTYPE') || 
-                            text.includes('sourceMappingURL') || 
-                            text.includes('function(') ||
-                            text.includes('var a=new')) {
-                             console.warn(`Junk data detected from ${proxy || 'Direct'}. Skipping.`);
-                             // V2.10: DEBUGGING HELP
-                             console.error("FAILED URL (Copy & Paste to Browser to test):", fullUrl);
-                             // V2.8 Specifc Error for debugging
-                             throw new Error("SHEET_NOT_PUBLISHED_OR_HTML_JUNK");
-                        }
-                        return text;
-                    } else {
-                        if (response.status === 0) {
-                             throw new Error("CORS/Opaque response (Direct fetch failed)");
-                        }
-                        throw new Error(`Status: ${response.status}`);
-                    }
-                } catch (e) {
-                    console.warn(`Fetch failed via ${proxy || 'Direct'}:`, e);
-                    lastError = e;
-                    // Stop trying other proxies if it's clearly a publishing issue
-                    if (e.message === "SHEET_NOT_PUBLISHED_OR_HTML_JUNK") {
-                        throw e;
-                    }
-                }
-            }
-            if (lastError && lastError.message === "SHEET_NOT_PUBLISHED_OR_HTML_JUNK") {
-                throw new Error("SHEET_NOT_PUBLISHED");
-            }
-            throw new Error("All proxies failed to fetch data. Please check your internet connection.");
-        }
-
-        async function fetchLastUpdatedDate() {
-            const currentRoute = ROUTES[currentRouteId];
-            // V2.15 Fix: Check if currentRoute exists before access
-            if (!currentRoute) return null;
-
-            const gid = currentRoute.sheetGids.weekday_to_a || '0'; 
-            const range = 'B100:B100';
-            const cacheBuster = `_=${new Date().getTime()}`;
-            const checkUrl = `${sheetBaseUrl}&gid=${gid}&range=${range}&${cacheBuster}`;
-            
-            try {
-                const csvText = await fetchUrlWithProxies(checkUrl);
-                return csvText.trim();
-            } catch (error) {
-                console.warn("Could not fetch last updated date (Non-critical):", error);
-                return null; 
-            }
-        }
-
-        const delay = ms => new Promise(res => setTimeout(res, ms));
-
+        // --- V2.44: NEW FETCHING LOGIC (FIREBASE) ---
         async function loadAllSchedules(force = false) {
             const currentRoute = ROUTES[currentRouteId];
             
-            // V2.15 Fix: Guard against invalid route ID
-            if (!currentRoute) {
-                console.error("Invalid Route ID:", currentRouteId);
-                return;
-            }
+            if (!currentRoute) return;
             
-            // 1. UPDATE UI TEXT
+            // Update UI Headers immediately
             routeSubtitle.textContent = currentRoute.name;
             pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
             pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
             
-            // V2.13: Explicitly clear old schedule cards to prevent stale data
             pretoriaTimeEl.innerHTML = "";
             pienaarspoortTimeEl.innerHTML = "";
-            
-            offlineIndicator.style.display = 'none'; // Reset offline badge
-            
-            updatePinUI(); // Ensure pin state is correct for loaded route
+            offlineIndicator.style.display = 'none';
+            updatePinUI(); 
 
-            // 2. CHECK ACTIVE STATUS
             if (!currentRoute.isActive) {
                 renderComingSoon(currentRoute.name);
                 mainContent.style.display = 'block';
@@ -1060,115 +646,63 @@
                 return; 
             }
             
-            // V2.14: Check Memory Cache first (Smart Session Caching)
-            const cached = routeCache[currentRouteId];
+            // Check Local Cache first (Offline Mode support)
+            const cachedDB = loadFromLocalCache('full_db');
             const now = Date.now();
-            
-            // 1. Check Memory (Skipped if forced)
-            if (!force && cached && (now - cached.timestamp < CACHE_TTL)) {
-                console.log(`Loading ${currentRouteId} from session cache.`);
-                schedules = cached.schedules;
-                if (cached.lastUpdatedDate) {
-                    lastUpdatedEl.textContent = `Schedule updated: ${cached.lastUpdatedDate}`;
-                } else {
-                    lastUpdatedEl.textContent = 'Schedule date unavailable';
-                }
+
+            // Use cache if we have it and it's fresh, unless forced
+            if (!force && cachedDB && (now - cachedDB.timestamp < CACHE_TTL)) {
+                console.log("Loading from Local Cache...");
+                fullDatabase = cachedDB.data;
+                processRouteDataFromDB(currentRoute);
                 
-                initializeApp();
-                return; // Skip network fetch
-            }
-
-            // 2. NEW: Check Persistent Storage (LocalStorage) to minimize network calls on reload
-            // (Skipped if forced)
-            if (!force) {
-                const localData = loadFromLocalCache(currentRouteId);
-                if (localData && (now - localData.timestamp < CACHE_TTL)) {
-                      console.log(`Loading ${currentRouteId} from local storage cache (fresh enough).`);
-                      schedules = localData.schedules;
-                      if (localData.lastUpdatedDate) {
-                          lastUpdatedEl.textContent = `Schedule updated: ${localData.lastUpdatedDate}`;
-                      } else {
-                          lastUpdatedEl.textContent = 'Schedule date unavailable';
-                      }
-                      
-                      // Hydrate memory cache
-                      routeCache[currentRouteId] = {
-                        schedules: localData.schedules,
-                        lastUpdatedDate: localData.lastUpdatedDate,
-                        timestamp: localData.timestamp // Keep original timestamp
-                      };
-
-                      initializeApp();
-                      return; // Skip network
+                if (fullDatabase.lastUpdated) {
+                    lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
                 }
+                initializeApp();
+                return;
             }
 
-            // 3. FETCH DATA
+            // Network Fetch
             loadingOverlay.style.display = 'flex';
-            loadingText.textContent = "Loading latest schedules...";
-            loadingText.classList.remove('text-red-500');
-            // Reset loader UI
-            loadingOverlay.innerHTML = `
-                <svg class="pop-loader h-16 w-16 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.828 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                </svg>
-                <div class="text-xl font-bold text-gray-700 dark:text-gray-300 mt-4" id="loading-text">Loading latest schedules...</div>
-            `;
-
             const reloadIcon = forceReloadBtn.querySelector('svg');
             forceReloadBtn.disabled = true;
             reloadIcon.classList.add('spinning');
 
             try {
-                // Fetch date (Soft fail allowed)
-                let lastUpdatedDate = await fetchLastUpdatedDate();
+                console.log("Fetching from Firebase...");
+                const response = await fetch(DATABASE_URL);
+                if (!response.ok) throw new Error("Firebase fetch failed");
                 
-                await delay(200);
+                fullDatabase = await response.json();
+                
+                if (!fullDatabase) throw new Error("Empty database");
 
-                // Fetch schedules sequentially
-                const newSchedules = await fetchLatestSchedulesSequentially(currentRoute);
-
-                // SUCCESS! Save to Cache
-                schedules = newSchedules; 
+                // Save to Cache
+                saveToLocalCache('full_db', fullDatabase);
                 
-                // V2.14: Save to Session Cache
-                routeCache[currentRouteId] = {
-                    schedules: newSchedules,
-                    lastUpdatedDate: lastUpdatedDate,
-                    timestamp: Date.now()
-                };
+                // Process
+                processRouteDataFromDB(currentRoute);
                 
-                saveToLocalCache(currentRouteId, newSchedules, lastUpdatedDate);
-                
-                if (lastUpdatedDate) {
-                    lastUpdatedEl.textContent = `Schedule updated: ${lastUpdatedDate}`;
-                } else {
-                    lastUpdatedEl.textContent = 'Schedule date unavailable';
+                if (fullDatabase.lastUpdated) {
+                    lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
                 }
-
+                
                 initializeApp();
-                // V2.17: Trigger background prefetch after main load success
-                prefetchBackgroundRoutes();
 
             } catch (error) {
-                console.error("Network/Proxy Error:", error);
+                console.error("Fetch Error:", error);
                 
-                // --- V2.7 OFFLINE FALLBACK ---
-                const cachedData = loadFromLocalCache(currentRouteId);
-                if (cachedData) {
-                    console.log("Using cached data due to network failure.");
-                    schedules = cachedData.schedules;
-                    const cachedDate = cachedData.lastUpdatedDate || "Unknown";
-                    lastUpdatedEl.textContent = `Schedule updated: ${cachedDate} (Offline Copy)`;
-                    
-                    // Show Offline Indicator
+                // Fallback to stale cache if network fails
+                if (cachedDB) {
+                    console.log("Network failed. Using stale cache.");
+                    fullDatabase = cachedDB.data;
+                    processRouteDataFromDB(currentRoute);
                     offlineIndicator.style.display = 'block';
-                    
+                    lastUpdatedEl.textContent = `Schedule updated: ${cachedDB.data.lastUpdated} (Offline Copy)`;
                     initializeApp();
-                    showToast("Network failed. Showing cached schedule.", "info", 4000);
+                    showToast("Network failed. Showing offline schedule.", "info", 4000);
                 } else {
-                    // V2.9: NON-BLOCKING ERROR HANDLING
                     loadingOverlay.style.display = 'none';
                     mainContent.style.display = 'block';
                     renderRouteError(error);
@@ -1179,147 +713,132 @@
             }
         }
         
+        // Helper: Extract specific route data from the big DB object
+        function processRouteDataFromDB(route) {
+            if (!fullDatabase) return;
+
+            // Map the route config keys to the actual data
+            schedules = {
+                weekday_to_a: parseJSONSchedule(fullDatabase[route.sheetKeys.weekday_to_a]),
+                weekday_to_b: parseJSONSchedule(fullDatabase[route.sheetKeys.weekday_to_b]),
+                saturday_to_a: parseJSONSchedule(fullDatabase[route.sheetKeys.saturday_to_a]),
+                saturday_to_b: parseJSONSchedule(fullDatabase[route.sheetKeys.saturday_to_b])
+            };
+        }
+
+        // Helper: Convert the JSON list from Firebase back into the format our app logic expects
+        // (Our logic expects { rows: [], stationColumnName: 'STATION', headers: [train nums] })
+        function parseJSONSchedule(jsonRows) {
+            if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) {
+                return { headers: [], rows: [], stationColumnName: 'STATION' };
+            }
+
+            // 1. TRUNCATE: Stop reading at metadata sections
+            // Find the index of the first row that starts the metadata section
+            const stopIndex = jsonRows.findIndex(row => {
+                const s = row.STATION;
+                if (!s || typeof s !== 'string') return false;
+                const lower = s.toLowerCase().trim();
+                return lower.includes('inter-station') || lower.startsWith('last updated');
+            });
+
+            // Slice the array to exclude everything from that point onwards
+            const validRows = (stopIndex !== -1) ? jsonRows.slice(0, stopIndex) : jsonRows;
+
+            // 2. CLEANUP: Filter remaining valid rows
+            const cleanRows = validRows.filter(row => {
+                const s = row.STATION;
+                if (!s || typeof s !== 'string') return false;
+                
+                const lower = s.toLowerCase().trim();
+                
+                // EXCLUDE METADATA ROWS (Safety check)
+                if (lower.startsWith('last updated')) return false;
+                if (lower.includes('inter-station')) return false;
+                if (lower.includes('trip')) return false; // Covers "40min TRIP", etc.
+                
+                return true;
+            });
+
+            if (cleanRows.length === 0) {
+                return { headers: [], rows: [], stationColumnName: 'STATION' };
+            }
+
+            // 3. Extract Headers (Train Numbers) from the first row object keys
+            const sampleRow = cleanRows[0];
+            const trainNumbers = Object.keys(sampleRow).filter(k => k !== 'STATION');
+            
+            return {
+                stationColumnName: 'STATION',
+                headers: ['STATION', ...trainNumbers],
+                rows: cleanRows
+            };
+        }
+        
         // V2.9: New function to render errors inside the schedule cards
         function renderRouteError(error) {
-            const isPublishError = error.message.includes("SHEET_NOT_PUBLISHED");
-            const msg = isPublishError 
-                ? "Schedule data not accessible (Not Published). Please check Google Sheet settings."
-                : "Connection failed. Please check internet or try again later.";
-            
             const html = `
                 <div class="text-center p-4 bg-red-100 dark:bg-red-900 rounded-md border border-red-400 dark:border-red-700">
                     <div class="text-2xl mb-2">⚠️</div>
-                    <p class="text-red-800 dark:text-red-200 font-medium">${msg}</p>
-                    ${isPublishError ? '<p class="text-xs text-red-600 dark:text-red-300 mt-2">Owner: Go to File > Share > Publish to web > Ensure all new sheets are selected.</p>' : ''}
+                    <p class="text-red-800 dark:text-red-200 font-medium">Connection failed. Please check internet.</p>
                 </div>
             `;
-            
             pretoriaTimeEl.innerHTML = html;
             pienaarspoortTimeEl.innerHTML = html;
-            
-            // Clear dropdown so users don't try to select stations on a broken route
             stationSelect.innerHTML = '<option>Unable to load stations</option>';
-        }
-        
-        async function fetchLatestSchedulesSequentially(route) {
-            const results = {};
-            
-            // 1. Weekday Up
-            results.weekday_to_a = parseSchedule(await fetchSchedule('weekday_to_a', route.sheetGids.weekday_to_a));
-            await delay(200); 
-
-            // 2. Weekday Down
-            results.weekday_to_b = parseSchedule(await fetchSchedule('weekday_to_b', route.sheetGids.weekday_to_b));
-            await delay(200);
-
-            // 3. Saturday Up (Check if configured first!)
-            if (route.sheetGids.saturday_to_a) {
-                results.saturday_to_a = parseSchedule(await fetchSchedule('saturday_to_a', route.sheetGids.saturday_to_a));
-                await delay(200);
-            } else {
-                results.saturday_to_a = parseSchedule(""); // Empty dummy
-            }
-
-            // 4. Saturday Down (Check if configured first!)
-            if (route.sheetGids.saturday_to_b) {
-                results.saturday_to_b = parseSchedule(await fetchSchedule('saturday_to_b', route.sheetGids.saturday_to_b));
-            } else {
-                results.saturday_to_b = parseSchedule(""); // Empty dummy
-            }
-            
-            return results;
         }
         
         function initializeApp() {
             populateStationList();
             startClock();
-            // V2.13: Force an immediate UI refresh when app/route initializes
-            // This clears any stale cards from previous routes.
             findNextTrains(); 
             loadingOverlay.style.display = 'none';
             mainContent.style.display = 'block';
         }
 
-        async function fetchSchedule(name, gid) {
-            if (!gid) return ""; 
-            
-            const cacheBuster = `_=${new Date().getTime()}`;
-            const originalUrl = `${sheetBaseUrl}&gid=${gid}&${cacheBuster}`;
-            
-            try {
-                return await fetchUrlWithProxies(originalUrl);
-            } catch (error) {
-                console.warn(`${name}: Failed to fetch (GID: ${gid})`);
-                throw error; // Throw so main loader knows to use cache
-            }
-        }
-
-        function parseSchedule(csvText) {
-            if (!csvText) return { headers: [], rows: [], stationColumnName: '' };
-
-            if (csvText.includes('<!DOCTYPE') || csvText.includes('<script') || csvText.includes('function(')) {
-                console.error("Parser Safety: Detected HTML/JS instead of CSV data.");
-                return { headers: [], rows: [], stationColumnName: '' };
-            }
-
-            const lines = csvText.trim().split(/\r\n|\n/);
-            let headerLineIndex = lines.findIndex(line => line.trim().toUpperCase().startsWith('STATION'));
-            if (headerLineIndex === -1) {
-                headerLineIndex = 0; 
-            }
-            
-            const headers = lines[headerLineIndex].split(',').map(h => h.trim());
-            const stationColumnName = headers[0];
-            
-            const rows = lines.slice(headerLineIndex + 1).map(line => {
-                const values = line.split(',');
-                
-                if (!values[0] || values[0].trim() === "" || values[0].trim().toUpperCase().startsWith("LAST UPDATED")) {
-                    return null;
-                }
-
-                const hasTimes = values.slice(1).some(val => val && val.trim().length > 0);
-
-                if (!hasTimes) {
-                    return null; 
-                }
-                
-                const row = {};
-                row[stationColumnName] = values[0].trim();
-                
-                headers.slice(1).forEach((header, index) => {
-                    if (header && header !== "") {
-                           row[header] = values[index + 1] ? values[index + 1].trim() : null;
-                    }
-                });
-                return row;
-            }).filter(row => row !== null); 
-
-            return { headers, rows, stationColumnName };
-        }
+        // --- STANDARD LOGIC (Compatible with new JSON structure) ---
         
         function populateStationList() {
             const stationSet = new Set();
-            const currentRoute = ROUTES[currentRouteId];
-            
-            if(schedules.weekday_to_a.rows) schedules.weekday_to_a.rows.forEach(row => stationSet.add(row[schedules.weekday_to_a.stationColumnName]));
-            if(schedules.weekday_to_b.rows) schedules.weekday_to_b.rows.forEach(row => stationSet.add(row[schedules.weekday_to_b.stationColumnName]));
+            // Helper function to check if a station has ANY times
+            const hasTimes = (row) => {
+                // Get all keys (columns) for this row
+                const keys = Object.keys(row);
+                // Check if any key other than 'STATION' has a value (a time)
+                return keys.some(key => key !== 'STATION' && row[key] && row[key].trim() !== "");
+            };
+
+            // Safe check
+            if (schedules.weekday_to_a && schedules.weekday_to_a.rows) {
+                 schedules.weekday_to_a.rows.forEach(row => {
+                     // Only add if the station has scheduled times
+                     if (hasTimes(row)) {
+                         stationSet.add(row.STATION);
+                     }
+                 });
+            }
+            if (schedules.weekday_to_b && schedules.weekday_to_b.rows) {
+                 schedules.weekday_to_b.rows.forEach(row => {
+                     if (hasTimes(row)) {
+                         stationSet.add(row.STATION);
+                     }
+                 });
+            }
             
             allStations = Array.from(stationSet);
             
-            allStations.sort((a, b) => {
-                const schedule = schedules.weekday_to_a;
-                const stationCol = schedule.stationColumnName;
-                const indexA = schedule.rows.findIndex(row => row[stationCol] === a);
-                const indexB = schedule.rows.findIndex(row => row[stationCol] === b);
-                return indexA - indexB;
-            });
+            // Sort by index in the first array to keep order
+            if (schedules.weekday_to_a.rows) {
+                 const orderMap = schedules.weekday_to_a.rows.map(r => r.STATION);
+                 allStations.sort((a, b) => orderMap.indexOf(a) - orderMap.indexOf(b));
+            }
             
             const currentSelectedStation = stationSelect.value;
             
             stationSelect.innerHTML = '<option value="">Select a station...</option>';
             allStations.forEach(station => {
-                if (station) {
+                // Fix: Ensure we don't add "Last Updated" or empty strings
+                if (station && !station.toLowerCase().includes('last updated')) {
                     const option = document.createElement('option');
                     option.value = station;
                     option.textContent = station.replace(/ STATION/g, '');
@@ -1366,7 +885,7 @@
                 if (currentDayType === 'sunday') {
                     currentDayEl.textContent = "Sunday (No Service)";
                 } else {
-                       currentDayEl.textContent = `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
+                        currentDayEl.textContent = `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
                 }
 
                 findNextTrains();
@@ -1504,6 +1023,14 @@
                     remainingJourneys.map(j => j.train || j.train1.train)
                 );
                 nextJourney.isLastTrain = (allRemainingTrainNames.size === 1);
+            } else {
+                // V2.47 FIX: If no remaining journeys are found, check if ANY journeys existed for this day.
+                // If allJourneys is empty, it means this station has NO SERVICE for this day.
+                // If allJourneys has items but remainingJourneys is empty, it means service is finished for the day.
+                if (allJourneys.length === 0) {
+                     element.innerHTML = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No scheduled trains from this station today.</div>`;
+                     return;
+                }
             }
             renderJourney(element, header, nextJourney, firstTrainName, destination);
         }
@@ -1546,7 +1073,7 @@
                                 arrivalAtTransfer: train1.arrivalTime,
                                 terminationStation: train1.actualDestination
                             },
-                            connection: connData.earliest,       
+                            connection: connData.earliest,        
                             nextFullJourney: connData.fullJourney 
                         };
                     }
@@ -1680,7 +1207,7 @@
                                 arrivalAtTransfer: terminationTime,
                                 terminationStation: terminalStation
                             },
-                            connection: connectionData.earliest,       
+                            connection: connectionData.earliest,        
                             nextFullJourney: connectionData.fullJourney 
                         });
                     }
@@ -1735,8 +1262,8 @@
                            possibleConnections.push({
                                 train: train,
                                 departureTime: connectionTime,
-                                arrivalTime: actualArrivalTime,        
-                                actualDestination: actualLastStop,     
+                                arrivalTime: actualArrivalTime,         
+                                actualDestination: actualLastStop,      
                                 connectionStation: connectionStation
                             });
                          }
@@ -2147,9 +1674,6 @@
                 }
                 updatePinUI();
             });
-            
-            // Note: Feedback button listener removed from here. 
-            // It is now handled in setupRedirectLogic() to ensure consistent modal behavior.
         }
         
         function copyToClipboard(text) {
@@ -2195,7 +1719,154 @@
             }, duration);
         }
 
-    </script>
+        // =================================================================
+        // RESTORED UI HELPER FUNCTIONS
+        // =================================================================
 
+        function updatePinUI() {
+            const savedDefault = localStorage.getItem('defaultRoute');
+            const isPinned = savedDefault === currentRouteId;
+
+            if (isPinned) {
+                pinOutline.classList.add('hidden');
+                pinFilled.classList.remove('hidden');
+                pinRouteBtn.title = "Unpin this route";
+            } else {
+                pinOutline.classList.remove('hidden');
+                pinFilled.classList.add('hidden');
+                pinRouteBtn.title = "Pin this route as default";
+            }
+
+            // Update Nav Pinned Section
+            if (savedDefault && ROUTES[savedDefault]) {
+                pinnedSection.classList.remove('hidden');
+                const pinnedRoute = ROUTES[savedDefault];
+                // Simple reconstruction of the list item
+                pinnedSection.innerHTML = `
+                    <li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li>
+                    <li class="route-item">
+                        <a class="${savedDefault === currentRouteId ? 'active' : ''}" data-route-id="${savedDefault}">
+                            <span class="route-dot dot-green"></span>${pinnedRoute.name}
+                        </a>
+                    </li>
+                `;
+            } else {
+                pinnedSection.classList.add('hidden');
+            }
+        }
+
+        function saveToLocalCache(key, data) {
+            try {
+                const cacheEntry = {
+                    timestamp: Date.now(),
+                    data: data
+                };
+                localStorage.setItem(key, JSON.stringify(cacheEntry));
+            } catch (e) {
+                console.warn("Cache save failed", e);
+            }
+        }
+
+        function loadFromLocalCache(key) {
+            try {
+                const item = localStorage.getItem(key);
+                return item ? JSON.parse(item) : null;
+            } catch (e) {
+                console.warn("Cache load failed", e);
+                return null;
+            }
+        }
+
+        function setupModalButtons() {
+            const closeAction = () => {
+                scheduleModal.classList.add('hidden');
+                document.body.style.overflow = ''; // Restore scrolling
+            };
+            closeModalBtn.addEventListener('click', closeAction);
+            closeModalBtn2.addEventListener('click', closeAction);
+            scheduleModal.addEventListener('click', (e) => {
+                if (e.target === scheduleModal) closeAction();
+            });
+        }
+
+        // Must be global because it's called via onclick="" in HTML string
+        window.openScheduleModal = function(destination) {
+            if (!currentScheduleData || !currentScheduleData[destination]) {
+                showToast("No full schedule data available.", "error");
+                return;
+            }
+
+            const journeys = currentScheduleData[destination];
+            modalTitle.textContent = `Schedule to ${destination.replace(' STATION', '')}`;
+            modalList.innerHTML = '';
+
+            journeys.forEach(j => {
+                const dep = j.departureTime || j.train1.departureTime;
+                const trainName = j.train || j.train1.train;
+                const type = j.type === 'transfer' ? 'Transfer' : 'Direct';
+                
+                // Simple list item
+                const div = document.createElement('div');
+                div.className = "p-3 bg-white dark:bg-gray-700 rounded shadow-sm flex justify-between items-center";
+                div.innerHTML = `
+                    <div>
+                        <span class="text-lg font-bold text-gray-900 dark:text-white">${dep}</span>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName}</div>
+                    </div>
+                    <div class="flex flex-col items-end gap-1">
+                        ${type === 'Direct' 
+                            ? '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>'
+                            : `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase">Transfer @ ${j.train1.terminationStation.replace(' STATION','')}</span>`
+                        }
+                        ${j.isLastTrain ? '<span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800">LAST TRAIN</span>' : ''}
+                    </div>
+                `;
+                modalList.appendChild(div);
+            });
+
+            scheduleModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        };
+
+        function setupRedirectLogic() {
+            // Feedback Button
+            feedbackBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                showRedirectModal("https://wa.me/27655169399?text=Feedback%20for%20Next%20Train", "Open WhatsApp to send feedback?");
+            });
+            
+            // Facebook Button
+            checkUpdatesBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                showRedirectModal(checkUpdatesBtn.href, "Visit Facebook for official updates?");
+            });
+        }
+
+        function showRedirectModal(url, message) {
+            redirectMessage.textContent = message;
+            redirectModal.classList.remove('hidden');
+            
+            // One-time listeners for the buttons
+            const confirmHandler = () => {
+                window.open(url, '_blank');
+                redirectModal.classList.add('hidden');
+                cleanup();
+            };
+            
+            const cancelHandler = () => {
+                redirectModal.classList.add('hidden');
+                cleanup();
+            };
+            
+            const cleanup = () => {
+                redirectConfirmBtn.removeEventListener('click', confirmHandler);
+                redirectCancelBtn.removeEventListener('click', cancelHandler);
+            };
+
+            redirectConfirmBtn.addEventListener('click', confirmHandler);
+            redirectCancelBtn.addEventListener('click', cancelHandler);
+        }
+
+    </script>
 </body>
 </html>
