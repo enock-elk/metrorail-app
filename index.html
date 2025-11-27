@@ -641,8 +641,90 @@
             setupModalButtons(); // V2.21
             setupRedirectLogic(); // V2.27
             
-            // V2.17: Start Auto-Refresh Timer (every 1 min check)
-            setInterval(autoRefreshData, 60 * 1000);
+            // V2.17: Start Auto-Refresh Timer (every 1 min check) - deleted
+
+            // --- SMARTER REFRESH LOGIC ---
+            
+            // 1. Configuration
+            const REFRESH_CONFIG = {
+                standardInterval: 5 * 60 * 1000, // Check every 5 mins normally
+                activeInterval: 60 * 1000,       // Check every 1 min if train is arriving soon (<15 mins)
+                nightModeStart: 21,              // 9 PM (No trains run usually)
+                nightModeEnd: 4                  // 4 AM
+            };
+            
+            let refreshTimer = null;
+            
+            function startSmartRefresh() {
+                // Clear any existing timer to avoid duplicates
+                if (refreshTimer) clearTimeout(refreshTimer);
+                
+                // Run the logic
+                scheduleNextRefresh();
+            }
+            
+            function scheduleNextRefresh() {
+                // CHECK 1: Is the tab hidden? 
+                // If user is not looking, stop polling completely. 
+                // We will refresh immediately when they come back (see visibility listener below).
+                if (document.hidden) {
+                    console.log("Tab hidden. Pausing auto-refresh.");
+                    return; 
+                }
+            
+                // CHECK 2: Is it Night Time?
+                const hour = new Date().getHours();
+                if (hour >= REFRESH_CONFIG.nightModeStart || hour < REFRESH_CONFIG.nightModeEnd) {
+                    console.log("Night mode. Pausing refresh until morning.");
+                    // Check again in 1 hour just in case they leave the tab open overnight
+                    refreshTimer = setTimeout(scheduleNextRefresh, 60 * 60 * 1000);
+                    return;
+                }
+            
+                // CHECK 3: Dynamic Interval Calculation
+                // If the next train is far away, we don't need to check often.
+                // If the next train is soon, we want live updates on delays.
+                let nextInterval = REFRESH_CONFIG.standardInterval;
+                
+                // Look at the currently displayed times to decide urgency
+                // (This assumes you have data loaded)
+                const nextTrainSeconds = getSecondsToNextTrain(); 
+                if (nextTrainSeconds > 0 && nextTrainSeconds < 900) { // If train is < 15 mins away
+                    nextInterval = REFRESH_CONFIG.activeInterval; // Switch to 1 minute refresh
+                    console.log("Train approaching! Switching to fast refresh.");
+                }
+            
+                console.log(`Next background refresh in ${nextInterval / 1000} seconds.`);
+            
+                refreshTimer = setTimeout(async () => {
+                    await autoRefreshData();
+                    scheduleNextRefresh(); // Recurse
+                }, nextInterval);
+            }
+            
+            // Helper to guess urgency based on your current variables
+            function getSecondsToNextTrain() {
+                // This is a simplified check. You can make it smarter by reading your `schedules` object.
+                // For now, if we don't know, return a high number to keep standard interval.
+                return 9999; 
+            }
+            
+            // LISTEN: When user switches tabs back to your app, refresh immediately!
+            document.addEventListener("visibilitychange", () => {
+                if (!document.hidden) {
+                    console.log("User returned! Force refreshing data...");
+                    loadAllSchedules(); // Immediate fetch
+                    startSmartRefresh(); // Restart the timer
+                }
+            });
+            
+            // Start the loop when app loads
+        document.addEventListener('DOMContentLoaded', () => {
+            // ... your other init code ...
+            startSmartRefresh();
+        });
+
+          
         });
         
         // --- V2.27 REDIRECT MODAL LOGIC ---
@@ -2123,3 +2205,4 @@
 
 </body>
 </html>
+
