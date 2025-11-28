@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.0 BETA (UX Improvements) based on V2.9
-  - NEW: Route Title is now clickable with a dropdown indicator.
-  - NEW: Schedule boxes show "Select a station" instruction when empty.
-  - NEW: Higher contrast station selector.
-  - RETAINED: All V2.61 logic (Firebase, Caching, Offline Mode).
+  Metrorail Next Train V3.15 (Mobile Debug Update)
+  - FEATURE: Detects if running as 'file://' or 'content://' and warns user that Geo will fail.
+  - CONFIG: High Accuracy Enabled (prevents 58km offset).
+  - CONFIG: 100km Radius retained for testing.
 -->
 <html lang="en" class="dark">
 
@@ -19,7 +18,6 @@
     <meta property="og:url" content="https://nexttrain.co.za/" />
     <meta property="og:type" content="website" />
     
-    <!-- Canonical Link for SEO -->
     <link rel="canonical" href="https://nexttrain.co.za/" />
     
     <!-- Google tag (gtag.js) -->
@@ -28,7 +26,6 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-    
       gtag('config', 'G-FH8XHJVTPW');
     </script>
 
@@ -46,25 +43,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         if (typeof tailwind !== 'undefined') {
-            tailwind.config = {
-                darkMode: 'class',
-            }
-        } else {
-            console.warn("Tailwind CSS failed to load. Styles may be missing.");
+            tailwind.config = { darkMode: 'class' }
         }
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            touch-action: manipulation;
-        }
-        
-        body.sidenav-open {
-            overflow: hidden;
-        }
+        body { font-family: 'Inter', sans-serif; touch-action: manipulation; }
+        body.sidenav-open { overflow: hidden; }
 
-        /* Enhanced Dropdown Icon */
         #station-select {
             padding-right: 2.5rem; 
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%233b82f6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
@@ -72,24 +58,15 @@
             background-repeat: no-repeat;
             background-size: 1.5em 1.5em;
         }
-
         .dark #station-select {
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2360a5fa' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
         }
 
-        @keyframes pop {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-        
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
+        @keyframes pop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .spinning { animation: spin 1s linear infinite; }
         .pop-loader { animation: pop 1.5s infinite; }
         
-        /* Sidenav Styles */
         #sidenav-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: rgba(0, 0, 0, 0.5); z-index: 999;
@@ -112,44 +89,31 @@
         }
         html:not(.dark) #sidenav h2 { border-bottom-color: #e5e7eb; }
 
-        #sidenav ul {
-            list-style: none; padding: 0; margin-top: 20px;
-            flex-grow: 1; overflow-y: auto;
-        }
+        #sidenav ul { list-style: none; padding: 0; margin-top: 20px; flex-grow: 1; overflow-y: auto; }
         
         #sidenav .route-category {
             font-size: 0.75rem; font-weight: 700; color: #9ca3af;
             text-transform: uppercase; letter-spacing: 0.05em;
-            padding: 16px 16px 8px 16px;
-            border-top: 1px solid #374151;
-            margin-top: 8px;
+            padding: 16px 16px 8px 16px; border-top: 1px solid #374151; margin-top: 8px;
         }
         #sidenav .route-category:first-child { border-top: none; margin-top: 0; }
         html:not(.dark) #sidenav .route-category { color: #6b7280; border-top-color: #e5e7eb; }
         
         #sidenav li .route-item {
             display: flex; align-items: center; border-radius: 0.5rem;
-            margin-left: 0.5rem; transition: background-color 0.2s;
-            padding: 2px 0;
+            margin-left: 0.5rem; transition: background-color 0.2s; padding: 2px 0;
         }
         
         #sidenav li a {
             flex-grow: 1; padding: 10px 4px 10px 12px;
-            font-size: 0.9rem; font-weight: 500; cursor: pointer;
-            display: flex; align-items: center;
+            font-size: 0.9rem; font-weight: 500; cursor: pointer; display: flex; align-items: center;
         }
 
         #sidenav li .route-item:hover { background-color: #374151; }
         html:not(.dark) #sidenav li .route-item:hover { background-color: #f3f4f6; }
         
-        #sidenav li .route-item a.active {
-            background-color: #3b82f6; color: #ffffff; border-radius: 0.5rem;
-        }
-        
-        #sidenav li .route-item a.disabled {
-            color: #6b7280; cursor: pointer; 
-            opacity: 0.8;
-        }
+        #sidenav li .route-item a.active { background-color: #3b82f6; color: #ffffff; border-radius: 0.5rem; }
+        #sidenav li .route-item a.disabled { color: #6b7280; cursor: pointer; opacity: 0.8; }
         html:not(.dark) #sidenav li .route-item a.disabled { color: #4b5563; }
         
         #sidenav .close-btn {
@@ -157,10 +121,7 @@
             font-size: 2rem; font-weight: bold; line-height: 1; cursor: pointer;
         }
         
-        /* Color Dots for Routes */
-        .route-dot {
-            width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 10px;
-        }
+        .route-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 10px; }
         .dot-green { background-color: #22c55e; }
         .dot-orange { background-color: #f97316; }
         .dot-purple { background-color: #a855f7; }
@@ -180,20 +141,10 @@
         .toast-error { background-color: #dc2626; color: white; }
         
         #offline-indicator {
-            display: none;
-            background-color: #f59e0b;
-            color: white;
-            text-align: center;
-            padding: 4px;
-            font-size: 0.75rem;
-            font-weight: bold;
-            width: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 40;
+            display: none; background-color: #f59e0b; color: white; text-align: center;
+            padding: 4px; font-size: 0.75rem; font-weight: bold; width: 100%;
+            position: absolute; top: 0; left: 0; z-index: 40;
         }
-
     </style>
 </head>
 
@@ -204,85 +155,30 @@
         <button id="close-nav-btn" class="close-btn text-gray-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-300">&times;</button>
         <h2 class="text-gray-900 dark:text-white">Select Route</h2>
         <ul id="route-list">
-            
-            <!-- PINNED SECTION (Dynamically Populated) -->
             <div id="pinned-section" class="hidden border-b border-gray-700 dark:border-gray-600 pb-2 mb-2">
                 <li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li>
-                <!-- Pinned item goes here -->
             </div>
-
-            <!-- NORTHERN CORRIDOR -->
+            
             <li class="route-category">Northern Corridor (Pretoria)</li>
-            
-            <li class="route-item">
-                <a class="active" data-route-id="pta-pien">
-                    <span class="route-dot dot-green"></span>Pretoria <-> Pienaarspoort
-                </a>
-            </li>
-            
-            <!-- MABOPANE ROUTE LIVE -->
-            <li class="route-item">
-                <a class="" data-route-id="pta-mabopane">
-                    <span class="route-dot dot-orange"></span>Pretoria <-> Mabopane
-                </a>
-            </li>
+            <li class="route-item"><a class="active" data-route-id="pta-pien"><span class="route-dot dot-green"></span>Pretoria <-> Pienaarspoort</a></li>
+            <li class="route-item"><a class="" data-route-id="pta-mabopane"><span class="route-dot dot-orange"></span>Pretoria <-> Mabopane</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="pta-saul"><span class="route-dot dot-green"></span>Pretoria <-> Saulsville</a></li>
 
-            <li class="route-item">
-                <a class="disabled" data-route-id="pta-saul">
-                    <span class="route-dot dot-green"></span>Pretoria <-> Saulsville
-                </a>
-            </li>
-
-            <!-- PRETORIA - JHB LINE (New Routes) -->
             <li class="route-category">Pretoria - JHB Line</li>
-
-            <li class="route-item">
-                <a class="disabled" data-route-id="pta-irene">
-                    <span class="route-dot dot-blue"></span>Pretoria <-> Irene
-                </a>
-            </li>
-
-            <li class="route-item">
-                <a class="disabled" data-route-id="pta-kempton">
-                    <span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park
-                </a>
-            </li>
-
-            <li class="route-item">
-                <a class="disabled" data-route-id="pta-germiston">
-                    <span class="route-dot dot-blue"></span>Pretoria <-> Germiston
-                </a>
-            </li>
+            <li class="route-item"><a class="disabled" data-route-id="pta-irene"><span class="route-dot dot-blue"></span>Pretoria <-> Irene</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="pta-germiston"><span class="route-dot dot-blue"></span>Pretoria <-> Germiston</a></li>
             
-            <!-- SOUTHERN CORRIDOR -->
             <li class="route-category">Southern Corridor</li>
-            
-            <li class="route-item">
-                <a class="disabled" data-route-id="jhb-vereeniging">
-                    <span class="route-dot dot-purple"></span>JHB <-> Vereeniging
-                </a>
-            </li>
+            <li class="route-item"><a class="disabled" data-route-id="jhb-vereeniging"><span class="route-dot dot-purple"></span>JHB <-> Vereeniging</a></li>
 
-            <!-- EASTERN CORRIDOR -->
             <li class="route-category">Eastern Corridor</li>
+            <li class="route-item"><a class="disabled" data-route-id="jhb-springs"><span class="route-dot dot-red"></span>JHB <-> Springs</a></li>
             
-            <li class="route-item">
-                <a class="disabled" data-route-id="jhb-springs">
-                    <span class="route-dot dot-red"></span>JHB <-> Springs
-                </a>
-            </li>
-            
-            <!-- SOWETO CORRIDOR -->
             <li class="route-category">Soweto Corridor</li>
-            
-            <li class="route-item">
-                <a class="disabled" data-route-id="jhb-soweto">
-                    <span class="route-dot dot-yellow"></span>JHB <-> Naledi
-                </a>
-            </li>
+            <li class="route-item"><a class="disabled" data-route-id="jhb-soweto"><span class="route-dot dot-yellow"></span>JHB <-> Naledi</a></li>
         </ul>
     </div>
-
 
     <div id="loading-overlay" class="absolute inset-0 bg-gray-100 dark:bg-gray-900 flex flex-col items-center justify-center z-50">
         <svg class="pop-loader h-16 w-16 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -301,9 +197,7 @@
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            <div id="modal-list" class="p-2 overflow-y-auto flex-grow space-y-2 bg-gray-100 dark:bg-gray-800">
-                <!-- Schedule items injected here -->
-            </div>
+            <div id="modal-list" class="p-2 overflow-y-auto flex-grow space-y-2 bg-gray-100 dark:bg-gray-800"></div>
             <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-xl">
                 <button id="close-modal-btn-2" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors">Close</button>
             </div>
@@ -318,16 +212,10 @@
                     <svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                 </div>
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Leave App?</h3>
-                <p id="redirect-message" class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                    You are about to visit an external website.
-                </p>
+                <p id="redirect-message" class="text-sm text-gray-500 dark:text-gray-400 mb-6">You are about to visit an external website.</p>
                 <div class="flex space-x-3">
-                    <button id="redirect-cancel-btn" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg transition-colors">
-                        Cancel
-                    </button>
-                    <button id="redirect-confirm-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">
-                        Continue
-                    </button>
+                    <button id="redirect-cancel-btn" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg transition-colors">Cancel</button>
+                    <button id="redirect-confirm-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">Continue</button>
                 </div>
             </div>
         </div>
@@ -343,14 +231,10 @@
             </button>
             
             <div class="absolute top-0 right-0 flex space-x-2">
-                <!-- PIN BUTTON -->
                 <button id="pin-route-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500" title="Pin this route as default">
-                    <!-- Outline Pin (Default) -->
                     <svg id="pin-outline" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
-                    <!-- Filled Pin (Active) -->
                     <svg id="pin-filled" class="w-5 h-5 hidden text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
                 </button>
-
                 <button id="force-reload-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <svg id="reload-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                 </button>
@@ -363,94 +247,63 @@
 
         <div class="text-center mb-6">
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Metrorail Next Train</h1>
-            
-            <!-- NEW: CLICKABLE ROUTE SUBTITLE -->
             <div id="route-subtitle" class="inline-flex items-center justify-center text-lg text-blue-500 dark:text-blue-400 font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-300 transition-colors mt-1 py-1 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
                 <span>Pretoria <-> Pienaarspoort</span>
-                <!-- Dropdown Chevron -->
                 <svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
-            
             <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium mt-2"></p>
             <p id="current-day" class="text-sm text-gray-500 dark:text-gray-400"></p>
         </div>
 
         <div class="mb-6">
             <label for="station-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Station:</label>
-            <!-- NEW: ENHANCED BORDER FOR VISIBILITY -->
             <select id="station-select" class="block w-full bg-white dark:bg-gray-700 border-2 border-blue-200 dark:border-blue-900/50 text-gray-900 dark:text-white rounded-md shadow-sm p-3 text-lg focus:ring-blue-500 focus:border-blue-500 appearance-none transition-colors">
                 <option value="">Select a station...</option>
+                <option value="FIND_NEAREST">📍 Find Nearest Station</option>
             </select>
         </div>
 
         <div class="space-y-6">
             <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 shadow-lg transition-all" id="pretoria-card">
-                <h2 id="pretoria-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">
-                    Next train to <span class="text-blue-500 dark:text-blue-400">Pretoria</span>
-                </h2>
-                <!-- NEW: INSTRUCTIONAL PLACEHOLDER -->
-                <div id="pretoria-time" class="text-center flex flex-col items-center justify-center min-h-[80px]">
-                    <div class="text-gray-400 dark:text-gray-500 flex flex-col items-center">
-                         <svg class="w-8 h-8 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                         <span class="text-sm font-medium">Select a station above to view schedule</span>
-                    </div>
-                </div>
+                <h2 id="pretoria-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">Next train to <span class="text-blue-500 dark:text-blue-400">Pretoria</span></h2>
+                <div id="pretoria-time" class="text-center flex flex-col items-center justify-center min-h-[80px]"></div>
             </div>
 
             <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 shadow-lg transition-all" id="pien-card">
-                <h2 id="pienaarspoort-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">
-                    Next train to <span class="text-blue-500 dark:text-blue-400">Pienaarspoort</span>
-                </h2>
-                <!-- NEW: INSTRUCTIONAL PLACEHOLDER -->
-                <div id="pienaarspoort-time" class="text-center flex flex-col items-center justify-center min-h-[80px]">
-                    <div class="text-gray-400 dark:text-gray-500 flex flex-col items-center">
-                         <svg class="w-8 h-8 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                         <span class="text-sm font-medium">Select a station above to view schedule</span>
-                    </div>
-                </div>
+                <h2 id="pienaarspoort-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">Next train to <span class="text-blue-500 dark:text-blue-400">Pienaarspoort</span></h2>
+                <div id="pienaarspoort-time" class="text-center flex flex-col items-center justify-center min-h-[80px]"></div>
             </div>
         </div>
 
         <div class="mt-8 text-center">
-            <a href="https://www.facebook.com/metrorailgp" target="_blank" rel="noopener noreferrer" id="check-updates-btn" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105">
-                🚄 View Official Metrorail Updates
-            </a>
+            <a href="https://www.facebook.com/metrorailgp" target="_blank" rel="noopener noreferrer" id="check-updates-btn" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105">🚄 View Official Metrorail Updates</a>
             <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Opens the official Facebook page.</p>
         </div>
 
         <div class="mt-6 grid grid-cols-2 gap-4">
             <button id="share-app-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
-                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg>
-                Share App
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg> Share App
             </button>
-
             <button id="feedback-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
-                 <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
-                Feedback
+                 <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg> Feedback
             </button>
         </div>
         
         <div class="mt-4">
             <button id="install-app-btn" class="hidden flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">
-                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
-                Install App on this Device
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App on this Device
             </button>
         </div>
         
-        <div id="copied-message" class="hidden text-center text-green-500 font-medium mt-2">
-            Link copied to clipboard!
-        </div>
-
+        <div id="copied-message" class="hidden text-center text-green-500 font-medium mt-2">Link copied to clipboard!</div>
         <p id="last-updated-date" class="text-xs text-gray-500 dark:text-gray-400 text-center mt-6"></p>
         <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">2025 &copy; Kazembe CodeWorks. All rights reserved.</p>
-
     </div>
     
     <div id="toast" class=""></div>
 
     <script>
-
-      // --- SERVICE WORKER REGISTRATION (NEW) ---
+        // --- SERVICE WORKER REGISTRATION ---
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
@@ -458,8 +311,31 @@
                     .catch((err) => console.log('Service Worker Failed:', err));
             });
         }
-  
-             
+
+        // --- STATION COORDINATES (Hardcoded for Speed) ---
+        const STATION_LOCATIONS = {
+            "PRETORIA STATION": { lat: -25.7592, lon: 28.1883 },
+            "WALKER STREET STATION": { lat: -25.76009, lon: 28.21351 },
+            "PIENAARSPOORT STATION": { lat: -25.7439, lon: 28.3978 },
+            "KOEDOESPOORT STATION": { lat: -25.7336, lon: 28.2567 },
+            "MABOPANE STATION": { lat: -25.5019, lon: 28.0811 },
+            "HATFIELD STATION": { lat: -25.7483, lon: 28.2378 },
+            "CENTURION STATION": { lat: -25.8528, lon: 28.1925 },
+            "BOSMAN STATION": { lat: -25.7561, lon: 28.1836 },
+            "MAMELODI GARDENS STATION": { lat: -25.7294, lon: 28.3644 },
+            "EERSTE FABRIEKE STATION": { lat: -25.7231, lon: 28.3361 },
+            "DENNEBOOM STATION": { lat: -25.7250, lon: 28.3189 },
+            "SAULSVILLE STATION": { lat: -25.7664, lon: 28.0933 },
+            "HERCULES STATION": { lat: -25.7275, lon: 28.1628 },
+            "WONDERBOOM STATION": { lat: -25.6886, lon: 28.1928 },
+            "LOFTUS VERSFELD STATION": { lat: -25.7523, lon: 28.2215 },
+            "RISSIK STATION": { lat: -25.7533, lon: 28.2052 },
+            "SILVERTON STATION": { lat: -25.7329, lon: 28.3039 },
+            "GARSFONTEIN STATION": { lat: -25.7900, lon: 28.2900 } // Approximation
+        };
+
+        const MAX_RADIUS_KM = 100; // Increased to 100km to handle ISP location drift
+
         const stationSelect = document.getElementById('station-select');
         const pretoriaTimeEl = document.getElementById('pretoria-time');
         const pienaarspoortTimeEl = document.getElementById('pienaarspoort-time');
@@ -472,7 +348,6 @@
         const mainContent = document.getElementById('main-content');
         const offlineIndicator = document.getElementById('offline-indicator');
         
-        // Modal Elements
         const scheduleModal = document.getElementById('schedule-modal');
         const modalTitle = document.getElementById('modal-title');
         const modalList = document.getElementById('modal-list');
@@ -480,7 +355,6 @@
         const closeModalBtn2 = document.getElementById('close-modal-btn-2');
         const modalContent = document.getElementById('modal-content');
 
-        // Redirect Modal Elements (V2.27)
         const redirectModal = document.getElementById('redirect-modal');
         const redirectModalContent = document.getElementById('redirect-modal-content');
         const redirectMessage = document.getElementById('redirect-message');
@@ -492,7 +366,7 @@
         const lightIcon = document.getElementById('theme-toggle-light-icon');
         const shareBtn = document.getElementById('share-app-btn');
         const feedbackBtn = document.getElementById('feedback-btn');
-        const checkUpdatesBtn = document.getElementById('check-updates-btn'); // Facebook button
+        const checkUpdatesBtn = document.getElementById('check-updates-btn');
         const installBtn = document.getElementById('install-app-btn');
         const copiedMessage = document.getElementById('copied-message');
         const forceReloadBtn = document.getElementById('force-reload-btn');
@@ -505,15 +379,13 @@
         const sidenav = document.getElementById('sidenav');
         const sidenavOverlay = document.getElementById('sidenav-overlay');
         const routeList = document.getElementById('route-list');
-        const routeSubtitle = document.getElementById('route-subtitle'); // Title Trigger
+        const routeSubtitle = document.getElementById('route-subtitle');
         const pinnedSection = document.getElementById('pinned-section');
         
         const toast = document.getElementById('toast');
         let toastTimeout;
-
         const lastUpdatedEl = document.getElementById('last-updated-date');
 
-        // --- DATABASE CONFIG ---
         const DATABASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/schedules.json";
 
         const ROUTES = {
@@ -524,12 +396,7 @@
                 destA: 'PRETORIA STATION',
                 destB: 'PIENAARSPOORT STATION',
                 transferStation: 'KOEDOESPOORT STATION',
-                sheetKeys: {
-                    weekday_to_a: 'pien_to_pta_weekday', 
-                    weekday_to_b: 'pta_to_pien_weekday',    
-                    saturday_to_a: 'pien_to_pta_sat', 
-                    saturday_to_b: 'pta_to_pien_sat'
-                }
+                sheetKeys: { weekday_to_a: 'pien_to_pta_weekday', weekday_to_b: 'pta_to_pien_weekday', saturday_to_a: 'pien_to_pta_sat', saturday_to_b: 'pta_to_pien_sat' }
             },
             'pta-mabopane': {
                 id: 'pta-mabopane',
@@ -538,20 +405,15 @@
                 destA: 'PRETORIA STATION',
                 destB: 'MABOPANE STATION',
                 transferStation: null, 
-                sheetKeys: {
-                    weekday_to_a: 'mab_to_pta_weekday', 
-                    weekday_to_b: 'pta_to_mab_weekday', 
-                    saturday_to_a: '', // Unpublished
-                    saturday_to_b: ''  // Unpublished
-                }
+                sheetKeys: { weekday_to_a: 'mab_to_pta_weekday', weekday_to_b: 'pta_to_mab_weekday', saturday_to_a: '', saturday_to_b: '' }
             },
             'pta-saul': { id: 'pta-saul', name: "Pretoria <-> Saulsville", isActive: false, destA: 'PRETORIA STATION', destB: 'SAULSVILLE STATION', transferStation: null, sheetKeys: {} },
-             'pta-irene': { id: 'pta-irene', name: "Pretoria <-> Irene", isActive: false, destA: 'PRETORIA STATION', destB: 'IRENE STATION', transferStation: null, sheetKeys: {} },
-             'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
-             'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
-             'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
-             'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} },
-             'jhb-soweto': { id: 'jhb-soweto', name: "JHB <-> Naledi", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'NALEDI STATION', transferStation: null, sheetKeys: {} }
+            'pta-irene': { id: 'pta-irene', name: "Pretoria <-> Irene", isActive: false, destA: 'PRETORIA STATION', destB: 'IRENE STATION', transferStation: null, sheetKeys: {} },
+            'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
+            'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
+            'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
+            'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} },
+            'jhb-soweto': { id: 'jhb-soweto', name: "JHB <-> Naledi", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'NALEDI STATION', transferStation: null, sheetKeys: {} }
         };
 
         let currentRouteId = 'pta-pien'; 
@@ -563,18 +425,15 @@
         let currentDayIndex = 0; 
         let deferredPrompt; 
         const routeCache = {};
-        const CACHE_TTL = 60 * 60 * 1000; // 1 hour
         let currentScheduleData = {};
 
-        // --- SMARTER REFRESH LOGIC ---
-        const REFRESH_CONFIG = {
-            standardInterval: 5 * 60 * 1000, // 5 mins
-            activeInterval: 60 * 1000,       // 1 min
-            nightModeStart: 21,              
-            nightModeEnd: 4                  
-        };
-
+        const REFRESH_CONFIG = { standardInterval: 5 * 60 * 1000, activeInterval: 60 * 1000, nightModeStart: 21, nightModeEnd: 4 };
         let refreshTimer = null;
+
+        function normalizeStationName(name) {
+            if (!name) return "";
+            return name.toUpperCase().replace(/ STATION/g, '').trim();
+        }
 
         function startSmartRefresh() {
             if (refreshTimer) clearTimeout(refreshTimer);
@@ -583,16 +442,14 @@
 
         function scheduleNextRefresh() {
             if (document.hidden) return; 
-
             const hour = new Date().getHours();
             if (hour >= REFRESH_CONFIG.nightModeStart || hour < REFRESH_CONFIG.nightModeEnd) {
                 refreshTimer = setTimeout(scheduleNextRefresh, 60 * 60 * 1000);
                 return;
             }
-
             let nextInterval = REFRESH_CONFIG.standardInterval;
             refreshTimer = setTimeout(async () => {
-                await loadAllSchedules(); // Re-fetch DB
+                await loadAllSchedules(); 
                 scheduleNextRefresh(); 
             }, nextInterval);
         }
@@ -604,20 +461,14 @@
             }
         });
 
-        // --- DATA FETCHING (Stale-While-Revalidate) ---
         async function loadAllSchedules(force = false) {
             const currentRoute = ROUTES[currentRouteId];
             if (!currentRoute) return;
             
-            // UI Setup (UPDATED: Handle span inside title now)
             routeSubtitle.innerHTML = `<span>${currentRoute.name}</span><svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
-            
-            pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
-            pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
-            
-            // RESET TO PLACEHOLDER INSTEAD OF BLANK
+            pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${normalizeStationName(currentRoute.destA)}</span>`;
+            pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${normalizeStationName(currentRoute.destB)}</span>`;
             renderPlaceholder();
-
             offlineIndicator.style.display = 'none';
             updatePinUI(); 
 
@@ -628,25 +479,19 @@
                 return; 
             }
             
-            // --- STALE-WHILE-REVALIDATE STRATEGY ---
             const cachedDB = loadFromLocalCache('full_db');
             let usedCache = false;
 
             if (cachedDB) {
-                console.log("Restoring from cache (Background update started)...");
+                console.log("Restoring from cache...");
                 fullDatabase = cachedDB.data;
                 processRouteDataFromDB(currentRoute);
-                if (fullDatabase.lastUpdated) {
-                    lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
-                }
-                initializeApp(); // Render UI immediately
+                if (fullDatabase.lastUpdated) lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
+                initializeApp(); 
                 usedCache = true;
             }
 
-            if (!usedCache) {
-                loadingOverlay.style.display = 'flex';
-            }
-            
+            if (!usedCache) loadingOverlay.style.display = 'flex';
             const reloadIcon = forceReloadBtn.querySelector('svg');
             forceReloadBtn.disabled = true;
             reloadIcon.classList.add('spinning');
@@ -654,7 +499,6 @@
             try {
                 const response = await fetch(DATABASE_URL);
                 if (!response.ok) throw new Error("Firebase fetch failed");
-                
                 const newDatabase = await response.json();
                 if (!newDatabase) throw new Error("Empty database");
 
@@ -666,11 +510,7 @@
                     fullDatabase = newDatabase;
                     saveToLocalCache('full_db', fullDatabase);
                     processRouteDataFromDB(currentRoute);
-                    
-                    if (fullDatabase.lastUpdated) {
-                        lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
-                    }
-
+                    if (fullDatabase.lastUpdated) lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
                     if (usedCache) {
                         showToast("New schedule found! Updating...", "success", 3000);
                         findNextTrains();
@@ -680,15 +520,11 @@
                 } else {
                     console.log("Data is already up to date.");
                 }
-
             } catch (error) {
                 console.error("Fetch Error:", error);
-                
                 if (usedCache) {
                     offlineIndicator.style.display = 'block';
-                    if (cachedDB && cachedDB.data && cachedDB.data.lastUpdated) {
-                          lastUpdatedEl.textContent = `Schedule updated: ${cachedDB.data.lastUpdated} (Offline Copy)`;
-                    }
+                    if (cachedDB && cachedDB.data && cachedDB.data.lastUpdated) lastUpdatedEl.textContent = `Schedule updated: ${cachedDB.data.lastUpdated} (Offline Copy)`;
                 } else {
                     loadingOverlay.style.display = 'none';
                     mainContent.style.display = 'block';
@@ -697,15 +533,12 @@
             } finally {
                 forceReloadBtn.disabled = false;
                 reloadIcon.classList.remove('spinning');
-                if (!usedCache) {
-                    loadingOverlay.style.display = 'none';
-                }
+                if (!usedCache) loadingOverlay.style.display = 'none';
             }
         }
         
         function processRouteDataFromDB(route) {
             if (!fullDatabase) return;
-
             schedules = {
                 weekday_to_a: parseJSONSchedule(fullDatabase[route.sheetKeys.weekday_to_a]),
                 weekday_to_b: parseJSONSchedule(fullDatabase[route.sheetKeys.weekday_to_b]),
@@ -715,19 +548,14 @@
         }
 
         function parseJSONSchedule(jsonRows) {
-            if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) {
-                return { headers: [], rows: [], stationColumnName: 'STATION' };
-            }
-
+            if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) return { headers: [], rows: [], stationColumnName: 'STATION' };
             const stopIndex = jsonRows.findIndex(row => {
                 const s = row.STATION;
                 if (!s || typeof s !== 'string') return false;
                 const lower = s.toLowerCase().trim();
                 return lower.includes('inter-station') || lower.startsWith('last updated');
             });
-
             const validRows = (stopIndex !== -1) ? jsonRows.slice(0, stopIndex) : jsonRows;
-
             const cleanRows = validRows.filter(row => {
                 const s = row.STATION;
                 if (!s || typeof s !== 'string') return false;
@@ -737,36 +565,17 @@
                 if (lower.includes('trip')) return false;
                 return true;
             });
-
-            if (cleanRows.length === 0) {
-                return { headers: [], rows: [], stationColumnName: 'STATION' };
-            }
-
+            if (cleanRows.length === 0) return { headers: [], rows: [], stationColumnName: 'STATION' };
             const allHeaders = new Set();
             cleanRows.forEach(row => {
-                Object.keys(row).forEach(key => {
-                    if (key !== 'STATION') {
-                        allHeaders.add(key);
-                    }
-                });
+                Object.keys(row).forEach(key => { if (key !== 'STATION') allHeaders.add(key); });
             });
-            
             const trainNumbers = Array.from(allHeaders).sort();
-            
-            return {
-                stationColumnName: 'STATION',
-                headers: ['STATION', ...trainNumbers],
-                rows: cleanRows
-            };
+            return { stationColumnName: 'STATION', headers: ['STATION', ...trainNumbers], rows: cleanRows };
         }
         
         function renderRouteError(error) {
-            const html = `
-                <div class="text-center p-4 bg-red-100 dark:bg-red-900 rounded-md border border-red-400 dark:border-red-700">
-                    <div class="text-2xl mb-2">⚠️</div>
-                    <p class="text-red-800 dark:text-red-200 font-medium">Connection failed. Please check internet.</p>
-                </div>
-            `;
+            const html = `<div class="text-center p-4 bg-red-100 dark:bg-red-900 rounded-md border border-red-400 dark:border-red-700"><div class="text-2xl mb-2">⚠️</div><p class="text-red-800 dark:text-red-200 font-medium">Connection failed. Please check internet.</p></div>`;
             pretoriaTimeEl.innerHTML = html;
             pienaarspoortTimeEl.innerHTML = html;
             stationSelect.innerHTML = '<option>Unable to load stations</option>';
@@ -780,56 +589,34 @@
             mainContent.style.display = 'block';
         }
 
-        // --- CORE LOGIC ---
-        
         function populateStationList() {
             const stationSet = new Set();
             const hasTimes = (row) => {
                 const keys = Object.keys(row);
                 return keys.some(key => key !== 'STATION' && row[key] && row[key].trim() !== "");
             };
-
-            if (schedules.weekday_to_a && schedules.weekday_to_a.rows) {
-                 schedules.weekday_to_a.rows.forEach(row => {
-                     if (hasTimes(row)) stationSet.add(row.STATION);
-                 });
-            }
-            if (schedules.weekday_to_b && schedules.weekday_to_b.rows) {
-                 schedules.weekday_to_b.rows.forEach(row => {
-                     if (hasTimes(row)) stationSet.add(row.STATION);
-                 });
-            }
-            
+            if (schedules.weekday_to_a && schedules.weekday_to_a.rows) schedules.weekday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
+            if (schedules.weekday_to_b && schedules.weekday_to_b.rows) schedules.weekday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
             allStations = Array.from(stationSet);
-            
             if (schedules.weekday_to_a.rows) {
                  const orderMap = schedules.weekday_to_a.rows.map(r => r.STATION);
                  allStations.sort((a, b) => orderMap.indexOf(a) - orderMap.indexOf(b));
             }
-            
             const currentSelectedStation = stationSelect.value;
-            
-            stationSelect.innerHTML = '<option value="">Select a station...</option>';
+            stationSelect.innerHTML = '<option value="">Select a station...</option><option value="FIND_NEAREST">📍 Find Nearest Station</option>';
             allStations.forEach(station => {
                 if (station && !station.toLowerCase().includes('last updated')) {
                     const option = document.createElement('option');
                     option.value = station;
-                    option.textContent = station.replace(/ STATION/g, '');
+                    option.textContent = normalizeStationName(station);
                     stationSelect.appendChild(option);
                 }
             });
-            
-            if (allStations.includes(currentSelectedStation)) {
-                stationSelect.value = currentSelectedStation;
-            } else {
-                stationSelect.value = ""; 
-            }
+            if (allStations.includes(currentSelectedStation)) stationSelect.value = currentSelectedStation;
+            else stationSelect.value = ""; 
         }
 
-
-        function pad(num) {
-            return num.toString().padStart(2, '0');
-        }
+        function pad(num) { return num.toString().padStart(2, '0'); }
 
         function startClock() {
             updateTime();
@@ -839,28 +626,19 @@
         function updateTime() {
             let day;
             let timeString;
-            
             const now = new Date();
             day = now.getDay(); 
             timeString = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
             currentTimeEl.textContent = `Current Time: ${timeString}`;
-            
             const newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
             const newDayIndex = day;
-            
             if (timeString.slice(0, 5) !== currentTime?.slice(0, 5) || newDayType !== currentDayType) {
                 currentTime = timeString;
                 currentDayType = newDayType;
                 currentDayIndex = newDayIndex;
-
                 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-                
-                if (currentDayType === 'sunday') {
-                    currentDayEl.textContent = "Sunday (No Service)";
-                } else {
-                        currentDayEl.textContent = `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
-                }
-
+                if (currentDayType === 'sunday') currentDayEl.textContent = "Sunday (No Service)";
+                else currentDayEl.textContent = `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
                 findNextTrains();
             }
         }
@@ -869,111 +647,72 @@
             try {
                 const [nowH, nowM, nowS] = currentTime.split(':').map(Number);
                 const depParts = departureTimeStr.split(':').map(Number);
-                const depH = depParts[0];
-                const depM = depParts[1];
-                const depS = depParts[2] || 0; 
-
+                const depH = depParts[0]; const depM = depParts[1]; const depS = depParts[2] || 0; 
                 let nowTotalSeconds = (nowH * 3600) + (nowM * 60) + nowS;
                 let depTotalSeconds = (depH * 3600) + (depM * 60) + depS;
-                
                 let diffInSeconds = (depTotalSeconds - nowTotalSeconds) + (dayOffset * 24 * 60 * 60);
-
                 if (diffInSeconds < 0) return "";
-                
                 let diffInMinutes = Math.ceil(diffInSeconds / 60);
-                
                 if (diffInMinutes === 0) return "(Arriving now)";
-
                 const hours = Math.floor(diffInMinutes / 60);
                 const minutes = diffInMinutes % 60;
-                
-                if (hours > 0) {
-                    return `(in ${hours}h ${minutes}m)`;
-                } else {
-                    return `(in ${minutes}m)`;
-                }
-
-            } catch (e) {
-                console.error("Error calculating time diff:", e);
-                return "";
-            }
+                if (hours > 0) return `(in ${hours}h ${minutes}m)`;
+                else return `(in ${minutes}m)`;
+            } catch (e) { return ""; }
         }
 
         function timeToSeconds(timeStr) {
             try {
                 if (!timeStr) return 0;
                 const parts = timeStr.split(':').map(Number);
-                const h = parts[0] || 0;
-                const m = parts[1] || 0;
-                const s = parts[2] || 0;
+                const h = parts[0] || 0; const m = parts[1] || 0; const s = parts[2] || 0;
                 return (h * 3600) + (m * 60) + s;
-            } catch (e) {
-                console.error(`Invalid time string: ${timeStr}`);
-                return 0;
-            }
+            } catch (e) { return 0; }
         }
 
         function renderPlaceholder() {
-            const placeholderHTML = `
-                <div class="text-gray-400 dark:text-gray-500 flex flex-col items-center">
-                     <svg class="w-8 h-8 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                     <span class="text-sm font-medium">Select a station above to view schedule</span>
-                </div>
-            `;
-            // Only set if not already set (to avoid flicker) or if explicitly needed
-            if (!pretoriaTimeEl.innerHTML.includes('schedule')) pretoriaTimeEl.innerHTML = placeholderHTML;
-            if (!pienaarspoortTimeEl.innerHTML.includes('schedule')) pienaarspoortTimeEl.innerHTML = placeholderHTML;
+            const placeholderHTML = `<div class="text-gray-400 dark:text-gray-500 flex flex-col items-center"><svg class="w-8 h-8 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm font-medium">Select a station above to view schedule</span></div>`;
+            // FIX: Unconditionally overwrite to ensure "Coming Soon" or old data is cleared
+            pretoriaTimeEl.innerHTML = placeholderHTML;
+            pienaarspoortTimeEl.innerHTML = placeholderHTML;
         }
 
         function findNextTrains() {
             const selectedStation = stationSelect.value;
             const currentRoute = ROUTES[currentRouteId];
             
-            if (!currentRoute) return;
+            if (selectedStation === "FIND_NEAREST") {
+                findNearestStation();
+                return;
+            }
 
-            if (!currentRoute.isActive) {
-                renderComingSoon(currentRoute.name);
-                return;
-            }
-            
-            if (!selectedStation) {
-                renderPlaceholder();
-                return;
-            }
+            if (!currentRoute) return;
+            if (!currentRoute.isActive) { renderComingSoon(currentRoute.name); return; }
+            if (!selectedStation) { renderPlaceholder(); return; }
             
             const selectedOption = stationSelect.options[stationSelect.selectedIndex];
-            
-            // Clear placeholders before rendering real data
             pretoriaTimeEl.innerHTML = "";
             pienaarspoortTimeEl.innerHTML = "";
 
             if (selectedOption.textContent.includes("(No Service)")) {
                 const msg = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No trains stop here.</div>`;
-                pretoriaTimeEl.innerHTML = msg;
-                pienaarspoortTimeEl.innerHTML = msg;
-                return;
+                pretoriaTimeEl.innerHTML = msg; pienaarspoortTimeEl.innerHTML = msg; return;
             }
-            
             if (currentDayType === 'sunday') {
                 renderNoService(pretoriaTimeEl, currentRoute.destA);
                 renderNoService(pienaarspoortTimeEl, currentRoute.destB);
                 return;
             }
 
-            const normalize = (s) => s ? s.toUpperCase().replace(/ STATION/g, '').trim() : '';
-            const isAtStation = (s1, s2) => normalize(s1) === normalize(s2);
-
-            if (isAtStation(selectedStation, currentRoute.destA)) {
-                renderAtDestination(pretoriaTimeEl);
-            } else {
+            if (normalizeStationName(selectedStation) === normalizeStationName(currentRoute.destA)) renderAtDestination(pretoriaTimeEl);
+            else {
                 const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_a : schedules.saturday_to_a;
                 const { allJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute);
                 processAndRenderJourney(allJourneys, pretoriaTimeEl, pretoriaHeader, currentRoute.destA);
             }
 
-            if (isAtStation(selectedStation, currentRoute.destB)) {
-                renderAtDestination(pienaarspoortTimeEl);
-            } else {
+            if (normalizeStationName(selectedStation) === normalizeStationName(currentRoute.destB)) renderAtDestination(pienaarspoortTimeEl);
+            else {
                 const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_b : schedules.saturday_to_b;
                 const { allJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute);
                 processAndRenderJourney(allJourneys, pienaarspoortTimeEl, pienaarspoortHeader, currentRoute.destB);
@@ -983,7 +722,6 @@
         function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
             const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA);
             let allTransferJourneys = [];
-            
             if (routeConfig.transferStation) {
                 const fromStationIndex = allStations.indexOf(fromStation);
                 const terminationStationIndex = allStations.indexOf(routeConfig.transferStation);
@@ -995,7 +733,6 @@
             const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
             const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
             const allJourneys = [...uniqueDirects, ...allTransferJourneys];
-            
             allJourneys.sort((a, b) => {
                 const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
                 const timeB = timeToSeconds(b.departureTime || b.train1.departureTime);
@@ -1021,7 +758,6 @@
             const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
             const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
             const allJourneys = [...uniqueDirects, ...allTransferJourneys];
-            
             allJourneys.sort((a, b) => {
                 const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
                 const timeB = timeToSeconds(b.departureTime || b.train1.departureTime);
@@ -1034,23 +770,16 @@
         }
         
         function findNextDirectTrain(fromStation, schedule, destinationStation) {
-            if (!schedule || !schedule.rows || schedule.rows.length === 0) {
-                return { allJourneys: [] };
-            }
+            if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let allJourneys = [];
-            
             for (const train of trainHeaders) {
                 if (!train || train === "") continue;
                 const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
                 const departureTime = fromRow ? fromRow[train] : null;
-
                 if (!departureTime) continue;
-                let actualLastStop = null;
-                let actualArrivalTime = null;
-                let destRow = null; 
-                
+                let actualLastStop = null; let actualArrivalTime = null; let destRow = null; 
                 for (let i = schedule.rows.length - 1; i >= 0; i--) {
                     const time = schedule.rows[i][train];
                     if (time) {
@@ -1060,7 +789,6 @@
                         break; 
                     }
                 }
-                
                 if (fromRow && destRow) {
                     const fromIndex = schedule.rows.indexOf(fromRow);
                     const destIndex = schedule.rows.indexOf(destRow);
@@ -1079,40 +807,37 @@
             return { allJourneys };
         }
 
+        // --- UPDATED TRANSFER LOGIC WITH FUZZY MATCHING ---
         function findTransfers(fromStation, schedule, terminalStation, finalDestination) {
-            if (!schedule || !schedule.rows || schedule.rows.length === 0) {
-                return { allJourneys: [] };
-            }
+            if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let allJourneys = [];
 
+            // Helper to match fuzzy names
+            const findRowFuzzy = (name) => schedule.rows.find(row => normalizeStationName(row[stationCol]) === normalizeStationName(name));
+
             for (const train1 of trainHeaders) {
                 if (!train1 || train1 === "") continue;
-                
                 const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
-                const termRow = schedule.rows.find(row => row[stationCol] === terminalStation);
+                const termRow = findRowFuzzy(terminalStation); // FUZZY
+                
                 if (!fromRow || !termRow) continue; 
-
                 const fromIndex = schedule.rows.indexOf(fromRow);
                 const termIndex = schedule.rows.indexOf(termRow);
                 if (fromIndex > termIndex) continue;
 
                 const departureTime = fromRow[train1];
                 const terminationTime = termRow[train1];
-                const destinationTime = schedule.rows.find(row => row[stationCol] === finalDestination)?.[train1];
+                const finalDestRow = findRowFuzzy(finalDestination);
+                const destinationTime = finalDestRow ? finalDestRow[train1] : null;
 
                 if (departureTime && terminationTime && !destinationTime) {
                     const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination, train1);
                     if (connectionData && connectionData.earliest) {
                         allJourneys.push({
                             type: 'transfer',
-                            train1: {
-                                train: train1,
-                                departureTime: departureTime,
-                                arrivalAtTransfer: terminationTime,
-                                terminationStation: terminalStation
-                            },
+                            train1: { train: train1, departureTime: departureTime, arrivalAtTransfer: terminationTime, terminationStation: terminalStation },
                             connection: connectionData.earliest,      
                             nextFullJourney: connectionData.fullJourney 
                         });
@@ -1122,13 +847,16 @@
             return { allJourneys };
         }
 
+        // --- UPDATED CONNECTION LOGIC WITH FUZZY MATCHING ---
         function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination, incomingTrainName) {
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let possibleConnections = [];
 
-            const connRow = schedule.rows.find(row => row[stationCol] === connectionStation);
-            const destRow = schedule.rows.find(row => row[stationCol] === finalDestination); 
+            const findRowFuzzy = (name) => schedule.rows.find(row => normalizeStationName(row[stationCol]) === normalizeStationName(name));
+
+            const connRow = findRowFuzzy(connectionStation);
+            const destRow = findRowFuzzy(finalDestination);
             if (!connRow || !destRow) return null; 
 
             const connIndex = schedule.rows.indexOf(connRow);
@@ -1138,15 +866,10 @@
             for (const train of trainHeaders) {
                 if (!train || train === "") continue;
                 if (train === incomingTrainName) continue; 
-
                 const connectionTime = connRow[train];
                 if (!connectionTime || !connectionTime.includes(':')) continue;
-
                 if (connectionTime && timeToSeconds(connectionTime) >= timeToSeconds(arrivalTimeAtTransfer)) {
-                    let actualLastStop = null;
-                    let actualArrivalTime = null;
-                    let lastStopRow = null; 
-                    
+                    let actualLastStop = null; let actualArrivalTime = null; let lastStopRow = null; 
                     for (let i = schedule.rows.length - 1; i >= connIndex; i--) {
                         const time = schedule.rows[i][train];
                         if (time) {
@@ -1156,7 +879,6 @@
                             break; 
                         }
                     }
-
                     if (lastStopRow) {
                           const lastStopIndex = schedule.rows.indexOf(lastStopRow);
                           if (lastStopIndex > connIndex) {
@@ -1176,10 +898,9 @@
             
             const earliestConnection = possibleConnections[0];
             let earliestFullJourneyConnection = null;
-
-            if (earliestConnection.actualDestination !== finalDestination) {
+            if (normalizeStationName(earliestConnection.actualDestination) !== normalizeStationName(finalDestination)) {
                 earliestFullJourneyConnection = possibleConnections.find(
-                    conn => conn.actualDestination === finalDestination
+                    conn => normalizeStationName(conn.actualDestination) === normalizeStationName(finalDestination)
                 ) || null; 
             }
             return { earliest: earliestConnection, fullJourney: earliestFullJourneyConnection };
@@ -1189,16 +910,13 @@
             const nowInSeconds = timeToSeconds(currentTime);
             const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
             const nextJourney = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
-
             const firstTrainName = allJourneys.length > 0 ? (allJourneys[0].train || allJourneys[0].train1.train) : null;
             
             if (nextJourney) {
                 if (!currentScheduleData) currentScheduleData = {};
                 currentScheduleData[destination] = remainingJourneys;
-
                 const journeyTrainName = nextJourney.train || nextJourney.train1.train;
                 nextJourney.isFirstTrain = (journeyTrainName === firstTrainName);
-                
                 const allRemainingTrainNames = new Set(remainingJourneys.map(j => j.train || j.train1.train));
                 nextJourney.isLastTrain = (allRemainingTrainNames.size === 1);
             } else {
@@ -1212,11 +930,7 @@
         
         function renderJourney(element, headerElement, journey, firstTrainName, destination) {
             element.innerHTML = "";
-
-            if (!journey) {
-                renderNextAvailableTrain(element, destination);
-                return;
-            }
+            if (!journey) { renderNextAvailableTrain(element, destination); return; }
 
             let timeClass = "bg-gray-200 dark:bg-gray-900";
             if (journey.isLastTrain) {
@@ -1228,48 +942,26 @@
             
             const departureTime = journey.departureTime || journey.train1.departureTime;
             const timeDiffStr = calculateTimeDiffString(departureTime);
-
-            const buttonHtml = `
-                <button onclick="openScheduleModal('${destination.replace(/'/g, "\\'")}')" class="absolute bottom-0 left-0 w-full text-[10px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">
-                    See Full Schedule
-                </button>
-            `;
+            const buttonHtml = `<button onclick="openScheduleModal('${destination.replace(/'/g, "\\'")}')" class="absolute bottom-0 left-0 w-full text-[10px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">See Full Schedule</button>`;
 
             if (journey.type === 'direct') {
                 let destinationText = journey.arrivalTime ? `Arrives ${journey.arrivalTime}.` : "Arrival time not available."; 
-                const normActual = journey.actualDestination ? journey.actualDestination.toUpperCase().replace(/ STATION/g, '').trim() : '';
-                const normDest = destination ? destination.toUpperCase().replace(/ STATION/g, '').trim() : '';
-                if (normActual && normDest && normActual !== normDest) {
-                      destinationText = `Terminates at ${journey.actualDestination.replace(/ STATION/g,'')}.`;
-                }
+                const normActual = normalizeStationName(journey.actualDestination);
+                const normDest = normalizeStationName(destination);
+                if (normActual && normDest && normActual !== normDest) destinationText = `Terminates at ${normalizeStationName(journey.actualDestination)}.`;
 
-                element.innerHTML = `
-                    <div class="flex flex-row items-center w-full space-x-3">
-                        <div class="relative w-1/2 h-40 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0">
-                            <div class="text-3xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
-                            <div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>
-                            ${buttonHtml}
-                        </div>
-                        <div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1">
-                            <div class="text-sm text-gray-800 dark:text-gray-200 font-medium leading-tight">
-                                <span class="font-bold text-yellow-600 dark:text-yellow-400">Direct train (${journey.train})</span>
-                            </div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400 leading-tight">${destinationText}</div>
-                        </div>
-                    </div>
-                `;
+                element.innerHTML = `<div class="flex flex-row items-center w-full space-x-3"><div class="relative w-1/2 h-40 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0"><div class="text-3xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>${buttonHtml}</div><div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1"><div class="text-sm text-gray-800 dark:text-gray-200 font-medium leading-tight"><span class="font-bold text-yellow-600 dark:text-yellow-400">Direct train (${journey.train})</span></div><div class="text-xs text-gray-500 dark:text-gray-400 leading-tight">${destinationText}</div></div></div>`;
             }
 
             if (journey.type === 'transfer') {
                 const conn = journey.connection; 
                 const nextFull = journey.nextFullJourney; 
-                const train1Info = `Train ${journey.train1.train} (Terminates at ${journey.train1.terminationStation.replace(/ STATION/g, '')} at ${journey.train1.arrivalAtTransfer})`;
-                
+                const train1Info = `Train ${journey.train1.train} (Terminates at ${normalizeStationName(journey.train1.terminationStation)} at ${journey.train1.arrivalAtTransfer})`;
                 let connectionInfoHTML = "";
-                if (conn.actualDestination !== destination && nextFull) {
-                    const conn1DestName = `(to ${conn.actualDestination.replace(/ STATION/g, '')})`;
+                if (normalizeStationName(conn.actualDestination) !== normalizeStationName(destination) && nextFull) {
+                    const conn1DestName = `(to ${normalizeStationName(conn.actualDestination)})`;
                     const connection1Text = `Connect to Train ${conn.train} ${conn1DestName} at <b>${conn.departureTime}</b>`;
-                    const nextFullDestName = `(to ${nextFull.actualDestination.replace(/ STATION/g, '')})`;
+                    const nextFullDestName = `(to ${normalizeStationName(nextFull.actualDestination)})`;
                     const connection2Text = `Next Train ${nextFull.train} ${nextFullDestName} is at <b>${nextFull.departureTime}</b>`;
                     connectionInfoHTML = `<div class="space-y-1"><div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div><div class="text-gray-500 dark:text-gray-400 text-xs font-medium">${connection2Text}</div></div>`;
                 } else {
@@ -1277,333 +969,262 @@
                     const connectionText = `Connect to Train ${conn.train} at <b>${conn.departureTime}</b> ${connDestName}`;
                     connectionInfoHTML = `<div class="text-yellow-600 dark:text-yellow-400 font-medium">${connectionText}</div>`;
                 }
-
-                element.innerHTML = `
-                    <div class="flex flex-row items-center w-full space-x-3">
-                        <div class="relative w-1/2 h-40 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0">
-                            <div class="text-3xl font-bold text-gray-900 dark:text-white">${journey.train1.departureTime}</div>
-                            <div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>
-                            ${buttonHtml}
-                        </div>
-                        <div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1">
-                            <div class="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Transfer Required</div>
-                            <div class="text-xs text-yellow-600 dark:text-yellow-400 leading-tight font-medium">${train1Info}</div>
-                            <div class="text-xs leading-tight">${connectionInfoHTML}</div>
-                        </div>
-                    </div>
-                `;
+                element.innerHTML = `<div class="flex flex-row items-center w-full space-x-3"><div class="relative w-1/2 h-40 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0"><div class="text-3xl font-bold text-gray-900 dark:text-white">${journey.train1.departureTime}</div><div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>${buttonHtml}</div><div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1"><div class="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Transfer Required</div><div class="text-xs text-yellow-600 dark:text-yellow-400 leading-tight font-medium">${train1Info}</div><div class="text-xs leading-tight">${connectionInfoHTML}</div></div></div>`;
             }
         }
         
         function renderNextAvailableTrain(element, destination) {
             const currentRoute = ROUTES[currentRouteId];
-            let nextDayName = "";
-            let nextDaySheetKey = ""; 
-            let dayOffset = 1; 
-
+            let nextDayName = ""; let nextDaySheetKey = ""; let dayOffset = 1; 
             switch (currentDayIndex) {
-                case 6: 
-                    nextDayName = "Monday";
-                    dayOffset = 2; 
-                    nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
-                    break;
-                case 5: 
-                    nextDayName = "Saturday";
-                    dayOffset = 1;
-                    nextDaySheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b';
-                    break;
-                default: 
-                    nextDayName = "tomorrow";
-                    dayOffset = 1;
-                    nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
-                    break;
+                case 6: nextDayName = "Monday"; dayOffset = 2; nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; break;
+                case 5: nextDayName = "Saturday"; dayOffset = 1; nextDaySheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b'; break;
+                default: nextDayName = "tomorrow"; dayOffset = 1; nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; break;
             }
-            
             const nextSchedule = schedules[nextDaySheetKey];
-            if (!nextSchedule) {
-                element.innerHTML = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No schedule found for next service day.</div>`;
-                return;
-            }
-
+            if (!nextSchedule) { element.innerHTML = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No schedule found for next service day.</div>`; return; }
             const selectedStation = stationSelect.value;
             let allJourneys = [];
-            if (destination === currentRoute.destA) {
-                const res = findNextJourneyToDestA(selectedStation, "00:00:00", nextSchedule, currentRoute);
-                allJourneys = res.allJourneys;
-            } else {
-                const res = findNextJourneyToDestB(selectedStation, "00:00:00", nextSchedule, currentRoute);
-                allJourneys = res.allJourneys;
-            }
-            
+            if (destination === currentRoute.destA) { const res = findNextJourneyToDestA(selectedStation, "00:00:00", nextSchedule, currentRoute); allJourneys = res.allJourneys; } 
+            else { const res = findNextJourneyToDestB(selectedStation, "00:00:00", nextSchedule, currentRoute); allJourneys = res.allJourneys; }
             const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
             const firstTrainOfNextDay = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
-
-            if (!firstTrainOfNextDay) {
-                element.innerHTML = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No trains found for ${nextDayName}.</div>`;
-                return;
-            }
-            
+            if (!firstTrainOfNextDay) { element.innerHTML = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No trains found for ${nextDayName}.</div>`; return; }
             const departureTime = firstTrainOfNextDay.departureTime || firstTrainOfNextDay.train1.departureTime;
             const timeDiffStr = calculateTimeDiffString(departureTime, dayOffset);
-
-            element.innerHTML = `
-                <div class="text-lg font-bold text-gray-600 dark:text-gray-400">No more trains today.</div>
-                <p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train ${nextDayName} is at:</p>
-                <div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2">
-                    <div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
-                    <div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
-                </div>
-            `;
+            element.innerHTML = `<div class="text-lg font-bold text-gray-600 dark:text-gray-400">No more trains today.</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train ${nextDayName} is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2"><div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div></div>`;
         }
 
-        function renderAtDestination(element) {
-            element.innerHTML = `<div class="text-xl font-bold text-green-500 dark:text-green-400">You are at this station.</div>`;
-        }
+        function renderAtDestination(element) { element.innerHTML = `<div class="text-xl font-bold text-green-500 dark:text-green-400">You are at this station.</div>`; }
 
         function renderNoService(element, destination) {
             const currentRoute = ROUTES[currentRouteId];
             const sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
             const schedule = schedules[sheetKey];
             const selectedStation = stationSelect.value;
-            
             let allJourneys = [];
-            if (destination === currentRoute.destA) {
-                 const res = findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute);
-                 allJourneys = res.allJourneys;
-            } else {
-                 const res = findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute);
-                 allJourneys = res.allJourneys;
-            }
-
+            if (destination === currentRoute.destA) { const res = findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute); allJourneys = res.allJourneys; } 
+            else { const res = findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute); allJourneys = res.allJourneys; }
             const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
             const firstTrain = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
-            
             let timeHTML = 'N/A';
             if (firstTrain) {
                 const departureTime = firstTrain.departureTime || firstTrain.train1.departureTime;
                 const timeDiffStr = calculateTimeDiffString(departureTime, 1); 
                 timeHTML = `<div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
             }
-
              element.innerHTML = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No service on Sundays.</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train Monday is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2">${timeHTML}</div>`;
         }
         
         function renderComingSoon(routeName) {
-            const msg = `
-                <div class="text-center p-6 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-                    <h3 class="text-xl font-bold text-yellow-700 dark:text-yellow-300 mb-2">🚧 Coming Soon</h3>
-                    <p class="text-gray-700 dark:text-gray-300">We are working on the <strong>${routeName}</strong> schedule.</p>
-                    <p class="text-sm mt-4 text-gray-500">Have a photo of this schedule? Use the Feedback button to send it to us!</p>
-                </div>
-            `;
-            pretoriaTimeEl.innerHTML = msg;
-            pienaarspoortTimeEl.innerHTML = msg;
-            stationSelect.innerHTML = '<option>Route not available</option>';
+            const msg = `<div class="text-center p-6 bg-yellow-100 dark:bg-yellow-900 rounded-lg"><h3 class="text-xl font-bold text-yellow-700 dark:text-yellow-300 mb-2">🚧 Coming Soon</h3><p class="text-gray-700 dark:text-gray-300">We are working on the <strong>${routeName}</strong> schedule.</p><p class="text-sm mt-4 text-gray-500">Have a photo of this schedule? Use the Feedback button to send it to us!</p></div>`;
+            pretoriaTimeEl.innerHTML = msg; pienaarspoortTimeEl.innerHTML = msg; stationSelect.innerHTML = '<option>Route not available</option>';
         }
 
-        function setupFeatureButtons() {
-            if (localStorage.theme === 'light') {
-                document.documentElement.classList.remove('dark');
-                darkIcon.classList.add('hidden');
-                lightIcon.classList.remove('hidden');
-            } else {
-                localStorage.theme = 'dark'; 
-                document.documentElement.classList.add('dark');
-                darkIcon.classList.remove('hidden');
-                lightIcon.classList.add('hidden');
+        // --- NEW GEOLOCATION FEATURE ---
+        function findNearestStation() {
+            if (!navigator.geolocation) {
+                showToast("Geolocation is not supported by your browser", "error");
+                return;
             }
+            
+            const btnText = stationSelect.options[stationSelect.selectedIndex].text;
+            stationSelect.options[stationSelect.selectedIndex].text = "Locating...";
+
+            // CRITICAL FIX: Warn user if running on file:// or content://
+            if (window.location.protocol === 'file:' || window.location.href.includes('content://')) {
+                 showToast("⚠️ Geolocation blocked on local files. Please test on a real server (HTTPS).", "error", 5000);
+                 stationSelect.options[1].text = "📍 Find Nearest Station"; // Reset text
+                 return;
+            }
+            
+            // OPTION 1: Request High Accuracy to prevent ISP Drift (58km jump)
+            const geoOptions = {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            };
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const userLat = position.coords.latitude;
+                    const userLon = position.coords.longitude;
+                    
+                    console.log(`User Location: ${userLat}, ${userLon}`);
+
+                    const nearest = getNearestStation(userLat, userLon);
+                    
+                    if (nearest && nearest.name) {
+                        // NEW CHECK (Radius Limit) - kept loose (100km) to handle fallback
+                        if (nearest.distance > MAX_RADIUS_KM) {
+                             showToast(`No stations found within ${MAX_RADIUS_KM}km (${nearest.distance.toFixed(1)}km away)`, "error");
+                             console.log(`Nearest was ${nearest.name} but distance ${nearest.distance} > ${MAX_RADIUS_KM}`);
+                             stationSelect.value = ""; // Revert to empty
+                        } else {
+                             // Ensure the value we set actually matches an option in the dropdown
+                             const matchedOption = Array.from(stationSelect.options).find(opt => normalizeStationName(opt.value) === normalizeStationName(nearest.name));
+                             
+                             if (matchedOption) {
+                                 stationSelect.value = matchedOption.value;
+                                 showToast(`Found nearest station: ${normalizeStationName(nearest.name)} (${nearest.distance.toFixed(1)}km away)`, "success");
+                                 findNextTrains();
+                             } else {
+                                 console.warn("Nearest station found in Coords list but not in Route list:", nearest.name);
+                                 showToast("Station found nearby, but not on this route.", "error");
+                                 stationSelect.value = "";
+                             }
+                        }
+                    } else {
+                        showToast("Could not find a station nearby in this route list.", "error");
+                        stationSelect.value = "";
+                    }
+                    // Reset text
+                    stationSelect.options[1].text = "📍 Find Nearest Station";
+                },
+                (error) => {
+                    console.error("Geo Error Details:", error.code, error.message);
+                    let msg = "Unable to retrieve location.";
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            msg = "Location permission denied. Please enable it in browser settings.";
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            msg = "Location information is unavailable.";
+                            break;
+                        case error.TIMEOUT:
+                            msg = "The request to get user location timed out.";
+                            break;
+                        case error.UNKNOWN_ERROR:
+                            msg = "An unknown error occurred.";
+                            break;
+                    }
+                    showToast(msg, "error");
+                    stationSelect.value = "";
+                    stationSelect.options[1].text = "📍 Find Nearest Station";
+                },
+                geoOptions // Pass the high accuracy options
+            );
+        }
+
+        function getNearestStation(userLat, userLon) {
+            let nearest = null;
+            let minDistance = Infinity;
+            
+            console.log("Checking distances...");
+
+            // Iterate over all stations in current list to find match
+            for (const [coordName, coords] of Object.entries(STATION_LOCATIONS)) {
+                // FIX: Use fuzzy matching (normalizeStationName) to compare current route stations with GPS list
+                // This handles cases where schedule has "Mabopane" but Coords has "MABOPANE STATION"
+                const matchFound = allStations.some(s => normalizeStationName(s) === normalizeStationName(coordName));
+
+                if (matchFound) {
+                    const dist = getDistanceFromLatLonInKm(userLat, userLon, coords.lat, coords.lon);
+                    console.log(`- ${coordName}: ${dist.toFixed(2)}km`);
+                    
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        nearest = { name: coordName, distance: dist };
+                    }
+                }
+            }
+            return nearest;
+        }
+
+        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+            const R = 6371; 
+            const dLat = deg2rad(lat2 - lat1);
+            const dLon = deg2rad(lon2 - lon1);
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            return R * c; 
+        }
+
+        function deg2rad(deg) { return deg * (Math.PI/180); }
+
+        function setupFeatureButtons() {
+            if (localStorage.theme === 'light') { document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } 
+            else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); }
 
             themeToggleBtn.addEventListener('click', () => {
-                if (localStorage.theme === 'dark') {
-                    localStorage.theme = 'light';
-                    document.documentElement.classList.remove('dark');
-                    darkIcon.classList.add('hidden');
-                    lightIcon.classList.remove('hidden');
-                } else {
-                    localStorage.theme = 'dark';
-                    document.documentElement.classList.add('dark');
-                    darkIcon.classList.remove('hidden');
-                    lightIcon.classList.add('hidden');
-                }
+                if (localStorage.theme === 'dark') { localStorage.theme = 'light'; document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } 
+                else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); }
             });
 
             shareBtn.addEventListener('click', async () => {
-                const shareData = {
-                    title: 'Metrorail Next Train',
-                    text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive',
-                    url: '\n\nhttps://nexttrain.co.za'
-                };
-                try {
-                    if (navigator.share) await navigator.share(shareData);
-                    else {
-                        const fallbackText = shareData.text + shareData.url;
-                        copyToClipboard(fallbackText);
-                    }
-                } catch (err) {
-                    console.error('Share failed:', err);
-                    const fallbackText = shareData.text + shareData.url;
-                    copyToClipboard(fallbackText);
-                }
+                const shareData = { title: 'Metrorail Next Train', text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive', url: '\n\nhttps://nexttrain.co.za' };
+                try { if (navigator.share) await navigator.share(shareData); else copyToClipboard(shareData.text + shareData.url); } catch (err) { copyToClipboard(shareData.text + shareData.url); }
             });
 
             window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                deferredPrompt = e;
-                installBtn.classList.remove('hidden');
-                installBtn.addEventListener('click', () => {
-                    installBtn.classList.add('hidden');
-                    deferredPrompt.prompt();
-                    deferredPrompt.userChoice.then((choiceResult) => {
-                        deferredPrompt = null;
-                    });
-                });
+                e.preventDefault(); deferredPrompt = e; installBtn.classList.remove('hidden');
+                installBtn.addEventListener('click', () => { installBtn.classList.add('hidden'); deferredPrompt.prompt(); deferredPrompt = null; });
             });
             
-            // NAVIGATION LOGIC
-            const openNav = () => {
-                sidenav.classList.add('open');
-                sidenavOverlay.classList.add('open');
-                document.body.classList.add('sidenav-open');
-            };
+            const openNav = () => { sidenav.classList.add('open'); sidenavOverlay.classList.add('open'); document.body.classList.add('sidenav-open'); };
             openNavBtn.addEventListener('click', openNav);
-            
-            // Add NEW click listener to the subtitle trigger
             routeSubtitle.addEventListener('click', openNav);
-
-            const closeNav = () => {
-                sidenav.classList.remove('open');
-                sidenavOverlay.classList.remove('open');
-                document.body.classList.remove('sidenav-open');
-            };
+            const closeNav = () => { sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open'); };
             closeNavBtn.addEventListener('click', closeNav);
             sidenavOverlay.addEventListener('click', closeNav);
             
             routeList.addEventListener('click', (e) => {
                 const routeLink = e.target.closest('a');
-                if (routeLink) {
+                if (routeLink && routeLink.dataset.routeId) {
                     const routeId = routeLink.dataset.routeId;
-                    if (routeId) {
-                        if (routeId === currentRouteId) {
-                            showToast("You are already viewing this route.", "info", 1500);
-                            closeNav();
-                            return;
-                        }
-                        document.querySelectorAll('#route-list a').forEach(a => a.classList.remove('active'));
-                        routeLink.classList.add('active');
-                        closeNav();
-                        currentRouteId = routeId;
-                        loadAllSchedules(); 
-                    }
+                    if (routeId === currentRouteId) { showToast("You are already viewing this route.", "info", 1500); closeNav(); return; }
+                    document.querySelectorAll('#route-list a').forEach(a => a.classList.remove('active'));
+                    routeLink.classList.add('active'); closeNav(); currentRouteId = routeId; loadAllSchedules(); 
                 }
             });
 
-            forceReloadBtn.addEventListener('click', () => {
-                showToast("Forcing schedule reload...", "info", 2000);
-                loadAllSchedules(true);
-            });
-            
+            forceReloadBtn.addEventListener('click', () => { showToast("Forcing schedule reload...", "info", 2000); loadAllSchedules(true); });
             pinRouteBtn.addEventListener('click', () => {
                 const savedDefault = localStorage.getItem('defaultRoute');
-                if (savedDefault === currentRouteId) {
-                    localStorage.removeItem('defaultRoute');
-                    showToast("Route unpinned from top.", "info", 2000);
-                } else {
-                    localStorage.setItem('defaultRoute', currentRouteId);
-                    showToast("Route pinned to top of menu!", "success", 2000);
-                }
+                if (savedDefault === currentRouteId) { localStorage.removeItem('defaultRoute'); showToast("Route unpinned from top.", "info", 2000); } 
+                else { localStorage.setItem('defaultRoute', currentRouteId); showToast("Route pinned to top of menu!", "success", 2000); }
                 updatePinUI();
             });
         }
         
         function copyToClipboard(text) {
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = "fixed";
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            try {
-                const successful = document.execCommand('copy');
-                if (successful) showToast("Link copied to clipboard!", "success", 2000);
-            } catch (err) {
-                console.error('Fallback: Oops, unable to copy', err);
-            }
+            const textArea = document.createElement('textarea'); textArea.value = text; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select();
+            try { const successful = document.execCommand('copy'); if (successful) showToast("Link copied to clipboard!", "success", 2000); } catch (err) { console.error('Fallback: Oops, unable to copy', err); }
             document.body.removeChild(textArea);
         }
         
         function showToast(message, type = 'info', duration = 3000) {
             if (toastTimeout) clearTimeout(toastTimeout);
-            toast.textContent = message;
-            toast.className = `toast-info`; 
-            if (type === 'success') toast.classList.add('toast-success');
-            else if (type === 'error') toast.classList.add('toast-error');
+            toast.textContent = message; toast.className = `toast-info`; 
+            if (type === 'success') toast.classList.add('toast-success'); else if (type === 'error') toast.classList.add('toast-error');
             toast.classList.add('show');
-            toastTimeout = setTimeout(() => {
-                toast.classList.remove('show');
-            }, duration);
+            toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration);
         }
 
         function updatePinUI() {
             const savedDefault = localStorage.getItem('defaultRoute');
             const isPinned = savedDefault === currentRouteId;
-            if (isPinned) {
-                pinOutline.classList.add('hidden');
-                pinFilled.classList.remove('hidden');
-                pinRouteBtn.title = "Unpin this route";
-            } else {
-                pinOutline.classList.remove('hidden');
-                pinFilled.classList.add('hidden');
-                pinRouteBtn.title = "Pin this route as default";
-            }
+            if (isPinned) { pinOutline.classList.add('hidden'); pinFilled.classList.remove('hidden'); pinRouteBtn.title = "Unpin this route"; } 
+            else { pinOutline.classList.remove('hidden'); pinFilled.classList.add('hidden'); pinRouteBtn.title = "Pin this route as default"; }
             if (savedDefault && ROUTES[savedDefault]) {
                 pinnedSection.classList.remove('hidden');
-                const pinnedRoute = ROUTES[savedDefault];
-                pinnedSection.innerHTML = `
-                    <li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li>
-                    <li class="route-item">
-                        <a class="${savedDefault === currentRouteId ? 'active' : ''}" data-route-id="${savedDefault}">
-                            <span class="route-dot dot-green"></span>${pinnedRoute.name}
-                        </a>
-                    </li>
-                `;
-            } else {
-                pinnedSection.classList.add('hidden');
-            }
+                pinnedSection.innerHTML = `<li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li><li class="route-item"><a class="${savedDefault === currentRouteId ? 'active' : ''}" data-route-id="${savedDefault}"><span class="route-dot dot-green"></span>${ROUTES[savedDefault].name}</a></li>`;
+            } else { pinnedSection.classList.add('hidden'); }
         }
 
-        function saveToLocalCache(key, data) {
-            try {
-                const cacheEntry = { timestamp: Date.now(), data: data };
-                localStorage.setItem(key, JSON.stringify(cacheEntry));
-            } catch (e) { console.warn("Cache save failed", e); }
-        }
-
-        function loadFromLocalCache(key) {
-            try {
-                const item = localStorage.getItem(key);
-                return item ? JSON.parse(item) : null;
-            } catch (e) { console.warn("Cache load failed", e); return null; }
-        }
+        function saveToLocalCache(key, data) { try { const cacheEntry = { timestamp: Date.now(), data: data }; localStorage.setItem(key, JSON.stringify(cacheEntry)); } catch (e) { console.warn("Cache save failed", e); } }
+        function loadFromLocalCache(key) { try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } catch (e) { console.warn("Cache load failed", e); return null; } }
 
         function setupModalButtons() {
-            const closeAction = () => {
-                scheduleModal.classList.add('hidden');
-                document.body.style.overflow = ''; 
-            };
-            closeModalBtn.addEventListener('click', closeAction);
-            closeModalBtn2.addEventListener('click', closeAction);
-            scheduleModal.addEventListener('click', (e) => {
-                if (e.target === scheduleModal) closeAction();
-            });
+            const closeAction = () => { scheduleModal.classList.add('hidden'); document.body.style.overflow = ''; };
+            closeModalBtn.addEventListener('click', closeAction); closeModalBtn2.addEventListener('click', closeAction);
+            scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); });
         }
 
         window.openScheduleModal = function(destination) {
-            if (!currentScheduleData || !currentScheduleData[destination]) {
-                showToast("No full schedule data available.", "error");
-                return;
-            }
+            if (!currentScheduleData || !currentScheduleData[destination]) { showToast("No full schedule data available.", "error"); return; }
             const journeys = currentScheduleData[destination];
-            modalTitle.textContent = `Schedule to ${destination.replace(' STATION', '')}`;
+            modalTitle.textContent = `Schedule to ${normalizeStationName(destination)}`;
             modalList.innerHTML = '';
             journeys.forEach(j => {
                 const dep = j.departureTime || j.train1.departureTime;
@@ -1611,78 +1232,32 @@
                 const type = j.type === 'transfer' ? 'Transfer' : 'Direct';
                 const div = document.createElement('div');
                 div.className = "p-3 bg-white dark:bg-gray-700 rounded shadow-sm flex justify-between items-center";
-                div.innerHTML = `
-                    <div>
-                        <span class="text-lg font-bold text-gray-900 dark:text-white">${dep}</span>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName}</div>
-                    </div>
-                    <div class="flex flex-col items-end gap-1">
-                        ${type === 'Direct' 
-                            ? '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>'
-                            : `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase">Transfer @ ${j.train1.terminationStation.replace(' STATION','')}</span>`
-                        }
-                        ${j.isLastTrain ? '<span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800">LAST TRAIN</span>' : ''}
-                    </div>
-                `;
+                div.innerHTML = `<div><span class="text-lg font-bold text-gray-900 dark:text-white">${dep}</span><div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName}</div></div><div class="flex flex-col items-end gap-1">${type === 'Direct' ? '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>' : `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase">Transfer @ ${normalizeStationName(j.train1.terminationStation)}</span>`} ${j.isLastTrain ? '<span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800">LAST TRAIN</span>' : ''}</div>`;
                 modalList.appendChild(div);
             });
-            scheduleModal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden'; 
+            scheduleModal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; 
         };
 
         function setupRedirectLogic() {
-            feedbackBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?");
-            });
-            checkUpdatesBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                showRedirectModal(checkUpdatesBtn.href, "Visit Facebook for official updates?");
-            });
+            feedbackBtn.addEventListener('click', (e) => { e.preventDefault(); showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?"); });
+            checkUpdatesBtn.addEventListener('click', (e) => { e.preventDefault(); showRedirectModal(checkUpdatesBtn.href, "Visit Facebook for official updates?"); });
         }
 
         function showRedirectModal(url, message) {
-            redirectMessage.textContent = message;
-            redirectModal.classList.remove('hidden');
-            const confirmHandler = () => {
-                window.open(url, '_blank');
-                redirectModal.classList.add('hidden');
-                cleanup();
-            };
-            const cancelHandler = () => {
-                redirectModal.classList.add('hidden');
-                cleanup();
-            };
-            const cleanup = () => {
-                redirectConfirmBtn.removeEventListener('click', confirmHandler);
-                redirectCancelBtn.removeEventListener('click', cancelHandler);
-            };
-            redirectConfirmBtn.addEventListener('click', confirmHandler);
-            redirectCancelBtn.addEventListener('click', cancelHandler);
+            redirectMessage.textContent = message; redirectModal.classList.remove('hidden');
+            const confirmHandler = () => { window.open(url, '_blank'); redirectModal.classList.add('hidden'); cleanup(); };
+            const cancelHandler = () => { redirectModal.classList.add('hidden'); cleanup(); };
+            const cleanup = () => { redirectConfirmBtn.removeEventListener('click', confirmHandler); redirectCancelBtn.removeEventListener('click', cancelHandler); };
+            redirectConfirmBtn.addEventListener('click', confirmHandler); redirectCancelBtn.addEventListener('click', cancelHandler);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
             const savedDefault = localStorage.getItem('defaultRoute');
-            if (savedDefault && ROUTES[savedDefault]) {
-                currentRouteId = savedDefault;
-            }
+            if (savedDefault && ROUTES[savedDefault]) currentRouteId = savedDefault;
             loadAllSchedules(); 
             stationSelect.addEventListener('change', findNextTrains);
-            setupFeatureButtons();
-            updatePinUI(); 
-            setupModalButtons(); 
-            setupRedirectLogic(); 
-            startSmartRefresh();
+            setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
         });
-
-        document.addEventListener("visibilitychange", () => {
-            if (!document.hidden) {
-                loadAllSchedules(); 
-                startSmartRefresh(); 
-            }
-        });
-
     </script>
 </body>
 </html>
-
