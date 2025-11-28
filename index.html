@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.11 (Font Weight Fix)
-  - UI: "Arrives..." text now uses 'font-medium' to match Transfer card styling.
-  - RETAINED: V3.10 features (Hidden Dev Mode, PIN 101101, Dynamic Geo, V2.61 UI).
+  Metrorail Next Train V3.15 (Restore "Leave App?" Modal)
+  - FEATURE: "Leave App?" modal is back. It intercepts external links (FB/Feedback) to ask for confirmation.
+  - STYLE: Route Title uses dynamic color coding (Green, Orange, etc.) to match side-nav.
+  - LOGIC: Geolocation + Security Patch + Service Worker all retained.
 -->
 <html lang="en" class="dark">
 
@@ -284,9 +285,12 @@
         <div class="text-center mb-6">
             <!-- SECRET TRIGGER: Clicking H1 5 times opens PIN modal -->
             <h1 id="app-title" class="text-2xl font-bold text-gray-900 dark:text-white select-none cursor-default">Metrorail Next Train</h1>
-            <div id="route-subtitle" class="inline-flex items-center justify-center text-lg text-blue-500 dark:text-blue-400 font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-300 transition-colors mt-1 py-1 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                <span>Pretoria <-> Pienaarspoort</span>
-                <svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <!-- UPDATED: Title Color Dynamic via JS -->
+            <div id="route-subtitle" class="flex items-center justify-center space-x-2 mt-1 cursor-pointer group">
+                <h2 id="route-subtitle-text" class="text-lg font-medium text-gray-600 dark:text-gray-400 group-hover:opacity-80 transition-colors">
+                    Pretoria <-> Pienaarspoort
+                </h2>
+                <svg class="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium mt-2"></p>
             <p id="current-day" class="text-sm text-gray-500 dark:text-gray-400"></p>
@@ -312,6 +316,7 @@
         </div>
 
         <div class="mt-8 text-center">
+            <!-- RESTORED: Handled via JS to show modal -->
             <a href="https://www.facebook.com/metrorailgp" target="_blank" rel="noopener noreferrer" id="check-updates-btn" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105">🚄 View Official Metrorail Updates</a>
             <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Opens the official Facebook page.</p>
         </div>
@@ -320,9 +325,10 @@
             <button id="share-app-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
                 <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg> Share App
             </button>
-            <button id="feedback-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+            <!-- RESTORED: Handled via JS to show modal -->
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform" target="_blank" rel="noopener noreferrer" id="feedback-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors cursor-pointer">
                  <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg> Feedback
-            </button>
+            </a>
         </div>
         
         <div class="mt-4">
@@ -363,6 +369,14 @@
     <div id="toast" class=""></div>
 
     <script>
+        // --- SECURITY HELPER ---
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+            });
+        }
+
         // --- GLOBAL ERROR HANDLER ---
         window.onerror = function(msg, url, line) {
             console.error("Global Error Caught:", msg);
@@ -398,7 +412,6 @@
         const currentTimeEl = document.getElementById('current-time');
         const currentDayEl = document.getElementById('current-day');
         const loadingOverlay = document.getElementById('loading-overlay');
-        const loadingText = document.getElementById('loading-text');
         const mainContent = document.getElementById('main-content');
         const offlineIndicator = document.getElementById('offline-indicator');
         const scheduleModal = document.getElementById('schedule-modal');
@@ -406,9 +419,7 @@
         const modalList = document.getElementById('modal-list');
         const closeModalBtn = document.getElementById('close-modal-btn');
         const closeModalBtn2 = document.getElementById('close-modal-btn-2');
-        const modalContent = document.getElementById('modal-content');
         const redirectModal = document.getElementById('redirect-modal');
-        const redirectModalContent = document.getElementById('redirect-modal-content');
         const redirectMessage = document.getElementById('redirect-message');
         const redirectConfirmBtn = document.getElementById('redirect-confirm-btn');
         const redirectCancelBtn = document.getElementById('redirect-cancel-btn');
@@ -416,10 +427,7 @@
         const darkIcon = document.getElementById('theme-toggle-dark-icon');
         const lightIcon = document.getElementById('theme-toggle-light-icon');
         const shareBtn = document.getElementById('share-app-btn');
-        const feedbackBtn = document.getElementById('feedback-btn');
-        const checkUpdatesBtn = document.getElementById('check-updates-btn');
         const installBtn = document.getElementById('install-app-btn');
-        const copiedMessage = document.getElementById('copied-message');
         const forceReloadBtn = document.getElementById('force-reload-btn');
         const pinRouteBtn = document.getElementById('pin-route-btn');
         const pinOutline = document.getElementById('pin-outline');
@@ -430,8 +438,12 @@
         const sidenavOverlay = document.getElementById('sidenav-overlay');
         const routeList = document.getElementById('route-list');
         const routeSubtitle = document.getElementById('route-subtitle');
+        const routeSubtitleText = document.getElementById('route-subtitle-text');
         const pinnedSection = document.getElementById('pinned-section');
         const toast = document.getElementById('toast');
+        const checkUpdatesBtn = document.getElementById('check-updates-btn');
+        const feedbackBtn = document.getElementById('feedback-btn');
+        
         let toastTimeout;
         const lastUpdatedEl = document.getElementById('last-updated-date');
 
@@ -467,20 +479,16 @@
             terms: `
                 <h4 class="font-bold text-lg mb-2">1. Independent Service</h4>
                 <p><strong>Metrorail Next Train</strong> is an independent project by Kazembe CodeWorks. We are <strong>not affiliated</strong> with PRASA or Metrorail.</p>
-                
                 <h4 class="font-bold text-lg mb-2 mt-4">2. Accuracy</h4>
                 <p>Schedules are estimated. We are not liable for missed trains or schedule changes.</p>
-
                 <h4 class="font-bold text-lg mb-2 mt-4">3. Usage</h4>
                 <p>By using this app, you agree not to misuse the service or scrape data maliciously.</p>
             `,
             privacy: `
                 <h4 class="font-bold text-lg mb-2">1. Data Collection</h4>
                 <p>We use Google Analytics to understand app usage anonymously.</p>
-
                 <h4 class="font-bold text-lg mb-2 mt-4">2. Location Services</h4>
                 <p>We may request your Location permission to identify your nearest station. This data is processed on your device and is not stored on our servers for tracking.</p>
-
                 <h4 class="font-bold text-lg mb-2 mt-4">3. Third Parties</h4>
                 <p>We use Firebase and Google Sheets to store schedule data.</p>
             `
@@ -490,16 +498,17 @@
         let stationLocations = {};
         const MAX_RADIUS_KM = 6; 
 
+        // UPDATED ROUTES OBJECT WITH COLOR CLASSES
         const ROUTES = {
-            'pta-pien': { id: 'pta-pien', name: "Pretoria <-> Pienaarspoort", isActive: true, destA: 'PRETORIA STATION', destB: 'PIENAARSPOORT STATION', transferStation: 'KOEDOESPOORT STATION', sheetKeys: { weekday_to_a: 'pien_to_pta_weekday', weekday_to_b: 'pta_to_pien_weekday', saturday_to_a: 'pien_to_pta_sat', saturday_to_b: 'pta_to_pien_sat' } },
-            'pta-mabopane': { id: 'pta-mabopane', name: "Pretoria <-> Mabopane", isActive: true, destA: 'PRETORIA STATION', destB: 'MABOPANE STATION', transferStation: null, sheetKeys: { weekday_to_a: 'mab_to_pta_weekday', weekday_to_b: 'pta_to_mab_weekday', saturday_to_a: '', saturday_to_b: '' } },
-            'pta-saul': { id: 'pta-saul', name: "Pretoria <-> Saulsville", isActive: false, destA: 'PRETORIA STATION', destB: 'SAULSVILLE STATION', transferStation: null, sheetKeys: {} },
-            'pta-irene': { id: 'pta-irene', name: "Pretoria <-> Irene", isActive: false, destA: 'PRETORIA STATION', destB: 'IRENE STATION', transferStation: null, sheetKeys: {} },
-            'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
-            'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
-            'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
-            'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} },
-            'jhb-soweto': { id: 'jhb-soweto', name: "JHB <-> Naledi", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'NALEDI STATION', transferStation: null, sheetKeys: {} }
+            'pta-pien': { id: 'pta-pien', name: "Pretoria <-> Pienaarspoort", colorClass: "text-green-500", isActive: true, destA: 'PRETORIA STATION', destB: 'PIENAARSPOORT STATION', transferStation: 'KOEDOESPOORT STATION', sheetKeys: { weekday_to_a: 'pien_to_pta_weekday', weekday_to_b: 'pta_to_pien_weekday', saturday_to_a: 'pien_to_pta_sat', saturday_to_b: 'pta_to_pien_sat' } },
+            'pta-mabopane': { id: 'pta-mabopane', name: "Pretoria <-> Mabopane", colorClass: "text-orange-500", isActive: true, destA: 'PRETORIA STATION', destB: 'MABOPANE STATION', transferStation: null, sheetKeys: { weekday_to_a: 'mab_to_pta_weekday', weekday_to_b: 'pta_to_mab_weekday', saturday_to_a: '', saturday_to_b: '' } },
+            'pta-saul': { id: 'pta-saul', name: "Pretoria <-> Saulsville", colorClass: "text-green-500", isActive: false, destA: 'PRETORIA STATION', destB: 'SAULSVILLE STATION', transferStation: null, sheetKeys: {} },
+            'pta-irene': { id: 'pta-irene', name: "Pretoria <-> Irene", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'IRENE STATION', transferStation: null, sheetKeys: {} },
+            'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
+            'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
+            'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", colorClass: "text-purple-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
+            'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", colorClass: "text-red-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} },
+            'jhb-soweto': { id: 'jhb-soweto', name: "JHB <-> Naledi", colorClass: "text-yellow-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'NALEDI STATION', transferStation: null, sheetKeys: {} }
         };
 
         let currentRouteId = 'pta-pien'; 
@@ -510,7 +519,6 @@
         let currentDayType = 'weekday'; 
         let currentDayIndex = 0; 
         let deferredPrompt; 
-        const routeCache = {};
         let currentScheduleData = {};
         const REFRESH_CONFIG = { standardInterval: 5 * 60 * 1000, activeInterval: 60 * 1000, nightModeStart: 21, nightModeEnd: 4 };
         let refreshTimer = null;
@@ -545,7 +553,10 @@
                 const currentRoute = ROUTES[currentRouteId];
                 if (!currentRoute) return;
                 
-                routeSubtitle.innerHTML = `<span>${currentRoute.name}</span><svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                // UPDATED: Dynamic Color Assignment for Route Title
+                routeSubtitleText.textContent = currentRoute.name;
+                routeSubtitleText.className = `text-lg font-medium ${currentRoute.colorClass} group-hover:opacity-80 transition-colors`;
+                
                 pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
                 pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
                 renderPlaceholder();
@@ -622,44 +633,59 @@
             };
         }
 
+        // --- UPDATED PARSER WITH HEADER DETECTION ---
         function parseJSONSchedule(jsonRows) {
             try {
-                if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) return { headers: [], rows: [], stationColumnName: 'STATION' };
-                const stopIndex = jsonRows.findIndex(row => {
-                    const s = row.STATION;
-                    if (!s || typeof s !== 'string') return false;
-                    const lower = s.toLowerCase().trim();
-                    return lower.includes('inter-station') || lower.startsWith('last updated');
-                });
-                const validRows = (stopIndex !== -1) ? jsonRows.slice(0, stopIndex) : jsonRows;
-                const cleanRows = validRows.filter(row => {
-                    const s = row.STATION;
+                if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) 
+                    return { headers: [], rows: [], stationColumnName: 'STATION' };
+
+                // 1. Dynamic Header Detection
+                let headerRowIndex = -1;
+                let stationColName = 'STATION';
+                
+                for(let i = 0; i < Math.min(jsonRows.length, 5); i++) {
+                     if (jsonRows[i]['STATION']) { headerRowIndex = -1; break; }
+                     if (Object.values(jsonRows[i]).includes('STATION')) { headerRowIndex = i; break; }
+                }
+
+                // 2. Filter Rows
+                const cleanRows = jsonRows.filter(row => {
+                    const s = row[stationColName];
                     if (!s || typeof s !== 'string') return false;
                     const lower = s.toLowerCase().trim();
                     if (lower.startsWith('last updated')) return false;
                     if (lower.includes('inter-station')) return false;
-                    if (lower.includes('trip')) return false;
+                    if (lower.includes('trip')) return false; 
                     return true;
                 });
-                
+
+                // 3. Coordinate Extraction
                 cleanRows.forEach(row => {
                     if (row.STATION && row.COORDINATES) {
                         try {
                             const parts = String(row.COORDINATES).split(',').map(s => parseFloat(s.trim()));
                             if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                                stationLocations[normalizeStationName(row.STATION)] = { lat: parts[0], lon: parts[1] };
+                                // IMPORTANT: Use raw station name as key to match Select Option Values
+                                stationLocations[row.STATION] = { lat: parts[0], lon: parts[1] };
                             }
                         } catch(e) {}
                     }
                 });
 
                 if (cleanRows.length === 0) return { headers: [], rows: [], stationColumnName: 'STATION' };
+
+                // 4. Extract Train Headers safely
                 const allHeaders = new Set();
-                cleanRows.forEach(row => { Object.keys(row).forEach(key => { if (key !== 'STATION' && key !== 'COORDINATES') allHeaders.add(key); }); });
+                cleanRows.forEach(row => { 
+                    Object.keys(row).forEach(key => { 
+                        if (key !== 'STATION' && key !== 'COORDINATES' && key !== 'row_index') allHeaders.add(key); 
+                    }); 
+                });
                 const trainNumbers = Array.from(allHeaders).sort();
                 return { stationColumnName: 'STATION', headers: ['STATION', ...trainNumbers], rows: cleanRows };
+
             } catch (e) {
-                console.error("Parser crash", e);
+                console.error("Parser Error:", e);
                 return { headers: [], rows: [], stationColumnName: 'STATION' };
             }
         }
@@ -729,15 +755,23 @@
         
         function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
             try {
+                if (!departureTimeStr || typeof departureTimeStr !== 'string') return "";
                 const [nowH, nowM, nowS] = currentTime.split(':').map(Number);
                 const depParts = departureTimeStr.split(':').map(Number);
-                const depH = depParts[0]; const depM = depParts[1]; const depS = depParts[2] || 0; 
+                if (depParts.length < 2) return ""; 
+
+                const depH = depParts[0]; 
+                const depM = depParts[1]; 
+                const depS = depParts[2] || 0;
+
                 let nowTotalSeconds = (nowH * 3600) + (nowM * 60) + nowS;
                 let depTotalSeconds = (depH * 3600) + (depM * 60) + depS;
-                let diffInSeconds = (depTotalSeconds - nowTotalSeconds) + (dayOffset * 24 * 60 * 60);
-                if (diffInSeconds < 0) return "";
+                let diffInSeconds = (depTotalSeconds - nowTotalSeconds) + (dayOffset * 86400);
+
+                if (diffInSeconds < -30) return ""; 
+                if (diffInSeconds < 60) return "(Arriving now)";
+
                 let diffInMinutes = Math.ceil(diffInSeconds / 60);
-                if (diffInMinutes === 0) return "(Arriving now)";
                 const hours = Math.floor(diffInMinutes / 60);
                 const minutes = diffInMinutes % 60;
                 return (hours > 0) ? `(in ${hours}h ${minutes}m)` : `(in ${minutes}m)`;
@@ -759,10 +793,77 @@
             pienaarspoortTimeEl.innerHTML = placeholderHTML;
         }
 
+        // --- GEOLOCATION LOGIC ---
+        function findNearestStation() {
+            if (!navigator.geolocation) {
+                showToast("Geolocation is not supported by your browser.", "error");
+                stationSelect.value = "";
+                return;
+            }
+
+            // Show loading state
+            showToast("Locating nearest station...", "info", 4000);
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const userLat = position.coords.latitude;
+                    const userLon = position.coords.longitude;
+                    let nearestStation = null;
+                    let minDistance = Infinity;
+
+                    for (const [stationName, coords] of Object.entries(stationLocations)) {
+                        const dist = getDistanceFromLatLonInKm(userLat, userLon, coords.lat, coords.lon);
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            nearestStation = stationName;
+                        }
+                    }
+
+                    if (nearestStation && minDistance <= MAX_RADIUS_KM) {
+                        // The key in stationLocations matches the option value
+                        stationSelect.value = nearestStation; 
+                        
+                        // Trigger change event to load schedule
+                        findNextTrains();
+                        showToast(`Found: ${nearestStation.replace(' STATION', '')} (${minDistance.toFixed(1)}km)`, "success");
+                    } else {
+                         showToast("No stations found within 6km.", "error");
+                         stationSelect.value = ""; // Reset
+                    }
+                },
+                (error) => {
+                    let msg = "Unable to retrieve location.";
+                    if (error.code === 1) msg = "Location permission denied.";
+                    showToast(msg, "error");
+                    stationSelect.value = "";
+                }
+            );
+        }
+
+        // --- HAVERSINE FORMULA ---
+        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radius of the earth in km
+            const dLat = deg2rad(lat2 - lat1);
+            const dLon = deg2rad(lon2 - lon1);
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            const d = R * c; // Distance in km
+            return d;
+        }
+
+        function deg2rad(deg) {
+            return deg * (Math.PI/180);
+        }
+
         function findNextTrains() {
             const selectedStation = stationSelect.value;
             const currentRoute = ROUTES[currentRouteId];
+            
+            // Logic Trigger for Geolocation
             if (selectedStation === "FIND_NEAREST") { findNearestStation(); return; }
+            
             if (!currentRoute) return;
             if (!currentRoute.isActive) { renderComingSoon(currentRoute.name); return; }
             pretoriaTimeEl.innerHTML = ""; pienaarspoortTimeEl.innerHTML = "";
@@ -968,41 +1069,65 @@
                 timeClass = "bg-green-100 dark:bg-green-900 border-2 border-green-500";
             }
             
-            const departureTime = journey.departureTime || journey.train1.departureTime;
-            const timeDiffStr = calculateTimeDiffString(departureTime);
-            const buttonHtml = `<button onclick="openScheduleModal('${destination.replace(/'/g, "\\'")}')" class="absolute bottom-0 left-0 w-full text-[10px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">See Full Schedule</button>`;
+            // SANITIZATION: Escape all data before rendering
+            const safeDepTime = escapeHTML(journey.departureTime || journey.train1.departureTime);
+            const safeTrainName = escapeHTML(journey.train || journey.train1.train);
+            const safeDest = escapeHTML(destination);
+            
+            const timeDiffStr = calculateTimeDiffString(journey.departureTime || journey.train1.departureTime);
+            
+            // Safe JS string for the onclick attribute
+            const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
+            
+            const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[10px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">See Full Schedule</button>`;
 
             if (journey.type === 'direct') {
-                let destinationText = journey.arrivalTime ? `Arrives ${journey.arrivalTime}.` : "Arrival time not available."; 
-                const normActual = normalizeStationName(journey.actualDestination);
+                const actualDest = journey.actualDestination ? normalizeStationName(journey.actualDestination) : '';
                 const normDest = normalizeStationName(destination);
-                if (normActual && normDest && normActual !== normDest) destinationText = `Terminates at ${journey.actualDestination.replace(/ STATION/g,'')}.`;
+                
+                let destinationText = journey.arrivalTime ? `Arrives ${escapeHTML(journey.arrivalTime)}.` : "Arrival time not available.";
+                if (actualDest && normDest && actualDest !== normDest) {
+                    destinationText = `Terminates at ${escapeHTML(journey.actualDestination.replace(/ STATION/g,''))}.`;
+                }
 
-                let trainTypeText = `<span class="font-bold text-yellow-600 dark:text-yellow-400">Direct train (${journey.train})</span>`;
-                if (journey.isLastTrain) trainTypeText = `<span class="font-bold text-red-600 dark:text-red-400">Last Direct train (${journey.train})</span>`;
+                let trainTypeText = `<span class="font-bold text-yellow-600 dark:text-yellow-400">Direct train (${safeTrainName})</span>`;
+                if (journey.isLastTrain) trainTypeText = `<span class="font-bold text-red-600 dark:text-red-400">Last Direct train (${safeTrainName})</span>`;
 
-                element.innerHTML = `<div class="flex flex-row items-center w-full space-x-3"><div class="relative w-1/2 h-32 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0"><div class="text-3xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>${buttonHtml}</div><div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1"><div class="text-sm text-gray-800 dark:text-gray-200 font-medium leading-tight">${trainTypeText}</div><div class="text-xs text-gray-500 dark:text-gray-400 leading-tight font-medium">${destinationText}</div></div></div>`;
+                element.innerHTML = `<div class="flex flex-row items-center w-full space-x-3"><div class="relative w-1/2 h-32 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0"><div class="text-3xl font-bold text-gray-900 dark:text-white">${safeDepTime}</div><div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>${buttonHtml}</div><div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1"><div class="text-sm text-gray-800 dark:text-gray-200 font-medium leading-tight">${trainTypeText}</div><div class="text-xs text-gray-500 dark:text-gray-400 leading-tight font-medium">${destinationText}</div></div></div>`;
             }
 
             if (journey.type === 'transfer') {
                 const conn = journey.connection; 
                 const nextFull = journey.nextFullJourney; 
-                let train1Info = `Train ${journey.train1.train} (Terminates at ${journey.train1.terminationStation.replace(/ STATION/g, '')} at ${journey.train1.arrivalAtTransfer})`;
-                if (journey.isLastTrain) train1Info = `<span class="text-red-600 dark:text-red-400 font-bold">Last Train (${journey.train1.train})</span> (Terminates at ${journey.train1.terminationStation.replace(/ STATION/g, '')})`;
+                
+                const termStation = escapeHTML(journey.train1.terminationStation.replace(/ STATION/g, ''));
+                const arrivalAtTransfer = escapeHTML(journey.train1.arrivalAtTransfer);
+                
+                let train1Info = `Train ${safeTrainName} (Terminates at ${termStation} at ${arrivalAtTransfer})`;
+                if (journey.isLastTrain) train1Info = `<span class="text-red-600 dark:text-red-400 font-bold">Last Train (${safeTrainName})</span> (Terminates at ${termStation})`;
 
                 let connectionInfoHTML = "";
                 if (normalizeStationName(conn.actualDestination) !== normalizeStationName(destination) && nextFull) {
-                    const conn1DestName = `(to ${conn.actualDestination.replace(/ STATION/g, '')})`;
-                    const connection1Text = `Connect to Train ${conn.train} ${conn1DestName} at <b>${conn.departureTime}</b>`;
-                    const nextFullDestName = `(to ${nextFull.actualDestination.replace(/ STATION/g, '')})`;
-                    const connection2Text = `Next Train ${nextFull.train} ${nextFullDestName} is at <b>${nextFull.departureTime}</b>`;
+                    const connTrain = escapeHTML(conn.train);
+                    const connDest = escapeHTML(conn.actualDestination.replace(/ STATION/g, ''));
+                    const connDep = escapeHTML(conn.departureTime);
+                    const nextTrain = escapeHTML(nextFull.train);
+                    const nextDest = escapeHTML(nextFull.actualDestination.replace(/ STATION/g, ''));
+                    const nextDep = escapeHTML(nextFull.departureTime);
+
+                    const connection1Text = `Connect to Train ${connTrain} (to ${connDest}) at <b>${connDep}</b>`;
+                    const connection2Text = `Next Train ${nextTrain} (to ${nextDest}) is at <b>${nextDep}</b>`;
                     connectionInfoHTML = `<div class="space-y-1"><div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div><div class="text-gray-500 dark:text-gray-400 text-xs font-medium">${connection2Text}</div></div>`;
                 } else {
-                    let connDestName = `(Arrives ${conn.arrivalTime})`; 
-                    const connectionText = `Connect to Train ${conn.train} at <b>${conn.departureTime}</b> ${connDestName}`;
+                    const connTrain = escapeHTML(conn.train);
+                    const connDep = escapeHTML(conn.departureTime);
+                    const connArr = escapeHTML(conn.arrivalTime);
+                    let connDestName = `(Arrives ${connArr})`; 
+                    const connectionText = `Connect to Train ${connTrain} at <b>${connDep}</b> ${connDestName}`;
                     connectionInfoHTML = `<div class="text-yellow-600 dark:text-yellow-400 font-medium">${connectionText}</div>`;
                 }
-                element.innerHTML = `<div class="flex flex-row items-center w-full space-x-3"><div class="relative w-1/2 h-32 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0"><div class="text-3xl font-bold text-gray-900 dark:text-white">${journey.train1.departureTime}</div><div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>${buttonHtml}</div><div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1"><div class="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Transfer Required</div><div class="text-xs text-yellow-600 dark:text-yellow-400 leading-tight font-medium">${train1Info}</div><div class="text-xs leading-tight">${connectionInfoHTML}</div></div></div>`;
+                
+                element.innerHTML = `<div class="flex flex-row items-center w-full space-x-3"><div class="relative w-1/2 h-32 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0"><div class="text-3xl font-bold text-gray-900 dark:text-white">${safeDepTime}</div><div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>${buttonHtml}</div><div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1"><div class="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Transfer Required</div><div class="text-xs text-yellow-600 dark:text-yellow-400 leading-tight font-medium">${train1Info}</div><div class="text-xs leading-tight">${connectionInfoHTML}</div></div></div>`;
             }
         }
         
@@ -1157,8 +1282,45 @@
             });
             scheduleModal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; 
         };
-        function setupRedirectLogic() { feedbackBtn.addEventListener('click', (e) => { e.preventDefault(); showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?"); }); checkUpdatesBtn.addEventListener('click', (e) => { e.preventDefault(); showRedirectModal(checkUpdatesBtn.href, "Visit Facebook for official updates?"); }); }
-        function showRedirectModal(url, message) { redirectMessage.textContent = message; redirectModal.classList.remove('hidden'); const confirmHandler = () => { window.open(url, '_blank'); redirectModal.classList.add('hidden'); cleanup(); }; const cancelHandler = () => { redirectModal.classList.add('hidden'); cleanup(); }; const cleanup = () => { redirectConfirmBtn.removeEventListener('click', confirmHandler); redirectCancelBtn.removeEventListener('click', cancelHandler); }; redirectConfirmBtn.addEventListener('click', confirmHandler); redirectCancelBtn.addEventListener('click', cancelHandler); }
+        
+        // --- RESTORED REDIRECT LOGIC ---
+        function setupRedirectLogic() {
+            // Re-bind the click events to show the modal
+            feedbackBtn.addEventListener('click', (e) => { 
+                e.preventDefault(); 
+                showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?"); 
+            }); 
+            
+            checkUpdatesBtn.addEventListener('click', (e) => { 
+                e.preventDefault(); 
+                showRedirectModal(checkUpdatesBtn.href, "Visit Facebook for official updates?"); 
+            }); 
+        }
+
+        function showRedirectModal(url, message) {
+            redirectMessage.textContent = message;
+            redirectModal.classList.remove('hidden');
+            
+            const confirmHandler = () => { 
+                // CRITICAL FIX: Use window.open instead of window.location.href to avoid PWA crash
+                window.open(url, '_blank'); 
+                redirectModal.classList.add('hidden');
+                cleanup(); 
+            };
+            
+            const cancelHandler = () => { 
+                redirectModal.classList.add('hidden');
+                cleanup(); 
+            };
+            
+            const cleanup = () => { 
+                redirectConfirmBtn.removeEventListener('click', confirmHandler);
+                redirectCancelBtn.removeEventListener('click', cancelHandler);
+            };
+            
+            redirectConfirmBtn.addEventListener('click', confirmHandler);
+            redirectCancelBtn.addEventListener('click', cancelHandler);
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             const savedDefault = localStorage.getItem('defaultRoute');
