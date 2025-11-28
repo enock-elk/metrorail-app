@@ -59,34 +59,34 @@
             </div>
             
             <div class="space-y-4">
+                <!-- V3.0 UX UPGRADE (NEW) -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
+                    <h3 class="font-bold text-lg mb-2">V3.0 UX Upgrade</h3>
+                    <div class="text-xs font-bold text-green-600 dark:text-green-400 uppercase mb-2">BETA RELEASE</div>
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
+                        <li class="flex items-start"><span class="mr-2">✅</span> Clickable Route Title (Quick Switch)</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Instructional Empty States</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> High-Contrast Station Selector</li>
+                    </ul>
+                </div>
+
                 <!-- SEO & DISCOVERY -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
                     <h3 class="font-bold text-lg mb-2">SEO & Discovery</h3>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
                         <li class="flex items-start"><span class="mr-2">✅</span> Google Search Console Verified</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Canonical Links (Prevents Dupes)</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Open Graph (Social Previews)</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Canonical Links</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Open Graph Tags</li>
                     </ul>
                 </div>
 
                 <!-- ARCHITECTURE -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                    <h3 class="font-bold text-lg mb-2">Architecture Upgrade</h3>
+                    <h3 class="font-bold text-lg mb-2">Architecture</h3>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> Firebase Integration (JSON Fetch)</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Stale-While-Revalidate (Instant Load)</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Robust Error Handling</li>
-                    </ul>
-                </div>
-
-                <!-- UX & CORE -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                    <h3 class="font-bold text-lg mb-2">UX & Core Features</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> Redirect Safety Modal</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Google Forms Feedback</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Offline Mode (localStorage)</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Pin Favorite Route</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Firebase Integration</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Stale-While-Revalidate</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Offline Mode (Storage)</li>
                     </ul>
                 </div>
             </div>
@@ -103,12 +103,13 @@
             <div class="space-y-4">
                 <!-- SERVICE WORKER -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500 relative overflow-hidden">
-                    <div class="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">HIGH PRIORITY</div>
+                    <div class="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">IMPLEMENTING</div>
                     <h3 class="font-bold text-lg mb-2">Service Worker (PWA)</h3>
                     <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Enable full "Install App" capability.</p>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">⌛</span> Create `sw.js` file</li>
-                        <li class="flex items-start"><span class="mr-2">⌛</span> Cache App Shell (HTML/CSS)</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Create `sw.js` file</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Add Registration Logic</li>
+                        <li class="flex items-start"><span class="mr-2">⌛</span> <strong>Deploy & Test Offline</strong></li>
                     </ul>
                 </div>
 
@@ -119,14 +120,6 @@
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
                         <li class="flex items-start"><span class="mr-2">⌛</span> Update DB Schema</li>
                         <li class="flex items-start"><span class="mr-2">⌛</span> Map Station Coordinates</li>
-                    </ul>
-                </div>
-
-                <!-- PERFORMANCE -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500">
-                    <h3 class="font-bold text-lg mb-2">Performance Tuning</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">⌛</span> Replace Tailwind CDN with build</li>
                     </ul>
                 </div>
             </div>
@@ -152,7 +145,7 @@
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-red-500 opacity-80">
                     <h3 class="font-bold text-lg mb-2">Trip Planner (A to B)</h3>
                     <div class="text-sm text-red-500 font-bold mb-2 uppercase text-xs">Blocked By: Missing Data</div>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Missing schedules for Saulsville & Mabopane (Sat) makes routing impossible.</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Missing schedules for Saulsville & Mabopane (Sat).</p>
                 </div>
             </div>
         </div>
@@ -165,12 +158,12 @@
             <div>
                 <h3 class="text-2xl font-bold mb-2">🚀 Immediate Next Step</h3>
                 <p class="text-blue-100 max-w-xl">
-                    Focus is shifting to <strong>Mobile App Parity</strong>. We need to implement the Service Worker to make the app installable and usable fully offline, and populate GPS data to enable location features.
+                    <strong>Service Worker Deployment:</strong> Once the `sw.js` file is live, the app will be fully installable. After that, we shift focus to <strong>Geolocation Data</strong> to unlock the "Find Nearest Station" feature.
                 </p>
             </div>
             <div class="mt-6 md:mt-0">
                 <span class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-blue-700 bg-white shadow-sm hover:bg-blue-50">
-                    Target: Version 3.0
+                    Target: Version 3.1
                 </span>
             </div>
         </div>
@@ -180,20 +173,18 @@
     <script>
         async function fetchProjectVersion() {
             try {
-                // 1. Fetch the raw HTML of your main app
                 const response = await fetch('index.html');
                 if (!response.ok) throw new Error("Could not fetch index.html");
                 const text = await response.text();
 
-                // 2. Use Regex to find "V2.xx" in the comments
-                // Looking for pattern: "Metrorail Next Train V2.61"
-                const versionMatch = text.match(/Metrorail Next Train (V\d+\.\d+)/);
+                // Looking for pattern: "Metrorail Next Train V3.0"
+                const versionMatch = text.match(/Metrorail Next Train (V\d+\.\d+)/i);
 
                 if (versionMatch && versionMatch[1]) {
                     const version = versionMatch[1];
                     document.getElementById('version-badge').textContent = `Current Version: ${version}`;
                 } else {
-                    document.getElementById('version-badge').textContent = "Version not found";
+                    document.getElementById('version-badge').textContent = "Version Check Failed";
                 }
             } catch (error) {
                 console.error("Version Check Error:", error);
@@ -201,7 +192,6 @@
             }
         }
 
-        // Run on load
         fetchProjectVersion();
     </script>
 
