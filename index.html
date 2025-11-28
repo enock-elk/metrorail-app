@@ -449,6 +449,17 @@
     <div id="toast" class=""></div>
 
     <script>
+
+      // --- SERVICE WORKER REGISTRATION (NEW) ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((reg) => console.log('Service Worker Registered!', reg.scope))
+                    .catch((err) => console.log('Service Worker Failed:', err));
+            });
+        }
+  
+             
         const stationSelect = document.getElementById('station-select');
         const pretoriaTimeEl = document.getElementById('pretoria-time');
         const pienaarspoortTimeEl = document.getElementById('pienaarspoort-time');
@@ -1674,3 +1685,4 @@
     </script>
 </body>
 </html>
+
