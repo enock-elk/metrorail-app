@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V2.57 (UI Polish)
-  - UI FIX: Center alignment for all train details (Direct & Transfer).
-  - TRANSFER UI: Removed bullet points, increased "TRANSFER REQUIRED" size.
-  - COLORS: Unified color for Train 1 and Connection info (Yellow/Orange), keeping "Next Train" grey.
+  Metrorail Next Train V2.58 (Stale-While-Revalidate)
+  - UPDATE LOGIC: Implemented "Stale-While-Revalidate" caching strategy.
+  - BEHAVIOR: 
+    1. Loads from LocalStorage immediately (fast start).
+    2. Checks network in background.
+    3. If network data differs from cache, it auto-updates the UI and notifies the user.
 -->
 <html lang="en" class="dark">
 
@@ -588,16 +590,15 @@
             startSmartRefresh();
         });
         
-        // --- DATA FETCHING ---
+        // --- DATA FETCHING (Stale-While-Revalidate) ---
         async function loadAllSchedules(force = false) {
             const currentRoute = ROUTES[currentRouteId];
-            
             if (!currentRoute) return;
             
+            // UI Setup
             routeSubtitle.textContent = currentRoute.name;
             pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
             pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
-            
             pretoriaTimeEl.innerHTML = "";
             pienaarspoortTimeEl.innerHTML = "";
             offlineIndicator.style.display = 'none';
@@ -610,57 +611,81 @@
                 return; 
             }
             
+            // --- STALE-WHILE-REVALIDATE STRATEGY ---
             const cachedDB = loadFromLocalCache('full_db');
-            const now = Date.now();
+            let usedCache = false;
 
-            if (!force && cachedDB && (now - cachedDB.timestamp < CACHE_TTL)) {
-                console.log("Loading from Local Cache...");
+            // 1. Show Cache Immediately (If available)
+            if (cachedDB) {
+                console.log("Restoring from cache (Background update started)...");
                 fullDatabase = cachedDB.data;
                 processRouteDataFromDB(currentRoute);
-                
                 if (fullDatabase.lastUpdated) {
                     lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
                 }
-                initializeApp();
-                return;
+                initializeApp(); // Render UI immediately
+                usedCache = true;
             }
 
-            loadingOverlay.style.display = 'flex';
+            // 2. Decide on Loading Overlay
+            if (!usedCache) {
+                loadingOverlay.style.display = 'flex';
+            }
+            
             const reloadIcon = forceReloadBtn.querySelector('svg');
             forceReloadBtn.disabled = true;
             reloadIcon.classList.add('spinning');
 
+            // 3. Network Fetch (Always happens now, in background if cache existed)
             try {
-                console.log("Fetching from Firebase...");
+                // If we used cache, we don't want to block user, so this runs in background
                 const response = await fetch(DATABASE_URL);
                 if (!response.ok) throw new Error("Firebase fetch failed");
                 
-                fullDatabase = await response.json();
-                
-                if (!fullDatabase) throw new Error("Empty database");
+                const newDatabase = await response.json();
+                if (!newDatabase) throw new Error("Empty database");
 
-                saveToLocalCache('full_db', fullDatabase);
-                
-                processRouteDataFromDB(currentRoute);
-                
-                if (fullDatabase.lastUpdated) {
-                    lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
+                // 4. Compare New Data vs Cached Data
+                const newStr = JSON.stringify(newDatabase);
+                const oldStr = cachedDB ? JSON.stringify(cachedDB.data) : "";
+
+                if (newStr !== oldStr) {
+                    console.log("New data detected! Updating...");
+                    
+                    // Update Global State
+                    fullDatabase = newDatabase;
+                    saveToLocalCache('full_db', fullDatabase);
+                    processRouteDataFromDB(currentRoute);
+                    
+                    if (fullDatabase.lastUpdated) {
+                        lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
+                    }
+
+                    // If we were already looking at cached UI, notify and refresh
+                    if (usedCache) {
+                        showToast("New schedule found! Updating...", "success", 3000);
+                        // Re-run logic to update times displayed on screen
+                        findNextTrains();
+                    } else {
+                        // First load, just init
+                        initializeApp();
+                    }
+                } else {
+                    console.log("Data is already up to date.");
                 }
-                
-                initializeApp();
 
             } catch (error) {
                 console.error("Fetch Error:", error);
                 
-                if (cachedDB) {
-                    console.log("Network failed. Using stale cache.");
-                    fullDatabase = cachedDB.data;
-                    processRouteDataFromDB(currentRoute);
+                if (usedCache) {
+                    // We are offline but have cache. Show indicator.
                     offlineIndicator.style.display = 'block';
-                    lastUpdatedEl.textContent = `Schedule updated: ${cachedDB.data.lastUpdated} (Offline Copy)`;
-                    initializeApp();
-                    showToast("Network failed. Showing offline schedule.", "info", 4000);
+                    if (cachedDB && cachedDB.data && cachedDB.data.lastUpdated) {
+                         lastUpdatedEl.textContent = `Schedule updated: ${cachedDB.data.lastUpdated} (Offline Copy)`;
+                    }
+                    // Don't error out, user is already seeing cached data
                 } else {
+                    // No cache, fatal error
                     loadingOverlay.style.display = 'none';
                     mainContent.style.display = 'block';
                     renderRouteError(error);
@@ -668,6 +693,10 @@
             } finally {
                 forceReloadBtn.disabled = false;
                 reloadIcon.classList.remove('spinning');
+                // Hide overlay if it was showing (no cache case)
+                if (!usedCache) {
+                    loadingOverlay.style.display = 'none';
+                }
             }
         }
         
