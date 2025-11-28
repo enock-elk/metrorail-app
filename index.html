@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V2.60 (ReferenceError Fix)
-  - BUG FIX: Moved Event Listeners ('DOMContentLoaded', 'visibilitychange') to the bottom of the script.
-  - REASON: Ensures all functions (setupFeatureButtons, updatePinUI) are defined before they are referenced.
+  Metrorail Next Train V2.61 (Feedback Link Update)
+  - CHANGE: Updated Feedback button to point to Google Form instead of WhatsApp.
+  - RETAINED: All V2.60 fixes (ReferenceError fix, Caching, Pinned Routes, Redirect Modal).
 -->
 <html lang="en" class="dark">
 
@@ -663,7 +663,7 @@
                     // We are offline but have cache. Show indicator.
                     offlineIndicator.style.display = 'block';
                     if (cachedDB && cachedDB.data && cachedDB.data.lastUpdated) {
-                         lastUpdatedEl.textContent = `Schedule updated: ${cachedDB.data.lastUpdated} (Offline Copy)`;
+                          lastUpdatedEl.textContent = `Schedule updated: ${cachedDB.data.lastUpdated} (Offline Copy)`;
                     }
                     // Don't error out, user is already seeing cached data
                 } else {
@@ -980,8 +980,8 @@
                 // but checking both bounds is safer.
                 // Assuming Up direction list order.
                 if (fromStationIndex >= 0 && terminationStationIndex >= 0) {
-                     const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destA);
-                     allTransferJourneys = allTransfers;
+                      const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destA);
+                      allTransferJourneys = allTransfers;
                 }
             }
 
@@ -1025,8 +1025,8 @@
                 const terminationStationIndex = allStations.indexOf(routeConfig.transferStation);
 
                 if (fromStationIndex >= 0 && terminationStationIndex >= 0) {
-                     const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destB);
-                     allTransferJourneys = allTransfers;
+                      const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destB);
+                      allTransferJourneys = allTransfers;
                 }
             }
 
@@ -1152,7 +1152,7 @@
                                 arrivalAtTransfer: terminationTime,
                                 terminationStation: terminalStation
                             },
-                            connection: connectionData.earliest,     
+                            connection: connectionData.earliest,      
                             nextFullJourney: connectionData.fullJourney 
                         });
                     }
@@ -1200,16 +1200,16 @@
                     }
 
                     if (lastStopRow) {
-                         const lastStopIndex = schedule.rows.indexOf(lastStopRow);
-                         if (lastStopIndex > connIndex) {
+                          const lastStopIndex = schedule.rows.indexOf(lastStopRow);
+                          if (lastStopIndex > connIndex) {
                             possibleConnections.push({
                                 train: train,
                                 departureTime: connectionTime,
-                                arrivalTime: actualArrivalTime,       
-                                actualDestination: actualLastStop,    
+                                arrivalTime: actualArrivalTime,        
+                                actualDestination: actualLastStop,     
                                 connectionStation: connectionStation
                             });
-                         }
+                          }
                     }
                 }
             }
@@ -1302,7 +1302,7 @@
 
                 // Show if it terminates early (Strict Check with Normalization)
                 if (normActual && normDest && normActual !== normDest) {
-                     destinationText = `Terminates at ${journey.actualDestination.replace(/ STATION/g,'')}.`;
+                      destinationText = `Terminates at ${journey.actualDestination.replace(/ STATION/g,'')}.`;
                 }
 
                 element.innerHTML = `
@@ -1782,9 +1782,12 @@
         };
 
         function setupRedirectLogic() {
+            
+            // FEEDBACK BUTTON UPDATE:
+            // Changed from WhatsApp to Google Form URL provided by user.
             feedbackBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                showRedirectModal("https://wa.me/27655169399?text=Feedback%20for%20Next%20Train", "Open WhatsApp to send feedback?");
+                showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?");
             });
             
             checkUpdatesBtn.addEventListener('click', (e) => {
