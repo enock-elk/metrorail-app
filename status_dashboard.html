@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrorail Next Train - Project Status</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        metro: {
+                            dark: '#1f2937',
+                            card: '#374151',
+                            blue: '#3b82f6',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen p-6 transition-colors duration-300">
+
+    <!-- HEADER -->
+    <header class="max-w-7xl mx-auto mb-10 border-b border-gray-300 dark:border-gray-700 pb-6 flex flex-col md:flex-row justify-between items-start md:items-end">
+        <div>
+            <h1 class="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-2">
+                Project Status Tracker
+            </h1>
+            <p class="text-xl text-blue-600 dark:text-blue-400 font-semibold">
+                Metrorail Next Train
+            </p>
+        </div>
+        <div class="mt-4 md:mt-0 text-right">
+            <!-- AUTO-UPDATED VERSION BADGE -->
+            <div id="version-badge" class="inline-block bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm font-bold px-4 py-2 rounded-full">
+                Checking Version...
+            </div>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Last Updated: Nov 28, 2025</p>
+        </div>
+    </header>
+
+    <!-- MAIN GRID -->
+    <main class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <!-- COLUMN 1: COMPLETED -->
+        <div class="flex flex-col">
+            <div class="flex items-center space-x-2 mb-4">
+                <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <h2 class="text-lg font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Completed</h2>
+                <span class="bg-gray-200 dark:bg-gray-700 text-xs font-bold px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">Live</span>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- SEO & DISCOVERY -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
+                    <h3 class="font-bold text-lg mb-2">SEO & Discovery</h3>
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
+                        <li class="flex items-start"><span class="mr-2">✅</span> Google Search Console Verified</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Canonical Links (Prevents Dupes)</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Open Graph (Social Previews)</li>
+                    </ul>
+                </div>
+
+                <!-- ARCHITECTURE -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
+                    <h3 class="font-bold text-lg mb-2">Architecture Upgrade</h3>
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
+                        <li class="flex items-start"><span class="mr-2">✅</span> Firebase Integration (JSON Fetch)</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Stale-While-Revalidate (Instant Load)</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Robust Error Handling</li>
+                    </ul>
+                </div>
+
+                <!-- UX & CORE -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
+                    <h3 class="font-bold text-lg mb-2">UX & Core Features</h3>
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
+                        <li class="flex items-start"><span class="mr-2">✅</span> Redirect Safety Modal</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Google Forms Feedback</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Offline Mode (localStorage)</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Pin Favorite Route</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- COLUMN 2: WORK IN PROGRESS -->
+        <div class="flex flex-col">
+            <div class="flex items-center space-x-2 mb-4">
+                <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                <h2 class="text-lg font-bold uppercase tracking-wider text-yellow-600 dark:text-yellow-400">In Progress</h2>
+                <span class="bg-gray-200 dark:bg-gray-700 text-xs font-bold px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">Next Steps</span>
+            </div>
+
+            <div class="space-y-4">
+                <!-- SERVICE WORKER -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">HIGH PRIORITY</div>
+                    <h3 class="font-bold text-lg mb-2">Service Worker (PWA)</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Enable full "Install App" capability.</p>
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
+                        <li class="flex items-start"><span class="mr-2">⌛</span> Create `sw.js` file</li>
+                        <li class="flex items-start"><span class="mr-2">⌛</span> Cache App Shell (HTML/CSS)</li>
+                    </ul>
+                </div>
+
+                <!-- GEOLOCATION -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500">
+                    <h3 class="font-bold text-lg mb-2">Geolocation Data</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Add Lat/Lon to database.</p>
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
+                        <li class="flex items-start"><span class="mr-2">⌛</span> Update DB Schema</li>
+                        <li class="flex items-start"><span class="mr-2">⌛</span> Map Station Coordinates</li>
+                    </ul>
+                </div>
+
+                <!-- PERFORMANCE -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500">
+                    <h3 class="font-bold text-lg mb-2">Performance Tuning</h3>
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
+                        <li class="flex items-start"><span class="mr-2">⌛</span> Replace Tailwind CDN with build</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- COLUMN 3: BLOCKED / ON HOLD -->
+        <div class="flex flex-col">
+            <div class="flex items-center space-x-2 mb-4">
+                <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                <h2 class="text-lg font-bold uppercase tracking-wider text-red-600 dark:text-red-400">Blocked / Future</h2>
+                <span class="bg-gray-200 dark:bg-gray-700 text-xs font-bold px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">On Hold</span>
+            </div>
+
+            <div class="space-y-4">
+                <!-- FIND NEAREST STATION -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-red-500 opacity-80">
+                    <h3 class="font-bold text-lg mb-2">Find Nearest Station</h3>
+                    <div class="text-sm text-red-500 font-bold mb-2 uppercase text-xs">Blocked By: Geolocation Data</div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Cannot calculate distance without station GPS coordinates.</p>
+                </div>
+
+                <!-- TRIP PLANNER -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-red-500 opacity-80">
+                    <h3 class="font-bold text-lg mb-2">Trip Planner (A to B)</h3>
+                    <div class="text-sm text-red-500 font-bold mb-2 uppercase text-xs">Blocked By: Missing Data</div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Missing schedules for Saulsville & Mabopane (Sat) makes routing impossible.</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER / NEXT PRIORITY BANNER -->
+    <div class="max-w-7xl mx-auto mt-12 mb-10">
+        <div class="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl p-8 shadow-2xl text-white flex flex-col md:flex-row items-center justify-between">
+            <div>
+                <h3 class="text-2xl font-bold mb-2">🚀 Immediate Next Step</h3>
+                <p class="text-blue-100 max-w-xl">
+                    Focus is shifting to <strong>Mobile App Parity</strong>. We need to implement the Service Worker to make the app installable and usable fully offline, and populate GPS data to enable location features.
+                </p>
+            </div>
+            <div class="mt-6 md:mt-0">
+                <span class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-blue-700 bg-white shadow-sm hover:bg-blue-50">
+                    Target: Version 3.0
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- AUTO-UPDATE SCRIPT -->
+    <script>
+        async function fetchProjectVersion() {
+            try {
+                // 1. Fetch the raw HTML of your main app
+                const response = await fetch('index.html');
+                if (!response.ok) throw new Error("Could not fetch index.html");
+                const text = await response.text();
+
+                // 2. Use Regex to find "V2.xx" in the comments
+                // Looking for pattern: "Metrorail Next Train V2.61"
+                const versionMatch = text.match(/Metrorail Next Train (V\d+\.\d+)/);
+
+                if (versionMatch && versionMatch[1]) {
+                    const version = versionMatch[1];
+                    document.getElementById('version-badge').textContent = `Current Version: ${version}`;
+                } else {
+                    document.getElementById('version-badge').textContent = "Version not found";
+                }
+            } catch (error) {
+                console.error("Version Check Error:", error);
+                document.getElementById('version-badge').textContent = "Unknown Version";
+            }
+        }
+
+        // Run on load
+        fetchProjectVersion();
+    </script>
+
+</body>
+</html>
