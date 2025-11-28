@@ -59,36 +59,30 @@
             </div>
             
             <div class="space-y-4">
-                <!-- SERVICE WORKER (NEWLY COMPLETED) -->
+                <!-- GEOLOCATION (NEWLY COMPLETED) -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
+                    <h3 class="font-bold text-lg mb-2">Geolocation (Find Nearest)</h3>
+                    <div class="text-xs font-bold text-green-600 dark:text-green-400 uppercase mb-2">DEPLOYED</div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">GPS logic now auto-selects closest station.</p>
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
+                        <li class="flex items-start"><span class="mr-2">✅</span> Haversine Distance Formula</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Column B Data Parsing</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> 6km Radius Logic</li>
+                    </ul>
+                </div>
+
+                <!-- SECURITY PATCH -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
+                    <h3 class="font-bold text-lg mb-2">Security & Stability Patch</h3>
+                    <div class="text-xs font-bold text-green-600 dark:text-green-400 uppercase mb-2">PATCHED</div>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">XSS prevention and robust parsing implemented.</p>
+                </div>
+
+                <!-- SERVICE WORKER -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
                     <h3 class="font-bold text-lg mb-2">Service Worker (PWA)</h3>
                     <div class="text-xs font-bold text-green-600 dark:text-green-400 uppercase mb-2">DEPLOYED</div>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">App is now installable and works offline.</p>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> `sw.js` Created</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Registration Logic Active</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Offline UI Fallback</li>
-                    </ul>
-                </div>
-
-                <!-- V3.0 UX UPGRADE -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                    <h3 class="font-bold text-lg mb-2">V3.0 UX Upgrade</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> Clickable Route Title</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Instructional Empty States</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> High-Contrast Selector</li>
-                    </ul>
-                </div>
-
-                <!-- ARCHITECTURE -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                    <h3 class="font-bold text-lg mb-2">Architecture</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> Firebase Integration</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Stale-While-Revalidate</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> SEO / Open Graph</li>
-                    </ul>
                 </div>
             </div>
         </div>
@@ -102,21 +96,11 @@
             </div>
 
             <div class="space-y-4">
-                <!-- GEOLOCATION -->
+                <!-- PERFORMANCE -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500 relative overflow-hidden">
                     <div class="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">HIGH PRIORITY</div>
-                    <h3 class="font-bold text-lg mb-2">Geolocation Data</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Add Lat/Lon to enable "Find Nearest".</p>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">⌛</span> Collect GPS Coordinates</li>
-                        <li class="flex items-start"><span class="mr-2">⌛</span> Implement Distance Logic</li>
-                        <li class="flex items-start"><span class="mr-2">⌛</span> Add "Find My Station" Button</li>
-                    </ul>
-                </div>
-
-                <!-- PERFORMANCE -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500">
                     <h3 class="font-bold text-lg mb-2">Performance Tuning</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Improve load speed for 3G users.</p>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
                         <li class="flex items-start"><span class="mr-2">⌛</span> Replace Tailwind CDN with build</li>
                     </ul>
@@ -133,13 +117,6 @@
             </div>
 
             <div class="space-y-4">
-                <!-- FIND NEAREST STATION -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-red-500 opacity-80">
-                    <h3 class="font-bold text-lg mb-2">Find Nearest Station</h3>
-                    <div class="text-sm text-red-500 font-bold mb-2 uppercase text-xs">Blocked By: Geolocation Data</div>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Cannot calculate distance without station GPS coordinates.</p>
-                </div>
-
                 <!-- TRIP PLANNER -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-red-500 opacity-80">
                     <h3 class="font-bold text-lg mb-2">Trip Planner (A to B)</h3>
@@ -157,12 +134,12 @@
             <div>
                 <h3 class="text-2xl font-bold mb-2">🚀 Immediate Next Step</h3>
                 <p class="text-blue-100 max-w-xl">
-                    <strong>Service Worker is LIVE!</strong> The app is now fully installable. We are shifting 100% focus to <strong>Geolocation</strong> to unlock the "Find Nearest Station" feature for Version 3.1.
+                    <strong>Geolocation is LIVE!</strong> We can now focus on <strong>Performance Tuning</strong> to remove the heavy Tailwind CDN and speed up load times.
                 </p>
             </div>
             <div class="mt-6 md:mt-0">
                 <span class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-blue-700 bg-white shadow-sm hover:bg-blue-50">
-                    Target: Version 3.1
+                    Target: Version 3.2
                 </span>
             </div>
         </div>
