@@ -1,11 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V2.58 (Stale-While-Revalidate)
-  - UPDATE LOGIC: Implemented "Stale-While-Revalidate" caching strategy.
-  - BEHAVIOR: 
-    1. Loads from LocalStorage immediately (fast start).
-    2. Checks network in background.
-    3. If network data differs from cache, it auto-updates the UI and notifies the user.
+  Metrorail Next Train V2.60 (ReferenceError Fix)
+  - BUG FIX: Moved Event Listeners ('DOMContentLoaded', 'visibilitychange') to the bottom of the script.
+  - REASON: Ensures all functions (setupFeatureButtons, updatePinUI) are defined before they are referenced.
 -->
 <html lang="en" class="dark">
 
@@ -575,21 +572,6 @@
             }
         });
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedDefault = localStorage.getItem('defaultRoute');
-            if (savedDefault && ROUTES[savedDefault]) {
-                currentRouteId = savedDefault;
-            }
-            
-            loadAllSchedules(); 
-            stationSelect.addEventListener('change', findNextTrains);
-            setupFeatureButtons();
-            updatePinUI(); 
-            setupModalButtons(); 
-            setupRedirectLogic(); 
-            startSmartRefresh();
-        });
-        
         // --- DATA FETCHING (Stale-While-Revalidate) ---
         async function loadAllSchedules(force = false) {
             const currentRoute = ROUTES[currentRouteId];
@@ -1360,7 +1342,7 @@
                     connectionInfoHTML = `
                         <div class="space-y-1">
                             <div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div>
-                            <div class="text-gray-500 dark:text-gray-400 text-[10px]">${connection2Text}</div>
+                            <div class="text-gray-500 dark:text-gray-400 text-xs font-medium">${connection2Text}</div>
                         </div>
                     `;
                 } else {
@@ -1834,6 +1816,29 @@
             redirectConfirmBtn.addEventListener('click', confirmHandler);
             redirectCancelBtn.addEventListener('click', cancelHandler);
         }
+
+        // --- MOVED TO BOTTOM TO FIX REFERENCE ERRORS ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedDefault = localStorage.getItem('defaultRoute');
+            if (savedDefault && ROUTES[savedDefault]) {
+                currentRouteId = savedDefault;
+            }
+            
+            loadAllSchedules(); 
+            stationSelect.addEventListener('change', findNextTrains);
+            setupFeatureButtons();
+            updatePinUI(); 
+            setupModalButtons(); 
+            setupRedirectLogic(); 
+            startSmartRefresh();
+        });
+
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) {
+                loadAllSchedules(); 
+                startSmartRefresh(); 
+            }
+        });
 
     </script>
 </body>
