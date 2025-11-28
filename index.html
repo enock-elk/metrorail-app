@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V2.61 (Feedback Link Update)
-  - CHANGE: Updated Feedback button to point to Google Form instead of WhatsApp.
-  - RETAINED: All V2.60 fixes (ReferenceError fix, Caching, Pinned Routes, Redirect Modal).
+  Metrorail Next Train V3.0 BETA (UX Improvements) based on V2.9
+  - NEW: Route Title is now clickable with a dropdown indicator.
+  - NEW: Schedule boxes show "Select a station" instruction when empty.
+  - NEW: Higher contrast station selector.
+  - RETAINED: All V2.61 logic (Firebase, Caching, Offline Mode).
 -->
 <html lang="en" class="dark">
 
@@ -62,16 +64,17 @@
             overflow: hidden;
         }
 
+        /* Enhanced Dropdown Icon */
         #station-select {
             padding-right: 2.5rem; 
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%233b82f6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
             background-position: right 0.5rem center;
             background-repeat: no-repeat;
             background-size: 1.5em 1.5em;
         }
 
         .dark #station-select {
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2360a5fa' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
         }
 
         @keyframes pop {
@@ -360,32 +363,50 @@
 
         <div class="text-center mb-6">
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Metrorail Next Train</h1>
-            <p id="route-subtitle" class="text-lg text-blue-500 dark:text-blue-400 font-medium">Pretoria <-> Pienaarspoort</p>
-            <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium"></p>
+            
+            <!-- NEW: CLICKABLE ROUTE SUBTITLE -->
+            <div id="route-subtitle" class="inline-flex items-center justify-center text-lg text-blue-500 dark:text-blue-400 font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-300 transition-colors mt-1 py-1 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <span>Pretoria <-> Pienaarspoort</span>
+                <!-- Dropdown Chevron -->
+                <svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            
+            <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium mt-2"></p>
             <p id="current-day" class="text-sm text-gray-500 dark:text-gray-400"></p>
         </div>
 
         <div class="mb-6">
             <label for="station-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Station:</label>
-            <select id="station-select" class="block w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-md shadow-sm p-3 text-lg focus:ring-blue-500 focus:border-blue-500 appearance-none">
+            <!-- NEW: ENHANCED BORDER FOR VISIBILITY -->
+            <select id="station-select" class="block w-full bg-white dark:bg-gray-700 border-2 border-blue-200 dark:border-blue-900/50 text-gray-900 dark:text-white rounded-md shadow-sm p-3 text-lg focus:ring-blue-500 focus:border-blue-500 appearance-none transition-colors">
                 <option value="">Select a station...</option>
             </select>
         </div>
 
         <div class="space-y-6">
-            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 shadow-lg">
+            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 shadow-lg transition-all" id="pretoria-card">
                 <h2 id="pretoria-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">
                     Next train to <span class="text-blue-500 dark:text-blue-400">Pretoria</span>
                 </h2>
-                <div id="pretoria-time" class="text-center flex items-center justify-center">
+                <!-- NEW: INSTRUCTIONAL PLACEHOLDER -->
+                <div id="pretoria-time" class="text-center flex flex-col items-center justify-center min-h-[80px]">
+                    <div class="text-gray-400 dark:text-gray-500 flex flex-col items-center">
+                         <svg class="w-8 h-8 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                         <span class="text-sm font-medium">Select a station above to view schedule</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 shadow-lg">
+            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 shadow-lg transition-all" id="pien-card">
                 <h2 id="pienaarspoort-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">
                     Next train to <span class="text-blue-500 dark:text-blue-400">Pienaarspoort</span>
                 </h2>
-                <div id="pienaarspoort-time" class="text-center flex items-center justify-center">
+                <!-- NEW: INSTRUCTIONAL PLACEHOLDER -->
+                <div id="pienaarspoort-time" class="text-center flex flex-col items-center justify-center min-h-[80px]">
+                    <div class="text-gray-400 dark:text-gray-500 flex flex-col items-center">
+                         <svg class="w-8 h-8 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                         <span class="text-sm font-medium">Select a station above to view schedule</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -473,7 +494,7 @@
         const sidenav = document.getElementById('sidenav');
         const sidenavOverlay = document.getElementById('sidenav-overlay');
         const routeList = document.getElementById('route-list');
-        const routeSubtitle = document.getElementById('route-subtitle');
+        const routeSubtitle = document.getElementById('route-subtitle'); // Title Trigger
         const pinnedSection = document.getElementById('pinned-section');
         
         const toast = document.getElementById('toast');
@@ -577,12 +598,15 @@
             const currentRoute = ROUTES[currentRouteId];
             if (!currentRoute) return;
             
-            // UI Setup
-            routeSubtitle.textContent = currentRoute.name;
+            // UI Setup (UPDATED: Handle span inside title now)
+            routeSubtitle.innerHTML = `<span>${currentRoute.name}</span><svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+            
             pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
             pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
-            pretoriaTimeEl.innerHTML = "";
-            pienaarspoortTimeEl.innerHTML = "";
+            
+            // RESET TO PLACEHOLDER INSTEAD OF BLANK
+            renderPlaceholder();
+
             offlineIndicator.style.display = 'none';
             updatePinUI(); 
 
@@ -597,7 +621,6 @@
             const cachedDB = loadFromLocalCache('full_db');
             let usedCache = false;
 
-            // 1. Show Cache Immediately (If available)
             if (cachedDB) {
                 console.log("Restoring from cache (Background update started)...");
                 fullDatabase = cachedDB.data;
@@ -609,7 +632,6 @@
                 usedCache = true;
             }
 
-            // 2. Decide on Loading Overlay
             if (!usedCache) {
                 loadingOverlay.style.display = 'flex';
             }
@@ -618,23 +640,18 @@
             forceReloadBtn.disabled = true;
             reloadIcon.classList.add('spinning');
 
-            // 3. Network Fetch (Always happens now, in background if cache existed)
             try {
-                // If we used cache, we don't want to block user, so this runs in background
                 const response = await fetch(DATABASE_URL);
                 if (!response.ok) throw new Error("Firebase fetch failed");
                 
                 const newDatabase = await response.json();
                 if (!newDatabase) throw new Error("Empty database");
 
-                // 4. Compare New Data vs Cached Data
                 const newStr = JSON.stringify(newDatabase);
                 const oldStr = cachedDB ? JSON.stringify(cachedDB.data) : "";
 
                 if (newStr !== oldStr) {
                     console.log("New data detected! Updating...");
-                    
-                    // Update Global State
                     fullDatabase = newDatabase;
                     saveToLocalCache('full_db', fullDatabase);
                     processRouteDataFromDB(currentRoute);
@@ -643,13 +660,10 @@
                         lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
                     }
 
-                    // If we were already looking at cached UI, notify and refresh
                     if (usedCache) {
                         showToast("New schedule found! Updating...", "success", 3000);
-                        // Re-run logic to update times displayed on screen
                         findNextTrains();
                     } else {
-                        // First load, just init
                         initializeApp();
                     }
                 } else {
@@ -660,14 +674,11 @@
                 console.error("Fetch Error:", error);
                 
                 if (usedCache) {
-                    // We are offline but have cache. Show indicator.
                     offlineIndicator.style.display = 'block';
                     if (cachedDB && cachedDB.data && cachedDB.data.lastUpdated) {
                           lastUpdatedEl.textContent = `Schedule updated: ${cachedDB.data.lastUpdated} (Offline Copy)`;
                     }
-                    // Don't error out, user is already seeing cached data
                 } else {
-                    // No cache, fatal error
                     loadingOverlay.style.display = 'none';
                     mainContent.style.display = 'block';
                     renderRouteError(error);
@@ -675,7 +686,6 @@
             } finally {
                 forceReloadBtn.disabled = false;
                 reloadIcon.classList.remove('spinning');
-                // Hide overlay if it was showing (no cache case)
                 if (!usedCache) {
                     loadingOverlay.style.display = 'none';
                 }
@@ -693,13 +703,11 @@
             };
         }
 
-        // --- FIXED PARSER LOGIC ---
         function parseJSONSchedule(jsonRows) {
             if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) {
                 return { headers: [], rows: [], stationColumnName: 'STATION' };
             }
 
-            // 1. TRUNCATE: Stop reading at metadata sections
             const stopIndex = jsonRows.findIndex(row => {
                 const s = row.STATION;
                 if (!s || typeof s !== 'string') return false;
@@ -709,17 +717,13 @@
 
             const validRows = (stopIndex !== -1) ? jsonRows.slice(0, stopIndex) : jsonRows;
 
-            // 2. CLEANUP: Filter remaining valid rows
             const cleanRows = validRows.filter(row => {
                 const s = row.STATION;
                 if (!s || typeof s !== 'string') return false;
-                
                 const lower = s.toLowerCase().trim();
-                
                 if (lower.startsWith('last updated')) return false;
                 if (lower.includes('inter-station')) return false;
                 if (lower.includes('trip')) return false;
-                
                 return true;
             });
 
@@ -727,8 +731,6 @@
                 return { headers: [], rows: [], stationColumnName: 'STATION' };
             }
 
-            // --- KEY FIX: COLLECT ALL HEADERS FROM ALL ROWS ---
-            // Previous code only looked at row[0], missing trains that started later.
             const allHeaders = new Set();
             cleanRows.forEach(row => {
                 Object.keys(row).forEach(key => {
@@ -738,7 +740,6 @@
                 });
             });
             
-            // Sort headers if possible, though mostly display order matters in logic
             const trainNumbers = Array.from(allHeaders).sort();
             
             return {
@@ -790,7 +791,6 @@
             
             allStations = Array.from(stationSet);
             
-            // Sort to keep order
             if (schedules.weekday_to_a.rows) {
                  const orderMap = schedules.weekday_to_a.rows.map(r => r.STATION);
                  allStations.sort((a, b) => orderMap.indexOf(a) - orderMap.indexOf(b));
@@ -902,8 +902,17 @@
             }
         }
 
-
-        // --- LOGIC RESTORED FROM OLD VERSION ---
+        function renderPlaceholder() {
+            const placeholderHTML = `
+                <div class="text-gray-400 dark:text-gray-500 flex flex-col items-center">
+                     <svg class="w-8 h-8 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                     <span class="text-sm font-medium">Select a station above to view schedule</span>
+                </div>
+            `;
+            // Only set if not already set (to avoid flicker) or if explicitly needed
+            if (!pretoriaTimeEl.innerHTML.includes('schedule')) pretoriaTimeEl.innerHTML = placeholderHTML;
+            if (!pienaarspoortTimeEl.innerHTML.includes('schedule')) pienaarspoortTimeEl.innerHTML = placeholderHTML;
+        }
 
         function findNextTrains() {
             const selectedStation = stationSelect.value;
@@ -915,17 +924,18 @@
                 renderComingSoon(currentRoute.name);
                 return;
             }
-
-            pretoriaTimeEl.innerHTML = "";
-            pienaarspoortTimeEl.innerHTML = "";
             
-            pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
-            pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
-            
-            if (!selectedStation) return;
+            if (!selectedStation) {
+                renderPlaceholder();
+                return;
+            }
             
             const selectedOption = stationSelect.options[stationSelect.selectedIndex];
             
+            // Clear placeholders before rendering real data
+            pretoriaTimeEl.innerHTML = "";
+            pienaarspoortTimeEl.innerHTML = "";
+
             if (selectedOption.textContent.includes("(No Service)")) {
                 const msg = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No trains stop here.</div>`;
                 pretoriaTimeEl.innerHTML = msg;
@@ -939,140 +949,93 @@
                 return;
             }
 
-            // Normalize helper
             const normalize = (s) => s ? s.toUpperCase().replace(/ STATION/g, '').trim() : '';
             const isAtStation = (s1, s2) => normalize(s1) === normalize(s2);
 
-            // 1. Find Train to Destination A (Up)
             if (isAtStation(selectedStation, currentRoute.destA)) {
                 renderAtDestination(pretoriaTimeEl);
             } else {
                 const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_a : schedules.saturday_to_a;
-                // CALL SPECIFIC LOGIC FOR A
                 const { allJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute);
                 processAndRenderJourney(allJourneys, pretoriaTimeEl, pretoriaHeader, currentRoute.destA);
             }
 
-            // 2. Find Train to Destination B (Down)
             if (isAtStation(selectedStation, currentRoute.destB)) {
                 renderAtDestination(pienaarspoortTimeEl);
             } else {
                 const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_b : schedules.saturday_to_b;
-                // CALL SPECIFIC LOGIC FOR B
                 const { allJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute);
                 processAndRenderJourney(allJourneys, pienaarspoortTimeEl, pienaarspoortHeader, currentRoute.destB);
             }
         }
 
-        // Renamed from findNextJourneyToPretoria to be generic based on config
         function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
-            // 1. Get Direct
             const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA);
-
             let allTransferJourneys = [];
             
-            // 2. Get Transfers (If Configured)
             if (routeConfig.transferStation) {
                 const fromStationIndex = allStations.indexOf(fromStation);
                 const terminationStationIndex = allStations.indexOf(routeConfig.transferStation);
-                
-                // For Pta direction (Up), we expect index < transfer index in typical lists, 
-                // but checking both bounds is safer.
-                // Assuming Up direction list order.
                 if (fromStationIndex >= 0 && terminationStationIndex >= 0) {
                       const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destA);
                       allTransferJourneys = allTransfers;
                 }
             }
-
-            // 3. Merge & Deduplicate
-            // *** FIX (V2.55): Filter DIRECT journeys that are actually covered by a BETTER TRANSFER journey ***
-            // Logic: If I have a transfer journey starting with Train X, ignore the Direct journey for Train X
-            // because the transfer journey implies the direct one terminates early.
             const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
-            
-            // Only keep direct trains that are NOT in the transfer list
             const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
-            
             const allJourneys = [...uniqueDirects, ...allTransferJourneys];
             
-            // 4. Sort (Restored Old Sorting Logic)
             allJourneys.sort((a, b) => {
                 const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
                 const timeB = timeToSeconds(b.departureTime || b.train1.departureTime);
-
-                if (timeA !== timeB) {
-                    return timeA - timeB; // Primary sort: earliest time first
-                }
-                // Secondary sort: Prefer transfer if times equal (usually longer journey)
+                if (timeA !== timeB) return timeA - timeB; 
                 if (a.type === 'transfer' && b.type === 'direct') return -1;
                 if (a.type === 'direct' && b.type === 'transfer') return 1;
                 return 0;
             });
-            
             return { allJourneys };
         }
 
         function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
-            // 1. Get Direct
             const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destB);
-
             let allTransferJourneys = [];
-            
-            // 2. Get Transfers
             if (routeConfig.transferStation) {
                 const fromStationIndex = allStations.indexOf(fromStation);
                 const terminationStationIndex = allStations.indexOf(routeConfig.transferStation);
-
                 if (fromStationIndex >= 0 && terminationStationIndex >= 0) {
                       const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destB);
                       allTransferJourneys = allTransfers;
                 }
             }
-
-            // 3. Merge & Deduplicate
-            // *** FIX (V2.55): Filter DIRECT journeys that are actually covered by a BETTER TRANSFER journey ***
-            // Logic: If I have a transfer journey starting with Train X, ignore the Direct journey for Train X
             const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
             const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
-
             const allJourneys = [...uniqueDirects, ...allTransferJourneys];
             
-            // 4. Sort
             allJourneys.sort((a, b) => {
                 const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
                 const timeB = timeToSeconds(b.departureTime || b.train1.departureTime);
-
-                if (timeA !== timeB) {
-                    return timeA - timeB; 
-                }
+                if (timeA !== timeB) return timeA - timeB; 
                 if (a.type === 'transfer' && b.type === 'direct') return -1;
                 if (a.type === 'direct' && b.type === 'transfer') return 1;
                 return 0; 
             });
-            
             return { allJourneys };
         }
         
-        // This function determines valid direct trains by checking row indices
         function findNextDirectTrain(fromStation, schedule, destinationStation) {
             if (!schedule || !schedule.rows || schedule.rows.length === 0) {
                 return { allJourneys: [] };
             }
-
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let allJourneys = [];
             
             for (const train of trainHeaders) {
                 if (!train || train === "") continue;
-                
                 const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
                 const departureTime = fromRow ? fromRow[train] : null;
 
                 if (!departureTime) continue;
-
-                // Find the ACTUAL last stop of this specific train
                 let actualLastStop = null;
                 let actualArrivalTime = null;
                 let destRow = null; 
@@ -1090,33 +1053,25 @@
                 if (fromRow && destRow) {
                     const fromIndex = schedule.rows.indexOf(fromRow);
                     const destIndex = schedule.rows.indexOf(destRow);
-
-                    // OLD LOGIC: Direction is valid if from is before to in list
                     if (fromIndex < destIndex) { 
-                        // It's a valid train moving in the right direction
                         allJourneys.push({
                             type: 'direct',
                             train: train,
                             departureTime: departureTime,
                             arrivalTime: actualArrivalTime,
                             actualDestination: actualLastStop,
-                            // Note: We don't filter by 'reachesDestination' here, we include all.
-                            // The user can see "Terminates at X" in the UI.
                         });
                     }
                 }
             }
             allJourneys.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
-            
             return { allJourneys };
         }
 
-        // Restored Generic Transfer Finder
         function findTransfers(fromStation, schedule, terminalStation, finalDestination) {
             if (!schedule || !schedule.rows || schedule.rows.length === 0) {
                 return { allJourneys: [] };
             }
-
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let allJourneys = [];
@@ -1130,16 +1085,11 @@
 
                 const fromIndex = schedule.rows.indexOf(fromRow);
                 const termIndex = schedule.rows.indexOf(termRow);
-                
-                // Train must move from Start -> Transfer Point
                 if (fromIndex > termIndex) continue;
 
                 const departureTime = fromRow[train1];
                 const terminationTime = termRow[train1];
-                
-                // Check if this train continues to final dest (if so, it's not a transfer candidate)
-                const destinationTime = schedule.rows
-                    .find(row => row[stationCol] === finalDestination)?.[train1];
+                const destinationTime = schedule.rows.find(row => row[stationCol] === finalDestination)?.[train1];
 
                 if (departureTime && terminationTime && !destinationTime) {
                     const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination, train1);
@@ -1172,19 +1122,16 @@
 
             const connIndex = schedule.rows.indexOf(connRow);
             const destIndex = schedule.rows.indexOf(destRow);
-
-            // Connection must move from Transfer Point -> Final Dest
             if (connIndex >= destIndex) return null; 
 
             for (const train of trainHeaders) {
                 if (!train || train === "") continue;
-                if (train === incomingTrainName) continue; // Prevent self-transfer
+                if (train === incomingTrainName) continue; 
 
                 const connectionTime = connRow[train];
                 if (!connectionTime || !connectionTime.includes(':')) continue;
 
                 if (connectionTime && timeToSeconds(connectionTime) >= timeToSeconds(arrivalTimeAtTransfer)) {
-                    // Find actual last stop
                     let actualLastStop = null;
                     let actualArrivalTime = null;
                     let lastStopRow = null; 
@@ -1213,9 +1160,7 @@
                     }
                 }
             }
-            
             if (possibleConnections.length === 0) return null; 
-            
             possibleConnections.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
             
             const earliestConnection = possibleConnections[0];
@@ -1226,11 +1171,7 @@
                     conn => conn.actualDestination === finalDestination
                 ) || null; 
             }
-
-            return {
-                earliest: earliestConnection,
-                fullJourney: earliestFullJourneyConnection
-            };
+            return { earliest: earliestConnection, fullJourney: earliestFullJourneyConnection };
         }
         
         function processAndRenderJourney(allJourneys, element, header, destination) {
@@ -1241,16 +1182,13 @@
             const firstTrainName = allJourneys.length > 0 ? (allJourneys[0].train || allJourneys[0].train1.train) : null;
             
             if (nextJourney) {
-                // Save for modal
                 if (!currentScheduleData) currentScheduleData = {};
                 currentScheduleData[destination] = remainingJourneys;
 
                 const journeyTrainName = nextJourney.train || nextJourney.train1.train;
                 nextJourney.isFirstTrain = (journeyTrainName === firstTrainName);
                 
-                const allRemainingTrainNames = new Set(
-                    remainingJourneys.map(j => j.train || j.train1.train)
-                );
+                const allRemainingTrainNames = new Set(remainingJourneys.map(j => j.train || j.train1.train));
                 nextJourney.isLastTrain = (allRemainingTrainNames.size === 1);
             } else {
                 if (allJourneys.length === 0) {
@@ -1270,7 +1208,6 @@
             }
 
             let timeClass = "bg-gray-200 dark:bg-gray-900";
-            
             if (journey.isLastTrain) {
                 timeClass = "bg-red-100 dark:bg-red-900 border-2 border-red-500";
                 headerElement.innerHTML += ' <span class="text-red-600 dark:text-red-400 text-base">(Last train)</span>';
@@ -1281,7 +1218,6 @@
             const departureTime = journey.departureTime || journey.train1.departureTime;
             const timeDiffStr = calculateTimeDiffString(departureTime);
 
-            // BUTTON HTML
             const buttonHtml = `
                 <button onclick="openScheduleModal('${destination.replace(/'/g, "\\'")}')" class="absolute bottom-0 left-0 w-full text-[10px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">
                     See Full Schedule
@@ -1289,18 +1225,9 @@
             `;
 
             if (journey.type === 'direct') {
-                let destinationText;
-                if (journey.arrivalTime) {
-                    destinationText = `Arrives ${journey.arrivalTime}.`;
-                } else {
-                    destinationText = "Arrival time not available."; 
-                }
-                
-                // Normalization helper
+                let destinationText = journey.arrivalTime ? `Arrives ${journey.arrivalTime}.` : "Arrival time not available."; 
                 const normActual = journey.actualDestination ? journey.actualDestination.toUpperCase().replace(/ STATION/g, '').trim() : '';
                 const normDest = destination ? destination.toUpperCase().replace(/ STATION/g, '').trim() : '';
-
-                // Show if it terminates early (Strict Check with Normalization)
                 if (normActual && normDest && normActual !== normDest) {
                       destinationText = `Terminates at ${journey.actualDestination.replace(/ STATION/g,'')}.`;
                 }
@@ -1316,9 +1243,7 @@
                             <div class="text-sm text-gray-800 dark:text-gray-200 font-medium leading-tight">
                                 <span class="font-bold text-yellow-600 dark:text-yellow-400">Direct train (${journey.train})</span>
                             </div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400 leading-tight">
-                                ${destinationText}
-                            </div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400 leading-tight">${destinationText}</div>
                         </div>
                     </div>
                 `;
@@ -1327,30 +1252,19 @@
             if (journey.type === 'transfer') {
                 const conn = journey.connection; 
                 const nextFull = journey.nextFullJourney; 
-                
                 const train1Info = `Train ${journey.train1.train} (Terminates at ${journey.train1.terminationStation.replace(/ STATION/g, '')} at ${journey.train1.arrivalAtTransfer})`;
                 
                 let connectionInfoHTML = "";
-
                 if (conn.actualDestination !== destination && nextFull) {
                     const conn1DestName = `(to ${conn.actualDestination.replace(/ STATION/g, '')})`;
                     const connection1Text = `Connect to Train ${conn.train} ${conn1DestName} at <b>${conn.departureTime}</b>`;
-
                     const nextFullDestName = `(to ${nextFull.actualDestination.replace(/ STATION/g, '')})`;
                     const connection2Text = `Next Train ${nextFull.train} ${nextFullDestName} is at <b>${nextFull.departureTime}</b>`;
-
-                    connectionInfoHTML = `
-                        <div class="space-y-1">
-                            <div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div>
-                            <div class="text-gray-500 dark:text-gray-400 text-xs font-medium">${connection2Text}</div>
-                        </div>
-                    `;
+                    connectionInfoHTML = `<div class="space-y-1"><div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div><div class="text-gray-500 dark:text-gray-400 text-xs font-medium">${connection2Text}</div></div>`;
                 } else {
                     let connDestName = `(Arrives ${conn.arrivalTime})`; 
                     const connectionText = `Connect to Train ${conn.train} at <b>${conn.departureTime}</b> ${connDestName}`;
-                    connectionInfoHTML = `
-                        <div class="text-yellow-600 dark:text-yellow-400 font-medium">${connectionText}</div>
-                    `;
+                    connectionInfoHTML = `<div class="text-yellow-600 dark:text-yellow-400 font-medium">${connectionText}</div>`;
                 }
 
                 element.innerHTML = `
@@ -1361,21 +1275,9 @@
                             ${buttonHtml}
                         </div>
                         <div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1">
-                            
-                            <!-- TRANSFER REQUIRED -->
-                            <div class="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">
-                                Transfer Required
-                            </div>
-
-                            <!-- Train 1 Info (Same color as connection) -->
-                            <div class="text-xs text-yellow-600 dark:text-yellow-400 leading-tight font-medium">
-                               ${train1Info}
-                            </div>
-
-                            <!-- Connection Info -->
-                            <div class="text-xs leading-tight">
-                               ${connectionInfoHTML}
-                            </div>
+                            <div class="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Transfer Required</div>
+                            <div class="text-xs text-yellow-600 dark:text-yellow-400 leading-tight font-medium">${train1Info}</div>
+                            <div class="text-xs leading-tight">${connectionInfoHTML}</div>
                         </div>
                     </div>
                 `;
@@ -1407,15 +1309,12 @@
             }
             
             const nextSchedule = schedules[nextDaySheetKey];
-            
             if (!nextSchedule) {
                 element.innerHTML = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No schedule found for next service day.</div>`;
                 return;
             }
 
             const selectedStation = stationSelect.value;
-            
-            // Logic call
             let allJourneys = [];
             if (destination === currentRoute.destA) {
                 const res = findNextJourneyToDestA(selectedStation, "00:00:00", nextSchedule, currentRoute);
@@ -1429,11 +1328,7 @@
             const firstTrainOfNextDay = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
 
             if (!firstTrainOfNextDay) {
-                element.innerHTML = `
-                    <div class="text-xl font-bold text-gray-600 dark:text-gray-400">
-                        No trains found for ${nextDayName}.
-                    </div>
-                `;
+                element.innerHTML = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No trains found for ${nextDayName}.</div>`;
                 return;
             }
             
@@ -1441,9 +1336,7 @@
             const timeDiffStr = calculateTimeDiffString(departureTime, dayOffset);
 
             element.innerHTML = `
-                <div class="text-lg font-bold text-gray-600 dark:text-gray-400">
-                    No more trains today.
-                </div>
+                <div class="text-lg font-bold text-gray-600 dark:text-gray-400">No more trains today.</div>
                 <p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train ${nextDayName} is at:</p>
                 <div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2">
                     <div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
@@ -1452,13 +1345,8 @@
             `;
         }
 
-
         function renderAtDestination(element) {
-            element.innerHTML = `
-                <div class="text-xl font-bold text-green-500 dark:text-green-400">
-                    You are at this station.
-                </div>
-            `;
+            element.innerHTML = `<div class="text-xl font-bold text-green-500 dark:text-green-400">You are at this station.</div>`;
         }
 
         function renderNoService(element, destination) {
@@ -1483,33 +1371,18 @@
             if (firstTrain) {
                 const departureTime = firstTrain.departureTime || firstTrain.train1.departureTime;
                 const timeDiffStr = calculateTimeDiffString(departureTime, 1); 
-                timeHTML = `
-                    <div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
-                    <div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
-                `;
+                timeHTML = `<div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
             }
 
-             element.innerHTML = `
-                <div class="text-xl font-bold text-gray-600 dark:text-gray-400">
-                    No service on Sundays.
-                </div>
-                <p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train Monday is at:</p>
-                <div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2">
-                    ${timeHTML}
-                </div>
-            `;
+             element.innerHTML = `<div class="text-xl font-bold text-gray-600 dark:text-gray-400">No service on Sundays.</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train Monday is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2">${timeHTML}</div>`;
         }
         
         function renderComingSoon(routeName) {
             const msg = `
                 <div class="text-center p-6 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
                     <h3 class="text-xl font-bold text-yellow-700 dark:text-yellow-300 mb-2">🚧 Coming Soon</h3>
-                    <p class="text-gray-700 dark:text-gray-300">
-                        We are working on the <strong>${routeName}</strong> schedule.
-                    </p>
-                    <p class="text-sm mt-4 text-gray-500">
-                        Have a photo of this schedule? Use the Feedback button to send it to us!
-                    </p>
+                    <p class="text-gray-700 dark:text-gray-300">We are working on the <strong>${routeName}</strong> schedule.</p>
+                    <p class="text-sm mt-4 text-gray-500">Have a photo of this schedule? Use the Feedback button to send it to us!</p>
                 </div>
             `;
             pretoriaTimeEl.innerHTML = msg;
@@ -1518,7 +1391,6 @@
         }
 
         function setupFeatureButtons() {
-            
             if (localStorage.theme === 'light') {
                 document.documentElement.classList.remove('dark');
                 darkIcon.classList.add('hidden');
@@ -1551,9 +1423,8 @@
                     url: '\n\nhttps://nexttrain.co.za'
                 };
                 try {
-                    if (navigator.share) {
-                        await navigator.share(shareData);
-                    } else {
+                    if (navigator.share) await navigator.share(shareData);
+                    else {
                         const fallbackText = shareData.text + shareData.url;
                         copyToClipboard(fallbackText);
                     }
@@ -1568,26 +1439,25 @@
                 e.preventDefault();
                 deferredPrompt = e;
                 installBtn.classList.remove('hidden');
-                
                 installBtn.addEventListener('click', () => {
                     installBtn.classList.add('hidden');
                     deferredPrompt.prompt();
                     deferredPrompt.userChoice.then((choiceResult) => {
-                        if (choiceResult.outcome === 'accepted') {
-                            console.log('User accepted the install prompt');
-                        } else {
-                            console.log('User dismissed the install prompt');
-                        }
                         deferredPrompt = null;
                     });
                 });
             });
             
-            openNavBtn.addEventListener('click', () => {
+            // NAVIGATION LOGIC
+            const openNav = () => {
                 sidenav.classList.add('open');
                 sidenavOverlay.classList.add('open');
                 document.body.classList.add('sidenav-open');
-            });
+            };
+            openNavBtn.addEventListener('click', openNav);
+            
+            // Add NEW click listener to the subtitle trigger
+            routeSubtitle.addEventListener('click', openNav);
 
             const closeNav = () => {
                 sidenav.classList.remove('open');
@@ -1607,11 +1477,9 @@
                             closeNav();
                             return;
                         }
-
                         document.querySelectorAll('#route-list a').forEach(a => a.classList.remove('active'));
                         routeLink.classList.add('active');
                         closeNav();
-                        
                         currentRouteId = routeId;
                         loadAllSchedules(); 
                     }
@@ -1625,7 +1493,6 @@
             
             pinRouteBtn.addEventListener('click', () => {
                 const savedDefault = localStorage.getItem('defaultRoute');
-                
                 if (savedDefault === currentRouteId) {
                     localStorage.removeItem('defaultRoute');
                     showToast("Route unpinned from top.", "info", 2000);
@@ -1640,41 +1507,26 @@
         function copyToClipboard(text) {
             const textArea = document.createElement('textarea');
             textArea.value = text;
-            textArea.style.top = "0";
-            textArea.style.left = "0";
             textArea.style.position = "fixed";
-
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
-
             try {
                 const successful = document.execCommand('copy');
-                if (successful) {
-                    showToast("Link copied to clipboard!", "success", 2000);
-                }
+                if (successful) showToast("Link copied to clipboard!", "success", 2000);
             } catch (err) {
                 console.error('Fallback: Oops, unable to copy', err);
             }
-
             document.body.removeChild(textArea);
         }
         
         function showToast(message, type = 'info', duration = 3000) {
-            if (toastTimeout) {
-                clearTimeout(toastTimeout);
-            }
-
+            if (toastTimeout) clearTimeout(toastTimeout);
             toast.textContent = message;
             toast.className = `toast-info`; 
-            if (type === 'success') {
-                toast.classList.add('toast-success');
-            } else if (type === 'error') {
-                toast.classList.add('toast-error');
-            }
-            
+            if (type === 'success') toast.classList.add('toast-success');
+            else if (type === 'error') toast.classList.add('toast-error');
             toast.classList.add('show');
-
             toastTimeout = setTimeout(() => {
                 toast.classList.remove('show');
             }, duration);
@@ -1683,7 +1535,6 @@
         function updatePinUI() {
             const savedDefault = localStorage.getItem('defaultRoute');
             const isPinned = savedDefault === currentRouteId;
-
             if (isPinned) {
                 pinOutline.classList.add('hidden');
                 pinFilled.classList.remove('hidden');
@@ -1693,7 +1544,6 @@
                 pinFilled.classList.add('hidden');
                 pinRouteBtn.title = "Pin this route as default";
             }
-
             if (savedDefault && ROUTES[savedDefault]) {
                 pinnedSection.classList.remove('hidden');
                 const pinnedRoute = ROUTES[savedDefault];
@@ -1712,24 +1562,16 @@
 
         function saveToLocalCache(key, data) {
             try {
-                const cacheEntry = {
-                    timestamp: Date.now(),
-                    data: data
-                };
+                const cacheEntry = { timestamp: Date.now(), data: data };
                 localStorage.setItem(key, JSON.stringify(cacheEntry));
-            } catch (e) {
-                console.warn("Cache save failed", e);
-            }
+            } catch (e) { console.warn("Cache save failed", e); }
         }
 
         function loadFromLocalCache(key) {
             try {
                 const item = localStorage.getItem(key);
                 return item ? JSON.parse(item) : null;
-            } catch (e) {
-                console.warn("Cache load failed", e);
-                return null;
-            }
+            } catch (e) { console.warn("Cache load failed", e); return null; }
         }
 
         function setupModalButtons() {
@@ -1749,16 +1591,13 @@
                 showToast("No full schedule data available.", "error");
                 return;
             }
-
             const journeys = currentScheduleData[destination];
             modalTitle.textContent = `Schedule to ${destination.replace(' STATION', '')}`;
             modalList.innerHTML = '';
-
             journeys.forEach(j => {
                 const dep = j.departureTime || j.train1.departureTime;
                 const trainName = j.train || j.train1.train;
                 const type = j.type === 'transfer' ? 'Transfer' : 'Direct';
-                
                 const div = document.createElement('div');
                 div.className = "p-3 bg-white dark:bg-gray-700 rounded shadow-sm flex justify-between items-center";
                 div.innerHTML = `
@@ -1776,20 +1615,15 @@
                 `;
                 modalList.appendChild(div);
             });
-
             scheduleModal.classList.remove('hidden');
             document.body.style.overflow = 'hidden'; 
         };
 
         function setupRedirectLogic() {
-            
-            // FEEDBACK BUTTON UPDATE:
-            // Changed from WhatsApp to Google Form URL provided by user.
             feedbackBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?");
             });
-            
             checkUpdatesBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 showRedirectModal(checkUpdatesBtn.href, "Visit Facebook for official updates?");
@@ -1799,34 +1633,28 @@
         function showRedirectModal(url, message) {
             redirectMessage.textContent = message;
             redirectModal.classList.remove('hidden');
-            
             const confirmHandler = () => {
                 window.open(url, '_blank');
                 redirectModal.classList.add('hidden');
                 cleanup();
             };
-            
             const cancelHandler = () => {
                 redirectModal.classList.add('hidden');
                 cleanup();
             };
-            
             const cleanup = () => {
                 redirectConfirmBtn.removeEventListener('click', confirmHandler);
                 redirectCancelBtn.removeEventListener('click', cancelHandler);
             };
-
             redirectConfirmBtn.addEventListener('click', confirmHandler);
             redirectCancelBtn.addEventListener('click', cancelHandler);
         }
 
-        // --- MOVED TO BOTTOM TO FIX REFERENCE ERRORS ---
         document.addEventListener('DOMContentLoaded', () => {
             const savedDefault = localStorage.getItem('defaultRoute');
             if (savedDefault && ROUTES[savedDefault]) {
                 currentRouteId = savedDefault;
             }
-            
             loadAllSchedules(); 
             stationSelect.addEventListener('change', findNextTrains);
             setupFeatureButtons();
