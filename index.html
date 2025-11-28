@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.3 (UI Revert + Smart Geo)
-  - UI: Rolled back to V2.61 (NTindex.html) as requested.
-  - LOGIC: Coordinates parsed dynamically from Sheets (Col B).
-  - GEO: Only checks stations on the ACTIVE route.
-  - GEO: Radius reduced to 6km.
+  Metrorail Next Train V3.4 (Route Selector Restore)
+  - UI: Based on V2.61 (NTindex.html) style.
+  - FEATURE: Restored clickable "Route Title" dropdown trigger (opens sidenav).
+  - LOGIC: Dynamic Coordinate Parsing + Route Filtering + 6km Radius.
 -->
 <html lang="en" class="dark">
 
@@ -362,8 +361,14 @@
 
         <div class="text-center mb-6">
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Metrorail Next Train</h1>
-            <p id="route-subtitle" class="text-lg text-blue-500 dark:text-blue-400 font-medium">Pretoria <-> Pienaarspoort</p>
-            <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium"></p>
+            
+            <!-- RESTORED: Clickable Route Selector Dropdown -->
+            <div id="route-subtitle" class="inline-flex items-center justify-center text-lg text-blue-500 dark:text-blue-400 font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-300 transition-colors mt-1 py-1 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <span>Pretoria <-> Pienaarspoort</span>
+                <svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+
+            <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium mt-2"></p>
             <p id="current-day" class="text-sm text-gray-500 dark:text-gray-400"></p>
         </div>
 
@@ -476,7 +481,10 @@
         const sidenav = document.getElementById('sidenav');
         const sidenavOverlay = document.getElementById('sidenav-overlay');
         const routeList = document.getElementById('route-list');
+        
+        // --- RESTORED: Get reference to the route subtitle ---
         const routeSubtitle = document.getElementById('route-subtitle');
+        
         const pinnedSection = document.getElementById('pinned-section');
         
         const toast = document.getElementById('toast');
@@ -589,8 +597,14 @@
             const currentRoute = ROUTES[currentRouteId];
             if (!currentRoute) return;
             
-            // UI Setup
-            routeSubtitle.textContent = currentRoute.name;
+            // --- RESTORED UI: Inject Clickable Dropdown HTML ---
+            routeSubtitle.innerHTML = `
+                <span>${currentRoute.name}</span>
+                <svg class="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            `;
+
             pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
             pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
             pretoriaTimeEl.innerHTML = "";
@@ -1555,113 +1569,6 @@
             stationSelect.innerHTML = '<option>Route not available</option>';
         }
 
-        // --- NEW GEOLOCATION FEATURE (Dynamic & Strict) ---
-        function findNearestStation() {
-            if (!navigator.geolocation) {
-                showToast("Geolocation is not supported by your browser", "error");
-                return;
-            }
-            
-            // Set Loading Text
-            stationSelect.options[1].text = "Locating...";
-
-            // CRITICAL FIX: Warn user if running on file:// or content://
-            if (window.location.protocol === 'file:' || window.location.href.includes('content://')) {
-                 showToast("⚠️ Geolocation blocked on local files. Please test on a real server (HTTPS).", "error", 5000);
-                 stationSelect.options[1].text = "📍 Find Nearest Station"; // Reset text
-                 return;
-            }
-            
-            const geoOptions = {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            };
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const userLat = position.coords.latitude;
-                    const userLon = position.coords.longitude;
-                    
-                    console.log(`User Location: ${userLat}, ${userLon}`);
-
-                    const nearest = getNearestStation(userLat, userLon);
-                    
-                    if (nearest && nearest.name) {
-                        if (nearest.distance > MAX_RADIUS_KM) {
-                             showToast(`No stations found nearby (nearest is ${nearest.distance.toFixed(1)}km away)`, "error");
-                             console.log(`Nearest was ${nearest.name} but distance ${nearest.distance} > ${MAX_RADIUS_KM}`);
-                             stationSelect.value = ""; 
-                        } else {
-                             // Match exactly with dropdown
-                             const matchedOption = Array.from(stationSelect.options).find(opt => normalizeStationName(opt.value) === normalizeStationName(nearest.name));
-                             
-                             if (matchedOption) {
-                                 stationSelect.value = matchedOption.value;
-                                 showToast(`Found nearest: ${normalizeStationName(nearest.name)} (${nearest.distance.toFixed(1)}km)`, "success");
-                                 findNextTrains();
-                             } else {
-                                 console.warn("Nearest station found in Coords list but not in Route list:", nearest.name);
-                                 showToast("Station found nearby, but not on this route.", "error");
-                                 stationSelect.value = "";
-                             }
-                        }
-                    } else {
-                        showToast("Could not find any stations nearby.", "error");
-                        stationSelect.value = "";
-                    }
-                    // Reset text
-                    stationSelect.options[1].text = "📍 Find Nearest Station";
-                },
-                (error) => {
-                    console.error("Geo Error:", error);
-                    showToast("Unable to retrieve location.", "error");
-                    stationSelect.value = "";
-                    stationSelect.options[1].text = "📍 Find Nearest Station";
-                },
-                geoOptions
-            );
-        }
-
-        function getNearestStation(userLat, userLon) {
-            let nearest = null;
-            let minDistance = Infinity;
-            
-            console.log("Checking distances from dynamically loaded coordinates...");
-
-            // --- STRICT FILTERING ---
-            // 1. Iterate ONLY through 'allStations' (stations on the ACTIVE route dropdown)
-            // 2. Look up their coordinates in the global 'stationLocations' map
-            
-            allStations.forEach(stationName => {
-                const normName = normalizeStationName(stationName);
-                const coords = stationLocations[normName];
-
-                if (coords) {
-                    const dist = getDistanceFromLatLonInKm(userLat, userLon, coords.lat, coords.lon);
-                    console.log(`- ${stationName}: ${dist.toFixed(2)}km`);
-                    
-                    if (dist < minDistance) {
-                        minDistance = dist;
-                        nearest = { name: stationName, distance: dist };
-                    }
-                }
-            });
-            
-            return nearest;
-        }
-
-        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-            const R = 6371; 
-            const dLat = deg2rad(lat2 - lat1);
-            const dLon = deg2rad(lon2 - lon1);
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-            return R * c; 
-        }
-
-        function deg2rad(deg) { return deg * (Math.PI/180); }
-
         function setupFeatureButtons() {
             
             if (localStorage.theme === 'light') {
@@ -1728,11 +1635,16 @@
                 });
             });
             
-            openNavBtn.addEventListener('click', () => {
+            // --- RESTORED: OPEN NAV ON CLICK ---
+            const openNav = () => {
                 sidenav.classList.add('open');
                 sidenavOverlay.classList.add('open');
                 document.body.classList.add('sidenav-open');
-            });
+            };
+            
+            openNavBtn.addEventListener('click', openNav);
+            // Also open when clicking the subtitle!
+            routeSubtitle.addEventListener('click', openNav);
 
             const closeNav = () => {
                 sidenav.classList.remove('open');
