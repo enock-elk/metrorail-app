@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.15 (Restore "Leave App?" Modal)
-  - FEATURE: "Leave App?" modal is back. It intercepts external links (FB/Feedback) to ask for confirmation.
-  - STYLE: Route Title uses dynamic color coding (Green, Orange, etc.) to match side-nav.
+  Metrorail Next Train V3.16 (Auto-Locate)
+  - FEATURE: Auto-Locate on Load. If permission was previously granted, the app automatically finds the nearest station on startup.
+  - DATA: Fixed Mabopane Route keys (lowercase) and Station List population logic.
   - LOGIC: Geolocation + Security Patch + Service Worker all retained.
 -->
 <html lang="en" class="dark">
@@ -501,7 +501,7 @@
         // UPDATED ROUTES OBJECT WITH COLOR CLASSES
         const ROUTES = {
             'pta-pien': { id: 'pta-pien', name: "Pretoria <-> Pienaarspoort", colorClass: "text-green-500", isActive: true, destA: 'PRETORIA STATION', destB: 'PIENAARSPOORT STATION', transferStation: 'KOEDOESPOORT STATION', sheetKeys: { weekday_to_a: 'pien_to_pta_weekday', weekday_to_b: 'pta_to_pien_weekday', saturday_to_a: 'pien_to_pta_sat', saturday_to_b: 'pta_to_pien_sat' } },
-            'pta-mabopane': { id: 'pta-mabopane', name: "Pretoria <-> Mabopane", colorClass: "text-orange-500", isActive: true, destA: 'PRETORIA STATION', destB: 'MABOPANE STATION', transferStation: null, sheetKeys: { weekday_to_a: 'mab_to_pta_weekday', weekday_to_b: 'pta_to_mab_weekday', saturday_to_a: '', saturday_to_b: '' } },
+            'pta-mabopane': { id: 'pta-mabopane', name: "Pretoria <-> Mabopane", colorClass: "text-orange-500", isActive: true, destA: 'PRETORIA STATION', destB: 'MABOPANE STATION', transferStation: null, sheetKeys: { weekday_to_a: 'mab_to_pta_weekday', weekday_to_b: 'pta_to_mab_weekday', saturday_to_a: 'mab_to_pta_sat', saturday_to_b: 'pta_to_mab_sat' } },
             'pta-saul': { id: 'pta-saul', name: "Pretoria <-> Saulsville", colorClass: "text-green-500", isActive: false, destA: 'PRETORIA STATION', destB: 'SAULSVILLE STATION', transferStation: null, sheetKeys: {} },
             'pta-irene': { id: 'pta-irene', name: "Pretoria <-> Irene", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'IRENE STATION', transferStation: null, sheetKeys: {} },
             'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
@@ -706,8 +706,15 @@
         function populateStationList() {
             const stationSet = new Set();
             const hasTimes = (row) => { const keys = Object.keys(row); return keys.some(key => key !== 'STATION' && key !== 'COORDINATES' && row[key] && row[key].trim() !== ""); };
+            
+            // Check Weekday
             if (schedules.weekday_to_a && schedules.weekday_to_a.rows) schedules.weekday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
             if (schedules.weekday_to_b && schedules.weekday_to_b.rows) schedules.weekday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
+            
+            // Check Saturday (Fix for missing stations if Weekday is empty)
+            if (schedules.saturday_to_a && schedules.saturday_to_a.rows) schedules.saturday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
+            if (schedules.saturday_to_b && schedules.saturday_to_b.rows) schedules.saturday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
+
             allStations = Array.from(stationSet);
             if (schedules.weekday_to_a.rows) { const orderMap = schedules.weekday_to_a.rows.map(r => r.STATION); allStations.sort((a, b) => orderMap.indexOf(a) - orderMap.indexOf(b)); }
             
@@ -1328,6 +1335,16 @@
             loadAllSchedules(); 
             stationSelect.addEventListener('change', findNextTrains);
             setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
+
+            // --- AUTO-LOCATE LOGIC (V3.16) ---
+            if (navigator.permissions && navigator.permissions.query) {
+                navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
+                    if (result.state === 'granted') {
+                        console.log("Location permission already granted. Auto-locating...");
+                        findNearestStation();
+                    }
+                });
+            }
         });
     </script>
 </body>
