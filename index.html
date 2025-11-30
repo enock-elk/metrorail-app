@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.16 (Auto-Locate)
-  - FEATURE: Auto-Locate on Load. If permission was previously granted, the app automatically finds the nearest station on startup.
-  - DATA: Fixed Mabopane Route keys (lowercase) and Station List population logic.
-  - LOGIC: Geolocation + Security Patch + Service Worker all retained.
+  Metrorail Next Train V3.16.5 (Transfer Fix)
+  - FIX: Refined 'findConnections' logic to ensure trains like 1167 (terminating at Koedoespoort)
+    correctly identify connecting trains (like 1121) and display as TRANSFERS, not Direct.
+  - LOGIC: 'findConnections' now scans all rows after the transfer station for any valid movement.
 -->
 <html lang="en" class="dark">
 
@@ -904,18 +904,20 @@
         }
 
         function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
+            // 1. Get Direct (Using Permissive Logic)
             const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA);
             let allTransferJourneys = [];
+            
+            // 2. Get Transfers
             if (routeConfig.transferStation) {
-                const fromStationIndex = allStations.indexOf(fromStation);
-                const terminationStationIndex = allStations.indexOf(routeConfig.transferStation);
-                if (fromStationIndex >= 0 && terminationStationIndex >= 0) {
-                      const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destA);
-                      allTransferJourneys = allTransfers;
-                }
+                const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destA);
+                allTransferJourneys = allTransfers;
             }
+
+            // 3. Deduplicate: If we have a Transfer for Train X, remove the "Direct" (Short) Train X
             const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
             const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
+            
             const allJourneys = [...uniqueDirects, ...allTransferJourneys];
             allJourneys.sort((a, b) => {
                 const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
@@ -929,18 +931,20 @@
         }
 
         function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
+            // 1. Get Direct (Using Permissive Logic)
             const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destB);
             let allTransferJourneys = [];
+            
+            // 2. Get Transfers
             if (routeConfig.transferStation) {
-                const fromStationIndex = allStations.indexOf(fromStation);
-                const terminationStationIndex = allStations.indexOf(routeConfig.transferStation);
-                if (fromStationIndex >= 0 && terminationStationIndex >= 0) {
-                      const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destB);
-                      allTransferJourneys = allTransfers;
-                }
+                const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destB);
+                allTransferJourneys = allTransfers;
             }
+
+            // 3. Deduplicate
             const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
             const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
+            
             const allJourneys = [...uniqueDirects, ...allTransferJourneys];
             allJourneys.sort((a, b) => {
                 const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
@@ -953,25 +957,55 @@
             return { allJourneys };
         }
         
+        /**
+         * UPDATED (Restored from V2.60): Permissive Direct Train Logic
+         * - Finds ANY train moving in the correct direction.
+         * - Calculates 'actualLastStop' to display "Terminates at X" if it stops short.
+         * - Allows Short Trains to appear in list if no transfer is found.
+         */
         function findNextDirectTrain(fromStation, schedule, destinationStation) {
             if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
+            
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let allJourneys = [];
+
             for (const train of trainHeaders) {
                 if (!train || train === "") continue;
+
                 const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
                 const departureTime = fromRow ? fromRow[train] : null;
+
                 if (!departureTime) continue;
-                let actualLastStop = null; let actualArrivalTime = null; let destRow = null; 
+
+                // Find the ACTUAL last stop of this specific train
+                let actualLastStop = null;
+                let actualArrivalTime = null;
+                let destRow = null; 
+                
                 for (let i = schedule.rows.length - 1; i >= 0; i--) {
                     const time = schedule.rows[i][train];
-                    if (time) { actualLastStop = schedule.rows[i][stationCol]; actualArrivalTime = time; destRow = schedule.rows[i]; break; }
+                    if (time) {
+                        actualLastStop = schedule.rows[i][stationCol];
+                        actualArrivalTime = time;
+                        destRow = schedule.rows[i]; 
+                        break; 
+                    }
                 }
+                
                 if (fromRow && destRow) {
-                    const fromIndex = schedule.rows.indexOf(fromRow); const destIndex = schedule.rows.indexOf(destRow);
+                    const fromIndex = schedule.rows.indexOf(fromRow);
+                    const destIndex = schedule.rows.indexOf(destRow);
+
+                    // If moving in the correct direction (down the list)
                     if (fromIndex < destIndex) { 
-                        allJourneys.push({ type: 'direct', train: train, departureTime: departureTime, arrivalTime: actualArrivalTime, actualDestination: actualLastStop, });
+                        allJourneys.push({
+                            type: 'direct',
+                            train: train,
+                            departureTime: departureTime,
+                            arrivalTime: actualArrivalTime,
+                            actualDestination: actualLastStop,
+                        });
                     }
                 }
             }
@@ -979,26 +1013,51 @@
             return { allJourneys };
         }
 
+        // --- REFINED TRANSFER LOGIC ---
         function findTransfers(fromStation, schedule, terminalStation, finalDestination) {
             if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let allJourneys = [];
             const findRowFuzzy = (name) => schedule.rows.find(row => normalizeStationName(row[stationCol]) === normalizeStationName(name));
+            
+            // 1. Validate Stations Exist
+            const fromRow = findRowFuzzy(fromStation);
+            const termRow = findRowFuzzy(terminalStation); 
+            if (!fromRow || !termRow) return { allJourneys: [] };
+            
+            const fromIndex = schedule.rows.indexOf(fromRow); 
+            const termIndex = schedule.rows.indexOf(termRow);
+            if (fromIndex >= termIndex) return { allJourneys: [] }; // Moving wrong direction
+
             for (const train1 of trainHeaders) {
                 if (!train1 || train1 === "") continue;
-                const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
-                const termRow = findRowFuzzy(terminalStation); 
-                if (!fromRow || !termRow) continue; 
-                const fromIndex = schedule.rows.indexOf(fromRow); const termIndex = schedule.rows.indexOf(termRow);
-                if (fromIndex > termIndex) continue;
-                const departureTime = fromRow[train1]; const terminationTime = termRow[train1];
+                
+                const departureTime = fromRow[train1]; 
+                const terminationTime = termRow[train1];
+                
+                // Train must start at FromStation and reach TerminalStation
+                if (!departureTime || !terminationTime) continue;
+                
+                // Train must NOT reach FinalDestination (otherwise it's Direct)
+                // However, we strictly check if it terminates AT the transfer station or before destination
                 const finalDestRow = findRowFuzzy(finalDestination);
                 const destinationTime = finalDestRow ? finalDestRow[train1] : null;
-                if (departureTime && terminationTime && !destinationTime) {
+
+                if (!destinationTime) {
                     const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination, train1);
                     if (connectionData && connectionData.earliest) {
-                        allJourneys.push({ type: 'transfer', train1: { train: train1, departureTime: departureTime, arrivalAtTransfer: terminationTime, terminationStation: terminalStation }, connection: connectionData.earliest, nextFullJourney: connectionData.fullJourney });
+                        allJourneys.push({ 
+                            type: 'transfer', 
+                            train1: { 
+                                train: train1, 
+                                departureTime: departureTime, 
+                                arrivalAtTransfer: terminationTime, 
+                                terminationStation: terminalStation 
+                            }, 
+                            connection: connectionData.earliest, 
+                            nextFullJourney: connectionData.fullJourney 
+                        });
                     }
                 }
             }
@@ -1009,38 +1068,65 @@
             const stationCol = schedule.stationColumnName;
             const trainHeaders = schedule.headers.slice(1);
             let possibleConnections = [];
+            
             const findRowFuzzy = (name) => schedule.rows.find(row => normalizeStationName(row[stationCol]) === normalizeStationName(name));
             const connRow = findRowFuzzy(connectionStation);
-            const destRow = findRowFuzzy(finalDestination); 
-            if (!connRow || !destRow) return null; 
-            const connIndex = schedule.rows.indexOf(connRow); const destIndex = schedule.rows.indexOf(destRow);
-            if (connIndex >= destIndex) return null; 
+            
+            if (!connRow) return null;
+            const connIndex = schedule.rows.indexOf(connRow);
+            
+            const arrivalSeconds = timeToSeconds(arrivalTimeAtTransfer);
+
             for (const train of trainHeaders) {
                 if (!train || train === "") continue;
-                if (train === incomingTrainName) continue; 
+                if (train === incomingTrainName) continue; // Don't connect to self
+                
                 const connectionTime = connRow[train];
-                if (!connectionTime || !connectionTime.includes(':')) continue;
-                if (connectionTime && timeToSeconds(connectionTime) >= timeToSeconds(arrivalTimeAtTransfer)) {
-                    let actualLastStop = null; let actualArrivalTime = null; let lastStopRow = null; 
-                    for (let i = schedule.rows.length - 1; i >= connIndex; i--) {
-                        const time = schedule.rows[i][train];
-                        if (time) { actualLastStop = schedule.rows[i][stationCol]; actualArrivalTime = time; lastStopRow = schedule.rows[i]; break; }
-                    }
-                    if (lastStopRow) {
-                          const lastStopIndex = schedule.rows.indexOf(lastStopRow);
-                          if (lastStopIndex > connIndex) {
-                            possibleConnections.push({ train: train, departureTime: connectionTime, arrivalTime: actualArrivalTime, actualDestination: actualLastStop, connectionStation: connectionStation });
-                          }
+                if (!connectionTime) continue;
+                
+                // Must leave AFTER arrival
+                if (timeToSeconds(connectionTime) < arrivalSeconds) continue;
+
+                // Check if this train goes FURTHER than connection station
+                // FIX: Scan all subsequent rows instead of just checking last stop index
+                let goesFurther = false;
+                let actualLastStop = connectionStation;
+                let actualArrivalTime = connectionTime;
+                
+                // Iterate rows AFTER the connection station
+                for (let i = connIndex + 1; i < schedule.rows.length; i++) {
+                    const time = schedule.rows[i][train];
+                    if (time) { 
+                        goesFurther = true;
+                        actualLastStop = schedule.rows[i][stationCol]; 
+                        actualArrivalTime = time; 
+                        // We don't break here, we want the LAST stop
                     }
                 }
+
+                if (goesFurther) {
+                    possibleConnections.push({ 
+                        train: train, 
+                        departureTime: connectionTime, 
+                        arrivalTime: actualArrivalTime, 
+                        actualDestination: actualLastStop, 
+                        connectionStation: connectionStation 
+                    });
+                }
             }
+            
             if (possibleConnections.length === 0) return null; 
+            
             possibleConnections.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
+            
             const earliestConnection = possibleConnections[0];
             let earliestFullJourneyConnection = null;
+            
+            // Try to find a connection that actually reaches the final destination
             if (normalizeStationName(earliestConnection.actualDestination) !== normalizeStationName(finalDestination)) {
                 earliestFullJourneyConnection = possibleConnections.find(conn => normalizeStationName(conn.actualDestination) === normalizeStationName(finalDestination)) || null; 
             }
+            
             return { earliest: earliestConnection, fullJourney: earliestFullJourneyConnection };
         }
         
@@ -1049,9 +1135,12 @@
             const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
             const nextJourney = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
             const firstTrainName = allJourneys.length > 0 ? (allJourneys[0].train || allJourneys[0].train1.train) : null;
+            
+            // FIX: SAVE ALL JOURNEYS FOR THE MODAL, NOT JUST REMAINING ONES
+            if (!currentScheduleData) currentScheduleData = {};
+            currentScheduleData[destination] = allJourneys;
+
             if (nextJourney) {
-                if (!currentScheduleData) currentScheduleData = {};
-                currentScheduleData[destination] = remainingJourneys;
                 const journeyTrainName = nextJourney.train || nextJourney.train1.train;
                 nextJourney.isFirstTrain = (journeyTrainName === firstTrainName);
                 const allRemainingTrainNames = new Set(remainingJourneys.map(j => j.train || j.train1.train));
@@ -1093,6 +1182,8 @@
                 const normDest = normalizeStationName(destination);
                 
                 let destinationText = journey.arrivalTime ? `Arrives ${escapeHTML(journey.arrivalTime)}.` : "Arrival time not available.";
+                
+                // Show if it terminates early (Strict Check with Normalization)
                 if (actualDest && normDest && actualDest !== normDest) {
                     destinationText = `Terminates at ${escapeHTML(journey.actualDestination.replace(/ STATION/g,''))}.`;
                 }
@@ -1114,7 +1205,7 @@
                 if (journey.isLastTrain) train1Info = `<span class="text-red-600 dark:text-red-400 font-bold">Last Train (${safeTrainName})</span> (Terminates at ${termStation})`;
 
                 let connectionInfoHTML = "";
-                if (normalizeStationName(conn.actualDestination) !== normalizeStationName(destination) && nextFull) {
+                if (nextFull) {
                     const connTrain = escapeHTML(conn.train);
                     const connDest = escapeHTML(conn.actualDestination.replace(/ STATION/g, ''));
                     const connDep = escapeHTML(conn.departureTime);
