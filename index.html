@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.17.1 (Key Fix)
-  - FIX: Corrected Firebase keys for Germiston <-> Leralla route to match database (lowercase).
-  - PREVIOUS: Added Germiston Route (Blue), Hidden Saulsville.
+  Metrorail Next Train V3.17.2 (Sunday Fix)
+  - FIX: "You are already at this station" now displays correctly on Sundays/No Service days instead of showing "N/A".
+  - PREVIOUS: Key Fix for Germiston Route.
 -->
 <html lang="en" class="dark">
 
@@ -1279,10 +1279,17 @@
         function renderAtDestination(element) { element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-green-500 dark:text-green-400">You are at this station.</div>`; }
 
         function renderNoService(element, destination) {
+            // Check if user is already at this station
+            const normalize = (s) => s ? s.toUpperCase().replace(/ STATION/g, '').trim() : '';
+            const selectedStation = stationSelect.value;
+            if (normalize(selectedStation) === normalize(destination)) {
+                renderAtDestination(element);
+                return;
+            }
+
             const currentRoute = ROUTES[currentRouteId];
             const sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
             const schedule = schedules[sheetKey];
-            const selectedStation = stationSelect.value;
             let allJourneys = [];
             if (destination === currentRoute.destA) { const res = findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute); allJourneys = res.allJourneys; } 
             else { const res = findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute); allJourneys = res.allJourneys; }
