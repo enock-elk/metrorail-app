@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.16.5 (Transfer Fix)
-  - FIX: Refined 'findConnections' logic to ensure trains like 1167 (terminating at Koedoespoort)
-    correctly identify connecting trains (like 1121) and display as TRANSFERS, not Direct.
-  - LOGIC: 'findConnections' now scans all rows after the transfer station for any valid movement.
+  Metrorail Next Train V3.17.1 (Key Fix)
+  - FIX: Corrected Firebase keys for Germiston <-> Leralla route to match database (lowercase).
+  - PREVIOUS: Added Germiston Route (Blue), Hidden Saulsville.
 -->
 <html lang="en" class="dark">
 
@@ -157,18 +156,26 @@
             <div id="pinned-section" class="hidden border-b border-gray-700 dark:border-gray-600 pb-2 mb-2">
                 <li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li>
             </div>
+            
             <li class="route-category">Northern Corridor (Pretoria)</li>
             <li class="route-item"><a class="active" data-route-id="pta-pien"><span class="route-dot dot-green"></span>Pretoria <-> Pienaarspoort</a></li>
             <li class="route-item"><a class="" data-route-id="pta-mabopane"><span class="route-dot dot-orange"></span>Pretoria <-> Mabopane</a></li>
-            <li class="route-item"><a class="disabled" data-route-id="pta-saul"><span class="route-dot dot-green"></span>Pretoria <-> Saulsville</a></li>
+            <!-- HIDDEN SAULSVILLE ROUTE -->
+            <li class="route-item hidden"><a class="disabled" data-route-id="pta-saul"><span class="route-dot dot-green"></span>Pretoria <-> Saulsville</a></li>
+            
             <li class="route-category">Pretoria - JHB Line</li>
+            <!-- NEW GERMISTON - LERALLA ROUTE -->
+            <li class="route-item"><a class="" data-route-id="germ-leralla"><span class="route-dot dot-blue"></span>Germiston <-> Leralla</a></li>
             <li class="route-item"><a class="disabled" data-route-id="pta-irene"><span class="route-dot dot-blue"></span>Pretoria <-> Irene</a></li>
             <li class="route-item"><a class="disabled" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
             <li class="route-item"><a class="disabled" data-route-id="pta-germiston"><span class="route-dot dot-blue"></span>Pretoria <-> Germiston</a></li>
+            
             <li class="route-category">Southern Corridor</li>
             <li class="route-item"><a class="disabled" data-route-id="jhb-vereeniging"><span class="route-dot dot-purple"></span>JHB <-> Vereeniging</a></li>
+            
             <li class="route-category">Eastern Corridor</li>
             <li class="route-item"><a class="disabled" data-route-id="jhb-springs"><span class="route-dot dot-red"></span>JHB <-> Springs</a></li>
+            
             <li class="route-category">Soweto Corridor</li>
             <li class="route-item"><a class="disabled" data-route-id="jhb-soweto"><span class="route-dot dot-yellow"></span>JHB <-> Naledi</a></li>
         </ul>
@@ -503,6 +510,24 @@
             'pta-pien': { id: 'pta-pien', name: "Pretoria <-> Pienaarspoort", colorClass: "text-green-500", isActive: true, destA: 'PRETORIA STATION', destB: 'PIENAARSPOORT STATION', transferStation: 'KOEDOESPOORT STATION', sheetKeys: { weekday_to_a: 'pien_to_pta_weekday', weekday_to_b: 'pta_to_pien_weekday', saturday_to_a: 'pien_to_pta_sat', saturday_to_b: 'pta_to_pien_sat' } },
             'pta-mabopane': { id: 'pta-mabopane', name: "Pretoria <-> Mabopane", colorClass: "text-orange-500", isActive: true, destA: 'PRETORIA STATION', destB: 'MABOPANE STATION', transferStation: null, sheetKeys: { weekday_to_a: 'mab_to_pta_weekday', weekday_to_b: 'pta_to_mab_weekday', saturday_to_a: 'mab_to_pta_sat', saturday_to_b: 'pta_to_mab_sat' } },
             'pta-saul': { id: 'pta-saul', name: "Pretoria <-> Saulsville", colorClass: "text-green-500", isActive: false, destA: 'PRETORIA STATION', destB: 'SAULSVILLE STATION', transferStation: null, sheetKeys: {} },
+            
+            // --- NEW GERMISTON - LERALLA ROUTE (CORRECTED KEYS) ---
+            'germ-leralla': { 
+                id: 'germ-leralla', 
+                name: "Germiston <-> Leralla", 
+                colorClass: "text-blue-500", 
+                isActive: true, 
+                destA: 'GERMISTON STATION', 
+                destB: 'LERALLA STATION', 
+                transferStation: null, 
+                sheetKeys: { 
+                    weekday_to_a: 'lerl_to_germ_weekday', // To Germiston (LOWERCASE)
+                    weekday_to_b: 'germ_to_lerl_weekday', // To Leralla (LOWERCASE)
+                    saturday_to_a: 'lerl_to_germ_sat', 
+                    saturday_to_b: 'germ_to_lerl_sat' 
+                } 
+            },
+
             'pta-irene': { id: 'pta-irene', name: "Pretoria <-> Irene", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'IRENE STATION', transferStation: null, sheetKeys: {} },
             'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
             'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
