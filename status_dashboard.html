@@ -1,209 +1,199 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Metrorail Next Train - Project Status</title>
+    <title>Metrorail Next Train - Project Summary</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        metro: {
-                            dark: '#1f2937',
-                            card: '#374151',
-                            blue: '#3b82f6',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
+        .slide {
+            scroll-snap-align: start;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 4rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .slide-container {
+            height: 100vh;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+        }
+        .blob {
+            position: absolute;
+            filter: blur(40px);
+            z-index: -1;
+            opacity: 0.5;
+        }
+        /* Custom Scrollbar for clean look */
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
     </style>
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen p-6 transition-colors duration-300">
+<body class="bg-gray-900 text-white">
 
-    <!-- HEADER -->
-    <header class="max-w-7xl mx-auto mb-10 border-b border-gray-300 dark:border-gray-700 pb-6 flex flex-col md:flex-row justify-between items-start md:items-end">
-        <div>
-            <h1 class="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-2">
-                Project Status Tracker
-            </h1>
-            <p class="text-xl text-blue-600 dark:text-blue-400 font-semibold">
-                Metrorail Next Train
-            </p>
-        </div>
-        <div class="mt-4 md:mt-0 text-right">
-            <!-- AUTO-UPDATED VERSION BADGE -->
-            <div id="version-badge" class="inline-block bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm font-bold px-4 py-2 rounded-full">
-                Checking Version...
-            </div>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Last Updated: Nov 28, 2025</p>
-        </div>
-    </header>
+    <div class="slide-container">
 
-    <!-- MAIN GRID -->
-    <main class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-
-        <!-- COLUMN 1: COMPLETED -->
-        <div class="flex flex-col">
-            <div class="flex items-center space-x-2 mb-4">
-                <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <h2 class="text-lg font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Completed</h2>
-                <span class="bg-gray-200 dark:bg-gray-700 text-xs font-bold px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">Live</span>
-            </div>
+        <!-- SLIDE 1: TITLE -->
+        <div class="slide bg-gray-900">
+            <div class="blob bg-blue-600 w-96 h-96 rounded-full top-0 left-0 -translate-x-1/2 -translate-y-1/2"></div>
+            <div class="blob bg-purple-600 w-80 h-80 rounded-full bottom-0 right-0 translate-x-1/3 translate-y-1/3"></div>
             
-            <div class="space-y-4">
-                <!-- V3.15 UX & LINKS (NEWLY COMPLETED) -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                    <h3 class="font-bold text-lg mb-2">V3.15 UX & Stability</h3>
-                    <div class="text-xs font-bold text-green-600 dark:text-green-400 uppercase mb-2">DEPLOYED</div>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Refined user experience and link handling.</p>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> "Leave App?" Modal Restored</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> PWA Crash Fix (window.open)</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Dynamic Route Title Colors</li>
+            <div class="max-w-4xl mx-auto text-center">
+                <div class="inline-block bg-blue-600 text-white text-sm font-bold px-3 py-1 rounded-full mb-6 tracking-wide uppercase">Project Status Report</div>
+                <h1 class="text-6xl md:text-8xl font-black mb-6 leading-tight">Metrorail<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">Next Train</span></h1>
+                <p class="text-2xl text-gray-400 mb-8">Version 3.17.1 (Live & Stable)</p>
+                <div class="flex justify-center space-x-4">
+                    <div class="px-6 py-3 bg-gray-800 rounded-lg border border-gray-700">
+                        <p class="text-xs text-gray-500 uppercase">Last Updated</p>
+                        <p class="font-bold text-white">Nov 30, 2025</p>
+                    </div>
+                    <div class="px-6 py-3 bg-gray-800 rounded-lg border border-gray-700">
+                        <p class="text-xs text-gray-500 uppercase">Deployment</p>
+                        <p class="font-bold text-green-400">Production</p>
+                    </div>
+                </div>
+            </div>
+            <div class="absolute bottom-10 left-0 w-full text-center text-gray-600 animate-bounce">
+                ↓ Scroll for Summary
+            </div>
+        </div>
+
+        <!-- SLIDE 2: OVERVIEW -->
+        <div class="slide bg-gray-800">
+            <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                <div>
+                    <h2 class="text-blue-400 font-bold tracking-widest uppercase mb-2">01. Overview</h2>
+                    <h3 class="text-5xl font-bold mb-6">Say Goodbye to Waiting.</h3>
+                    <p class="text-xl text-gray-300 leading-relaxed mb-6">
+                        A Progressive Web App (PWA) designed for Gauteng commuters. It provides real-time countdowns, offline schedules, and community-driven alerts for the Metrorail network.
+                    </p>
+                    <ul class="space-y-4">
+                        <li class="flex items-center text-lg"><span class="w-2 h-2 bg-green-500 rounded-full mr-4"></span>100% Offline Capability</li>
+                        <li class="flex items-center text-lg"><span class="w-2 h-2 bg-green-500 rounded-full mr-4"></span>Privacy-First Geolocation</li>
+                        <li class="flex items-center text-lg"><span class="w-2 h-2 bg-green-500 rounded-full mr-4"></span>Works on any device (Web/Mobile)</li>
                     </ul>
                 </div>
-
-                <!-- GEOLOCATION -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                    <h3 class="font-bold text-lg mb-2">Geolocation (Find Nearest)</h3>
-                    <div class="text-xs font-bold text-green-600 dark:text-green-400 uppercase mb-2">DEPLOYED</div>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">GPS logic auto-selects closest station.</p>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> Haversine Distance Formula</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Column B Data Parsing</li>
-                    </ul>
-                </div>
-
-                <!-- SECURITY PATCH -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                    <h3 class="font-bold text-lg mb-2">Security & Stability Patch</h3>
-                    <div class="text-xs font-bold text-green-600 dark:text-green-400 uppercase mb-2">PATCHED</div>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> XSS Prevention</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Robust JSON Parsing</li>
-                    </ul>
+                <div class="bg-gray-900 p-8 rounded-2xl shadow-2xl border border-gray-700 transform rotate-2 hover:rotate-0 transition-transform duration-500">
+                    <!-- Mock UI -->
+                    <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+                        <div class="h-4 w-4 rounded-full bg-red-500"></div>
+                        <div class="h-3 w-32 bg-gray-700 rounded"></div>
+                        <div class="h-4 w-4 rounded-full bg-gray-700"></div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="h-32 bg-gray-800 rounded-lg animate-pulse"></div>
+                        <div class="h-32 bg-gray-800 rounded-lg animate-pulse"></div>
+                        <div class="h-12 bg-blue-600 rounded-lg opacity-50"></div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- COLUMN 2: WORK IN PROGRESS -->
-        <div class="flex flex-col">
-            <div class="flex items-center space-x-2 mb-4">
-                <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                <h2 class="text-lg font-bold uppercase tracking-wider text-yellow-600 dark:text-yellow-400">In Progress</h2>
-                <span class="bg-gray-200 dark:bg-gray-700 text-xs font-bold px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">Next Steps</span>
-            </div>
-
-            <div class="space-y-4">
-                <!-- PERFORMANCE -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500 relative overflow-hidden">
-                    <div class="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">HIGH PRIORITY</div>
-                    <h3 class="font-bold text-lg mb-2">Performance Tuning</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Improve load speed for 3G users.</p>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">⌛</span> Replace Tailwind CDN with build</li>
-                        <li class="flex items-start"><span class="mr-2">⌛</span> Minify JS code</li>
-                    </ul>
-                </div>
-
-                <!-- ANALYTICS DASHBOARD -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500">
-                    <h3 class="font-bold text-lg mb-2">Analytics Integration</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Visualize usage data.</p>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">⌛</span> Connect GA4 to Looker Studio</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-
-        <!-- COLUMN 3: FUTURE / ON HOLD -->
-        <div class="flex flex-col">
-            <div class="flex items-center space-x-2 mb-4">
-                <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
-                <h2 class="text-lg font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Future Roadmap</h2>
-                <span class="bg-gray-200 dark:bg-gray-700 text-xs font-bold px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">Backlog</span>
-            </div>
-
-            <div class="space-y-4">
-                <!-- TRIP PLANNER -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-blue-500 opacity-90">
-                    <h3 class="font-bold text-lg mb-2">Trip Planner (A to B)</h3>
-                    <div class="text-sm text-red-500 font-bold mb-2 uppercase text-xs">Blocked By: Missing Data</div>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Allow users to plan multi-leg journeys.</p>
-                </div>
-
-                <!-- FARE CALCULATOR -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-blue-500 opacity-90">
-                    <h3 class="font-bold text-lg mb-2">Fare Calculator</h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Estimate trip cost based on zones.</p>
-                </div>
-
-                <!-- COMMUNITY ALERTS -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-blue-500 opacity-90">
-                    <h3 class="font-bold text-lg mb-2">Community Alerts</h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Allow users to report delays or incidents (crowdsourced info).</p>
-                </div>
+        <!-- SLIDE 3: TECH STACK -->
+        <div class="slide bg-gray-900">
+            <div class="max-w-5xl mx-auto w-full">
+                <h2 class="text-purple-400 font-bold tracking-widest uppercase mb-2">02. Architecture</h2>
+                <h3 class="text-5xl font-bold mb-12">Built for Speed & Scale</h3>
                 
-                <!-- PUSH NOTIFICATIONS -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-blue-500 opacity-90">
-                    <h3 class="font-bold text-lg mb-2">Push Notifications</h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Notify users of major delays or schedule changes.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Card 1 -->
+                    <div class="bg-gray-800 p-8 rounded-xl border-t-4 border-blue-500">
+                        <div class="text-4xl mb-4">🎨</div>
+                        <h4 class="text-xl font-bold mb-2">Frontend</h4>
+                        <p class="text-gray-400 text-sm">Vanilla JavaScript + Tailwind CSS. Single-file architecture for instant loading.</p>
+                    </div>
+                    <!-- Card 2 -->
+                    <div class="bg-gray-800 p-8 rounded-xl border-t-4 border-orange-500">
+                        <div class="text-4xl mb-4">🔥</div>
+                        <h4 class="text-xl font-bold mb-2">Backend</h4>
+                        <p class="text-gray-400 text-sm">Firebase Realtime DB (Schedules) + Firestore (Alerts) + Auth (Anonymous).</p>
+                    </div>
+                    <!-- Card 3 -->
+                    <div class="bg-gray-800 p-8 rounded-xl border-t-4 border-green-500">
+                        <div class="text-4xl mb-4">📊</div>
+                        <h4 class="text-xl font-bold mb-2">CMS Pipeline</h4>
+                        <p class="text-gray-400 text-sm">Google Sheets -> Google Apps Script -> Firebase. Allows easy manual data entry.</p>
+                    </div>
                 </div>
             </div>
         </div>
 
-    </main>
+        <!-- SLIDE 4: NEW FEATURES -->
+        <div class="slide bg-black">
+            <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+            <div class="max-w-5xl mx-auto w-full relative z-10">
+                <h2 class="text-red-500 font-bold tracking-widest uppercase mb-2">03. Latest Updates (V3.17)</h2>
+                <h3 class="text-5xl font-bold mb-10">Community Powered</h3>
 
-    <!-- FOOTER / NEXT PRIORITY BANNER -->
-    <div class="max-w-7xl mx-auto mt-12 mb-10">
-        <div class="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl p-8 shadow-2xl text-white flex flex-col md:flex-row items-center justify-between">
-            <div>
-                <h3 class="text-2xl font-bold mb-2">🚀 Immediate Next Step</h3>
-                <p class="text-blue-100 max-w-xl">
-                    <strong>Version 3.15 is LIVE!</strong> Major UX and stability improvements are complete. We are now focusing on <strong>Performance Tuning</strong> to make the app lightning fast on all networks.
-                </p>
-            </div>
-            <div class="mt-6 md:mt-0">
-                <span class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-blue-700 bg-white shadow-sm hover:bg-blue-50">
-                    Target: Version 3.2
-                </span>
+                <div class="space-y-6">
+                    <div class="flex items-start">
+                        <div class="bg-yellow-500 text-black font-bold p-4 rounded-lg text-2xl mr-6">⚠️</div>
+                        <div>
+                            <h4 class="text-2xl font-bold">Crowdsourced Alerts</h4>
+                            <p class="text-gray-400">Users can now report delays, cancellations, or safety issues directly in the app. These reports appear in a real-time feed for all other users.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <div class="bg-blue-500 text-white font-bold p-4 rounded-lg text-2xl mr-6">📍</div>
+                        <div>
+                            <h4 class="text-2xl font-bold">Auto-Locate on Load</h4>
+                            <p class="text-gray-400">Logic updated to automatically detect GPS permission. If granted, the app instantly selects the nearest station without user input.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start">
+                        <div class="bg-green-500 text-white font-bold p-4 rounded-lg text-2xl mr-6">🔐</div>
+                        <div>
+                            <h4 class="text-2xl font-bold">Robust Authentication</h4>
+                            <p class="text-gray-400">Implemented Anonymous Auth with persistence fallback (Local Storage -> In-Memory) to solve browser/iframe restrictions.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <!-- SLIDE 5: ROADMAP -->
+        <div class="slide bg-gradient-to-br from-gray-900 to-blue-900">
+            <div class="max-w-4xl mx-auto text-center">
+                <h2 class="text-white opacity-50 font-bold tracking-widest uppercase mb-4">04. What's Next</h2>
+                <h3 class="text-6xl font-bold mb-12">Roadmap to V4.0</h3>
+                
+                <div class="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-8">
+                    <!-- Step 1 -->
+                    <div class="w-64 bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
+                        <div class="text-sm font-bold text-yellow-400 mb-2">IMMEDIATE</div>
+                        <h4 class="text-xl font-bold">Performance</h4>
+                        <p class="text-sm text-gray-300 mt-2">Replace CDN with compiled CSS. Minify JS bundle.</p>
+                    </div>
+                    
+                    <div class="text-2xl text-white opacity-30">→</div>
+
+                    <!-- Step 2 -->
+                    <div class="w-64 bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
+                        <div class="text-sm font-bold text-blue-400 mb-2">PLANNED</div>
+                        <h4 class="text-xl font-bold">Trip Planner</h4>
+                        <p class="text-sm text-gray-300 mt-2">"A to B" routing logic for multi-leg journeys.</p>
+                    </div>
+
+                    <div class="text-2xl text-white opacity-30">→</div>
+
+                    <!-- Step 3 -->
+                    <div class="w-64 bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
+                        <div class="text-sm font-bold text-green-400 mb-2">FUTURE</div>
+                        <h4 class="text-xl font-bold">Fare Calc</h4>
+                        <p class="text-sm text-gray-300 mt-2">Estimate trip costs based on zone data.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
-
-    <!-- AUTO-UPDATE SCRIPT -->
-    <script>
-        async function fetchProjectVersion() {
-            try {
-                const response = await fetch('index.html');
-                if (!response.ok) throw new Error("Could not fetch index.html");
-                const text = await response.text();
-
-                const versionMatch = text.match(/Metrorail Next Train (V\d+\.\d+)/i);
-
-                if (versionMatch && versionMatch[1]) {
-                    const version = versionMatch[1];
-                    document.getElementById('version-badge').textContent = `Current Version: ${version}`;
-                } else {
-                    document.getElementById('version-badge').textContent = "Version Check Failed";
-                }
-            } catch (error) {
-                console.error("Version Check Error:", error);
-                document.getElementById('version-badge').textContent = "Unknown Version";
-            }
-        }
-
-        fetchProjectVersion();
-    </script>
 
 </body>
 </html>
