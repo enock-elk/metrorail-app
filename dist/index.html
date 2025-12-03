@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<!-- 
+  Metrorail Next Train V3.18.0 (Performance Update)
+  - CDN REMOVED: Now using local build process.
+-->
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Metrorail Next Train | Live Schedules & Timetables</title>
+    <meta name="description" content="Check live train schedules for Pretoria, Pienaarspoort, Mabopane, and Germiston. Don't wait at the station—see exactly when the next Metrorail train arrives.">
+    
+    <meta property="og:title" content="Metrorail Next Train | Live Schedules" />
+    <meta property="og:description" content="Say Goodbye to Waiting. Use Next Train to check when your train is due to arrive." />
+    <meta property="og:image" content="https://nexttrain.co.za/icons/icon-512.png" />
+    <meta property="og:url" content="https://nexttrain.co.za/" />
+    <meta property="og:type" content="website" />
+    
+    <link rel="canonical" href="https://nexttrain.co.za/" />
+
+    <!-- Favicons -->
+    <link rel="icon" href="https://nexttrain.co.za/icons/icon-512.png" sizes="512x512" type="image/png">
+    <link rel="icon" href="https://nexttrain.co.za/icons/icon-192.png" sizes="192x192" type="image/png">
+    <link rel="apple-touch-icon" href="https://nexttrain.co.za/icons/icon-192.png">
+    <link rel="manifest" href="./assets/manifest-BzUplNHU.json">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Metrorail Next Train",
+      "url": "https://nexttrain.co.za/",
+      "description": "Real-time Metrorail train schedules for Pretoria, Pienaarspoort, and surrounding routes.",
+      "applicationCategory": "Public Transport Application",
+      "operatingSystem": "All",
+      "browserRequirements": "Requires JavaScript",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "ZAR"
+      },
+      "image": "https://nexttrain.co.za/icons/icon-512.png",
+      "datePublished": "2024-01-01", 
+      "dateModified": "2025-10-27"
+    }
+    </script>
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FH8XHJVTPW"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FH8XHJVTPW');
+    </script>
+    
+    <meta name="theme-color" content="#1f2937">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Next Train">
+    
+    <!-- Dependencies -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Local Styles (Vite will process this) -->
+  <script type="module" crossorigin src="./assets/index-D8Vh0mSM.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CPWg0DsS.css">
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4 transition-colors duration-300">
+
+    <div id="sidenav-overlay"></div>
+    <div id="sidenav">
+        <button id="close-nav-btn" class="close-btn text-gray-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-300">&times;</button>
+        <h2 class="text-gray-900 dark:text-white">Select Route</h2>
+        <ul id="route-list">
+            <div id="pinned-section" class="hidden border-b border-gray-700 dark:border-gray-600 pb-2 mb-2">
+                <li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li>
+            </div>
+            
+            <li class="route-category">Northern Corridor (Pretoria)</li>
+            <li class="route-item"><a class="active" data-route-id="pta-pien"><span class="route-dot dot-green"></span>Pretoria <-> Pienaarspoort</a></li>
+            <li class="route-item"><a class="" data-route-id="pta-mabopane"><span class="route-dot dot-orange"></span>Pretoria <-> Mabopane</a></li>
+            <li class="route-item hidden"><a class="disabled" data-route-id="pta-saul"><span class="route-dot dot-green"></span>Pretoria <-> Saulsville</a></li>
+            
+            <li class="route-category">Pretoria - JHB Line</li>
+            <li class="route-item"><a class="" data-route-id="germ-leralla"><span class="route-dot dot-blue"></span>Germiston <-> Leralla</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="pta-irene"><span class="route-dot dot-blue"></span>Pretoria <-> Irene</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="pta-germiston"><span class="route-dot dot-blue"></span>Pretoria <-> Germiston</a></li>
+            
+            <li class="route-category">Southern Corridor</li>
+            <li class="route-item"><a class="disabled" data-route-id="jhb-vereeniging"><span class="route-dot dot-purple"></span>JHB <-> Vereeniging</a></li>
+            
+            <li class="route-category">Eastern Corridor</li>
+            <li class="route-item"><a class="disabled" data-route-id="jhb-springs"><span class="route-dot dot-red"></span>JHB <-> Springs</a></li>
+            
+            <li class="route-category">Soweto Corridor</li>
+            <li class="route-item"><a class="disabled" data-route-id="jhb-soweto"><span class="route-dot dot-yellow"></span>JHB <-> Naledi</a></li>
+        </ul>
+        
+        <div class="mt-auto pt-6 border-t border-gray-700 dark:border-gray-600 pb-20">
+            <p class="px-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Legal & Info</p>
+            <li class="route-item">
+                <a onclick="openLegal('terms')" class="cursor-pointer text-gray-300 hover:text-white">
+                    <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Terms of Use
+                </a>
+            </li>
+            <li class="route-item">
+                <a onclick="openLegal('privacy')" class="cursor-pointer text-gray-300 hover:text-white">
+                    <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    Privacy Policy
+                </a>
+            </li>
+        </div>
+    </div>
+
+    <div id="loading-overlay" class="absolute inset-0 bg-gray-100 dark:bg-gray-900 flex flex-col items-center justify-center z-50">
+        <svg class="pop-loader h-16 w-16 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.828 0l-4.244-4.243a8 8 0 1111.314 0z" />
+        </svg>
+        <div class="text-xl font-bold text-gray-700 dark:text-gray-300 mt-4" id="loading-text">Loading latest schedules...</div>
+        <div class="mt-4 text-xs text-gray-500">Stuck? <button onclick="localStorage.removeItem('full_db'); location.reload();" class="underline text-blue-500">Reset App</button></div>
+    </div>
+
+    <div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col transform transition-transform duration-300 scale-95" id="modal-content">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
+                <h3 id="modal-title" class="text-lg font-bold text-gray-900 dark:text-white">Full Schedule</h3>
+                <button id="close-modal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div id="modal-list" class="p-2 overflow-y-auto flex-grow space-y-2 bg-gray-100 dark:bg-gray-800"></div>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-xl">
+                <button id="close-modal-btn-2" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="redirect-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[60] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95" id="redirect-modal-content">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 mb-4">
+                    <svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Leave App?</h3>
+                <p id="redirect-message" class="text-sm text-gray-500 dark:text-gray-400 mb-6">You are about to visit an external website.</p>
+                <div class="flex space-x-3">
+                    <button id="redirect-cancel-btn" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg transition-colors">Cancel</button>
+                    <button id="redirect-confirm-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEGAL MODAL -->
+    <div id="legal-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[70] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col transform transition-transform duration-300 scale-95">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
+                <h3 id="legal-modal-title" class="text-lg font-bold text-gray-900 dark:text-white">Legal</h3>
+                <button id="close-legal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div id="legal-modal-content" class="p-6 overflow-y-auto text-sm text-gray-700 dark:text-gray-300 space-y-4 leading-relaxed"></div>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-xl">
+                <button id="close-legal-btn-2" class="w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-lg shadow-sm transition-colors">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PIN ENTRY MODAL (HIDDEN) -->
+    <div id="pin-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[80] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-95">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 text-center">Developer Access</h3>
+            <input type="password" id="pin-input" class="w-full p-3 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-center text-lg tracking-widest mb-4" placeholder="Enter PIN" maxlength="6">
+            <div class="flex space-x-2">
+                <button id="pin-cancel-btn" class="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white py-2 rounded">Cancel</button>
+                <button id="pin-submit-btn" class="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Unlock</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 hidden relative overflow-hidden">
+        <div id="offline-indicator">OFFLINE MODE - USING SAVED SCHEDULE</div>
+        <div class="flex items-center justify-between relative mb-4 mt-4">
+            <button id="open-nav-btn" class="p-2 -ml-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <div class="absolute top-0 right-0 flex space-x-2">
+                <button id="pin-route-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500" title="Pin this route as default">
+                    <svg id="pin-outline" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+                    <svg id="pin-filled" class="w-5 h-5 hidden text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+                </button>
+                <button id="force-reload-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <svg id="reload-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
+                </button>
+                <button id="theme-toggle-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <svg id="theme-toggle-dark-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                    <svg id="theme-toggle-light-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 13a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm6.293-8.707a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 15.586a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM15.586 4.414a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 5.828A1 1 0 003 4.414l-.707.707a1 1 0 001.414 1.414l.707-.707z"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="text-center mb-6">
+            <!-- SECRET TRIGGER: Clicking H1 5 times opens PIN modal -->
+            <h1 id="app-title" class="text-2xl font-bold text-gray-900 dark:text-white select-none cursor-default">Metrorail Next Train</h1>
+            <!-- UPDATED: Title Color Dynamic via JS -->
+            <div id="route-subtitle" class="flex items-center justify-center space-x-2 mt-1 cursor-pointer group">
+                <h2 id="route-subtitle-text" class="text-lg font-medium text-gray-600 dark:text-gray-400 group-hover:opacity-80 transition-colors">
+                    Pretoria <-> Pienaarspoort
+                </h2>
+                <svg class="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            
+            <div data-nosnippet>
+                <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium mt-2"></p>
+                <p id="current-day" class="text-sm text-gray-500 dark:text-gray-400"></p>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <label for="station-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Station:</label>
+            <select id="station-select" class="block w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-md shadow-sm p-3 text-lg focus:ring-blue-500 focus:border-blue-500 appearance-none">
+                <option value="">Select a station...</option>
+                <option value="FIND_NEAREST">📍 Find Nearest Station</option>
+            </select>
+        </div>
+
+        <div class="space-y-6" data-nosnippet>
+            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 shadow-lg">
+                <h2 id="pretoria-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">Next train to <span class="text-blue-500 dark:text-blue-400">Pretoria</span></h2>
+                <div id="pretoria-time" class="text-center flex items-center justify-center"></div>
+            </div>
+            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 shadow-lg">
+                <h2 id="pienaarspoort-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">Next train to <span class="text-blue-500 dark:text-blue-400">Pienaarspoort</span></h2>
+                <div id="pienaarspoort-time" class="text-center flex items-center justify-center"></div>
+            </div>
+        </div>
+
+        <div class="mt-8 text-center">
+            <a href="https://www.facebook.com/metrorailgp" target="_blank" rel="noopener noreferrer" id="check-updates-btn" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105">🚄 View Official Metrorail Updates</a>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Opens the official Facebook page</p>
+        </div>
+
+        <div class="mt-6 grid grid-cols-2 gap-4">
+            <button id="share-app-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg> Share App
+            </button>
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform" target="_blank" rel="noopener noreferrer" id="feedback-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors cursor-pointer">
+                 <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg> Feedback
+            </a>
+        </div>
+        
+        <div class="mt-4">
+            <button id="install-app-btn" class="hidden flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App on this Device
+            </button>
+        </div>
+        
+        <div id="copied-message" class="hidden text-center text-green-500 font-medium mt-2">Link copied to clipboard!</div>
+        
+        <!-- HIDDEN DEVELOPER MODE PANEL -->
+        <div id="sim-panel" class="hidden mt-8 border-t border-gray-300 dark:border-gray-700 pt-4 bg-gray-200 dark:bg-gray-800 rounded-lg p-3">
+            <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2">Developer Mode</h4>
+            <div class="flex flex-col gap-3">
+                <div class="flex items-center justify-between">
+                    <label class="text-sm font-medium">Enable Simulation</label>
+                    <input type="checkbox" id="sim-enabled" class="h-5 w-5">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium mb-1">Set Time (HH:MM:SS)</label>
+                    <input type="time" id="sim-time" step="1" class="w-full p-2 rounded bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium mb-1">Set Day</label>
+                    <select id="sim-day" class="w-full p-2 rounded bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm">
+                        <option value="1">Monday (Weekday)</option>
+                        <option value="6">Saturday</option>
+                        <option value="0">Sunday</option>
+                    </select>
+                </div>
+                <button id="sim-apply-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-xs uppercase">Apply Simulation</button>
+            </div>
+        </div>
+
+        <p id="last-updated-date" class="text-xs text-gray-500 dark:text-gray-400 text-center mt-6"></p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">2025 &copy; Kazembe CodeWorks. All rights reserved</p>
+    </div>
+    <div id="toast" class=""></div>
+
+    <!-- MAIN APP SCRIPT -->
+    <!-- Vite Specific Entry -->
+</body>
+</html>
