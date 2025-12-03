@@ -9,13 +9,3 @@ module.exports = {
   },
   plugins: [],
 }
-```
-
-**3. Save and Deploy.**
-Run the commands to send this fix to the live site:
-
-```bash
-git add .
-git commit -m "Fix Tailwind config path"
-git push origin main
-npm run deploy
