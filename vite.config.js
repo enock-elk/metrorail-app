@@ -1,29 +1,26 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  // Base path for GitHub Pages
   base: './',
   build: {
-    // Output to 'dist' folder
     outDir: 'dist',
-    // Do not clear the directory (optional, but safer for manual builds)
     emptyOutDir: true,
-    // Critical: Disable hash filenames (e.g., style-x82.css) so sw.js can find them
     rollupOptions: {
       output: {
-        entryFileNames: 'js/[name].js',
-        chunkFileNames: 'js/[name].js',
+        // This forces the CSS to be named 'style.css' so your HTML finds it
         assetFileNames: (assetInfo) => {
           if (assetInfo.name.endsWith('.css')) {
             return 'css/style.css';
           }
           return 'assets/[name][extname]';
-        }
+        },
+        entryFileNames: 'js/[name].js',
+        chunkFileNames: 'js/[name].js',
       }
     }
   },
-  // Ensure Vite knows about the PostCSS config
   css: {
+    // This tells Vite: "Use the config from Step 2"
     postcss: './postcss.config.js',
   }
 });
