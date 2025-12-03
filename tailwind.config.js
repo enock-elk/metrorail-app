@@ -1,16 +1,21 @@
-/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
     "./index.html",
-    "./js/**/*.js"
+    "./js/**/*.js",   // <--- This is the magic line. It tells Tailwind to look inside the js folder!
+    "./public/**/*.html"
   ],
-  darkMode: 'class', 
   theme: {
-    extend: {
-      fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-      },
-    },
+    extend: {},
   },
   plugins: [],
 }
+```
+
+**3. Save and Deploy.**
+Run the commands to send this fix to the live site:
+
+```bash
+git add .
+git commit -m "Fix Tailwind config path"
+git push origin main
+npm run deploy

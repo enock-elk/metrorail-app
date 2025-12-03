@@ -7,12 +7,13 @@ export default defineConfig({
     assetsDir: 'assets',
     rollupOptions: {
       output: {
-        // Force the Javascript to be named 'app.js' in the 'js' folder
         entryFileNames: 'js/app.js',
         chunkFileNames: 'js/[name].js',
-        // Force the CSS to be named 'style.css' in the 'css' folder
         assetFileNames: (assetInfo) => {
-          if (assetInfo.name === 'style.css') return 'css/style.css';
+          // STRICTER CHECK: Grab ANY CSS file and name it style.css
+          if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+            return 'css/style.css';
+          }
           return 'assets/[name][extname]';
         }
       }
