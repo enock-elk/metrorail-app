@@ -1,6 +1,6 @@
 // UPDATE THE VERSION NUMBER HERE TO TRIGGER AN UPDATE ON USERS' PHONES
 // We bumped it to V3.18.0 (Modularized Update)
-const CACHE_NAME = 'metrorail-next-train-v3.18.2';
+const CACHE_NAME = 'metrorail-next-train-v3.18.3';
 
 const ASSETS_TO_CACHE = [
   '/',
