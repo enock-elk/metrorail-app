@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.18.1 (Fix)
+  Metrorail Next Train V3.18.0 (Performance Update)
+  - CDN REMOVED: Now using local build process.
 -->
 <html lang="en" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Metrorail Next Train | Live Schedules & Timetables</title>
-    
-    <meta name="description" content="Check live train schedules for Pretoria, Pienaarspoort, Mabopane, and Germiston.">
+    <meta name="description" content="Check live train schedules for Pretoria, Pienaarspoort, Mabopane, and Germiston. Don't wait at the station—see exactly when the next Metrorail train arrives.">
     
     <meta property="og:title" content="Metrorail Next Train | Live Schedules" />
     <meta property="og:description" content="Say Goodbye to Waiting. Use Next Train to check when your train is due to arrive." />
@@ -19,11 +21,31 @@
     <link rel="canonical" href="https://nexttrain.co.za/" />
 
     <!-- Favicons -->
-    <!-- NOTE: We removed the '/' at the start because they are now relative links -->
-    <link rel="icon" href="./icons/icon-512.png" sizes="512x512" type="image/png">
-    <link rel="icon" href="./icons/icon-192.png" sizes="192x192" type="image/png">
-    <link rel="apple-touch-icon" href="./icons/icon-192.png">
-    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" href="https://nexttrain.co.za/icons/icon-512.png" sizes="512x512" type="image/png">
+    <link rel="icon" href="https://nexttrain.co.za/icons/icon-192.png" sizes="192x192" type="image/png">
+    <link rel="apple-touch-icon" href="https://nexttrain.co.za/icons/icon-192.png">
+    <link rel="manifest" href="manifest.json">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Metrorail Next Train",
+      "url": "https://nexttrain.co.za/",
+      "description": "Real-time Metrorail train schedules for Pretoria, Pienaarspoort, and surrounding routes.",
+      "applicationCategory": "Public Transport Application",
+      "operatingSystem": "All",
+      "browserRequirements": "Requires JavaScript",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "ZAR"
+      },
+      "image": "https://nexttrain.co.za/icons/icon-512.png",
+      "datePublished": "2024-01-01", 
+      "dateModified": "2025-10-27"
+    }
+    </script>
 
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-FH8XHJVTPW"></script>
@@ -42,8 +64,9 @@
     <!-- Dependencies -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     
-    <!-- VITAL CHANGE: Link to the fixed CSS output path -->
-    <link rel="stylesheet" href="./css/style.css">
+    <!-- Local Styles (Vite will process this) -->
+  <script type="module" crossorigin src="./js/app.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index.css">
 </head>
 
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4 transition-colors duration-300">
@@ -273,7 +296,7 @@
     </div>
     <div id="toast" class=""></div>
 
-    <!-- VITAL CHANGE: Script at the end of body -->
-    <script type="module" src="./js/app.js"></script>
+    <!-- MAIN APP SCRIPT -->
+    <!-- Vite Specific Entry -->
 </body>
 </html>
