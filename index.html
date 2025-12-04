@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.17.5 (UI Enhancement)
+  Metrorail Next Train V3.17.6 (UI Enhancement & SEO)
   - FEATURE: "See Full Schedule" now auto-scrolls to the next available train.
   - Users can still scroll up to see past (greyed out) trains.
 -->
@@ -9,16 +9,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Metrorail Next Train</title>
 
-    <meta property="og:title" content="Metrorail Next Train" />
+    <title>Metrorail Next Train | Live Schedules & Timetables</title>
+    <meta name="description" content="Check live train schedules for Pretoria, Pienaarspoort, Mabopane, and Germiston. Don't wait at the station—see exactly when the next Metrorail train arrives.">
+    
+    <meta property="og:title" content="Metrorail Next Train | Live Schedules" />
     <meta property="og:description" content="Say Goodbye to Waiting. Use Next Train to check when your train is due to arrive." />
     <meta property="og:image" content="https://nexttrain.co.za/icons/icon-512.png" />
     <meta property="og:url" content="https://nexttrain.co.za/" />
     <meta property="og:type" content="website" />
     
     <link rel="canonical" href="https://nexttrain.co.za/" />
-    
+
+    <link rel="icon" href="icons/icon-512.png" sizes="512x512" type="image/png">
+    <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="manifest" href="manifest.json">
+
+  
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Metrorail Next Train",
+      "url": "https://nexttrain.co.za/",
+      "description": "Real-time Metrorail train schedules for Pretoria, Pienaarspoort, and surrounding routes.",
+      "applicationCategory": "Public Transport Application",
+      "operatingSystem": "All",
+      "browserRequirements": "Requires JavaScript",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "ZAR"
+      },
+      "image": "https://nexttrain.co.za/icons/icon-512.png"
+    }
+    </script>
+
+
+
+
+
+
+
+
+
+
+  
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-FH8XHJVTPW"></script>
     <script>
@@ -29,8 +66,9 @@
     </script>
 
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" href="icons/icon-192.png" type="image/png"> 
-    <link rel="shortcut icon" href="icons/icon-192.png" type="image/png">
+    <link rel="icon" href="/icons/icon-512.png" sizes="512x512" type="image/png">
+    <link rel="icon" href="/icons/icon-192.png" sizes="192x192" type="image/png">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
     
     <meta name="theme-color" content="#1f2937">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1536,4 +1574,5 @@
     </script>
 </body>
 </html>
+
 
