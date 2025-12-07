@@ -1,7 +1,9 @@
 {
+  "id": "/gym/",
   "name": "HPC Gym Hours",
   "short_name": "HPC Gym",
-  "start_url": "./index.html",
+  "start_url": "/gym/index.html",
+  "scope": "/gym/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
