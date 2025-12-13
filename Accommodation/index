@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accommodation Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { brand: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 900: '#312e81' } }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .edit-mode-active { border: 2px solid #f59e0b !important; background-color: #fffbeb !important; }
+        .dark .edit-mode-active { background-color: #451a03 !important; border-color: #f59e0b !important; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        .dark ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-slate-800 dark:text-slate-200 min-h-screen pb-20 transition-colors duration-300">
+
+    <!-- Navbar -->
+    <nav class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 backdrop-blur-md bg-opacity-90 dark:bg-opacity-90">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center h-auto md:h-16 py-3 md:py-0 gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="bg-brand-600 text-white p-1.5 rounded-lg shadow-sm">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                    </div>
+                    <span class="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Rental<span class="text-brand-600 dark:text-brand-400">Tracker</span></span>
+                    <span class="text-[10px] bg-slate-100 dark:bg-gray-700 text-slate-500 dark:text-gray-300 px-2 py-0.5 rounded-full font-medium border border-slate-200 dark:border-gray-600">Offline</span>
+                </div>
+                
+                <div class="flex gap-2 text-xs font-medium items-center">
+                    <button id="theme-toggle" onclick="toggleTheme()" class="text-slate-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-lg transition mr-2" title="Toggle Dark Mode">
+                        <svg id="sun-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        <svg id="moon-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    </button>
+                    <button onclick="exportCSV()" class="text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Export
+                    </button>
+                    <button onclick="downloadBackup()" class="text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg> Backup
+                    </button>
+                    <label class="bg-slate-900 dark:bg-brand-700 hover:bg-slate-800 dark:hover:bg-brand-600 text-white px-3 py-2 rounded-lg transition flex items-center gap-1.5 cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg> Restore
+                        <input type="file" onchange="importBackup(this)" class="hidden" accept=".json">
+                    </label>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-8 mt-6">
+
+        <!-- Sidebar / Input Form -->
+        <div class="lg:col-span-4 space-y-6">
+            
+            <!-- Financial Summary Widget -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 relative overflow-hidden transition-colors duration-300">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 via-yellow-400 to-red-500"></div>
+                <h3 class="text-xs font-bold text-slate-400 dark:text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg> Affordability Guide
+                </h3>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="flex items-center gap-2 text-slate-600 dark:text-gray-300"><span class="w-2 h-2 rounded-full bg-green-500"></span>Safe</span>
+                        <span class="font-bold text-slate-800 dark:text-white">&lt; R5,290</span>
+                    </div>
+                    <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5"><div class="bg-green-500 h-1.5 rounded-full" style="width: 30%"></div></div>
+                    <div class="flex items-center justify-between text-sm pt-2">
+                        <span class="flex items-center gap-2 text-slate-600 dark:text-gray-300"><span class="w-2 h-2 rounded-full bg-yellow-500"></span>Stretch</span>
+                        <span class="font-bold text-slate-800 dark:text-white">&lt; R6,200</span>
+                    </div>
+                    <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5"><div class="bg-yellow-500 h-1.5 rounded-full" style="width: 60%"></div></div>
+                    <div class="flex items-center justify-between text-sm pt-2">
+                        <span class="flex items-center gap-2 text-slate-600 dark:text-gray-300"><span class="w-2 h-2 rounded-full bg-red-500"></span>Risk</span>
+                        <span class="font-bold text-slate-800 dark:text-white">&gt; R6,700</span>
+                    </div>
+                    <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5"><div class="bg-red-500 h-1.5 rounded-full" style="width: 100%"></div></div>
+                </div>
+            </div>
+
+            <!-- Form Card -->
+            <div id="form-card" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 sticky top-24 transition-all duration-300">
+                <div class="flex justify-between items-center border-b border-gray-100 dark:border-gray-700 pb-4 mb-5">
+                    <h2 id="form-title" class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <svg class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg> Add Property
+                    </h2>
+                    <button id="cancel-edit-btn" onclick="cancelEdit()" class="hidden text-xs font-bold text-red-500 hover:text-red-700 dark:hover:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded transition">Cancel</button>
+                </div>
+                
+                <form id="rentalForm" onsubmit="addListing(event)" class="space-y-5">
+                    <input type="hidden" id="edit-id">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-400 dark:text-gray-500 mb-1.5">Listing URL</label>
+                        <input type="url" id="link" placeholder="Paste link..." class="w-full p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 dark:text-white outline-none text-sm" required>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 dark:text-gray-500 mb-1.5">Area</label>
+                            <div class="flex gap-2">
+                                <select id="area" class="w-full p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm cursor-pointer dark:text-white"></select>
+                                <button type="button" onclick="promptNewArea()" class="bg-slate-100 dark:bg-gray-700 hover:bg-slate-200 dark:hover:bg-gray-600 text-slate-600 dark:text-gray-300 px-3 rounded-lg font-bold transition flex items-center justify-center border border-slate-200 dark:border-gray-600">+</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 dark:text-gray-500 mb-1.5">Type</label>
+                            <select id="type" class="w-full p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm cursor-pointer dark:text-white">
+                                <option value="Bachelor">Bachelor / Studio</option>
+                                <option value="1 Bedroom">1 Bedroom</option>
+                                <option value="2 Bedroom">2 Bedroom</option>
+                                <option value="Garden Cottage">Garden Cottage</option>
+                                <option value="House">House</option>
+                                <option value="Communal">Communal</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 dark:text-gray-500 mb-1.5">Rent (R)</label>
+                            <input type="number" id="rent" placeholder="0" class="w-full p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm font-medium dark:text-white" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-slate-400 dark:text-gray-500 mb-1.5">Deposit (R)</label>
+                            <input type="number" id="deposit" placeholder="0" class="w-full p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm font-medium dark:text-white">
+                        </div>
+                    </div>
+                    
+                    <!-- Notes Field (NEW) -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-400 dark:text-gray-500 mb-1.5">Notes / Amenities</label>
+                        <textarea id="notes" rows="2" placeholder="e.g. Near HPC Gym, Quiet street..." class="w-full p-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none text-sm dark:text-white"></textarea>
+                    </div>
+
+                    <div class="space-y-3 pt-2">
+                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-700">
+                            <div class="flex flex-col"><span class="text-sm font-semibold text-slate-700 dark:text-gray-200">Electricity Included?</span><span class="text-[10px] text-orange-500 font-medium">+R500 if No</span></div>
+                            <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="elecIncluded" class="sr-only peer"><div class="w-9 h-5 bg-gray-200 dark:bg-gray-600 peer-focus:ring-2 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div></label>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-700">
+                            <div class="flex flex-col"><span class="text-sm font-semibold text-slate-700 dark:text-gray-200">WiFi Included?</span><span class="text-[10px] text-blue-500 font-medium">+R625 if No</span></div>
+                            <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="wifiIncluded" class="sr-only peer"><div class="w-9 h-5 bg-gray-200 dark:bg-gray-600 peer-focus:ring-2 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-600"></div></label>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-700">
+                            <div class="flex flex-col"><span class="text-sm font-semibold text-slate-700 dark:text-gray-200">Admin Fee?</span><span class="text-[10px] text-slate-400 dark:text-gray-500">+R1500 (One-off)</span></div>
+                            <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="adminFee" class="sr-only peer"><div class="w-9 h-5 bg-gray-200 dark:bg-gray-600 peer-focus:ring-2 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-slate-600 dark:peer-checked:bg-slate-500"></div></label>
+                        </div>
+                        <div class="flex items-center gap-2 mt-2">
+                            <input type="checkbox" id="closeToUp" class="w-4 h-4 text-brand-600 rounded border-gray-300 focus:ring-brand-500 cursor-pointer dark:bg-gray-700 dark:border-gray-600">
+                            <label for="closeToUp" class="text-sm text-slate-600 dark:text-gray-300 cursor-pointer select-none">Close to UP? (Walking Distance)</label>
+                        </div>
+                    </div>
+                    <button type="submit" id="submit-btn" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-brand-500/30 transition transform active:scale-[0.98] flex justify-center items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg> Save Property
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="lg:col-span-8 space-y-6">
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col md:flex-row gap-4 justify-between items-center sticky top-24 z-30 lg:static transition-colors duration-300">
+                <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <div class="relative"><select id="filterArea" onchange="renderListings()" class="appearance-none pl-3 pr-8 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none w-full sm:w-40 cursor-pointer"></select><div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></div></div>
+                    <div class="relative"><select id="filterType" onchange="renderListings()" class="appearance-none pl-3 pr-8 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none w-full sm:w-40 cursor-pointer"><option value="all">All Types</option><option value="Bachelor">Bachelor</option><option value="1 Bedroom">1 Bedroom</option><option value="2 Bedroom">2 Bedroom</option><option value="Garden Cottage">Garden Cottage</option><option value="House">House</option><option value="Communal">Communal</option></select><div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></div></div>
+                    <div class="relative flex-1"><select id="sortOrder" onchange="renderListings()" class="appearance-none pl-3 pr-8 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none w-full cursor-pointer"><option value="dateNew">📅 Date Added (Newest)</option><option value="priceAsc">💰 Monthly Cost (Low → High)</option><option value="priceDesc">💰 Monthly Cost (High → Low)</option><option value="moveInAsc">📦 Move-in Cost (Low → High)</option></select><div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg></div></div>
+                </div>
+                <div class="text-xs font-medium text-slate-400 bg-slate-50 dark:bg-gray-700 px-3 py-1.5 rounded-full border border-slate-100 dark:border-gray-600">Showing <span id="countDisplay" class="font-bold text-slate-700 dark:text-white">0</span> properties</div>
+            </div>
+            <div id="listingsContainer" class="space-y-4"></div>
+            <div id="emptyState" class="hidden flex flex-col items-center justify-center py-20 text-center bg-white dark:bg-gray-800 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 transition-colors duration-300"><div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-full mb-4"><svg class="w-10 h-10 text-gray-300 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg></div><h3 class="text-lg font-bold text-gray-400 dark:text-gray-500">No properties found</h3><p class="text-sm text-gray-400 dark:text-gray-500 mt-1 max-w-xs">Use the form on the left to add your first potential home.</p></div>
+        </div>
+    </div>
+
+    <script>
+        const NET_INCOME = 17639.13;
+        const COST_ELEC = 500;
+        const COST_WIFI = 625;
+        const COST_ADMIN = 1500;
+        
+        // Added Colbyn to defaults
+        let defaultAreas = ["Hatfield", "Muckleneuk", "Brooklyn", "Arcadia", "Sunnyside", "Menlo Park", "Queenswood", "Colbyn"];
+        let savedAreas = JSON.parse(localStorage.getItem('custom_areas')) || [];
+        let allAreas = [...new Set([...defaultAreas, ...savedAreas])].sort();
+        let listings = JSON.parse(localStorage.getItem('pta_rentals_offline')) || [];
+        const container = document.getElementById('listingsContainer');
+        const emptyState = document.getElementById('emptyState');
+        const rentInput = document.getElementById('rent');
+        const depositInput = document.getElementById('deposit');
+        const htmlElement = document.documentElement;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                htmlElement.classList.add('dark');
+            }
+            updateThemeIcons();
+            populateAreaDropdowns();
+            renderListings();
+            rentInput.addEventListener('input', (e) => { depositInput.value = e.target.value; });
+        });
+
+        function toggleTheme() {
+            htmlElement.classList.toggle('dark');
+            localStorage.setItem('theme', htmlElement.classList.contains('dark') ? 'dark' : 'light');
+            updateThemeIcons();
+        }
+        function updateThemeIcons() {
+            const sunIcon = document.getElementById('sun-icon');
+            const moonIcon = document.getElementById('moon-icon');
+            if (htmlElement.classList.contains('dark')) { sunIcon.classList.remove('hidden'); moonIcon.classList.add('hidden'); }
+            else { sunIcon.classList.add('hidden'); moonIcon.classList.remove('hidden'); }
+        }
+
+        function addListing(e) {
+            e.preventDefault();
+            const editId = document.getElementById('edit-id').value;
+            const rawRent = Number(document.getElementById('rent').value);
+            const isElecIncl = document.getElementById('elecIncluded').checked;
+            const isWifiIncl = document.getElementById('wifiIncluded').checked;
+            const isAdminFee = document.getElementById('adminFee').checked;
+            const deposit = Number(document.getElementById('deposit').value || 0);
+            const notes = document.getElementById('notes').value;
+
+            let effectiveRent = rawRent + (isElecIncl ? 0 : COST_ELEC) + (isWifiIncl ? 0 : COST_WIFI);
+            let moveInCost = rawRent + deposit + (isAdminFee ? COST_ADMIN : 0);
+
+            const formData = {
+                id: editId ? Number(editId) : Date.now(),
+                link: document.getElementById('link').value,
+                area: document.getElementById('area').value,
+                type: document.getElementById('type').value,
+                rent: rawRent,
+                deposit: deposit,
+                elecIncluded: isElecIncl,
+                wifiIncluded: isWifiIncl,
+                adminFee: isAdminFee,
+                closeToUp: document.getElementById('closeToUp').checked,
+                notes: notes,
+                effectiveRent: effectiveRent,
+                moveInCost: moveInCost,
+                addedAt: editId ? undefined : new Date().toISOString()
+            };
+
+            if (editId) {
+                const index = listings.findIndex(l => l.id == editId);
+                if (index > -1) { formData.addedAt = listings[index].addedAt; listings[index] = formData; }
+                cancelEdit();
+            } else { listings.push(formData); e.target.reset(); }
+            saveData(); renderListings();
+        }
+
+        function startEdit(id) {
+            const item = listings.find(l => l.id == id);
+            if (!item) return;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.getElementById('edit-id').value = item.id;
+            document.getElementById('link').value = item.link;
+            document.getElementById('area').value = item.area;
+            document.getElementById('type').value = item.type;
+            document.getElementById('rent').value = item.rent;
+            document.getElementById('deposit').value = item.deposit;
+            document.getElementById('notes').value = item.notes || "";
+            document.getElementById('elecIncluded').checked = item.elecIncluded;
+            document.getElementById('wifiIncluded').checked = item.wifiIncluded !== undefined ? item.wifiIncluded : false;
+            document.getElementById('adminFee').checked = item.adminFee !== undefined ? item.adminFee : false;
+            document.getElementById('closeToUp').checked = item.closeToUp;
+            
+            document.getElementById('form-card').classList.add('edit-mode-active');
+            document.getElementById('form-title').innerText = "Edit Property Details";
+            document.getElementById('submit-btn').innerHTML = "Update Property";
+            document.getElementById('submit-btn').className = "w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl shadow-lg transition";
+            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+        }
+
+        function cancelEdit() {
+            document.getElementById('rentalForm').reset();
+            document.getElementById('edit-id').value = "";
+            document.getElementById('form-card').classList.remove('edit-mode-active');
+            document.getElementById('form-title').innerText = "Add New Property";
+            document.getElementById('submit-btn').innerHTML = "Save Property";
+            document.getElementById('submit-btn').className = "w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 rounded-xl shadow-lg transition";
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+        }
+
+        function deleteListing(id) { if(confirm("Are you sure?")) { listings = listings.filter(l => l.id != id); saveData(); renderListings(); } }
+        function saveData() { localStorage.setItem('pta_rentals_offline', JSON.stringify(listings)); }
+
+        function renderListings() {
+            container.innerHTML = '';
+            const filterArea = document.getElementById('filterArea').value;
+            const filterType = document.getElementById('filterType').value;
+            const sortMode = document.getElementById('sortOrder').value;
+
+            const getEffectiveRent = (item) => item.rent + (item.elecIncluded ? 0 : COST_ELEC) + ((item.wifiIncluded !== undefined ? item.wifiIncluded : false) ? 0 : COST_WIFI);
+            const getMoveInCost = (item) => item.rent + item.deposit + ((item.adminFee !== undefined ? item.adminFee : false) ? COST_ADMIN : 0);
+
+            let filtered = listings.filter(l => {
+                const areaMatch = filterArea === 'all' || l.area === filterArea;
+                const typeMatch = filterType === 'all' || l.type === filterType;
+                return areaMatch && typeMatch;
+            });
+
+            filtered.sort((a, b) => {
+                if (sortMode === 'priceAsc') return getEffectiveRent(a) - getEffectiveRent(b);
+                if (sortMode === 'priceDesc') return getEffectiveRent(b) - getEffectiveRent(a);
+                if (sortMode === 'moveInAsc') return getMoveInCost(a) - getMoveInCost(b);
+                if (sortMode === 'dateNew') return new Date(b.addedAt) - new Date(a.addedAt);
+                return 0;
+            });
+
+            document.getElementById('countDisplay').innerText = filtered.length;
+            if (filtered.length === 0) emptyState.classList.remove('hidden'); else emptyState.classList.add('hidden');
+
+            filtered.forEach(item => {
+                const wifiIncl = item.wifiIncluded !== undefined ? item.wifiIncluded : false;
+                const adminFee = item.adminFee !== undefined ? item.adminFee : false;
+                let effectiveRent = getEffectiveRent(item);
+                let moveInTotal = getMoveInCost(item);
+                let badgeClass = "", badgeText = "", badgeIcon = "";
+                if (effectiveRent <= 5292) { badgeClass = "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800"; badgeText = "Affordable"; badgeIcon = "✅"; }
+                else if (effectiveRent <= 6200) { badgeClass = "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800"; badgeText = "Stretch"; badgeIcon = "⚠️"; }
+                else { badgeClass = "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800"; badgeText = "High Risk"; badgeIcon = "🛑"; }
+
+                const el = document.createElement('div');
+                el.className = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-0 overflow-hidden transition-all hover:shadow-md dark:hover:border-gray-600 group';
+                el.innerHTML = `
+                    <div class="p-5 flex flex-col md:flex-row gap-5 justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-3 flex-wrap">
+                                <span class="${badgeClass} border text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide flex items-center gap-1">${badgeIcon} ${badgeText}</span>
+                                <span class="bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300 border border-slate-200 dark:border-gray-600 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">${item.area}</span>
+                                <span class="bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300 border border-slate-200 dark:border-gray-600 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">${item.type}</span>
+                                ${item.closeToUp ? '<span class="bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border border-brand-100 dark:border-brand-800 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide flex items-center gap-1">🎓 Near UP</span>' : ''}
+                            </div>
+                            <div class="flex items-baseline gap-2"><span class="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">R ${effectiveRent.toLocaleString()}</span><span class="text-xs text-slate-400 dark:text-gray-500 font-medium uppercase tracking-wide">/mo (Effective)</span></div>
+                            <div class="mt-3 text-xs text-slate-500 dark:text-gray-400 bg-slate-50 dark:bg-gray-700/50 p-3 rounded-lg border border-slate-100 dark:border-gray-700 grid grid-cols-2 gap-y-1 gap-x-4 max-w-md">
+                                <span class="text-slate-400 dark:text-gray-500">Base Rent:</span><span class="font-bold text-slate-700 dark:text-gray-200 text-right">R ${item.rent.toLocaleString()}</span>
+                                <span class="text-slate-400 dark:text-gray-500">Electricity:</span><span class="text-right">${item.elecIncluded ? '<span class="text-green-600 dark:text-green-400 font-bold">Included</span>' : '<span class="text-orange-500 font-medium">+ R500 (Est)</span>'}</span>
+                                <span class="text-slate-400 dark:text-gray-500">WiFi:</span><span class="text-right">${wifiIncl ? '<span class="text-green-600 dark:text-green-400 font-bold">Included</span>' : '<span class="text-brand-500 dark:text-brand-400 font-medium">+ R625 (Rain)</span>'}</span>
+                            </div>
+                            ${item.notes ? `<div class="mt-3 text-xs text-slate-500 dark:text-gray-400 italic bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded border border-yellow-100 dark:border-yellow-800/30">📝 ${item.notes}</div>` : ''}
+                            <div class="mt-4 flex gap-3">
+                                <a href="${item.link}" target="_blank" class="bg-slate-800 hover:bg-slate-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white text-xs font-bold py-2 px-4 rounded-lg transition inline-flex items-center gap-1.5 shadow-sm">View Listing <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a>
+                                <button onclick="startEdit('${item.id}')" class="bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800 text-xs font-bold py-2 px-4 rounded-lg transition inline-flex items-center gap-1.5">Edit Details</button>
+                            </div>
+                        </div>
+                        <div class="flex flex-row md:flex-col justify-between items-end border-t md:border-t-0 pt-4 md:pt-0 mt-2 md:mt-0 md:pl-6 md:border-l border-slate-100 dark:border-gray-700 min-w-[140px]">
+                             <div class="text-right"><div class="text-[10px] text-slate-400 dark:text-gray-500 uppercase font-bold tracking-wider mb-1">Total Move-in Cost</div><div class="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">R ${moveInTotal.toLocaleString()}</div><div class="text-[10px] text-slate-400 dark:text-gray-500 mt-1 flex flex-col items-end gap-0.5"><span>Rent: R${item.rent.toLocaleString()}</span><span>Dep: R${item.deposit.toLocaleString()}</span>${adminFee ? '<span class="text-red-400 font-medium">+ Admin: R1500</span>' : '<span class="text-green-500 dark:text-green-400">No Admin Fee</span>'}</div></div>
+                            <button onclick="deleteListing('${item.id}')" class="text-slate-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition mt-4" title="Delete Property"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                        </div>
+                    </div>`;
+                container.appendChild(el);
+            });
+        }
+
+        function populateAreaDropdowns() {
+            const areaSelect = document.getElementById('area');
+            const filterSelect = document.getElementById('filterArea');
+            const makeOpts = (isFilter) => {
+                let html = isFilter ? '<option value="all">All Areas</option>' : '';
+                allAreas.forEach(area => html += `<option value="${area}">${area}</option>`);
+                return html;
+            }
+            areaSelect.innerHTML = makeOpts(false);
+            filterSelect.innerHTML = makeOpts(true);
+        }
+        function promptNewArea() {
+            const newArea = prompt("New Area Name:");
+            if (newArea) { savedAreas.push(newArea); localStorage.setItem('custom_areas', JSON.stringify(savedAreas)); allAreas.push(newArea); populateAreaDropdowns(); }
+        }
+        function exportCSV() {
+            if (listings.length === 0) return alert("No data!");
+            let csv = "Date,Area,Type,Base Rent,Effective Rent,Move In Cost,Elec Incl,Wifi Incl,Admin Fee,Notes,Link\n";
+            listings.forEach(l => {
+                const wifi = l.wifiIncluded ? "Yes" : "No"; const elec = l.elecIncluded ? "Yes" : "No"; const admin = l.adminFee ? "Yes" : "No";
+                let eff = l.rent + (l.elecIncluded ? 0 : COST_ELEC) + (l.wifiIncluded ? 0 : COST_WIFI);
+                let move = l.rent + l.deposit + (l.adminFee ? COST_ADMIN : 0);
+                csv += `${new Date(l.addedAt).toLocaleDateString()},${l.area},${l.type},${l.rent},${eff},${move},${elec},${wifi},${admin},"${l.notes || ''}",${l.link}\n`;
+            });
+            const link = document.createElement("a"); link.href = "data:text/csv;charset=utf-8," + encodeURI(csv); link.download = "rental_tracker.csv"; link.click();
+        }
+        function downloadBackup() { const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(listings)); const a = document.createElement('a'); a.href = data; a.download = "rental_backup.json"; a.click(); }
+        function importBackup(input) {
+            const file = input.files[0]; const reader = new FileReader();
+            reader.onload = (e) => { const data = JSON.parse(e.target.result); if(Array.isArray(data)) { if(confirm(`Restore ${data.length} items? This replaces current list.`)) { listings = data; saveData(); renderListings(); } } };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>

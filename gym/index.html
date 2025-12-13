@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HPC Gym Hours</title>
+    
+    <!-- PWA Links -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    
+    <!-- Placeholder Icons (You can replace these URLs later) -->
+    <link rel="icon" type="image/png" href="https://img.icons8.com/color/192/dumbbells.png">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/color/192/dumbbells.png">
+
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-main: #f1f5f9;
+            --text-sub: #94a3b8;
+            --accent: #38bdf8;
+            --border: rgba(255, 255, 255, 0.1);
+            --input-bg: rgba(15, 23, 42, 0.6);
+            --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            --status-open: #34d399;   
+            --status-soon: #fbbf24;   
+            --status-closed: #f87171; 
+        }
+
+        body.light-mode {
+            --bg-gradient: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --accent: #0284c7;
+            --border: rgba(255, 255, 255, 0.5);
+            --input-bg: rgba(255, 255, 255, 0.9);
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+            --status-open: #059669;
+            --status-soon: #d97706;
+            --status-closed: #dc2626;
+        }
+
+        * { box-sizing: border-box; transition: all 0.3s ease; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overscroll-behavior-y: none;
+        }
+        .container {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 30px 25px;
+            width: 100%;
+            max-width: 380px;
+            box-shadow: var(--shadow);
+            position: relative;
+        }
+        .theme-switch-wrapper { position: absolute; top: 20px; right: 20px; }
+        .theme-switch { display: inline-block; height: 24px; width: 44px; position: relative; }
+        .theme-switch input { display: none; }
+        .slider { background-color: #475569; bottom: 0; cursor: pointer; left: 0; position: absolute; right: 0; top: 0; border-radius: 24px; transition: .4s; }
+        .slider:before { background-color: #fff; bottom: 3px; content: ""; height: 18px; left: 3px; position: absolute; transition: .4s; width: 18px; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        h1 { color: var(--text-main); font-size: 24px; margin: 0 0 5px 0; font-weight: 700; }
+        p.subtitle { color: var(--text-sub); margin: 0 0 25px 0; font-size: 14px; }
+        .time-card { background: var(--input-bg); border-radius: 18px; padding: 30px 20px; text-align: center; border: 1px solid var(--border); margin-bottom: 25px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
+        .status-badge { display: inline-block; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 800; margin-bottom: 15px; letter-spacing: 1px; text-transform: uppercase; }
+        .badge-standard { background: rgba(56, 189, 248, 0.15); color: var(--accent); }
+        .badge-adjusted { background: rgba(245, 158, 11, 0.15); color: var(--status-soon); }
+        .countdown-text { font-size: 36px; font-weight: 800; line-height: 1.1; margin-bottom: 8px; color: var(--text-main); }
+        .text-open { color: var(--status-open); }
+        .text-soon { color: var(--status-soon); }
+        .text-closed { color: var(--status-closed); }
+        .full-range { font-size: 16px; color: var(--text-sub); font-weight: 500; margin-top: 5px; }
+        .input-group { text-align: left; }
+        label { display: block; color: var(--text-sub); font-size: 11px; margin-bottom: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+        input[type="date"] { width: 100%; padding: 14px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 12px; color: var(--text-main); font-family: inherit; outline: none; font-size: 16px; -webkit-appearance: none; }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.5; cursor: pointer; }
+        body.light-mode input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0); }
+        .date-display-header { color: var(--text-sub); font-size: 14px; margin-bottom: 10px; font-weight: 500; }
+        
+        /* Install Button (Hidden by default) */
+        #installBtn { display: none; width: 100%; background: var(--accent); color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; margin-top: 15px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="theme-switch-wrapper">
+            <label class="theme-switch">
+                <input type="checkbox" id="themeToggle">
+                <div class="slider"></div>
+            </label>
+        </div>
+
+        <h1>HPC Gym Hours</h1>
+        <p class="subtitle">Time Checker</p>
+
+        <div class="time-card">
+            <div class="date-display-header" id="dateHeader">Today</div>
+            <div id="statusBadge" class="status-badge badge-standard">Standard Hours</div>
+            <div class="countdown-text" id="mainDisplay">--</div>
+            <div class="full-range" id="rangeDisplay">--:--</div>
+        </div>
+
+        <div class="input-group">
+            <label for="datePicker">Check another date</label>
+            <input type="date" id="datePicker">
+        </div>
+
+        <button id="installBtn">Install App</button>
+    </div>
+
+    <script>
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('Service Worker Registered'));
+        }
+
+        // Install Button Logic
+        let deferredPrompt;
+        const installBtn = document.getElementById('installBtn');
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'block';
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    installBtn.style.display = 'none';
+                }
+                deferredPrompt = null;
+            }
+        });
+
+        // App Logic
+        const datePicker = document.getElementById('datePicker');
+        const mainDisplay = document.getElementById('mainDisplay');
+        const rangeDisplay = document.getElementById('rangeDisplay');
+        const statusBadge = document.getElementById('statusBadge');
+        const dateHeader = document.getElementById('dateHeader');
+        const toggleSwitch = document.getElementById('themeToggle');
+        const body = document.body;
+
+        toggleSwitch.addEventListener('change', (e) => {
+            if (e.target.checked) body.classList.add('light-mode');
+            else body.classList.remove('light-mode');
+        });
+
+        const today = new Date();
+        datePicker.valueAsDate = today;
+        updateHours();
+        setInterval(updateHours, 60000);
+        datePicker.addEventListener('change', updateHours);
+
+        function updateHours() {
+            const selectedDate = datePicker.valueAsDate || new Date();
+            const now = new Date();
+            const day = selectedDate.getDay(); 
+            const d = selectedDate.getDate();
+            const m = selectedDate.getMonth();
+            const y = selectedDate.getFullYear();
+
+            const isToday = (selectedDate.getDate() === now.getDate() && selectedDate.getMonth() === now.getMonth());
+
+            const options = { weekday: 'long', month: 'long', day: 'numeric' };
+            dateHeader.innerText = selectedDate.toLocaleDateString('en-ZA', options);
+
+            let openH = 0, openM = 0, closeH = 0, closeM = 0;
+            let type = "Standard";
+
+            if (y === 2025 && m === 11) { 
+                if (d === 19) {
+                    openH = 7; openM = 0; closeH = 12; closeM = 0; type = "Adjusted";
+                } else if (d >= 8 && d <= 18) {
+                    if (day >= 1 && day <= 5) { openH = 7; openM = 0; closeH = 19; closeM = 0; type = "Adjusted"; }
+                    else if (day === 6) { openH = 7; openM = 0; closeH = 13; closeM = 0; }
+                    else if (day === 0) { openH = 7; openM = 0; closeH = 12; closeM = 0; }
+                } else {
+                    if (day === 0) { openH = 7; openM = 0; closeH = 12; closeM = 0; }
+                    else if (day === 6) { openH = 7; openM = 0; closeH = 13; closeM = 0; }
+                    else { openH = 5; openM = 30; closeH = 19; closeM = 0; }
+                }
+            } else {
+                if (day === 0) { openH = 7; openM = 0; closeH = 12; closeM = 0; }
+                else if (day === 6) { openH = 7; openM = 0; closeH = 13; closeM = 0; }
+                else { openH = 5; openM = 30; closeH = 19; closeM = 0; }
+            }
+
+            const formatTime = (h, m) => `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            const rangeString = `${formatTime(openH, openM)} – ${formatTime(closeH, closeM)}`;
+
+            statusBadge.innerText = (type === "Adjusted") ? "Adjusted Hours" : "Standard Hours";
+            statusBadge.className = "status-badge " + ((type === "Adjusted") ? "badge-adjusted" : "badge-standard");
+
+            if (!isToday) {
+                mainDisplay.innerHTML = rangeString;
+                mainDisplay.className = "countdown-text";
+                rangeDisplay.innerText = "Operating Hours";
+            } else {
+                const openDate = new Date(now); openDate.setHours(openH, openM, 0, 0);
+                const closeDate = new Date(now); closeDate.setHours(closeH, closeM, 0, 0);
+
+                if (now < openDate) {
+                    const diff = openDate - now;
+                    const diffH = Math.floor(diff / (1000 * 60 * 60));
+                    const diffM = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    mainDisplay.innerText = `Opening in ${diffH}h ${diffM}m`;
+                    mainDisplay.className = "countdown-text text-soon";
+                    rangeDisplay.innerText = rangeString;
+                } else if (now >= openDate && now < closeDate) {
+                    const diff = closeDate - now;
+                    const diffH = Math.floor(diff / (1000 * 60 * 60));
+                    const diffM = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    mainDisplay.innerText = `Open for ${diffH}h ${diffM}m`;
+                    mainDisplay.className = "countdown-text text-open";
+                    rangeDisplay.innerText = rangeString;
+                } else {
+                    mainDisplay.innerText = "Closed";
+                    mainDisplay.className = "countdown-text text-closed";
+                    rangeDisplay.innerText = rangeString;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
