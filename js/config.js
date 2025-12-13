@@ -1,0 +1,86 @@
+// --- CONFIGURATION & CONSTANTS ---
+
+// 1. Legal Text Definitions
+const LEGAL_TEXTS = {
+    terms: `
+        <h4 class="font-bold text-lg mb-2">1. Independent Service</h4>
+        <p><strong>Metrorail Next Train</strong> is an independent project by Kazembe CodeWorks. We are <strong>not affiliated</strong> with PRASA or Metrorail.</p>
+        <h4 class="font-bold text-lg mb-2 mt-4">2. Accuracy</h4>
+        <p>Schedules are estimated. We are not liable for missed trains or schedule changes.</p>
+        <h4 class="font-bold text-lg mb-2 mt-4">3. Usage</h4>
+        <p>By using this app, you agree not to misuse the service or scrape data maliciously.</p>
+    `,
+    privacy: `
+        <h4 class="font-bold text-lg mb-2">1. Data Collection</h4>
+        <p>We use Google Analytics to understand app usage anonymously.</p>
+        <h4 class="font-bold text-lg mb-2 mt-4">2. Location Services</h4>
+        <p>We may request your Location permission to identify your nearest station. This data is processed on your device and is not stored on our servers for tracking.</p>
+        <h4 class="font-bold text-lg mb-2 mt-4">3. Third Parties</h4>
+        <p>We use Firebase and Google Sheets to store schedule data.</p>
+    `
+};
+
+// 2. API Endpoints
+const DATABASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/schedules.json";
+const MAX_RADIUS_KM = 6; 
+
+// 3. Route Definitions
+const ROUTES = {
+    'pta-pien': { 
+        id: 'pta-pien', 
+        name: "Pretoria <-> Pienaarspoort", 
+        colorClass: "text-green-500", 
+        isActive: true, 
+        destA: 'PRETORIA STATION', 
+        destB: 'PIENAARSPOORT STATION', 
+        transferStation: 'KOEDOESPOORT STATION', 
+        sheetKeys: { weekday_to_a: 'pien_to_pta_weekday', weekday_to_b: 'pta_to_pien_weekday', saturday_to_a: 'pien_to_pta_sat', saturday_to_b: 'pta_to_pien_sat' } 
+    },
+    'pta-mabopane': { 
+        id: 'pta-mabopane', 
+        name: "Pretoria <-> Mabopane", 
+        colorClass: "text-orange-500", 
+        isActive: true, 
+        destA: 'PRETORIA STATION', 
+        destB: 'MABOPANE STATION', 
+        transferStation: null, 
+        sheetKeys: { weekday_to_a: 'mab_to_pta_weekday', weekday_to_b: 'pta_to_mab_weekday', saturday_to_a: 'mab_to_pta_sat', saturday_to_b: 'pta_to_mab_sat' } 
+    },
+    'pta-saul': { 
+        id: 'pta-saul', 
+        name: "Pretoria <-> Saulsville", 
+        colorClass: "text-green-500", 
+        isActive: false, 
+        destA: 'PRETORIA STATION', 
+        destB: 'SAULSVILLE STATION', 
+        transferStation: null, 
+        sheetKeys: {} 
+    },
+    
+    // --- NEW GERMISTON - LERALLA ROUTE ---
+    'germ-leralla': { 
+        id: 'germ-leralla', 
+        name: "Germiston <-> Leralla", 
+        colorClass: "text-blue-500", 
+        isActive: true, 
+        destA: 'GERMISTON STATION', 
+        destB: 'LERALLA STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'lerl_to_germ_weekday', 
+            weekday_to_b: 'germ_to_lerl_weekday', 
+            saturday_to_a: 'lerl_to_germ_sat', 
+            saturday_to_b: 'germ_to_lerl_sat' 
+        } 
+    },
+
+    'pta-irene': { id: 'pta-irene', name: "Pretoria <-> Irene", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'IRENE STATION', transferStation: null, sheetKeys: {} },
+    'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
+    'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
+    'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", colorClass: "text-purple-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
+    'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", colorClass: "text-red-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} },
+    'jhb-soweto': { id: 'jhb-soweto', name: "JHB <-> Naledi", colorClass: "text-yellow-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'NALEDI STATION', transferStation: null, sheetKeys: {} }
+};
+
+// 4. Refresh Settings
+const REFRESH_CONFIG = { standardInterval: 5 * 60 * 1000, activeInterval: 60 * 1000, nightModeStart: 21, nightModeEnd: 4 };

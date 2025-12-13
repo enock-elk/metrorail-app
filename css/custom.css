@@ -1,0 +1,132 @@
+/* Metrorail Next Train - Custom Styles 
+  Extracted from index.html
+*/
+
+body { 
+    font-family: 'Inter', sans-serif; 
+    touch-action: manipulation; 
+}
+
+body.sidenav-open { 
+    overflow: hidden; 
+}
+
+#station-select {
+    padding-right: 2.5rem; 
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+}
+
+.dark #station-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+}
+
+/* Animations */
+@keyframes pop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.spinning { animation: spin 1s linear infinite; }
+.pop-loader { animation: pop 1.5s infinite; }
+
+/* Sidenav */
+#sidenav-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); z-index: 999;
+    opacity: 0; visibility: hidden; transition: opacity 0.3s ease-in-out;
+}
+#sidenav-overlay.open { opacity: 1; visibility: visible; }
+
+#sidenav {
+    position: fixed; top: 0; left: -280px; width: 280px; height: 100%;
+    background-color: #1f2937; z-index: 1000;
+    transition: left 0.3s ease-in-out; box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    padding: 20px; display: flex; flex-direction: column;
+}
+#sidenav.open { left: 0; }
+html:not(.dark) #sidenav { background-color: #ffffff; }
+
+#sidenav h2 {
+    font-size: 1.25rem; font-weight: 700; padding-bottom: 10px;
+    border-bottom: 1px solid #4b5563;
+}
+html:not(.dark) #sidenav h2 { border-bottom-color: #e5e7eb; }
+
+#sidenav ul { list-style: none; padding: 0; margin-top: 20px; flex-grow: 1; overflow-y: auto; }
+
+#sidenav .route-category {
+    font-size: 0.75rem; font-weight: 700; color: #9ca3af;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 16px 16px 8px 16px; border-top: 1px solid #374151; margin-top: 8px;
+}
+#sidenav .route-category:first-child { border-top: none; margin-top: 0; }
+html:not(.dark) #sidenav .route-category { color: #6b7280; border-top-color: #e5e7eb; }
+
+#sidenav .route-item {
+    display: flex; align-items: center; border-radius: 0.5rem;
+    margin-left: 0.5rem; transition: background-color 0.2s; padding: 2px 0;
+}
+
+#sidenav li a {
+    flex-grow: 1; padding: 10px 4px 10px 12px;
+    font-size: 0.9rem; font-weight: 500; cursor: pointer; display: flex; align-items: center;
+}
+
+#sidenav .route-item:hover { background-color: #374151; }
+html:not(.dark) #sidenav .route-item:hover { background-color: #f3f4f6; }
+
+#sidenav .route-item a.active { background-color: #3b82f6; color: #ffffff; border-radius: 0.5rem; }
+
+/* Inactive Route Styling */
+#sidenav .route-item a.disabled { 
+    color: #6b7280; 
+    cursor: pointer; 
+    opacity: 0.5; /* Dimmed */
+    filter: grayscale(1); /* Remove color from dots */
+    transition: all 0.2s ease;
+}
+html:not(.dark) #sidenav .route-item a.disabled { 
+    color: #9ca3af; 
+}
+
+#sidenav .route-item a.disabled:hover { 
+    opacity: 1; 
+    filter: grayscale(0); 
+    background-color: rgba(55, 65, 81, 0.5); 
+}
+html:not(.dark) #sidenav .route-item a.disabled:hover {
+    background-color: #f3f4f6;
+    color: #4b5563;
+}
+
+#sidenav .close-btn {
+    position: absolute; top: 10px; right: 10px;
+    font-size: 2rem; font-weight: bold; line-height: 1; cursor: pointer;
+}
+
+/* Route Dots */
+.route-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 10px; }
+.dot-green { background-color: #22c55e; }
+.dot-orange { background-color: #f97316; }
+.dot-purple { background-color: #a855f7; }
+.dot-red { background-color: #ef4444; }
+.dot-yellow { background-color: #eab308; }
+.dot-blue { background-color: #3b82f6; }
+
+/* Toast Notifications */
+#toast {
+    position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+    padding: 12px 24px; border-radius: 0.5rem; font-weight: 500;
+    z-index: 2000; transition: bottom 0.5s ease-in-out;
+    max-width: 90%; text-align: center;
+}
+#toast.show { bottom: 20px; }
+.toast-info { background-color: #2563eb; color: white; }
+.toast-success { background-color: #16a34a; color: white; }
+.toast-error { background-color: #dc2626; color: white; }
+
+#offline-indicator {
+    display: none; background-color: #f59e0b; color: white; text-align: center;
+    padding: 4px; font-size: 0.75rem; font-weight: bold; width: 100%;
+    position: absolute; top: 0; left: 0; z-index: 40;
+}

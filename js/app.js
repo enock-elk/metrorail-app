@@ -1,93 +1,38 @@
-/**
- * Metrorail Next Train - Application Logic
- * V3.17.6 Modularized
- */
-
-// --- GLOBAL VARIABLES ---
-const DATABASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/schedules.json";
+// --- GLOBAL STATE VARIABLES ---
 let stationLocations = {};
-const MAX_RADIUS_KM = 6;
-let currentRouteId = 'pta-pien';
-let fullDatabase = null;
+let currentRouteId = 'pta-pien'; 
+let fullDatabase = null; 
 let schedules = {};
 let allStations = [];
 let currentTime = null;
-let currentDayType = 'weekday';
-let currentDayIndex = 0;
-let deferredPrompt;
+let currentDayType = 'weekday'; 
+let currentDayIndex = 0; 
+let deferredPrompt; 
 let currentScheduleData = {};
-const REFRESH_CONFIG = { standardInterval: 5 * 60 * 1000, activeInterval: 60 * 1000, nightModeStart: 21, nightModeEnd: 4 };
 let refreshTimer = null;
-let toastTimeout;
+
+// --- ELEMENT REFERENCES (Loaded on DOMContentLoaded) ---
+let stationSelect, pretoriaTimeEl, pienaarspoortTimeEl, pretoriaHeader, pienaarspoortHeader;
+let currentTimeEl, currentDayEl, loadingOverlay, mainContent, offlineIndicator;
+let scheduleModal, modalTitle, modalList, closeModalBtn, closeModalBtn2;
+let redirectModal, redirectMessage, redirectConfirmBtn, redirectCancelBtn;
+let themeToggleBtn, darkIcon, lightIcon, shareBtn, installBtn, forceReloadBtn;
+let pinRouteBtn, pinOutline, pinFilled, openNavBtn, closeNavBtn;
+let sidenav, sidenavOverlay, routeList, routeSubtitle, routeSubtitleText, pinnedSection;
+let toast, checkUpdatesBtn, feedbackBtn, lastUpdatedEl;
+let simPanel, simEnabledCheckbox, simTimeInput, simDaySelect, simApplyBtn;
+let appTitle, pinModal, pinInput, pinCancelBtn, pinSubmitBtn;
+let legalModal, legalTitle, legalContent, closeLegalBtn, closeLegalBtn2;
+
+// --- SIMULATION STATE ---
 let clickCount = 0;
 let clickTimer = null;
 let isSimMode = false;
 let simTimeStr = "";
 let simDayIndex = 1;
+let toastTimeout;
 
-// --- ROUTE CONFIGURATION ---
-const ROUTES = {
-    'pta-pien': { id: 'pta-pien', name: "Pretoria <-> Pienaarspoort", colorClass: "text-green-500", isActive: true, destA: 'PRETORIA STATION', destB: 'PIENAARSPOORT STATION', transferStation: 'KOEDOESPOORT STATION', sheetKeys: { weekday_to_a: 'pien_to_pta_weekday', weekday_to_b: 'pta_to_pien_weekday', saturday_to_a: 'pien_to_pta_sat', saturday_to_b: 'pta_to_pien_sat' } },
-    'pta-mabopane': { id: 'pta-mabopane', name: "Pretoria <-> Mabopane", colorClass: "text-orange-500", isActive: true, destA: 'PRETORIA STATION', destB: 'MABOPANE STATION', transferStation: null, sheetKeys: { weekday_to_a: 'mab_to_pta_weekday', weekday_to_b: 'pta_to_mab_weekday', saturday_to_a: 'mab_to_pta_sat', saturday_to_b: 'pta_to_mab_sat' } },
-    'pta-saul': { id: 'pta-saul', name: "Pretoria <-> Saulsville", colorClass: "text-green-500", isActive: false, destA: 'PRETORIA STATION', destB: 'SAULSVILLE STATION', transferStation: null, sheetKeys: {} },
-    'germ-leralla': { 
-        id: 'germ-leralla', 
-        name: "Germiston <-> Leralla", 
-        colorClass: "text-blue-500", 
-        isActive: true, 
-        destA: 'GERMISTON STATION', 
-        destB: 'LERALLA STATION', 
-        transferStation: null, 
-        sheetKeys: { 
-            weekday_to_a: 'lerl_to_germ_weekday',
-            weekday_to_b: 'germ_to_lerl_weekday',
-            saturday_to_a: 'lerl_to_germ_sat', 
-            saturday_to_b: 'germ_to_lerl_sat' 
-        } 
-    },
-    'pta-irene': { id: 'pta-irene', name: "Pretoria <-> Irene", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'IRENE STATION', transferStation: null, sheetKeys: {} },
-    'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
-    'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
-    'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", colorClass: "text-purple-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
-    'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", colorClass: "text-red-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} },
-    'jhb-soweto': { id: 'jhb-soweto', name: "JHB <-> Naledi", colorClass: "text-yellow-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'NALEDI STATION', transferStation: null, sheetKeys: {} }
-};
-
-const LEGAL_TEXTS = {
-    terms: `
-        <h4 class="font-bold text-lg mb-2">1. Independent Service</h4>
-        <p><strong>Metrorail Next Train</strong> is an independent project by Kazembe CodeWorks. We are <strong>not affiliated</strong> with PRASA or Metrorail.</p>
-        <h4 class="font-bold text-lg mb-2 mt-4">2. Accuracy</h4>
-        <p>Schedules are estimated. We are not liable for missed trains or schedule changes.</p>
-        <h4 class="font-bold text-lg mb-2 mt-4">3. Usage</h4>
-        <p>By using this app, you agree not to misuse the service or scrape data maliciously.</p>
-    `,
-    privacy: `
-        <h4 class="font-bold text-lg mb-2">1. Data Collection</h4>
-        <p>We use Google Analytics to understand app usage anonymously.</p>
-        <h4 class="font-bold text-lg mb-2 mt-4">2. Location Services</h4>
-        <p>We may request your Location permission to identify your nearest station. This data is processed on your device and is not stored on our servers for tracking.</p>
-        <h4 class="font-bold text-lg mb-2 mt-4">3. Third Parties</h4>
-        <p>We use Firebase and Google Sheets to store schedule data.</p>
-    `
-};
-
-// --- DOM ELEMENT REFERENCES ---
-// (Initialized in DOMContentLoaded)
-let stationSelect, pretoriaTimeEl, pienaarspoortTimeEl, pretoriaHeader, pienaarspoortHeader;
-let currentTimeEl, currentDayEl, loadingOverlay, mainContent, offlineIndicator;
-let scheduleModal, modalTitle, modalList, closeModalBtn, closeModalBtn2;
-let redirectModal, redirectMessage, redirectConfirmBtn, redirectCancelBtn;
-let themeToggleBtn, darkIcon, lightIcon, shareBtn, installBtn;
-let forceReloadBtn, pinRouteBtn, pinOutline, pinFilled;
-let openNavBtn, closeNavBtn, sidenav, sidenavOverlay, routeList;
-let routeSubtitle, routeSubtitleText, pinnedSection, toast;
-let checkUpdatesBtn, feedbackBtn, lastUpdatedEl;
-let simPanel, simEnabledCheckbox, simTimeInput, simDaySelect, simApplyBtn;
-let appTitle, pinModal, pinInput, pinCancelBtn, pinSubmitBtn;
-let legalModal, legalTitle, legalContent, closeLegalBtn, closeLegalBtn2;
-
-// --- UTILITY FUNCTIONS ---
+// --- SECURITY HELPER ---
 function escapeHTML(str) {
     if (!str) return '';
     return String(str).replace(/[&<>"']/g, function(m) {
@@ -95,39 +40,19 @@ function escapeHTML(str) {
     });
 }
 
-function pad(num) { return num.toString().padStart(2, '0'); }
+// --- GLOBAL ERROR HANDLER ---
+window.onerror = function(msg, url, line) {
+    console.error("Global Error Caught:", msg);
+    if(loadingOverlay) loadingOverlay.style.display = 'none';
+    if(mainContent) mainContent.style.display = 'block';
+    if(toast) {
+        showToast("App crashed. Resetting...", "error");
+        setTimeout(() => { localStorage.removeItem('full_db'); location.reload(); }, 2000);
+    }
+    return false;
+};
 
-function deg2rad(deg) { return deg * (Math.PI/180); }
-
-function showToast(message, type = 'info', duration = 3000) { 
-    if (toastTimeout) clearTimeout(toastTimeout); 
-    if(!toast) return;
-    toast.textContent = message; 
-    toast.className = `toast-info`; 
-    if (type === 'success') toast.classList.add('toast-success'); 
-    else if (type === 'error') toast.classList.add('toast-error'); 
-    toast.classList.add('show'); 
-    toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration); 
-}
-
-function copyToClipboard(text) { 
-    const textArea = document.createElement('textarea'); 
-    textArea.value = text; 
-    textArea.style.position = "fixed"; 
-    document.body.appendChild(textArea); 
-    textArea.focus(); 
-    textArea.select(); 
-    try { 
-        const successful = document.execCommand('copy'); 
-        if (successful) showToast("Link copied to clipboard!", "success", 2000); 
-    } catch (err) {} 
-    document.body.removeChild(textArea); 
-}
-
-function saveToLocalCache(key, data) { try { const cacheEntry = { timestamp: Date.now(), data: data }; localStorage.setItem(key, JSON.stringify(cacheEntry)); } catch (e) {} }
-function loadFromLocalCache(key) { try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } catch (e) { return null; } }
-
-// --- CORE APP LOGIC ---
+// --- DATA & TIME LOGIC ---
 
 function normalizeStationName(name) {
     if (!name) return "";
@@ -159,16 +84,13 @@ async function loadAllSchedules(force = false) {
         const currentRoute = ROUTES[currentRouteId];
         if (!currentRoute) return;
         
-        // Dynamic Color Assignment for Route Title
-        if(routeSubtitleText) {
-            routeSubtitleText.textContent = currentRoute.name;
-            routeSubtitleText.className = `text-lg font-medium ${currentRoute.colorClass} group-hover:opacity-80 transition-colors`;
-        }
+        routeSubtitleText.textContent = currentRoute.name;
+        routeSubtitleText.className = `text-lg font-medium ${currentRoute.colorClass} group-hover:opacity-80 transition-colors`;
         
-        if(pretoriaHeader) pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
-        if(pienaarspoortHeader) pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
+        pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
+        pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
         renderPlaceholder();
-        if(offlineIndicator) offlineIndicator.style.display = 'none';
+        offlineIndicator.style.display = 'none';
         updatePinUI(); 
 
         if (!currentRoute.isActive) {
@@ -185,18 +107,16 @@ async function loadAllSchedules(force = false) {
             console.log("Restoring from cache...");
             fullDatabase = cachedDB.data;
             processRouteDataFromDB(currentRoute);
-            if (fullDatabase.lastUpdated && lastUpdatedEl) lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
+            if (fullDatabase.lastUpdated) lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
             initializeApp();
             usedCache = true;
         }
 
-        if (!usedCache && loadingOverlay) loadingOverlay.style.display = 'flex';
+        if (!usedCache) loadingOverlay.style.display = 'flex';
         
-        if(forceReloadBtn) {
-            const reloadIcon = forceReloadBtn.querySelector('svg');
-            if(reloadIcon) reloadIcon.classList.add('spinning');
-            forceReloadBtn.disabled = true;
-        }
+        const reloadIcon = forceReloadBtn.querySelector('svg');
+        if(reloadIcon) reloadIcon.classList.add('spinning');
+        forceReloadBtn.disabled = true;
 
         const response = await fetch(DATABASE_URL);
         if (!response.ok) throw new Error("Firebase fetch failed");
@@ -211,7 +131,7 @@ async function loadAllSchedules(force = false) {
             fullDatabase = newDatabase;
             saveToLocalCache('full_db', fullDatabase);
             processRouteDataFromDB(currentRoute);
-            if (fullDatabase.lastUpdated && lastUpdatedEl) lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
+            if (fullDatabase.lastUpdated) lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
             if (usedCache) { showToast("Schedule updated!", "success", 3000); findNextTrains(); } 
             else { initializeApp(); }
         } else {
@@ -220,18 +140,16 @@ async function loadAllSchedules(force = false) {
     } catch (error) {
         console.error("Fetch Error:", error);
         if (loadFromLocalCache('full_db')) {
-            if(offlineIndicator) offlineIndicator.style.display = 'block';
+            offlineIndicator.style.display = 'block';
         } else {
             renderRouteError(error);
         }
     } finally {
-        if(forceReloadBtn) {
-            forceReloadBtn.disabled = false;
-            const reloadIcon = forceReloadBtn.querySelector('svg');
-            if(reloadIcon) reloadIcon.classList.remove('spinning');
-        }
-        if(loadingOverlay) loadingOverlay.style.display = 'none';
-        if(mainContent) mainContent.style.display = 'block';
+        forceReloadBtn.disabled = false;
+        const reloadIcon = forceReloadBtn.querySelector('svg');
+        if(reloadIcon) reloadIcon.classList.remove('spinning');
+        loadingOverlay.style.display = 'none';
+        mainContent.style.display = 'block';
     }
 }
 
@@ -254,8 +172,8 @@ function parseJSONSchedule(jsonRows) {
         let stationColName = 'STATION';
         
         for(let i = 0; i < Math.min(jsonRows.length, 5); i++) {
-              if (jsonRows[i]['STATION']) { headerRowIndex = -1; break; }
-              if (Object.values(jsonRows[i]).includes('STATION')) { headerRowIndex = i; break; }
+                if (jsonRows[i]['STATION']) { headerRowIndex = -1; break; }
+                if (Object.values(jsonRows[i]).includes('STATION')) { headerRowIndex = i; break; }
         }
 
         const cleanRows = jsonRows.filter(row => {
@@ -298,17 +216,15 @@ function parseJSONSchedule(jsonRows) {
 
 function renderRouteError(error) {
     const html = `<div class="text-center p-4 bg-red-100 dark:bg-red-900 rounded-md border border-red-400 dark:border-red-700"><div class="text-2xl mb-2">⚠️</div><p class="text-red-800 dark:text-red-200 font-medium">Connection failed. Please check internet.</p></div>`;
-    if(pretoriaTimeEl) pretoriaTimeEl.innerHTML = html; 
-    if(pienaarspoortTimeEl) pienaarspoortTimeEl.innerHTML = html; 
-    if(stationSelect) stationSelect.innerHTML = '<option>Unable to load stations</option>';
+    pretoriaTimeEl.innerHTML = html; pienaarspoortTimeEl.innerHTML = html; stationSelect.innerHTML = '<option>Unable to load stations</option>';
 }
 
 function initializeApp() {
     populateStationList();
     startClock();
     findNextTrains(); 
-    if(loadingOverlay) loadingOverlay.style.display = 'none';
-    if(mainContent) mainContent.style.display = 'block';
+    loadingOverlay.style.display = 'none';
+    mainContent.style.display = 'block';
 }
 
 function populateStationList() {
@@ -324,21 +240,20 @@ function populateStationList() {
     allStations = Array.from(stationSet);
     if (schedules.weekday_to_a.rows) { const orderMap = schedules.weekday_to_a.rows.map(r => r.STATION); allStations.sort((a, b) => orderMap.indexOf(a) - orderMap.indexOf(b)); }
     
-    const currentSelectedStation = stationSelect ? stationSelect.value : "";
-    if(stationSelect) {
-        stationSelect.innerHTML = '<option value="">Select a station...</option><option value="FIND_NEAREST">📍 Find Nearest Station</option>';
-        allStations.forEach(station => {
-            if (station && !station.toLowerCase().includes('last updated')) {
-                const option = document.createElement('option');
-                option.value = station;
-                option.textContent = station.replace(/ STATION/g, '');
-                stationSelect.appendChild(option);
-            }
-        });
-        if (allStations.includes(currentSelectedStation)) stationSelect.value = currentSelectedStation; else stationSelect.value = ""; 
-    }
+    const currentSelectedStation = stationSelect.value;
+    stationSelect.innerHTML = '<option value="">Select a station...</option><option value="FIND_NEAREST">📍 Find Nearest Station</option>';
+    allStations.forEach(station => {
+        if (station && !station.toLowerCase().includes('last updated')) {
+            const option = document.createElement('option');
+            option.value = station;
+            option.textContent = station.replace(/ STATION/g, '');
+            stationSelect.appendChild(option);
+        }
+    });
+    if (allStations.includes(currentSelectedStation)) stationSelect.value = currentSelectedStation; else stationSelect.value = ""; 
 }
 
+function pad(num) { return num.toString().padStart(2, '0'); }
 function startClock() { updateTime(); setInterval(updateTime, 1000); }
 
 function updateTime() {
@@ -353,18 +268,16 @@ function updateTime() {
     }
 
     currentTime = timeString; 
-    if(currentTimeEl) currentTimeEl.textContent = `Current Time: ${timeString} ${isSimMode ? '(SIM)' : ''}`;
+    currentTimeEl.textContent = `Current Time: ${timeString} ${isSimMode ? '(SIM)' : ''}`;
     
     const newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
     currentDayType = newDayType;
     currentDayIndex = day;
     
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    if(currentDayEl) {
-        currentDayEl.textContent = (currentDayType === 'sunday') 
-            ? "Sunday (No Service)" 
-            : `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
-    }
+    currentDayEl.textContent = (currentDayType === 'sunday') 
+        ? "Sunday (No Service)" 
+        : `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
     
     findNextTrains();
 }
@@ -405,20 +318,18 @@ function timeToSeconds(timeStr) {
 
 function renderPlaceholder() {
     const placeholderHTML = `<div class="h-32 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500"><svg class="w-8 h-8 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm font-medium">Select a station above</span></div>`;
-    if(pretoriaTimeEl) pretoriaTimeEl.innerHTML = placeholderHTML;
-    if(pienaarspoortTimeEl) pienaarspoortTimeEl.innerHTML = placeholderHTML;
+    pretoriaTimeEl.innerHTML = placeholderHTML;
+    pienaarspoortTimeEl.innerHTML = placeholderHTML;
 }
 
 // --- GEOLOCATION LOGIC ---
 function findNearestStation() {
     if (!navigator.geolocation) {
         showToast("Geolocation is not supported by your browser.", "error");
-        if(stationSelect) stationSelect.value = "";
+        stationSelect.value = "";
         return;
     }
-
     showToast("Locating nearest station...", "info", 4000);
-
     navigator.geolocation.getCurrentPosition(
         (position) => {
             const userLat = position.coords.latitude;
@@ -435,19 +346,19 @@ function findNearestStation() {
             }
 
             if (nearestStation && minDistance <= MAX_RADIUS_KM) {
-                if(stationSelect) stationSelect.value = nearestStation; 
+                stationSelect.value = nearestStation; 
                 findNextTrains();
                 showToast(`Found: ${nearestStation.replace(' STATION', '')} (${minDistance.toFixed(1)}km)`, "success");
             } else {
                   showToast("No stations found within 6km.", "error");
-                  if(stationSelect) stationSelect.value = ""; 
+                  stationSelect.value = ""; 
             }
         },
         (error) => {
             let msg = "Unable to retrieve location.";
             if (error.code === 1) msg = "Location permission denied.";
             showToast(msg, "error");
-            if(stationSelect) stationSelect.value = "";
+            stationSelect.value = "";
         }
     );
 }
@@ -460,12 +371,12 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
         Math.sin(dLat/2) * Math.sin(dLat/2) +
         Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-    const d = R * c; 
-    return d;
+    return R * c; 
 }
 
+function deg2rad(deg) { return deg * (Math.PI/180); }
+
 function findNextTrains() {
-    if(!stationSelect) return;
     const selectedStation = stationSelect.value;
     const currentRoute = ROUTES[currentRouteId];
     
@@ -473,23 +384,17 @@ function findNextTrains() {
     
     if (!currentRoute) return;
     if (!currentRoute.isActive) { renderComingSoon(currentRoute.name); return; }
-    
-    if(pretoriaTimeEl) pretoriaTimeEl.innerHTML = ""; 
-    if(pienaarspoortTimeEl) pienaarspoortTimeEl.innerHTML = "";
-    if(pretoriaHeader) pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
-    if(pienaarspoortHeader) pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
+    pretoriaTimeEl.innerHTML = ""; pienaarspoortTimeEl.innerHTML = "";
+    pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
+    pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
     
     if (!selectedStation) { renderPlaceholder(); return; }
     if (stationSelect.options[stationSelect.selectedIndex].textContent.includes("(No Service)")) {
         const msg = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-gray-600 dark:text-gray-400">No trains stop here.</div>`;
-        if(pretoriaTimeEl) pretoriaTimeEl.innerHTML = msg; 
-        if(pienaarspoortTimeEl) pienaarspoortTimeEl.innerHTML = msg; 
-        return;
+        pretoriaTimeEl.innerHTML = msg; pienaarspoortTimeEl.innerHTML = msg; return;
     }
     if (currentDayType === 'sunday') {
-        renderNoService(pretoriaTimeEl, currentRoute.destA); 
-        renderNoService(pienaarspoortTimeEl, currentRoute.destB); 
-        return;
+        renderNoService(pretoriaTimeEl, currentRoute.destA); renderNoService(pienaarspoortTimeEl, currentRoute.destB); return;
     }
     const normalize = (s) => s ? s.toUpperCase().replace(/ STATION/g, '').trim() : '';
     const isAtStation = (s1, s2) => normalize(s1) === normalize(s2);
@@ -512,15 +417,12 @@ function findNextTrains() {
 function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
     const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA);
     let allTransferJourneys = [];
-    
     if (routeConfig.transferStation) {
         const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destA);
         allTransferJourneys = allTransfers;
     }
-
     const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
     const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
-    
     const allJourneys = [...uniqueDirects, ...allTransferJourneys];
     allJourneys.sort((a, b) => {
         const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
@@ -536,15 +438,12 @@ function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
 function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
     const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destB);
     let allTransferJourneys = [];
-    
     if (routeConfig.transferStation) {
         const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destB);
         allTransferJourneys = allTransfers;
     }
-
     const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
     const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
-    
     const allJourneys = [...uniqueDirects, ...allTransferJourneys];
     allJourneys.sort((a, b) => {
         const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
@@ -559,19 +458,16 @@ function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
 
 function findNextDirectTrain(fromStation, schedule, destinationStation) {
     if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
-    
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
     let allJourneys = [];
 
     for (const train of trainHeaders) {
         if (!train || train === "") continue;
-
         const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
         const departureTime = fromRow ? fromRow[train] : null;
 
         if (!departureTime) continue;
-
         let actualLastStop = null;
         let actualArrivalTime = null;
         let destRow = null; 
@@ -589,7 +485,6 @@ function findNextDirectTrain(fromStation, schedule, destinationStation) {
         if (fromRow && destRow) {
             const fromIndex = schedule.rows.indexOf(fromRow);
             const destIndex = schedule.rows.indexOf(destRow);
-
             if (fromIndex < destIndex) { 
                 allJourneys.push({
                     type: 'direct',
@@ -622,10 +517,8 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination)
 
     for (const train1 of trainHeaders) {
         if (!train1 || train1 === "") continue;
-        
         const departureTime = fromRow[train1]; 
         const terminationTime = termRow[train1];
-        
         if (!departureTime || !terminationTime) continue;
         
         const finalDestRow = findRowFuzzy(finalDestination);
@@ -658,10 +551,8 @@ function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, fin
     
     const findRowFuzzy = (name) => schedule.rows.find(row => normalizeStationName(row[stationCol]) === normalizeStationName(name));
     const connRow = findRowFuzzy(connectionStation);
-    
     if (!connRow) return null;
     const connIndex = schedule.rows.indexOf(connRow);
-    
     const arrivalSeconds = timeToSeconds(arrivalTimeAtTransfer);
 
     for (const train of trainHeaders) {
@@ -670,7 +561,6 @@ function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, fin
         
         const connectionTime = connRow[train];
         if (!connectionTime) continue;
-        
         if (timeToSeconds(connectionTime) < arrivalSeconds) continue;
 
         let goesFurther = false;
@@ -698,16 +588,12 @@ function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, fin
     }
     
     if (possibleConnections.length === 0) return null; 
-    
     possibleConnections.sort((a, b) => timeToSeconds(a.departureTime) - timeToSeconds(b.departureTime));
-    
     const earliestConnection = possibleConnections[0];
     let earliestFullJourneyConnection = null;
-    
     if (normalizeStationName(earliestConnection.actualDestination) !== normalizeStationName(finalDestination)) {
         earliestFullJourneyConnection = possibleConnections.find(conn => normalizeStationName(conn.actualDestination) === normalizeStationName(finalDestination)) || null; 
     }
-    
     return { earliest: earliestConnection, fullJourney: earliestFullJourneyConnection };
 }
 
@@ -727,7 +613,7 @@ function processAndRenderJourney(allJourneys, element, header, destination) {
         nextJourney.isLastTrain = (allRemainingTrainNames.size === 1);
     } else {
         if (allJourneys.length === 0) {
-              if(element) element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-gray-600 dark:text-gray-400">No scheduled trains from this station today.</div>`;
+              element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-gray-600 dark:text-gray-400">No scheduled trains from this station today.</div>`;
               return;
         }
     }
@@ -735,7 +621,6 @@ function processAndRenderJourney(allJourneys, element, header, destination) {
 }
 
 function renderJourney(element, headerElement, journey, firstTrainName, destination) {
-    if(!element) return;
     element.innerHTML = "";
     if (!journey) { renderNextAvailableTrain(element, destination); return; }
 
@@ -749,23 +634,17 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
     const safeDepTime = escapeHTML(journey.departureTime || journey.train1.departureTime);
     const safeTrainName = escapeHTML(journey.train || journey.train1.train);
     const safeDest = escapeHTML(destination);
-    
     const timeDiffStr = calculateTimeDiffString(journey.departureTime || journey.train1.departureTime);
-    
     const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
-    
-    const buttonHtml = `<button onclick="window.openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[10px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">See Full Schedule</button>`;
+    const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[10px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">See Full Schedule</button>`;
 
     if (journey.type === 'direct') {
         const actualDest = journey.actualDestination ? normalizeStationName(journey.actualDestination) : '';
         const normDest = normalizeStationName(destination);
-        
         let destinationText = journey.arrivalTime ? `Arrives ${escapeHTML(journey.arrivalTime)}` : "Arrival time not available.";
-        
         if (actualDest && normDest && actualDest !== normDest) {
             destinationText = `Terminates at ${escapeHTML(journey.actualDestination.replace(/ STATION/g,''))}.`;
         }
-
         let trainTypeText = `<span class="font-bold text-yellow-600 dark:text-yellow-400">Direct train (${safeTrainName})</span>`;
         if (journey.isLastTrain) trainTypeText = `<span class="font-bold text-red-600 dark:text-red-400">Last Direct train (${safeTrainName})</span>`;
 
@@ -775,10 +654,8 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
     if (journey.type === 'transfer') {
         const conn = journey.connection; 
         const nextFull = journey.nextFullJourney; 
-        
         const termStation = escapeHTML(journey.train1.terminationStation.replace(/ STATION/g, ''));
         const arrivalAtTransfer = escapeHTML(journey.train1.arrivalAtTransfer);
-        
         let train1Info = `Train ${safeTrainName} (Terminates at ${termStation} at ${arrivalAtTransfer})`;
         if (journey.isLastTrain) train1Info = `<span class="text-red-600 dark:text-red-400 font-bold">Last Train (${safeTrainName})</span> (Terminates at ${termStation})`;
 
@@ -790,7 +667,6 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
             const nextTrain = escapeHTML(nextFull.train);
             const nextDest = escapeHTML(nextFull.actualDestination.replace(/ STATION/g, ''));
             const nextDep = escapeHTML(nextFull.departureTime);
-
             const connection1Text = `Connect to Train ${connTrain} (to ${connDest}) at <b>${connDep}</b>`;
             const connection2Text = `Next Train ${nextTrain} (to ${nextDest}) is at <b>${nextDep}</b>`;
             connectionInfoHTML = `<div class="space-y-1"><div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div><div class="text-gray-500 dark:text-gray-400 text-xs font-medium">${connection2Text}</div></div>`;
@@ -802,13 +678,11 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
             const connectionText = `Connect to Train ${connTrain} at <b>${connDep}</b> ${connDestName}`;
             connectionInfoHTML = `<div class="text-yellow-600 dark:text-yellow-400 font-medium">${connectionText}</div>`;
         }
-        
         element.innerHTML = `<div class="flex flex-row items-center w-full space-x-3"><div class="relative w-1/2 h-32 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0"><div class="text-3xl font-bold text-gray-900 dark:text-white">${safeDepTime}</div><div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>${buttonHtml}</div><div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1"><div class="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Transfer Required</div><div class="text-xs text-yellow-600 dark:text-yellow-400 leading-tight font-medium">${train1Info}</div><div class="text-xs leading-tight">${connectionInfoHTML}</div></div></div>`;
     }
 }
 
 function renderNextAvailableTrain(element, destination) {
-    if(!element) return;
     const currentRoute = ROUTES[currentRouteId];
     let nextDayName = ""; let nextDaySheetKey = ""; let dayOffset = 1; 
     switch (currentDayIndex) {
@@ -830,19 +704,15 @@ function renderNextAvailableTrain(element, destination) {
     element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center w-full"><div class="text-lg font-bold text-gray-600 dark:text-gray-400">No more trains today</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train ${nextDayName} is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2 w-3/4"><div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div></div></div>`;
 }
 
-function renderAtDestination(element) { 
-    if(element) element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-green-500 dark:text-green-400">You are at this station</div>`; 
-}
+function renderAtDestination(element) { element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-green-500 dark:text-green-400">You are at this station</div>`; }
 
 function renderNoService(element, destination) {
-    if(!element) return;
     const normalize = (s) => s ? s.toUpperCase().replace(/ STATION/g, '').trim() : '';
     const selectedStation = stationSelect.value;
     if (normalize(selectedStation) === normalize(destination)) {
         renderAtDestination(element);
         return;
     }
-
     const currentRoute = ROUTES[currentRouteId];
     const sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
     const schedule = schedules[sheetKey];
@@ -857,88 +727,52 @@ function renderNoService(element, destination) {
         const timeDiffStr = calculateTimeDiffString(departureTime, 1); 
         timeHTML = `<div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
     }
-     element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center w-full"><div class="text-xl font-bold text-gray-600 dark:text-gray-400">No service on Sundays.</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train Monday is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2 w-3/4">${timeHTML}</div></div>`;
+    element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center w-full"><div class="text-xl font-bold text-gray-600 dark:text-gray-400">No service on Sundays.</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train Monday is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2 w-3/4">${timeHTML}</div></div>`;
 }
 
 function renderComingSoon(routeName) {
     const msg = `<div class="h-32 flex flex-col justify-center items-center text-center p-6 bg-yellow-100 dark:bg-yellow-900 rounded-lg"><h3 class="text-xl font-bold text-yellow-700 dark:text-yellow-300 mb-2">🚧 Coming Soon</h3><p class="text-gray-700 dark:text-gray-300">We are working on the <strong>${routeName}</strong> schedule.</p></div>`;
-    if(pretoriaTimeEl) pretoriaTimeEl.innerHTML = msg; 
-    if(pienaarspoortTimeEl) pienaarspoortTimeEl.innerHTML = msg; 
-    if(stationSelect) stationSelect.innerHTML = '<option>Route not available</option>';
+    pretoriaTimeEl.innerHTML = msg; pienaarspoortTimeEl.innerHTML = msg; stationSelect.innerHTML = '<option>Route not available</option>';
 }
 
 // --- LEGAL MODAL LOGIC ---
 window.openLegal = function(type) {
-    if(legalTitle) legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
-    if(legalContent) legalContent.innerHTML = LEGAL_TEXTS[type];
-    if(legalModal) legalModal.classList.remove('hidden');
-    
-    if(sidenav) sidenav.classList.remove('open');
-    if(sidenavOverlay) sidenavOverlay.classList.remove('open');
+    legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
+    legalContent.innerHTML = LEGAL_TEXTS[type];
+    legalModal.classList.remove('hidden');
+    sidenav.classList.remove('open');
+    sidenavOverlay.classList.remove('open');
     document.body.classList.remove('sidenav-open');
 };
 
-const closeLegal = () => {
-    if(legalModal) legalModal.classList.add('hidden');
-};
-
-// --- FEATURE BUTTONS ---
-function setupFeatureButtons() {
-    if (localStorage.theme === 'light') { document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } 
-    else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); }
-    
-    if(themeToggleBtn) {
-        themeToggleBtn.addEventListener('click', () => { if (localStorage.theme === 'dark') { localStorage.theme = 'light'; document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); } });
-    }
-    
-    if(shareBtn) {
-        shareBtn.addEventListener('click', async () => { const shareData = { title: 'Metrorail Next Train', text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive', url: '\n\nhttps://nexttrain.co.za' }; try { if (navigator.share) await navigator.share(shareData); else copyToClipboard(shareData.text + shareData.url); } catch (err) { copyToClipboard(shareData.text + shareData.url); } });
-    }
-    
-    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; if(installBtn) { installBtn.classList.remove('hidden'); installBtn.addEventListener('click', () => { installBtn.classList.add('hidden'); deferredPrompt.prompt(); deferredPrompt = null; }); } });
-    
-    const openNav = () => { sidenav.classList.add('open'); sidenavOverlay.classList.add('open'); document.body.classList.add('sidenav-open'); };
-    if(openNavBtn) openNavBtn.addEventListener('click', openNav); 
-    if(routeSubtitle) routeSubtitle.addEventListener('click', openNav);
-    
-    const closeNav = () => { sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open'); };
-    if(closeNavBtn) closeNavBtn.addEventListener('click', closeNav); 
-    if(sidenavOverlay) sidenavOverlay.addEventListener('click', closeNav);
-    
-    if(routeList) {
-        routeList.addEventListener('click', (e) => { const routeLink = e.target.closest('a'); if (routeLink && routeLink.dataset.routeId) { const routeId = routeLink.dataset.routeId; if (routeId === currentRouteId) { showToast("You are already viewing this route.", "info", 1500); closeNav(); return; } document.querySelectorAll('#route-list a').forEach(a => a.classList.remove('active')); routeLink.classList.add('active'); closeNav(); currentRouteId = routeId; loadAllSchedules(); } });
-    }
-    
-    if(forceReloadBtn) forceReloadBtn.addEventListener('click', () => { showToast("Forcing schedule reload...", "info", 2000); loadAllSchedules(true); });
-    
-    if(pinRouteBtn) {
-        pinRouteBtn.addEventListener('click', () => { const savedDefault = localStorage.getItem('defaultRoute'); if (savedDefault === currentRouteId) { localStorage.removeItem('defaultRoute'); showToast("Route unpinned from top.", "info", 2000); } else { localStorage.setItem('defaultRoute', currentRouteId); showToast("Route pinned to top of menu!", "success", 2000); } updatePinUI(); });
-    }
+function closeLegal() {
+    legalModal.classList.add('hidden');
 }
 
+// --- UTILITY FUNCTIONS ---
+function copyToClipboard(text) { const textArea = document.createElement('textarea'); textArea.value = text; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { const successful = document.execCommand('copy'); if (successful) showToast("Link copied to clipboard!", "success", 2000); } catch (err) {} document.body.removeChild(textArea); }
+function showToast(message, type = 'info', duration = 3000) { if (toastTimeout) clearTimeout(toastTimeout); toast.textContent = message; toast.className = `toast-info`; if (type === 'success') toast.classList.add('toast-success'); else if (type === 'error') toast.classList.add('toast-error'); toast.classList.add('show'); toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration); }
 function updatePinUI() {
     const savedDefault = localStorage.getItem('defaultRoute'); const isPinned = savedDefault === currentRouteId;
-    if(pinRouteBtn) {
-        if (isPinned) { pinOutline.classList.add('hidden'); pinFilled.classList.remove('hidden'); pinRouteBtn.title = "Unpin this route"; } else { pinOutline.classList.remove('hidden'); pinFilled.classList.add('hidden'); pinRouteBtn.title = "Pin this route as default"; }
-    }
-    if(pinnedSection) {
-        if (savedDefault && ROUTES[savedDefault]) { pinnedSection.classList.remove('hidden'); pinnedSection.innerHTML = `<li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li><li class="route-item"><a class="${savedDefault === currentRouteId ? 'active' : ''}" data-route-id="${savedDefault}"><span class="route-dot dot-green"></span>${ROUTES[savedDefault].name}</a></li>`; } else { pinnedSection.classList.add('hidden'); }
-    }
+    if (isPinned) { pinOutline.classList.add('hidden'); pinFilled.classList.remove('hidden'); pinRouteBtn.title = "Unpin this route"; } else { pinOutline.classList.remove('hidden'); pinFilled.classList.add('hidden'); pinRouteBtn.title = "Pin this route as default"; }
+    if (savedDefault && ROUTES[savedDefault]) { pinnedSection.classList.remove('hidden'); pinnedSection.innerHTML = `<li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li><li class="route-item"><a class="${savedDefault === currentRouteId ? 'active' : ''}" data-route-id="${savedDefault}"><span class="route-dot dot-green"></span>${ROUTES[savedDefault].name}</a></li>`; } else { pinnedSection.classList.add('hidden'); }
 }
+function saveToLocalCache(key, data) { try { const cacheEntry = { timestamp: Date.now(), data: data }; localStorage.setItem(key, JSON.stringify(cacheEntry)); } catch (e) {} }
+function loadFromLocalCache(key) { try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } catch (e) { return null; } }
 
+// --- UI SETUP & EVENT LISTENERS ---
 function setupModalButtons() { 
     const closeAction = () => { scheduleModal.classList.add('hidden'); document.body.style.overflow = ''; }; 
-    if(closeModalBtn) closeModalBtn.addEventListener('click', closeAction); 
-    if(closeModalBtn2) closeModalBtn2.addEventListener('click', closeAction); 
-    if(scheduleModal) scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
+    closeModalBtn.addEventListener('click', closeAction); 
+    closeModalBtn2.addEventListener('click', closeAction); 
+    scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
 }
 
 window.openScheduleModal = function(destination) {
     if (!currentScheduleData || !currentScheduleData[destination]) { showToast("No full schedule data available.", "error"); return; }
     const journeys = currentScheduleData[destination]; 
-    if(modalTitle) modalTitle.textContent = `Schedule to ${destination.replace(' STATION', '')}`; 
-    if(modalList) modalList.innerHTML = '';
-
+    modalTitle.textContent = `Schedule to ${destination.replace(' STATION', '')}`; 
+    modalList.innerHTML = '';
     const nowSeconds = timeToSeconds(currentTime);
     let firstNextTrainFound = false;
 
@@ -946,7 +780,6 @@ window.openScheduleModal = function(destination) {
         const dep = j.departureTime || j.train1.departureTime; 
         const trainName = j.train || j.train1.train; 
         const type = j.type === 'transfer' ? 'Transfer' : 'Direct';
-        
         const depSeconds = timeToSeconds(dep);
         const isPassed = depSeconds < nowSeconds;
 
@@ -959,67 +792,62 @@ window.openScheduleModal = function(destination) {
 
         const div = document.createElement('div'); 
         div.className = divClass;
-        
         if (!isPassed && !firstNextTrainFound) {
             div.id = "next-train-marker";
             firstNextTrainFound = true;
         }
 
         div.innerHTML = `<div><span class="text-lg font-bold text-gray-900 dark:text-white">${dep}</span><div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName}</div></div><div class="flex flex-col items-end gap-1">${type === 'Direct' ? '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>' : `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase">Transfer @ ${j.train1.terminationStation.replace(' STATION','')}</span>`} ${j.isLastTrain ? '<span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800">LAST TRAIN</span>' : ''}</div>`;
-        if(modalList) modalList.appendChild(div);
+        modalList.appendChild(div);
     });
     
-    if(scheduleModal) scheduleModal.classList.remove('hidden'); 
+    scheduleModal.classList.remove('hidden'); 
     document.body.style.overflow = 'hidden'; 
-    
     setTimeout(() => {
         const target = document.getElementById('next-train-marker');
-        if (target) {
-            target.scrollIntoView({ behavior: 'auto', block: 'start' });
-        }
+        if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' });
     }, 10);
 };
 
 function setupRedirectLogic() {
-    if(feedbackBtn) feedbackBtn.addEventListener('click', (e) => { 
+    feedbackBtn.addEventListener('click', (e) => { 
         e.preventDefault(); 
         showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?"); 
     }); 
-    
-    if(checkUpdatesBtn) checkUpdatesBtn.addEventListener('click', (e) => { 
+    checkUpdatesBtn.addEventListener('click', (e) => { 
         e.preventDefault(); 
         showRedirectModal(checkUpdatesBtn.href, "Visit Facebook for official updates?"); 
     }); 
 }
 
 function showRedirectModal(url, message) {
-    if(redirectMessage) redirectMessage.textContent = message;
-    if(redirectModal) redirectModal.classList.remove('hidden');
-    
-    const confirmHandler = () => { 
-        window.open(url, '_blank'); 
-        redirectModal.classList.add('hidden');
-        cleanup(); 
-    };
-    
-    const cancelHandler = () => { 
-        redirectModal.classList.add('hidden');
-        cleanup(); 
-    };
-    
-    const cleanup = () => { 
-        redirectConfirmBtn.removeEventListener('click', confirmHandler);
-        redirectCancelBtn.removeEventListener('click', cancelHandler);
-    };
-    
-    if(redirectConfirmBtn) redirectConfirmBtn.addEventListener('click', confirmHandler);
-    if(redirectCancelBtn) redirectCancelBtn.addEventListener('click', cancelHandler);
+    redirectMessage.textContent = message;
+    redirectModal.classList.remove('hidden');
+    const confirmHandler = () => { window.open(url, '_blank'); redirectModal.classList.add('hidden'); cleanup(); };
+    const cancelHandler = () => { redirectModal.classList.add('hidden'); cleanup(); };
+    const cleanup = () => { redirectConfirmBtn.removeEventListener('click', confirmHandler); redirectCancelBtn.removeEventListener('click', cancelHandler); };
+    redirectConfirmBtn.addEventListener('click', confirmHandler);
+    redirectCancelBtn.addEventListener('click', cancelHandler);
+}
+
+function setupFeatureButtons() {
+    if (localStorage.theme === 'light') { document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } 
+    else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); }
+    themeToggleBtn.addEventListener('click', () => { if (localStorage.theme === 'dark') { localStorage.theme = 'light'; document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); } });
+    shareBtn.addEventListener('click', async () => { const shareData = { title: 'Metrorail Next Train', text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive', url: '\n\nhttps://nexttrain.co.za' }; try { if (navigator.share) await navigator.share(shareData); else copyToClipboard(shareData.text + shareData.url); } catch (err) { copyToClipboard(shareData.text + shareData.url); } });
+    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; installBtn.classList.remove('hidden'); installBtn.addEventListener('click', () => { installBtn.classList.add('hidden'); deferredPrompt.prompt(); deferredPrompt = null; }); });
+    const openNav = () => { sidenav.classList.add('open'); sidenavOverlay.classList.add('open'); document.body.classList.add('sidenav-open'); };
+    openNavBtn.addEventListener('click', openNav); routeSubtitle.addEventListener('click', openNav);
+    const closeNav = () => { sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open'); };
+    closeNavBtn.addEventListener('click', closeNav); sidenavOverlay.addEventListener('click', closeNav);
+    routeList.addEventListener('click', (e) => { const routeLink = e.target.closest('a'); if (routeLink && routeLink.dataset.routeId) { const routeId = routeLink.dataset.routeId; if (routeId === currentRouteId) { showToast("You are already viewing this route.", "info", 1500); closeNav(); return; } document.querySelectorAll('#route-list a').forEach(a => a.classList.remove('active')); routeLink.classList.add('active'); closeNav(); currentRouteId = routeId; loadAllSchedules(); } });
+    forceReloadBtn.addEventListener('click', () => { showToast("Forcing schedule reload...", "info", 2000); loadAllSchedules(true); });
+    pinRouteBtn.addEventListener('click', () => { const savedDefault = localStorage.getItem('defaultRoute'); if (savedDefault === currentRouteId) { localStorage.removeItem('defaultRoute'); showToast("Route unpinned from top.", "info", 2000); } else { localStorage.setItem('defaultRoute', currentRouteId); showToast("Route pinned to top of menu!", "success", 2000); } updatePinUI(); });
 }
 
 // --- INITIALIZATION ---
-
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Initialize DOM References
+    // 1. Assign Global Element References
     stationSelect = document.getElementById('station-select');
     pretoriaTimeEl = document.getElementById('pretoria-time');
     pienaarspoortTimeEl = document.getElementById('pienaarspoort-time');
@@ -1061,68 +889,58 @@ document.addEventListener('DOMContentLoaded', () => {
     feedbackBtn = document.getElementById('feedback-btn');
     lastUpdatedEl = document.getElementById('last-updated-date');
 
+    // Simulation & Modal Elements
     simPanel = document.getElementById('sim-panel');
     simEnabledCheckbox = document.getElementById('sim-enabled');
     simTimeInput = document.getElementById('sim-time');
     simDaySelect = document.getElementById('sim-day');
     simApplyBtn = document.getElementById('sim-apply-btn');
-    
     appTitle = document.getElementById('app-title');
     pinModal = document.getElementById('pin-modal');
     pinInput = document.getElementById('pin-input');
     pinCancelBtn = document.getElementById('pin-cancel-btn');
     pinSubmitBtn = document.getElementById('pin-submit-btn');
-
     legalModal = document.getElementById('legal-modal');
     legalTitle = document.getElementById('legal-modal-title');
     legalContent = document.getElementById('legal-modal-content');
     closeLegalBtn = document.getElementById('close-legal-btn');
     closeLegalBtn2 = document.getElementById('close-legal-btn-2');
 
-    // 2. Setup Events
-    if(closeLegalBtn) closeLegalBtn.addEventListener('click', closeLegal);
-    if(closeLegalBtn2) closeLegalBtn2.addEventListener('click', closeLegal);
-    if(legalModal) legalModal.addEventListener('click', (e) => {
-        if (e.target === legalModal) closeLegal();
-    });
-
-    if(appTitle) appTitle.addEventListener('click', () => {
+    // 2. Setup Listeners
+    closeLegalBtn.addEventListener('click', closeLegal);
+    closeLegalBtn2.addEventListener('click', closeLegal);
+    legalModal.addEventListener('click', (e) => { if (e.target === legalModal) closeLegal(); });
+    
+    // Developer Mode Trigger (5 Taps)
+    appTitle.addEventListener('click', () => {
         clickCount++;
         if (clickTimer) clearTimeout(clickTimer);
         clickTimer = setTimeout(() => { clickCount = 0; }, 1000); 
-
         if (clickCount >= 5) {
             clickCount = 0;
-            if(pinModal) pinModal.classList.remove('hidden');
-            if(pinInput) { pinInput.value = ''; pinInput.focus(); }
+            pinModal.classList.remove('hidden');
+            pinInput.value = '';
+            pinInput.focus();
         }
     });
 
-    if(pinCancelBtn) pinCancelBtn.addEventListener('click', () => {
-        if(pinModal) pinModal.classList.add('hidden');
-    });
-
-    if(pinSubmitBtn) pinSubmitBtn.addEventListener('click', () => {
+    pinCancelBtn.addEventListener('click', () => { pinModal.classList.add('hidden'); });
+    pinSubmitBtn.addEventListener('click', () => {
         if (pinInput.value === "101101") {
-            if(pinModal) pinModal.classList.add('hidden');
-            if(simPanel) simPanel.classList.remove('hidden');
+            pinModal.classList.add('hidden');
+            simPanel.classList.remove('hidden');
             showToast("Developer Mode Unlocked!", "success");
         } else {
             showToast("Invalid PIN", "error");
-            if(pinInput) pinInput.value = '';
+            pinInput.value = '';
         }
     });
 
-    if(simApplyBtn) simApplyBtn.addEventListener('click', () => {
+    simApplyBtn.addEventListener('click', () => {
         isSimMode = simEnabledCheckbox.checked;
         simTimeStr = simTimeInput.value + ":00";
         simDayIndex = parseInt(simDaySelect.value);
-        
-        if (isSimMode && !simTimeInput.value) {
-            showToast("Please enter a time first!", "error");
-            return;
-        }
-        
+        if (isSimMode && !simTimeInput.value) { showToast("Please enter a time first!", "error"); return; }
         showToast(isSimMode ? "Dev Simulation Active!" : "Real-time Mode Active", "success");
         updateTime(); 
     });
@@ -1131,38 +949,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedDefault = localStorage.getItem('defaultRoute');
     if (savedDefault && ROUTES[savedDefault]) currentRouteId = savedDefault;
     loadAllSchedules(); 
-    if(stationSelect) stationSelect.addEventListener('change', findNextTrains);
+    stationSelect.addEventListener('change', findNextTrains);
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
 
     // 4. Auto-Locate
     if (navigator.permissions && navigator.permissions.query) {
         navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
             if (result.state === 'granted') {
+                console.log("Location permission already granted. Auto-locating...");
                 findNearestStation();
             }
         });
     }
 });
-
-// --- GLOBAL ERROR HANDLER ---
-window.onerror = function(msg, url, line) {
-    console.error("Global Error Caught:", msg);
-    if(loadingOverlay) loadingOverlay.style.display = 'none';
-    if(mainContent) mainContent.style.display = 'block';
-    if(toast) {
-        toast.textContent = "App crashed. Resetting...";
-        toast.className = 'toast-info toast-error show';
-        setTimeout(() => { localStorage.removeItem('full_db'); location.reload(); }, 2000);
-    }
-    return false;
-};
-
-// Loader Fallback
-setTimeout(() => {
-    if (loadingOverlay && loadingOverlay.style.display !== 'none') {
-        console.warn("Loader timed out. Forcing hide.");
-        loadingOverlay.style.display = 'none';
-        if(mainContent) mainContent.style.display = 'block';
-        localStorage.removeItem('full_db');
-    }
-}, 5000);

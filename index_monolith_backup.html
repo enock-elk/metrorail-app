@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.18.0 (Modularized)
-  - FEATURE: Code split into /css and /js folders for better management.
-  - "Monolith" structure removed.
+  Metrorail Next Train V3.18.0 (Performance Update)
+  - CDN REMOVED: Now using local build process.
 -->
 <html lang="en" class="dark">
 
@@ -21,9 +20,10 @@
     
     <link rel="canonical" href="https://nexttrain.co.za/" />
 
-    <link rel="icon" href="icons/icon-512.png" sizes="512x512" type="image/png">
-    <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
-    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <!-- Favicons -->
+    <link rel="icon" href="https://nexttrain.co.za/icons/icon-512.png" sizes="512x512" type="image/png">
+    <link rel="icon" href="https://nexttrain.co.za/icons/icon-192.png" sizes="192x192" type="image/png">
+    <link rel="apple-touch-icon" href="https://nexttrain.co.za/icons/icon-192.png">
     <link rel="manifest" href="manifest.json">
 
     <script type="application/ld+json">
@@ -41,10 +41,12 @@
         "price": "0",
         "priceCurrency": "ZAR"
       },
-      "image": "https://nexttrain.co.za/icons/icon-512.png"
+      "image": "https://nexttrain.co.za/icons/icon-512.png",
+      "datePublished": "2024-01-01", 
+      "dateModified": "2025-10-27"
     }
     </script>
-  
+
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-FH8XHJVTPW"></script>
     <script>
@@ -53,25 +55,17 @@
       gtag('js', new Date());
       gtag('config', 'G-FH8XHJVTPW');
     </script>
-
+    
     <meta name="theme-color" content="#1f2937">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Next Train">
     
-    <!-- TAILWIND CSS (Still via CDN for now) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        if (typeof tailwind !== 'undefined') {
-            tailwind.config = { darkMode: 'class' }
-        }
-    </script>
-    
-    <!-- GOOGLE FONTS -->
+    <!-- Dependencies -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     
-    <!-- CUSTOM CSS (Modularized) -->
-    <link rel="stylesheet" href="css/custom.css">
+    <!-- Local Styles (Vite will process this) -->
+    <link rel="stylesheet" href="css/style.css">
 </head>
 
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4 transition-colors duration-300">
@@ -86,29 +80,26 @@
             </div>
             
             <li class="route-category">Northern Corridor (Pretoria)</li>
-            <li class="route-item"><a class="active" data-route-id="pta-pien"><span class="route-dot dot-green"></span>Pretoria <-> Pienaarspoort</a></li>
-            <li class="route-item"><a class="" data-route-id="pta-mabopane"><span class="route-dot dot-orange"></span>Pretoria <-> Mabopane</a></li>
-            <!-- HIDDEN SAULSVILLE ROUTE -->
-            <li class="route-item hidden"><a class="disabled" data-route-id="pta-saul"><span class="route-dot dot-green"></span>Pretoria <-> Saulsville</a></li>
+            <li class="route-item"><a class="active" data-route-id="pta-pien"><span class="route-dot dot-green"></span>Pretoria  -  Pienaarspoort</a></li>
+            <li class="route-item"><a class="" data-route-id="pta-mabopane"><span class="route-dot dot-orange"></span>Pretoria  -  Mabopane</a></li>
+            <li class="route-item hidden"><a class="disabled" data-route-id="pta-saul"><span class="route-dot dot-green"></span>Pretoria  -  Saulsville</a></li>
             
             <li class="route-category">Pretoria - JHB Line</li>
-            <!-- NEW GERMISTON - LERALLA ROUTE -->
-            <li class="route-item"><a class="" data-route-id="germ-leralla"><span class="route-dot dot-blue"></span>Germiston <-> Leralla</a></li>
-            <li class="route-item"><a class="disabled" data-route-id="pta-irene"><span class="route-dot dot-blue"></span>Pretoria <-> Irene</a></li>
-            <li class="route-item"><a class="disabled" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
-            <li class="route-item"><a class="disabled" data-route-id="pta-germiston"><span class="route-dot dot-blue"></span>Pretoria <-> Germiston</a></li>
+            <li class="route-item"><a class="" data-route-id="germ-leralla"><span class="route-dot dot-blue"></span>Germiston  -  Leralla</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="pta-irene"><span class="route-dot dot-blue"></span>Pretoria  -  Irene</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria  -  Kempton Park</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="pta-germiston"><span class="route-dot dot-blue"></span>Pretoria  -  Germiston</a></li>
             
             <li class="route-category">Southern Corridor</li>
-            <li class="route-item"><a class="disabled" data-route-id="jhb-vereeniging"><span class="route-dot dot-purple"></span>JHB <-> Vereeniging</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="jhb-vereeniging"><span class="route-dot dot-purple"></span>JHB  -  Vereeniging</a></li>
             
             <li class="route-category">Eastern Corridor</li>
-            <li class="route-item"><a class="disabled" data-route-id="jhb-springs"><span class="route-dot dot-red"></span>JHB <-> Springs</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="jhb-springs"><span class="route-dot dot-red"></span>JHB  -  Springs</a></li>
             
             <li class="route-category">Soweto Corridor</li>
-            <li class="route-item"><a class="disabled" data-route-id="jhb-soweto"><span class="route-dot dot-yellow"></span>JHB <-> Naledi</a></li>
+            <li class="route-item"><a class="disabled" data-route-id="jhb-soweto"><span class="route-dot dot-yellow"></span>JHB  -  Naledi</a></li>
         </ul>
         
-        <!-- LEGAL LINKS FOOTER -->
         <div class="mt-auto pt-6 border-t border-gray-700 dark:border-gray-600 pb-20">
             <p class="px-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Legal & Info</p>
             <li class="route-item">
@@ -223,12 +214,15 @@
             <!-- UPDATED: Title Color Dynamic via JS -->
             <div id="route-subtitle" class="flex items-center justify-center space-x-2 mt-1 cursor-pointer group">
                 <h2 id="route-subtitle-text" class="text-lg font-medium text-gray-600 dark:text-gray-400 group-hover:opacity-80 transition-colors">
-                    Pretoria <-> Pienaarspoort
+                    Pretoria  -  Pienaarspoort
                 </h2>
                 <svg class="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
-            <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium mt-2"></p>
-            <p id="current-day" class="text-sm text-gray-500 dark:text-gray-400"></p>
+            
+            <div data-nosnippet>
+                <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium mt-2"></p>
+                <p id="current-day" class="text-sm text-gray-500 dark:text-gray-400"></p>
+            </div>
         </div>
 
         <div class="mb-6">
@@ -239,7 +233,7 @@
             </select>
         </div>
 
-        <div class="space-y-6">
+        <div class="space-y-6" data-nosnippet>
             <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 shadow-lg">
                 <h2 id="pretoria-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">Next train to <span class="text-blue-500 dark:text-blue-400">Pretoria</span></h2>
                 <div id="pretoria-time" class="text-center flex items-center justify-center"></div>
@@ -251,7 +245,6 @@
         </div>
 
         <div class="mt-8 text-center">
-            <!-- RESTORED: Handled via JS to show modal -->
             <a href="https://www.facebook.com/metrorailgp" target="_blank" rel="noopener noreferrer" id="check-updates-btn" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-transform transform hover:scale-105">🚄 View Official Metrorail Updates</a>
             <p class="text-xs text-gray-400 dark:text-gray-500 mt-2">Opens the official Facebook page</p>
         </div>
@@ -260,7 +253,6 @@
             <button id="share-app-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
                 <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg> Share App
             </button>
-            <!-- RESTORED: Handled via JS to show modal -->
             <a href="https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform" target="_blank" rel="noopener noreferrer" id="feedback-btn" class="flex items-center justify-center w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors cursor-pointer">
                  <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg> Feedback
             </a>
@@ -303,10 +295,8 @@
     </div>
     <div id="toast" class=""></div>
 
-    <!-- SCRIPT LOADING ORDER -->
-    <!-- 1. Configuration (ROUTES, CONSTANTS) -->
-    <script src="js/config.js"></script>
-    <!-- 2. Main Logic -->
-    <script src="js/app.js"></script>
+    <!-- MAIN APP SCRIPT -->
+    <!-- Vite Specific Entry -->
+    <script type="module" src="js/app.js"></script>
 </body>
 </html>
