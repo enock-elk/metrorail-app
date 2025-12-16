@@ -1,9 +1,9 @@
 // --- GLOBAL STATE VARIABLES ---
-let stationLocations = {};
+let globalStationIndex = {}; // Maps "STATION" -> { lat, lon, routes: Set() }
 let currentRouteId = 'pta-pien'; 
 let fullDatabase = null; 
 let schedules = {};
-let allStations = [];
+let allStations = []; // Only for current route
 let currentTime = null;
 let currentDayType = 'weekday'; 
 let currentDayIndex = 0; 
@@ -11,8 +11,30 @@ let deferredPrompt;
 let currentScheduleData = {};
 let refreshTimer = null;
 
+// --- HOLIDAY CONFIGURATION (From Metrorail Notices) ---
+const SPECIAL_DATES = {
+    // format: "MM-DD": "type" 
+    
+    // Day of Reconciliation (Tue 16 Dec -> Saturday Sched)
+    "12-16": "saturday",
+
+    // Festive Season: Week 1
+    "12-22": "saturday", // Mon -> Sat Sched
+    "12-23": "saturday", // Tue -> Sat Sched
+    "12-24": "saturday", // Wed -> Sat Sched
+    "12-25": "sunday",   // Thu -> No Service
+    "12-26": "sunday",   // Fri -> No Service
+
+    // Festive Season: Week 2
+    "12-29": "saturday", // Mon -> Sat Sched
+    "12-30": "saturday", // Tue -> Sat Sched
+    "12-31": "saturday", // Wed -> Sat Sched
+    "01-01": "sunday",   // Thu -> No Service
+    "01-02": "saturday"  // Fri -> Sat Sched
+};
+
 // --- ELEMENT REFERENCES (Loaded on DOMContentLoaded) ---
-let stationSelect, pretoriaTimeEl, pienaarspoortTimeEl, pretoriaHeader, pienaarspoortHeader;
+let stationSelect, locateBtn, pretoriaTimeEl, pienaarspoortTimeEl, pretoriaHeader, pienaarspoortHeader;
 let currentTimeEl, currentDayEl, loadingOverlay, mainContent, offlineIndicator;
 let scheduleModal, modalTitle, modalList, closeModalBtn, closeModalBtn2;
 let redirectModal, redirectMessage, redirectConfirmBtn, redirectCancelBtn;
@@ -79,6 +101,7 @@ document.addEventListener("visibilitychange", () => {
     if (!document.hidden) { loadAllSchedules(); startSmartRefresh(); }
 });
 
+// --- CORE DATA FETCHING ---
 async function loadAllSchedules(force = false) {
     try {
         const currentRoute = ROUTES[currentRouteId];
@@ -97,7 +120,6 @@ async function loadAllSchedules(force = false) {
             renderComingSoon(currentRoute.name);
             mainContent.style.display = 'block';
             loadingOverlay.style.display = 'none';
-            return; 
         }
         
         const cachedDB = loadFromLocalCache('full_db');
@@ -107,7 +129,10 @@ async function loadAllSchedules(force = false) {
             console.log("Restoring from cache...");
             fullDatabase = cachedDB.data;
             processRouteDataFromDB(currentRoute);
-            if (fullDatabase.lastUpdated) lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
+            buildGlobalStationIndex(); 
+            
+            updateLastUpdatedText();
+            
             initializeApp();
             usedCache = true;
         }
@@ -130,8 +155,12 @@ async function loadAllSchedules(force = false) {
             console.log("New data! Updating...");
             fullDatabase = newDatabase;
             saveToLocalCache('full_db', fullDatabase);
+            
             processRouteDataFromDB(currentRoute);
-            if (fullDatabase.lastUpdated) lastUpdatedEl.textContent = `Schedule updated: ${fullDatabase.lastUpdated}`;
+            buildGlobalStationIndex(); 
+            
+            updateLastUpdatedText();
+            
             if (usedCache) { showToast("Schedule updated!", "success", 3000); findNextTrains(); } 
             else { initializeApp(); }
         } else {
@@ -153,64 +182,227 @@ async function loadAllSchedules(force = false) {
     }
 }
 
+// --- NEW: UPDATE LAST UPDATED TEXT ---
+function updateLastUpdatedText() {
+    if (!fullDatabase) return;
+    
+    let displayDate = fullDatabase.lastUpdated || "Unknown";
+    const isValidDate = (d) => d && d !== "undefined" && d !== "null" && d.length > 5;
+
+    if (currentDayType === 'weekday' || currentDayType === 'monday') { 
+        if (schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) {
+            displayDate = schedules.weekday_to_a.lastUpdated;
+        }
+    } else if (currentDayType === 'saturday') {
+        if (schedules.saturday_to_a && isValidDate(schedules.saturday_to_a.lastUpdated)) {
+             displayDate = schedules.saturday_to_a.lastUpdated;
+        }
+    } else if (currentDayType === 'sunday') {
+         if (schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) {
+            displayDate = schedules.weekday_to_a.lastUpdated;
+        }
+    }
+
+    displayDate = displayDate.replace(/^last updated[:\s-]*/i, '').trim();
+
+    if (displayDate) {
+         lastUpdatedEl.textContent = `Schedule updated: ${displayDate}`;
+    }
+}
+
+// --- GLOBAL STATION INDEX ---
+function buildGlobalStationIndex() {
+    globalStationIndex = {}; 
+    if (!fullDatabase) return;
+
+    Object.values(ROUTES).forEach(route => {
+        if (!route.sheetKeys) return;
+
+        Object.values(route.sheetKeys).forEach(dbKey => {
+            const sheetData = fullDatabase[dbKey];
+            if (!sheetData || !Array.isArray(sheetData)) return;
+            
+            let headerIndex = -1;
+            for (let i = 0; i < Math.min(sheetData.length, 5); i++) {
+                 if (Object.values(sheetData[i]).some(val => val && String(val).toUpperCase().includes('STATION'))) {
+                     headerIndex = i;
+                     break;
+                 }
+            }
+            
+            if (headerIndex > -1) {
+                 for (let i = headerIndex + 1; i < sheetData.length; i++) {
+                      const row = sheetData[i];
+                      const headerRow = sheetData[headerIndex];
+                      let stationKey = null;
+                      let coordKey = null;
+                      
+                      Object.keys(headerRow).forEach(key => {
+                          if (String(headerRow[key]).toUpperCase().includes('STATION')) stationKey = key;
+                          if (String(headerRow[key]).toUpperCase().includes('COORDINATES')) coordKey = key;
+                      });
+
+                      if (!stationKey && row['STATION']) stationKey = 'STATION';
+                      if (!coordKey && row['COORDINATES']) coordKey = 'COORDINATES';
+
+                      if (stationKey && row[stationKey]) {
+                           const stationName = String(row[stationKey]).toUpperCase().trim();
+                           const coordVal = coordKey ? row[coordKey] : null;
+                           
+                           if (!globalStationIndex[stationName]) {
+                               try {
+                                   if (coordVal) {
+                                       const parts = String(coordVal).split(',').map(s => parseFloat(s.trim()));
+                                       if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                           globalStationIndex[stationName] = { lat: parts[0], lon: parts[1], routes: new Set() };
+                                       }
+                                   }
+                               } catch (e) { }
+                           }
+                           if (globalStationIndex[stationName]) globalStationIndex[stationName].routes.add(route.id);
+                      }
+                 }
+            } else {
+                 sheetData.forEach(row => {
+                    if (row.STATION && row.COORDINATES) {
+                        const stationName = row.STATION.toUpperCase().trim();
+                        if (!globalStationIndex[stationName]) {
+                            try {
+                                const parts = String(row.COORDINATES).split(',').map(s => parseFloat(s.trim()));
+                                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                    globalStationIndex[stationName] = { lat: parts[0], lon: parts[1], routes: new Set() };
+                                }
+                            } catch (e) { }
+                        }
+                        if (globalStationIndex[stationName]) globalStationIndex[stationName].routes.add(route.id);
+                    }
+                });
+            }
+        });
+    });
+    console.log(`Global Index Built: ${Object.keys(globalStationIndex).length} stations mapped.`);
+}
+
 function processRouteDataFromDB(route) {
     if (!fullDatabase) return;
+    const getSched = (key) => {
+        const rows = fullDatabase[key];
+        const metaKey = key + "_meta"; 
+        const metaDate = fullDatabase[metaKey]; 
+        return parseJSONSchedule(rows, metaDate); 
+    };
+
     schedules = {
-        weekday_to_a: parseJSONSchedule(fullDatabase[route.sheetKeys.weekday_to_a]),
-        weekday_to_b: parseJSONSchedule(fullDatabase[route.sheetKeys.weekday_to_b]),
-        saturday_to_a: parseJSONSchedule(fullDatabase[route.sheetKeys.saturday_to_a]),
-        saturday_to_b: parseJSONSchedule(fullDatabase[route.sheetKeys.saturday_to_b])
+        weekday_to_a: getSched(route.sheetKeys.weekday_to_a),
+        weekday_to_b: getSched(route.sheetKeys.weekday_to_b),
+        saturday_to_a: getSched(route.sheetKeys.saturday_to_a),
+        saturday_to_b: getSched(route.sheetKeys.saturday_to_b)
     };
 }
 
-function parseJSONSchedule(jsonRows) {
+// --- UPDATED PARSER: Handles "_meta" param OR in-row data ---
+function parseJSONSchedule(jsonRows, externalMetaDate = null) {
     try {
         if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) 
-            return { headers: [], rows: [], stationColumnName: 'STATION' };
+            return { headers: [], rows: [], stationColumnName: 'STATION', lastUpdated: externalMetaDate };
 
         let headerRowIndex = -1;
-        let stationColName = 'STATION';
-        
-        for(let i = 0; i < Math.min(jsonRows.length, 5); i++) {
-                if (jsonRows[i]['STATION']) { headerRowIndex = -1; break; }
-                if (Object.values(jsonRows[i]).includes('STATION')) { headerRowIndex = i; break; }
+        let extractedLastUpdated = externalMetaDate;
+        let processedRows = [...jsonRows];
+
+        // 0. PRE-CLEAN: Remove any "Last Updated" row injected by Apps Script at index 0
+        if (processedRows.length > 0) {
+            const firstRow = processedRows[0];
+            const values = Object.values(firstRow).map(String);
+            const isMetadataRow = values.some(v => /last updated/i.test(v));
+            
+            if (isMetadataRow) {
+                if (!extractedLastUpdated) {
+                    const dateValueIndex = values.findIndex(v => /last updated/i.test(v));
+                    if (dateValueIndex !== -1) {
+                         let val = values[dateValueIndex];
+                         if (val.length > 15) {
+                            extractedLastUpdated = val.replace(/last updated[:\s-]*/i, '').trim();
+                        } else if (values[dateValueIndex+1]) {
+                            extractedLastUpdated = values[dateValueIndex+1];
+                        }
+                    }
+                }
+                processedRows.shift();
+            }
         }
 
-        const cleanRows = jsonRows.filter(row => {
-            const s = row[stationColName];
+        // 1. Find the REAL Header Row (STATION)
+        for(let i = 0; i < Math.min(processedRows.length, 10); i++) {
+            const row = processedRows[i];
+            const values = Object.values(row).map(String);
+            
+            if (values.some(v => v.toUpperCase().trim() === 'STATION')) {
+                headerRowIndex = i;
+                break; 
+            }
+            if (Object.keys(row).includes('STATION')) {
+                headerRowIndex = -1;
+                break;
+            }
+        }
+
+        // 2. Normalize Rows
+        let cleanRows = [];
+        let finalStationKey = 'STATION';
+        let finalTrainKeys = [];
+
+        if (headerRowIndex > -1) {
+            const headerRow = processedRows[headerRowIndex];
+            let keyMap = {}; 
+            Object.keys(headerRow).forEach(k => { keyMap[k] = headerRow[k]; });
+
+            for (let i = headerRowIndex + 1; i < processedRows.length; i++) {
+                let newRow = {};
+                let originalRow = processedRows[i];
+                Object.keys(originalRow).forEach(k => {
+                    if (keyMap[k]) newRow[keyMap[k]] = originalRow[k];
+                });
+                cleanRows.push(newRow);
+            }
+            Object.values(keyMap).forEach(val => {
+                if (val !== 'STATION' && val !== 'COORDINATES' && val !== 'row_index' && !String(val).match(/last updated/i)) {
+                     finalTrainKeys.push(val);
+                }
+            });
+
+        } else {
+            cleanRows = processedRows;
+            if (cleanRows.length > 0) {
+                Object.keys(cleanRows[0]).forEach(k => {
+                     if (k !== 'STATION' && k !== 'COORDINATES' && k !== 'row_index' && !finalTrainKeys.includes(k)) finalTrainKeys.push(k);
+                });
+            }
+        }
+        
+        // 3. Final Filter
+        cleanRows = cleanRows.filter(row => {
+            const s = row[finalStationKey];
             if (!s || typeof s !== 'string') return false;
             const lower = s.toLowerCase().trim();
-            if (lower.startsWith('last updated')) return false;
+            if (lower.startsWith('last updated') || lower.startsWith('updated:')) return false; 
             if (lower.includes('inter-station')) return false;
             if (lower.includes('trip')) return false; 
             return true;
         });
 
-        cleanRows.forEach(row => {
-            if (row.STATION && row.COORDINATES) {
-                try {
-                    const parts = String(row.COORDINATES).split(',').map(s => parseFloat(s.trim()));
-                    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                        stationLocations[row.STATION] = { lat: parts[0], lon: parts[1] };
-                    }
-                } catch(e) {}
-            }
-        });
-
-        if (cleanRows.length === 0) return { headers: [], rows: [], stationColumnName: 'STATION' };
-
-        const allHeaders = new Set();
-        cleanRows.forEach(row => { 
-            Object.keys(row).forEach(key => { 
-                if (key !== 'STATION' && key !== 'COORDINATES' && key !== 'row_index') allHeaders.add(key); 
-            }); 
-        });
-        const trainNumbers = Array.from(allHeaders).sort();
-        return { stationColumnName: 'STATION', headers: ['STATION', ...trainNumbers], rows: cleanRows };
+        finalTrainKeys.sort();
+        
+        return { 
+            stationColumnName: finalStationKey, 
+            headers: [finalStationKey, ...finalTrainKeys], 
+            rows: cleanRows,
+            lastUpdated: extractedLastUpdated 
+        };
 
     } catch (e) {
         console.error("Parser Error:", e);
-        return { headers: [], rows: [], stationColumnName: 'STATION' };
+        return { headers: [], rows: [], stationColumnName: 'STATION', lastUpdated: externalMetaDate };
     }
 }
 
@@ -233,7 +425,6 @@ function populateStationList() {
     
     if (schedules.weekday_to_a && schedules.weekday_to_a.rows) schedules.weekday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
     if (schedules.weekday_to_b && schedules.weekday_to_b.rows) schedules.weekday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
-    
     if (schedules.saturday_to_a && schedules.saturday_to_a.rows) schedules.saturday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
     if (schedules.saturday_to_b && schedules.saturday_to_b.rows) schedules.saturday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
 
@@ -257,12 +448,13 @@ function pad(num) { return num.toString().padStart(2, '0'); }
 function startClock() { updateTime(); setInterval(updateTime, 1000); }
 
 function updateTime() {
-    let day, timeString;
+    let day, timeString, now;
+    
     if (isSimMode) {
         day = parseInt(simDayIndex);
         timeString = simTimeStr; 
     } else {
-        const now = new Date();
+        now = new Date();
         day = now.getDay(); 
         timeString = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     }
@@ -270,14 +462,38 @@ function updateTime() {
     currentTime = timeString; 
     currentTimeEl.textContent = `Current Time: ${timeString} ${isSimMode ? '(SIM)' : ''}`;
     
-    const newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
-    currentDayType = newDayType;
-    currentDayIndex = day;
+    // --- HOLIDAY OVERRIDE LOGIC ---
+    let newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
+    let specialStatusText = "";
+
+    if (!isSimMode) {
+        const month = pad(now.getMonth() + 1); // getMonth is 0-11
+        const date = pad(now.getDate());
+        const dateKey = `${month}-${date}`;
+
+        if (SPECIAL_DATES[dateKey]) {
+            newDayType = SPECIAL_DATES[dateKey];
+            specialStatusText = " (Holiday Schedule)";
+        }
+    }
+    // -----------------------------
     
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    currentDayEl.textContent = (currentDayType === 'sunday') 
-        ? "Sunday (No Service)" 
-        : `${dayNames[day]} (${currentDayType === 'saturday' ? 'Saturday Schedule' : 'Weekday Schedule'})`;
+    
+    if (newDayType !== currentDayType) {
+         currentDayType = newDayType;
+         currentDayIndex = day; 
+         updateLastUpdatedText(); 
+    } else {
+         currentDayIndex = day;
+    }
+    
+    let displayType = "";
+    if (newDayType === 'sunday') displayType = "No Service";
+    else if (newDayType === 'saturday') displayType = "Saturday Schedule";
+    else displayType = "Weekday Schedule";
+
+    currentDayEl.innerHTML = `${dayNames[day]} <span class="text-blue-600 dark:text-blue-400 font-bold">${displayType}</span>${specialStatusText}`;
     
     findNextTrains();
 }
@@ -288,18 +504,12 @@ function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
         const [nowH, nowM, nowS] = currentTime.split(':').map(Number);
         const depParts = departureTimeStr.split(':').map(Number);
         if (depParts.length < 2) return ""; 
-
-        const depH = depParts[0]; 
-        const depM = depParts[1]; 
-        const depS = depParts[2] || 0;
-
+        const depH = depParts[0]; const depM = depParts[1]; const depS = depParts[2] || 0;
         let nowTotalSeconds = (nowH * 3600) + (nowM * 60) + nowS;
         let depTotalSeconds = (depH * 3600) + (depM * 60) + depS;
         let diffInSeconds = (depTotalSeconds - nowTotalSeconds) + (dayOffset * 86400);
-
         if (diffInSeconds < -30) return ""; 
         if (diffInSeconds < 60) return "(Arriving now)";
-
         let diffInMinutes = Math.ceil(diffInSeconds / 60);
         const hours = Math.floor(diffInMinutes / 60);
         const minutes = diffInMinutes % 60;
@@ -322,7 +532,7 @@ function renderPlaceholder() {
     pienaarspoortTimeEl.innerHTML = placeholderHTML;
 }
 
-// --- GEOLOCATION LOGIC ---
+// --- UPDATED GEOLOCATION LOGIC ---
 function findNearestStation() {
     if (!navigator.geolocation) {
         showToast("Geolocation is not supported by your browser.", "error");
@@ -330,14 +540,17 @@ function findNearestStation() {
         return;
     }
     showToast("Locating nearest station...", "info", 4000);
+    const icon = locateBtn.querySelector('svg');
+    if(icon) icon.classList.add('spinning');
+
     navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
             const userLat = position.coords.latitude;
             const userLon = position.coords.longitude;
             let nearestStation = null;
             let minDistance = Infinity;
 
-            for (const [stationName, coords] of Object.entries(stationLocations)) {
+            for (const [stationName, coords] of Object.entries(globalStationIndex)) {
                 const dist = getDistanceFromLatLonInKm(userLat, userLon, coords.lat, coords.lon);
                 if (dist < minDistance) {
                     minDistance = dist;
@@ -346,6 +559,21 @@ function findNearestStation() {
             }
 
             if (nearestStation && minDistance <= MAX_RADIUS_KM) {
+                const stationData = globalStationIndex[nearestStation];
+                const stationRoutes = stationData.routes;
+                
+                if (!stationRoutes.has(currentRouteId)) {
+                    const newRouteId = Array.from(stationRoutes)[0];
+                    if (newRouteId && ROUTES[newRouteId]) {
+                        currentRouteId = newRouteId;
+                        document.querySelectorAll('#route-list a').forEach(a => {
+                            if (a.dataset.routeId === currentRouteId) a.classList.add('active');
+                            else a.classList.remove('active');
+                        });
+                        showToast(`Switched to ${ROUTES[currentRouteId].name}`, "info", 3000);
+                        await loadAllSchedules();
+                    }
+                }
                 stationSelect.value = nearestStation; 
                 findNextTrains();
                 showToast(`Found: ${nearestStation.replace(' STATION', '')} (${minDistance.toFixed(1)}km)`, "success");
@@ -353,12 +581,14 @@ function findNearestStation() {
                   showToast("No stations found within 6km.", "error");
                   stationSelect.value = ""; 
             }
+            if(icon) icon.classList.remove('spinning');
         },
         (error) => {
             let msg = "Unable to retrieve location.";
             if (error.code === 1) msg = "Location permission denied.";
             showToast(msg, "error");
             stationSelect.value = "";
+            if(icon) icon.classList.remove('spinning');
         }
     );
 }
@@ -381,7 +611,6 @@ function findNextTrains() {
     const currentRoute = ROUTES[currentRouteId];
     
     if (selectedStation === "FIND_NEAREST") { findNearestStation(); return; }
-    
     if (!currentRoute) return;
     if (!currentRoute.isActive) { renderComingSoon(currentRoute.name); return; }
     pretoriaTimeEl.innerHTML = ""; pienaarspoortTimeEl.innerHTML = "";
@@ -389,7 +618,7 @@ function findNextTrains() {
     pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
     
     if (!selectedStation) { renderPlaceholder(); return; }
-    if (stationSelect.options[stationSelect.selectedIndex].textContent.includes("(No Service)")) {
+    if (stationSelect.options[stationSelect.selectedIndex] && stationSelect.options[stationSelect.selectedIndex].textContent.includes("(No Service)")) {
         const msg = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-gray-600 dark:text-gray-400">No trains stop here.</div>`;
         pretoriaTimeEl.innerHTML = msg; pienaarspoortTimeEl.innerHTML = msg; return;
     }
@@ -414,6 +643,7 @@ function findNextTrains() {
     }
 }
 
+// RESTORED ORIGINAL LOGIC FOR THESE FUNCTIONS
 function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
     const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA);
     let allTransferJourneys = [];
@@ -482,6 +712,7 @@ function findNextDirectTrain(fromStation, schedule, destinationStation) {
             }
         }
         
+        // RESTORED: Strict Index Check
         if (fromRow && destRow) {
             const fromIndex = schedule.rows.indexOf(fromRow);
             const destIndex = schedule.rows.indexOf(destRow);
@@ -511,6 +742,7 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination)
     const termRow = findRowFuzzy(terminalStation); 
     if (!fromRow || !termRow) return { allJourneys: [] };
     
+    // RESTORED: Strict Index Check for Transfers
     const fromIndex = schedule.rows.indexOf(fromRow); 
     const termIndex = schedule.rows.indexOf(termRow);
     if (fromIndex >= termIndex) return { allJourneys: [] }; 
@@ -727,7 +959,7 @@ function renderNoService(element, destination) {
         const timeDiffStr = calculateTimeDiffString(departureTime, 1); 
         timeHTML = `<div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
     }
-    element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center w-full"><div class="text-xl font-bold text-gray-600 dark:text-gray-400">No service on Sundays.</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train Monday is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2 w-3/4">${timeHTML}</div></div>`;
+    element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center w-full"><div class="text-xl font-bold text-gray-600 dark:text-gray-400">No service on Sundays/Holidays.</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train next weekday is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2 w-3/4">${timeHTML}</div></div>`;
 }
 
 function renderComingSoon(routeName) {
@@ -849,6 +1081,7 @@ function setupFeatureButtons() {
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Assign Global Element References
     stationSelect = document.getElementById('station-select');
+    locateBtn = document.getElementById('locate-btn');
     pretoriaTimeEl = document.getElementById('pretoria-time');
     pienaarspoortTimeEl = document.getElementById('pienaarspoort-time');
     pretoriaHeader = document.getElementById('pretoria-header');
@@ -910,6 +1143,7 @@ document.addEventListener('DOMContentLoaded', () => {
     closeLegalBtn.addEventListener('click', closeLegal);
     closeLegalBtn2.addEventListener('click', closeLegal);
     legalModal.addEventListener('click', (e) => { if (e.target === legalModal) closeLegal(); });
+    locateBtn.addEventListener('click', findNearestStation);
     
     // Developer Mode Trigger (5 Taps)
     appTitle.addEventListener('click', () => {
@@ -948,17 +1182,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. Start App Logic
     const savedDefault = localStorage.getItem('defaultRoute');
     if (savedDefault && ROUTES[savedDefault]) currentRouteId = savedDefault;
-    loadAllSchedules(); 
+    
     stationSelect.addEventListener('change', findNextTrains);
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
 
-    // 4. Auto-Locate
-    if (navigator.permissions && navigator.permissions.query) {
-        navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
-            if (result.state === 'granted') {
-                console.log("Location permission already granted. Auto-locating...");
-                findNearestStation();
-            }
-        });
-    }
+    // 4. Load Data & Auto-Locate
+    loadAllSchedules().then(() => {
+        if (navigator.permissions && navigator.permissions.query) {
+            navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
+                if (result.state === 'granted') {
+                    console.log("Location permission already granted. Auto-locating...");
+                    findNearestStation();
+                }
+            });
+        }
+    });
 });
