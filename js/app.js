@@ -1,9 +1,9 @@
 // --- GLOBAL STATE VARIABLES ---
-let globalStationIndex = {}; // Maps "STATION" -> { lat, lon, routes: Set() }
+let globalStationIndex = {}; 
 let currentRouteId = 'pta-pien'; 
 let fullDatabase = null; 
 let schedules = {};
-let allStations = []; // Only for current route
+let allStations = []; 
 let currentTime = null;
 let currentDayType = 'weekday'; 
 let currentDayIndex = 0; 
@@ -11,29 +11,16 @@ let deferredPrompt;
 let currentScheduleData = {};
 let refreshTimer = null;
 
-// --- HOLIDAY CONFIGURATION (From Metrorail Notices) ---
+// --- HOLIDAY CONFIGURATION ---
 const SPECIAL_DATES = {
-    // format: "MM-DD": "type" 
-    
-    // Day of Reconciliation (Tue 16 Dec -> Saturday Sched)
     "12-16": "saturday",
-
-    // Festive Season: Week 1
-    "12-22": "saturday", // Mon -> Sat Sched
-    "12-23": "saturday", // Tue -> Sat Sched
-    "12-24": "saturday", // Wed -> Sat Sched
-    "12-25": "sunday",   // Thu -> No Service
-    "12-26": "sunday",   // Fri -> No Service
-
-    // Festive Season: Week 2
-    "12-29": "saturday", // Mon -> Sat Sched
-    "12-30": "saturday", // Tue -> Sat Sched
-    "12-31": "saturday", // Wed -> Sat Sched
-    "01-01": "sunday",   // Thu -> No Service
-    "01-02": "saturday"  // Fri -> Sat Sched
+    "12-22": "saturday", "12-23": "saturday", "12-24": "saturday",
+    "12-25": "sunday", "12-26": "sunday",
+    "12-29": "saturday", "12-30": "saturday", "12-31": "saturday",
+    "01-01": "sunday", "01-02": "saturday"
 };
 
-// --- ELEMENT REFERENCES (Loaded on DOMContentLoaded) ---
+// --- ELEMENT REFERENCES ---
 let stationSelect, locateBtn, pretoriaTimeEl, pienaarspoortTimeEl, pretoriaHeader, pienaarspoortHeader;
 let currentTimeEl, currentDayEl, loadingOverlay, mainContent, offlineIndicator;
 let scheduleModal, modalTitle, modalList, closeModalBtn, closeModalBtn2;
@@ -54,7 +41,12 @@ let simTimeStr = "";
 let simDayIndex = 1;
 let toastTimeout;
 
-// --- SECURITY HELPER ---
+// --- SAFETY HELPER: Compatible Pad Function ---
+function pad(num) {
+    var s = "00" + num;
+    return s.substr(s.length - 2);
+}
+
 function escapeHTML(str) {
     if (!str) return '';
     return String(str).replace(/[&<>"']/g, function(m) {
@@ -62,14 +54,17 @@ function escapeHTML(str) {
     });
 }
 
-// --- GLOBAL ERROR HANDLER ---
+// --- UPDATED ERROR HANDLER (No Auto-Reload Loop) ---
 window.onerror = function(msg, url, line) {
     console.error("Global Error Caught:", msg);
     if(loadingOverlay) loadingOverlay.style.display = 'none';
     if(mainContent) mainContent.style.display = 'block';
+    
     if(toast) {
-        showToast("App crashed. Resetting...", "error");
-        setTimeout(() => { localStorage.removeItem('full_db'); location.reload(); }, 2000);
+        toast.textContent = "Error: " + msg; 
+        toast.className = "toast-error show";
+    } else {
+        alert("Error: " + msg);
     }
     return false;
 };
@@ -130,9 +125,7 @@ async function loadAllSchedules(force = false) {
             fullDatabase = cachedDB.data;
             processRouteDataFromDB(currentRoute);
             buildGlobalStationIndex(); 
-            
             updateLastUpdatedText();
-            
             initializeApp();
             usedCache = true;
         }
@@ -158,7 +151,6 @@ async function loadAllSchedules(force = false) {
             
             processRouteDataFromDB(currentRoute);
             buildGlobalStationIndex(); 
-            
             updateLastUpdatedText();
             
             if (usedCache) { showToast("Schedule updated!", "success", 3000); findNextTrains(); } 
@@ -182,7 +174,6 @@ async function loadAllSchedules(force = false) {
     }
 }
 
-// --- NEW: UPDATE LAST UPDATED TEXT ---
 function updateLastUpdatedText() {
     if (!fullDatabase) return;
     
@@ -205,12 +196,11 @@ function updateLastUpdatedText() {
 
     displayDate = displayDate.replace(/^last updated[:\s-]*/i, '').trim();
 
-    if (displayDate) {
+    if (displayDate && lastUpdatedEl) {
          lastUpdatedEl.textContent = `Schedule updated: ${displayDate}`;
     }
 }
 
-// --- GLOBAL STATION INDEX ---
 function buildGlobalStationIndex() {
     globalStationIndex = {}; 
     if (!fullDatabase) return;
@@ -300,7 +290,6 @@ function processRouteDataFromDB(route) {
     };
 }
 
-// --- UPDATED PARSER: Handles "_meta" param OR in-row data ---
 function parseJSONSchedule(jsonRows, externalMetaDate = null) {
     try {
         if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) 
@@ -310,7 +299,8 @@ function parseJSONSchedule(jsonRows, externalMetaDate = null) {
         let extractedLastUpdated = externalMetaDate;
         let processedRows = [...jsonRows];
 
-        // 0. PRE-CLEAN: Remove any "Last Updated" row injected by Apps Script at index 0
+        // --- THE "INDEX 0 TRAP" FIX ---
+        // Shift metadata row if present
         if (processedRows.length > 0) {
             const firstRow = processedRows[0];
             const values = Object.values(firstRow).map(String);
@@ -332,7 +322,6 @@ function parseJSONSchedule(jsonRows, externalMetaDate = null) {
             }
         }
 
-        // 1. Find the REAL Header Row (STATION)
         for(let i = 0; i < Math.min(processedRows.length, 10); i++) {
             const row = processedRows[i];
             const values = Object.values(row).map(String);
@@ -347,7 +336,6 @@ function parseJSONSchedule(jsonRows, externalMetaDate = null) {
             }
         }
 
-        // 2. Normalize Rows
         let cleanRows = [];
         let finalStationKey = 'STATION';
         let finalTrainKeys = [];
@@ -380,7 +368,6 @@ function parseJSONSchedule(jsonRows, externalMetaDate = null) {
             }
         }
         
-        // 3. Final Filter
         cleanRows = cleanRows.filter(row => {
             const s = row[finalStationKey];
             if (!s || typeof s !== 'string') return false;
@@ -444,58 +431,59 @@ function populateStationList() {
     if (allStations.includes(currentSelectedStation)) stationSelect.value = currentSelectedStation; else stationSelect.value = ""; 
 }
 
-function pad(num) { return num.toString().padStart(2, '0'); }
 function startClock() { updateTime(); setInterval(updateTime, 1000); }
 
 function updateTime() {
-    let day, timeString, now;
-    
-    if (isSimMode) {
-        day = parseInt(simDayIndex);
-        timeString = simTimeStr; 
-    } else {
-        now = new Date();
-        day = now.getDay(); 
-        timeString = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-    }
-
-    currentTime = timeString; 
-    currentTimeEl.textContent = `Current Time: ${timeString} ${isSimMode ? '(SIM)' : ''}`;
-    
-    // --- HOLIDAY OVERRIDE LOGIC ---
-    let newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
-    let specialStatusText = "";
-
-    if (!isSimMode) {
-        const month = pad(now.getMonth() + 1); // getMonth is 0-11
-        const date = pad(now.getDate());
-        const dateKey = `${month}-${date}`;
-
-        if (SPECIAL_DATES[dateKey]) {
-            newDayType = SPECIAL_DATES[dateKey];
-            specialStatusText = " (Holiday Schedule)";
+    try {
+        let day, timeString, now;
+        
+        if (isSimMode) {
+            day = parseInt(simDayIndex);
+            timeString = simTimeStr; 
+        } else {
+            now = new Date();
+            day = now.getDay(); 
+            timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
         }
-    }
-    // -----------------------------
-    
-    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    
-    if (newDayType !== currentDayType) {
-         currentDayType = newDayType;
-         currentDayIndex = day; 
-         updateLastUpdatedText(); 
-    } else {
-         currentDayIndex = day;
-    }
-    
-    let displayType = "";
-    if (newDayType === 'sunday') displayType = "No Service";
-    else if (newDayType === 'saturday') displayType = "Saturday Schedule";
-    else displayType = "Weekday Schedule";
 
-    currentDayEl.innerHTML = `${dayNames[day]} <span class="text-blue-600 dark:text-blue-400 font-bold">${displayType}</span>${specialStatusText}`;
-    
-    findNextTrains();
+        currentTime = timeString; 
+        if(currentTimeEl) currentTimeEl.textContent = `Current Time: ${timeString} ${isSimMode ? '(SIM)' : ''}`;
+        
+        let newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
+        let specialStatusText = "";
+
+        if (!isSimMode && now) {
+            var m = pad(now.getMonth() + 1);
+            var d = pad(now.getDate());
+            var dateKey = m + "-" + d;
+
+            if (SPECIAL_DATES[dateKey]) {
+                newDayType = SPECIAL_DATES[dateKey];
+                specialStatusText = " (Holiday Schedule)";
+            }
+        }
+        
+        const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        
+        if (newDayType !== currentDayType) {
+             currentDayType = newDayType;
+             currentDayIndex = day; 
+             updateLastUpdatedText(); 
+        } else {
+             currentDayIndex = day;
+        }
+        
+        let displayType = "";
+        if (newDayType === 'sunday') displayType = "No Service";
+        else if (newDayType === 'saturday') displayType = "Saturday Schedule";
+        else displayType = "Weekday Schedule";
+
+        if(currentDayEl) currentDayEl.innerHTML = `${dayNames[day]} <span class="text-blue-600 dark:text-blue-400 font-bold">${displayType}</span>${specialStatusText}`;
+        
+        findNextTrains();
+    } catch(e) {
+        console.error("Error in updateTime", e);
+    }
 }
 
 function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
@@ -532,63 +520,124 @@ function renderPlaceholder() {
     pienaarspoortTimeEl.innerHTML = placeholderHTML;
 }
 
-// --- UPDATED GEOLOCATION LOGIC ---
-function findNearestStation() {
+// --- UPDATED GEOLOCATION LOGIC (Smart Route Priority) ---
+function findNearestStation(isAuto = false) {
     if (!navigator.geolocation) {
-        showToast("Geolocation is not supported by your browser.", "error");
-        stationSelect.value = "";
+        if (!isAuto) showToast("Geolocation is not supported by your browser.", "error");
+        if (!isAuto) stationSelect.value = "";
         return;
     }
-    showToast("Locating nearest station...", "info", 4000);
-    const icon = locateBtn.querySelector('svg');
-    if(icon) icon.classList.add('spinning');
+    
+    if (!isAuto) {
+        showToast("Locating nearest station...", "info", 4000);
+        const icon = locateBtn.querySelector('svg');
+        if(icon) icon.classList.add('spinning');
+    }
 
     navigator.geolocation.getCurrentPosition(
         async (position) => {
             const userLat = position.coords.latitude;
             const userLon = position.coords.longitude;
-            let nearestStation = null;
-            let minDistance = Infinity;
-
+            
+            // 1. Calculate distance to ALL stations
+            let candidates = [];
             for (const [stationName, coords] of Object.entries(globalStationIndex)) {
                 const dist = getDistanceFromLatLonInKm(userLat, userLon, coords.lat, coords.lon);
-                if (dist < minDistance) {
-                    minDistance = dist;
-                    nearestStation = stationName;
+                candidates.push({ stationName, dist, routes: coords.routes });
+            }
+            
+            // Sort by distance
+            candidates.sort((a, b) => a.dist - b.dist);
+
+            if (candidates.length === 0) {
+                 if(!isAuto) showToast("No stations found in database.", "error");
+                 return;
+            }
+
+            // 2. Filter logic: Prefer stations on ACTIVE route
+            let chosenCandidate = null;
+            let routeSwitched = false;
+
+            // Step A: Check if the *absolute* nearest is part of current route
+            // Or look for the nearest one that IS part of current route
+            const activeRouteCandidates = candidates.filter(c => c.routes.has(currentRouteId));
+            
+            if (activeRouteCandidates.length > 0) {
+                const bestActive = activeRouteCandidates[0];
+                if (bestActive.dist <= MAX_RADIUS_KM) {
+                    chosenCandidate = bestActive; // Found one on current route!
                 }
             }
 
-            if (nearestStation && minDistance <= MAX_RADIUS_KM) {
-                const stationData = globalStationIndex[nearestStation];
-                const stationRoutes = stationData.routes;
+            // Step B: If nothing on current route found, and this was Manual click, look globally
+            if (!chosenCandidate && !isAuto) {
+                 const bestGlobal = candidates[0];
+                 if (bestGlobal.dist <= MAX_RADIUS_KM) {
+                     chosenCandidate = bestGlobal;
+                     // It requires a route switch
+                     if (!chosenCandidate.routes.has(currentRouteId)) {
+                         const newRouteId = Array.from(chosenCandidate.routes)[0];
+                         if (newRouteId && ROUTES[newRouteId]) {
+                             currentRouteId = newRouteId;
+                             document.querySelectorAll('#route-list a').forEach(a => {
+                                 if (a.dataset.routeId === currentRouteId) a.classList.add('active');
+                                 else a.classList.remove('active');
+                             });
+                             showToast(`Switched to ${ROUTES[currentRouteId].name}`, "info", 3000);
+                             await loadAllSchedules(); // Reload data for new route
+                             routeSwitched = true;
+                         }
+                     }
+                 }
+            }
+
+            // 3. Selection Logic
+            if (chosenCandidate) {
+                const nearestStation = chosenCandidate.stationName;
+                const distStr = chosenCandidate.dist.toFixed(1);
+
+                // --- FIX: Explicit DOM Selection ---
+                // We must ensure the value matches the option value EXACTLY
+                let matched = false;
+                const options = stationSelect.options;
                 
-                if (!stationRoutes.has(currentRouteId)) {
-                    const newRouteId = Array.from(stationRoutes)[0];
-                    if (newRouteId && ROUTES[newRouteId]) {
-                        currentRouteId = newRouteId;
-                        document.querySelectorAll('#route-list a').forEach(a => {
-                            if (a.dataset.routeId === currentRouteId) a.classList.add('active');
-                            else a.classList.remove('active');
-                        });
-                        showToast(`Switched to ${ROUTES[currentRouteId].name}`, "info", 3000);
-                        await loadAllSchedules();
+                for (let i = 0; i < options.length; i++) {
+                    // Compare normalized values to be safe
+                    if (normalizeStationName(options[i].value) === normalizeStationName(nearestStation)) {
+                        stationSelect.selectedIndex = i;
+                        stationSelect.value = options[i].value; // Force value
+                        matched = true;
+                        break;
                     }
                 }
-                stationSelect.value = nearestStation; 
-                findNextTrains();
-                showToast(`Found: ${nearestStation.replace(' STATION', '')} (${minDistance.toFixed(1)}km)`, "success");
+
+                if (matched) {
+                    findNextTrains(); // Trigger logic
+                    if (!isAuto || routeSwitched) {
+                        showToast(`Found: ${nearestStation.replace(' STATION', '')} (${distStr}km)`, "success");
+                    }
+                } else {
+                     if (!isAuto) showToast("Station found but not in this schedule.", "error");
+                }
             } else {
-                  showToast("No stations found within 6km.", "error");
-                  stationSelect.value = ""; 
+                if (!isAuto) showToast(`No stations found within ${MAX_RADIUS_KM}km.`, "error");
+                if (!isAuto) stationSelect.value = ""; 
             }
-            if(icon) icon.classList.remove('spinning');
+            
+            if (!isAuto) {
+                const icon = locateBtn.querySelector('svg');
+                if(icon) icon.classList.remove('spinning');
+            }
         },
         (error) => {
-            let msg = "Unable to retrieve location.";
-            if (error.code === 1) msg = "Location permission denied.";
-            showToast(msg, "error");
-            stationSelect.value = "";
-            if(icon) icon.classList.remove('spinning');
+            if (!isAuto) {
+                let msg = "Unable to retrieve location.";
+                if (error.code === 1) msg = "Location permission denied.";
+                showToast(msg, "error");
+                stationSelect.value = "";
+                const icon = locateBtn.querySelector('svg');
+                if(icon) icon.classList.remove('spinning');
+            }
         }
     );
 }
@@ -610,7 +659,9 @@ function findNextTrains() {
     const selectedStation = stationSelect.value;
     const currentRoute = ROUTES[currentRouteId];
     
-    if (selectedStation === "FIND_NEAREST") { findNearestStation(); return; }
+    // Pass false to imply manual click if "FIND_NEAREST" is selected manually
+    if (selectedStation === "FIND_NEAREST") { findNearestStation(false); return; }
+    
     if (!currentRoute) return;
     if (!currentRoute.isActive) { renderComingSoon(currentRoute.name); return; }
     pretoriaTimeEl.innerHTML = ""; pienaarspoortTimeEl.innerHTML = "";
@@ -643,7 +694,6 @@ function findNextTrains() {
     }
 }
 
-// RESTORED ORIGINAL LOGIC FOR THESE FUNCTIONS
 function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
     const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA);
     let allTransferJourneys = [];
@@ -712,7 +762,6 @@ function findNextDirectTrain(fromStation, schedule, destinationStation) {
             }
         }
         
-        // RESTORED: Strict Index Check
         if (fromRow && destRow) {
             const fromIndex = schedule.rows.indexOf(fromRow);
             const destIndex = schedule.rows.indexOf(destRow);
@@ -742,7 +791,6 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination)
     const termRow = findRowFuzzy(terminalStation); 
     if (!fromRow || !termRow) return { allJourneys: [] };
     
-    // RESTORED: Strict Index Check for Transfers
     const fromIndex = schedule.rows.indexOf(fromRow); 
     const termIndex = schedule.rows.indexOf(termRow);
     if (fromIndex >= termIndex) return { allJourneys: [] }; 
@@ -1079,7 +1127,6 @@ function setupFeatureButtons() {
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Assign Global Element References
     stationSelect = document.getElementById('station-select');
     locateBtn = document.getElementById('locate-btn');
     pretoriaTimeEl = document.getElementById('pretoria-time');
@@ -1122,7 +1169,6 @@ document.addEventListener('DOMContentLoaded', () => {
     feedbackBtn = document.getElementById('feedback-btn');
     lastUpdatedEl = document.getElementById('last-updated-date');
 
-    // Simulation & Modal Elements
     simPanel = document.getElementById('sim-panel');
     simEnabledCheckbox = document.getElementById('sim-enabled');
     simTimeInput = document.getElementById('sim-time');
@@ -1139,13 +1185,13 @@ document.addEventListener('DOMContentLoaded', () => {
     closeLegalBtn = document.getElementById('close-legal-btn');
     closeLegalBtn2 = document.getElementById('close-legal-btn-2');
 
-    // 2. Setup Listeners
     closeLegalBtn.addEventListener('click', closeLegal);
     closeLegalBtn2.addEventListener('click', closeLegal);
     legalModal.addEventListener('click', (e) => { if (e.target === legalModal) closeLegal(); });
-    locateBtn.addEventListener('click', findNearestStation);
     
-    // Developer Mode Trigger (5 Taps)
+    // Manual Locate Click - pass false to indicate manual interaction
+    locateBtn.addEventListener('click', () => findNearestStation(false));
+    
     appTitle.addEventListener('click', () => {
         clickCount++;
         if (clickTimer) clearTimeout(clickTimer);
@@ -1179,20 +1225,19 @@ document.addEventListener('DOMContentLoaded', () => {
         updateTime(); 
     });
 
-    // 3. Start App Logic
     const savedDefault = localStorage.getItem('defaultRoute');
     if (savedDefault && ROUTES[savedDefault]) currentRouteId = savedDefault;
     
     stationSelect.addEventListener('change', findNextTrains);
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
 
-    // 4. Load Data & Auto-Locate
     loadAllSchedules().then(() => {
         if (navigator.permissions && navigator.permissions.query) {
             navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
                 if (result.state === 'granted') {
                     console.log("Location permission already granted. Auto-locating...");
-                    findNearestStation();
+                    // Auto Locate - pass true
+                    findNearestStation(true);
                 }
             });
         }
