@@ -290,17 +290,15 @@ function processRouteDataFromDB(route) {
     };
 }
 
-// --- UPDATED PARSER (RESTORED FROM STABLE V3.17.5) ---
+// --- RESTORED ROBUST PARSER (STABLE LOGIC) ---
 function parseJSONSchedule(jsonRows, externalMetaDate = null) {
     try {
         if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) 
             return { headers: [], rows: [], stationColumnName: 'STATION', lastUpdated: externalMetaDate };
 
-        let headerRowIndex = -1;
         let extractedLastUpdated = externalMetaDate;
         
         // 1. Logic to extract Last Updated date if available in top rows
-        // (Similar to V3.21.0 but safer extraction)
         if (jsonRows.length > 0) {
             const firstRow = jsonRows[0];
             const values = Object.values(firstRow).map(String);
@@ -378,7 +376,10 @@ function populateStationList() {
     if (schedules.weekday_to_a.rows) { const orderMap = schedules.weekday_to_a.rows.map(r => r.STATION); allStations.sort((a, b) => orderMap.indexOf(a) - orderMap.indexOf(b)); }
     
     const currentSelectedStation = stationSelect.value;
-    stationSelect.innerHTML = '<option value="">Select a station...</option><option value="FIND_NEAREST">📍 Find Nearest Station</option>';
+    
+    // --- UI MODIFICATION: Removed 'FIND_NEAREST' option ---
+    stationSelect.innerHTML = '<option value="">Select a station...</option>';
+    
     allStations.forEach(station => {
         if (station && !station.toLowerCase().includes('last updated')) {
             const option = document.createElement('option');
@@ -619,6 +620,7 @@ function findNextTrains() {
     const currentRoute = ROUTES[currentRouteId];
     
     // Pass false to imply manual click if "FIND_NEAREST" is selected manually
+    // (Dead code now as option is gone, but safe to keep)
     if (selectedStation === "FIND_NEAREST") { findNearestStation(false); return; }
     
     if (!currentRoute) return;
