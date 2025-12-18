@@ -290,6 +290,7 @@ function processRouteDataFromDB(route) {
     };
 }
 
+// --- UPDATED PARSER (RESTORED FROM STABLE V3.17.5) ---
 function parseJSONSchedule(jsonRows, externalMetaDate = null) {
     try {
         if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) 
@@ -297,92 +298,50 @@ function parseJSONSchedule(jsonRows, externalMetaDate = null) {
 
         let headerRowIndex = -1;
         let extractedLastUpdated = externalMetaDate;
-        let processedRows = [...jsonRows];
-
-        // --- THE "INDEX 0 TRAP" FIX ---
-        // Shift metadata row if present
-        if (processedRows.length > 0) {
-            const firstRow = processedRows[0];
-            const values = Object.values(firstRow).map(String);
-            const isMetadataRow = values.some(v => /last updated/i.test(v));
-            
-            if (isMetadataRow) {
-                if (!extractedLastUpdated) {
-                    const dateValueIndex = values.findIndex(v => /last updated/i.test(v));
-                    if (dateValueIndex !== -1) {
-                         let val = values[dateValueIndex];
-                         if (val.length > 15) {
-                            extractedLastUpdated = val.replace(/last updated[:\s-]*/i, '').trim();
-                        } else if (values[dateValueIndex+1]) {
-                            extractedLastUpdated = values[dateValueIndex+1];
-                        }
-                    }
-                }
-                processedRows.shift();
-            }
-        }
-
-        for(let i = 0; i < Math.min(processedRows.length, 10); i++) {
-            const row = processedRows[i];
-            const values = Object.values(row).map(String);
-            
-            if (values.some(v => v.toUpperCase().trim() === 'STATION')) {
-                headerRowIndex = i;
-                break; 
-            }
-            if (Object.keys(row).includes('STATION')) {
-                headerRowIndex = -1;
-                break;
-            }
-        }
-
-        let cleanRows = [];
-        let finalStationKey = 'STATION';
-        let finalTrainKeys = [];
-
-        if (headerRowIndex > -1) {
-            const headerRow = processedRows[headerRowIndex];
-            let keyMap = {}; 
-            Object.keys(headerRow).forEach(k => { keyMap[k] = headerRow[k]; });
-
-            for (let i = headerRowIndex + 1; i < processedRows.length; i++) {
-                let newRow = {};
-                let originalRow = processedRows[i];
-                Object.keys(originalRow).forEach(k => {
-                    if (keyMap[k]) newRow[keyMap[k]] = originalRow[k];
-                });
-                cleanRows.push(newRow);
-            }
-            Object.values(keyMap).forEach(val => {
-                if (val !== 'STATION' && val !== 'COORDINATES' && val !== 'row_index' && !String(val).match(/last updated/i)) {
-                     finalTrainKeys.push(val);
-                }
-            });
-
-        } else {
-            cleanRows = processedRows;
-            if (cleanRows.length > 0) {
-                Object.keys(cleanRows[0]).forEach(k => {
-                     if (k !== 'STATION' && k !== 'COORDINATES' && k !== 'row_index' && !finalTrainKeys.includes(k)) finalTrainKeys.push(k);
-                });
-            }
-        }
         
-        cleanRows = cleanRows.filter(row => {
-            const s = row[finalStationKey];
+        // 1. Logic to extract Last Updated date if available in top rows
+        // (Similar to V3.21.0 but safer extraction)
+        if (jsonRows.length > 0) {
+            const firstRow = jsonRows[0];
+            const values = Object.values(firstRow).map(String);
+            const dateValueIndex = values.findIndex(v => /last updated/i.test(v));
+            if (dateValueIndex !== -1) {
+                 let val = values[dateValueIndex];
+                 if (val.length > 15) {
+                    extractedLastUpdated = val.replace(/last updated[:\s-]*/i, '').trim();
+                } else if (values[dateValueIndex+1]) {
+                    extractedLastUpdated = values[dateValueIndex+1];
+                }
+            }
+        }
+
+        // 2. Filter Rows (Stable Method - Filter instead of Shift)
+        const cleanRows = jsonRows.filter(row => {
+            const s = row['STATION'];
             if (!s || typeof s !== 'string') return false;
             const lower = s.toLowerCase().trim();
+            
+            // Explicitly ignore metadata rows here
             if (lower.startsWith('last updated') || lower.startsWith('updated:')) return false; 
             if (lower.includes('inter-station')) return false;
             if (lower.includes('trip')) return false; 
             return true;
         });
 
-        finalTrainKeys.sort();
+        if (cleanRows.length === 0) return { headers: [], rows: [], stationColumnName: 'STATION', lastUpdated: extractedLastUpdated };
+
+        // 3. Extract Train Headers (Stable Method - Set Collection)
+        const allHeaders = new Set();
+        cleanRows.forEach(row => { 
+            Object.keys(row).forEach(key => { 
+                if (key !== 'STATION' && key !== 'COORDINATES' && key !== 'row_index') allHeaders.add(key); 
+            }); 
+        });
+        const trainNumbers = Array.from(allHeaders).sort();
         
         return { 
-            stationColumnName: finalStationKey, 
-            headers: [finalStationKey, ...finalTrainKeys], 
+            stationColumnName: 'STATION', 
+            headers: ['STATION', ...trainNumbers], 
             rows: cleanRows,
             lastUpdated: extractedLastUpdated 
         };
