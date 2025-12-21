@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.35 (PWA Fix + Dual Loader)
+  Metrorail Next Train V3.36 (PWA Strict Fix)
 -->
 <html lang="en" class="dark">
 
@@ -14,16 +14,16 @@
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
     
-    <!-- PWA INSTALL EVENT TRAP (CRITICAL FIX) -->
+    <!-- PWA INSTALL EVENT TRAP (CRITICAL) -->
     <script>
-        // This script runs immediately to catch the install event
+        // This runs immediately. It captures the event before any other code runs.
         window.deferredInstallPrompt = null;
         window.addEventListener('beforeinstallprompt', (e) => {
-            // Prevent the mini-infobar from appearing on mobile
+            // Prevent the mini-infobar from appearing on mobile (we use a custom button)
             e.preventDefault();
             // Stash the event so it can be triggered later.
             window.deferredInstallPrompt = e;
-            console.log("PWA Install Event captured in HEAD");
+            console.log("✅ PWA Install Event captured successfully in HEAD.");
             
             // Dispatch a custom event to signal app.js (if it loads later)
             const readyEvent = new Event('pwa-install-ready');

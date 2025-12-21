@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v3.35'; // Incremented Version for Install Fix
+const CACHE_NAME = 'metrorail-next-train-v3.36'; // Incremented Version
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -8,18 +8,23 @@ const ASSETS_TO_CACHE = [
   './js/app.js',
   './manifest.json',
   './icons/icon-192.png',
-  './icons/old/icon-192.png',
-  'https://cdn.tailwindcss.com',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap'
+  './icons/old/icon-192.png'
+  // CRITICAL FIX: External CDNs (Tailwind/Fonts) removed from here. 
+  // They caused the "Install Failed" error.
 ];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('Caching app assets (V3.35)...');
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME)
+      .then((cache) => {
+        console.log('Caching local app assets (V3.36)...');
+        // This will now succeed because all files are local
+        return cache.addAll(ASSETS_TO_CACHE);
+      })
+      .catch((err) => {
+        console.error('Critical: Cache addAll failed', err);
+      })
   );
 });
 
@@ -40,20 +45,19 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (!response || response.status !== 200 || response.type !== 'basic') {
-          return response;
-        }
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-        return response;
-      })
-      .catch(() => {
-        return caches.match(event.request);
-      })
-  );
+  // Strategy: Stale-While-Revalidate for local, Network-First for external
+  if (event.request.url.startsWith(self.location.origin)) {
+      event.respondWith(
+        caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+                return cachedResponse;
+            }
+            return fetch(event.request);
+        })
+      );
+  } else {
+      // For external items (Tailwind/Fonts), just fetch normally. 
+      // If offline, they will fail gracefully, but won't break the app install.
+      event.respondWith(fetch(event.request));
+  }
 });
