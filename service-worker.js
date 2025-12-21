@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v3.32'; // Incremented Version for Hybrid UI/Loader
+const CACHE_NAME = 'metrorail-next-train-v3.33'; // Incremented Version for Install Fix
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -8,7 +8,7 @@ const ASSETS_TO_CACHE = [
   '/js/app.js',
   '/manifest.json',
   '/icons/icon-192.png',
-  '/icons/old/icon-192.png', // Cache the Dark Mode loader icon
+  '/icons/old/icon-192.png',
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap'
 ];
@@ -17,7 +17,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('Caching app assets (V3.32)...');
+      console.log('Caching app assets (V3.33)...');
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );

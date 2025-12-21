@@ -1264,7 +1264,37 @@ function setupFeatureButtons() {
     else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); }
     themeToggleBtn.addEventListener('click', () => { if (localStorage.theme === 'dark') { localStorage.theme = 'light'; document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); } });
     shareBtn.addEventListener('click', async () => { const shareData = { title: 'Metrorail Next Train', text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive', url: '\n\nhttps://nexttrain.co.za' }; try { if (navigator.share) await navigator.share(shareData); else copyToClipboard(shareData.text + shareData.url); } catch (err) { copyToClipboard(shareData.text + shareData.url); } });
-    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; installBtn.classList.remove('hidden'); installBtn.addEventListener('click', () => { installBtn.classList.add('hidden'); deferredPrompt.prompt(); deferredPrompt = null; }); });
+    
+    // --- UPDATED INSTALL PROMPT LOGIC ---
+    // Check if the install button element exists before trying to manipulate it
+    if (installBtn) {
+        window.addEventListener('beforeinstallprompt', (e) => { 
+            e.preventDefault(); 
+            deferredPrompt = e; 
+            installBtn.classList.remove('hidden'); 
+            showToast("App is ready to install!", "success", 4000); // Visual feedback
+            
+            installBtn.addEventListener('click', () => { 
+                installBtn.classList.add('hidden'); 
+                deferredPrompt.prompt(); 
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    } else {
+                        console.log('User dismissed the install prompt');
+                    }
+                    deferredPrompt = null;
+                });
+            }); 
+        });
+
+        window.addEventListener('appinstalled', () => {
+             installBtn.classList.add('hidden');
+             deferredPrompt = null;
+             showToast("App Installed Successfully!", "success", 4000);
+        });
+    }
+
     const openNav = () => { sidenav.classList.add('open'); sidenavOverlay.classList.add('open'); document.body.classList.add('sidenav-open'); };
     openNavBtn.addEventListener('click', openNav); routeSubtitle.addEventListener('click', openNav);
     const closeNav = () => { sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open'); };
