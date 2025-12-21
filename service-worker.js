@@ -1,14 +1,14 @@
-const CACHE_NAME = 'metrorail-next-train-v3.33'; // Incremented Version for Install Fix
+const CACHE_NAME = 'metrorail-next-train-v3.35'; // Incremented Version for Install Fix
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/css/style.css',
-  '/css/custom.css',
-  '/js/config.js',
-  '/js/app.js',
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/old/icon-192.png',
+  './',
+  './index.html',
+  './css/style.css',
+  './css/custom.css',
+  './js/config.js',
+  './js/app.js',
+  './manifest.json',
+  './icons/icon-192.png',
+  './icons/old/icon-192.png',
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap'
 ];
@@ -17,7 +17,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('Caching app assets (V3.33)...');
+      console.log('Caching app assets (V3.35)...');
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );

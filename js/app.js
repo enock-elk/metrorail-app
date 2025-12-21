@@ -7,10 +7,39 @@ let allStations = [];
 let currentTime = null;
 let currentDayType = 'weekday'; 
 let currentDayIndex = 0; 
-let deferredPrompt; 
 let currentScheduleData = {};
 let refreshTimer = null;
 let currentUserProfile = "Adult"; // Default Profile
+
+// --- PWA INSTALL PROMPT LOGIC (MOVED TO GLOBAL SCOPE) ---
+// We must capture this event IMMEDIATELY, before the DOM loads.
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent the mini-infobar from appearing on mobile
+    e.preventDefault();
+    // Stash the event so it can be triggered later.
+    deferredPrompt = e;
+    console.log("PWA Install Event captured!");
+
+    // If the DOM is already ready (rare), show the button now.
+    // Otherwise, the DOMContentLoaded listener below will handle it.
+    const btn = document.getElementById('install-app-btn');
+    if (btn) {
+        btn.classList.remove('hidden');
+        showToast("App is ready to install!", "success", 4000);
+    }
+});
+
+window.addEventListener('appinstalled', () => {
+    // Log install to analytics
+    console.log('PWA was installed');
+    deferredPrompt = null;
+    const btn = document.getElementById('install-app-btn');
+    if (btn) btn.classList.add('hidden');
+    showToast("App Installed Successfully!", "success", 4000);
+});
+
 
 // --- HOLIDAY CONFIGURATION ---
 const SPECIAL_DATES = {
@@ -1267,15 +1296,16 @@ function setupFeatureButtons() {
     
     // --- UPDATED INSTALL PROMPT LOGIC ---
     // Check if the install button element exists before trying to manipulate it
+    installBtn = document.getElementById('install-app-btn');
+    if (installBtn && deferredPrompt) {
+        // If the event fired before we got here, show the button now
+        installBtn.classList.remove('hidden');
+    }
+    
     if (installBtn) {
-        window.addEventListener('beforeinstallprompt', (e) => { 
-            e.preventDefault(); 
-            deferredPrompt = e; 
-            installBtn.classList.remove('hidden'); 
-            showToast("App is ready to install!", "success", 4000); // Visual feedback
-            
-            installBtn.addEventListener('click', () => { 
-                installBtn.classList.add('hidden'); 
+        installBtn.addEventListener('click', () => { 
+            installBtn.classList.add('hidden'); 
+            if (deferredPrompt) {
                 deferredPrompt.prompt(); 
                 deferredPrompt.userChoice.then((choiceResult) => {
                     if (choiceResult.outcome === 'accepted') {
@@ -1285,14 +1315,8 @@ function setupFeatureButtons() {
                     }
                     deferredPrompt = null;
                 });
-            }); 
-        });
-
-        window.addEventListener('appinstalled', () => {
-             installBtn.classList.add('hidden');
-             deferredPrompt = null;
-             showToast("App Installed Successfully!", "success", 4000);
-        });
+            }
+        }); 
     }
 
     const openNav = () => { sidenav.classList.add('open'); sidenavOverlay.classList.add('open'); document.body.classList.add('sidenav-open'); };
@@ -1305,9 +1329,10 @@ function setupFeatureButtons() {
 }
 
 // --- PWA SERVICE WORKER REGISTRATION ---
+// Fixed Path for GitHub Pages compatibility
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
+        navigator.serviceWorker.register('./service-worker.js')
             .then(reg => console.log('Service Worker registered', reg))
             .catch(err => console.log('Service Worker registration failed', err));
     });

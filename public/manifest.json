@@ -1,13 +1,13 @@
 {
   "name": "Metrorail Next Train",
   "short_name": "Next Train",
-  "start_url": "/index.html",
+  "start_url": "./index.html",
   "id": "/",
   "display": "standalone",
   "background_color": "#1d4ed8",
   "theme_color": "#1d4ed8",
   "orientation": "portrait",
-  "scope": "/",
+  "scope": "./",
   "icons": [
     {
       "src": "icons/icon-192.png",
