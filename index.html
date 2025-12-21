@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.32 (Classic UI + Dual Loader)
-  - UI: Strictly follows the V3.28 "Classic" design (No Blue Headers).
-  - LOADER: Upgraded to V3.31 Dual-Theme Animation.
+  Metrorail Next Train V3.35 (PWA Fix + Dual Loader)
 -->
 <html lang="en" class="dark">
 
@@ -16,7 +14,24 @@
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
     
-    <!-- Favicons (Using New "M" Branding from root icons/) -->
+    <!-- PWA INSTALL EVENT TRAP (CRITICAL FIX) -->
+    <script>
+        // This script runs immediately to catch the install event
+        window.deferredInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent the mini-infobar from appearing on mobile
+            e.preventDefault();
+            // Stash the event so it can be triggered later.
+            window.deferredInstallPrompt = e;
+            console.log("PWA Install Event captured in HEAD");
+            
+            // Dispatch a custom event to signal app.js (if it loads later)
+            const readyEvent = new Event('pwa-install-ready');
+            window.dispatchEvent(readyEvent);
+        });
+    </script>
+    
+    <!-- Favicons -->
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=6">
     <link rel="apple-touch-icon" href="icons/icon-192.png?v=6">
     <link rel="shortcut icon" href="icons/icon-192.png?v=6" type="image/png">

@@ -11,36 +11,6 @@ let currentScheduleData = {};
 let refreshTimer = null;
 let currentUserProfile = "Adult"; // Default Profile
 
-// --- PWA INSTALL PROMPT LOGIC (MOVED TO GLOBAL SCOPE) ---
-// We must capture this event IMMEDIATELY, before the DOM loads.
-let deferredPrompt;
-
-window.addEventListener('beforeinstallprompt', (e) => {
-    // Prevent the mini-infobar from appearing on mobile
-    e.preventDefault();
-    // Stash the event so it can be triggered later.
-    deferredPrompt = e;
-    console.log("PWA Install Event captured!");
-
-    // If the DOM is already ready (rare), show the button now.
-    // Otherwise, the DOMContentLoaded listener below will handle it.
-    const btn = document.getElementById('install-app-btn');
-    if (btn) {
-        btn.classList.remove('hidden');
-        showToast("App is ready to install!", "success", 4000);
-    }
-});
-
-window.addEventListener('appinstalled', () => {
-    // Log install to analytics
-    console.log('PWA was installed');
-    deferredPrompt = null;
-    const btn = document.getElementById('install-app-btn');
-    if (btn) btn.classList.add('hidden');
-    showToast("App Installed Successfully!", "success", 4000);
-});
-
-
 // --- HOLIDAY CONFIGURATION ---
 const SPECIAL_DATES = {
     "12-16": "saturday",
@@ -1295,25 +1265,44 @@ function setupFeatureButtons() {
     shareBtn.addEventListener('click', async () => { const shareData = { title: 'Metrorail Next Train', text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive', url: '\n\nhttps://nexttrain.co.za' }; try { if (navigator.share) await navigator.share(shareData); else copyToClipboard(shareData.text + shareData.url); } catch (err) { copyToClipboard(shareData.text + shareData.url); } });
     
     // --- UPDATED INSTALL PROMPT LOGIC ---
-    // Check if the install button element exists before trying to manipulate it
+    // This logic relies on the "Trap" script in index.html <head>
+    
     installBtn = document.getElementById('install-app-btn');
-    if (installBtn && deferredPrompt) {
-        // If the event fired before we got here, show the button now
-        installBtn.classList.remove('hidden');
+    
+    const showInstallButton = () => {
+        if (installBtn) {
+            installBtn.classList.remove('hidden');
+            // Optional: You could show a toast here to draw attention
+            // showToast("Install app for better experience!", "info");
+        }
+    };
+
+    // Case 1: The event fired before app.js loaded (most common)
+    if (window.deferredInstallPrompt) {
+        console.log("Found trapped install event from HEAD");
+        showInstallButton();
+    } 
+    // Case 2: The event fires after app.js loads (slower devices)
+    else {
+        window.addEventListener('pwa-install-ready', () => {
+            console.log("Received custom install ready event");
+            showInstallButton();
+        });
     }
     
     if (installBtn) {
         installBtn.addEventListener('click', () => { 
             installBtn.classList.add('hidden'); 
-            if (deferredPrompt) {
-                deferredPrompt.prompt(); 
-                deferredPrompt.userChoice.then((choiceResult) => {
+            const promptEvent = window.deferredInstallPrompt;
+            if (promptEvent) {
+                promptEvent.prompt(); 
+                promptEvent.userChoice.then((choiceResult) => {
                     if (choiceResult.outcome === 'accepted') {
                         console.log('User accepted the install prompt');
                     } else {
                         console.log('User dismissed the install prompt');
                     }
-                    deferredPrompt = null;
+                    window.deferredInstallPrompt = null;
                 });
             }
         }); 
@@ -1329,7 +1318,6 @@ function setupFeatureButtons() {
 }
 
 // --- PWA SERVICE WORKER REGISTRATION ---
-// Fixed Path for GitHub Pages compatibility
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./service-worker.js')
