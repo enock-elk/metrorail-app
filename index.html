@@ -1,23 +1,29 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.21.1 (Viewport & PWA Fixes)
-  - VIEWPORT: Added viewport-fit=cover and robust scaling for older phones.
-  - PWA: Added service worker registration script.
+  Metrorail Next Train V3.21.3 (Route Update)
+  - VIEWPORT: Robust scaling.
+  - FAVICON: Fixed paths (removed leading slash) and added cache busting.
+  - ROUTE: Added Pretoria <-> De Wildt
 -->
 <html lang="en" class="dark">
 
 <head>
     <meta charset="UTF-8">
-    <!-- FIX: Robust Viewport for older/smaller devices -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
 
     <title>Metrorail Next Train | Live Schedules & Timetables</title>
-    <meta name="description" content="Check live train schedules for Pretoria, Pienaarspoort, Mabopane, and Germiston.">
+    <meta name="description" content="Check live train schedules for Pretoria, Pienaarspoort, Mabopane, De Wildt, and Germiston.">
     
-    <!-- PWA Manifest -->
+    <!-- PWA Manifest (Relative Path) -->
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    
+    <!-- Favicons (Relative Paths + Cache Busting ?v=2) -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=2">
+    <link rel="apple-touch-icon" href="icons/icon-192.png?v=2">
+    
+    <!-- Fallback for older browsers -->
+    <link rel="shortcut icon" href="icons/icon-192.png?v=2" type="image/png">
+
     <meta name="theme-color" content="#1f2937">
 
     <!-- TAILWIND CSS -->
@@ -50,6 +56,8 @@
             <li class="route-category">Northern Corridor (Pretoria)</li>
             <li class="route-item"><a class="active" data-route-id="pta-pien"><span class="route-dot dot-green"></span>Pretoria <-> Pienaarspoort</a></li>
             <li class="route-item"><a class="" data-route-id="pta-mabopane"><span class="route-dot dot-orange"></span>Pretoria <-> Mabopane</a></li>
+            <!-- Added De Wildt Route -->
+            <li class="route-item"><a class="" data-route-id="pta-dewildt"><span class="route-dot dot-purple"></span>Pretoria <-> De Wildt</a></li>
             <li class="route-item hidden"><a class="disabled" data-route-id="pta-saul"><span class="route-dot dot-green"></span>Pretoria <-> Saulsville</a></li>
             
             <li class="route-category">Pretoria - JHB Line</li>

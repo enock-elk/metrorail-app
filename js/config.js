@@ -46,6 +46,24 @@ const ROUTES = {
         transferStation: null, 
         sheetKeys: { weekday_to_a: 'mab_to_pta_weekday', weekday_to_b: 'pta_to_mab_weekday', saturday_to_a: 'mab_to_pta_sat', saturday_to_b: 'pta_to_mab_sat' } 
     },
+    
+    // --- PRETORIA - DE WILDT ROUTE ---
+    'pta-dewildt': { 
+        id: 'pta-dewildt', 
+        name: "Pretoria <-> De Wildt", 
+        colorClass: "text-purple-500", 
+        isActive: true, 
+        destA: 'PRETORIA STATION', 
+        destB: 'DE WILDT STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'dewil_to_pta_weekday', 
+            weekday_to_b: 'pta_to_dewil_weekday',
+            saturday_to_a: 'dewil_to_pta_sat', // Added Saturday Key
+            saturday_to_b: 'pta_to_dewil_sat'  // Added Saturday Key
+        } 
+    },
+
     'pta-saul': { 
         id: 'pta-saul', 
         name: "Pretoria <-> Saulsville", 
@@ -57,7 +75,7 @@ const ROUTES = {
         sheetKeys: {} 
     },
     
-    // --- NEW GERMISTON - LERALLA ROUTE ---
+    // --- GERMISTON - LERALLA ROUTE ---
     'germ-leralla': { 
         id: 'germ-leralla', 
         name: "Germiston <-> Leralla", 
