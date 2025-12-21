@@ -46,8 +46,6 @@ const ROUTES = {
         transferStation: null, 
         sheetKeys: { weekday_to_a: 'mab_to_pta_weekday', weekday_to_b: 'pta_to_mab_weekday', saturday_to_a: 'mab_to_pta_sat', saturday_to_b: 'pta_to_mab_sat' } 
     },
-    
-    // --- PRETORIA - DE WILDT ROUTE ---
     'pta-dewildt': { 
         id: 'pta-dewildt', 
         name: "Pretoria <-> De Wildt", 
@@ -59,11 +57,10 @@ const ROUTES = {
         sheetKeys: { 
             weekday_to_a: 'dewil_to_pta_weekday', 
             weekday_to_b: 'pta_to_dewil_weekday',
-            saturday_to_a: 'dewil_to_pta_sat', // Added Saturday Key
-            saturday_to_b: 'pta_to_dewil_sat'  // Added Saturday Key
+            saturday_to_a: 'dewil_to_pta_sat', 
+            saturday_to_b: 'pta_to_dewil_sat'
         } 
     },
-
     'pta-saul': { 
         id: 'pta-saul', 
         name: "Pretoria <-> Saulsville", 
@@ -74,8 +71,6 @@ const ROUTES = {
         transferStation: null, 
         sheetKeys: {} 
     },
-    
-    // --- GERMISTON - LERALLA ROUTE ---
     'germ-leralla': { 
         id: 'germ-leralla', 
         name: "Germiston <-> Leralla", 
@@ -91,7 +86,6 @@ const ROUTES = {
             saturday_to_b: 'germ_to_lerl_sat' 
         } 
     },
-
     'pta-irene': { id: 'pta-irene', name: "Pretoria <-> Irene", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'IRENE STATION', transferStation: null, sheetKeys: {} },
     'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
     'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
@@ -102,3 +96,25 @@ const ROUTES = {
 
 // 4. Refresh Settings
 const REFRESH_CONFIG = { standardInterval: 5 * 60 * 1000, activeInterval: 60 * 1000, nightModeStart: 21, nightModeEnd: 4 };
+
+// 5. Smart Pricing Configuration (V3.26)
+// Source: 2025 Fare Adjustment Notice
+const FARE_CONFIG = {
+    offPeakStart: 9,  // 09:00
+    offPeakEnd: 14,   // 14:00
+    zones: {
+        "Z1": 10.00,
+        "Z2": 12.00,
+        "Z3": 14.00,
+        "Z4": 15.00
+    },
+    // New Profile Logic based on User Text:
+    // 'base' = Multiplier during PEAK hours
+    // 'offPeak' = Multiplier during OFF-PEAK (09:00-14:00)
+    profiles: {
+        "Adult":     { base: 1.0, offPeak: 0.6 }, // 40% discount off-peak
+        "Scholar":   { base: 0.5, offPeak: 0.5 }, // 50% discount ALL HOURS
+        "Pensioner": { base: 1.0, offPeak: 0.5 }, // 50% discount off-peak ONLY
+        "Military":  { base: 1.0, offPeak: 0.5 }  // 50% discount off-peak ONLY
+    }
+};

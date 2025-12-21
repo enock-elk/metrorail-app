@@ -10,6 +10,7 @@ let currentDayIndex = 0;
 let deferredPrompt; 
 let currentScheduleData = {};
 let refreshTimer = null;
+let currentUserProfile = "Adult"; // Default Profile
 
 // --- HOLIDAY CONFIGURATION ---
 const SPECIAL_DATES = {
@@ -32,6 +33,7 @@ let toast, checkUpdatesBtn, feedbackBtn, lastUpdatedEl;
 let simPanel, simEnabledCheckbox, simTimeInput, simDaySelect, simApplyBtn;
 let appTitle, pinModal, pinInput, pinCancelBtn, pinSubmitBtn;
 let legalModal, legalTitle, legalContent, closeLegalBtn, closeLegalBtn2;
+let profileModal, navProfileDisplay, fareContainer, fareAmount, fareType, passengerTypeLabel;
 
 // --- SIMULATION STATE ---
 let clickCount = 0;
@@ -54,7 +56,7 @@ function escapeHTML(str) {
     });
 }
 
-// --- UPDATED ERROR HANDLER (No Auto-Reload Loop) ---
+// --- UPDATED ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
     console.error("Global Error Caught:", msg);
     if(loadingOverlay) loadingOverlay.style.display = 'none';
@@ -63,8 +65,6 @@ window.onerror = function(msg, url, line) {
     if(toast) {
         toast.textContent = "Error: " + msg; 
         toast.className = "toast-error show";
-    } else {
-        alert("Error: " + msg);
     }
     return false;
 };
@@ -228,8 +228,9 @@ function buildGlobalStationIndex() {
                       let coordKey = null;
                       
                       Object.keys(headerRow).forEach(key => {
-                          if (String(headerRow[key]).toUpperCase().includes('STATION')) stationKey = key;
-                          if (String(headerRow[key]).toUpperCase().includes('COORDINATES')) coordKey = key;
+                          const valUpper = String(headerRow[key]).toUpperCase();
+                          if (valUpper.includes('STATION')) stationKey = key;
+                          if (valUpper.includes('COORDINATES')) coordKey = key;
                       });
 
                       if (!stationKey && row['STATION']) stationKey = 'STATION';
@@ -241,12 +242,18 @@ function buildGlobalStationIndex() {
                            
                            if (!globalStationIndex[stationName]) {
                                try {
+                                   let coords = { lat: null, lon: null };
                                    if (coordVal) {
                                        const parts = String(coordVal).split(',').map(s => parseFloat(s.trim()));
                                        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                                           globalStationIndex[stationName] = { lat: parts[0], lon: parts[1], routes: new Set() };
+                                            coords = { lat: parts[0], lon: parts[1] };
                                        }
                                    }
+                                   globalStationIndex[stationName] = { 
+                                       lat: coords.lat, 
+                                       lon: coords.lon, 
+                                       routes: new Set()
+                                    };
                                } catch (e) { }
                            }
                            if (globalStationIndex[stationName]) globalStationIndex[stationName].routes.add(route.id);
@@ -290,7 +297,6 @@ function processRouteDataFromDB(route) {
     };
 }
 
-// --- RESTORED ROBUST PARSER (STABLE LOGIC) ---
 function parseJSONSchedule(jsonRows, externalMetaDate = null) {
     try {
         if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) 
@@ -298,7 +304,6 @@ function parseJSONSchedule(jsonRows, externalMetaDate = null) {
 
         let extractedLastUpdated = externalMetaDate;
         
-        // 1. Logic to extract Last Updated date if available in top rows
         if (jsonRows.length > 0) {
             const firstRow = jsonRows[0];
             const values = Object.values(firstRow).map(String);
@@ -313,13 +318,10 @@ function parseJSONSchedule(jsonRows, externalMetaDate = null) {
             }
         }
 
-        // 2. Filter Rows (Stable Method - Filter instead of Shift)
         const cleanRows = jsonRows.filter(row => {
             const s = row['STATION'];
             if (!s || typeof s !== 'string') return false;
             const lower = s.toLowerCase().trim();
-            
-            // Explicitly ignore metadata rows here
             if (lower.startsWith('last updated') || lower.startsWith('updated:')) return false; 
             if (lower.includes('inter-station')) return false;
             if (lower.includes('trip')) return false; 
@@ -328,11 +330,10 @@ function parseJSONSchedule(jsonRows, externalMetaDate = null) {
 
         if (cleanRows.length === 0) return { headers: [], rows: [], stationColumnName: 'STATION', lastUpdated: extractedLastUpdated };
 
-        // 3. Extract Train Headers (Stable Method - Set Collection)
         const allHeaders = new Set();
         cleanRows.forEach(row => { 
             Object.keys(row).forEach(key => { 
-                if (key !== 'STATION' && key !== 'COORDINATES' && key !== 'row_index') allHeaders.add(key); 
+                if (key !== 'STATION' && key !== 'COORDINATES' && key !== 'row_index' && key !== 'KM_MARK') allHeaders.add(key); 
             }); 
         });
         const trainNumbers = Array.from(allHeaders).sort();
@@ -356,6 +357,7 @@ function renderRouteError(error) {
 }
 
 function initializeApp() {
+    loadUserProfile(); 
     populateStationList();
     startClock();
     findNextTrains(); 
@@ -365,7 +367,7 @@ function initializeApp() {
 
 function populateStationList() {
     const stationSet = new Set();
-    const hasTimes = (row) => { const keys = Object.keys(row); return keys.some(key => key !== 'STATION' && key !== 'COORDINATES' && row[key] && row[key].trim() !== ""); };
+    const hasTimes = (row) => { const keys = Object.keys(row); return keys.some(key => key !== 'STATION' && key !== 'COORDINATES' && key !== 'KM_MARK' && row[key] && row[key].trim() !== ""); };
     
     if (schedules.weekday_to_a && schedules.weekday_to_a.rows) schedules.weekday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
     if (schedules.weekday_to_b && schedules.weekday_to_b.rows) schedules.weekday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
@@ -477,9 +479,10 @@ function renderPlaceholder() {
     const placeholderHTML = `<div class="h-32 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500"><svg class="w-8 h-8 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm font-medium">Select a station above</span></div>`;
     pretoriaTimeEl.innerHTML = placeholderHTML;
     pienaarspoortTimeEl.innerHTML = placeholderHTML;
+    if(fareContainer) fareContainer.classList.add('hidden'); // Hide fare box
 }
 
-// --- GEOLOCATION LOGIC (STRICT ACTIVE ROUTE LIMIT) ---
+// --- GEOLOCATION LOGIC ---
 function findNearestStation(isAuto = false) {
     if (!navigator.geolocation) {
         if (!isAuto) showToast("Geolocation is not supported by your browser.", "error");
@@ -498,18 +501,14 @@ function findNearestStation(isAuto = false) {
             const userLat = position.coords.latitude;
             const userLon = position.coords.longitude;
             
-            // 1. Calculate distance to stations ON THE ACTIVE ROUTE ONLY
             let candidates = [];
             for (const [stationName, coords] of Object.entries(globalStationIndex)) {
-                // STRICT FILTER: Only consider if station belongs to currentRouteId
-                // This prevents finding stations on other lines and auto-switching
                 if (coords.routes.has(currentRouteId)) {
                     const dist = getDistanceFromLatLonInKm(userLat, userLon, coords.lat, coords.lon);
                     candidates.push({ stationName, dist });
                 }
             }
             
-            // Sort by distance
             candidates.sort((a, b) => a.dist - b.dist);
 
             if (candidates.length === 0) {
@@ -519,7 +518,6 @@ function findNearestStation(isAuto = false) {
 
             const nearest = candidates[0];
             
-            // 2. Threshold Check
             if (nearest.dist <= MAX_RADIUS_KM) {
                 const stationName = nearest.stationName;
                 const distStr = nearest.dist.toFixed(1);
@@ -537,7 +535,7 @@ function findNearestStation(isAuto = false) {
                 }
 
                 if (matched) {
-                    findNextTrains(); // Trigger logic
+                    findNextTrains(); 
                     if (!isAuto) {
                         showToast(`Found: ${stationName.replace(' STATION', '')} (${distStr}km)`, "success");
                     }
@@ -579,7 +577,7 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
 
 function deg2rad(deg) { return deg * (Math.PI/180); }
 
-// --- UPDATED FIND TRAINS LOGIC WITH FULL SHARED CORRIDOR MERGING ---
+// --- FIND TRAINS LOGIC ---
 function findNextTrains() {
     const selectedStation = stationSelect.value;
     const currentRoute = ROUTES[currentRouteId];
@@ -605,7 +603,6 @@ function findNextTrains() {
     const normalize = (s) => s ? s.toUpperCase().replace(/ STATION/g, '').trim() : '';
     const isAtStation = (s1, s2) => normalize(s1) === normalize(s2);
 
-    // --- SHARED CORRIDOR DETECTION ---
     let sharedRoutes = [];
     if (fullDatabase && globalStationIndex[normalize(selectedStation)]) {
         const stationData = globalStationIndex[normalize(selectedStation)];
@@ -616,15 +613,17 @@ function findNextTrains() {
         });
     }
 
-    // --- DESTINATION A (Hub / Pretoria) ---
-    // Merge Logic: Always safe to merge inbound trains to the same hub.
+    let primarySheetKey = (currentDayType === 'weekday') ? currentRoute.sheetKeys.weekday_to_a : currentRoute.sheetKeys.saturday_to_a;
+
+    // --- DESTINATION A ---
     if (isAtStation(selectedStation, currentRoute.destA)) {
         renderAtDestination(pretoriaTimeEl);
     } else {
         const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_a : schedules.saturday_to_a;
+        const currentSheetKey = (currentDayType === 'weekday') ? currentRoute.sheetKeys.weekday_to_a : currentRoute.sheetKeys.saturday_to_a;
         const { allJourneys: currentJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute);
         
-        let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name}));
+        let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
 
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
@@ -633,11 +632,8 @@ function findNextTrains() {
                 const otherRows = fullDatabase[key];
                 const otherMeta = fullDatabase[key + "_meta"];
                 const otherSchedule = parseJSONSchedule(otherRows, otherMeta);
-                
                 const { allJourneys: otherJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", otherSchedule, otherRoute);
-                
-                // Tag as From shared route
-                const tagged = otherJourneys.map(j => ({...j, sourceRoute: otherRoute.name, isShared: true}));
+                const tagged = otherJourneys.map(j => ({...j, sourceRoute: otherRoute.name, isShared: true, sheetKey: key}));
                 mergedJourneys = [...mergedJourneys, ...tagged];
             }
         });
@@ -648,41 +644,43 @@ function findNextTrains() {
              return timeA - timeB;
         });
 
+        const nowInSeconds = timeToSeconds(currentTime);
+        const upcoming = mergedJourneys.find(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
+        if (upcoming) {
+             updateFareDisplay(upcoming.sheetKey, upcoming.departureTime || upcoming.train1.departureTime);
+        } else {
+             updateFareDisplay(primarySheetKey, currentTime);
+        }
+
         processAndRenderJourney(mergedJourneys, pretoriaTimeEl, pretoriaHeader, currentRoute.destA);
     }
 
-    // --- DESTINATION B (Outbound / Mabopane / De Wildt) ---
-    // Merge Logic: Merge, but apply SAFEGUARD Warning if destination differs.
+    // --- DESTINATION B ---
     if (isAtStation(selectedStation, currentRoute.destB)) {
         renderAtDestination(pienaarspoortTimeEl);
     } else {
         const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_b : schedules.saturday_to_b;
+        const currentSheetKey = (currentDayType === 'weekday') ? currentRoute.sheetKeys.weekday_to_b : currentRoute.sheetKeys.saturday_to_b;
         const { allJourneys: currentJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute);
 
-        let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name}));
+        let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
 
-        // CHECK SHARED ROUTES FOR OUTBOUND (Dest B)
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
-            // Only consider merging if they share the same Origin Hub (Dest A)
-            // This implies they travel in the same general "Outbound" direction from the hub
             if (normalize(otherRoute.destA) === normalize(currentRoute.destA)) {
                 const key = (currentDayType === 'weekday') ? otherRoute.sheetKeys.weekday_to_b : otherRoute.sheetKeys.saturday_to_b;
                 const otherRows = fullDatabase[key];
                 const otherMeta = fullDatabase[key + "_meta"];
                 const otherSchedule = parseJSONSchedule(otherRows, otherMeta);
-
                 const { allJourneys: otherJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", otherSchedule, otherRoute);
-
-                // SAFEGUARD TAGGING
                 const isDivergent = normalize(otherRoute.destB) !== normalize(currentRoute.destB);
-                
                 const tagged = otherJourneys.map(j => ({
                     ...j, 
                     sourceRoute: otherRoute.name, 
                     isShared: true,
-                    isDivergent: isDivergent, // Critical for safeguard UI
-                    actualDestName: otherRoute.destB.replace(' STATION', '')
+                    isDivergent: isDivergent, 
+                    actualDestName: otherRoute.destB.replace(' STATION', ''),
+                    sheetKey: key
                 }));
                 mergedJourneys = [...mergedJourneys, ...tagged];
             }
@@ -1057,6 +1055,128 @@ function updatePinUI() {
 function saveToLocalCache(key, data) { try { const cacheEntry = { timestamp: Date.now(), data: data }; localStorage.setItem(key, JSON.stringify(cacheEntry)); } catch (e) {} }
 function loadFromLocalCache(key) { try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } catch (e) { return null; } }
 
+// --- USER PROFILE LOGIC ---
+function loadUserProfile() {
+    profileModal = document.getElementById('profile-modal');
+    navProfileDisplay = document.getElementById('nav-profile-display');
+    const savedProfile = localStorage.getItem('userProfile');
+    
+    if (savedProfile) {
+        currentUserProfile = savedProfile;
+        if(navProfileDisplay) navProfileDisplay.textContent = currentUserProfile;
+    } else {
+        if(profileModal) profileModal.classList.remove('hidden');
+    }
+}
+
+window.selectProfile = function(profileType) {
+    currentUserProfile = profileType;
+    localStorage.setItem('userProfile', profileType);
+    if(navProfileDisplay) navProfileDisplay.textContent = profileType;
+    if(profileModal) profileModal.classList.add('hidden');
+    showToast(`Profile set to: ${profileType}`, "success");
+    findNextTrains(); 
+};
+
+window.resetProfile = function() {
+    if(profileModal) profileModal.classList.remove('hidden');
+    if(sidenav) {
+        sidenav.classList.remove('open');
+        sidenavOverlay.classList.remove('open');
+        document.body.classList.remove('sidenav-open');
+    }
+};
+
+// --- UPDATE FARE BOX LOGIC ---
+function updateFareDisplay(sheetKey, nextTrainTimeStr) {
+    fareContainer = document.getElementById('fare-container');
+    fareAmount = document.getElementById('fare-amount');
+    fareType = document.getElementById('fare-type');
+    passengerTypeLabel = document.getElementById('passenger-type-label');
+
+    if (!fareContainer) return;
+    
+    if (passengerTypeLabel) passengerTypeLabel.textContent = currentUserProfile;
+
+    const fareData = getRouteFare(sheetKey, nextTrainTimeStr);
+
+    if (fareData) {
+        fareAmount.textContent = `R${fareData.price}`;
+        
+        if (fareData.isPromo) {
+            fareType.textContent = "Discounted";
+            fareType.className = "text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full mb-1";
+            fareAmount.className = "text-xl font-black text-blue-600 dark:text-blue-400";
+        } else if (fareData.isOffPeak) {
+            fareType.textContent = "40% Off-Peak";
+            fareType.className = "text-[10px] font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded-full mb-1";
+            fareAmount.className = "text-xl font-black text-green-600 dark:text-green-400";
+        } else {
+            fareType.textContent = "Standard";
+            fareType.className = "text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full mb-1";
+            fareAmount.className = "text-xl font-black text-gray-900 dark:text-white";
+        }
+        
+        fareContainer.classList.remove('hidden');
+    } else {
+        fareContainer.classList.add('hidden');
+    }
+}
+
+// --- FLAT FARE CALCULATION ---
+function getRouteFare(sheetKey, departureTimeStr) {
+    const zoneKey = sheetKey + "_zone";
+    let zoneCode = fullDatabase[zoneKey]; 
+    
+    // DEBUG FALLBACK: If no zone found in DB, assume Z1 for testing
+    if (!zoneCode) {
+        console.warn(`No zone found for ${zoneKey}, defaulting to Z1 for testing.`);
+        zoneCode = "Z1";
+    }
+
+    if (!zoneCode || !FARE_CONFIG.zones[zoneCode]) return null;
+
+    let basePrice = FARE_CONFIG.zones[zoneCode];
+    let isOffPeak = false;
+    let isPromo = false;
+
+    // 1. Get Profile Config
+    const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
+    
+    // 2. Check Time for Off-Peak Status
+    // We check time first to see if we should apply the off-peak multiplier
+    let useOffPeakRate = false;
+    if (departureTimeStr) {
+        try {
+            const hour = parseInt(departureTimeStr.split(':')[0], 10);
+            if (hour >= FARE_CONFIG.offPeakStart && hour < FARE_CONFIG.offPeakEnd) {
+                useOffPeakRate = true;
+            }
+        } catch (e) { }
+    }
+
+    // 3. Apply Multiplier
+    // If it's off-peak time, use the offPeak multiplier. Otherwise use base multiplier.
+    const multiplier = useOffPeakRate ? profile.offPeak : profile.base;
+
+    // If multiplier is less than 1, we consider it a "promo" or "discounted" fare for UI purposes
+    if (multiplier < 1.0) {
+        basePrice = basePrice * multiplier;
+        // Distinguish between a standard promo (scholar always) and time-based off-peak
+        if (useOffPeakRate && profile.base === 1.0) {
+             isOffPeak = true; // Adult/Pensioner during off-peak
+        } else {
+             isPromo = true; // Scholar always, or other permanent discounts
+        }
+    }
+
+    return {
+        price: basePrice.toFixed(2),
+        isOffPeak: isOffPeak,
+        isPromo: isPromo
+    };
+}
+
 // --- UI SETUP & EVENT LISTENERS ---
 function setupModalButtons() { 
     const closeAction = () => { scheduleModal.classList.add('hidden'); document.body.style.overflow = ''; }; 
@@ -1100,7 +1220,7 @@ window.openScheduleModal = function(destination) {
              const routeName = j.sourceRoute.replace("Pretoria <-> ", "").replace("Route", "").trim();
              // SAFEGUARD FOR MODAL
              if (j.isDivergent) {
-                 modalTag = `<span class="text-[9px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-1.5 py-0.5 rounded uppercase ml-2 border border-red-200">⚠️ To ${j.actualDestName}</span>`;
+                 modalTag = `<span class="text-[9px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-1.5 py-0.5 rounded uppercase ml-2 border border-red-200 dark:border-red-800">⚠️ To ${j.actualDestName}</span>`;
              } else {
                  modalTag = `<span class="text-[9px] font-bold text-purple-600 bg-purple-100 dark:text-purple-300 dark:bg-purple-900 px-1.5 py-0.5 rounded uppercase ml-2">From ${routeName}</span>`;
              }

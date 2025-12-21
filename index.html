@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.21.3 (Route Update)
-  - VIEWPORT: Robust scaling.
-  - FAVICON: Fixed paths (removed leading slash) and added cache busting.
-  - ROUTE: Added Pretoria <-> De Wildt
+  Metrorail Next Train V3.25 (Military Profile Update)
+  - FEATURE: Added "Military" profile option.
+  - UI: Reordered profile buttons (Adult first).
 -->
 <html lang="en" class="dark">
 
@@ -11,18 +10,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
 
-    <title>Metrorail Next Train | Live Schedules & Timetables</title>
-    <meta name="description" content="Check live train schedules for Pretoria, Pienaarspoort, Mabopane, De Wildt, and Germiston.">
+    <title>Metrorail Next Train | Live Schedules & Fares</title>
+    <meta name="description" content="Check live train schedules and fares for Pretoria, Pienaarspoort, Mabopane, De Wildt, and Germiston.">
     
     <!-- PWA Manifest (Relative Path) -->
     <link rel="manifest" href="manifest.json">
     
-    <!-- Favicons (Relative Paths + Cache Busting ?v=2) -->
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=2">
-    <link rel="apple-touch-icon" href="icons/icon-192.png?v=2">
+    <!-- Favicons (Relative Paths + Cache Busting ?v=3) -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=3">
+    <link rel="apple-touch-icon" href="icons/icon-192.png?v=3">
     
     <!-- Fallback for older browsers -->
-    <link rel="shortcut icon" href="icons/icon-192.png?v=2" type="image/png">
+    <link rel="shortcut icon" href="icons/icon-192.png?v=3" type="image/png">
 
     <meta name="theme-color" content="#1f2937">
 
@@ -47,7 +46,15 @@
     <div id="sidenav-overlay"></div>
     <div id="sidenav">
         <button id="close-nav-btn" class="close-btn text-gray-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-300">&times;</button>
-        <h2 class="text-gray-900 dark:text-white">Select Route</h2>
+        
+        <!-- PROFILE SECTION IN NAV -->
+        <div class="p-4 bg-blue-50 dark:bg-gray-800 border-b border-blue-100 dark:border-gray-700 mb-2">
+            <p class="text-xs text-gray-500 uppercase font-bold mb-1">Passenger Profile</p>
+            <div id="nav-profile-display" class="font-bold text-lg text-blue-600 dark:text-blue-400">Adult</div>
+            <button onclick="resetProfile()" class="text-xs text-gray-400 underline mt-1 hover:text-blue-500">Change Profile</button>
+        </div>
+
+        <h2 class="text-gray-900 dark:text-white mt-4">Select Route</h2>
         <ul id="route-list">
             <div id="pinned-section" class="hidden border-b border-gray-700 dark:border-gray-600 pb-2 mb-2">
                 <li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li>
@@ -56,24 +63,13 @@
             <li class="route-category">Northern Corridor (Pretoria)</li>
             <li class="route-item"><a class="active" data-route-id="pta-pien"><span class="route-dot dot-green"></span>Pretoria <-> Pienaarspoort</a></li>
             <li class="route-item"><a class="" data-route-id="pta-mabopane"><span class="route-dot dot-orange"></span>Pretoria <-> Mabopane</a></li>
-            <!-- Added De Wildt Route -->
             <li class="route-item"><a class="" data-route-id="pta-dewildt"><span class="route-dot dot-purple"></span>Pretoria <-> De Wildt</a></li>
-            <li class="route-item hidden"><a class="disabled" data-route-id="pta-saul"><span class="route-dot dot-green"></span>Pretoria <-> Saulsville</a></li>
             
             <li class="route-category">Pretoria - JHB Line</li>
             <li class="route-item"><a class="" data-route-id="germ-leralla"><span class="route-dot dot-blue"></span>Germiston <-> Leralla</a></li>
             <li class="route-item"><a class="disabled" data-route-id="pta-irene"><span class="route-dot dot-blue"></span>Pretoria <-> Irene</a></li>
             <li class="route-item"><a class="disabled" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
             <li class="route-item"><a class="disabled" data-route-id="pta-germiston"><span class="route-dot dot-blue"></span>Pretoria <-> Germiston</a></li>
-            
-            <li class="route-category">Southern Corridor</li>
-            <li class="route-item"><a class="disabled" data-route-id="jhb-vereeniging"><span class="route-dot dot-purple"></span>JHB <-> Vereeniging</a></li>
-            
-            <li class="route-category">Eastern Corridor</li>
-            <li class="route-item"><a class="disabled" data-route-id="jhb-springs"><span class="route-dot dot-red"></span>JHB <-> Springs</a></li>
-            
-            <li class="route-category">Soweto Corridor</li>
-            <li class="route-item"><a class="disabled" data-route-id="jhb-soweto"><span class="route-dot dot-yellow"></span>JHB <-> Naledi</a></li>
         </ul>
         
         <div class="mt-auto pt-6 border-t border-gray-700 dark:border-gray-600 pb-20">
@@ -93,12 +89,45 @@
         </div>
     </div>
 
+    <!-- PROFILE SETUP MODAL (Force user to select on first run) -->
+    <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 dark:bg-blue-900 mb-4">
+                    <svg class="h-8 w-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                </div>
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Welcome Commuter!</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Select your profile to see correct fares.</p>
+                
+                <div class="space-y-3">
+                    <button onclick="selectProfile('Adult')" class="w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-bold py-3 px-4 rounded-lg flex items-center justify-between group transition-colors">
+                        <span>Adult</span>
+                        <span class="text-xs font-normal text-gray-500 group-hover:text-gray-700 dark:text-gray-400">Standard Fare</span>
+                    </button>
+                    <button onclick="selectProfile('Scholar')" class="w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-bold py-3 px-4 rounded-lg flex items-center justify-between group transition-colors">
+                        <span>Scholar</span>
+                        <span class="text-xs font-normal text-gray-500 group-hover:text-gray-700 dark:text-gray-400">Student Rate</span>
+                    </button>
+                    <button onclick="selectProfile('Pensioner')" class="w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-bold py-3 px-4 rounded-lg flex items-center justify-between group transition-colors">
+                        <span>Pensioner</span>
+                        <span class="text-xs font-normal text-gray-500 group-hover:text-gray-700 dark:text-gray-400">Senior Rate</span>
+                    </button>
+                    <button onclick="selectProfile('Military')" class="w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-bold py-3 px-4 rounded-lg flex items-center justify-between group transition-colors">
+                        <span>Military / Vets</span>
+                        <span class="text-xs font-normal text-gray-500 group-hover:text-gray-700 dark:text-gray-400">Special Rate</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN LOADING OVERLAY -->
     <div id="loading-overlay" class="absolute inset-0 bg-gray-100 dark:bg-gray-900 flex flex-col items-center justify-center z-50">
         <svg class="pop-loader h-16 w-16 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.828 0l-4.244-4.243a8 8 0 1111.314 0z" />
         </svg>
-        <div class="text-xl font-bold text-gray-700 dark:text-gray-300 mt-4" id="loading-text">Loading latest schedules...</div>
+        <div class="text-xl font-bold text-gray-700 dark:text-gray-300 mt-4" id="loading-text">Loading schedules...</div>
         <div class="mt-4 text-xs text-gray-500">Stuck? <button onclick="localStorage.removeItem('full_db'); location.reload();" class="underline text-blue-500">Reset App</button></div>
     </div>
 
@@ -199,7 +228,7 @@
         </div>
 
         <!-- STATION SELECTOR WITH LOCATE BUTTON -->
-        <div class="mb-6">
+        <div class="mb-4">
             <label for="station-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Station:</label>
             <div class="flex items-center gap-2">
                 <div class="relative flex-grow">
@@ -211,6 +240,18 @@
                 <button id="locate-btn" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-md shadow-md transition-colors flex-shrink-0" title="Find my nearest station">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
                 </button>
+            </div>
+        </div>
+
+        <!-- FARE DISPLAY CONTAINER -->
+        <div id="fare-container" class="mb-6 p-3 bg-blue-50 dark:bg-gray-800 rounded-lg flex items-center justify-between shadow-sm border border-blue-100 dark:border-gray-700 hidden">
+            <div class="flex flex-col">
+                <span class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Estimated Fare</span>
+                <span id="fare-amount" class="text-xl font-black text-gray-900 dark:text-white">R--.--</span>
+            </div>
+            <div class="text-right flex flex-col items-end">
+                <span id="fare-type" class="text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full mb-1">Standard</span>
+                <span id="passenger-type-label" class="text-[10px] text-gray-400 dark:text-gray-500 font-medium">Adult</span>
             </div>
         </div>
 
