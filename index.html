@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.25 (Military Profile Update)
-  - FEATURE: Added "Military" profile option.
-  - UI: Reordered profile buttons (Adult first).
+  Metrorail Next Train V3.32 (Classic UI + Dual Loader)
+  - UI: Strictly follows the V3.28 "Classic" design (No Blue Headers).
+  - LOADER: Upgraded to V3.31 Dual-Theme Animation.
 -->
 <html lang="en" class="dark">
 
@@ -13,17 +13,16 @@
     <title>Metrorail Next Train | Live Schedules & Fares</title>
     <meta name="description" content="Check live train schedules and fares for Pretoria, Pienaarspoort, Mabopane, De Wildt, and Germiston.">
     
-    <!-- PWA Manifest (Relative Path) -->
+    <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
     
-    <!-- Favicons (Relative Paths + Cache Busting ?v=3) -->
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=3">
-    <link rel="apple-touch-icon" href="icons/icon-192.png?v=3">
-    
-    <!-- Fallback for older browsers -->
-    <link rel="shortcut icon" href="icons/icon-192.png?v=3" type="image/png">
+    <!-- Favicons (Using New "M" Branding from root icons/) -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=6">
+    <link rel="apple-touch-icon" href="icons/icon-192.png?v=6">
+    <link rel="shortcut icon" href="icons/icon-192.png?v=6" type="image/png">
 
-    <meta name="theme-color" content="#1f2937">
+    <!-- Theme Color: Dark Blue -->
+    <meta name="theme-color" content="#1d4ed8">
 
     <!-- TAILWIND CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -89,7 +88,7 @@
         </div>
     </div>
 
-    <!-- PROFILE SETUP MODAL (Force user to select on first run) -->
+    <!-- PROFILE SETUP MODAL -->
     <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-md">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
             <div class="text-center">
@@ -121,16 +120,26 @@
         </div>
     </div>
 
-    <!-- MAIN LOADING OVERLAY -->
-    <div id="loading-overlay" class="absolute inset-0 bg-gray-100 dark:bg-gray-900 flex flex-col items-center justify-center z-50">
-        <svg class="pop-loader h-16 w-16 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.828 0l-4.244-4.243a8 8 0 1111.314 0z" />
-        </svg>
-        <div class="text-xl font-bold text-gray-700 dark:text-gray-300 mt-4" id="loading-text">Loading schedules...</div>
-        <div class="mt-4 text-xs text-gray-500">Stuck? <button onclick="localStorage.removeItem('full_db'); location.reload();" class="underline text-blue-500">Reset App</button></div>
+    <!-- MAIN LOADING OVERLAY (Theme Aware Background) -->
+    <!-- Light Mode: Gray-100 | Dark Mode: Blue-900 (Old Blue Brand) -->
+    <div id="loading-overlay" class="absolute inset-0 bg-gray-100 dark:bg-blue-900 flex flex-col items-center justify-center z-50 transition-colors duration-300">
+        
+        <!-- Animated Train Container -->
+        <div class="train-loader-container">
+            <div class="train-track"></div>
+            
+            <!-- 1. LIGHT MODE TRAIN: New "M" Logo (Black/Blue) -->
+            <img src="icons/icon-192.png" class="moving-icon light-mode-icon" alt="Loading Train">
+            
+            <!-- 2. DARK MODE TRAIN: Old Blue Train (Blue/White) -->
+            <img src="icons/old/icon-192.png" class="moving-icon dark-mode-icon" alt="Loading Train">
+        </div>
+        
+        <div class="text-xl font-bold text-gray-700 dark:text-white mt-2" id="loading-text">Next Train</div>
+        <div class="mt-4 text-xs text-gray-500 dark:text-blue-200">Stuck? <button onclick="localStorage.removeItem('full_db'); location.reload();" class="underline text-blue-500 dark:text-white font-bold">Reset App</button></div>
     </div>
 
+    <!-- SCHEDULE MODAL -->
     <div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col transform transition-transform duration-300 scale-95" id="modal-content">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
@@ -146,6 +155,7 @@
         </div>
     </div>
 
+    <!-- REDIRECT MODAL -->
     <div id="redirect-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[60] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95" id="redirect-modal-content">
             <div class="text-center">
@@ -180,11 +190,11 @@
         </div>
     </div>
 
-    <!-- PIN ENTRY MODAL (HIDDEN) -->
+    <!-- PIN ENTRY MODAL -->
     <div id="pin-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[80] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-95">
             <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 text-center">Developer Access</h3>
-            <input type="password" id="pin-input" class="w-full p-3 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-center text-lg tracking-widest mb-4" placeholder="Enter PIN" maxlength="6">
+            <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*" class="w-full p-3 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-center text-lg tracking-widest mb-4" placeholder="Enter PIN" maxlength="6">
             <div class="flex space-x-2">
                 <button id="pin-cancel-btn" class="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white py-2 rounded">Cancel</button>
                 <button id="pin-submit-btn" class="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Unlock</button>
@@ -192,8 +202,10 @@
         </div>
     </div>
 
+    <!-- MAIN APP CONTENT (Reverted to Original Clean Design) -->
     <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 hidden relative overflow-hidden">
         <div id="offline-indicator">OFFLINE MODE - USING SAVED SCHEDULE</div>
+        
         <div class="flex items-center justify-between relative mb-4 mt-4">
             <button id="open-nav-btn" class="p-2 -ml-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
@@ -214,9 +226,7 @@
         </div>
 
         <div class="text-center mb-6">
-            <!-- SECRET TRIGGER: Clicking H1 5 times opens PIN modal -->
             <h1 id="app-title" class="text-2xl font-bold text-gray-900 dark:text-white select-none cursor-default">Metrorail Next Train</h1>
-            <!-- Dynamic Route Title -->
             <div id="route-subtitle" class="flex items-center justify-center space-x-2 mt-1 cursor-pointer group">
                 <h2 id="route-subtitle-text" class="text-lg font-medium text-gray-600 dark:text-gray-400 group-hover:opacity-80 transition-colors">
                     Pretoria <-> Pienaarspoort
@@ -227,7 +237,6 @@
             <p id="current-day" class="text-sm text-gray-500 dark:text-gray-400"></p>
         </div>
 
-        <!-- STATION SELECTOR WITH LOCATE BUTTON -->
         <div class="mb-4">
             <label for="station-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From Station:</label>
             <div class="flex items-center gap-2">
@@ -236,7 +245,6 @@
                         <option value="">Select a station...</option>
                     </select>
                 </div>
-                <!-- LOCATE BUTTON -->
                 <button id="locate-btn" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-md shadow-md transition-colors flex-shrink-0" title="Find my nearest station">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
                 </button>

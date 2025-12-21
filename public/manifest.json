@@ -1,13 +1,11 @@
 {
-  "name": "Metrorail Train Schedules",
-  "short_name": "Metrorail",
-  "start_url": "/",
-  "scope": "/",
+  "name": "Metrorail Next Train",
+  "short_name": "Next Train",
+  "start_url": "/index.html",
   "display": "standalone",
+  "background_color": "#1d4ed8",
+  "theme_color": "#1d4ed8",
   "orientation": "portrait",
-  "background_color": "#1f2937",
-  "theme_color": "#1f2937",
-  "description": "Next train times for the Pretoria-Pienaarspoort line.",
   "icons": [
     {
       "src": "icons/icon-192.png",

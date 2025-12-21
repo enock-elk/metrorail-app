@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v3.26'; // Incremented Version
+const CACHE_NAME = 'metrorail-next-train-v3.32'; // Incremented Version for Hybrid UI/Loader
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -8,15 +8,16 @@ const ASSETS_TO_CACHE = [
   '/js/app.js',
   '/manifest.json',
   '/icons/icon-192.png',
+  '/icons/old/icon-192.png', // Cache the Dark Mode loader icon
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap'
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Forces the waiting service worker to become the active one
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('Caching app assets (V3.26)...');
+      console.log('Caching app assets (V3.32)...');
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
@@ -35,16 +36,13 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  self.clients.claim(); // Immediately control all open clients
+  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network First, Fallback to Cache strategy
-  // This ensures users always get the latest schedule if online
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // If valid response, clone and cache it
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
@@ -55,7 +53,6 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        // If offline, try cache
         return caches.match(event.request);
       })
   );

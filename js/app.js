@@ -644,6 +644,7 @@ function findNextTrains() {
              return timeA - timeB;
         });
 
+        // Use first upcoming journey time, or primary sheet if none
         const nowInSeconds = timeToSeconds(currentTime);
         const upcoming = mergedJourneys.find(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
         if (upcoming) {
@@ -1218,7 +1219,6 @@ window.openScheduleModal = function(destination) {
         let modalTag = "";
         if (j.isShared && j.sourceRoute) {
              const routeName = j.sourceRoute.replace("Pretoria <-> ", "").replace("Route", "").trim();
-             // SAFEGUARD FOR MODAL
              if (j.isDivergent) {
                  modalTag = `<span class="text-[9px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-1.5 py-0.5 rounded uppercase ml-2 border border-red-200 dark:border-red-800">⚠️ To ${j.actualDestName}</span>`;
              } else {
@@ -1363,6 +1363,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     pinCancelBtn.addEventListener('click', () => { pinModal.classList.add('hidden'); });
+    
+    // NEW: Enter key submits PIN
+    pinInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            pinSubmitBtn.click();
+        }
+    });
+
     pinSubmitBtn.addEventListener('click', () => {
         if (pinInput.value === "101101") {
             pinModal.classList.add('hidden');
