@@ -632,6 +632,10 @@ function findNextTrains() {
 
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
+            
+            // CORRIDOR CHECK 1: Only merge if sharing same corridor/line
+            if (otherRoute.corridorId !== currentRoute.corridorId) return;
+
             if (normalize(otherRoute.destA) === normalize(currentRoute.destA)) {
                 const key = (currentDayType === 'weekday') ? otherRoute.sheetKeys.weekday_to_a : otherRoute.sheetKeys.saturday_to_a;
                 const otherRows = fullDatabase[key];
@@ -673,6 +677,10 @@ function findNextTrains() {
 
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
+            
+            // CORRIDOR CHECK 2: Only merge if sharing same corridor/line
+            if (otherRoute.corridorId !== currentRoute.corridorId) return;
+
             if (normalize(otherRoute.destA) === normalize(currentRoute.destA)) {
                 const key = (currentDayType === 'weekday') ? otherRoute.sheetKeys.weekday_to_b : otherRoute.sheetKeys.saturday_to_b;
                 const otherRows = fullDatabase[key];
