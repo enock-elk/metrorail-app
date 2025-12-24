@@ -1,16 +1,16 @@
-const CACHE_NAME = 'metrorail-next-train-v3.38'; // Incremented Version
+const CACHE_NAME = 'metrorail-next-train-v3.41'; // Incremented Version
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './css/style.css',
   './css/custom.css',
   './js/config.js',
-  './js/app.js',
+  './js/logic.js',
+  './js/ui.js',
   './manifest.json',
   './icons/icon-192.png',
-  './icons/old/icon-192.png'
-  // CRITICAL FIX: External CDNs (Tailwind/Fonts) removed from here. 
-  // They caused the "Install Failed" error.
+  './icons/old/icon-192.png',
+  './images/network-map.png' // Added this line to cache the map
 ];
 
 self.addEventListener('install', (event) => {
@@ -18,8 +18,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Caching local app assets (V3.38)...');
-        // This will now succeed because all files are local
+        console.log('Caching local app assets (V3.41)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {
@@ -45,7 +44,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Strategy: Stale-While-Revalidate for local, Network-First for external
   if (event.request.url.startsWith(self.location.origin)) {
       event.respondWith(
         caches.match(event.request).then((cachedResponse) => {
@@ -56,8 +54,6 @@ self.addEventListener('fetch', (event) => {
         })
       );
   } else {
-      // For external items (Tailwind/Fonts), just fetch normally. 
-      // If offline, they will fail gracefully, but won't break the app install.
       event.respondWith(fetch(event.request));
   }
 });
