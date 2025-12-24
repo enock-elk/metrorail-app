@@ -1,6 +1,6 @@
 // --- GLOBAL STATE VARIABLES ---
 let globalStationIndex = {}; 
-let currentRouteId = 'pta-pien'; 
+let currentRouteId = null; // Changed from 'pta-pien' to null to support selection
 let fullDatabase = null; 
 let schedules = {};
 let allStations = []; 
@@ -33,6 +33,7 @@ let simPanel, simEnabledCheckbox, simTimeInput, simDaySelect, simApplyBtn;
 let appTitle, pinModal, pinInput, pinCancelBtn, pinSubmitBtn;
 let legalModal, legalTitle, legalContent, closeLegalBtn, closeLegalBtn2;
 let profileModal, navProfileDisplay, fareContainer, fareAmount, fareType, passengerTypeLabel;
+let welcomeModal, welcomeRouteList; // New Welcome Modal Refs
 
 // --- SIMULATION STATE ---
 let clickCount = 0;
@@ -98,6 +99,7 @@ document.addEventListener("visibilitychange", () => {
 // --- CORE DATA FETCHING ---
 async function loadAllSchedules(force = false) {
     try {
+        if (!currentRouteId) return; // Stop if no route selected yet
         const currentRoute = ROUTES[currentRouteId];
         if (!currentRoute) return;
         
@@ -169,7 +171,8 @@ async function loadAllSchedules(force = false) {
         const reloadIcon = forceReloadBtn.querySelector('svg');
         if(reloadIcon) reloadIcon.classList.remove('spinning');
         loadingOverlay.style.display = 'none';
-        mainContent.style.display = 'block';
+        // Only show content if we actually have a route
+        if(currentRouteId) mainContent.style.display = 'block';
     }
 }
 
@@ -578,6 +581,9 @@ function deg2rad(deg) { return deg * (Math.PI/180); }
 
 // --- FIND TRAINS LOGIC ---
 function findNextTrains() {
+    // If no route selected (e.g. welcome screen active), do nothing
+    if(!currentRouteId) return;
+
     const selectedStation = stationSelect.value;
     const currentRoute = ROUTES[currentRouteId];
     
@@ -1317,6 +1323,64 @@ function setupFeatureButtons() {
     pinRouteBtn.addEventListener('click', () => { const savedDefault = localStorage.getItem('defaultRoute'); if (savedDefault === currentRouteId) { localStorage.removeItem('defaultRoute'); showToast("Route unpinned from top.", "info", 2000); } else { localStorage.setItem('defaultRoute', currentRouteId); showToast("Route pinned to top of menu!", "success", 2000); } updatePinUI(); });
 }
 
+// --- WELCOME SCREEN LOGIC ---
+function showWelcomeScreen() {
+    if (!welcomeModal || !welcomeRouteList) return;
+    
+    // Clear list
+    welcomeRouteList.innerHTML = "";
+    
+    // Iterate routes and create buttons
+    // We group by simple logic or just listing active ones
+    Object.values(ROUTES).forEach(route => {
+        if (!route.isActive) return;
+
+        const btn = document.createElement('button');
+        // Styling matches the rest of the app theme
+        btn.className = `w-full text-left p-4 rounded-xl shadow-md flex items-center justify-between group transition-all transform hover:scale-[1.02] active:scale-95 bg-white dark:bg-gray-800 border-l-4`;
+        
+        // Dynamic border color based on route
+        if(route.colorClass.includes('orange')) btn.classList.add('border-orange-500');
+        else if(route.colorClass.includes('purple')) btn.classList.add('border-purple-500');
+        else if(route.colorClass.includes('green')) btn.classList.add('border-green-500');
+        else if(route.colorClass.includes('blue')) btn.classList.add('border-blue-500');
+        else btn.classList.add('border-gray-500');
+
+        btn.innerHTML = `
+            <div>
+                <span class="block text-sm font-bold text-gray-900 dark:text-white">${route.name}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400">View schedules</span>
+            </div>
+            <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+        `;
+
+        btn.onclick = () => {
+            selectWelcomeRoute(route.id);
+        };
+
+        welcomeRouteList.appendChild(btn);
+    });
+
+    welcomeModal.classList.remove('hidden');
+}
+
+function selectWelcomeRoute(routeId) {
+    currentRouteId = routeId;
+    welcomeModal.classList.add('opacity-0'); // Fade out
+    setTimeout(() => {
+        welcomeModal.classList.add('hidden');
+        welcomeModal.classList.remove('opacity-0');
+        
+        // Highlight in sidenav
+        document.querySelectorAll('#route-list a').forEach(a => {
+            if(a.dataset.routeId === routeId) a.classList.add('active');
+            else a.classList.remove('active');
+        });
+        
+        loadAllSchedules();
+    }, 300);
+}
+
 // --- PWA SERVICE WORKER REGISTRATION ---
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -1386,6 +1450,9 @@ document.addEventListener('DOMContentLoaded', () => {
     closeLegalBtn = document.getElementById('close-legal-btn');
     closeLegalBtn2 = document.getElementById('close-legal-btn-2');
 
+    welcomeModal = document.getElementById('welcome-modal');
+    welcomeRouteList = document.getElementById('welcome-route-list');
+
     closeLegalBtn.addEventListener('click', closeLegal);
     closeLegalBtn2.addEventListener('click', closeLegal);
     legalModal.addEventListener('click', (e) => { if (e.target === legalModal) closeLegal(); });
@@ -1434,21 +1501,30 @@ document.addEventListener('DOMContentLoaded', () => {
         updateTime(); 
     });
 
-    const savedDefault = localStorage.getItem('defaultRoute');
-    if (savedDefault && ROUTES[savedDefault]) currentRouteId = savedDefault;
-    
+    // --- MODIFIED STARTUP LOGIC ---
     stationSelect.addEventListener('change', findNextTrains);
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
 
-    loadAllSchedules().then(() => {
-        if (navigator.permissions && navigator.permissions.query) {
-            navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
-                if (result.state === 'granted') {
-                    console.log("Location permission already granted. Auto-locating...");
-                    // Auto Locate - pass true
-                    findNearestStation(true);
-                }
-            });
-        }
-    });
+    // Check for saved route or show welcome screen
+    const savedDefault = localStorage.getItem('defaultRoute');
+    
+    if (savedDefault && ROUTES[savedDefault]) {
+        currentRouteId = savedDefault;
+        loadAllSchedules().then(() => {
+            if (navigator.permissions && navigator.permissions.query) {
+                navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
+                    if (result.state === 'granted') {
+                        console.log("Location permission already granted. Auto-locating...");
+                        findNearestStation(true);
+                    }
+                });
+            }
+        });
+    } else {
+        // No saved route -> Show Welcome Screen
+        console.log("First time user (or no pinned route). Showing Welcome Screen.");
+        // Hide loader because we aren't loading schedule yet
+        loadingOverlay.style.display = 'none';
+        showWelcomeScreen();
+    }
 });

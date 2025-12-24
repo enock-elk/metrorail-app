@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v3.36'; // Incremented Version
+const CACHE_NAME = 'metrorail-next-train-v3.37'; // Incremented Version
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -18,7 +18,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Caching local app assets (V3.36)...');
+        console.log('Caching local app assets (V3.37)...');
         // This will now succeed because all files are local
         return cache.addAll(ASSETS_TO_CACHE);
       })
