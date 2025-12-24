@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.41 (Map Image Update)
+  Metrorail Next Train V3.42 (Map Pan/Zoom Added)
 -->
 <html lang="en" class="dark">
 
@@ -200,28 +200,39 @@
         </div>
     </div>
     
-    <!-- NETWORK MAP MODAL (UPDATED V3.41) -->
+    <!-- NETWORK MAP MODAL (UPDATED V3.42) -->
     <div id="map-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[70] hidden flex items-center justify-center p-2 backdrop-blur-md transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col transform transition-transform duration-300 scale-95 overflow-hidden">
-            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 rounded-t-xl">
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col transform transition-transform duration-300 scale-95 overflow-hidden relative">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 rounded-t-xl z-20 relative">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white">Network Map</h3>
                 <button id="close-map-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            <!-- SCROLLABLE MAP IMAGE CONTAINER -->
-            <div class="flex-grow overflow-auto p-0 bg-gray-900 flex justify-center items-center">
-                <!-- IMPORTANT: User must rename uploaded file to 'network-map.png' and put in 'images' folder -->
-                <img src="images/network-map.png" alt="Metrorail Network Map" class="max-w-none md:max-w-full h-auto object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+            
+            <!-- PAN/ZOOM CONTAINER -->
+            <div id="map-container" class="flex-grow overflow-hidden bg-gray-900 relative cursor-grab active:cursor-grabbing flex items-center justify-center">
+                <img id="map-image" src="images/network-map.png" alt="Metrorail Network Map" class="w-full h-full object-contain transition-transform duration-75 origin-center" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
                 
                 <!-- Fallback if image is missing -->
-                <div class="hidden flex-col items-center justify-center p-8 text-center text-gray-500">
+                <div class="hidden flex-col items-center justify-center p-8 text-center text-gray-500 absolute inset-0">
                     <svg class="w-12 h-12 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                     <p class="font-bold">Map image not found.</p>
                     <p class="text-xs mt-2">Please save your map image as <br><code class="bg-gray-800 p-1 rounded">images/network-map.png</code></p>
                 </div>
             </div>
-            <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 rounded-b-xl">
+
+            <!-- ZOOM CONTROLS -->
+            <div class="absolute bottom-20 right-4 flex flex-col space-y-2 z-30">
+                <button id="map-zoom-in" class="bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                </button>
+                <button id="map-zoom-out" class="bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
+                </button>
+            </div>
+
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 rounded-b-xl z-20 relative">
                 <button id="close-map-btn-2" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors">Close Map</button>
             </div>
         </div>

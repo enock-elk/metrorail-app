@@ -381,20 +381,57 @@ function setupModalButtons() {
     scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
 }
 
-// --- MAP MODAL LOGIC (NEW V3.40) ---
+// --- MAP MODAL LOGIC (UPDATED V3.43: Constrained Pan) ---
 let mapModal, closeMapBtn, closeMapBtn2, viewMapBtn;
+let mapContainer, mapImage, mapZoomIn, mapZoomOut;
+let scale = 1;
+let pointX = 0;
+let pointY = 0;
+let panning = false;
+let startX = 0;
+let startY = 0;
 
 function setupMapLogic() {
     mapModal = document.getElementById('map-modal');
     closeMapBtn = document.getElementById('close-map-btn');
     closeMapBtn2 = document.getElementById('close-map-btn-2');
     viewMapBtn = document.getElementById('view-map-btn');
+    
+    // Map Controls
+    mapContainer = document.getElementById('map-container');
+    mapImage = document.getElementById('map-image');
+    mapZoomIn = document.getElementById('map-zoom-in');
+    mapZoomOut = document.getElementById('map-zoom-out');
 
     if (!mapModal || !viewMapBtn) return;
 
+    const resetMap = () => {
+        scale = 1;
+        pointX = 0;
+        pointY = 0;
+        if(mapImage) {
+            mapImage.style.transform = `translate(0px, 0px) scale(1)`;
+            mapImage.classList.add('w-full', 'h-full', 'object-contain');
+            mapImage.classList.remove('max-w-none');
+        }
+    };
+
+    const updateTransform = () => {
+        if(mapImage) {
+            if (scale > 1) {
+                mapImage.classList.remove('w-full', 'h-full', 'object-contain');
+                mapImage.classList.add('max-w-none');
+            } else {
+                mapImage.classList.add('w-full', 'h-full', 'object-contain');
+                mapImage.classList.remove('max-w-none');
+            }
+            mapImage.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+        }
+    };
+
     const openMap = () => {
         mapModal.classList.remove('hidden');
-        // Close side nav if open
+        resetMap();
         if(sidenav) {
             sidenav.classList.remove('open');
             sidenavOverlay.classList.remove('open');
@@ -405,6 +442,105 @@ function setupMapLogic() {
     const closeMap = () => {
         mapModal.classList.add('hidden');
     };
+
+    // Zoom Logic
+    if (mapZoomIn) {
+        mapZoomIn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            scale += 0.2;
+            updateTransform();
+        });
+    }
+
+    if (mapZoomOut) {
+        mapZoomOut.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (scale > 1) { // Stop at 1.0 to prevent shrinking into void
+                scale -= 0.2;
+                if (scale < 1) scale = 1;
+                // If zooming out to 1, reset pan to prevent stuck off-screen
+                if(scale === 1) { pointX = 0; pointY = 0; }
+                updateTransform();
+            }
+        });
+    }
+
+    // Pan Logic (Mouse)
+    if (mapContainer) {
+        mapContainer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startX = e.clientX - pointX;
+            startY = e.clientY - pointY;
+            panning = true;
+        });
+
+        mapContainer.addEventListener('mouseup', () => { panning = false; });
+        mapContainer.addEventListener('mouseleave', () => { panning = false; });
+
+        mapContainer.addEventListener('mousemove', (e) => {
+            if (!panning) return;
+            e.preventDefault();
+            
+            // Constrain 1: If scaled to fit (1.0), do NOT allow panning
+            if (scale <= 1) {
+                pointX = 0; pointY = 0; updateTransform(); return;
+            }
+
+            let nextX = e.clientX - startX;
+            let nextY = e.clientY - startY;
+            
+            // Constrain 2: Keep center of image inside container
+            // This ensures "a part of the picture is always showing"
+            const limitX = mapContainer.offsetWidth / 2;
+            const limitY = mapContainer.offsetHeight / 2;
+
+            if (nextX > limitX) nextX = limitX;
+            if (nextX < -limitX) nextX = -limitX;
+            if (nextY > limitY) nextY = limitY;
+            if (nextY < -limitY) nextY = -limitY;
+
+            pointX = nextX;
+            pointY = nextY;
+            updateTransform();
+        });
+        
+        // Pan Logic (Touch)
+        mapContainer.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                startX = e.touches[0].clientX - pointX;
+                startY = e.touches[0].clientY - pointY;
+                panning = true;
+            }
+        });
+        
+        mapContainer.addEventListener('touchend', () => { panning = false; });
+        
+        mapContainer.addEventListener('touchmove', (e) => {
+            if (!panning || e.touches.length !== 1) return;
+            
+            // Constrain 1: No pan if fit to screen
+            if(scale <= 1) {
+                pointX = 0; pointY = 0; updateTransform(); return;
+            }
+
+            e.preventDefault();
+            let nextX = e.touches[0].clientX - startX;
+            let nextY = e.touches[0].clientY - startY;
+
+            // Constrain 2: Keep center inside container
+            const limitX = mapContainer.offsetWidth / 2;
+            const limitY = mapContainer.offsetHeight / 2;
+
+            if (nextX > limitX) nextX = limitX;
+            if (nextX < -limitX) nextX = -limitX;
+            if (nextY > limitY) nextY = limitY;
+            if (nextY < -limitY) nextY = -limitY;
+
+            pointX = nextX;
+            pointY = nextY;
+            updateTransform();
+        });
+    }
 
     viewMapBtn.addEventListener('click', openMap);
     closeMapBtn.addEventListener('click', closeMap);

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v3.41'; // Incremented Version
+const CACHE_NAME = 'metrorail-next-train-v3.43'; // Incremented Version
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -10,7 +10,7 @@ const ASSETS_TO_CACHE = [
   './manifest.json',
   './icons/icon-192.png',
   './icons/old/icon-192.png',
-  './images/network-map.png' // Added this line to cache the map
+  './images/network-map.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -18,7 +18,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Caching local app assets (V3.41)...');
+        console.log('Caching local app assets (V3.43)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {
