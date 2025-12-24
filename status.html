@@ -40,53 +40,52 @@
         </div>
         <div class="mt-4 md:mt-0 text-right">
             <div class="inline-block bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-sm font-bold px-4 py-2 rounded-full">
-                Current Version: V3.27
+                Current Version: V3.37
             </div>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Last Updated: Dec 21, 2025</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Last Updated: Dec 24, 2025</p>
         </div>
     </header>
 
     <!-- MAIN GRID -->
     <main class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
 
-        <!-- COLUMN 1: NEWLY RELEASED (V3.27) -->
+        <!-- COLUMN 1: NEWLY RELEASED (V3.37) -->
         <div class="flex flex-col">
             <div class="flex items-center space-x-2 mb-4">
                 <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <h2 class="text-lg font-bold uppercase tracking-wider text-green-600 dark:text-green-400">V3.27 Live</h2>
+                <h2 class="text-lg font-bold uppercase tracking-wider text-green-600 dark:text-green-400">V3.37 Live</h2>
                 <span class="bg-gray-200 dark:bg-gray-700 text-xs font-bold px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">Just Shipped</span>
             </div>
             
             <div class="space-y-4">
-                <!-- SMART PRICING -->
+                <!-- NEW ONBOARDING -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500 relative">
                     <div class="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">NEW</div>
+                    <h3 class="font-bold text-lg mb-2">Smart Onboarding</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">No more default "Pienaarspoort" route.</p>
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
+                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Welcome Screen:</strong> New users must pick a route first.</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Route Pinning:</strong> Remembers your choice for next time.</li>
+                    </ul>
+                </div>
+
+                <!-- CORRIDOR LOGIC FIX -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
+                    <h3 class="font-bold text-lg mb-2">Corridor Filtering</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Fixed "Pretoria Hub" confusion.</p>
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
+                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Line Separation:</strong> Mabopane (North) trains no longer mix with Pienaarspoort (East) trains.</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Smart Merging:</strong> Only merges compatible lines (e.g., Mabopane + De Wildt).</li>
+                    </ul>
+                </div>
+
+                <!-- SMART PRICING -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
                     <h3 class="font-bold text-lg mb-2">Smart Pricing Engine</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Zone-based fare calculation.</p>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> Reads Zones (Z1-Z4) from Headers</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Auto-calculates Base Fare</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Reads Zones (Z1-Z4)</li>
                         <li class="flex items-start"><span class="mr-2">✅</span> 40% Off-Peak Automation (09:00-14:00)</li>
-                    </ul>
-                </div>
-
-                <!-- PASSENGER PROFILES -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                    <h3 class="font-bold text-lg mb-2">Passenger Profiles</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Demographic logic updates.</p>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Adult:</strong> 100% Peak / 60% Off-Peak</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Scholar:</strong> 50% Flat Rate</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Pensioner/Mil:</strong> 60% Discount (Off-Peak)</li>
-                    </ul>
-                </div>
-
-                <!-- UX IMPROVEMENTS -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                    <h3 class="font-bold text-lg mb-2">Dev Mode UX</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> Numeric Keypad on Mobile</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> 'Enter' key submits PIN</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Passenger Profiles (Scholar/Adult)</li>
                     </ul>
                 </div>
             </div>
@@ -101,24 +100,24 @@
             </div>
 
             <div class="space-y-4">
-                <!-- SHARED CORRIDOR -->
+                <!-- FIREBASE SECURITY -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-blue-500">
-                    <h3 class="font-bold text-lg mb-2">Route Engine</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Shared Corridor Logic</p>
+                    <h3 class="font-bold text-lg mb-2">Security & Stability</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Database rules updated.</p>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">🛡️</span> Merges Mabopane/De Wildt lines</li>
-                        <li class="flex items-start"><span class="mr-2">🛡️</span> Divergent Route Warnings</li>
-                        <li class="flex items-start"><span class="mr-2">🛡️</span> "Via / From" Origin Tags</li>
+                        <li class="flex items-start"><span class="mr-2">🔒</span> <strong>Firebase Rules:</strong> Read-Only Public Access (Write Disabled).</li>
+                        <li class="flex items-start"><span class="mr-2">⚡</span> <strong>Modular Code:</strong> Clean separation of `app.js` and `config.js`.</li>
+                        <li class="flex items-start"><span class="mr-2">⚡</span> <strong>Service Worker:</strong> V3.37 Active & Caching Correctly.</li>
                     </ul>
                 </div>
 
-                <!-- OFFLINE TECH -->
+                <!-- UX IMPROVEMENTS -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-blue-500">
-                    <h3 class="font-bold text-lg mb-2">Offline Core</h3>
+                    <h3 class="font-bold text-lg mb-2">Dev & UX</h3>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">⚡</span> Service Worker v3.27 Active</li>
-                        <li class="flex items-start"><span class="mr-2">⚡</span> Auto-Locate (Route Guarded)</li>
-                        <li class="flex items-start"><span class="mr-2">⚡</span> Firebase JSON Sync Optimized</li>
+                        <li class="flex items-start"><span class="mr-2">🛠️</span> Numeric Keypad for PIN Entry</li>
+                        <li class="flex items-start"><span class="mr-2">🛠️</span> 'Enter' key support in Dev Mode</li>
+                        <li class="flex items-start"><span class="mr-2">🛠️</span> Auto-Locate with permission check</li>
                     </ul>
                 </div>
             </div>
@@ -133,22 +132,22 @@
             </div>
 
             <div class="space-y-4">
+                <!-- GLOBAL CONTROL -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500">
+                    <h3 class="font-bold text-lg mb-2">Global Day Override</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Remote Control via Sheets</p>
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
+                        <li class="flex items-start"><span class="mr-2">🚀</span> Control "Saturday/Weekday" mode remotely.</li>
+                        <li class="flex items-start"><span class="mr-2">🚀</span> Force specific schedules for holidays.</li>
+                    </ul>
+                </div>
+
                 <!-- EXPANSION -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500">
                     <h3 class="font-bold text-lg mb-2">Route Expansion</h3>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
                         <li class="flex items-start"><span class="mr-2">⌛</span> Western Corridor (Saulsville)</li>
                         <li class="flex items-start"><span class="mr-2">⌛</span> Soweto Corridor (JHB - Naledi)</li>
-                    </ul>
-                </div>
-
-                <!-- ALERTS -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-yellow-500">
-                    <h3 class="font-bold text-lg mb-2">Service Alerts</h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Real-time incident reporting.</p>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">🚀</span> Cable Theft / Power Failure Banners</li>
-                        <li class="flex items-start"><span class="mr-2">🚀</span> Global "Delay" Status</li>
                     </ul>
                 </div>
 
@@ -172,12 +171,12 @@
             <div>
                 <h3 class="text-2xl font-bold mb-2">🌍 The Goal: Smart Mobility Companion</h3>
                 <p class="text-blue-100 max-w-xl">
-                    Transformation from a static viewer to a dynamic, price-aware commuter companion. V3.27 brings us closer with personalized fares and offline reliability.
+                    Transformation from a static viewer to a dynamic, price-aware commuter companion. V3.37 solves the "Common Terminus" issue and improves onboarding.
                 </p>
             </div>
             <div class="mt-6 md:mt-0">
                 <span class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-blue-700 bg-white shadow-sm hover:bg-blue-50">
-                    Current: V3.27
+                    Current: V3.37
                 </span>
             </div>
         </div>

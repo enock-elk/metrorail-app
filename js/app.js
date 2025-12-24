@@ -1374,6 +1374,10 @@ function showWelcomeScreen() {
 
 function selectWelcomeRoute(routeId) {
     currentRouteId = routeId;
+    
+    // FIX: Save as default immediately (Pin by default)
+    localStorage.setItem('defaultRoute', routeId);
+    
     welcomeModal.classList.add('opacity-0'); // Fade out
     setTimeout(() => {
         welcomeModal.classList.add('hidden');
@@ -1384,6 +1388,9 @@ function selectWelcomeRoute(routeId) {
             if(a.dataset.routeId === routeId) a.classList.add('active');
             else a.classList.remove('active');
         });
+        
+        // FIX: Update Pin UI to show it is active
+        updatePinUI();
         
         loadAllSchedules();
     }, 300);

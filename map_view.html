@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrorail Network Map - Active Routes</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""/>
+      
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""></script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        #map { height: 100vh; width: 100%; z-index: 1; }
+        .legend {
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            line-height: 24px;
+            color: #333;
+            font-family: 'Inter', sans-serif;
+            max-width: 250px;
+        }
+        .legend h4 {
+            margin: 0 0 5px;
+            color: #1f2937;
+            font-weight: 800;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.9;
+            border-radius: 4px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-badge {
+            display: inline-block;
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 4px;
+            margin-left: auto;
+            font-weight: bold;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <!-- Back Button Overlay -->
+    <div class="fixed top-4 left-4 z-50">
+        <a href="index.html" class="bg-white hover:bg-gray-100 text-gray-800 font-bold py-2 px-4 border border-gray-300 rounded-lg shadow-lg flex items-center transition-transform transform active:scale-95">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Back to App
+        </a>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        // Initialize Map centered on Gauteng (Adjusted slightly north to show Mabopane)
+        const map = L.map('map').setView([-25.90, 28.20], 10);
+
+        // Add OpenStreetMap Tile Layer (Light Theme)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        // --- DEFINE ROUTES (Approximate Coordinates) ---
+        
+        // 1. Pretoria (Northern) Hub
+        const ptaStation = [-25.7593, 28.1887];
+        
+        // ACTIVE: PTA - Pienaarspoort (Green)
+        const route_pta_pien = [
+            ptaStation,
+            [-25.746, 28.220], // Rissik/Loftus area
+            [-25.733, 28.267], // Koedoespoort
+            [-25.730, 28.310], // Silverton
+            [-25.728, 28.360], // Eerste Fabrieke
+            [-25.725, 28.420]  // Pienaarspoort (Approx)
+        ];
+
+        // ACTIVE: PTA - Mabopane (Orange)
+        const route_pta_mabopane = [
+            ptaStation,
+            [-25.735, 28.170], // Hercules
+            [-25.700, 28.160], // Mountain View / Pretoria North
+            [-25.650, 28.140], // Wolmerton / Akasiaboom
+            [-25.600, 28.120], // Wintersnest
+            [-25.550, 28.100], // Soshanguve
+            [-25.500, 28.080]  // Mabopane
+        ];
+
+        // ACTIVE: PTA - De Wildt (Purple)
+        const route_pta_dewildt = [
+            [-25.600, 28.120], // Wintersnest (Split)
+            [-25.610, 28.050], // Rosslyn
+            [-25.620, 28.000], // Medunsa / Ga-Rankuwa
+            [-25.630, 27.950]  // De Wildt
+        ];
+
+        // ACTIVE: JHB - Germiston - Leralla (Blue)
+        const jhbStation = [-26.195, 28.040];
+        const germistonStation = [-26.215, 28.170];
+        
+        const route_germ_leralla = [
+             germistonStation,
+             [-26.150, 28.180], // Knight's
+             [-26.100, 28.240], // Kempton Park area
+             [-26.050, 28.230], // Kaalfontein area
+             [-26.020, 28.210]  // Leralla (Tembisa)
+        ];
+
+        // INACTIVE/PLANNED ROUTES (Greyed Out)
+        
+        // PTA - JHB (The Blue Line) - Inactive portion
+        const route_pta_jhb = [
+            ptaStation,
+            [-25.780, 28.200], // Fountains
+            [-25.850, 28.220], // Centurion
+            [-25.950, 28.230], // Olifantsfontein
+            [-26.000, 28.240], // Kaalfontein
+            [-26.100, 28.240], // Kempton Park / Rhodesfield
+            [-26.150, 28.180], // Germiston area approach
+            germistonStation,   // Connecting to Germiston
+            jhbStation          // Connecting to JHB
+        ];
+
+        // JHB South/West
+        const route_jhb_vereeniging = [
+            germistonStation,
+            [-26.250, 28.150], 
+            [-26.350, 28.120], 
+            [-26.500, 28.000], 
+            [-26.670, 27.930]  // Vereeniging
+        ];
+
+        const route_jhb_springs = [
+            germistonStation,
+            [-26.210, 28.250], 
+            [-26.220, 28.300], 
+            [-26.230, 28.350], 
+            [-26.250, 28.440]  // Springs
+        ];
+
+        const route_jhb_naledi = [
+            jhbStation,
+            [-26.200, 27.980], 
+            [-26.220, 27.940], 
+            [-26.240, 27.900], 
+            [-26.260, 27.850]  // Naledi
+        ];
+
+        // --- DRAW FUNCTIONS ---
+
+        function addRoute(latlngs, color, name, isActive = true) {
+            const opacity = isActive ? 0.9 : 0.4;
+            const weight = isActive ? 5 : 3;
+            const dashArray = isActive ? null : '5, 10';
+            const finalColor = isActive ? color : '#9ca3af'; // Grey for inactive
+
+            L.polyline(latlngs, {
+                color: finalColor,
+                weight: weight,
+                opacity: opacity,
+                dashArray: dashArray,
+                smoothFactor: 1
+            }).addTo(map).bindPopup(`<b>${name}</b><br>${isActive ? '<span class="text-green-600 font-bold">Active Service</span>' : '<span class="text-red-500 font-bold">Suspended / Planned</span>'}`);
+        }
+
+        // --- DRAW ACTIVE ROUTES (Colors match app.js) ---
+        addRoute(route_pta_pien, '#22c55e', 'Pretoria - Pienaarspoort', true); // Green
+        addRoute(route_pta_mabopane, '#f97316', 'Pretoria - Mabopane', true); // Orange
+        addRoute(route_pta_dewildt, '#a855f7', 'Pretoria - De Wildt', true);   // Purple (Matches new corridor color)
+        addRoute(route_germ_leralla, '#3b82f6', 'Germiston - Leralla', true);   // Blue
+
+        // --- DRAW INACTIVE ROUTES ---
+        addRoute(route_pta_jhb, '#06b6d4', 'Pretoria - Johannesburg', false);
+        addRoute(route_jhb_vereeniging, '#a855f7', 'JHB - Vereeniging', false);
+        addRoute(route_jhb_springs, '#ef4444', 'JHB - Springs', false);
+        addRoute(route_jhb_naledi, '#eab308', 'JHB - Naledi (Soweto)', false);
+
+        // --- MARKERS ---
+        const hubs = [
+            { name: "Pretoria Station", coords: ptaStation, type: 'hub' },
+            { name: "Germiston", coords: germistonStation, type: 'hub' },
+            { name: "Mabopane", coords: [-25.500, 28.080], type: 'end' },
+            { name: "De Wildt", coords: [-25.630, 27.950], type: 'end' },
+            { name: "Pienaarspoort", coords: [-25.725, 28.420], type: 'end' },
+            { name: "Leralla", coords: [-26.020, 28.210], type: 'end' }
+        ];
+
+        hubs.forEach(hub => {
+            const radius = hub.type === 'hub' ? 8 : 5;
+            const weight = hub.type === 'hub' ? 3 : 2;
+            
+            L.circleMarker(hub.coords, {
+                radius: radius,
+                fillColor: "#ffffff",
+                color: "#1f2937",
+                weight: weight,
+                opacity: 1,
+                fillOpacity: 1
+            }).addTo(map).bindPopup(`<b>${hub.name}</b>`);
+        });
+
+        // --- LEGEND ---
+        const legend = L.control({position: 'bottomright'});
+
+        legend.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'legend');
+            const items = [
+                { color: '#22c55e', text: 'Pretoria - Pienaarspoort', status: 'LIVE', bg: 'bg-green-500' },
+                { color: '#f97316', text: 'Pretoria - Mabopane', status: 'LIVE', bg: 'bg-green-500' },
+                { color: '#a855f7', text: 'Pretoria - De Wildt', status: 'LIVE', bg: 'bg-green-500' },
+                { color: '#3b82f6', text: 'Germiston - Leralla', status: 'LIVE', bg: 'bg-green-500' },
+                { color: '#9ca3af', text: 'Other Routes (Suspended)', status: 'OFF', bg: 'bg-gray-400' }
+            ];
+
+            div.innerHTML += '<h4>Network Status</h4>';
+            
+            for (let i = 0; i < items.length; i++) {
+                div.innerHTML += `
+                    <div class="legend-item">
+                        <i style="background:${items[i].color}"></i>
+                        <span>${items[i].text}</span>
+                        <span class="status-badge ${items[i].bg}">${items[i].status}</span>
+                    </div>
+                `;
+            }
+            return div;
+        };
+
+        legend.addTo(map);
+
+    </script>
+</body>
+</html>
