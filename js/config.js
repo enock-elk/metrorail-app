@@ -93,7 +93,40 @@ const ROUTES = {
             saturday_to_b: 'germ_to_lerl_sat' 
         } 
     },
-    'pta-irene': { id: 'pta-irene', name: "Pretoria <-> Irene", corridorId: "SOUTH_LINE", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'IRENE STATION', transferStation: null, sheetKeys: {} },
+    'pta-irene': { 
+        id: 'pta-irene', 
+        name: "Pretoria <-> Irene", 
+        corridorId: "SOUTH_LINE", 
+        colorClass: "text-blue-500", 
+        isActive: true, 
+        destA: 'PRETORIA STATION', 
+        destB: 'IRENE STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'irene_to_pta_weekday', 
+            weekday_to_b: 'pta_to_irene_weekday', 
+            saturday_to_a: 'irene_to_pta_sat', 
+            saturday_to_b: 'pta_to_irene_sat' 
+        } 
+    },
+    'jhb-germiston': { 
+        id: 'jhb-germiston', 
+        name: "JHB <-> Germiston", 
+        corridorId: "JHB_CORE", 
+        colorClass: "text-red-500", // Red to distinguish JHB Core lines
+        isActive: true, 
+        destA: 'JOHANNESBURG STATION', 
+        destB: 'GERMISTON STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            // Weekday keys are real
+            weekday_to_a: 'germ_to_jhb_weekday', 
+            weekday_to_b: 'jhb_to_germ_weekday',
+            // Saturday keys are placeholders (will return empty if sheet missing)
+            saturday_to_a: 'germ_to_jhb_sat', 
+            saturday_to_b: 'jhb_to_germ_sat'
+        } 
+    },
     'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", corridorId: "SOUTH_LINE", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
     'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", corridorId: "SOUTH_LINE", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
     'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", corridorId: "JHB_SOUTH", colorClass: "text-purple-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
