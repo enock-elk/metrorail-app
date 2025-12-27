@@ -58,8 +58,8 @@ const ROUTES = {
         destB: 'BELLE OMBRE STATION', 
         transferStation: null, 
         sheetKeys: { 
-            weekday_to_a: 'belle_to_mab_weekday', // To Dest A (Mabopane)
-            weekday_to_b: 'mab_to_belle_weekday', // To Dest B (Belle Ombre)
+            weekday_to_a: 'belle_to_mab_weekday', 
+            weekday_to_b: 'mab_to_belle_weekday', 
             saturday_to_a: 'belle_to_mab_sat', 
             saturday_to_b: 'mab_to_belle_sat' 
         } 
@@ -112,6 +112,23 @@ const ROUTES = {
             saturday_to_b: 'germ_to_lerl_sat' 
         } 
     },
+    'germ-kwesine': { 
+        id: 'germ-kwesine', 
+        name: "Germiston <-> Kwesine", 
+        corridorId: "JHB_EAST",
+        colorClass: "text-yellow-500", 
+        isActive: true, 
+        destA: 'GERMISTON STATION', 
+        destB: 'KWESINE STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            // UPDATED: Based on user's specific sheet names (KWESI)
+            weekday_to_a: 'kwesi_to_germ_weekday', 
+            weekday_to_b: 'germ_to_kwesi_weekday', 
+            saturday_to_a: 'kwesi_to_germ_sat', 
+            saturday_to_b: 'germ_to_kwesi_sat' 
+        } 
+    },
     'pta-irene': { 
         id: 'pta-irene', 
         name: "Pretoria <-> Irene", 
@@ -122,7 +139,6 @@ const ROUTES = {
         destB: 'IRENE STATION', 
         transferStation: null, 
         sheetKeys: { 
-            // REUSING KEMPTON PARK DATA (Subset Logic)
             weekday_to_a: 'kemp_to_pta_weekday', 
             weekday_to_b: 'pta_to_kemp_weekday', 
             saturday_to_a: 'kemp_to_pta_sat', 

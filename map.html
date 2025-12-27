@@ -81,7 +81,9 @@
 
     <script>
         // Initialize Map centered on Gauteng (Between JHB and PTA)
-        const map = L.map('map').setView([-25.95, 28.15], 10);
+        // Zoom Control moved to bottomright to avoid conflict with "Back to App" button
+        const map = L.map('map', { zoomControl: false }).setView([-25.85, 28.15], 10); 
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
 
         // Add OpenStreetMap Tile Layer (Light Theme)
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -95,6 +97,7 @@
         const jhbStation = [-26.195, 28.040];
         const germistonStation = [-26.215, 28.170];
         const kemptonStation = [-26.100, 28.240];
+        const belleOmbreStation = [-25.742, 28.180]; // Approx location near Marabastad
         
         // --- ACTIVE ROUTES ---
 
@@ -112,7 +115,7 @@
         const route_pta_mabopane = [
             ptaStation,
             [-25.735, 28.170], 
-            [-25.700, 28.160], 
+            [-25.700, 28.160], // Hercules Hub
             [-25.650, 28.140], 
             [-25.600, 28.120], 
             [-25.550, 28.100], 
@@ -121,7 +124,7 @@
 
         // 3. PTA - De Wildt (Purple)
         const route_pta_dewildt = [
-            [-25.600, 28.120], // Wintersnest (Split)
+            [-25.600, 28.120], // Wintersnest (Split from Mabopane line)
             [-25.610, 28.050], 
             [-25.620, 28.000], 
             [-25.630, 27.950]  // De Wildt
@@ -154,6 +157,18 @@
             kemptonStation
         ];
 
+        // 7. Mabopane - Belle Ombre (Orange Variant)
+        const route_mab_belle = [
+            belleOmbreStation,
+            [-25.720, 28.170], // Connecting to Hercules
+            [-25.700, 28.160], // Merge with PTA line at Hercules
+            // Rest of the line is shared with PTA-Mabopane
+            [-25.650, 28.140], 
+            [-25.600, 28.120], 
+            [-25.550, 28.100], 
+            [-25.500, 28.080]  // Mabopane
+        ];
+
         // --- DRAW FUNCTIONS ---
 
         function addRoute(latlngs, color, name, isActive = true) {
@@ -174,6 +189,7 @@
         // --- RENDER ROUTES ---
         addRoute(route_pta_pien, '#22c55e', 'Pretoria - Pienaarspoort', true);
         addRoute(route_pta_mabopane, '#f97316', 'Pretoria - Mabopane', true);
+        addRoute(route_mab_belle, '#f97316', 'Belle Ombre - Mabopane', true); // New Route
         addRoute(route_pta_dewildt, '#a855f7', 'Pretoria - De Wildt', true);
         addRoute(route_germ_leralla, '#3b82f6', 'Germiston - Leralla', true);
         
@@ -187,6 +203,7 @@
             { name: "Johannesburg Park", coords: jhbStation, type: 'hub' },
             { name: "Germiston", coords: germistonStation, type: 'hub' },
             { name: "Kempton Park", coords: kemptonStation, type: 'hub' },
+            { name: "Belle Ombre", coords: belleOmbreStation, type: 'hub' }, // Added
             { name: "Mabopane", coords: [-25.500, 28.080], type: 'end' },
             { name: "De Wildt", coords: [-25.630, 27.950], type: 'end' },
             { name: "Pienaarspoort", coords: [-25.725, 28.420], type: 'end' },
@@ -207,16 +224,20 @@
             }).addTo(map).bindPopup(`<b>${hub.name}</b>`);
         });
 
-        // --- LEGEND ---
-        const legend = L.control({position: 'bottomright'});
+        // --- LEGEND (UPDATED) ---
+        // Moved to topright
+        const legend = L.control({position: 'topright'});
 
         legend.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'legend');
+            // Listing all routes separately
             const items = [
                 { color: '#22c55e', text: 'Pretoria - Pienaarspoort', status: 'LIVE', bg: 'bg-green-500' },
                 { color: '#f97316', text: 'Pretoria - Mabopane', status: 'LIVE', bg: 'bg-green-500' },
+                { color: '#f97316', text: 'Mabopane - Belle Ombre', status: 'LIVE', bg: 'bg-green-500' },
                 { color: '#a855f7', text: 'Pretoria - De Wildt', status: 'LIVE', bg: 'bg-green-500' },
-                { color: '#3b82f6', text: 'PTA - Kempton / GERM - Leralla', status: 'LIVE', bg: 'bg-green-500' },
+                { color: '#3b82f6', text: 'Pretoria - Kempton Park', status: 'LIVE', bg: 'bg-green-500' },
+                { color: '#3b82f6', text: 'Germiston - Leralla', status: 'LIVE', bg: 'bg-green-500' },
                 { color: '#ef4444', text: 'JHB - Germiston', status: 'LIVE', bg: 'bg-green-500' }
             ];
 
