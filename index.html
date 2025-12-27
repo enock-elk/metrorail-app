@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.43 (Kempton Park Added)
+  Metrorail Next Train V3.46 (Mabopane-Belle Ombre Added)
 -->
 <html lang="en" class="dark">
 
@@ -9,7 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
 
     <title>Metrorail Next Train | Live Schedules & Fares</title>
-    <meta name="description" content="Check live train schedules and fares for Pretoria, Pienaarspoort, Mabopane, De Wildt, and Germiston.">
+    <meta name="description" content="Check live train schedules and fares for Pretoria, Pienaarspoort, Mabopane, Belle Ombre, De Wildt, and Germiston.">
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
@@ -19,10 +19,13 @@
         // This runs immediately. It captures the event before any other code runs.
         window.deferredInstallPrompt = null;
         window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent the mini-infobar from appearing on mobile (we use a custom button)
             e.preventDefault();
+            // Stash the event so it can be triggered later.
             window.deferredInstallPrompt = e;
             console.log("✅ PWA Install Event captured successfully in HEAD.");
             
+            // Dispatch a custom event to signal app.js (if it loads later)
             const readyEvent = new Event('pwa-install-ready');
             window.dispatchEvent(readyEvent);
         });
@@ -74,16 +77,17 @@
             <li class="route-category">Northern Corridor (Pretoria)</li>
             <li class="route-item"><a class="active" data-route-id="pta-pien"><span class="route-dot dot-green"></span>Pretoria <-> Pienaarspoort</a></li>
             <li class="route-item"><a class="" data-route-id="pta-mabopane"><span class="route-dot dot-orange"></span>Pretoria <-> Mabopane</a></li>
+            <!-- ENABLED: MABOPANE - BELLE OMBRE -->
+            <li class="route-item"><a class="" data-route-id="mab-belle"><span class="route-dot dot-orange"></span>Mabopane <-> Belle Ombre</a></li>
             <li class="route-item"><a class="" data-route-id="pta-dewildt"><span class="route-dot dot-purple"></span>Pretoria <-> De Wildt</a></li>
+            
+            <!-- ENABLED: PRETORIA - SAULSVILLE -->
+            <li class="route-item"><a class="" data-route-id="pta-saul"><span class="route-dot dot-green"></span>Pretoria <-> Saulsville</a></li>
             
             <li class="route-category">Pretoria - JHB Line</li>
             <li class="route-item"><a class="" data-route-id="germ-leralla"><span class="route-dot dot-blue"></span>Germiston <-> Leralla</a></li>
             <li class="route-item"><a class="" data-route-id="pta-irene"><span class="route-dot dot-blue"></span>Pretoria <-> Irene</a></li>
-            
-            <!-- JHB - GERMISTON (RED) -->
             <li class="route-item"><a class="" data-route-id="jhb-germiston"><span class="route-dot dot-red"></span>JHB <-> Germiston</a></li>
-            
-            <!-- ENABLED: PRETORIA - KEMPTON PARK -->
             <li class="route-item"><a class="" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
             
             <li class="route-item"><a class="disabled" data-route-id="pta-germiston"><span class="route-dot dot-blue"></span>Pretoria <-> Germiston</a></li>

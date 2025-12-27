@@ -57,9 +57,16 @@ function escapeHTML(str) {
     });
 }
 
+// UPDATED: ROBUST STATION NORMALIZATION
+// Handles "Belle-Ombre", "Belle Ombre", "Belle Ombre Station", and extra spaces
 function normalizeStationName(name) {
     if (!name) return "";
-    return name.toUpperCase().replace(/ STATION/g, '').trim();
+    return String(name)
+        .toUpperCase()
+        .replace(/ STATION/g, '')  // Remove STATION suffix
+        .replace(/-/g, ' ')        // Replace hyphens with spaces (Fixes Belle-Ombre)
+        .replace(/\s+/g, ' ')      // Collapse multiple spaces
+        .trim();
 }
 
 function timeToSeconds(timeStr) {
@@ -303,7 +310,7 @@ function buildGlobalStationIndex() {
                       if (!coordKey && row['COORDINATES']) coordKey = 'COORDINATES';
 
                       if (stationKey && row[stationKey]) {
-                           const stationName = String(row[stationKey]).toUpperCase().trim();
+                           const stationName = normalizeStationName(row[stationKey]);
                            const coordVal = coordKey ? row[coordKey] : null;
                            
                            if (!globalStationIndex[stationName]) {
@@ -328,7 +335,7 @@ function buildGlobalStationIndex() {
             } else {
                  sheetData.forEach(row => {
                     if (row.STATION && row.COORDINATES) {
-                        const stationName = row.STATION.toUpperCase().trim();
+                        const stationName = normalizeStationName(row.STATION);
                         if (!globalStationIndex[stationName]) {
                             try {
                                 const parts = String(row.COORDINATES).split(',').map(s => parseFloat(s.trim()));
@@ -447,14 +454,23 @@ function findNextTrains() {
         return;
     }
 
-    const normalize = (s) => s ? s.toUpperCase().replace(/ STATION/g, '').trim() : '';
-    const isAtStation = (s1, s2) => normalize(s1) === normalize(s2);
+    // USE GLOBAL NORMALIZATION
+    const isAtStation = (s1, s2) => normalizeStationName(s1) === normalizeStationName(s2);
 
     let sharedRoutes = [];
-    if (fullDatabase && globalStationIndex[normalize(selectedStation)]) {
-        const stationData = globalStationIndex[normalize(selectedStation)];
+    // 1. Check for shared routes based on CORRIDOR ID (Primary)
+    // This allows different routes in the same corridor (e.g., North Line) to see each other
+    Object.values(ROUTES).forEach(r => {
+        if (r.id !== currentRouteId && r.isActive && r.corridorId === currentRoute.corridorId) {
+            sharedRoutes.push(r.id);
+        }
+    });
+
+    // 2. Also check if specific station exists in other routes (Secondary)
+    if (fullDatabase && globalStationIndex[normalizeStationName(selectedStation)]) {
+        const stationData = globalStationIndex[normalizeStationName(selectedStation)];
         stationData.routes.forEach(rId => {
-            if (rId !== currentRouteId && ROUTES[rId].isActive) {
+            if (rId !== currentRouteId && ROUTES[rId].isActive && !sharedRoutes.includes(rId)) {
                 sharedRoutes.push(rId);
             }
         });
@@ -472,17 +488,29 @@ function findNextTrains() {
         
         let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
 
+        // DEDUPLICATION TRACKER: Add trains from CURRENT route to 'seen' list
+        const seenTrainsA = new Set(mergedJourneys.map(j => j.train || j.train1.train));
+
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
-            if (otherRoute.corridorId !== currentRoute.corridorId) return;
-
-            if (normalize(otherRoute.destA) === normalize(currentRoute.destA)) {
+            
+            // Check if Direction A matches (e.g. Both go to Pretoria)
+            if (normalizeStationName(otherRoute.destA) === normalizeStationName(currentRoute.destA)) {
                 const key = (currentDayType === 'weekday') ? otherRoute.sheetKeys.weekday_to_a : otherRoute.sheetKeys.saturday_to_a;
                 const otherRows = fullDatabase[key];
                 const otherMeta = fullDatabase[key + "_meta"];
                 const otherSchedule = parseJSONSchedule(otherRows, otherMeta);
                 const { allJourneys: otherJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", otherSchedule, otherRoute);
-                const tagged = otherJourneys.map(j => ({...j, sourceRoute: otherRoute.name, isShared: true, sheetKey: key}));
+                
+                // DEDUPLICATE: Only add shared trains if we haven't seen this Train Number yet
+                const uniqueOther = otherJourneys.filter(j => {
+                    const tNum = j.train || j.train1.train;
+                    if (seenTrainsA.has(tNum)) return false; // Already exists in current route
+                    seenTrainsA.add(tNum); // Mark as seen
+                    return true;
+                });
+
+                const tagged = uniqueOther.map(j => ({...j, sourceRoute: otherRoute.name, isShared: true, sheetKey: key}));
                 mergedJourneys = [...mergedJourneys, ...tagged];
             }
         });
@@ -514,26 +542,40 @@ function findNextTrains() {
 
         let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
 
+        // DEDUPLICATION TRACKER: Add trains from CURRENT route to 'seen' list
+        const seenTrainsB = new Set(mergedJourneys.map(j => j.train || j.train1.train));
+
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
-            if (otherRoute.corridorId !== currentRoute.corridorId) return;
-
-            if (normalize(otherRoute.destA) === normalize(currentRoute.destA)) {
-                const key = (currentDayType === 'weekday') ? otherRoute.sheetKeys.weekday_to_b : otherRoute.sheetKeys.saturday_to_b;
-                const otherRows = fullDatabase[key];
-                const otherMeta = fullDatabase[key + "_meta"];
-                const otherSchedule = parseJSONSchedule(otherRows, otherMeta);
-                const { allJourneys: otherJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", otherSchedule, otherRoute);
-                const isDivergent = normalize(otherRoute.destB) !== normalize(currentRoute.destB);
-                const tagged = otherJourneys.map(j => ({
-                    ...j, 
-                    sourceRoute: otherRoute.name, 
-                    isShared: true,
-                    isDivergent: isDivergent, 
-                    actualDestName: otherRoute.destB.replace(' STATION', ''),
-                    sheetKey: key
-                }));
-                mergedJourneys = [...mergedJourneys, ...tagged];
+            
+            // LOGIC: If corridors match, we check schedules even if Dest B names are different (Divergent routes)
+            // e.g. Mabopane (Dest B) vs De Wildt (Dest B) vs Belle Ombre (Dest B)
+            if (otherRoute.corridorId === currentRoute.corridorId) {
+                 const key = (currentDayType === 'weekday') ? otherRoute.sheetKeys.weekday_to_b : otherRoute.sheetKeys.saturday_to_b;
+                 const otherRows = fullDatabase[key];
+                 const otherMeta = fullDatabase[key + "_meta"];
+                 const otherSchedule = parseJSONSchedule(otherRows, otherMeta);
+                 const { allJourneys: otherJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", otherSchedule, otherRoute);
+                 
+                 // DEDUPLICATE
+                 const uniqueOther = otherJourneys.filter(j => {
+                     const tNum = j.train || j.train1.train;
+                     if (seenTrainsB.has(tNum)) return false; 
+                     seenTrainsB.add(tNum); 
+                     return true;
+                 });
+ 
+                 const isDivergent = normalizeStationName(otherRoute.destB) !== normalizeStationName(currentRoute.destB);
+                 
+                 const tagged = uniqueOther.map(j => ({
+                     ...j, 
+                     sourceRoute: otherRoute.name, 
+                     isShared: true,
+                     isDivergent: isDivergent, 
+                     actualDestName: otherRoute.destB.replace(' STATION', ''),
+                     sheetKey: key
+                 }));
+                 mergedJourneys = [...mergedJourneys, ...tagged];
             }
         });
 
@@ -554,9 +596,15 @@ function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
         const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destA);
         allTransferJourneys = allTransfers;
     }
-    const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
-    const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
-    const allJourneys = [...uniqueDirects, ...allTransferJourneys];
+    
+    // --- DEDUPLICATION FIX (Prioritize DIRECT trains) ---
+    // If a train is found in both Direct and Transfer lists, we KEEP the Direct one
+    // and remove it from the Transfer list.
+    const directTrainNames = new Set(allDirectJourneys.map(j => j.train));
+    const uniqueTransfers = allTransferJourneys.filter(j => !directTrainNames.has(j.train1.train));
+    
+    const allJourneys = [...allDirectJourneys, ...uniqueTransfers];
+    
     allJourneys.sort((a, b) => {
         const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
         const timeB = timeToSeconds(b.departureTime || b.train1.departureTime);
@@ -575,9 +623,15 @@ function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
         const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destB);
         allTransferJourneys = allTransfers;
     }
-    const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
-    const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
-    const allJourneys = [...uniqueDirects, ...allTransferJourneys];
+
+    // --- DEDUPLICATION FIX (Prioritize DIRECT trains) ---
+    // If a train is found in both Direct and Transfer lists, we KEEP the Direct one
+    // and remove it from the Transfer list.
+    const directTrainNames = new Set(allDirectJourneys.map(j => j.train));
+    const uniqueTransfers = allTransferJourneys.filter(j => !directTrainNames.has(j.train1.train));
+    
+    const allJourneys = [...allDirectJourneys, ...uniqueTransfers];
+    
     allJourneys.sort((a, b) => {
         const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
         const timeB = timeToSeconds(b.departureTime || b.train1.departureTime);
@@ -810,4 +864,32 @@ function findNearestStation(isAuto = false) {
             }
         }
     );
+}
+
+// --- POPULATE STATION LIST ---
+function populateStationList() {
+    const stationSet = new Set();
+    const hasTimes = (row) => { const keys = Object.keys(row); return keys.some(key => key !== 'STATION' && key !== 'COORDINATES' && key !== 'KM_MARK' && row[key] && row[key].trim() !== ""); };
+    
+    if (schedules.weekday_to_a && schedules.weekday_to_a.rows) schedules.weekday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
+    if (schedules.weekday_to_b && schedules.weekday_to_b.rows) schedules.weekday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
+    if (schedules.saturday_to_a && schedules.saturday_to_a.rows) schedules.saturday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
+    if (schedules.saturday_to_b && schedules.saturday_to_b.rows) schedules.saturday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
+
+    allStations = Array.from(stationSet);
+    if (schedules.weekday_to_a.rows) { const orderMap = schedules.weekday_to_a.rows.map(r => r.STATION); allStations.sort((a, b) => orderMap.indexOf(a) - orderMap.indexOf(b)); }
+    
+    const currentSelectedStation = stationSelect.value;
+    
+    stationSelect.innerHTML = '<option value="">Select a station...</option>';
+    
+    allStations.forEach(station => {
+        if (station && !station.toLowerCase().includes('last updated')) {
+            const option = document.createElement('option');
+            option.value = station;
+            option.textContent = station.replace(/ STATION/g, '');
+            stationSelect.appendChild(option);
+        }
+    });
+    if (allStations.includes(currentSelectedStation)) stationSelect.value = currentSelectedStation; else stationSelect.value = ""; 
 }

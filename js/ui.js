@@ -381,7 +381,7 @@ function setupModalButtons() {
     scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
 }
 
-// --- MAP MODAL LOGIC (UPDATED V3.43: Constrained Pan) ---
+// --- MAP MODAL LOGIC (UPDATED V3.49: Gestures) ---
 let mapModal, closeMapBtn, closeMapBtn2, viewMapBtn;
 let mapContainer, mapImage, mapZoomIn, mapZoomOut;
 let scale = 1;
@@ -391,13 +391,17 @@ let panning = false;
 let startX = 0;
 let startY = 0;
 
+// GESTURE VARIABLES
+let initialPinchDistance = null;
+let initialScale = 1;
+let lastTap = 0;
+
 function setupMapLogic() {
     mapModal = document.getElementById('map-modal');
     closeMapBtn = document.getElementById('close-map-btn');
     closeMapBtn2 = document.getElementById('close-map-btn-2');
     viewMapBtn = document.getElementById('view-map-btn');
     
-    // Map Controls
     mapContainer = document.getElementById('map-container');
     mapImage = document.getElementById('map-image');
     mapZoomIn = document.getElementById('map-zoom-in');
@@ -443,11 +447,11 @@ function setupMapLogic() {
         mapModal.classList.add('hidden');
     };
 
-    // Zoom Logic
+    // --- BUTTON ZOOM ---
     if (mapZoomIn) {
         mapZoomIn.addEventListener('click', (e) => {
             e.stopPropagation();
-            scale += 0.2;
+            scale += 0.5;
             updateTransform();
         });
     }
@@ -455,17 +459,16 @@ function setupMapLogic() {
     if (mapZoomOut) {
         mapZoomOut.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (scale > 1) { // Stop at 1.0 to prevent shrinking into void
-                scale -= 0.2;
+            if (scale > 1) { 
+                scale -= 0.5;
                 if (scale < 1) scale = 1;
-                // If zooming out to 1, reset pan to prevent stuck off-screen
                 if(scale === 1) { pointX = 0; pointY = 0; }
                 updateTransform();
             }
         });
     }
 
-    // Pan Logic (Mouse)
+    // --- MOUSE PAN ---
     if (mapContainer) {
         mapContainer.addEventListener('mousedown', (e) => {
             e.preventDefault();
@@ -481,16 +484,11 @@ function setupMapLogic() {
             if (!panning) return;
             e.preventDefault();
             
-            // Constrain 1: If scaled to fit (1.0), do NOT allow panning
-            if (scale <= 1) {
-                pointX = 0; pointY = 0; updateTransform(); return;
-            }
+            if (scale <= 1) { pointX = 0; pointY = 0; updateTransform(); return; }
 
             let nextX = e.clientX - startX;
             let nextY = e.clientY - startY;
             
-            // Constrain 2: Keep center of image inside container
-            // This ensures "a part of the picture is always showing"
             const limitX = mapContainer.offsetWidth / 2;
             const limitY = mapContainer.offsetHeight / 2;
 
@@ -504,41 +502,99 @@ function setupMapLogic() {
             updateTransform();
         });
         
-        // Pan Logic (Touch)
+        // --- TOUCH GESTURES (PINCH & DOUBLE TAP) ---
         mapContainer.addEventListener('touchstart', (e) => {
+            // 1. PINCH START (2 Fingers)
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                panning = false;
+                initialPinchDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                initialScale = scale;
+                return;
+            }
+    
+            // 2. PAN / DOUBLE-TAP (1 Finger)
             if (e.touches.length === 1) {
+                // Double Tap Check
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTap;
+                
+                if (tapLength < 300 && tapLength > 0) {
+                    // DOUBLE TAP ACTION
+                    e.preventDefault();
+                    if (scale > 1) {
+                        resetMap(); // Reset
+                    } else {
+                        scale = 2.5; // Zoom In
+                        updateTransform();
+                    }
+                    lastTap = 0;
+                    return;
+                }
+                lastTap = currentTime;
+    
+                // Pan Start
                 startX = e.touches[0].clientX - pointX;
                 startY = e.touches[0].clientY - pointY;
                 panning = true;
             }
         });
         
-        mapContainer.addEventListener('touchend', () => { panning = false; });
-        
         mapContainer.addEventListener('touchmove', (e) => {
+            // 1. PINCH MOVE (2 Fingers)
+            if (e.touches.length === 2 && initialPinchDistance) {
+                e.preventDefault();
+                const currentDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                
+                const pinchFactor = currentDistance / initialPinchDistance;
+                let newScale = initialScale * pinchFactor;
+    
+                // Limits
+                if (newScale < 1) newScale = 1;
+                if (newScale > 5) newScale = 5;
+    
+                scale = newScale;
+                if (scale === 1) { pointX = 0; pointY = 0; }
+                
+                updateTransform();
+                return;
+            }
+    
+            // 2. PAN MOVE (1 Finger)
             if (!panning || e.touches.length !== 1) return;
             
-            // Constrain 1: No pan if fit to screen
-            if(scale <= 1) {
-                pointX = 0; pointY = 0; updateTransform(); return;
-            }
-
+            if(scale <= 1) { pointX = 0; pointY = 0; updateTransform(); return; }
+    
             e.preventDefault();
             let nextX = e.touches[0].clientX - startX;
             let nextY = e.touches[0].clientY - startY;
-
-            // Constrain 2: Keep center inside container
+    
             const limitX = mapContainer.offsetWidth / 2;
             const limitY = mapContainer.offsetHeight / 2;
-
+    
             if (nextX > limitX) nextX = limitX;
             if (nextX < -limitX) nextX = -limitX;
             if (nextY > limitY) nextY = limitY;
             if (nextY < -limitY) nextY = -limitY;
-
+    
             pointX = nextX;
             pointY = nextY;
             updateTransform();
+        });
+
+        mapContainer.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) {
+                initialPinchDistance = null;
+            }
+            if (e.touches.length === 0) {
+                panning = false;
+            }
         });
     }
 

@@ -29,7 +29,7 @@ const ROUTES = {
     'pta-pien': { 
         id: 'pta-pien', 
         name: "Pretoria <-> Pienaarspoort", 
-        corridorId: "EAST_LINE", // Unique to Pienaarspoort
+        corridorId: "EAST_LINE",
         colorClass: "text-green-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -40,7 +40,7 @@ const ROUTES = {
     'pta-mabopane': { 
         id: 'pta-mabopane', 
         name: "Pretoria <-> Mabopane", 
-        corridorId: "NORTH_LINE", // Shares corridor with De Wildt
+        corridorId: "NORTH_LINE",
         colorClass: "text-orange-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -48,10 +48,26 @@ const ROUTES = {
         transferStation: null, 
         sheetKeys: { weekday_to_a: 'mab_to_pta_weekday', weekday_to_b: 'pta_to_mab_weekday', saturday_to_a: 'mab_to_pta_sat', saturday_to_b: 'pta_to_mab_sat' } 
     },
+    'mab-belle': { 
+        id: 'mab-belle', 
+        name: "Mabopane <-> Belle Ombre", 
+        corridorId: "NORTH_LINE",
+        colorClass: "text-orange-500", 
+        isActive: true, 
+        destA: 'MABOPANE STATION', 
+        destB: 'BELLE OMBRE STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'belle_to_mab_weekday', // To Dest A (Mabopane)
+            weekday_to_b: 'mab_to_belle_weekday', // To Dest B (Belle Ombre)
+            saturday_to_a: 'belle_to_mab_sat', 
+            saturday_to_b: 'mab_to_belle_sat' 
+        } 
+    },
     'pta-dewildt': { 
         id: 'pta-dewildt', 
         name: "Pretoria <-> De Wildt", 
-        corridorId: "NORTH_LINE", // Shares corridor with Mabopane
+        corridorId: "NORTH_LINE",
         colorClass: "text-purple-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -69,11 +85,16 @@ const ROUTES = {
         name: "Pretoria <-> Saulsville", 
         corridorId: "SAUL_LINE",
         colorClass: "text-green-500", 
-        isActive: false, 
+        isActive: true, 
         destA: 'PRETORIA STATION', 
         destB: 'SAULSVILLE STATION', 
         transferStation: null, 
-        sheetKeys: {} 
+        sheetKeys: {
+            weekday_to_a: 'saul_to_pta_weekday', 
+            weekday_to_b: 'pta_to_saul_weekday',
+            saturday_to_a: 'saul_to_pta_sat', 
+            saturday_to_b: 'pta_to_saul_sat'
+        } 
     },
     'germ-leralla': { 
         id: 'germ-leralla', 
@@ -102,8 +123,6 @@ const ROUTES = {
         transferStation: null, 
         sheetKeys: { 
             // REUSING KEMPTON PARK DATA (Subset Logic)
-            // Irene is a stop on the Kempton Line. By pointing to the Kempton sheets,
-            // the app will search for "IRENE STATION" within that dataset.
             weekday_to_a: 'kemp_to_pta_weekday', 
             weekday_to_b: 'pta_to_kemp_weekday', 
             saturday_to_a: 'kemp_to_pta_sat', 
@@ -152,7 +171,6 @@ const ROUTES = {
 const REFRESH_CONFIG = { standardInterval: 5 * 60 * 1000, activeInterval: 60 * 1000, nightModeStart: 21, nightModeEnd: 4 };
 
 // 5. Smart Pricing Configuration (V3.26)
-// Source: 2025 Fare Adjustment Notice
 const FARE_CONFIG = {
     offPeakStart: 9,  // 09:00
     offPeakEnd: 14,   // 14:00
@@ -162,13 +180,10 @@ const FARE_CONFIG = {
         "Z3": 14.00,
         "Z4": 15.00
     },
-    // New Profile Logic based on User Text:
-    // 'base' = Multiplier during PEAK hours
-    // 'offPeak' = Multiplier during OFF-PEAK (09:00-14:00)
     profiles: {
-        "Adult":     { base: 1.0, offPeak: 0.6 }, // 40% discount off-peak
-        "Scholar":   { base: 0.5, offPeak: 0.5 }, // 50% discount ALL HOURS
-        "Pensioner": { base: 1.0, offPeak: 0.5 }, // 50% discount off-peak ONLY
-        "Military":  { base: 1.0, offPeak: 0.5 }  // 50% discount off-peak ONLY
+        "Adult":     { base: 1.0, offPeak: 0.6 }, 
+        "Scholar":   { base: 0.5, offPeak: 0.5 }, 
+        "Pensioner": { base: 1.0, offPeak: 0.5 }, 
+        "Military":  { base: 1.0, offPeak: 0.5 }  
     }
 };
