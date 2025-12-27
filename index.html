@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.42 (Map Pan/Zoom Added)
+  Metrorail Next Train V3.43 (Kempton Park Added)
 -->
 <html lang="en" class="dark">
 
@@ -19,13 +19,10 @@
         // This runs immediately. It captures the event before any other code runs.
         window.deferredInstallPrompt = null;
         window.addEventListener('beforeinstallprompt', (e) => {
-            // Prevent the mini-infobar from appearing on mobile (we use a custom button)
             e.preventDefault();
-            // Stash the event so it can be triggered later.
             window.deferredInstallPrompt = e;
             console.log("✅ PWA Install Event captured successfully in HEAD.");
             
-            // Dispatch a custom event to signal app.js (if it loads later)
             const readyEvent = new Event('pwa-install-ready');
             window.dispatchEvent(readyEvent);
         });
@@ -83,10 +80,12 @@
             <li class="route-item"><a class="" data-route-id="germ-leralla"><span class="route-dot dot-blue"></span>Germiston <-> Leralla</a></li>
             <li class="route-item"><a class="" data-route-id="pta-irene"><span class="route-dot dot-blue"></span>Pretoria <-> Irene</a></li>
             
-            <!-- NEW ROUTE: JHB - GERMISTON (RED) -->
+            <!-- JHB - GERMISTON (RED) -->
             <li class="route-item"><a class="" data-route-id="jhb-germiston"><span class="route-dot dot-red"></span>JHB <-> Germiston</a></li>
-
-            <li class="route-item"><a class="disabled" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
+            
+            <!-- ENABLED: PRETORIA - KEMPTON PARK -->
+            <li class="route-item"><a class="" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
+            
             <li class="route-item"><a class="disabled" data-route-id="pta-germiston"><span class="route-dot dot-blue"></span>Pretoria <-> Germiston</a></li>
         </ul>
         

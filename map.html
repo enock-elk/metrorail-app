@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Metrorail Network Map - Active Routes</title>
     
-    <!-- FAVICONS (Correctly placed in Head) -->
+    <!-- FAVICONS -->
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=6">
     <link rel="apple-touch-icon" href="icons/icon-192.png?v=6">
     <link rel="shortcut icon" href="icons/icon-192.png?v=6" type="image/png">
@@ -80,8 +80,8 @@
     <div id="map"></div>
 
     <script>
-        // Initialize Map centered on Gauteng (Adjusted slightly north to show Mabopane)
-        const map = L.map('map').setView([-25.90, 28.20], 10);
+        // Initialize Map centered on Gauteng (Between JHB and PTA)
+        const map = L.map('map').setView([-25.95, 28.15], 10);
 
         // Add OpenStreetMap Tile Layer (Light Theme)
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -90,90 +90,68 @@
             maxZoom: 19
         }).addTo(map);
 
-        // --- DEFINE ROUTES (Approximate Coordinates) ---
-        
-        // 1. Pretoria (Northern) Hub
+        // --- DEFINE COORDINATES ---
         const ptaStation = [-25.7593, 28.1887];
+        const jhbStation = [-26.195, 28.040];
+        const germistonStation = [-26.215, 28.170];
+        const kemptonStation = [-26.100, 28.240];
         
-        // ACTIVE: PTA - Pienaarspoort (Green)
+        // --- ACTIVE ROUTES ---
+
+        // 1. PTA - Pienaarspoort (Green)
         const route_pta_pien = [
             ptaStation,
-            [-25.746, 28.220], // Rissik/Loftus area
+            [-25.746, 28.220], 
             [-25.733, 28.267], // Koedoespoort
             [-25.730, 28.310], // Silverton
-            [-25.728, 28.360], // Eerste Fabrieke
-            [-25.725, 28.420]  // Pienaarspoort (Approx)
+            [-25.728, 28.360], 
+            [-25.725, 28.420]  // Pienaarspoort
         ];
 
-        // ACTIVE: PTA - Mabopane (Orange)
+        // 2. PTA - Mabopane (Orange)
         const route_pta_mabopane = [
             ptaStation,
-            [-25.735, 28.170], // Hercules
-            [-25.700, 28.160], // Mountain View / Pretoria North
-            [-25.650, 28.140], // Wolmerton / Akasiaboom
-            [-25.600, 28.120], // Wintersnest
-            [-25.550, 28.100], // Soshanguve
+            [-25.735, 28.170], 
+            [-25.700, 28.160], 
+            [-25.650, 28.140], 
+            [-25.600, 28.120], 
+            [-25.550, 28.100], 
             [-25.500, 28.080]  // Mabopane
         ];
 
-        // ACTIVE: PTA - De Wildt (Purple)
+        // 3. PTA - De Wildt (Purple)
         const route_pta_dewildt = [
             [-25.600, 28.120], // Wintersnest (Split)
-            [-25.610, 28.050], // Rosslyn
-            [-25.620, 28.000], // Medunsa / Ga-Rankuwa
+            [-25.610, 28.050], 
+            [-25.620, 28.000], 
             [-25.630, 27.950]  // De Wildt
         ];
 
-        // ACTIVE: JHB - Germiston - Leralla (Blue)
-        const jhbStation = [-26.195, 28.040];
-        const germistonStation = [-26.215, 28.170];
-        
+        // 4. Germiston - Leralla (Blue)
         const route_germ_leralla = [
              germistonStation,
-             [-26.150, 28.180], // Knight's
-             [-26.100, 28.240], // Kempton Park area
-             [-26.050, 28.230], // Kaalfontein area
-             [-26.020, 28.210]  // Leralla (Tembisa)
+             [-26.150, 28.180], 
+             kemptonStation, 
+             [-26.050, 28.230], 
+             [-26.020, 28.210]  // Leralla
         ];
 
-        // INACTIVE/PLANNED ROUTES (Greyed Out)
-        
-        // PTA - JHB (The Blue Line) - Inactive portion
-        const route_pta_jhb = [
+        // 5. JHB - Germiston (Red - JHB Core)
+        const route_jhb_germ = [
+            jhbStation,
+            [-26.205, 28.080], // Jeppe / Ellis Park area
+            [-26.210, 28.120], 
+            germistonStation
+        ];
+
+        // 6. PTA - Kempton Park (Blue - South Line)
+        const route_pta_kempton = [
             ptaStation,
-            [-25.780, 28.200], // Fountains
-            [-25.850, 28.220], // Centurion
+            [-25.780, 28.200], 
+            [-25.850, 28.220], // Centurion area
             [-25.950, 28.230], // Olifantsfontein
             [-26.000, 28.240], // Kaalfontein
-            [-26.100, 28.240], // Kempton Park / Rhodesfield
-            [-26.150, 28.180], // Germiston area approach
-            germistonStation,   // Connecting to Germiston
-            jhbStation          // Connecting to JHB
-        ];
-
-        // JHB South/West
-        const route_jhb_vereeniging = [
-            germistonStation,
-            [-26.250, 28.150], 
-            [-26.350, 28.120], 
-            [-26.500, 28.000], 
-            [-26.670, 27.930]  // Vereeniging
-        ];
-
-        const route_jhb_springs = [
-            germistonStation,
-            [-26.210, 28.250], 
-            [-26.220, 28.300], 
-            [-26.230, 28.350], 
-            [-26.250, 28.440]  // Springs
-        ];
-
-        const route_jhb_naledi = [
-            jhbStation,
-            [-26.200, 27.980], 
-            [-26.220, 27.940], 
-            [-26.240, 27.900], 
-            [-26.260, 27.850]  // Naledi
+            kemptonStation
         ];
 
         // --- DRAW FUNCTIONS ---
@@ -182,7 +160,7 @@
             const opacity = isActive ? 0.9 : 0.4;
             const weight = isActive ? 5 : 3;
             const dashArray = isActive ? null : '5, 10';
-            const finalColor = isActive ? color : '#9ca3af'; // Grey for inactive
+            const finalColor = isActive ? color : '#9ca3af';
 
             L.polyline(latlngs, {
                 color: finalColor,
@@ -190,25 +168,25 @@
                 opacity: opacity,
                 dashArray: dashArray,
                 smoothFactor: 1
-            }).addTo(map).bindPopup(`<b>${name}</b><br>${isActive ? '<span class="text-green-600 font-bold">Active Service</span>' : '<span class="text-red-500 font-bold">Suspended / Planned</span>'}`);
+            }).addTo(map).bindPopup(`<b>${name}</b><br>${isActive ? '<span class="text-green-600 font-bold">Active Service</span>' : '<span class="text-red-500 font-bold">Suspended</span>'}`);
         }
 
-        // --- DRAW ACTIVE ROUTES (Colors match app.js) ---
-        addRoute(route_pta_pien, '#22c55e', 'Pretoria - Pienaarspoort', true); // Green
-        addRoute(route_pta_mabopane, '#f97316', 'Pretoria - Mabopane', true); // Orange
-        addRoute(route_pta_dewildt, '#a855f7', 'Pretoria - De Wildt', true);   // Purple (Matches new corridor color)
-        addRoute(route_germ_leralla, '#3b82f6', 'Germiston - Leralla', true);   // Blue
-
-        // --- DRAW INACTIVE ROUTES ---
-        addRoute(route_pta_jhb, '#06b6d4', 'Pretoria - Johannesburg', false);
-        addRoute(route_jhb_vereeniging, '#a855f7', 'JHB - Vereeniging', false);
-        addRoute(route_jhb_springs, '#ef4444', 'JHB - Springs', false);
-        addRoute(route_jhb_naledi, '#eab308', 'JHB - Naledi (Soweto)', false);
+        // --- RENDER ROUTES ---
+        addRoute(route_pta_pien, '#22c55e', 'Pretoria - Pienaarspoort', true);
+        addRoute(route_pta_mabopane, '#f97316', 'Pretoria - Mabopane', true);
+        addRoute(route_pta_dewildt, '#a855f7', 'Pretoria - De Wildt', true);
+        addRoute(route_germ_leralla, '#3b82f6', 'Germiston - Leralla', true);
+        
+        // NEW ROUTES
+        addRoute(route_jhb_germ, '#ef4444', 'JHB - Germiston', true);      // Red
+        addRoute(route_pta_kempton, '#3b82f6', 'Pretoria - Kempton Park', true); // Blue
 
         // --- MARKERS ---
         const hubs = [
             { name: "Pretoria Station", coords: ptaStation, type: 'hub' },
+            { name: "Johannesburg Park", coords: jhbStation, type: 'hub' },
             { name: "Germiston", coords: germistonStation, type: 'hub' },
+            { name: "Kempton Park", coords: kemptonStation, type: 'hub' },
             { name: "Mabopane", coords: [-25.500, 28.080], type: 'end' },
             { name: "De Wildt", coords: [-25.630, 27.950], type: 'end' },
             { name: "Pienaarspoort", coords: [-25.725, 28.420], type: 'end' },
@@ -238,8 +216,8 @@
                 { color: '#22c55e', text: 'Pretoria - Pienaarspoort', status: 'LIVE', bg: 'bg-green-500' },
                 { color: '#f97316', text: 'Pretoria - Mabopane', status: 'LIVE', bg: 'bg-green-500' },
                 { color: '#a855f7', text: 'Pretoria - De Wildt', status: 'LIVE', bg: 'bg-green-500' },
-                { color: '#3b82f6', text: 'Germiston - Leralla', status: 'LIVE', bg: 'bg-green-500' },
-                { color: '#9ca3af', text: 'Other Routes (Suspended)', status: 'OFF', bg: 'bg-gray-400' }
+                { color: '#3b82f6', text: 'PTA - Kempton / GERM - Leralla', status: 'LIVE', bg: 'bg-green-500' },
+                { color: '#ef4444', text: 'JHB - Germiston', status: 'LIVE', bg: 'bg-green-500' }
             ];
 
             div.innerHTML += '<h4>Network Status</h4>';

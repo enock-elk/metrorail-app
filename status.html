@@ -46,42 +46,43 @@
         </div>
         <div class="mt-4 md:mt-0 text-right">
             <div class="inline-block bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-sm font-bold px-4 py-2 rounded-full">
-                Current Version: V3.37
+                Current Version: V3.43
             </div>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Last Updated: Dec 25, 2025</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Last Updated: Dec 27, 2025</p>
         </div>
     </header>
 
     <!-- MAIN GRID -->
     <main class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
 
-        <!-- COLUMN 1: NEWLY RELEASED (V3.37) -->
+        <!-- COLUMN 1: NEWLY RELEASED (V3.43) -->
         <div class="flex flex-col">
             <div class="flex items-center space-x-2 mb-4">
                 <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <h2 class="text-lg font-bold uppercase tracking-wider text-green-600 dark:text-green-400">V3.37 Live</h2>
+                <h2 class="text-lg font-bold uppercase tracking-wider text-green-600 dark:text-green-400">V3.43 Live</h2>
                 <span class="bg-gray-200 dark:bg-gray-700 text-xs font-bold px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">Stable Build</span>
             </div>
             
             <div class="space-y-4">
-                <!-- NEW ONBOARDING -->
+                <!-- NEW ROUTE ROLLOUT -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500 relative">
-                    <div class="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">LIVE</div>
-                    <h3 class="font-bold text-lg mb-2">Smart Onboarding</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">No more default "Pienaarspoort" route.</p>
+                    <div class="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">NEW</div>
+                    <h3 class="font-bold text-lg mb-2">Route Expansion Pack</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Major network expansion deployed.</p>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Welcome Screen:</strong> New users must pick a route first.</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Route Pinning:</strong> Remembers your choice for next time.</li>
+                        <li class="flex items-start"><span class="mr-2">🚄</span> <strong>Pretoria <-> Kempton Park:</strong> Live (South Line)</li>
+                        <li class="flex items-start"><span class="mr-2">🚄</span> <strong>JHB <-> Germiston:</strong> Live (JHB Core)</li>
+                        <li class="flex items-start"><span class="mr-2">🚄</span> <strong>Pretoria <-> Irene:</strong> Live (South Line)</li>
                     </ul>
                 </div>
 
-                <!-- CORRIDOR LOGIC FIX -->
+                <!-- SMART ONBOARDING -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                    <h3 class="font-bold text-lg mb-2">Corridor Filtering</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Fixed "Pretoria Hub" confusion.</p>
+                    <h3 class="font-bold text-lg mb-2">Smart Onboarding</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Improved user retention flow.</p>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Line Separation:</strong> Mabopane (North) trains no longer mix with Pienaarspoort (East) trains.</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Smart Merging:</strong> Only merges compatible lines (e.g., Mabopane + De Wildt).</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Welcome Screen:</strong> Mandatory route selection for new users.</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> <strong>Route Pinning:</strong> Auto-saves preferred corridor.</li>
                     </ul>
                 </div>
 
@@ -89,9 +90,9 @@
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
                     <h3 class="font-bold text-lg mb-2">Smart Pricing Engine</h3>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">✅</span> Reads Zones (Z1-Z4)</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> 40% Off-Peak Automation (09:00-14:00)</li>
-                        <li class="flex items-start"><span class="mr-2">✅</span> Passenger Profiles (Scholar/Adult)</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Reads Zones (Z1-Z4) from DB</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> 40% Off-Peak Automation</li>
+                        <li class="flex items-start"><span class="mr-2">✅</span> Profiles (Scholar/Adult/Mil)</li>
                     </ul>
                 </div>
             </div>
@@ -106,14 +107,14 @@
             </div>
 
             <div class="space-y-4">
-                <!-- FIREBASE SECURITY -->
+                <!-- DATA INTEGRITY -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-blue-500">
-                    <h3 class="font-bold text-lg mb-2">Security & Stability</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Database rules updated.</p>
+                    <h3 class="font-bold text-lg mb-2">Data Integrity</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Backend logic hardened.</p>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">🔒</span> <strong>Firebase Rules:</strong> Read-Only Public Access (Write Disabled).</li>
-                        <li class="flex items-start"><span class="mr-2">⚡</span> <strong>Monolithic Code:</strong> Reverted to single `app.js` for stability.</li>
-                        <li class="flex items-start"><span class="mr-2">⚡</span> <strong>Service Worker:</strong> V3.37 Active & Caching Correctly.</li>
+                        <li class="flex items-start"><span class="mr-2">🛡️</span> <strong>Whitelist Sync:</strong> Apps Script only syncs approved sheets.</li>
+                        <li class="flex items-start"><span class="mr-2">📅</span> <strong>Draft Mode:</strong> Saturday sheets hidden until active.</li>
+                        <li class="flex items-start"><span class="mr-2">⚡</span> <strong>Timezone Integrity:</strong> Raw string parsing active.</li>
                     </ul>
                 </div>
 
@@ -138,27 +139,32 @@
             </div>
 
             <div class="space-y-4">
+                <!-- VISUAL ROADMAP (UPDATED TO LIST) -->
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-purple-500">
+                    <h3 class="font-bold text-lg mb-2">Upcoming Schedules</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Pending Data Entry:</p>
+                    
+                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300 border-t border-gray-200 dark:border-gray-700 pt-3">
+                        <li class="flex items-center"><span class="mr-2 text-yellow-500 text-xs">⏳</span> <span class="font-medium">Germiston ↔ Kwesine</span></li>
+                        <li class="flex items-center"><span class="mr-2 text-yellow-500 text-xs">⏳</span> <span class="font-medium">JHB ↔ Naledi</span></li>
+                        <li class="flex items-center"><span class="mr-2 text-yellow-500 text-xs">⏳</span> <span class="font-medium">JHB ↔ New Canada (Midway)</span></li>
+                        <li class="flex items-center"><span class="mr-2 text-yellow-500 text-xs">⏳</span> <span class="font-medium">JHB ↔ Randfontein</span></li>
+                        <li class="flex items-center"><span class="mr-2 text-yellow-500 text-xs">⏳</span> <span class="font-medium">Mabopane ↔ Belle Ombre</span></li>
+                        <li class="flex items-center"><span class="mr-2 text-yellow-500 text-xs">⏳</span> <span class="font-medium">Pretoria ↔ Saulsville</span></li>
+                    </ul>
+                    
+                    <div class="mt-4 bg-purple-100 dark:bg-purple-900/30 p-2 rounded text-xs text-purple-800 dark:text-purple-200">
+                        <strong>Target:</strong> Full Gauteng Coverage by Q1 2026.
+                    </div>
+                </div>
+
                 <!-- TRIP PLANNER -->
                 <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-purple-500">
                     <h3 class="font-bold text-lg mb-2">V4.0 Trip Planner</h3>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Smart "From A to B" Logic</p>
-                    <div class="bg-yellow-100 dark:bg-yellow-900/30 p-3 rounded text-xs text-yellow-800 dark:text-yellow-200 mb-3 border border-yellow-200 dark:border-yellow-700">
-                        <strong>Status:</strong> Rolled back from Alpha. Being re-architected for stability.
-                    </div>
                     <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
                         <li class="flex items-start"><span class="mr-2">🔭</span> Remove Route Selector Dependency</li>
                         <li class="flex items-start"><span class="mr-2">🔭</span> Global Station Search</li>
-                        <li class="flex items-start"><span class="mr-2">🔭</span> Code Splitting (Logic vs UI)</li>
-                    </ul>
-                </div>
-
-                <!-- OFFLINE MAP -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-purple-500">
-                    <h3 class="font-bold text-lg mb-2">Offline Network Map</h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">High-Res Static Map</p>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">⏳</span> Pending: Pan/Zoom Integration</li>
-                        <li class="flex items-start"><span class="mr-2">⏳</span> Pending: Image Asset Optimization</li>
                     </ul>
                 </div>
             </div>
@@ -172,12 +178,12 @@
             <div>
                 <h3 class="text-2xl font-bold mb-2">🌍 The Goal: Smart Mobility Companion</h3>
                 <p class="text-blue-100 max-w-xl">
-                    Transformation from a static viewer to a dynamic, price-aware commuter companion. V3.37 solves the "Common Terminus" issue and improves onboarding.
+                    Transformation from a static viewer to a dynamic, price-aware commuter companion. V3.43 expands the network significantly.
                 </p>
             </div>
             <div class="mt-6 md:mt-0">
                 <span class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-blue-700 bg-white shadow-sm hover:bg-blue-50">
-                    Current: V3.37
+                    Current: V3.43
                 </span>
             </div>
         </div>

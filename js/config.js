@@ -25,13 +25,11 @@ const DATABASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/s
 const MAX_RADIUS_KM = 6; 
 
 // 3. Route Definitions
-// ADDED: 'corridorId' to group relevant lines together.
-// Routes with DIFFERENT corridorIds will NEVER merge, even if they share a station.
 const ROUTES = {
     'pta-pien': { 
         id: 'pta-pien', 
         name: "Pretoria <-> Pienaarspoort", 
-        corridorId: "EAST_LINE", // Unique to Pienaarspoort
+        corridorId: "EAST_LINE",
         colorClass: "text-green-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -42,7 +40,7 @@ const ROUTES = {
     'pta-mabopane': { 
         id: 'pta-mabopane', 
         name: "Pretoria <-> Mabopane", 
-        corridorId: "NORTH_LINE", // Shares corridor with De Wildt
+        corridorId: "NORTH_LINE",
         colorClass: "text-orange-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -53,7 +51,7 @@ const ROUTES = {
     'pta-dewildt': { 
         id: 'pta-dewildt', 
         name: "Pretoria <-> De Wildt", 
-        corridorId: "NORTH_LINE", // Shares corridor with Mabopane
+        corridorId: "NORTH_LINE",
         colorClass: "text-purple-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -113,21 +111,34 @@ const ROUTES = {
         id: 'jhb-germiston', 
         name: "JHB <-> Germiston", 
         corridorId: "JHB_CORE", 
-        colorClass: "text-red-500", // Red to distinguish JHB Core lines
+        colorClass: "text-red-500", 
         isActive: true, 
         destA: 'JOHANNESBURG STATION', 
         destB: 'GERMISTON STATION', 
         transferStation: null, 
         sheetKeys: { 
-            // Weekday keys are real
             weekday_to_a: 'germ_to_jhb_weekday', 
             weekday_to_b: 'jhb_to_germ_weekday',
-            // Saturday keys are placeholders (will return empty if sheet missing)
             saturday_to_a: 'germ_to_jhb_sat', 
             saturday_to_b: 'jhb_to_germ_sat'
         } 
     },
-    'pta-kempton': { id: 'pta-kempton', name: "Pretoria <-> Kempton Park", corridorId: "SOUTH_LINE", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'KEMPTON PARK STATION', transferStation: null, sheetKeys: {} },
+    'pta-kempton': { 
+        id: 'pta-kempton', 
+        name: "Pretoria <-> Kempton Park", 
+        corridorId: "SOUTH_LINE", 
+        colorClass: "text-blue-500", 
+        isActive: true, // ACTIVATED
+        destA: 'PRETORIA STATION', 
+        destB: 'KEMPTON PARK STATION', 
+        transferStation: null, 
+        sheetKeys: {
+            weekday_to_a: 'kemp_to_pta_weekday', 
+            weekday_to_b: 'pta_to_kemp_weekday',
+            saturday_to_a: 'kemp_to_pta_sat', 
+            saturday_to_b: 'pta_to_kemp_sat'
+        } 
+    },
     'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", corridorId: "SOUTH_LINE", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
     'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", corridorId: "JHB_SOUTH", colorClass: "text-purple-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
     'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", corridorId: "JHB_EAST", colorClass: "text-red-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} },
@@ -138,7 +149,6 @@ const ROUTES = {
 const REFRESH_CONFIG = { standardInterval: 5 * 60 * 1000, activeInterval: 60 * 1000, nightModeStart: 21, nightModeEnd: 4 };
 
 // 5. Smart Pricing Configuration (V3.26)
-// Source: 2025 Fare Adjustment Notice
 const FARE_CONFIG = {
     offPeakStart: 9,  // 09:00
     offPeakEnd: 14,   // 14:00
@@ -148,13 +158,10 @@ const FARE_CONFIG = {
         "Z3": 14.00,
         "Z4": 15.00
     },
-    // New Profile Logic based on User Text:
-    // 'base' = Multiplier during PEAK hours
-    // 'offPeak' = Multiplier during OFF-PEAK (09:00-14:00)
     profiles: {
-        "Adult":     { base: 1.0, offPeak: 0.6 }, // 40% discount off-peak
-        "Scholar":   { base: 0.5, offPeak: 0.5 }, // 50% discount ALL HOURS
-        "Pensioner": { base: 1.0, offPeak: 0.5 }, // 50% discount off-peak ONLY
-        "Military":  { base: 1.0, offPeak: 0.5 }  // 50% discount off-peak ONLY
+        "Adult":     { base: 1.0, offPeak: 0.6 }, 
+        "Scholar":   { base: 0.5, offPeak: 0.5 }, 
+        "Pensioner": { base: 1.0, offPeak: 0.5 }, 
+        "Military":  { base: 1.0, offPeak: 0.5 }  
     }
 };
