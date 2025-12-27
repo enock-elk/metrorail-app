@@ -58,14 +58,13 @@ function escapeHTML(str) {
 }
 
 // UPDATED: ROBUST STATION NORMALIZATION
-// Handles "Belle-Ombre", "Belle Ombre", "Belle Ombre Station", and extra spaces
 function normalizeStationName(name) {
     if (!name) return "";
     return String(name)
         .toUpperCase()
-        .replace(/ STATION/g, '')  // Remove STATION suffix
-        .replace(/-/g, ' ')        // Replace hyphens with spaces (Fixes Belle-Ombre)
-        .replace(/\s+/g, ' ')      // Collapse multiple spaces
+        .replace(/ STATION/g, '')  
+        .replace(/-/g, ' ')        
+        .replace(/\s+/g, ' ')      
         .trim();
 }
 
@@ -89,6 +88,18 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
         Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
     return R * c; 
+}
+
+// NEW HELPER: Count shared stations between two routes
+function getSharedStationCount(routeAId, routeBId) {
+    let count = 0;
+    for (const stationName in globalStationIndex) {
+        const routes = globalStationIndex[stationName].routes;
+        if (routes.has(routeAId) && routes.has(routeBId)) {
+            count++;
+        }
+    }
+    return count;
 }
 
 function saveToLocalCache(key, data) { try { const cacheEntry = { timestamp: Date.now(), data: data }; localStorage.setItem(key, JSON.stringify(cacheEntry)); } catch (e) {} }
@@ -475,6 +486,10 @@ function findNextTrains() {
             }
         });
     }
+
+    // NEW FILTER: Remove routes that only share 1 (or 0) stations with current route
+    // This effectively hides divergent routes (like Germ-Kwesine vs Germ-Leralla) that only share the starting hub
+    sharedRoutes = sharedRoutes.filter(rId => getSharedStationCount(currentRouteId, rId) > 1);
 
     let primarySheetKey = (currentDayType === 'weekday') ? currentRoute.sheetKeys.weekday_to_a : currentRoute.sheetKeys.saturday_to_a;
 
