@@ -49,6 +49,7 @@ function initPlanner() {
     plannerTimeEl.className = 'text-center mb-4';
     
     // Insert after header
+    // Safe check for header existence
     const header = document.querySelector('#planner-modal .p-4.border-b');
     if (header && !document.getElementById('planner-time-display')) {
         header.parentNode.insertBefore(plannerTimeEl, header.nextSibling);
@@ -83,6 +84,7 @@ function initPlanner() {
     setInterval(updatePlannerClock, 1000);
 
     // Developer Mode Access (Header Tap)
+    // FIX: Declare variable first, then use querySelector
     const plannerHeader = document.querySelector('#planner-modal h3');
     if (plannerHeader) {
         let pClickCount = 0;
@@ -227,30 +229,45 @@ function initPlanner() {
     });
 }
 
-// --- AUTOCOMPLETE HELPER ---
+// --- AUTOCOMPLETE HELPER (COMBOBOX STYLE) ---
 function setupAutocomplete(inputId, selectId) {
     const input = document.getElementById(inputId);
     const select = document.getElementById(selectId);
     if (!input || !select) return;
 
+    // Hide the original select
     select.classList.add('hidden');
     
+    // Ensure parent is relative for absolute positioning of list
+    if (input.parentNode) {
+        input.parentNode.style.position = 'relative';
+    }
+
+    // Inject Chevron Icon
+    const chevron = document.createElement('div');
+    chevron.className = "absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer p-2 hover:text-blue-500 z-10";
+    chevron.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+    input.parentNode.appendChild(chevron);
+
+    // Create Dropdown List
     const list = document.createElement('ul');
-    list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1";
-    input.parentNode.style.position = 'relative'; 
+    list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0";
     input.parentNode.appendChild(list);
 
-    input.addEventListener('input', () => {
-        const val = input.value.toUpperCase();
+    // Core Render Function
+    const renderList = (filterText = '') => {
         list.innerHTML = '';
+        const val = filterText.toUpperCase();
         
-        if (val.length < 1) {
-            list.classList.add('hidden');
-            return;
+        let matches = [];
+        if (val.length === 0) {
+            // Show ALL stations if input is empty
+            matches = MASTER_STATION_LIST;
+        } else {
+            // Otherwise filter
+            matches = MASTER_STATION_LIST.filter(s => s.includes(val));
         }
 
-        const matches = MASTER_STATION_LIST.filter(s => s.includes(val));
-        
         if (matches.length === 0) {
             const li = document.createElement('li');
             li.className = "p-3 text-sm text-gray-400 italic";
@@ -271,16 +288,36 @@ function setupAutocomplete(inputId, selectId) {
             });
         }
         list.classList.remove('hidden');
+    };
+
+    // --- EVENTS ---
+
+    // 1. Typing: Filter the list
+    input.addEventListener('input', () => {
+        renderList(input.value);
     });
 
-    document.addEventListener('click', (e) => {
-        if (!input.contains(e.target) && !list.contains(e.target)) {
+    // 2. Focus: Show list immediately (even if empty)
+    input.addEventListener('focus', () => {
+        renderList(input.value);
+    });
+
+    // 3. Chevron Click: Toggle List
+    chevron.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent document click from closing immediately
+        if (list.classList.contains('hidden')) {
+            renderList(input.value);
+            input.focus();
+        } else {
             list.classList.add('hidden');
         }
     });
-    
-    input.addEventListener('focus', () => {
-        if(input.value.length > 0) input.dispatchEvent(new Event('input'));
+
+    // 4. Click Outside: Close List
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) {
+            list.classList.add('hidden');
+        }
     });
 }
 
