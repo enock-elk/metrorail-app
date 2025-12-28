@@ -4,6 +4,7 @@
 let plannerOrigin = null;
 let plannerDest = null;
 let currentTripOptions = []; // Store multiple train options
+let selectedPlannerDay = null; // Store user-selected day for planning
 
 // Initialize Planner Modal
 function initPlanner() {
@@ -14,6 +15,34 @@ function initPlanner() {
     const resetBtn = document.getElementById('planner-reset-btn');
     const locateBtn = document.getElementById('planner-locate-btn');
     
+    // Inject Day Selector into Input Section
+    const inputSection = document.getElementById('planner-input-section');
+    if (inputSection && !document.getElementById('planner-day-select')) {
+        const daySelectDiv = document.createElement('div');
+        daySelectDiv.className = "mb-4";
+        daySelectDiv.innerHTML = `
+            <label class="block text-xs font-bold text-gray-500 uppercase ml-1 mb-1">Travel Day</label>
+            <select id="planner-day-select" class="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                <option value="weekday">Weekday (Mon-Fri)</option>
+                <option value="saturday">Saturday</option>
+                <option value="sunday">Sunday / Public Holiday</option>
+            </select>
+        `;
+        // Insert before the search button (which is the last child usually)
+        inputSection.insertBefore(daySelectDiv, searchBtn);
+        
+        // Set default based on current real time
+        const daySelect = document.getElementById('planner-day-select');
+        if (typeof currentDayType !== 'undefined') {
+            daySelect.value = currentDayType;
+        }
+        
+        // Listen for changes
+        daySelect.addEventListener('change', (e) => {
+            selectedPlannerDay = e.target.value;
+        });
+    }
+
     // Update Planner Time Display periodically (syncs with main clock)
     const plannerTimeEl = document.createElement('div');
     plannerTimeEl.id = 'planner-time-display';
@@ -32,15 +61,18 @@ function initPlanner() {
         
         // Use global variables from logic.js (currentTime, currentDayType)
         if (typeof currentTime !== 'undefined') {
+            // Use selected day if available, otherwise global currentDayType
+            const activeDay = selectedPlannerDay || currentDayType;
+            
             let displayType = "";
-            if (currentDayType === 'sunday') displayType = "No Service";
-            else if (currentDayType === 'saturday') displayType = "Saturday Schedule";
+            if (activeDay === 'sunday') displayType = "No Service / Sunday";
+            else if (activeDay === 'saturday') displayType = "Saturday Schedule";
             else displayType = "Weekday Schedule";
 
             timeEl.innerHTML = `
                 <p class="text-base text-gray-700 dark:text-gray-300 font-medium">Current Time: ${currentTime} ${typeof isSimMode !== 'undefined' && isSimMode ? '(SIM)' : ''}</p>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
-                    ${currentDayType.charAt(0).toUpperCase() + currentDayType.slice(1)} <span class="text-blue-600 dark:text-blue-400 font-bold">${displayType}</span>
+                    Planning for: <span class="text-blue-600 dark:text-blue-400 font-bold">${displayType}</span>
                 </p>
             `;
         }
@@ -185,6 +217,13 @@ function initPlanner() {
         toSelect.value = "";
         document.getElementById('planner-from-search').value = "";
         document.getElementById('planner-to-search').value = "";
+        
+        // Reset day selection to current default
+        const daySelect = document.getElementById('planner-day-select');
+        if (daySelect && typeof currentDayType !== 'undefined') {
+            daySelect.value = currentDayType;
+            selectedPlannerDay = currentDayType;
+        }
     });
 }
 
@@ -307,6 +346,9 @@ function executeTripPlan(origin, dest) {
     document.getElementById('planner-input-section').classList.add('hidden');
     document.getElementById('planner-results-section').classList.remove('hidden');
 
+    // Ensure selectedPlannerDay is set (default to global currentDayType if null)
+    if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
+
     setTimeout(() => {
         // 1. Try Direct Trip First
         const directPlan = planDirectTrip(origin, dest);
@@ -334,8 +376,7 @@ function executeTripPlan(origin, dest) {
             } 
             else if (directPlan.status === 'NO_SERVICE') {
                  // Explicitly handle "No Service" separately from "No Route"
-                 // This means the path is valid, but no trains run today AND no trains found for next day (rare, but possible)
-                 resultsContainer.innerHTML = renderErrorCard("No Service", "This route exists, but there are no trains scheduled.");
+                 resultsContainer.innerHTML = renderErrorCard("No Service", "This route exists, but there are no trains scheduled for the selected day.");
             } 
             else {
                  resultsContainer.innerHTML = renderErrorCard(
@@ -356,7 +397,7 @@ window.selectPlannerTrip = function(index) {
     
     if (isNextDay) {
         // Infer title context
-        const title = currentDayType === 'sunday' ? "No Service Today" : "No more trains today";
+        const title = selectedPlannerDay === 'sunday' ? "No Service Today" : "No more trains today";
         renderNoMoreTrainsResult(resultsContainer, currentTripOptions, idx, title);
     } else {
         renderTripResult(resultsContainer, currentTripOptions, idx);
@@ -376,11 +417,14 @@ function planDirectTrip(origin, dest) {
     let pathFoundToday = false;
     let pathExistsGenerally = false;
 
+    // Use SELECTED day type instead of global currentDayType
+    const planningDay = selectedPlannerDay || currentDayType;
+
     for (const routeId of commonRoutes) {
         const routeConfig = ROUTES[routeId];
         
-        // A. Check Today's Schedule
-        let directions = getDirectionsForRoute(routeConfig, currentDayType);
+        // A. Check Today's Schedule (Based on Selector)
+        let directions = getDirectionsForRoute(routeConfig, planningDay);
         for (let dir of directions) {
             if (!fullDatabase || !fullDatabase[dir.key]) continue;
             
@@ -408,10 +452,12 @@ function planDirectTrip(origin, dest) {
             }
         }
 
-        // B. Check Next Day (Fallback if no trips today OR if path not found today - e.g. Sunday using Sat sheets)
-        // If we didn't find trips today, OR if we simply want to be robust, check next day.
+        // B. Check Next Day (Fallback)
+        // Note: For planner selector, "Next Day" logic is tricky. 
+        // If user selects "Sunday", next day is "Monday". If "Saturday", next is "Sunday".
+        // Let's implement a simple next day lookup based on selection.
         if (bestTrips.length === 0) {
-             const next = findNextDayTrips(routeConfig, origin, dest);
+             const next = findNextDayTrips(routeConfig, origin, dest, planningDay);
              if (next && next.length > 0) {
                  nextDayTrips = [...nextDayTrips, ...next];
                  pathExistsGenerally = true;
@@ -427,11 +473,6 @@ function planDirectTrip(origin, dest) {
     
     if (nextDayTrips.length > 0) {
         nextDayTrips.sort((a,b) => timeToSeconds(a.depTime) - timeToSeconds(b.depTime));
-        // Distinguish between "Train Left" (Late Night) and "No Service" (Sunday)
-        // If we found the path in today's sheet but no trains -> Late Night (NO_MORE_TODAY)
-        // If we didn't find path today (Sunday) but found it tomorrow -> No Service Today (NO_SERVICE_TODAY_FUTURE_FOUND)
-        // NOTE: On Sunday, pathFoundToday might be false if the sheet is empty or missing. 
-        
         const status = pathFoundToday ? 'NO_MORE_TODAY' : 'NO_SERVICE_TODAY_FUTURE_FOUND';
         return { status: status, trips: nextDayTrips };
     }
@@ -444,6 +485,9 @@ function planDirectTrip(origin, dest) {
 function planHubTransferTrip(origin, dest) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
+    
+    // Use SELECTED day type
+    const planningDay = selectedPlannerDay || currentDayType;
     
     // Define Hubs
     const HUBS = ['PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION']; 
@@ -483,11 +527,11 @@ function planHubTransferTrip(origin, dest) {
     // 2. Iterate Hubs and find paths
     for (const hub of potentialHubs) {
         // Find ALL routes from Origin -> Hub
-        const leg1Options = findAllLegsBetween(origin, hub, originRoutes);
+        const leg1Options = findAllLegsBetween(origin, hub, originRoutes, planningDay);
         if (leg1Options.length === 0) continue;
 
         // Find ALL routes from Hub -> Dest
-        const leg2Options = findAllLegsBetween(hub, dest, destRoutes); 
+        const leg2Options = findAllLegsBetween(hub, dest, destRoutes, planningDay); 
         if (leg2Options.length === 0) continue;
 
         // 3. Match Connections
@@ -544,13 +588,13 @@ function planHubTransferTrip(origin, dest) {
 }
 
 // Helper: Generic "Find all trains between A and B" across specific routes
-function findAllLegsBetween(stationA, stationB, routeSet) {
+function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
     let legs = [];
     const routesToCheck = routeSet ? [...routeSet] : Object.keys(ROUTES);
 
     for (const rId of routesToCheck) {
         const routeConfig = ROUTES[rId];
-        let directions = getDirectionsForRoute(routeConfig, currentDayType);
+        let directions = getDirectionsForRoute(routeConfig, dayType);
 
         for (let dir of directions) {
             if (!fullDatabase || !fullDatabase[dir.key]) continue;
@@ -576,15 +620,16 @@ function findAllLegsBetween(stationA, stationB, routeSet) {
 }
 
 // [EXISTING HELPERS: findNextDayTrips, getDirectionsForRoute, etc. REMAIN UNCHANGED]
-function findNextDayTrips(routeConfig, origin, dest) {
-    let nextDayType = 'weekday';
+function findNextDayTrips(routeConfig, origin, dest, currentDayTypeOverride = null) {
     let dayName = 'Tomorrow';
+    let nextDayType = 'weekday';
     
-    // Explicit Next Day Logic
-    if (currentDayIndex === 5) { nextDayType = 'saturday'; dayName = 'Saturday'; } 
-    else if (currentDayIndex === 6) { nextDayType = 'weekday'; dayName = 'Monday'; } 
-    else if (currentDayIndex === 0) { nextDayType = 'weekday'; dayName = 'Monday'; } 
-    else { nextDayType = 'weekday'; dayName = 'Tomorrow'; }
+    // Override logic if using planner selector
+    const baseDay = currentDayTypeOverride || currentDayType;
+    
+    if (baseDay === 'weekday') { nextDayType = 'weekday'; dayName = 'Tomorrow'; } // Mon->Tue
+    else if (baseDay === 'saturday') { nextDayType = 'sunday'; dayName = 'Sunday'; }
+    else if (baseDay === 'sunday') { nextDayType = 'weekday'; dayName = 'Monday'; }
 
     let directions = getDirectionsForRoute(routeConfig, nextDayType);
     let allNextDayTrains = [];
@@ -656,7 +701,10 @@ function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, 
 }
 
 function findUpcomingTrainsForLeg(schedule, originRow, destRow) {
-    const nowSeconds = timeToSeconds(currentTime);
+    // Check if we are planning for TODAY (real-time) or a future selected day
+    const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
+    const nowSeconds = isToday ? timeToSeconds(currentTime) : 0; // If future day, show all trains (00:00+)
+
     const trains = schedule.headers.slice(1);
     
     let upcomingTrains = [];
