@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V3.50 (Germiston-Kwesine Added)
+  Metrorail Next Train V3.52 (Trip Planner Upgrades)
 -->
 <html lang="en" class="dark">
 
@@ -70,6 +70,14 @@
 
         <h2 class="text-gray-900 dark:text-white mt-4">Select Route</h2>
         <ul id="route-list">
+            <!-- TRIP PLANNER ENTRY POINT -->
+            <li class="route-item mb-4 mt-2">
+                <a id="open-planner-btn" class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md flex items-center justify-center py-3">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                    Plan A Trip
+                </a>
+            </li>
+
             <div id="pinned-section" class="hidden border-b border-gray-700 dark:border-gray-600 pb-2 mb-2">
                 <li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li>
             </div>
@@ -83,7 +91,6 @@
             
             <li class="route-category">Pretoria - JHB Line</li>
             <li class="route-item"><a class="" data-route-id="germ-leralla"><span class="route-dot dot-blue"></span>Germiston <-> Leralla</a></li>
-            <!-- ENABLED: GERMISTON - KWESINE -->
             <li class="route-item"><a class="" data-route-id="germ-kwesine"><span class="route-dot dot-yellow"></span>Germiston <-> Kwesine</a></li>
             <li class="route-item"><a class="" data-route-id="pta-irene"><span class="route-dot dot-blue"></span>Pretoria <-> Irene</a></li>
             <li class="route-item"><a class="" data-route-id="jhb-germiston"><span class="route-dot dot-red"></span>JHB <-> Germiston</a></li>
@@ -95,7 +102,7 @@
         <div class="mt-auto pt-6 border-t border-gray-700 dark:border-gray-600 pb-20">
             <li class="route-item mb-2">
                 <a id="view-map-btn" class="cursor-pointer text-gray-300 hover:text-white flex items-center">
-                    <svg class="w-4 h-4 mr-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                    <svg class="w-4 h-4 mr-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     Network Map
                 </a>
             </li>
@@ -116,26 +123,90 @@
         </div>
     </div>
 
-    <!-- WELCOME / ROUTE SELECTION MODAL (NEW) -->
+    <!-- WELCOME / ROUTE SELECTION MODAL -->
     <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-center p-6 transition-opacity duration-300">
         <div class="w-full max-w-sm flex flex-col items-center animate-fade-in-up">
-            <!-- Animated Icon -->
             <div class="relative w-24 h-24 mb-6">
                 <div class="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-ping"></div>
                 <div class="relative bg-white dark:bg-gray-800 p-4 rounded-full shadow-xl ring-4 ring-blue-50 dark:ring-gray-700">
                     <img src="icons/icon-192.png" class="w-full h-full object-contain" alt="Logo">
                 </div>
             </div>
-
             <h1 class="text-3xl font-black text-gray-900 dark:text-white text-center mb-2">Next Train</h1>
             <p class="text-gray-500 dark:text-gray-400 text-center mb-8 px-4">Select your regular route to get started.</p>
+            <div id="welcome-route-list" class="w-full space-y-3"></div>
+            <p class="text-xs text-gray-400 dark:text-gray-600 mt-8 text-center">You can change this later in the menu.</p>
+        </div>
+    </div>
 
-            <!-- Dynamic Route List Container -->
-            <div id="welcome-route-list" class="w-full space-y-3">
-                <!-- Buttons injected by app.js -->
+    <!-- TRIP PLANNER MODAL (UPDATED V3.52) -->
+    <div id="planner-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[80] hidden flex flex-col transition-transform duration-300 transform translate-y-full">
+        <!-- Header -->
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex justify-between items-center shadow-sm z-10">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+                <svg class="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                Trip Planner
+            </h3>
+            <button id="close-planner-btn" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <!-- Content -->
+        <div class="flex-grow overflow-y-auto p-6 max-w-lg mx-auto w-full">
+            
+            <!-- Input Section -->
+            <div id="planner-input-section" class="space-y-6">
+                <!-- FROM SECTION -->
+                <div class="relative">
+                    <div class="flex justify-between items-end mb-1">
+                        <label class="block text-xs font-bold text-gray-500 uppercase ml-1">From</label>
+                        <button id="planner-locate-btn" class="text-xs flex items-center text-blue-500 hover:text-blue-600 font-bold bg-blue-50 dark:bg-blue-900 px-2 py-1 rounded-md transition-colors">
+                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            Locate Me
+                        </button>
+                    </div>
+                    <!-- Added Search Input -->
+                    <input type="text" id="planner-from-search" placeholder="Search station..." class="w-full mb-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm">
+                    <select id="planner-from" class="w-full p-4 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-lg font-medium text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors">
+                        <option value="">Loading stations...</option>
+                    </select>
+                </div>
+
+                <!-- SWAP BUTTON -->
+                <div class="flex justify-center -my-3 relative z-10">
+                    <button id="planner-swap-btn" class="bg-blue-100 dark:bg-blue-900 p-2 rounded-full text-blue-600 dark:text-blue-400 border-2 border-white dark:border-gray-900 shadow-md hover:scale-110 transition-transform">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
+                    </button>
+                </div>
+
+                <!-- TO SECTION -->
+                <div class="relative">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">To</label>
+                    <!-- Added Search Input -->
+                    <input type="text" id="planner-to-search" placeholder="Search station..." class="w-full mb-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm">
+                    <select id="planner-to" class="w-full p-4 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-lg font-medium text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors">
+                        <option value="">Loading stations...</option>
+                    </select>
+                </div>
+
+                <button id="planner-search-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg text-lg transition-transform transform active:scale-95 flex justify-center items-center">
+                    Find Route
+                </button>
             </div>
 
-            <p class="text-xs text-gray-400 dark:text-gray-600 mt-8 text-center">You can change this later in the menu.</p>
+            <!-- Results Section (Hidden initially) -->
+            <div id="planner-results-section" class="hidden mt-4 space-y-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="text-lg font-bold text-gray-900 dark:text-white">Your Journey</h4>
+                    <button id="planner-reset-btn" class="text-sm text-blue-500 font-medium underline">New Search</button>
+                </div>
+                
+                <!-- Results Container -->
+                <div id="planner-results-list" class="space-y-4">
+                    <!-- Dynamic steps will be injected here -->
+                </div>
+            </div>
         </div>
     </div>
 
@@ -420,6 +491,8 @@
     <script src="js/config.js"></script>
     <!-- Logic loads second (Core Calculations) -->
     <script src="js/logic.js"></script>
+    <!-- Planner loads third (Trip Planning) -->
+    <script src="js/planner.js"></script>
     <!-- UI loads last (Rendering & Events) -->
     <script src="js/ui.js"></script>
 </body>

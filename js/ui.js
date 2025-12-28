@@ -339,6 +339,12 @@ function updateTime() {
 function initializeApp() {
     loadUserProfile(); 
     populateStationList();
+    
+    // --- INIT PLANNER (New V3.51) ---
+    if (typeof initPlanner === 'function') {
+        initPlanner();
+    }
+
     startClock();
     findNextTrains(); 
     loadingOverlay.style.display = 'none';
@@ -379,6 +385,40 @@ function setupModalButtons() {
     closeModalBtn.addEventListener('click', closeAction); 
     closeModalBtn2.addEventListener('click', closeAction); 
     scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
+}
+
+// --- TRIP PLANNER MODAL LOGIC (New V3.51) ---
+function setupPlannerModal() {
+    const plannerModal = document.getElementById('planner-modal');
+    const openBtn = document.getElementById('open-planner-btn');
+    const closeBtn = document.getElementById('close-planner-btn');
+    
+    if (!plannerModal || !openBtn || !closeBtn) return;
+
+    const openPlanner = () => {
+        plannerModal.classList.remove('hidden');
+        // Small delay to allow transition
+        setTimeout(() => {
+            plannerModal.classList.remove('translate-y-full');
+        }, 10);
+        
+        // Close sidebar if open
+        if(sidenav) {
+            sidenav.classList.remove('open');
+            sidenavOverlay.classList.remove('open');
+            document.body.classList.remove('sidenav-open');
+        }
+    };
+
+    const closePlanner = () => {
+        plannerModal.classList.add('translate-y-full');
+        setTimeout(() => {
+            plannerModal.classList.add('hidden');
+        }, 300);
+    };
+
+    openBtn.addEventListener('click', openPlanner);
+    closeBtn.addEventListener('click', closePlanner);
 }
 
 // --- MAP MODAL LOGIC (UPDATED V3.49: Gestures) ---
@@ -929,6 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
     stationSelect.addEventListener('change', findNextTrains);
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
     setupMapLogic(); // NEW MAP LOGIC
+    setupPlannerModal(); // NEW V3.51
 
     // 3. Startup Logic
     const savedDefault = localStorage.getItem('defaultRoute');

@@ -4,7 +4,8 @@ let globalStationIndex = {};
 let currentRouteId = null; 
 let fullDatabase = null; 
 let schedules = {};
-let allStations = []; 
+let allStations = []; // Stations for CURRENT route
+let MASTER_STATION_LIST = []; // Stations for ALL routes (New for Planner)
 let currentTime = null;
 let currentDayType = 'weekday'; 
 let currentDayIndex = 0; 
@@ -156,6 +157,7 @@ async function loadAllSchedules(force = false) {
             fullDatabase = cachedDB.data;
             processRouteDataFromDB(currentRoute);
             buildGlobalStationIndex(); 
+            buildMasterStationList(); // NEW: For Trip Planner
             updateLastUpdatedText();
             // Call UI init
             if (typeof initializeApp === 'function') initializeApp();
@@ -185,6 +187,7 @@ async function loadAllSchedules(force = false) {
             
             processRouteDataFromDB(currentRoute);
             buildGlobalStationIndex(); 
+            buildMasterStationList(); // NEW: For Trip Planner
             updateLastUpdatedText();
             
             if (usedCache) { 
@@ -362,6 +365,13 @@ function buildGlobalStationIndex() {
         });
     });
     console.log(`Global Index Built: ${Object.keys(globalStationIndex).length} stations mapped.`);
+}
+
+// NEW FUNCTION: Build Master Station List for Trip Planner
+function buildMasterStationList() {
+    // Just grab keys from global index, which contains ALL stations from ALL routes
+    MASTER_STATION_LIST = Object.keys(globalStationIndex).sort();
+    console.log(`Master Station List Built: ${MASTER_STATION_LIST.length} stations.`);
 }
 
 function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
