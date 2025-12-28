@@ -374,7 +374,7 @@ function renderPlannerDevUI() {
     });
 }
 
-// --- UPDATED CORE LOGIC (V3.53 - Transfer Support & Robust Next Day Check) ---
+// --- UPDATED CORE LOGIC (V3.60 - Kempton Hub & Logic Fixes) ---
 function executeTripPlan(origin, dest) {
     const resultsContainer = document.getElementById('planner-results-list');
     
@@ -518,7 +518,7 @@ function planDirectTrip(origin, dest) {
     return { status: 'NO_PATH' };
 }
 
-// --- LOGIC: INTER-ROUTE / HUB TRANSFERS (V3.60) ---
+// --- LOGIC: INTER-ROUTE / HUB TRANSFERS (V3.60 UPDATED) ---
 function planHubTransferTrip(origin, dest) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
@@ -526,36 +526,29 @@ function planHubTransferTrip(origin, dest) {
     // Use SELECTED day type
     const planningDay = selectedPlannerDay || currentDayType;
     
-    // Define Hubs
-    const HUBS = ['PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION']; 
+    // Define Hubs (UPDATED: Added Kempton Park)
+    const HUBS = ['PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION', 'KEMPTON PARK STATION']; 
     let potentialHubs = [];
 
     // 1. Identify which hub connects Origin and Dest
+    // UPDATED LOGIC: Use globalStationIndex to check if a Hub is physically on the route, 
+    // instead of just checking terminal stations (destA/destB).
     for (const hub of HUBS) {
-        // Can we get from Origin to Hub?
-        const toHub = [...originRoutes].some(rId => {
-            const r = ROUTES[rId];
-            return normalizeStationName(r.destA) === normalizeStationName(hub) || normalizeStationName(r.destB) === normalizeStationName(hub);
-        });
+        const hubNorm = normalizeStationName(hub);
+        const hubData = globalStationIndex[hubNorm];
+
+        if (!hubData) continue;
+
+        // Can we get from Origin to Hub? (Check if any origin route is in the hub's route list)
+        const toHub = [...originRoutes].some(rId => hubData.routes.has(rId));
         
-        // Can we get from Hub to Dest?
-        const fromHub = [...destRoutes].some(rId => {
-            const r = ROUTES[rId];
-            return normalizeStationName(r.destA) === normalizeStationName(hub) || normalizeStationName(r.destB) === normalizeStationName(hub);
-        });
+        // Can we get from Hub to Dest? (Check if any dest route is in the hub's route list)
+        const fromHub = [...destRoutes].some(rId => hubData.routes.has(rId));
 
         if (toHub && fromHub) {
             potentialHubs.push(hub);
         }
     }
-
-    // Also check for "Within Route" transfers defined in config
-    [...originRoutes].forEach(rId => {
-        const r = ROUTES[rId];
-        if(r.transferStation && !potentialHubs.includes(normalizeStationName(r.transferStation))) {
-             potentialHubs.push(r.transferStation);
-        }
-    });
 
     if (potentialHubs.length === 0) return { status: 'NO_PATH' };
 

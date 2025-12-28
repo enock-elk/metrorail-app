@@ -177,7 +177,23 @@ const ROUTES = {
             saturday_to_b: 'pta_to_kemp_sat'
         } 
     },
-    'pta-germiston': { id: 'pta-germiston', name: "Pretoria <-> Germiston", corridorId: "SOUTH_LINE", colorClass: "text-blue-500", isActive: false, destA: 'PRETORIA STATION', destB: 'GERMISTON STATION', transferStation: null, sheetKeys: {} },
+    'pta-germiston': { 
+        id: 'pta-germiston', 
+        name: "Pretoria <-> Germiston", 
+        corridorId: "SOUTH_LINE", 
+        colorClass: "text-blue-500", 
+        isActive: true, // UPDATED: Enabled
+        destA: 'PRETORIA STATION', 
+        destB: 'GERMISTON STATION', 
+        transferStation: null, 
+        sheetKeys: {
+            // UPDATED: Added keys for when data is available
+            weekday_to_a: 'germ_to_pta_weekday', 
+            weekday_to_b: 'pta_to_germ_weekday',
+            saturday_to_a: 'germ_to_pta_sat', 
+            saturday_to_b: 'pta_to_germ_sat'
+        } 
+    },
     'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", corridorId: "JHB_SOUTH", colorClass: "text-purple-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
     'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", corridorId: "JHB_EAST", colorClass: "text-red-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} },
     'jhb-soweto': { id: 'jhb-soweto', name: "JHB <-> Naledi", corridorId: "JHB_WEST", colorClass: "text-yellow-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'NALEDI STATION', transferStation: null, sheetKeys: {} }
