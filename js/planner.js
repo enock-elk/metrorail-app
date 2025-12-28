@@ -14,6 +14,42 @@ function initPlanner() {
     const resetBtn = document.getElementById('planner-reset-btn');
     const locateBtn = document.getElementById('planner-locate-btn');
     
+    // Update Planner Time Display periodically (syncs with main clock)
+    const plannerTimeEl = document.createElement('div');
+    plannerTimeEl.id = 'planner-time-display';
+    plannerTimeEl.className = 'text-center mb-4';
+    
+    // Insert after header
+    const header = document.querySelector('#planner-modal .p-4.border-b');
+    if (header && !document.getElementById('planner-time-display')) {
+        header.parentNode.insertBefore(plannerTimeEl, header.nextSibling);
+    }
+
+    // Function to update the planner clock
+    const updatePlannerClock = () => {
+        if (!document.getElementById('planner-time-display')) return;
+        const timeEl = document.getElementById('planner-time-display');
+        
+        // Use global variables from logic.js (currentTime, currentDayType)
+        if (typeof currentTime !== 'undefined') {
+            let displayType = "";
+            if (currentDayType === 'sunday') displayType = "No Service";
+            else if (currentDayType === 'saturday') displayType = "Saturday Schedule";
+            else displayType = "Weekday Schedule";
+
+            timeEl.innerHTML = `
+                <p class="text-base text-gray-700 dark:text-gray-300 font-medium">Current Time: ${currentTime} ${typeof isSimMode !== 'undefined' && isSimMode ? '(SIM)' : ''}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    ${currentDayType.charAt(0).toUpperCase() + currentDayType.slice(1)} <span class="text-blue-600 dark:text-blue-400 font-bold">${displayType}</span>
+                </p>
+            `;
+        }
+    };
+
+    // Update immediately and then hook into the global interval or set its own
+    updatePlannerClock();
+    setInterval(updatePlannerClock, 1000);
+
     // Developer Mode Access (Header Tap)
     const plannerHeader = document.querySelector('#planner-modal h3');
     if (plannerHeader) {
@@ -455,7 +491,7 @@ function planHubTransferTrip(origin, dest) {
         if (leg2Options.length === 0) continue;
 
         // 3. Match Connections
-        const TRANSFER_BUFFER_SEC = 10 * 60; // 10 Min Buffer
+        const TRANSFER_BUFFER_SEC = 3 * 60; // 3 Min Buffer
 
         leg1Options.forEach(leg1 => {
             const arrivalSec = timeToSeconds(leg1.arrTime);
@@ -490,13 +526,13 @@ function planHubTransferTrip(origin, dest) {
             return a.totalDuration - b.totalDuration;
         });
         
-        // Remove duplicates
+        // Remove duplicates and keep only best connection for each departure time
         const unique = [];
-        const seen = new Set();
+        const seenDepTimes = new Set();
+        
         allTransferOptions.forEach(opt => {
-            const key = `${opt.depTime}-${opt.arrTime}-${opt.leg1.train}-${opt.leg2.train}`;
-            if(!seen.has(key)) {
-                seen.add(key);
+            if(!seenDepTimes.has(opt.depTime)) {
+                seenDepTimes.add(opt.depTime);
                 unique.push(opt);
             }
         });
@@ -742,7 +778,15 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
         // Calculate Transfer Wait Time
         const arrivalSec = timeToSeconds(step.leg1.arrTime);
         const departSec = timeToSeconds(step.leg2.depTime);
-        const waitMinutes = Math.floor((departSec - arrivalSec) / 60);
+        let waitMinutes = Math.floor((departSec - arrivalSec) / 60);
+        
+        // Format wait time string
+        let waitString = `${waitMinutes} Minutes`;
+        if (waitMinutes > 59) {
+            const hrs = Math.floor(waitMinutes / 60);
+            const mins = waitMinutes % 60;
+            waitString = `${hrs} hr ${mins > 0 ? mins + ' min' : ''}`;
+        }
 
         // Transfer Point (Arrival)
         timelineHtml += `
@@ -755,7 +799,7 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                     </div>
                     <div class="text-xs text-yellow-600 dark:text-yellow-400 font-medium bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border border-yellow-100 dark:border-yellow-800">
                         <span class="block font-bold">⚠️ Move to the correct platform</span>
-                        <span class="block mt-1">Wait ${waitMinutes} Minutes</span>
+                        <span class="block mt-1">Wait ${waitString}</span>
                     </div>
                 </div>
             </div>
