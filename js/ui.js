@@ -452,6 +452,8 @@ function setupPlannerModal() {
     const plannerModal = document.getElementById('planner-modal');
     const openBtn = document.getElementById('open-planner-btn');
     const closeBtn = document.getElementById('close-planner-btn');
+    // NEW: Main Screen Shortcut (V3.63)
+    const mainPlannerBtn = document.getElementById('main-planner-btn');
     
     if (!plannerModal || !openBtn || !closeBtn) return;
 
@@ -479,6 +481,8 @@ function setupPlannerModal() {
 
     openBtn.addEventListener('click', openPlanner);
     closeBtn.addEventListener('click', closePlanner);
+    // Attach listener to shortcut
+    if(mainPlannerBtn) mainPlannerBtn.addEventListener('click', openPlanner);
 }
 
 // --- MAP MODAL LOGIC (UPDATED V3.49: Gestures) ---
@@ -1009,6 +1013,30 @@ document.addEventListener('DOMContentLoaded', () => {
     closeLegalBtn2.addEventListener('click', closeLegal);
     legalModal.addEventListener('click', (e) => { if (e.target === legalModal) closeLegal(); });
     
+    // NEW: Help Modal Listeners (V3.62)
+    const helpModal = document.getElementById('help-modal');
+    const openHelpBtn = document.getElementById('open-help-btn');
+    const closeHelpBtn = document.getElementById('close-help-btn');
+    const closeHelpBtn2 = document.getElementById('close-help-btn-2');
+    
+    const openHelp = () => {
+        if(helpModal) helpModal.classList.remove('hidden');
+        if(sidenav) {
+            sidenav.classList.remove('open');
+            sidenavOverlay.classList.remove('open');
+            document.body.classList.remove('sidenav-open');
+        }
+    };
+    
+    const closeHelp = () => {
+        if(helpModal) helpModal.classList.add('hidden');
+    };
+    
+    if(openHelpBtn) openHelpBtn.addEventListener('click', openHelp);
+    if(closeHelpBtn) closeHelpBtn.addEventListener('click', closeHelp);
+    if(closeHelpBtn2) closeHelpBtn2.addEventListener('click', closeHelp);
+    if(helpModal) helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp(); });
+
     // Manual Locate Click - pass false to indicate manual interaction
     locateBtn.addEventListener('click', () => findNearestStation(false));
     

@@ -197,11 +197,40 @@ function initPlanner() {
     });
 
     searchBtn.addEventListener('click', () => {
+        // --- AUTO-RESOLVE LOGIC ---
+        // If user typed but didn't click dropdown, try to find match in MASTER_STATION_LIST
+        const resolveStation = (inputVal, selectEl) => {
+            if (selectEl.value) return selectEl.value; // Already set properly
+            if (!inputVal) return "";
+            if (typeof MASTER_STATION_LIST === 'undefined') return "";
+
+            const cleanInput = inputVal.trim().toUpperCase();
+            
+            // 1. Exact Match (e.g. "HATFIELD")
+            const exact = MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === cleanInput);
+            if (exact) return exact;
+
+            // 2. Fuzzy Match (if it's the only one, e.g. "HATFI")
+            const matches = MASTER_STATION_LIST.filter(s => s.replace(' STATION', '').toUpperCase().includes(cleanInput));
+            if (matches.length === 1) return matches[0];
+            
+            return "";
+        };
+
+        const fromInput = document.getElementById('planner-from-search');
+        const toInput = document.getElementById('planner-to-search');
+
+        // Attempt resolution
+        if (!fromSelect.value && fromInput) fromSelect.value = resolveStation(fromInput.value, fromSelect);
+        if (!toSelect.value && toInput) toSelect.value = resolveStation(toInput.value, toSelect);
+
+        // --- END AUTO-RESOLVE ---
+
         const from = fromSelect.value;
         const to = toSelect.value;
         
         if (!from || !to) {
-            showToast("Please select both stations.", "error");
+            showToast("Please select valid stations from the list.", "error");
             return;
         }
         if (from === to) {
@@ -294,6 +323,8 @@ function setupAutocomplete(inputId, selectId) {
 
     // 1. Typing: Filter the list
     input.addEventListener('input', () => {
+        // Clear underlying select if user starts typing again
+        select.value = ""; 
         renderList(input.value);
     });
 
@@ -526,8 +557,19 @@ function planHubTransferTrip(origin, dest) {
     // Use SELECTED day type
     const planningDay = selectedPlannerDay || currentDayType;
     
-    // Define Hubs (UPDATED: Added Kempton Park)
-    const HUBS = ['PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION', 'KEMPTON PARK STATION']; 
+    // Define Hubs (UPDATED: Added Kempton Park, Wintersnest, Hercules, Pretoria West, Wolmerton, Pretoria Noord)
+    const HUBS = [
+        'PRETORIA STATION', 
+        'GERMISTON STATION', 
+        'JOHANNESBURG STATION', 
+        'KEMPTON PARK STATION',
+        'HERCULES STATION',      // The Northern Triangle
+        'PRETORIA WEST STATION', // The Western Gateway
+        'WINTERSNEST STATION',   // The De Wildt/Mabopane Split
+        'WOLMERTON STATION',     // Backup for De Wildt/Mabopane split
+        'PRETORIA NOORD STATION' // Major Northern Hub
+    ]; 
+    
     let potentialHubs = [];
 
     // 1. Identify which hub connects Origin and Dest
