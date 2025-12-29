@@ -1,6 +1,4 @@
-/* Metrorail Next Train - Core Styles
-  Extracted from index.html for V3.17.6 Modularization
-*/
+/* Metrorail Next Train - Custom Styles */
 
 /* Base Settings */
 body { 
@@ -28,9 +26,52 @@ body.sidenav-open {
 /* Animations */
 @keyframes pop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes moveTrain { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 
 .spinning { animation: spin 1s linear infinite; }
 .pop-loader { animation: pop 1.5s infinite; }
+
+/* --- NEW: LOADING SCREEN STYLES (Fixes the "2 Trains" Issue) --- */
+.train-loader-container {
+    position: relative;
+    width: 200px;
+    height: 100px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.train-track {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background-color: #cbd5e1; /* gray-300 */
+    border-radius: 2px;
+}
+.dark .train-track {
+    background-color: #4b5563; /* gray-600 */
+}
+
+.moving-icon {
+    position: absolute;
+    bottom: 4px;
+    left: 0;
+    width: 64px;
+    height: 64px;
+    animation: moveTrain 2s linear infinite;
+    object-fit: contain;
+}
+
+/* THEME TOGGLING FOR LOADER */
+/* Default (Light Mode) */
+.light-mode-icon { display: block; }
+.dark-mode-icon { display: none; }
+
+/* Dark Mode Override */
+.dark .light-mode-icon { display: none; }
+.dark .dark-mode-icon { display: block; }
+
 
 /* Side Navigation (Sidenav) */
 #sidenav-overlay {
@@ -138,4 +179,21 @@ html:not(.dark) #sidenav .route-item a.disabled:hover {
 /* Z-Index Fixes */
 #schedule-modal {
     z-index: 90 !important;
+}
+
+/* --- SCROLLBAR UTILITIES (Requested Fix) --- */
+/* For webkit browsers (Chrome, Safari) */
+.scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1; /* gray-300 */
+    border-radius: 20px;
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #4b5563; /* gray-600 */
 }
