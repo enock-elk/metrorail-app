@@ -62,21 +62,15 @@
         <button id="close-nav-btn" class="close-btn text-gray-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-300">&times;</button>
         
         <!-- PROFILE SECTION IN NAV -->
-        <div class="p-4 bg-blue-50 dark:bg-gray-800 border-b border-blue-100 dark:border-gray-700 mb-2">
-            <p class="text-xs text-gray-500 uppercase font-bold mb-1">Passenger Profile</p>
+        <div class="p-3 bg-blue-50 dark:bg-gray-800 border-b border-blue-100 dark:border-gray-700 mb-2">
+            <p class="text-xs text-gray-500 uppercase font-bold mb-0.5">Passenger Profile</p>
             <div id="nav-profile-display" class="font-bold text-lg text-blue-600 dark:text-blue-400">Adult</div>
-            <button onclick="resetProfile()" class="text-xs text-gray-400 underline mt-1 hover:text-blue-500">Change Profile</button>
+            <button onclick="resetProfile()" class="text-xs text-gray-400 underline mt-0.5 hover:text-blue-500">Change Profile</button>
         </div>
 
-        <h2 class="text-gray-900 dark:text-white mt-4">Select Route</h2>
+        <h2 class="text-gray-900 dark:text-white mt-2">Select Route</h2>
         <ul id="route-list">
-            <!-- TRIP PLANNER ENTRY POINT -->
-            <li class="route-item mb-4 mt-2">
-                <a id="open-planner-btn" class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-md flex items-center justify-center py-3">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
-                    Plan A Trip
-                </a>
-            </li>
+            <!-- TRIP PLANNER MOVED TO BOTTOM -->
 
             <div id="pinned-section" class="hidden border-b border-gray-700 dark:border-gray-600 pb-2 mb-2">
                 <li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li>
@@ -96,18 +90,25 @@
             <li class="route-item"><a class="" data-route-id="jhb-germiston"><span class="route-dot dot-red"></span>JHB <-> Germiston</a></li>
             <li class="route-item"><a class="" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
             
-            <li class="route-item"><a class="disabled" data-route-id="pta-germiston"><span class="route-dot dot-blue"></span>Pretoria <-> Germiston</a></li>
+            <!-- REMOVED: Pretoria <-> Germiston Route -->
         </ul>
         
-        <div class="mt-auto pt-6 border-t border-gray-700 dark:border-gray-600 pb-20">
-            <li class="route-item mb-2">
-                <a id="view-map-btn" class="cursor-pointer text-gray-300 hover:text-white flex items-center">
-                    <svg class="w-4 h-4 mr-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <!-- FOOTER BLOCK - Reduced bottom padding from pb-20 to pb-6 -->
+        <div class="mt-auto pt-2 border-t border-gray-700 dark:border-gray-600 pb-4">
+            <!-- TRIP PLANNER & NETWORK MAP BUTTONS (UPDATED STYLE) -->
+            <div class="mb-3 space-y-2 px-1">
+                <a id="open-planner-btn" class="cursor-pointer w-full flex items-center px-4 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 font-bold transition-all group">
+                    <svg class="w-5 h-5 mr-3 text-blue-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                    Plan A Trip
+                </a>
+                
+                <a id="view-map-btn" class="cursor-pointer w-full flex items-center px-4 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-green-500 dark:hover:border-green-500 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 font-bold transition-all group">
+                    <svg class="w-5 h-5 mr-3 text-green-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     Network Map
                 </a>
-            </li>
+            </div>
             
-            <p class="px-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Legal & Info</p>
+            <p class="px-4 text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Legal & Info</p>
             <li class="route-item">
                 <a onclick="openLegal('terms')" class="cursor-pointer text-gray-300 hover:text-white">
                     <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -396,6 +397,7 @@
             </div>
             <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium mt-2"></p>
             <p id="current-day" class="text-sm text-gray-500 dark:text-gray-400"></p>
+            <p id="last-updated-date" class="text-xs text-gray-400 dark:text-gray-500 mt-1"></p>
         </div>
 
         <div class="mb-4">
@@ -482,7 +484,6 @@
             </div>
         </div>
 
-        <p id="last-updated-date" class="text-xs text-gray-500 dark:text-gray-400 text-center mt-6"></p>
         <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">2025 &copy; Kazembe CodeWorks. All rights reserved.</p>
     </div>
     <div id="toast" class=""></div>

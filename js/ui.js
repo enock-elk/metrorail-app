@@ -253,6 +253,19 @@ function updatePinUI() {
     if (savedDefault && ROUTES[savedDefault]) { pinnedSection.classList.remove('hidden'); pinnedSection.innerHTML = `<li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li><li class="route-item"><a class="${savedDefault === currentRouteId ? 'active' : ''}" data-route-id="${savedDefault}"><span class="route-dot dot-green"></span>${ROUTES[savedDefault].name}</a></li>`; } else { pinnedSection.classList.add('hidden'); }
 }
 
+// NEW FUNCTION: Force the side navigation to highlight the correct current route
+function updateSidebarActiveState() {
+    if (!currentRouteId) return;
+    const allLinks = document.querySelectorAll('#route-list a');
+    allLinks.forEach(a => {
+        if (a.dataset.routeId === currentRouteId) {
+            a.classList.add('active');
+        } else {
+            a.classList.remove('active');
+        }
+    });
+}
+
 function updateLastUpdatedText() {
     if (!fullDatabase) return;
     
@@ -344,6 +357,9 @@ function initializeApp() {
     if (typeof initPlanner === 'function') {
         initPlanner();
     }
+
+    // NEW: Ensure Sidebar State is Correct on Startup
+    updateSidebarActiveState();
 
     startClock();
     findNextTrains(); 
@@ -769,7 +785,29 @@ function setupFeatureButtons() {
     openNavBtn.addEventListener('click', openNav); routeSubtitle.addEventListener('click', openNav);
     const closeNav = () => { sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open'); };
     closeNavBtn.addEventListener('click', closeNav); sidenavOverlay.addEventListener('click', closeNav);
-    routeList.addEventListener('click', (e) => { const routeLink = e.target.closest('a'); if (routeLink && routeLink.dataset.routeId) { const routeId = routeLink.dataset.routeId; if (routeId === currentRouteId) { showToast("You are already viewing this route.", "info", 1500); closeNav(); return; } document.querySelectorAll('#route-list a').forEach(a => a.classList.remove('active')); routeLink.classList.add('active'); closeNav(); currentRouteId = routeId; loadAllSchedules(); } });
+    
+    // UPDATED: Using updateSidebarActiveState for consistent highlighting
+    routeList.addEventListener('click', (e) => { 
+        const routeLink = e.target.closest('a'); 
+        if (routeLink && routeLink.dataset.routeId) { 
+            const routeId = routeLink.dataset.routeId; 
+            if (routeId === currentRouteId) { 
+                showToast("You are already viewing this route.", "info", 1500); 
+                closeNav(); 
+                return; 
+            } 
+            
+            // Set current route
+            currentRouteId = routeId;
+            
+            // Update UI State immediately
+            updateSidebarActiveState(); 
+            
+            closeNav(); 
+            loadAllSchedules(); 
+        } 
+    });
+    
     forceReloadBtn.addEventListener('click', () => { showToast("Forcing schedule reload...", "info", 2000); loadAllSchedules(true); });
     pinRouteBtn.addEventListener('click', () => { const savedDefault = localStorage.getItem('defaultRoute'); if (savedDefault === currentRouteId) { localStorage.removeItem('defaultRoute'); showToast("Route unpinned from top.", "info", 2000); } else { localStorage.setItem('defaultRoute', currentRouteId); showToast("Route pinned to top of menu!", "success", 2000); } updatePinUI(); });
 }
@@ -820,10 +858,8 @@ function selectWelcomeRoute(routeId) {
         welcomeModal.classList.add('hidden');
         welcomeModal.classList.remove('opacity-0');
         
-        document.querySelectorAll('#route-list a').forEach(a => {
-            if(a.dataset.routeId === routeId) a.classList.add('active');
-            else a.classList.remove('active');
-        });
+        // Use central function to update highlights
+        updateSidebarActiveState();
         
         updatePinUI();
         
