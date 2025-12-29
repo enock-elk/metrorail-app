@@ -515,20 +515,13 @@ function setupMapLogic() {
         pointY = 0;
         if(mapImage) {
             mapImage.style.transform = `translate(0px, 0px) scale(1)`;
-            mapImage.classList.add('w-full', 'h-full', 'object-contain');
-            mapImage.classList.remove('max-w-none');
+            // FIXED: Do NOT remove utility classes. Keep image contained and just scale it.
         }
     };
 
     const updateTransform = () => {
         if(mapImage) {
-            if (scale > 1) {
-                mapImage.classList.remove('w-full', 'h-full', 'object-contain');
-                mapImage.classList.add('max-w-none');
-            } else {
-                mapImage.classList.add('w-full', 'h-full', 'object-contain');
-                mapImage.classList.remove('max-w-none');
-            }
+            // FIXED: Simple Transform. No class toggling.
             mapImage.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
         }
     };
@@ -589,13 +582,19 @@ function setupMapLogic() {
             let nextX = e.clientX - startX;
             let nextY = e.clientY - startY;
             
-            const limitX = mapContainer.offsetWidth / 2;
-            const limitY = mapContainer.offsetHeight / 2;
+            // FIXED: Panning Limits based on Scaled Size
+            // Limit = (Expanded Dimension - Original Dimension) / 2
+            const limitX = (mapContainer.offsetWidth * scale - mapContainer.offsetWidth) / 2;
+            const limitY = (mapContainer.offsetHeight * scale - mapContainer.offsetHeight) / 2;
 
-            if (nextX > limitX) nextX = limitX;
-            if (nextX < -limitX) nextX = -limitX;
-            if (nextY > limitY) nextY = limitY;
-            if (nextY < -limitY) nextY = -limitY;
+            // Ensure limits are non-negative
+            const safeLimitX = Math.max(0, limitX);
+            const safeLimitY = Math.max(0, limitY);
+
+            if (nextX > safeLimitX) nextX = safeLimitX;
+            if (nextX < -safeLimitX) nextX = -safeLimitX;
+            if (nextY > safeLimitY) nextY = safeLimitY;
+            if (nextY < -safeLimitY) nextY = -safeLimitY;
 
             pointX = nextX;
             pointY = nextY;
@@ -675,13 +674,17 @@ function setupMapLogic() {
             let nextX = e.touches[0].clientX - startX;
             let nextY = e.touches[0].clientY - startY;
     
-            const limitX = mapContainer.offsetWidth / 2;
-            const limitY = mapContainer.offsetHeight / 2;
+            // FIXED: Panning Limits for Touch
+            const limitX = (mapContainer.offsetWidth * scale - mapContainer.offsetWidth) / 2;
+            const limitY = (mapContainer.offsetHeight * scale - mapContainer.offsetHeight) / 2;
+
+            const safeLimitX = Math.max(0, limitX);
+            const safeLimitY = Math.max(0, limitY);
     
-            if (nextX > limitX) nextX = limitX;
-            if (nextX < -limitX) nextX = -limitX;
-            if (nextY > limitY) nextY = limitY;
-            if (nextY < -limitY) nextY = -limitY;
+            if (nextX > safeLimitX) nextX = safeLimitX;
+            if (nextX < -safeLimitX) nextX = -safeLimitX;
+            if (nextY > safeLimitY) nextY = safeLimitY;
+            if (nextY < -safeLimitY) nextY = -safeLimitY;
     
             pointX = nextX;
             pointY = nextY;
