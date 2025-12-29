@@ -15,19 +15,35 @@ window.onerror = function(msg, url, line) {
 
 // NEW: Skeleton Loader for Schedule Cards
 function renderSkeletonLoader(element) {
+    // Exact height match for h-32 cards
     element.innerHTML = `
-        <div class="flex flex-row items-center w-full space-x-3 animate-pulse">
+        <div class="flex flex-row items-center w-full space-x-3 h-32 animate-pulse bg-gray-100 dark:bg-gray-800 rounded-lg p-2">
             <!-- Left Time Box Skeleton -->
-            <div class="relative w-1/2 h-32 bg-gray-200 dark:bg-gray-700 rounded-lg shadow-sm flex-shrink-0"></div>
+            <div class="relative w-1/2 h-full bg-gray-300 dark:bg-gray-700 rounded-lg shadow-sm flex-shrink-0"></div>
             
             <!-- Right Info Skeleton -->
-            <div class="w-1/2 flex flex-col justify-center items-center space-y-2">
-                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+            <div class="w-1/2 flex flex-col justify-center items-center space-y-3">
+                <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
+                <div class="h-3 bg-gray-300 dark:bg-gray-700 rounded w-1/2"></div>
+                <div class="h-6 bg-gray-300 dark:bg-gray-700 rounded w-full mt-2"></div>
             </div>
         </div>
     `;
 }
+
+// NEW: Smooth Fade Out for Loading Overlay
+window.hideLoadingOverlay = function() {
+    if (!loadingOverlay) return;
+    
+    loadingOverlay.style.transition = 'opacity 0.3s ease-out';
+    loadingOverlay.style.opacity = '0';
+    
+    setTimeout(() => {
+        loadingOverlay.style.display = 'none';
+        // Reset opacity for next time it might be needed (though normally we use skeletons now)
+        loadingOverlay.style.opacity = '1'; 
+    }, 300);
+};
 
 function renderPlaceholder() {
     const placeholderHTML = `<div class="h-32 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500"><svg class="w-8 h-8 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm font-medium">Select a station above</span></div>`;

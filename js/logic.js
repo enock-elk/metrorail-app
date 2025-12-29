@@ -150,7 +150,13 @@ async function loadAllSchedules(force = false) {
         if(pretoriaHeader) pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
         if(pienaarspoortHeader) pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
         
-        if (typeof renderPlaceholder === 'function') renderPlaceholder();
+        // --- SKELETON LOADER INJECTION ---
+        // Instead of a placeholder, we immediately show skeletons while fetching
+        if (typeof renderSkeletonLoader === 'function') {
+            if(pretoriaTimeEl) renderSkeletonLoader(pretoriaTimeEl);
+            if(pienaarspoortTimeEl) renderSkeletonLoader(pienaarspoortTimeEl);
+        }
+
         if(offlineIndicator) offlineIndicator.style.display = 'none';
         if (typeof updatePinUI === 'function') updatePinUI(); 
 
@@ -168,14 +174,15 @@ async function loadAllSchedules(force = false) {
             fullDatabase = cachedDB.data;
             processRouteDataFromDB(currentRoute);
             buildGlobalStationIndex(); 
-            buildMasterStationList(); // NEW: For Trip Planner
+            buildMasterStationList(); 
             updateLastUpdatedText();
             // Call UI init
             if (typeof initializeApp === 'function') initializeApp();
             usedCache = true;
         }
 
-        if (!usedCache && loadingOverlay) loadingOverlay.style.display = 'flex';
+        // REMOVED: Full screen loading overlay block
+        // We now rely on Skeleton Cards for perceived performance
         
         if(forceReloadBtn) {
             const reloadIcon = forceReloadBtn.querySelector('svg');
@@ -198,7 +205,7 @@ async function loadAllSchedules(force = false) {
             
             processRouteDataFromDB(currentRoute);
             buildGlobalStationIndex(); 
-            buildMasterStationList(); // NEW: For Trip Planner
+            buildMasterStationList(); 
             updateLastUpdatedText();
             
             if (usedCache) { 
@@ -209,6 +216,12 @@ async function loadAllSchedules(force = false) {
             }
         } else {
             console.log("Data is up to date.");
+            // If we used skeletons but data is same, ensure we re-render actual data
+            // (If usedCache was true, initializeApp or findNextTrains already ran. 
+            // If usedCache was false, we need to init)
+            if (!usedCache) {
+                 if(typeof initializeApp === 'function') initializeApp();
+            }
         }
     } catch (error) {
         console.error("Fetch Error:", error);
@@ -223,7 +236,14 @@ async function loadAllSchedules(force = false) {
             const reloadIcon = forceReloadBtn.querySelector('svg');
             if(reloadIcon) reloadIcon.classList.remove('spinning');
         }
-        if(loadingOverlay) loadingOverlay.style.display = 'none';
+        
+        // UPDATED: Use Smooth Fade Out
+        if (typeof hideLoadingOverlay === 'function') {
+            hideLoadingOverlay();
+        } else if(loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+
         if(currentRouteId && mainContent) mainContent.style.display = 'block';
     }
 }
