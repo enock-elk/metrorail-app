@@ -58,6 +58,17 @@ function escapeHTML(str) {
     });
 }
 
+// NEW HELPER: Formats HH:MM:SS to HH:MM for display
+function formatTimeDisplay(timeStr) {
+    if (!timeStr) return "--:--";
+    const s = String(timeStr);
+    const parts = s.split(':');
+    if (parts.length >= 2) {
+        return `${parts[0]}:${parts[1]}`;
+    }
+    return s;
+}
+
 // UPDATED: ROBUST STATION NORMALIZATION
 function normalizeStationName(name) {
     if (!name) return "";

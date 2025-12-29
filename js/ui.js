@@ -63,8 +63,9 @@ function renderNoService(element, destination) {
     const firstTrain = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
     let timeHTML = 'N/A';
     if (firstTrain) {
-        const departureTime = firstTrain.departureTime || firstTrain.train1.departureTime;
-        const timeDiffStr = calculateTimeDiffString(departureTime, 1); 
+        // UPDATED: Use formatTimeDisplay
+        const departureTime = formatTimeDisplay(firstTrain.departureTime || firstTrain.train1.departureTime);
+        const timeDiffStr = calculateTimeDiffString(firstTrain.departureTime || firstTrain.train1.departureTime, 1); 
         timeHTML = `<div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
     }
     element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center w-full"><div class="text-xl font-bold text-gray-600 dark:text-gray-400">No service on Sundays/Holidays.</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train next weekday is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2 w-3/4">${timeHTML}</div></div>`;
@@ -106,10 +107,13 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
         timeClass = "bg-green-100 dark:bg-green-900 border-2 border-green-500";
     }
     
-    const safeDepTime = escapeHTML(journey.departureTime || journey.train1.departureTime);
+    // UPDATED: Use formatTimeDisplay for the main card time
+    const rawTime = journey.departureTime || journey.train1.departureTime;
+    const safeDepTime = escapeHTML(formatTimeDisplay(rawTime));
+    
     const safeTrainName = escapeHTML(journey.train || journey.train1.train);
     const safeDest = escapeHTML(destination);
-    const timeDiffStr = calculateTimeDiffString(journey.departureTime || journey.train1.departureTime);
+    const timeDiffStr = calculateTimeDiffString(rawTime);
     const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
     const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[10px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">See Full Schedule</button>`;
 
@@ -128,7 +132,8 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
     if (journey.type === 'direct') {
         const actualDest = journey.actualDestination ? normalizeStationName(journey.actualDestination) : '';
         const normDest = normalizeStationName(destination);
-        let destinationText = journey.arrivalTime ? `Arrives ${escapeHTML(journey.arrivalTime)}` : "Arrival time not available.";
+        // UPDATED: Format arrival time if present
+        let destinationText = journey.arrivalTime ? `Arrives ${escapeHTML(formatTimeDisplay(journey.arrivalTime))}` : "Arrival time not available.";
         if (actualDest && normDest && actualDest !== normDest) {
             destinationText = `Terminates at ${escapeHTML(journey.actualDestination.replace(/ STATION/g,''))}.`;
         }
@@ -143,7 +148,8 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
         const conn = journey.connection; 
         const nextFull = journey.nextFullJourney; 
         const termStation = escapeHTML(journey.train1.terminationStation.replace(/ STATION/g, ''));
-        const arrivalAtTransfer = escapeHTML(journey.train1.arrivalAtTransfer);
+        // UPDATED: Format arrival at transfer
+        const arrivalAtTransfer = escapeHTML(formatTimeDisplay(journey.train1.arrivalAtTransfer));
         let train1Info = `Train ${safeTrainName} (Terminates at ${termStation} at ${arrivalAtTransfer})`;
         if (journey.isLastTrain) train1Info = `<span class="text-red-600 dark:text-red-400 font-bold">Last Train (${safeTrainName})</span> (Terminates at ${termStation})`;
 
@@ -151,17 +157,19 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
         if (nextFull) {
             const connTrain = escapeHTML(conn.train);
             const connDest = escapeHTML(conn.actualDestination.replace(/ STATION/g, ''));
-            const connDep = escapeHTML(conn.departureTime);
+            // UPDATED: Format connection times
+            const connDep = escapeHTML(formatTimeDisplay(conn.departureTime));
             const nextTrain = escapeHTML(nextFull.train);
             const nextDest = escapeHTML(nextFull.actualDestination.replace(/ STATION/g, ''));
-            const nextDep = escapeHTML(nextFull.departureTime);
+            const nextDep = escapeHTML(formatTimeDisplay(nextFull.departureTime));
             const connection1Text = `Connect to Train ${connTrain} (to ${connDest}) at <b>${connDep}</b>`;
             const connection2Text = `Next Train ${nextTrain} (to ${nextDest}) is at <b>${nextDep}</b>`;
             connectionInfoHTML = `<div class="space-y-1"><div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div><div class="text-gray-500 dark:text-gray-400 text-xs font-medium">${connection2Text}</div></div>`;
         } else {
             const connTrain = escapeHTML(conn.train);
-            const connDep = escapeHTML(conn.departureTime);
-            const connArr = escapeHTML(conn.arrivalTime);
+            // UPDATED: Format connection times
+            const connDep = escapeHTML(formatTimeDisplay(conn.departureTime));
+            const connArr = escapeHTML(formatTimeDisplay(conn.arrivalTime));
             let connDestName = `(Arrives ${connArr})`; 
             const connectionText = `Connect to Train ${connTrain} at <b>${connDep}</b> ${connDestName}`;
             connectionInfoHTML = `<div class="text-yellow-600 dark:text-yellow-400 font-medium">${connectionText}</div>`;
@@ -187,8 +195,11 @@ function renderNextAvailableTrain(element, destination) {
     const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
     const firstTrainOfNextDay = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
     if (!firstTrainOfNextDay) { element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-gray-600 dark:text-gray-400">No trains found for ${nextDayName}.</div>`; return; }
-    const departureTime = firstTrainOfNextDay.departureTime || firstTrainOfNextDay.train1.departureTime;
-    const timeDiffStr = calculateTimeDiffString(departureTime, dayOffset);
+    
+    // UPDATED: Format next day time
+    const rawTime = firstTrainOfNextDay.departureTime || firstTrainOfNextDay.train1.departureTime;
+    const departureTime = formatTimeDisplay(rawTime);
+    const timeDiffStr = calculateTimeDiffString(rawTime, dayOffset);
     element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center w-full"><div class="text-lg font-bold text-gray-600 dark:text-gray-400">No more trains today</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train ${nextDayName} is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2 w-3/4"><div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div></div></div>`;
 }
 
@@ -322,6 +333,7 @@ function updateTime() {
         } else {
             now = new Date();
             day = now.getDay(); 
+            // NOTE: Keeping seconds here as requested by user
             timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
         }
 
@@ -720,7 +732,10 @@ window.openScheduleModal = function(destination) {
              }
         }
 
-        div.innerHTML = `<div><span class="text-lg font-bold text-gray-900 dark:text-white">${dep}</span><div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName} ${modalTag}</div></div><div class="flex flex-col items-end gap-1">${type === 'Direct' ? '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>' : `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase">Transfer @ ${j.train1.terminationStation.replace(' STATION','')}</span>`} ${j.isLastTrain ? '<span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800">LAST TRAIN</span>' : ''}</div>`;
+        // UPDATED: Use formatTimeDisplay in modal list
+        const formattedDep = formatTimeDisplay(dep);
+        
+        div.innerHTML = `<div><span class="text-lg font-bold text-gray-900 dark:text-white">${formattedDep}</span><div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName} ${modalTag}</div></div><div class="flex flex-col items-end gap-1">${type === 'Direct' ? '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>' : `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase">Transfer @ ${j.train1.terminationStation.replace(' STATION','')}</span>`} ${j.isLastTrain ? '<span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800">LAST TRAIN</span>' : ''}</div>`;
         modalList.appendChild(div);
     });
     

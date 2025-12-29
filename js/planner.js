@@ -812,6 +812,10 @@ function renderErrorCard(title, message) {
 function generateTripCardHTML(step, isNextDay = false, allOptions = [], selectedIndex = 0) {
     let timelineHtml = '';
     
+    // UPDATED: Use formatTimeDisplay for core times
+    const formattedDepTime = formatTimeDisplay(step.depTime);
+    const formattedArrTime = formatTimeDisplay(step.arrTime);
+    
     // --- DIRECT TRIP TIMELINE ---
     if (step.type === 'DIRECT') {
         if (step.stops && step.stops.length > 0) {
@@ -822,12 +826,15 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                 const circleClass = (isFirst || isLast) ? "bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900" : "bg-gray-400";
                 const textClass = (isFirst || isLast) ? "font-bold text-gray-900 dark:text-white text-sm" : "text-gray-500 dark:text-gray-400 text-xs";
                 
+                // UPDATED: Format stop times
+                const stopTime = formatTimeDisplay(stop.time);
+                
                 timelineHtml += `
                     <div class="relative pl-6">
                         <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full ${circleClass}"></div>
                         <div class="flex justify-between items-center">
                             <span class="${textClass}">${stop.station.replace(' STATION', '')}</span>
-                            <span class="font-mono ${textClass}">${stop.time}</span>
+                            <span class="font-mono ${textClass}">${stopTime}</span>
                         </div>
                     </div>
                 `;
@@ -837,6 +844,12 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
     } 
     // --- TRANSFER TRIP TIMELINE ---
     else if (step.type === 'TRANSFER') {
+        // UPDATED: Format transfer legs
+        const leg1Dep = formatTimeDisplay(step.leg1.depTime);
+        const leg1Arr = formatTimeDisplay(step.leg1.arrTime);
+        const leg2Dep = formatTimeDisplay(step.leg2.depTime);
+        const leg2Arr = formatTimeDisplay(step.leg2.arrTime);
+
         timelineHtml = '<div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-6">';
         
         // Leg 1
@@ -846,7 +859,7 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                 <div class="flex flex-col">
                     <div class="flex justify-between items-center mb-1">
                         <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.from.replace(' STATION', '')}</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${step.leg1.depTime}</span>
+                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg1Dep}</span>
                     </div>
                     <div class="text-xs text-blue-500 font-medium">Train ${step.leg1.train}</div>
                 </div>
@@ -873,7 +886,7 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                 <div class="flex flex-col">
                     <div class="flex justify-between items-center mb-1">
                         <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive at ${step.transferStation.replace(' STATION', '')}</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${step.leg1.arrTime}</span>
+                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg1Arr}</span>
                     </div>
                     <div class="text-xs text-yellow-600 dark:text-yellow-400 font-medium bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border border-yellow-100 dark:border-yellow-800">
                         <span class="block font-bold">⚠️ Move to the correct platform</span>
@@ -890,7 +903,7 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                 <div class="flex flex-col">
                     <div class="flex justify-between items-center mb-1">
                         <span class="font-bold text-gray-900 dark:text-white text-sm">Depart at ${step.transferStation.replace(' STATION', '')}</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${step.leg2.depTime}</span>
+                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg2Dep}</span>
                     </div>
                     <div class="text-xs text-blue-500 font-medium">Train ${step.leg2.train}</div>
                 </div>
@@ -903,7 +916,7 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                 <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-green-600 ring-4 ring-green-100 dark:ring-green-900"></div>
                 <div class="flex justify-between items-center">
                     <span class="font-bold text-gray-900 dark:text-white text-sm">${step.to.replace(' STATION', '')}</span>
-                    <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${step.leg2.arrTime}</span>
+                    <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg2Arr}</span>
                 </div>
             </div>
         `;
@@ -925,7 +938,9 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
         allOptions.forEach((opt, idx) => {
             const selected = idx === selectedIndex ? 'selected' : '';
             const typeLabel = opt.type === 'TRANSFER' ? 'Transfer' : 'Direct';
-            optionsHtml += `<option value="${idx}" ${selected}>${opt.depTime} - ${typeLabel}</option>`;
+            // UPDATED: Format option time
+            const optTime = formatTimeDisplay(opt.depTime);
+            optionsHtml += `<option value="${idx}" ${selected}>${optTime} - ${typeLabel}</option>`;
         });
         
         optionsHtml += `</select></div>`;
@@ -944,12 +959,12 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                     <div class="text-left">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Depart</p>
                         <p class="text-lg font-black text-gray-900 dark:text-white leading-tight">${step.from.replace(' STATION', '')}</p>
-                        <p class="text-sm font-bold ${timeColorClass} mt-1">${step.depTime}</p>
+                        <p class="text-sm font-bold ${timeColorClass} mt-1">${formattedDepTime}</p>
                     </div>
                     <div class="text-right">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Arrive</p>
                         <p class="text-lg font-black text-gray-900 dark:text-white leading-tight">${step.to.replace(' STATION', '')}</p>
-                        <p class="text-sm font-bold ${timeColorClass} mt-1">${step.arrTime}</p>
+                        <p class="text-sm font-bold ${timeColorClass} mt-1">${formattedArrTime}</p>
                     </div>
                 </div>
             </div>

@@ -139,10 +139,11 @@ const ROUTES = {
         destB: 'IRENE STATION', 
         transferStation: null, 
         sheetKeys: { 
-            weekday_to_a: 'kemp_to_pta_weekday', 
-            weekday_to_b: 'pta_to_kemp_weekday', 
-            saturday_to_a: 'kemp_to_pta_sat', 
-            saturday_to_b: 'pta_to_kemp_sat' 
+            // FIXED: Now points to correct Irene data keys instead of Kempton
+            weekday_to_a: 'irene_to_pta_weekday', 
+            weekday_to_b: 'pta_to_irene_weekday', 
+            saturday_to_a: 'irene_to_pta_sat', 
+            saturday_to_b: 'pta_to_irene_sat' 
         } 
     },
     'jhb-germiston': { 
