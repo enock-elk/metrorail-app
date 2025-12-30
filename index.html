@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.10 (Visual Stability Update)
-  - Added fixed height (h-[34px]) to header pills to prevent layout shift between tabs.
+  Metrorail Next Train V4.10 (Fail-Safe Edition)
+  - Added Backup Loader Timeout to prevent infinite loading screens on mobile.
+  - Preserved Height Fix from V4.09.
 -->
 <html lang="en" class="dark">
 
@@ -560,5 +561,18 @@
     <script src="js/planner.js"></script>
     <script src="js/map-viewer.js"></script> 
     <script src="js/ui.js"></script>
+
+    <!-- Fail-Safe Script: Kills loading screen if JS hangs -->
+    <script>
+        setTimeout(() => {
+            const overlay = document.getElementById('loading-overlay');
+            const content = document.getElementById('main-content');
+            if (overlay && overlay.style.display !== 'none') {
+                document.getElementById('loading-text').innerHTML = 
+                    '<span style="color:red">Loading Timeout</span><br><button onclick="window.location.reload(true)" style="padding:10px; margin-top:10px; border-radius:5px; background:white; color:black; font-weight:bold;">Force Reload</button>';
+                console.error("App load timeout - JS might be stalled.");
+            }
+        }, 8000); // 8 Seconds Safety Limit
+    </script>
 </body>
 </html>
