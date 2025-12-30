@@ -501,23 +501,76 @@ function setupModalButtons() {
     scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
 }
 
-// --- TAB SWITCHING LOGIC (New V3.70) ---
+// --- TAB SWITCHING LOGIC (New V3.70 & V4.05 Animated) ---
 function switchTab(tab) {
     // Reset Buttons
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     // Hide Views
     document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
     
+    let targetBtn;
     if (tab === 'next-train') {
-        document.getElementById('tab-next-train').classList.add('active');
+        targetBtn = document.getElementById('tab-next-train');
         document.getElementById('view-next-train').classList.add('active');
     } else {
-        document.getElementById('tab-trip-planner').classList.add('active');
+        targetBtn = document.getElementById('tab-trip-planner');
         document.getElementById('view-trip-planner').classList.add('active');
+    }
+    
+    if(targetBtn) {
+        targetBtn.classList.add('active');
+        moveTabIndicator(targetBtn);
     }
     
     // Save state
     localStorage.setItem('activeTab', tab);
+}
+
+// NEW: Animated Tab Indicator Logic
+function initTabIndicator() {
+    const tabNext = document.getElementById('tab-next-train');
+    if (!tabNext) return;
+    
+    const container = tabNext.parentElement;
+    if (!container) return;
+    
+    container.classList.add('relative'); // Ensure positioning context
+
+    // 1. Create the sliding line if missing
+    let indicator = document.getElementById('tab-sliding-indicator');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'tab-sliding-indicator';
+        // Tailwind: absolute bottom, height, transition
+        indicator.className = "absolute bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400 transition-all duration-300 ease-out z-10";
+        container.appendChild(indicator);
+        
+        // 2. Inject CSS to hide the default borders on buttons
+        const style = document.createElement('style');
+        style.innerHTML = `
+            .tab-btn { border-bottom-color: transparent !important; }
+            .tab-btn.active { border-bottom-color: transparent !important; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // 3. Set initial position
+    const activeBtn = document.querySelector('.tab-btn.active') || tabNext;
+    moveTabIndicator(activeBtn);
+
+    // 4. Handle Resize
+    window.addEventListener('resize', () => {
+        const current = document.querySelector('.tab-btn.active');
+        if (current) moveTabIndicator(current);
+    });
+}
+
+function moveTabIndicator(element) {
+    const indicator = document.getElementById('tab-sliding-indicator');
+    if (!indicator || !element) return;
+    
+    indicator.style.width = `${element.offsetWidth}px`;
+    indicator.style.transform = `translateX(${element.offsetLeft}px)`;
 }
 
 // Repurposed to handle tab switching for backward compatibility
@@ -1187,6 +1240,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
     setupMapLogic(); // NEW MAP LOGIC
     setupSwipeNavigation(); // NEW SWIPE LOGIC
+    initTabIndicator(); // NEW ANIMATED TABS
     // setupPlannerModal(); // REMOVED: This was unconditionally switching to the planner tab.
 
     // 3. Startup Logic
