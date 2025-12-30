@@ -354,7 +354,7 @@ function updateTime() {
         }
 
         currentTime = timeString; 
-        if(currentTimeEl) currentTimeEl.textContent = `Current Time: ${timeString} ${isSimMode ? '(SIM)' : ''}`;
+        if(currentTimeEl) currentTimeEl.textContent = timeString;
         
         let newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
         let specialStatusText = "";
@@ -385,7 +385,7 @@ function updateTime() {
         else if (newDayType === 'saturday') displayType = "Saturday Schedule";
         else displayType = "Weekday Schedule";
 
-        if(currentDayEl) currentDayEl.innerHTML = `${dayNames[day]} <span class="text-blue-600 dark:text-blue-400 font-bold">${displayType}</span>${specialStatusText}`;
+        if(currentDayEl) currentDayEl.innerHTML = `${dayNames[day]} <span class="font-bold text-blue-600 dark:text-blue-400">${displayType}</span>${specialStatusText}`;
         
         findNextTrains();
     } catch(e) {
@@ -447,42 +447,26 @@ function setupModalButtons() {
     scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
 }
 
-// --- TRIP PLANNER MODAL LOGIC (New V3.51) ---
-function setupPlannerModal() {
-    const plannerModal = document.getElementById('planner-modal');
-    const openBtn = document.getElementById('open-planner-btn');
-    const closeBtn = document.getElementById('close-planner-btn');
-    // NEW: Main Screen Shortcut (V3.63)
-    const mainPlannerBtn = document.getElementById('main-planner-btn');
+// --- TAB SWITCHING LOGIC (New V3.70) ---
+function switchTab(tab) {
+    // Reset Buttons
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    // Hide Views
+    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
     
-    if (!plannerModal || !openBtn || !closeBtn) return;
+    if (tab === 'next-train') {
+        document.getElementById('tab-next-train').classList.add('active');
+        document.getElementById('view-next-train').classList.add('active');
+    } else {
+        document.getElementById('tab-trip-planner').classList.add('active');
+        document.getElementById('view-trip-planner').classList.add('active');
+    }
+}
 
-    const openPlanner = () => {
-        plannerModal.classList.remove('hidden');
-        // Small delay to allow transition
-        setTimeout(() => {
-            plannerModal.classList.remove('translate-y-full');
-        }, 10);
-        
-        // Close sidebar if open
-        if(sidenav) {
-            sidenav.classList.remove('open');
-            sidenavOverlay.classList.remove('open');
-            document.body.classList.remove('sidenav-open');
-        }
-    };
-
-    const closePlanner = () => {
-        plannerModal.classList.add('translate-y-full');
-        setTimeout(() => {
-            plannerModal.classList.add('hidden');
-        }, 300);
-    };
-
-    openBtn.addEventListener('click', openPlanner);
-    closeBtn.addEventListener('click', closePlanner);
-    // Attach listener to shortcut
-    if(mainPlannerBtn) mainPlannerBtn.addEventListener('click', openPlanner);
+// Repurposed to handle tab switching for backward compatibility
+function setupPlannerModal() {
+    // If logic.js or other files call this, it now just switches tabs
+    switchTab('trip-planner');
 }
 
 // --- MAP MODAL LOGIC (UPDATED V3.49: Gestures) ---
@@ -775,10 +759,7 @@ function setupRedirectLogic() {
         e.preventDefault(); 
         showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?"); 
     }); 
-    checkUpdatesBtn.addEventListener('click', (e) => { 
-        e.preventDefault(); 
-        showRedirectModal(checkUpdatesBtn.href, "Visit Facebook for official updates?"); 
-    }); 
+    // REMOVED: checkUpdatesBtn event listener logic
 }
 
 function showRedirectModal(url, message) {
@@ -1013,6 +994,10 @@ document.addEventListener('DOMContentLoaded', () => {
     closeLegalBtn2.addEventListener('click', closeLegal);
     legalModal.addEventListener('click', (e) => { if (e.target === legalModal) closeLegal(); });
     
+    // NEW: Tab Switch Listeners (V3.70)
+    document.getElementById('tab-next-train').addEventListener('click', () => switchTab('next-train'));
+    document.getElementById('tab-trip-planner').addEventListener('click', () => switchTab('trip-planner'));
+
     // NEW: Help Modal Listeners (V3.62)
     const helpModal = document.getElementById('help-modal');
     const openHelpBtn = document.getElementById('open-help-btn');
