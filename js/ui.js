@@ -756,6 +756,62 @@ function setupMapLogic() {
     });
 }
 
+// --- SWIPE NAVIGATION LOGIC (New V4.04) ---
+function setupSwipeNavigation() {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const contentArea = document.getElementById('main-content');
+
+    if (!contentArea) return;
+
+    contentArea.addEventListener('touchstart', (e) => {
+        // Guard: Don't track if Sidenav or Modals are open
+        if (document.body.classList.contains('sidenav-open') || 
+            !document.getElementById('map-modal').classList.contains('hidden') ||
+            !document.getElementById('schedule-modal').classList.contains('hidden')) {
+            return;
+        }
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+    }, {passive: true});
+
+    contentArea.addEventListener('touchend', (e) => {
+        // Guard: Same checks
+        if (document.body.classList.contains('sidenav-open') || 
+            !document.getElementById('map-modal').classList.contains('hidden') ||
+            !document.getElementById('schedule-modal').classList.contains('hidden')) {
+            return;
+        }
+
+        const touchEndX = e.changedTouches[0].screenX;
+        const touchEndY = e.changedTouches[0].screenY;
+        
+        handleSwipe(touchStartX, touchEndX, touchStartY, touchEndY);
+    }, {passive: true});
+}
+
+function handleSwipe(startX, endX, startY, endY) {
+    const minSwipeDistance = 75;
+    const maxVerticalVariance = 50; // Don't switch if scrolling down
+
+    const distX = startX - endX;
+    const distY = Math.abs(startY - endY);
+
+    // 1. Check Vertical variance (ignore if user was scrolling page)
+    if (distY > maxVerticalVariance) return;
+
+    // 2. Check Swipe Distance
+    if (Math.abs(distX) > minSwipeDistance) {
+        if (distX > 0) {
+            // Swiped Left (Next Train -> Planner)
+            switchTab('trip-planner');
+        } else {
+            // Swiped Right (Planner -> Next Train)
+            switchTab('next-train');
+        }
+    }
+}
+
 window.openScheduleModal = function(destination) {
     if (!currentScheduleData || !currentScheduleData[destination]) { showToast("No full schedule data available.", "error"); return; }
     const journeys = currentScheduleData[destination]; 
@@ -1130,6 +1186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
     setupMapLogic(); // NEW MAP LOGIC
+    setupSwipeNavigation(); // NEW SWIPE LOGIC
     // setupPlannerModal(); // REMOVED: This was unconditionally switching to the planner tab.
 
     // 3. Startup Logic
