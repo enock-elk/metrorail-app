@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.03 (Layout & Text Fixes)
+  Metrorail Next Train V4.04 (Layout & Text Fixes)
   - Moved Fare Display below schedule cards
 -->
 <html lang="en" class="dark">
@@ -267,17 +267,26 @@
 
         <!-- VIEW 2: TRIP PLANNER -->
         <div id="view-trip-planner" class="view-section p-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
-            <!-- FIXED HEIGHT SPACER TO MATCH TAB 1 EXACTLY -->
-            <div class="text-center mb-6 h-[60px] flex flex-col items-center justify-center">
-                <!-- Invisible placeholder content to enforce height -->
-                <div class="inline-flex items-center justify-center space-x-2 px-4 py-1.5 rounded-full border border-transparent mb-1 opacity-0 pointer-events-none">
-                    <h2 class="text-sm font-bold">Placeholder</h2>
-                    <svg class="w-4 h-4"><path d="M0 0"></path></svg>
-                </div>
-                <p class="text-[10px] font-medium uppercase tracking-wide opacity-0 pointer-events-none">Placeholder</p>
-            </div>
+            <!-- Removed Spacer Div -->
             
             <div id="planner-input-section" class="space-y-6">
+                <!-- Info Notice Block -->
+                <div class="mb-6 p-4 bg-blue-50 dark:bg-gray-800 border-l-4 border-blue-500 rounded-r-lg shadow-sm">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-bold text-gray-900 dark:text-white">Trip Planner Limit</h3>
+                            <div class="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                                Currently supports Direct Trips & Single Transfers (Max 2 Trains). For longer journeys, please plan your route in segments.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- FROM SECTION (Copied exactly from Next Train Tab) -->
                 <div class="mb-4">
                     <div class="mb-2 h-5">

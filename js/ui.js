@@ -387,6 +387,31 @@ function updateTime() {
         else if (newDayType === 'saturday') displayType = "Saturday Schedule";
         else displayType = "Weekday Schedule";
 
+        // --- SPECIFIC DATE OVERRIDES (Dec 2025 / Jan 2026) ---
+        // STRICTLY for header text modification as requested. 
+        if (!isSimMode && now) {
+            const d = now.getDate();
+            const m = now.getMonth(); // 0-11
+            const y = now.getFullYear();
+
+            // 30 & 31 Dec 2025
+            if (y === 2025 && m === 11 && (d === 30 || d === 31)) {
+                displayType = "Scaled-Down Weekday Schedule";
+                specialStatusText = ""; // Clear holiday text to match exact request
+            }
+            // 1 Jan 2026
+            else if (y === 2026 && m === 0 && d === 1) {
+                displayType = "New Year's Day Schedule";
+                specialStatusText = "";
+            }
+            // 2 Jan 2026
+            else if (y === 2026 && m === 0 && d === 2) {
+                displayType = "Scaled-Down Weekday Schedule";
+                specialStatusText = "";
+            }
+        }
+        // -----------------------------------------------------
+
         if(currentDayEl) currentDayEl.innerHTML = `${dayNames[day]} <span class="font-bold text-blue-600 dark:text-blue-400">${displayType}</span>${specialStatusText}`;
         
         // --- NEW: Auto-update Planner Day Selector ---

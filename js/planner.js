@@ -991,10 +991,11 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                         <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive at ${step.transferStation.replace(' STATION', '')}</span>
                         <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg1Arr}</span>
                     </div>
-                    <div class="text-xs text-yellow-600 dark:text-yellow-400 font-medium bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border border-yellow-100 dark:border-yellow-800 text-left">
-                        <span class="block font-bold">🔀 Transfer Required!</span>
-                        <span class="block mt-1">🚉 Move to the correct platform.</span>
-                        <span class="block mt-1 text-gray-600 dark:text-gray-300">⏳ Wait <span class="font-black text-gray-900 dark:text-white text-sm">${waitString}</span> for Train ${step.leg2.train} to arrive.</span>
+                    <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500">
+                        <div class="font-bold uppercase tracking-wide mb-1">Transfer Required</div>
+                        <div class="text-gray-600 dark:text-gray-400">
+                            <span class="font-bold text-gray-900 dark:text-white">⏳ ${waitString} Layover</span> &bull; Connect to Train ${step.leg2.train}
+                        </div>
                     </div>
                 </div>
             </div>
