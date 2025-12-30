@@ -421,9 +421,22 @@ function executeTripPlan(origin, dest) {
         // 1. Try Direct Trip First
         const directPlan = planDirectTrip(origin, dest);
 
+        // Find best next trip index
+        let nextTripIndex = 0;
+        if (directPlan.trips && directPlan.trips.length > 0) {
+            // Find first trip that is in future relative to NOW (if planning for today)
+            // If planning for future day, index 0 is correct
+            if (!selectedPlannerDay || selectedPlannerDay === currentDayType) {
+                const nowSec = timeToSeconds(currentTime);
+                const idx = directPlan.trips.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
+                if (idx !== -1) nextTripIndex = idx;
+                else nextTripIndex = directPlan.trips.length - 1; // Or handle 'no more today' logic separately
+            }
+        }
+
         if (directPlan.status === 'FOUND') {
             currentTripOptions = directPlan.trips;
-            renderTripResult(resultsContainer, currentTripOptions, 0);
+            renderTripResult(resultsContainer, currentTripOptions, nextTripIndex);
         } 
         else if (directPlan.status === 'NO_MORE_TODAY') {
             currentTripOptions = directPlan.trips;
@@ -438,9 +451,19 @@ function executeTripPlan(origin, dest) {
             // 2. No Direct? Try Transfer Logic (Including Inter-Route)
             const transferPlan = planHubTransferTrip(origin, dest);
             
+            // Find best next trip index for transfer
+            let nextTransferIndex = 0;
+            if (transferPlan.trips && transferPlan.trips.length > 0) {
+                if (!selectedPlannerDay || selectedPlannerDay === currentDayType) {
+                    const nowSec = timeToSeconds(currentTime);
+                    const idx = transferPlan.trips.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
+                    if (idx !== -1) nextTransferIndex = idx;
+                }
+            }
+            
             if (transferPlan.status === 'FOUND') {
                 currentTripOptions = transferPlan.trips;
-                renderTripResult(resultsContainer, currentTripOptions, 0);
+                renderTripResult(resultsContainer, currentTripOptions, nextTransferIndex);
             } 
             else if (directPlan.status === 'NO_SERVICE') {
                  // Explicitly handle "No Service" separately from "No Route"
@@ -508,7 +531,10 @@ function planDirectTrip(origin, dest) {
                     pathFoundToday = true; // We found the path in today's sheets (even if empty)
                     pathExistsGenerally = true;
                     
-                    const upcomingTrains = findUpcomingTrainsForLeg(schedule, originRow, destRow);
+                    // UPDATED: Allow ALL trains for the day to return, not just upcoming. 
+                    // This allows showing past trains in grey.
+                    // We pass true for 'includePast' param to findUpcomingTrainsForLeg
+                    const upcomingTrains = findUpcomingTrainsForLeg(schedule, originRow, destRow, true);
                     
                     if (upcomingTrains.length > 0) {
                         const tripObjects = upcomingTrains.map(info => 
@@ -680,7 +706,8 @@ function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
                 const idxB = schedule.rows.indexOf(rowB);
 
                 if (idxA < idxB) {
-                    const trains = findUpcomingTrainsForLeg(schedule, rowA, rowB);
+                    // UPDATED: allowPast = true to find all possibilities, then filter later
+                    const trains = findUpcomingTrainsForLeg(schedule, rowA, rowB, true);
                     trains.forEach(t => {
                         legs.push(createTripObject(routeConfig, t, schedule, idxA, idxB, stationA, stationB));
                     });
@@ -772,10 +799,11 @@ function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, 
     return trip;
 }
 
-function findUpcomingTrainsForLeg(schedule, originRow, destRow) {
+// UPDATED: Added allowPast parameter to fetch all trains for the day
+function findUpcomingTrainsForLeg(schedule, originRow, destRow, allowPast = false) {
     // Check if we are planning for TODAY (real-time) or a future selected day
     const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
-    const nowSeconds = isToday ? timeToSeconds(currentTime) : 0; // If future day, show all trains (00:00+)
+    const nowSeconds = (isToday && !allowPast) ? timeToSeconds(currentTime) : 0; 
 
     const trains = schedule.headers.slice(1);
     
@@ -850,13 +878,23 @@ function renderErrorCard(title, message) {
     `;
 }
 
-// UPDATED HTML GENERATOR (Improved transfer text)
+// UPDATED HTML GENERATOR (Improved transfer text and added Grey Styling for Past Trains in Select)
 function generateTripCardHTML(step, isNextDay = false, allOptions = [], selectedIndex = 0) {
     let timelineHtml = '';
     
-    // UPDATED: Use formatTimeDisplay for core times
-    const formattedDepTime = formatTimeDisplay(step.depTime);
-    const formattedArrTime = formatTimeDisplay(step.arrTime);
+    // --- LOCAL HELPER FOR 12-HOUR FORMAT ---
+    const format12hSafe = (timeStr) => {
+        if (!timeStr) return "--:--";
+        const [h, m] = timeStr.split(':');
+        let hour = parseInt(h, 10);
+        const suffix = hour >= 12 ? 'PM' : 'AM';
+        hour = hour % 12 || 12;
+        return `${hour}:${m} ${suffix}`;
+    };
+
+    // UPDATED: Use format12hSafe for core times
+    const formattedDepTime = format12hSafe(step.depTime);
+    const formattedArrTime = format12hSafe(step.arrTime);
     
     // --- DIRECT TRIP TIMELINE ---
     if (step.type === 'DIRECT') {
@@ -918,7 +956,9 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
         if (waitMinutes > 59) {
             const hrs = Math.floor(waitMinutes / 60);
             const mins = waitMinutes % 60;
-            waitString = `${hrs} hr ${mins > 0 ? mins + ' min' : ''}`;
+            waitString = `<b>${hrs} hr ${mins > 0 ? mins + ' min' : ''}</b>`;
+        } else {
+            waitString = `<b>${waitMinutes} Minutes</b>`;
         }
 
         // Transfer Point (Arrival)
@@ -930,9 +970,10 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                         <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive at ${step.transferStation.replace(' STATION', '')}</span>
                         <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg1Arr}</span>
                     </div>
-                    <div class="text-xs text-yellow-600 dark:text-yellow-400 font-medium bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border border-yellow-100 dark:border-yellow-800">
-                        <span class="block font-bold">⚠️ Move to the correct platform</span>
-                        <span class="block mt-1">Wait ${waitString}</span>
+                    <div class="text-xs text-yellow-600 dark:text-yellow-400 font-medium bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border border-yellow-100 dark:border-yellow-800 text-left">
+                        <span class="block font-bold">🔀 Transfer Required!</span>
+                        <span class="block mt-1">🚉 Move to the correct platform.</span>
+                        <span class="block mt-1 text-gray-600 dark:text-gray-300">⏳ Wait <span class="font-black text-gray-900 dark:text-white text-sm">${waitString}</span> for Train ${step.leg2.train} to arrive.</span>
                     </div>
                 </div>
             </div>
@@ -971,21 +1012,84 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
     const headerBg = step.type === 'TRANSFER' ? 'text-yellow-600 dark:text-yellow-400' : timeColorClass;
 
     // Build Selector Options
+    // NEW: Grey out past trains based on current time comparison
     let optionsHtml = '';
     if (allOptions.length > 1) {
         optionsHtml = `<div class="px-4 pb-2">
             <label class="text-[10px] uppercase font-bold text-gray-500 mb-1 block">Choose Departure:</label>
             <select onchange="selectPlannerTrip(this.value)" class="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded p-2 focus:ring-blue-500 focus:border-blue-500">`;
         
+        const nowSec = timeToSeconds(currentTime);
+        // Only consider past/future if looking at today's schedule
+        const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
+
         allOptions.forEach((opt, idx) => {
             const selected = idx === selectedIndex ? 'selected' : '';
             const typeLabel = opt.type === 'TRANSFER' ? 'Transfer' : 'Direct';
             // UPDATED: Format option time
             const optTime = formatTimeDisplay(opt.depTime);
-            optionsHtml += `<option value="${idx}" ${selected}>${optTime} - ${typeLabel}</option>`;
+            
+            // Check if train is in past
+            const trainSec = timeToSeconds(opt.depTime);
+            const isPast = isToday && trainSec < nowSec;
+            const pastStyle = isPast ? 'style="color: #9ca3af;"' : ''; // Grey text for past
+            const pastLabel = isPast ? ' (Departed)' : '';
+
+            optionsHtml += `<option value="${idx}" ${selected} ${pastStyle} ${isPast ? 'class="text-gray-400"' : ''}>${optTime} - ${typeLabel}${pastLabel}</option>`;
         });
         
         optionsHtml += `</select></div>`;
+    }
+
+    // --- COUNTDOWN & DURATION CALCULATION ---
+    const nowTotalSeconds = timeToSeconds(currentTime);
+    const depTotalSeconds = timeToSeconds(step.depTime);
+    const arrTotalSeconds = timeToSeconds(step.arrTime);
+    
+    // Countdown
+    let timeUntilDepStr = "";
+    // Only show countdown if trip is today and in the future
+    if ((!selectedPlannerDay || selectedPlannerDay === currentDayType) && depTotalSeconds > nowTotalSeconds) {
+        const diff = depTotalSeconds - nowTotalSeconds;
+        const hrs = Math.floor(diff / 3600);
+        const mins = Math.floor((diff % 3600) / 60);
+        
+        if (hrs > 0) timeUntilDepStr = `Departs in ${hrs}h ${mins}m`;
+        else timeUntilDepStr = `Departs in ${mins} min`;
+    } else if ((!selectedPlannerDay || selectedPlannerDay === currentDayType) && depTotalSeconds <= nowTotalSeconds) {
+         timeUntilDepStr = "Departed";
+    }
+
+    // Total Duration
+    let durationStr = "";
+    let durationSec = arrTotalSeconds - depTotalSeconds;
+    if (durationSec > 0) {
+        const dHrs = Math.floor(durationSec / 3600);
+        const dMins = Math.floor((durationSec % 3600) / 60);
+        if (dHrs > 0) durationStr = `${dHrs}h ${dMins}m`;
+        else durationStr = `${dMins}m`;
+    }
+
+    // --- UPDATED INSTRUCTION SECTION ---
+    // Removed Transfer Instruction from blue box, kept only timeline update.
+    let instructionContent = "";
+    if (step.type === 'TRANSFER') {
+        // If transfer, maybe show nothing or generic tip? 
+        // User requested removing the transfer text below "Choose Departure".
+        // Let's just show a generic "Check timeline below" or hide the box if empty.
+        // Actually, let's keep the box but make it minimal or remove the transfer specific text.
+        // We will just hide the instruction block for transfers since the timeline has details.
+    } else {
+        instructionContent = `
+            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/50">
+                <div class="flex items-start">
+                    <span class="text-xl mr-3">💡</span>
+                    <p class="text-sm text-gray-700 dark:text-gray-300 leading-snug">
+                        <b>Instruction:</b> Take train <b>${step.train}</b> on the <b>${routeName}</b> line.
+                    </p>
+                </div>
+            </div>
+        `;
     }
 
     return `
@@ -1001,34 +1105,37 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                     <div class="text-left">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Depart</p>
                         <p class="text-lg font-black text-gray-900 dark:text-white leading-tight">${step.from.replace(' STATION', '')}</p>
-                        <p class="text-sm font-bold ${timeColorClass} mt-1">${formattedDepTime}</p>
+                        <p class="text-base font-black ${timeColorClass} mt-1">${formattedDepTime}</p>
                     </div>
                     <div class="text-right">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Arrive</p>
                         <p class="text-lg font-black text-gray-900 dark:text-white leading-tight">${step.to.replace(' STATION', '')}</p>
-                        <p class="text-sm font-bold ${timeColorClass} mt-1">${formattedArrTime}</p>
+                        <p class="text-base font-black ${timeColorClass} mt-1">${formattedArrTime}</p>
                     </div>
+                </div>
+                
+                <!-- NEW: TIME INFO ROW -->
+                <div class="flex justify-between items-center mt-3 pt-2 border-t border-gray-200 dark:border-gray-600">
+                     <div class="flex items-center text-sm font-bold text-blue-600 dark:text-blue-400">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        ${timeUntilDepStr}
+                     </div>
+                     <div class="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        Duration: ${durationStr}
+                     </div>
                 </div>
             </div>
 
             <!-- OPTIONS DROPDOWN -->
             ${optionsHtml}
 
-            <!-- INSTRUCTION -->
-            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/50">
-                <div class="flex items-start">
-                    <span class="text-xl mr-3">💡</span>
-                    <p class="text-sm text-gray-700 dark:text-gray-300 leading-snug">
-                        ${step.type === 'TRANSFER' 
-                            ? `<b>Transfer Required:</b> Change at <b>${step.transferStation.replace(' STATION','')}</b> to reach your destination.` 
-                            : `<b>Instruction:</b> Take train <b>${step.train}</b> on the <b>${routeName}</b> line.`}
-                    </p>
-                </div>
-            </div>
+            <!-- INSTRUCTION (Conditionally Rendered) -->
+            ${instructionContent}
 
             <!-- TIMELINE -->
             <div class="p-4 bg-white dark:bg-gray-800">
-                <p class="text-xs font-bold text-gray-400 uppercase mb-2">Schedule Timeline</p>
+                <p class="text-xs font-bold text-gray-400 uppercase mb-2">Journey Timeline</p>
                 ${timelineHtml}
             </div>
 

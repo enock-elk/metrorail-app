@@ -354,7 +354,9 @@ function updateTime() {
         }
 
         currentTime = timeString; 
-        if(currentTimeEl) currentTimeEl.textContent = timeString;
+        
+        // --- UPDATED: Time Format "Current Time: HH:MM:SS" ---
+        if(currentTimeEl) currentTimeEl.textContent = `Current Time: ${timeString} ${isSimMode ? '(SIM)' : ''}`;
         
         let newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
         let specialStatusText = "";
@@ -387,6 +389,17 @@ function updateTime() {
 
         if(currentDayEl) currentDayEl.innerHTML = `${dayNames[day]} <span class="font-bold text-blue-600 dark:text-blue-400">${displayType}</span>${specialStatusText}`;
         
+        // --- NEW: Auto-update Planner Day Selector ---
+        const plannerDaySelect = document.getElementById('planner-day-select');
+        if (plannerDaySelect) {
+            // Only update if not user-interacted or if we want forced sync (preferred for "Live" feel)
+            // Or simpler: just ensure it defaults to current day if not set
+            if (!selectedPlannerDay) {
+                plannerDaySelect.value = currentDayType;
+                selectedPlannerDay = currentDayType;
+            }
+        }
+
         findNextTrains();
     } catch(e) {
         console.error("Error in updateTime", e);
@@ -438,6 +451,22 @@ function populateStationList() {
     if (allStations.includes(currentSelectedStation)) stationSelect.value = currentSelectedStation; else stationSelect.value = ""; 
 }
 
+// --- SYNC HELPER: Updates Planner from Main Select ---
+function syncPlannerFromMain(stationName) {
+    if (!stationName) return;
+    const plannerInput = document.getElementById('planner-from-search');
+    const plannerSelect = document.getElementById('planner-from');
+    
+    // Only sync if elements exist
+    if (plannerInput && plannerSelect) {
+        // Find matching option in planner select logic (reuse logic.js normalize if needed, but strings should match)
+        // Set hidden select value
+        plannerSelect.value = stationName;
+        // Set visible input text (removing ' STATION' suffix for cleaner look)
+        plannerInput.value = stationName.replace(' STATION', '');
+    }
+}
+
 // --- SETUP FUNCTIONS ---
 
 function setupModalButtons() { 
@@ -461,6 +490,9 @@ function switchTab(tab) {
         document.getElementById('tab-trip-planner').classList.add('active');
         document.getElementById('view-trip-planner').classList.add('active');
     }
+    
+    // Save state
+    localStorage.setItem('activeTab', tab);
 }
 
 // Repurposed to handle tab switching for backward compatibility
@@ -1065,10 +1097,15 @@ document.addEventListener('DOMContentLoaded', () => {
         updateTime(); 
     });
 
-    stationSelect.addEventListener('change', findNextTrains);
+    // --- UPDATED: Listener calls sync helper ---
+    stationSelect.addEventListener('change', () => {
+        syncPlannerFromMain(stationSelect.value);
+        findNextTrains();
+    });
+    
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
     setupMapLogic(); // NEW MAP LOGIC
-    setupPlannerModal(); // NEW V3.51
+    // setupPlannerModal(); // REMOVED: This was unconditionally switching to the planner tab.
 
     // 3. Startup Logic
     const savedDefault = localStorage.getItem('defaultRoute');
@@ -1089,5 +1126,16 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("First time user (or no pinned route). Showing Welcome Screen.");
         loadingOverlay.style.display = 'none';
         showWelcomeScreen();
+    }
+
+    // --- RESTORE ACTIVE TAB (New Requirement) ---
+    // If user has a saved tab preference, load it. Otherwise, default to 'next-train'.
+    // If first load (no localStorage entry), it defaults to 'next-train'.
+    const lastActiveTab = localStorage.getItem('activeTab');
+    if (lastActiveTab) {
+        switchTab(lastActiveTab);
+    } else {
+        // Explicitly set default if nothing saved
+        switchTab('next-train');
     }
 });

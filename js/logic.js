@@ -895,6 +895,12 @@ function findNearestStation(isAuto = false) {
                 }
 
                 if (matched) {
+                    // --- SYNC PLANNER INPUT ---
+                    if (typeof syncPlannerFromMain === 'function') {
+                        syncPlannerFromMain(stationSelect.value);
+                    }
+                    // ---------------------------
+
                     findNextTrains(); 
                     if (!isAuto) {
                         showToast(`Found: ${stationName.replace(' STATION', '')} (${distStr}km)`, "success");
