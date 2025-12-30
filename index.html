@@ -1,20 +1,11 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.06 (Layout & Text Fixes)
-  - Moved Fare Display below schedule cards
+  Metrorail Next Train V4.09 (Visual Stability Update)
+  - Added fixed height (h-[34px]) to header pills to prevent layout shift between tabs.
 -->
 <html lang="en" class="dark">
 
 <head>
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-
-      gtag('config', 'G-JM5DH6ERVX');
-    </script>
-    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
 
@@ -22,6 +13,16 @@
     <meta name="description" content="Check live train schedules and fares.">
     
     <link rel="manifest" href="manifest.json">
+    
+    <!-- CRITICAL: Google Analytics 4 (Measurement ID: G-JM5DH6ERVX) -->
+    <!-- DO NOT REMOVE OR EDIT THIS SCRIPT TAG -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-JM5DH6ERVX');
+    </script>
     
     <script>
         window.deferredInstallPrompt = null;
@@ -175,8 +176,8 @@
         <!-- VIEW 1: NEXT TRAIN -->
         <div id="view-next-train" class="view-section active p-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
             
-            <div class="text-center mb-6 h-auto">
-                <div id="route-subtitle" class="inline-flex items-center justify-center space-x-2 cursor-pointer group bg-white dark:bg-gray-800 px-4 py-1.5 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-2">
+            <div class="text-center mb-6 h-[50px] flex flex-col justify-center">
+                <div id="route-subtitle" class="inline-flex items-center justify-center space-x-2 cursor-pointer group bg-white dark:bg-gray-800 px-4 py-1.5 h-[34px] rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1">
                     <h2 id="route-subtitle-text" class="text-sm font-bold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 transition-colors">
                         Pretoria <-> Pienaarspoort
                     </h2>
@@ -276,26 +277,20 @@
 
         <!-- VIEW 2: TRIP PLANNER -->
         <div id="view-trip-planner" class="view-section p-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
-            <!-- Removed Spacer Div -->
+            <!-- FIXED HEIGHT SPACER TO MATCH TAB 1 EXACTLY -->
+            <div class="text-center mb-6 h-[50px] flex flex-col justify-center">
+                <!-- Replaced large text with a styled container matching "Next Train" -->
+                <div class="inline-flex items-center justify-center space-x-2 bg-white dark:bg-gray-800 px-4 py-1.5 h-[34px] rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1">
+                    <h2 class="text-sm font-bold text-gray-700 dark:text-gray-200">
+                        Direct & Single Transfer Trips Only
+                    </h2>
+                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <!-- Invisible Spacer Text to match the "Schedule Updated" line height in Tab 1 -->
+                <p class="text-[10px] text-transparent font-medium uppercase tracking-wide select-none">Schedule updated: 22 December 2025</p>
+            </div>
             
             <div id="planner-input-section" class="space-y-6">
-                <!-- Info Notice Block -->
-                <div class="mb-6 p-4 bg-blue-50 dark:bg-gray-800 border-l-4 border-blue-500 rounded-r-lg shadow-sm">
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0">
-                            <svg class="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                            </svg>
-                        </div>
-                        <div class="ml-3">
-                            <h3 class="text-sm font-bold text-gray-900 dark:text-white">Trip Planner Limit</h3>
-                            <div class="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                                Currently supports Direct Trips & Single Transfers (Max 2 Trains). For longer journeys, please plan your route in segments.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- FROM SECTION (Copied exactly from Next Train Tab) -->
                 <div class="mb-4">
                     <div class="mb-2 h-5">
@@ -559,9 +554,11 @@
     </div>
 
     <!-- SCRIPTS -->
+    <script src="js/utils.js"></script>
     <script src="js/config.js"></script>
     <script src="js/logic.js"></script>
     <script src="js/planner.js"></script>
+    <script src="js/map-viewer.js"></script> 
     <script src="js/ui.js"></script>
 </body>
 </html>

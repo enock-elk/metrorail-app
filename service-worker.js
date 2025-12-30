@@ -1,11 +1,16 @@
-const CACHE_NAME = 'metrorail-next-train-v4.06'; // Incremented Version for Cross-Corridor Logic
+const CACHE_NAME = 'metrorail-next-train-v4.09'; // Incremented for Map Viewer Module
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './map.html',
+  './status.html',
   './css/style.css',
   './css/custom.css',
   './js/config.js',
+  './js/utils.js',
   './js/logic.js',
+  './js/planner.js',
+  './js/map-viewer.js',   // ADDED: New Map Module
   './js/ui.js',
   './manifest.json',
   './icons/icon-192.png',
@@ -18,7 +23,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Caching local app assets (V3.48)...');
+        console.log('Caching local app assets (V4.08)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {
