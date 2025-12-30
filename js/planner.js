@@ -541,6 +541,13 @@ function planDirectTrip(origin, dest) {
                             createTripObject(routeConfig, info, schedule, originIdx, destIdx, origin, dest)
                         );
                         bestTrips = [...bestTrips, ...tripObjects];
+
+                        // --- FIX: Populate Cache for Direct Trip ---
+                        if (typeof findNextDirectTrain === 'function') {
+                            const { allJourneys } = findNextDirectTrain(origin, schedule, dest);
+                            if (!currentScheduleData) currentScheduleData = {};
+                            currentScheduleData[dest] = allJourneys;
+                        }
                     }
                 }
             }
@@ -706,6 +713,13 @@ function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
                 const idxB = schedule.rows.indexOf(rowB);
 
                 if (idxA < idxB) {
+                    // --- FIX: Populate Cache for Transfer Legs ---
+                    if (typeof findNextDirectTrain === 'function') {
+                        const { allJourneys } = findNextDirectTrain(stationA, schedule, stationB);
+                        if (!currentScheduleData) currentScheduleData = {};
+                        currentScheduleData[stationB] = allJourneys;
+                    }
+                    
                     // UPDATED: allowPast = true to find all possibilities, then filter later
                     const trains = findUpcomingTrainsForLeg(schedule, rowA, rowB, true);
                     trains.forEach(t => {
@@ -919,6 +933,12 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                     </div>
                 `;
             });
+            // NEW: Add "See Full Schedule" button if it's a direct trip (legacy position)
+            const safeDestForClick = step.to.replace(/'/g, "\\'").replace(' STATION', '');
+            timelineHtml += `
+                <div class="mt-4 pl-6">
+                    <button onclick="openScheduleModal('${safeDestForClick}')" class="text-xs font-bold text-blue-500 hover:text-blue-600 underline">See Full Schedule</button>
+                </div>`;
             timelineHtml += '</div>';
         }
     } 
@@ -933,6 +953,7 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
         timelineHtml = '<div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-6">';
         
         // Leg 1
+        const termStationSafe = step.transferStation.replace(/'/g, "\\'").replace(' STATION', '');
         timelineHtml += `
             <div class="relative pl-6">
                 <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
@@ -980,6 +1001,7 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
         `;
 
         // Leg 2 (Departure)
+        const destSafe = step.to.replace(/'/g, "\\'").replace(' STATION', '');
         timelineHtml += `
             <div class="relative pl-6">
                 <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>

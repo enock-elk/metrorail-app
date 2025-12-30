@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.01'; // Incremented Version for Cross-Corridor Logic
+const CACHE_NAME = 'metrorail-next-train-v4.02'; // Incremented Version for Cross-Corridor Logic
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
