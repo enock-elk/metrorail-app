@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.09'; // Incremented for Map Viewer Module
+const CACHE_NAME = 'metrorail-next-train-v4.10'; // Incremented for Map Viewer Module
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
