@@ -959,7 +959,7 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                 <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
                 <div class="flex flex-col">
                     <div class="flex justify-between items-center mb-1">
-                        <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.from.replace(' STATION', '')}</span>
+                        <span class="font-bold text-gray-900 dark:text-white text-sm">Depart from ${step.from.replace(' STATION', '')}</span>
                         <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg1Dep}</span>
                     </div>
                     <div class="text-xs text-blue-500 font-medium">Train ${step.leg1.train}</div>
@@ -1007,7 +1007,7 @@ function generateTripCardHTML(step, isNextDay = false, allOptions = [], selected
                 <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
                 <div class="flex flex-col">
                     <div class="flex justify-between items-center mb-1">
-                        <span class="font-bold text-gray-900 dark:text-white text-sm">Depart at ${step.transferStation.replace(' STATION', '')}</span>
+                        <span class="font-bold text-gray-900 dark:text-white text-sm">Depart from ${step.transferStation.replace(' STATION', '')}</span>
                         <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg2Dep}</span>
                     </div>
                     <div class="text-xs text-blue-500 font-medium">Train ${step.leg2.train}</div>
