@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
+    <title>End of the Line | Metrorail Next Train</title>
+    
+    <!-- CRITICAL: Google Analytics 4 (Measurement ID: G-JM5DH6ERVX) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-JM5DH6ERVX');
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Check system theme or saved preference immediately to prevent flash
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
+        // Configuration for Tailwind
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'blob': 'blob 7s infinite',
+                        'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* Custom scrollbar for a polished feel */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background-color: #475569;
+        }
+        
+        /* Glassmorphism utility */
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+        }
+        .dark .glass {
+            background: rgba(30, 41, 59, 0.7);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex items-center justify-center p-6 font-sans transition-colors duration-300 overflow-x-hidden">
+
+    <div class="max-w-6xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center relative z-10">
+        
+        <!-- Left Side: Content -->
+        <div class="text-center md:text-left order-2 md:order-1 space-y-6 animate-fade-in-up">
+            <p class="text-blue-600 dark:text-blue-400 font-bold tracking-wider uppercase text-sm">Error 404</p>
+            
+            <h1 class="text-5xl md:text-7xl font-black text-gray-900 dark:text-white leading-tight">
+                End of the <br>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">Line.</span>
+            </h1>
+            
+            <p class="text-lg text-gray-600 dark:text-gray-400 leading-relaxed max-w-lg mx-auto md:mx-0">
+                You've arrived at a station that doesn't exist. The train might have been delayed, or the tracks were never built.
+            </p>
+
+            <div class="pt-4 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                <a href="/" class="group relative inline-flex h-12 items-center justify-center overflow-hidden rounded-xl bg-blue-600 px-8 font-medium text-white shadow-lg transition-all duration-300 hover:bg-blue-700 hover:scale-105 hover:shadow-blue-500/25 active:scale-95">
+                    <span class="mr-2 h-5 w-5 transition-transform group-hover:-translate-x-1">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                    </span>
+                    <span>Back to Next Train homepage</span>
+                </a>
+            </div>
+            
+            <div class="pt-8 flex items-center justify-center md:justify-start gap-3 text-sm text-gray-400">
+                <span class="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+                System Operational
+            </div>
+        </div>
+
+        <!-- Right Side: Image/Visual -->
+        <div class="order-1 md:order-2 flex justify-center md:justify-end relative">
+            <!-- Decorative blobs -->
+            <div class="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 dark:opacity-10 animate-blob"></div>
+            <div class="absolute bottom-0 left-0 -ml-20 -mb-20 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 dark:opacity-10 animate-blob animation-delay-2000"></div>
+
+            <!-- Main Image Card -->
+            <!-- Mobile: Taller aspect ratio (3/4) | Desktop: Video aspect ratio (16/9) -->
+            <div class="relative w-full max-w-md aspect-[3/4] md:aspect-video rounded-3xl overflow-hidden shadow-2xl transform rotate-3 transition-transform hover:rotate-0 duration-500 bg-gray-200 dark:bg-gray-800">
+                
+                <picture class="w-full h-full block">
+                    <!-- Desktop: Landscape Image (screens wider than 768px) -->
+                    <source media="(min-width: 768px)" srcset="images/land-404.jpg">
+                    
+                    <!-- Mobile: Portrait Image (default fallback) -->
+                    <img 
+                        src="images/port-404.jpg" 
+                        alt="Empty Train Station" 
+                        class="object-cover w-full h-full"
+                    >
+                </picture>
+                
+                <!-- Overlay Gradient -->
+                <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                
+                <!-- Floating Element on Image -->
+                <div class="absolute bottom-6 left-6 right-6 p-4 glass rounded-xl border border-white/10 shadow-lg backdrop-blur-md animate-float">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg text-red-600 dark:text-red-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Status</p>
+                            <p class="text-sm font-bold text-gray-900 dark:text-white">Station Not Found</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
