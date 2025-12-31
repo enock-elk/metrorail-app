@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
+    <title>Signal Lost | Metrorail Next Train</title>
+    
+    <!-- FAVICONS -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=6">
+    <link rel="apple-touch-icon" href="icons/icon-192.png?v=6">
+    <link rel="shortcut icon" href="icons/icon-192.png?v=6" type="image/png">
+    
+    <!-- CRITICAL: Google Analytics 4 (Measurement ID: G-JM5DH6ERVX) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-JM5DH6ERVX');
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Check system theme or saved preference immediately to prevent flash
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
+        // Configuration for Tailwind
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'blob': 'blob 7s infinite',
+                        'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+        .dark ::-webkit-scrollbar-thumb { background-color: #475569; }
+        
+        /* Glassmorphism utility */
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
+        .dark .glass { background: rgba(30, 41, 59, 0.7); }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex items-center justify-center p-6 font-sans transition-colors duration-300 overflow-x-hidden">
+
+    <div class="max-w-6xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center relative z-10">
+        
+        <!-- Left Side: Content -->
+        <div class="text-center md:text-left order-2 md:order-1 space-y-6 animate-fade-in-up">
+            <p class="text-yellow-600 dark:text-yellow-400 font-bold tracking-wider uppercase text-sm">Offline Mode</p>
+            
+            <h1 class="text-5xl md:text-7xl font-black text-gray-900 dark:text-white leading-tight">
+                Signal <br>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 to-orange-600 dark:from-yellow-400 dark:to-orange-400">Lost.</span>
+            </h1>
+            
+            <p class="text-lg text-gray-600 dark:text-gray-400 leading-relaxed max-w-lg mx-auto md:mx-0">
+                It looks like you've entered a tunnel or lost internet connection. We can't reach the server right now.
+            </p>
+
+            <div class="pt-4 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                <button onclick="window.location.reload()" class="group relative inline-flex h-12 items-center justify-center overflow-hidden rounded-xl bg-blue-600 px-8 font-medium text-white shadow-lg transition-all duration-300 hover:bg-blue-700 hover:scale-105 hover:shadow-blue-500/25 active:scale-95">
+                    <span class="mr-2 h-5 w-5 transition-transform group-hover:rotate-180">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15" />
+                        </svg>
+                    </span>
+                    <span>Retry Connection</span>
+                </button>
+            </div>
+            
+            <div class="pt-8 flex items-center justify-center md:justify-start gap-3 text-sm text-gray-400">
+                <span class="flex h-2 w-2 rounded-full bg-yellow-500 animate-pulse"></span>
+                Waiting for Signal...
+            </div>
+        </div>
+
+        <!-- Right Side: Image/Visual -->
+        <div class="order-1 md:order-2 flex justify-center md:justify-end relative">
+            <!-- Decorative blobs -->
+            <div class="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 bg-yellow-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 dark:opacity-10 animate-blob"></div>
+            <div class="absolute bottom-0 left-0 -ml-20 -mb-20 w-72 h-72 bg-orange-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 dark:opacity-10 animate-blob animation-delay-2000"></div>
+
+            <!-- Main Image Card -->
+            <div class="relative w-full max-w-md aspect-[3/4] md:aspect-video rounded-3xl overflow-hidden shadow-2xl transform rotate-3 transition-transform hover:rotate-0 duration-500 bg-gray-200 dark:bg-gray-800">
+                
+                <picture class="w-full h-full block">
+                    <!-- Desktop: Landscape Image -->
+                    <source media="(min-width: 768px)" srcset="images/offline-land.jpg">
+                    
+                    <!-- Mobile: Portrait Image -->
+                    <img 
+                        src="images/offline-port.jpg" 
+                        alt="Train in tunnel" 
+                        class="object-cover w-full h-full grayscale opacity-80"
+                    >
+                </picture>
+                
+                <!-- Overlay Gradient -->
+                <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                
+                <!-- Floating Element on Image -->
+                <div class="absolute bottom-6 left-6 right-6 p-4 glass rounded-xl border border-white/10 shadow-lg backdrop-blur-md animate-float">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-yellow-100 dark:bg-yellow-900/50 rounded-lg text-yellow-600 dark:text-yellow-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"></path></svg>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Network</p>
+                            <p class="text-sm font-bold text-gray-900 dark:text-white">Disconnected</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

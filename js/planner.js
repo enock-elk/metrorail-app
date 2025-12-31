@@ -1,4 +1,4 @@
-// --- TRIP PLANNER LOGIC (V4.09 Optimized) ---
+// --- TRIP PLANNER LOGIC (V4.12 Smart History) ---
 
 // State
 let plannerOrigin = null;
@@ -41,6 +41,17 @@ function initPlanner() {
         daySelect.addEventListener('change', (e) => {
             selectedPlannerDay = e.target.value;
         });
+    }
+
+    // NEW: Inject Recent History Container
+    if (inputSection && !document.getElementById('planner-history-container')) {
+        const historyContainer = document.createElement('div');
+        historyContainer.id = 'planner-history-container';
+        historyContainer.className = "mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 hidden"; // Hidden by default
+        inputSection.appendChild(historyContainer);
+        
+        // Render history on load
+        renderPlannerHistory();
     }
 
     // Update Planner Time Display periodically (syncs with main clock)
@@ -232,6 +243,9 @@ function initPlanner() {
             return;
         }
 
+        // NEW: Save to History before executing
+        savePlannerHistory(from, to);
+        
         executeTripPlan(from, to);
     });
 
@@ -251,6 +265,85 @@ function initPlanner() {
         }
     });
 }
+
+// --- HISTORY FUNCTIONS (New V4.12) ---
+function savePlannerHistory(from, to) {
+    if (!from || !to) return;
+    
+    // Normalize logic for cleanup
+    const cleanFrom = from.replace(' STATION', '');
+    const cleanTo = to.replace(' STATION', '');
+    const routeKey = `${cleanFrom}|${cleanTo}`;
+    
+    let history = [];
+    try {
+        const stored = localStorage.getItem('plannerHistory');
+        if (stored) history = JSON.parse(stored);
+    } catch(e) {}
+    
+    // Remove existing if present (to bump to top)
+    history = history.filter(item => `${item.from}|${item.to}` !== routeKey);
+    
+    // Add new at top
+    history.unshift({ from: cleanFrom, to: cleanTo, fullFrom: from, fullTo: to });
+    
+    // Limit to 4 items
+    if (history.length > 4) history = history.slice(0, 4);
+    
+    localStorage.setItem('plannerHistory', JSON.stringify(history));
+    renderPlannerHistory();
+}
+
+function renderPlannerHistory() {
+    const container = document.getElementById('planner-history-container');
+    if (!container) return;
+    
+    let history = [];
+    try {
+        const stored = localStorage.getItem('plannerHistory');
+        if (stored) history = JSON.parse(stored);
+    } catch(e) {}
+    
+    if (history.length === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+    
+    container.classList.remove('hidden');
+    container.innerHTML = `
+        <div class="flex items-center justify-between mb-2 px-1">
+             <p class="text-xs font-bold text-gray-400 uppercase">Recent Trips</p>
+             <button onclick="localStorage.removeItem('plannerHistory'); renderPlannerHistory()" class="text-[10px] text-gray-400 hover:text-red-500">Clear</button>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            ${history.map(item => `
+                <button onclick="restorePlannerSearch('${item.fullFrom}', '${item.fullTo}')" 
+                    class="flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full px-3 py-1.5 shadow-sm hover:border-blue-500 hover:text-blue-500 transition-colors group">
+                    <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">${item.from} <span class="text-gray-300 mx-1">&rarr;</span> ${item.to}</span>
+                </button>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Global function for onclick access
+window.restorePlannerSearch = function(fullFrom, fullTo) {
+    const fromSelect = document.getElementById('planner-from');
+    const toSelect = document.getElementById('planner-to');
+    const fromInput = document.getElementById('planner-from-search');
+    const toInput = document.getElementById('planner-to-search');
+    
+    if (fromSelect && toSelect) {
+        fromSelect.value = fullFrom;
+        toSelect.value = fullTo;
+        
+        if (fromInput) fromInput.value = fullFrom.replace(' STATION', '');
+        if (toInput) toInput.value = fullTo.replace(' STATION', '');
+        
+        showToast("Restored recent search", "info", 1000);
+        executeTripPlan(fullFrom, fullTo);
+    }
+};
 
 // --- AUTOCOMPLETE HELPER ---
 function setupAutocomplete(inputId, selectId) {
