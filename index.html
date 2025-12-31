@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.11 (Fail-Safe Edition)
-  - Added Backup Loader Timeout to prevent infinite loading screens on mobile.
-  - Preserved Height Fix from V4.09.
+  Metrorail Next Train V4.13 (Search 2.0 Edition)
+  - Upgraded Main Station Selector to Autocomplete Combobox
+  - Preserved Analytics & CNAME
 -->
 <html lang="en" class="dark">
 
@@ -188,14 +188,17 @@
                 <p id="last-updated-date" class="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Schedule updated: 22 December 2025</p>
             </div>
 
-            <!-- Consistent From Station Block -->
+            <!-- Consistent From Station Block (SEARCH 2.0 UPGRADE) -->
             <div class="mb-4">
                 <div class="mb-2 h-5">
-                    <label for="station-select" class="block text-xs font-bold text-gray-500 uppercase ml-1">From Station</label>
+                    <label class="block text-xs font-bold text-gray-500 uppercase ml-1">From Station</label>
                 </div>
                 <div class="flex items-center gap-2">
                     <div class="relative flex-grow">
-                        <select id="station-select" class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl shadow-sm p-3 text-lg font-medium focus:ring-blue-500 focus:border-blue-500 transition-colors h-[54px] appearance-none">
+                        <!-- New Autocomplete Input -->
+                        <input type="text" id="station-select-search" placeholder="Search station..." autocomplete="off" autocorrect="off" spellcheck="false" class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl shadow-sm p-3 text-lg font-medium focus:ring-blue-500 focus:border-blue-500 transition-colors h-[54px] appearance-none">
+                        <!-- Hidden Real Select for Logic Compatibility -->
+                        <select id="station-select" class="hidden w-full">
                             <option value="">Select a station...</option>
                         </select>
                     </div>

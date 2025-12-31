@@ -463,6 +463,7 @@ function populateStationList() {
     
     const currentSelectedStation = stationSelect.value;
     
+    // POPULATE HIDDEN SELECT
     stationSelect.innerHTML = '<option value="">Select a station...</option>';
     
     allStations.forEach(station => {
@@ -473,7 +474,22 @@ function populateStationList() {
             stationSelect.appendChild(option);
         }
     });
-    if (allStations.includes(currentSelectedStation)) stationSelect.value = currentSelectedStation; else stationSelect.value = ""; 
+    
+    if (allStations.includes(currentSelectedStation)) {
+        stationSelect.value = currentSelectedStation; 
+    } else {
+        stationSelect.value = ""; 
+    }
+
+    // --- NEW: SYNC SEARCH INPUT (Search 2.0) ---
+    const searchInput = document.getElementById('station-select-search');
+    if (searchInput) {
+        if (stationSelect.value) {
+            searchInput.value = stationSelect.value.replace(' STATION', '');
+        } else {
+            searchInput.value = '';
+        }
+    }
 }
 
 // --- SYNC HELPER: Updates Planner from Main Select ---
@@ -481,15 +497,110 @@ function syncPlannerFromMain(stationName) {
     if (!stationName) return;
     const plannerInput = document.getElementById('planner-from-search');
     const plannerSelect = document.getElementById('planner-from');
+    const mainInput = document.getElementById('station-select-search');
     
-    // Only sync if elements exist
+    // 1. Sync Planner Inputs
     if (plannerInput && plannerSelect) {
-        // Find matching option in planner select logic (reuse logic.js normalize if needed, but strings should match)
-        // Set hidden select value
         plannerSelect.value = stationName;
-        // Set visible input text (removing ' STATION' suffix for cleaner look)
         plannerInput.value = stationName.replace(' STATION', '');
     }
+
+    // 2. Sync Main Search Input (New for Search 2.0)
+    // Only update if it doesn't match, to avoid overwriting user typing if focused? 
+    // Actually, force sync is good when coming from Auto-Locate.
+    if (mainInput) {
+        mainInput.value = stationName.replace(' STATION', '');
+    }
+}
+
+// --- MAIN SEARCH 2.0 LOGIC ---
+function setupMainAutocomplete() {
+    const input = document.getElementById('station-select-search');
+    const select = document.getElementById('station-select');
+    if (!input || !select) return;
+
+    if (input.parentNode) {
+        input.parentNode.style.position = 'relative';
+    }
+
+    const chevron = document.createElement('div');
+    chevron.className = "absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer p-2 hover:text-blue-500 z-10";
+    chevron.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+    input.parentNode.appendChild(chevron);
+
+    const list = document.createElement('ul');
+    list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0";
+    input.parentNode.appendChild(list);
+
+    const renderList = (filterText = '') => {
+        list.innerHTML = '';
+        const val = filterText.toUpperCase();
+        
+        // Use allStations (Current Route) instead of Master List
+        let matches = [];
+        if (val.length === 0) {
+            matches = allStations;
+        } else {
+            matches = allStations.filter(s => s.includes(val));
+        }
+
+        if (matches.length === 0) {
+            const li = document.createElement('li');
+            li.className = "p-3 text-sm text-gray-400 italic";
+            li.textContent = "No stations on this route";
+            list.appendChild(li);
+        } else {
+            matches.forEach(station => {
+                // Filter out metadata rows just in case
+                if (station.toLowerCase().includes('last updated')) return;
+
+                const li = document.createElement('li');
+                li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors";
+                li.textContent = station.replace(' STATION', '');
+                
+                li.onclick = () => {
+                    input.value = station.replace(' STATION', '');
+                    select.value = station; // Update hidden select
+                    list.classList.add('hidden');
+                    
+                    // Trigger Logic
+                    syncPlannerFromMain(station);
+                    findNextTrains();
+                };
+                list.appendChild(li);
+            });
+        }
+        list.classList.remove('hidden');
+    };
+
+    input.addEventListener('input', () => {
+        // Clear select if user clears input
+        if(input.value === '') {
+            select.value = "";
+            renderPlaceholder(); // Show "Select a station" UI
+        }
+        renderList(input.value);
+    });
+
+    input.addEventListener('focus', () => {
+        renderList(input.value);
+    });
+
+    chevron.addEventListener('click', (e) => {
+        e.stopPropagation(); 
+        if (list.classList.contains('hidden')) {
+            renderList(input.value);
+            input.focus();
+        } else {
+            list.classList.add('hidden');
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) {
+            list.classList.add('hidden');
+        }
+    });
 }
 
 // --- SETUP FUNCTIONS ---
@@ -1004,6 +1115,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
     setupSwipeNavigation(); // NEW SWIPE LOGIC
     initTabIndicator(); // NEW ANIMATED TABS
+    setupMainAutocomplete(); // NEW MAIN SEARCH
     
     // --- MAP VIEWER INIT (Extracted) ---
     if (typeof setupMapLogic === 'function') {
