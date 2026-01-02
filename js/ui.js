@@ -463,6 +463,7 @@ function populateStationList() {
     
     const currentSelectedStation = stationSelect.value;
     
+    // POPULATE HIDDEN SELECT
     stationSelect.innerHTML = '<option value="">Select a station...</option>';
     
     allStations.forEach(station => {
@@ -473,7 +474,12 @@ function populateStationList() {
             stationSelect.appendChild(option);
         }
     });
-    if (allStations.includes(currentSelectedStation)) stationSelect.value = currentSelectedStation; else stationSelect.value = ""; 
+    
+    if (allStations.includes(currentSelectedStation)) {
+        stationSelect.value = currentSelectedStation; 
+    } else {
+        stationSelect.value = ""; 
+    }
 
     // --- NEW: SYNC SEARCH INPUT (Search 2.0) ---
     const searchInput = document.getElementById('station-select-search');
@@ -827,23 +833,15 @@ function setupFeatureButtons() {
     themeToggleBtn.addEventListener('click', () => { if (localStorage.theme === 'dark') { localStorage.theme = 'light'; document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); } });
     shareBtn.addEventListener('click', async () => { const shareData = { title: 'Metrorail Next Train', text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive', url: '\n\nhttps://nexttrain.co.za' }; try { if (navigator.share) await navigator.share(shareData); else copyToClipboard(shareData.text + shareData.url); } catch (err) { copyToClipboard(shareData.text + shareData.url); } });
     
-    // --- UPDATED INSTALL PROMPT LOGIC (V4.12 Custom In-App Trigger) ---
+    // --- UPDATED INSTALL PROMPT LOGIC (V4.13 Always-Visible Trigger) ---
     installBtn = document.getElementById('install-app-btn');
     const installSideBtn = document.getElementById('install-side-btn');
     const installSideContainer = document.getElementById('install-side-container');
     const installModal = document.getElementById('install-modal');
 
-    // Function to Show Buttons (called when conditions met)
-    const showInstallButtons = () => {
-        // Main view button
-        if (installBtn) installBtn.classList.remove('hidden');
-        // Side nav button container
-        if (installSideContainer) installSideContainer.classList.remove('hidden');
-    };
-
     // Handler for Install Clicks
     const handleInstallClick = () => {
-        // Logic A: Android / Desktop (Native Prompt)
+        // Logic A: Android / Desktop (Native Prompt is READY)
         if (window.deferredInstallPrompt) {
             window.deferredInstallPrompt.prompt();
             window.deferredInstallPrompt.userChoice.then((choiceResult) => {
@@ -853,9 +851,7 @@ function setupFeatureButtons() {
                     console.log('User dismissed the install prompt');
                 }
                 window.deferredInstallPrompt = null;
-                // Hide buttons after attempt
-                if (installBtn) installBtn.classList.add('hidden');
-                if (installSideContainer) installSideContainer.classList.add('hidden');
+                // Ideally hide button, but keeping it visible for "retry" is okay
             });
         } 
         // Logic B: iOS (Instruction Modal)
@@ -870,29 +866,22 @@ function setupFeatureButtons() {
                 document.body.classList.remove('sidenav-open');
             }
         }
+        // Logic C: Fallback (Browser not ready / already installed / not supported)
+        else {
+            showToast("To install: Tap your browser menu (⋮) -> 'Install App'", "info", 4000);
+        }
     };
 
     // Attach Click Listeners
     if (installBtn) installBtn.addEventListener('click', handleInstallClick);
     if (installSideBtn) installSideBtn.addEventListener('click', handleInstallClick);
 
-    // TRIGGER LOGIC 1: Native Event (Android/Desktop)
-    if (window.deferredInstallPrompt) {
-        showInstallButtons();
-    } else {
-        window.addEventListener('pwa-install-ready', () => {
-            showInstallButtons();
-        });
+    // OPTIONAL: If main install button was hidden by default in CSS, show it if prompt is ready
+    if (window.deferredInstallPrompt && installBtn) {
+        installBtn.classList.remove('hidden');
     }
-
-    // TRIGGER LOGIC 2: iOS Detection (Immediate Show)
-    if (isIOS()) {
-        // Check if already in standalone mode (installed)
-        const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
-        if (!isInStandaloneMode) {
-            showInstallButtons();
-        }
-    }
+    
+    // (Note: Side button is now ALWAYS visible via HTML update)
 
     const openNav = () => { sidenav.classList.add('open'); sidenavOverlay.classList.add('open'); document.body.classList.add('sidenav-open'); };
     openNavBtn.addEventListener('click', openNav); routeSubtitle.addEventListener('click', openNav);

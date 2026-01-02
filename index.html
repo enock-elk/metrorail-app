@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.15 (Guardian Edition)
-  - Added Custom Install Button to Side Navigation.
-  - Added iOS Installation Instructions Modal.
+  Metrorail Next Train V4.16 (Guardian Edition - Always Visible Install)
+  - Install Button in Side Nav is now always visible.
+  - Logic handles "Browser Managed" fallback.
 -->
 <html lang="en" class="dark">
 
@@ -99,8 +99,8 @@
             <li class="route-item"><a class="" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
         </ul>
         <div class="mt-auto pt-2 border-t border-gray-700 dark:border-gray-600 pb-4">
-            <!-- NEW: Install Button in Side Nav (Hidden by Default) -->
-            <div id="install-side-container" class="mb-3 px-1 hidden">
+            <!-- NEW: Install Button in Side Nav (ALWAYS VISIBLE - NO 'hidden' CLASS) -->
+            <div id="install-side-container" class="mb-3 px-1">
                 <button id="install-side-btn" class="w-full flex items-center justify-center px-4 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white font-bold transition-all shadow-md group">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     Install App
