@@ -35,8 +35,7 @@ const SPECIAL_DATES = {
    // "12-25": "sunday", "12-26": "sunday",
    // "12-30": "saturday", 
    // "12-31": "saturday",
-    "01-01": "sunday", 
-    "01-02": "saturday"
+    "01-01": "sunday"
 };
 
 // --- SIMULATION STATE ---
