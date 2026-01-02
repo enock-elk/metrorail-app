@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.12'; // Bumped version for Offline Page
+const CACHE_NAME = 'metrorail-next-train-v4.14'; // Bumped version for Offline Page
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
