@@ -1,4 +1,4 @@
-// --- TRIP PLANNER LOGIC (V4.14 Holiday Fix) ---
+// --- TRIP PLANNER LOGIC (V4.24 - Sunday No Service Logic) ---
 
 // State
 let plannerOrigin = null;
@@ -44,63 +44,14 @@ function initPlanner() {
         renderPlannerHistory();
     }
 
-    // Planner Clock
-    const plannerTimeEl = document.createElement('div');
-    plannerTimeEl.id = 'planner-time-display';
-    plannerTimeEl.className = 'text-center mb-4';
-    
-    // Insert clock after the informative button container
-    const viewContainer = document.getElementById('view-trip-planner');
-    if (viewContainer) {
-        const headerContainer = viewContainer.querySelector('.text-center.mb-6');
-        if (headerContainer && !document.getElementById('planner-time-display')) {
-            headerContainer.parentNode.insertBefore(plannerTimeEl, headerContainer.nextSibling);
-        }
+    // --- INFO BUTTON WIRING ---
+    const infoBtn = document.getElementById('planner-info-btn');
+    if (infoBtn) {
+        infoBtn.addEventListener('click', () => {
+            const helpModal = document.getElementById('help-modal');
+            if (helpModal) helpModal.classList.remove('hidden');
+        });
     }
-
-    // UPDATED: Clock logic to respect Holiday/Scaled-Down text from ui.js logic
-    const updatePlannerClock = () => {
-        const timeEl = document.getElementById('planner-time-display');
-        if (!timeEl || typeof currentTime === 'undefined') return;
-        
-        const activeDay = selectedPlannerDay || currentDayType;
-        let displayType = "";
-
-        // Default Labels
-        if (activeDay === 'sunday') displayType = "No Service / Sunday";
-        else if (activeDay === 'saturday') displayType = "Saturday Schedule";
-        else displayType = "Weekday Schedule";
-
-        // RESTORED: Specific Holiday Overrides (Matches ui.js logic)
-        // Only apply if we are strictly viewing the schedule that corresponds to *today*
-        if (typeof currentDayType !== 'undefined' && activeDay === currentDayType && typeof isSimMode !== 'undefined' && !isSimMode) {
-             const now = new Date();
-             const d = now.getDate();
-             const m = now.getMonth();
-             const y = now.getFullYear();
-             
-             // 30 & 31 Dec 2025 (Run as Weekday)
-             if (y === 2025 && m === 11 && (d === 30 || d === 31)) {
-                 if (activeDay === 'weekday') displayType = "Scaled-Down Weekday Schedule";
-             }
-             // 1 Jan 2026 (Runs as Sunday)
-             else if (y === 2026 && m === 0 && d === 1) {
-                 displayType = "New Year's Day Schedule";
-             }
-             // 2 Jan 2026 (Runs as Saturday) - FIXED CONDITION HERE
-             else if (y === 2026 && m === 0 && d === 2) {
-                 if (activeDay === 'saturday') displayType = "Scaled-Down Weekday Schedule";
-             }
-        }
-
-        timeEl.innerHTML = `
-            <p class="text-base text-gray-700 dark:text-gray-300 font-medium">Current Time: ${currentTime} ${typeof isSimMode !== 'undefined' && isSimMode ? '(SIM)' : ''}</p>
-            <p class="text-sm text-gray-500 dark:text-gray-400">Planning for: <span class="text-blue-600 dark:text-blue-400 font-bold">${displayType}</span></p>
-        `;
-    };
-
-    updatePlannerClock();
-    setInterval(updatePlannerClock, 1000);
 
     // FIXED: Developer Mode Access (Targeting Tab instead of Modal Header)
     const plannerTab = document.getElementById('tab-trip-planner');
@@ -114,21 +65,13 @@ function initPlanner() {
             
             if (pClickCount >= 5) {
                 pClickCount = 0;
+                const devModal = document.getElementById('dev-modal');
                 const pinModal = document.getElementById('pin-modal');
                 const pinInput = document.getElementById('pin-input');
-                const pinSubmit = document.getElementById('pin-submit-btn');
                 
                 if (pinModal) {
                     pinModal.classList.remove('hidden');
                     if(pinInput) { pinInput.value = ''; pinInput.focus(); }
-                    
-                    const handlePlannerUnlock = () => {
-                        if (pinInput.value === "101101") { 
-                            renderPlannerDevUI(); 
-                            pinSubmit.removeEventListener('click', handlePlannerUnlock); 
-                        }
-                    };
-                    pinSubmit.addEventListener('click', handlePlannerUnlock);
                 }
             }
         });
@@ -230,6 +173,12 @@ function initPlanner() {
         if (!from || !to) return showToast("Please select valid stations from the list.", "error");
         if (from === to) return showToast("Origin and Destination cannot be the same.", "error");
 
+        // --- UPDATE SELECTED DAY FROM DROPDOWN BEFORE SEARCH ---
+        const daySelect = document.getElementById('planner-day-select');
+        if (daySelect) {
+            selectedPlannerDay = daySelect.value;
+        }
+
         savePlannerHistory(from, to);
         executeTripPlan(from, to);
     });
@@ -304,6 +253,12 @@ window.restorePlannerSearch = function(fullFrom, fullTo) {
         if (fromInput) fromInput.value = fullFrom.replace(' STATION', '');
         if (toInput) toInput.value = fullTo.replace(' STATION', '');
         
+        // --- ENSURE SELECTED DAY IS RESPECTED ---
+        const daySelect = document.getElementById('planner-day-select');
+        if (daySelect) {
+            selectedPlannerDay = daySelect.value;
+        }
+
         showToast("Restored recent search", "info", 1000);
         executeTripPlan(fullFrom, fullTo);
     }
@@ -359,51 +314,6 @@ function setupAutocomplete(inputId, selectId) {
     document.addEventListener('click', (e) => { if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) list.classList.add('hidden'); });
 }
 
-// --- DEV TOOLS INJECTION ---
-function renderPlannerDevUI() {
-    const container = document.getElementById('planner-input-section');
-    if (!container || document.getElementById('planner-dev-tools')) return;
-
-    const devDiv = document.createElement('div');
-    devDiv.id = "planner-dev-tools";
-    devDiv.className = "mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700 animate-fade-in-up";
-    devDiv.innerHTML = `
-        <h4 class="text-xs font-bold text-green-400 uppercase mb-3 flex justify-between items-center">
-            <span>Developer Simulation</span>
-            <button onclick="document.getElementById('planner-dev-tools').remove()" class="text-gray-500 hover:text-white">&times;</button>
-        </h4>
-        <div class="space-y-3">
-            <div class="flex items-center justify-between text-white text-sm">
-                <label>Enable Sim</label>
-                <input type="checkbox" id="p-sim-enabled" class="h-4 w-4 rounded" ${typeof isSimMode !== 'undefined' && isSimMode ? 'checked' : ''}>
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-400 mb-1">Time</label>
-                <input type="time" id="p-sim-time" step="1" class="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white text-sm">
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-400 mb-1">Day</label>
-                <select id="p-sim-day" class="w-full p-2 rounded bg-gray-700 border border-gray-600 text-white text-sm">
-                    <option value="1">Monday (Weekday)</option>
-                    <option value="6">Saturday</option>
-                    <option value="0">Sunday</option>
-                </select>
-            </div>
-            <button id="p-sim-apply" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded text-xs uppercase transition-colors">Apply Override</button>
-        </div>
-    `;
-    container.prepend(devDiv);
-    
-    document.getElementById('p-sim-apply').addEventListener('click', () => {
-        if (typeof isSimMode === 'undefined') { showToast("Sim vars not found", "error"); return; }
-        isSimMode = document.getElementById('p-sim-enabled').checked;
-        simTimeStr = document.getElementById('p-sim-time').value + ":00";
-        simDayIndex = parseInt(document.getElementById('p-sim-day').value);
-        if (typeof updateTime === 'function') updateTime();
-        showToast("Simulation Applied! Press Find Route again.", "success");
-    });
-}
-
 // --- CORE PLANNING LOGIC ---
 function executeTripPlan(origin, dest) {
     const resultsContainer = document.getElementById('planner-results-list');
@@ -433,7 +343,7 @@ function executeTripPlan(origin, dest) {
         } else if (directPlan.status === 'NO_MORE_TODAY') {
             currentTripOptions = directPlan.trips;
             renderNoMoreTrainsResult(resultsContainer, currentTripOptions, 0, "No more trains today");
-        } else if (directPlan.status === 'NO_SERVICE_TODAY_FUTURE_FOUND') {
+        } else if (directPlan.status === 'SUNDAY_NO_SERVICE' || directPlan.status === 'NO_SERVICE_TODAY_FUTURE_FOUND') {
             currentTripOptions = directPlan.trips;
             renderNoMoreTrainsResult(resultsContainer, currentTripOptions, 0, "No Service Today");
         } else {
@@ -450,6 +360,13 @@ function executeTripPlan(origin, dest) {
             if (transferPlan.status === 'FOUND') {
                 currentTripOptions = transferPlan.trips;
                 renderTripResult(resultsContainer, currentTripOptions, nextTransferIndex);
+            } else if (transferPlan.status === 'SUNDAY_NO_SERVICE') {
+                 if (transferPlan.trips && transferPlan.trips.length > 0) {
+                     currentTripOptions = transferPlan.trips;
+                     renderNoMoreTrainsResult(resultsContainer, currentTripOptions, 0, "No Service Today");
+                 } else {
+                     resultsContainer.innerHTML = renderErrorCard("No Service", "This route exists, but there are no trains scheduled for the selected day.");
+                 }
             } else if (directPlan.status === 'NO_SERVICE') {
                  resultsContainer.innerHTML = renderErrorCard("No Service", "This route exists, but there are no trains scheduled for the selected day.");
             } else {
@@ -467,7 +384,7 @@ window.selectPlannerTrip = function(index) {
     const container = document.getElementById('planner-results-list');
     
     if (isNextDay) {
-        const title = selectedPlannerDay === 'sunday' ? "No Service Today" : "No more trains today";
+        const title = (selectedPlannerDay === 'sunday') ? "No Service Today" : "No more trains today";
         renderNoMoreTrainsResult(container, currentTripOptions, idx, title);
     } else {
         renderTripResult(container, currentTripOptions, idx);
@@ -487,6 +404,21 @@ function planDirectTrip(origin, dest) {
     let pathFoundToday = false;
     let pathExistsGenerally = false;
     const planningDay = selectedPlannerDay || currentDayType;
+
+    // SUNDAY CHECK: If Sunday, skip today and get next day's trips
+    if (planningDay === 'sunday') {
+        for (const routeId of commonRoutes) {
+            const routeConfig = ROUTES[routeId];
+            const next = findNextDayTrips(routeConfig, origin, dest, 'sunday');
+            if (next && next.length > 0) {
+                nextDayTrips = [...nextDayTrips, ...next];
+            }
+        }
+        if (nextDayTrips.length > 0) {
+            return { status: 'SUNDAY_NO_SERVICE', trips: nextDayTrips.sort((a,b) => timeToSeconds(a.depTime) - timeToSeconds(b.depTime)) };
+        }
+        return { status: 'NO_SERVICE' };
+    }
 
     for (const routeId of commonRoutes) {
         const routeConfig = ROUTES[routeId];
@@ -549,6 +481,15 @@ function planHubTransferTrip(origin, dest) {
 
     if (potentialHubs.length === 0) return { status: 'NO_PATH' };
 
+    // SUNDAY CHECK FOR TRANSFERS
+    if (planningDay === 'sunday') {
+        const mondayPlan = planHubTransferTripForNextDay(origin, dest, potentialHubs);
+        if (mondayPlan.trips.length > 0) {
+             return { status: 'SUNDAY_NO_SERVICE', trips: mondayPlan.trips };
+        }
+        return { status: 'NO_SERVICE' };
+    }
+
     let allTransferOptions = [];
     for (const hub of potentialHubs) {
         const leg1Options = findAllLegsBetween(origin, hub, originRoutes, planningDay);
@@ -592,6 +533,59 @@ function planHubTransferTrip(origin, dest) {
     return { status: 'NO_PATH' };
 }
 
+// Helper for Sunday Transfer -> Monday
+function planHubTransferTripForNextDay(origin, dest, potentialHubs) {
+    let allTransferOptions = [];
+    // Force 'weekday' logic
+    const nextDay = 'weekday';
+    
+    // We need route sets again (global)
+    const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
+    const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
+
+    for (const hub of potentialHubs) {
+        const leg1Options = findAllLegsBetween(origin, hub, originRoutes, nextDay);
+        if (leg1Options.length === 0) continue;
+        const leg2Options = findAllLegsBetween(hub, dest, destRoutes, nextDay); 
+        if (leg2Options.length === 0) continue;
+
+        const TRANSFER_BUFFER_SEC = 3 * 60;
+        leg1Options.forEach(leg1 => {
+            const arrivalSec = timeToSeconds(leg1.arrTime);
+            leg2Options.forEach(leg2 => {
+                const departSec = timeToSeconds(leg2.depTime);
+                if (departSec > (arrivalSec + TRANSFER_BUFFER_SEC)) {
+                    allTransferOptions.push({
+                        type: 'TRANSFER',
+                        route: leg1.route, 
+                        from: origin, to: dest,
+                        transferStation: hub,
+                        depTime: leg1.depTime, arrTime: leg2.arrTime,
+                        train: leg1.train, leg1: leg1, leg2: leg2,
+                        totalDuration: (timeToSeconds(leg2.arrTime) - timeToSeconds(leg1.depTime)),
+                        dayLabel: 'Monday' // Tag explicitly
+                    });
+                }
+            });
+        });
+    }
+    
+    // Sort & Dedupe same as normal
+    if (allTransferOptions.length > 0) {
+        allTransferOptions.sort((a,b) => {
+            const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
+            return depDiff !== 0 ? depDiff : a.totalDuration - b.totalDuration;
+        });
+        const unique = [];
+        const seenDepTimes = new Set();
+        allTransferOptions.forEach(opt => {
+            if(!seenDepTimes.has(opt.depTime)) { seenDepTimes.add(opt.depTime); unique.push(opt); }
+        });
+        return { trips: unique };
+    }
+    return { trips: [] };
+}
+
 function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
     let legs = [];
     const routesToCheck = routeSet ? [...routeSet] : Object.keys(ROUTES);
@@ -619,9 +613,18 @@ function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
 
 function findNextDayTrips(routeConfig, origin, dest, baseDay) {
     let dayName = 'Tomorrow', nextDayType = 'weekday';
-    if (baseDay === 'weekday') { nextDayType = 'weekday'; dayName = 'Tomorrow'; } 
-    else if (baseDay === 'saturday') { nextDayType = 'sunday'; dayName = 'Sunday'; }
-    else if (baseDay === 'sunday') { nextDayType = 'weekday'; dayName = 'Monday'; }
+    
+    // UPDATED: Correct day skipping logic to avoid Sunday service
+    if (baseDay === 'weekday') { 
+        nextDayType = 'weekday'; 
+        dayName = 'Tomorrow'; 
+    } else if (baseDay === 'saturday') { 
+        nextDayType = 'weekday'; // Skip Sunday, go to Monday
+        dayName = 'Monday'; 
+    } else if (baseDay === 'sunday') { 
+        nextDayType = 'weekday'; 
+        dayName = 'Monday'; 
+    }
 
     let allNextDayTrains = [];
     getDirectionsForRoute(routeConfig, nextDayType).forEach(dir => {
@@ -643,9 +646,11 @@ function findNextDayTrips(routeConfig, origin, dest, baseDay) {
     });
 }
 
+// UPDATED: Strictly return empty for Sunday
 function getDirectionsForRoute(route, dayType) {
     if (dayType === 'weekday') return [{ key: route.sheetKeys.weekday_to_a }, { key: route.sheetKeys.weekday_to_b }];
-    return [{ key: route.sheetKeys.saturday_to_a }, { key: route.sheetKeys.saturday_to_b }];
+    if (dayType === 'saturday') return [{ key: route.sheetKeys.saturday_to_a }, { key: route.sheetKeys.saturday_to_b }];
+    return []; // No Service on Sunday
 }
 
 function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, dest) {
@@ -680,14 +685,35 @@ function getIntermediateStops(schedule, startIndex, endIndex, trainName) {
 }
 
 // --- UI RENDERING (MODULARIZED) ---
+
+// NEW: Helper to get friendly name for planning day
+function getPlanningDayLabel() {
+    const day = selectedPlannerDay || currentDayType;
+    if (day === 'sunday') return "Sunday / Public Holiday";
+    if (day === 'saturday') return "Saturday Schedule";
+    return "Weekday Schedule";
+}
+
 function renderTripResult(container, trips, selectedIndex = 0) {
     const selectedTrip = trips[selectedIndex];
-    if (selectedTrip) container.innerHTML = PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
+    const dayLabel = getPlanningDayLabel();
+    
+    // Injected Row: Shows what day schedule we are using
+    const infoHtml = `<div class="mb-3 px-1 text-center"><p class="text-xs text-gray-500 dark:text-gray-400">Planning for: <span class="font-bold text-blue-600 dark:text-blue-400">${dayLabel}</span></p></div>`;
+    
+    if (selectedTrip) {
+        container.innerHTML = infoHtml + PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
+    }
 }
 
 function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "No more trains today") {
     const selectedTrip = trips[selectedIndex];
-    container.innerHTML = `
+    const dayLabel = getPlanningDayLabel();
+    
+    // Injected Row (Consistent with normal result)
+    const infoHtml = `<div class="mb-3 px-1 text-center"><p class="text-xs text-gray-500 dark:text-gray-400">Planning for: <span class="font-bold text-blue-600 dark:text-blue-400">${dayLabel}</span></p></div>`;
+
+    container.innerHTML = infoHtml + `
         <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
             <div class="flex items-center mb-3">
                 <span class="text-2xl mr-3">🌙</span>
@@ -777,11 +803,20 @@ const PlannerRenderer = {
         if (!allOptions || allOptions.length <= 1) return '';
         const nowSec = timeToSeconds(currentTime);
         const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
+        
+        // --- SIMULATION LOGIC: SHOW ALL TRAINS ---
+        const showAll = (typeof isSimMode !== 'undefined' && isSimMode && 
+                         document.getElementById('sim-show-all') && 
+                         document.getElementById('sim-show-all').checked);
 
         const optionsHtml = allOptions.map((opt, idx) => {
             const isPast = isToday && timeToSeconds(opt.depTime) < nowSec;
-            return `<option value="${idx}" ${idx === selectedIndex ? 'selected' : ''} ${isPast ? 'class="text-gray-400" disabled' : ''}>
-                ${formatTimeDisplay(opt.depTime)} - ${opt.type === 'TRANSFER' ? 'Transfer' : 'Direct'}${isPast ? ' (Departed)' : ''}
+            // Only disable if it's past AND we are NOT showing all trains
+            const shouldDisable = isPast && !showAll;
+            const pastLabel = isPast ? ' (Departed)' : '';
+            
+            return `<option value="${idx}" ${idx === selectedIndex ? 'selected' : ''} ${shouldDisable ? 'class="text-gray-400" disabled' : ''}>
+                ${formatTimeDisplay(opt.depTime)} - ${opt.type === 'TRANSFER' ? 'Transfer' : 'Direct'}${pastLabel}
             </option>`;
         }).join('');
 
@@ -895,7 +930,6 @@ const PlannerRenderer = {
                 const diff = depSec - nowSec;
                 const h = Math.floor(diff / 3600);
                 const m = Math.floor((diff % 3600) / 60);
-                // FIXED: Better "0 min" handling
                 countdown = h > 0 ? `Departs in ${h}h ${m}m` : (m === 0 ? "Departs in < 1 min" : `Departs in ${m} min`);
             } else {
                 countdown = "Departed";

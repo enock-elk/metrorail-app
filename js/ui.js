@@ -11,6 +11,22 @@ window.onerror = function(msg, url, line) {
     return false;
 };
 
+// --- HOLIDAY NAME MAPPING ---
+const HOLIDAY_NAMES = {
+    "01-01": "New Year's Day",
+    "03-21": "Human Rights Day",
+    "04-03": "Good Friday",
+    "04-06": "Family Day",
+    "04-27": "Freedom Day",
+    "05-01": "Workers' Day",
+    "06-16": "Youth Day",
+    "08-09": "National Women's Day",
+    "09-24": "Heritage Day",
+    "12-16": "Day of Reconciliation",
+    "12-25": "Christmas Day",
+    "12-26": "Day of Goodwill"
+};
+
 // --- RENDERING FUNCTIONS ---
 
 // NEW: Skeleton Loader for Schedule Cards
@@ -79,7 +95,6 @@ function renderNoService(element, destination) {
     const firstTrain = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
     let timeHTML = 'N/A';
     if (firstTrain) {
-        // UPDATED: Use formatTimeDisplay
         const departureTime = formatTimeDisplay(firstTrain.departureTime || firstTrain.train1.departureTime);
         const timeDiffStr = calculateTimeDiffString(firstTrain.departureTime || firstTrain.train1.departureTime, 1); 
         timeHTML = `<div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
@@ -91,7 +106,18 @@ function renderAtDestination(element) { element.innerHTML = `<div class="h-32 fl
 
 function processAndRenderJourney(allJourneys, element, header, destination) {
     const nowInSeconds = timeToSeconds(currentTime);
-    const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
+    
+    // --- SIMULATION LOGIC: SHOW ALL TRAINS ---
+    // If we are in Sim Mode AND "Show All" is checked, we bypass the filter.
+    const showAll = (typeof isSimMode !== 'undefined' && isSimMode && 
+                     document.getElementById('sim-show-all') && 
+                     document.getElementById('sim-show-all').checked);
+
+    const remainingJourneys = allJourneys.filter(j => {
+        if (showAll) return true; // Show everything in Sim Mode if requested
+        return timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds;
+    });
+
     const nextJourney = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
     const firstTrainName = allJourneys.length > 0 ? (allJourneys[0].train || allJourneys[0].train1.train) : null;
     
@@ -123,7 +149,6 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
         timeClass = "bg-green-100 dark:bg-green-900 border-2 border-green-500";
     }
     
-    // UPDATED: Use formatTimeDisplay for the main card time
     const rawTime = journey.departureTime || journey.train1.departureTime;
     const safeDepTime = escapeHTML(formatTimeDisplay(rawTime));
     
@@ -133,11 +158,9 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
     const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
     const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[10px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">See Full Schedule</button>`;
 
-    // --- VISUAL TAG FOR SHARED TRAINS ---
     let sharedTag = "";
     if (journey.isShared && journey.sourceRoute) {
          const routeName = journey.sourceRoute.replace("Pretoria <-> ", "").replace("Route", "").trim();
-         // SAFEGUARD: If divergent, use WARNING color
          if (journey.isDivergent) {
              sharedTag = `<span class="block text-[10px] uppercase font-bold text-red-600 dark:text-red-400 mt-1 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-300 dark:border-red-700">⚠️ To ${journey.actualDestName}</span>`;
          } else {
@@ -148,7 +171,6 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
     if (journey.type === 'direct') {
         const actualDest = journey.actualDestination ? normalizeStationName(journey.actualDestination) : '';
         const normDest = normalizeStationName(destination);
-        // UPDATED: Format arrival time if present
         let destinationText = journey.arrivalTime ? `Arrives ${escapeHTML(formatTimeDisplay(journey.arrivalTime))}` : "Arrival time not available.";
         if (actualDest && normDest && actualDest !== normDest) {
             destinationText = `Terminates at ${escapeHTML(journey.actualDestination.replace(/ STATION/g,''))}.`;
@@ -164,7 +186,6 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
         const conn = journey.connection; 
         const nextFull = journey.nextFullJourney; 
         const termStation = escapeHTML(journey.train1.terminationStation.replace(/ STATION/g, ''));
-        // UPDATED: Format arrival at transfer
         const arrivalAtTransfer = escapeHTML(formatTimeDisplay(journey.train1.arrivalAtTransfer));
         let train1Info = `Train ${safeTrainName} (Terminates at ${termStation} at ${arrivalAtTransfer})`;
         if (journey.isLastTrain) train1Info = `<span class="text-red-600 dark:text-red-400 font-bold">Last Train (${safeTrainName})</span> (Terminates at ${termStation})`;
@@ -173,7 +194,6 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
         if (nextFull) {
             const connTrain = escapeHTML(conn.train);
             const connDest = escapeHTML(conn.actualDestination.replace(/ STATION/g, ''));
-            // UPDATED: Format connection times
             const connDep = escapeHTML(formatTimeDisplay(conn.departureTime));
             const nextTrain = escapeHTML(nextFull.train);
             const nextDest = escapeHTML(nextFull.actualDestination.replace(/ STATION/g, ''));
@@ -183,7 +203,6 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
             connectionInfoHTML = `<div class="space-y-1"><div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div><div class="text-gray-500 dark:text-gray-400 text-xs font-medium">${connection2Text}</div></div>`;
         } else {
             const connTrain = escapeHTML(conn.train);
-            // UPDATED: Format connection times
             const connDep = escapeHTML(formatTimeDisplay(conn.departureTime));
             const connArr = escapeHTML(formatTimeDisplay(conn.arrivalTime));
             let connDestName = `(Arrives ${connArr})`; 
@@ -212,7 +231,6 @@ function renderNextAvailableTrain(element, destination) {
     const firstTrainOfNextDay = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
     if (!firstTrainOfNextDay) { element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-gray-600 dark:text-gray-400">No trains found for ${nextDayName}.</div>`; return; }
     
-    // UPDATED: Format next day time
     const rawTime = firstTrainOfNextDay.departureTime || firstTrainOfNextDay.train1.departureTime;
     const departureTime = formatTimeDisplay(rawTime);
     const timeDiffStr = calculateTimeDiffString(rawTime, dayOffset);
@@ -296,7 +314,6 @@ function updatePinUI() {
     if (savedDefault && ROUTES[savedDefault]) { pinnedSection.classList.remove('hidden'); pinnedSection.innerHTML = `<li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li><li class="route-item"><a class="${savedDefault === currentRouteId ? 'active' : ''}" data-route-id="${savedDefault}"><span class="route-dot dot-green"></span>${ROUTES[savedDefault].name}</a></li>`; } else { pinnedSection.classList.add('hidden'); }
 }
 
-// NEW FUNCTION: Force the side navigation to highlight the correct current route
 function updateSidebarActiveState() {
     if (!currentRouteId) return;
     const allLinks = document.querySelectorAll('#route-list a');
@@ -341,34 +358,52 @@ function startClock() { updateTime(); setInterval(updateTime, 1000); }
 
 function updateTime() {
     try {
-        let day, timeString, now;
-        
+        let day, timeString;
+        let dateToCheck = null; 
+
         if (isSimMode) {
             day = parseInt(simDayIndex);
             timeString = simTimeStr; 
+            
+            // SIM MODE: Construct local date from input value to enable holiday check
+            const dateInput = document.getElementById('sim-date');
+            if (dateInput && dateInput.value) {
+                // Parse "YYYY-MM-DD" as local time components to avoid UTC shifts
+                const parts = dateInput.value.split('-');
+                if(parts.length === 3) {
+                    dateToCheck = new Date(parts[0], parts[1] - 1, parts[2]);
+                }
+            } 
         } else {
-            now = new Date();
+            const now = new Date();
             day = now.getDay(); 
-            // NOTE: Keeping seconds here as requested by user
             timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+            dateToCheck = now;
         }
 
         currentTime = timeString; 
         
-        // --- UPDATED: Time Format "Current Time: HH:MM:SS" ---
         if(currentTimeEl) currentTimeEl.textContent = `Current Time: ${timeString} ${isSimMode ? '(SIM)' : ''}`;
         
         let newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
         let specialStatusText = "";
 
-        if (!isSimMode && now) {
-            var m = pad(now.getMonth() + 1);
-            var d = pad(now.getDate());
+        // Check for holidays (Now works in Sim Mode too!)
+        if (dateToCheck) {
+            var m = pad(dateToCheck.getMonth() + 1);
+            var d = pad(dateToCheck.getDate());
             var dateKey = m + "-" + d;
 
             if (SPECIAL_DATES[dateKey]) {
                 newDayType = SPECIAL_DATES[dateKey];
-                specialStatusText = " (Holiday Schedule)";
+                
+                // Use Specific Name if available, otherwise generic
+                if (HOLIDAY_NAMES[dateKey]) {
+                    // We'll construct a custom display string below
+                    specialStatusText = " (Holiday)"; 
+                } else {
+                    specialStatusText = " (Holiday Schedule)";
+                }
             }
         }
         
@@ -387,38 +422,43 @@ function updateTime() {
         else if (newDayType === 'saturday') displayType = "Saturday Schedule";
         else displayType = "Weekday Schedule";
 
-        // --- SPECIFIC DATE OVERRIDES (Dec 2025 / Jan 2026) ---
-        // STRICTLY for header text modification as requested. 
-        if (!isSimMode && now) {
-            const d = now.getDate();
-            const m = now.getMonth(); // 0-11
-            const y = now.getFullYear();
+        // OVERRIDE FOR NAMED HOLIDAYS
+        if (dateToCheck) {
+            var m = pad(dateToCheck.getMonth() + 1);
+            var d = pad(dateToCheck.getDate());
+            var dateKey = m + "-" + d;
+            
+            if (HOLIDAY_NAMES[dateKey]) {
+                // E.g. "Workers' Day Schedule" replacing "Saturday Schedule"
+                displayType = `${HOLIDAY_NAMES[dateKey]} Schedule`;
+                specialStatusText = ""; // Clear redundant text
+            }
+        }
 
-            // 30 & 31 Dec 2025
+        // --- SPECIFIC DATE OVERRIDES (Dec 2025 / Jan 2026) ---
+        if (!isSimMode && dateToCheck) {
+            const d = dateToCheck.getDate();
+            const m = dateToCheck.getMonth(); 
+            const y = dateToCheck.getFullYear();
+
             if (y === 2025 && m === 11 && (d === 30 || d === 31)) {
                 displayType = "Scaled-Down Weekday Schedule";
-                specialStatusText = ""; // Clear holiday text to match exact request
+                specialStatusText = ""; 
             }
-            // 1 Jan 2026
             else if (y === 2026 && m === 0 && d === 1) {
                 displayType = "New Year's Day Schedule";
                 specialStatusText = "";
             }
-            // 2 Jan 2026
             else if (y === 2026 && m === 0 && d === 2) {
                 displayType = "Scaled-Down Weekday Schedule";
                 specialStatusText = "";
             }
         }
-        // -----------------------------------------------------
 
         if(currentDayEl) currentDayEl.innerHTML = `${dayNames[day]} <span class="font-bold text-blue-600 dark:text-blue-400">${displayType}</span>${specialStatusText}`;
         
-        // --- NEW: Auto-update Planner Day Selector ---
         const plannerDaySelect = document.getElementById('planner-day-select');
         if (plannerDaySelect) {
-            // Only update if not user-interacted or if we want forced sync (preferred for "Live" feel)
-            // Or simpler: just ensure it defaults to current day if not set
             if (!selectedPlannerDay) {
                 plannerDaySelect.value = currentDayType;
                 selectedPlannerDay = currentDayType;
@@ -435,12 +475,10 @@ function initializeApp() {
     loadUserProfile(); 
     populateStationList();
     
-    // --- INIT PLANNER (New V3.51) ---
     if (typeof initPlanner === 'function') {
         initPlanner();
     }
 
-    // NEW: Ensure Sidebar State is Correct on Startup
     updateSidebarActiveState();
 
     startClock();
@@ -476,23 +514,16 @@ function populateStationList() {
     if (allStations.includes(currentSelectedStation)) stationSelect.value = currentSelectedStation; else stationSelect.value = ""; 
 }
 
-// --- SYNC HELPER: Updates Planner from Main Select ---
 function syncPlannerFromMain(stationName) {
     if (!stationName) return;
     const plannerInput = document.getElementById('planner-from-search');
     const plannerSelect = document.getElementById('planner-from');
     
-    // Only sync if elements exist
     if (plannerInput && plannerSelect) {
-        // Find matching option in planner select logic (reuse logic.js normalize if needed, but strings should match)
-        // Set hidden select value
         plannerSelect.value = stationName;
-        // Set visible input text (removing ' STATION' suffix for cleaner look)
         plannerInput.value = stationName.replace(' STATION', '');
     }
 }
-
-// --- SETUP FUNCTIONS ---
 
 function setupModalButtons() { 
     const closeAction = () => { scheduleModal.classList.add('hidden'); document.body.style.overflow = ''; }; 
@@ -501,11 +532,8 @@ function setupModalButtons() {
     scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
 }
 
-// --- TAB SWITCHING LOGIC (New V3.70 & V4.05 Animated) ---
 function switchTab(tab) {
-    // Reset Buttons
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    // Hide Views
     document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
     
     let targetBtn;
@@ -522,11 +550,9 @@ function switchTab(tab) {
         moveTabIndicator(targetBtn);
     }
     
-    // Save state
     localStorage.setItem('activeTab', tab);
 }
 
-// NEW: Animated Tab Indicator Logic
 function initTabIndicator() {
     const tabNext = document.getElementById('tab-next-train');
     if (!tabNext) return;
@@ -534,18 +560,15 @@ function initTabIndicator() {
     const container = tabNext.parentElement;
     if (!container) return;
     
-    container.classList.add('relative'); // Ensure positioning context
+    container.classList.add('relative'); 
 
-    // 1. Create the sliding line if missing
     let indicator = document.getElementById('tab-sliding-indicator');
     if (!indicator) {
         indicator = document.createElement('div');
         indicator.id = 'tab-sliding-indicator';
-        // Tailwind: absolute bottom, height, transition
         indicator.className = "absolute bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400 transition-all duration-300 ease-out z-10";
         container.appendChild(indicator);
         
-        // 2. Inject CSS to hide the default borders on buttons
         const style = document.createElement('style');
         style.innerHTML = `
             .tab-btn { border-bottom-color: transparent !important; }
@@ -554,11 +577,9 @@ function initTabIndicator() {
         document.head.appendChild(style);
     }
 
-    // 3. Set initial position
     const activeBtn = document.querySelector('.tab-btn.active') || tabNext;
     moveTabIndicator(activeBtn);
 
-    // 4. Handle Resize
     window.addEventListener('resize', () => {
         const current = document.querySelector('.tab-btn.active');
         if (current) moveTabIndicator(current);
@@ -573,7 +594,6 @@ function moveTabIndicator(element) {
     indicator.style.transform = `translateX(${element.offsetLeft}px)`;
 }
 
-// --- SWIPE NAVIGATION LOGIC (New V4.04) ---
 function setupSwipeNavigation() {
     let touchStartX = 0;
     let touchStartY = 0;
@@ -582,7 +602,6 @@ function setupSwipeNavigation() {
     if (!contentArea) return;
 
     contentArea.addEventListener('touchstart', (e) => {
-        // Guard: Don't track if Sidenav or Modals are open
         if (document.body.classList.contains('sidenav-open') || 
             !document.getElementById('map-modal').classList.contains('hidden') ||
             !document.getElementById('schedule-modal').classList.contains('hidden')) {
@@ -593,7 +612,6 @@ function setupSwipeNavigation() {
     }, {passive: true});
 
     contentArea.addEventListener('touchend', (e) => {
-        // Guard: Same checks
         if (document.body.classList.contains('sidenav-open') || 
             !document.getElementById('map-modal').classList.contains('hidden') ||
             !document.getElementById('schedule-modal').classList.contains('hidden')) {
@@ -609,21 +627,17 @@ function setupSwipeNavigation() {
 
 function handleSwipe(startX, endX, startY, endY) {
     const minSwipeDistance = 75;
-    const maxVerticalVariance = 50; // Don't switch if scrolling down
+    const maxVerticalVariance = 50; 
 
     const distX = startX - endX;
     const distY = Math.abs(startY - endY);
 
-    // 1. Check Vertical variance (ignore if user was scrolling page)
     if (distY > maxVerticalVariance) return;
 
-    // 2. Check Swipe Distance
     if (Math.abs(distX) > minSwipeDistance) {
         if (distX > 0) {
-            // Swiped Left (Next Train -> Planner)
             switchTab('trip-planner');
         } else {
-            // Swiped Right (Planner -> Next Train)
             switchTab('next-train');
         }
     }
@@ -658,7 +672,6 @@ window.openScheduleModal = function(destination) {
             firstNextTrainFound = true;
         }
 
-        // --- TAG IN MODAL ---
         let modalTag = "";
         if (j.isShared && j.sourceRoute) {
              const routeName = j.sourceRoute.replace("Pretoria <-> ", "").replace("Route", "").trim();
@@ -669,7 +682,6 @@ window.openScheduleModal = function(destination) {
              }
         }
 
-        // UPDATED: Use formatTimeDisplay in modal list
         const formattedDep = formatTimeDisplay(dep);
         
         div.innerHTML = `<div><span class="text-lg font-bold text-gray-900 dark:text-white">${formattedDep}</span><div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName} ${modalTag}</div></div><div class="flex flex-col items-end gap-1">${type === 'Direct' ? '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>' : `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase">Transfer @ ${j.train1.terminationStation.replace(' STATION','')}</span>`} ${j.isLastTrain ? '<span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800">LAST TRAIN</span>' : ''}</div>`;
@@ -689,7 +701,6 @@ function setupRedirectLogic() {
         e.preventDefault(); 
         showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?"); 
     }); 
-    // REMOVED: checkUpdatesBtn event listener logic
 }
 
 function showRedirectModal(url, message) {
@@ -708,7 +719,6 @@ function setupFeatureButtons() {
     themeToggleBtn.addEventListener('click', () => { if (localStorage.theme === 'dark') { localStorage.theme = 'light'; document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); } });
     shareBtn.addEventListener('click', async () => { const shareData = { title: 'Metrorail Next Train', text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive', url: '\n\nhttps://nexttrain.co.za' }; try { if (navigator.share) await navigator.share(shareData); else copyToClipboard(shareData.text + shareData.url); } catch (err) { copyToClipboard(shareData.text + shareData.url); } });
     
-    // --- UPDATED INSTALL PROMPT LOGIC ---
     installBtn = document.getElementById('install-app-btn');
     
     const showInstallButton = () => {
@@ -751,7 +761,6 @@ function setupFeatureButtons() {
     const closeNav = () => { sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open'); };
     closeNavBtn.addEventListener('click', closeNav); sidenavOverlay.addEventListener('click', closeNav);
     
-    // UPDATED: Using updateSidebarActiveState for consistent highlighting
     routeList.addEventListener('click', (e) => { 
         const routeLink = e.target.closest('a'); 
         if (routeLink && routeLink.dataset.routeId) { 
@@ -761,13 +770,8 @@ function setupFeatureButtons() {
                 closeNav(); 
                 return; 
             } 
-            
-            // Set current route
             currentRouteId = routeId;
-            
-            // Update UI State immediately
             updateSidebarActiveState(); 
-            
             closeNav(); 
             loadAllSchedules(); 
         } 
@@ -777,7 +781,6 @@ function setupFeatureButtons() {
     pinRouteBtn.addEventListener('click', () => { const savedDefault = localStorage.getItem('defaultRoute'); if (savedDefault === currentRouteId) { localStorage.removeItem('defaultRoute'); showToast("Route unpinned from top.", "info", 2000); } else { localStorage.setItem('defaultRoute', currentRouteId); showToast("Route pinned to top of menu!", "success", 2000); } updatePinUI(); });
 }
 
-// --- WELCOME SCREEN LOGIC ---
 function showWelcomeScreen() {
     if (!welcomeModal || !welcomeRouteList) return;
     
@@ -815,24 +818,17 @@ function showWelcomeScreen() {
 
 function selectWelcomeRoute(routeId) {
     currentRouteId = routeId;
-    
     localStorage.setItem('defaultRoute', routeId);
-    
     welcomeModal.classList.add('opacity-0'); 
     setTimeout(() => {
         welcomeModal.classList.add('hidden');
         welcomeModal.classList.remove('opacity-0');
-        
-        // Use central function to update highlights
         updateSidebarActiveState();
-        
         updatePinUI();
-        
         loadAllSchedules();
     }, 300);
 }
 
-// --- LEGAL MODAL LOGIC ---
 window.openLegal = function(type) {
     legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
     legalContent.innerHTML = LEGAL_TEXTS[type];
@@ -846,7 +842,6 @@ function closeLegal() {
     legalModal.classList.add('hidden');
 }
 
-// --- PWA SERVICE WORKER REGISTRATION ---
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./service-worker.js')
@@ -857,7 +852,6 @@ if ('serviceWorker' in navigator) {
 
 // --- INITIALIZATION (DOMContentLoaded) ---
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Assign Global References
     stationSelect = document.getElementById('station-select');
     locateBtn = document.getElementById('locate-btn');
     pretoriaTimeEl = document.getElementById('pretoria-time');
@@ -919,16 +913,13 @@ document.addEventListener('DOMContentLoaded', () => {
     welcomeModal = document.getElementById('welcome-modal');
     welcomeRouteList = document.getElementById('welcome-route-list');
 
-    // 2. Event Listeners
     closeLegalBtn.addEventListener('click', closeLegal);
     closeLegalBtn2.addEventListener('click', closeLegal);
     legalModal.addEventListener('click', (e) => { if (e.target === legalModal) closeLegal(); });
     
-    // NEW: Tab Switch Listeners (V3.70)
     document.getElementById('tab-next-train').addEventListener('click', () => switchTab('next-train'));
     document.getElementById('tab-trip-planner').addEventListener('click', () => switchTab('trip-planner'));
 
-    // NEW: Help Modal Listeners (V3.62)
     const helpModal = document.getElementById('help-modal');
     const openHelpBtn = document.getElementById('open-help-btn');
     const closeHelpBtn = document.getElementById('close-help-btn');
@@ -952,30 +943,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if(closeHelpBtn2) closeHelpBtn2.addEventListener('click', closeHelp);
     if(helpModal) helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp(); });
 
-    // Manual Locate Click - pass false to indicate manual interaction
     locateBtn.addEventListener('click', () => findNearestStation(false));
     
-    // --- UPDATED: Developer Mode Access Logic (Fixed & Robust) ---
     if (appTitle) {
-        let localClickCount = 0; // Use local variable for safety
+        let localClickCount = 0; 
         let localClickTimer = null;
         
-        appTitle.style.cursor = 'pointer'; // Visual hint
+        appTitle.style.cursor = 'pointer'; 
         appTitle.title = "Developer Access (Tap 5 times)";
 
         appTitle.addEventListener('click', (e) => {
-            e.preventDefault(); // Stop double-tap zoom
+            e.preventDefault(); 
             localClickCount++;
             
             if (localClickTimer) clearTimeout(localClickTimer);
-            localClickTimer = setTimeout(() => { localClickCount = 0; }, 2000); // 2 Seconds
+            localClickTimer = setTimeout(() => { localClickCount = 0; }, 2000); 
             
             if (localClickCount >= 5) {
                 localClickCount = 0;
-                pinModal.classList.remove('hidden');
-                if(pinInput) {
-                    pinInput.value = '';
-                    pinInput.focus();
+                // NEW: Open the Global Dev Modal (#dev-modal) instead of PIN modal
+                const devModal = document.getElementById('dev-modal');
+                const devPinModal = document.getElementById('pin-modal');
+                
+                // AUTO-FILL CURRENT TIME
+                const now = new Date();
+                const timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+                if(simTimeInput) simTimeInput.value = timeString;
+
+                if (devPinModal) {
+                    devPinModal.classList.remove('hidden');
+                    if(pinInput) { pinInput.value = ''; pinInput.focus(); }
                 }
             }
         });
@@ -992,33 +989,14 @@ document.addEventListener('DOMContentLoaded', () => {
     pinSubmitBtn.addEventListener('click', () => {
         if (pinInput.value === "101101") {
             pinModal.classList.add('hidden');
+            const devModal = document.getElementById('dev-modal');
             
-            // --- FIX: Move Sim Panel to Global Sticky Position ---
-            if (simPanel) {
-                // 1. Remove specific 'Next Train' view classes to reset layout
-                simPanel.classList.remove('hidden', 'mt-8', 'border-t', 'pt-4', 'bg-gray-200', 'rounded-lg', 'p-3');
-                
-                // 2. Apply "Global Bar" styling
-                simPanel.className = "w-full bg-gray-800 text-white p-3 border-b border-gray-700 shadow-md z-40 animate-fade-in-down mb-0";
-                
-                // 3. Move it in the DOM (After the tabs, before the views)
-                // Use a robust selector for the tabs container
-                const tabContainer = document.querySelector('.sticky.top-0');
-                
-                if (tabContainer && tabContainer.parentNode) {
-                    tabContainer.parentNode.insertBefore(simPanel, tabContainer.nextSibling);
-                } else {
-                    // Fallback to top of content
-                    mainContent.prepend(simPanel);
-                }
-                
-                // 4. Ensure checkbox labels are visible in dark mode bar
-                const labels = simPanel.querySelectorAll('label');
-                labels.forEach(l => l.classList.add('text-gray-300'));
-                const title = simPanel.querySelector('h4');
-                if(title) title.className = "text-xs font-bold text-green-400 uppercase mb-2 flex justify-between items-center";
-            }
-            
+            // AUTO-FILL CURRENT TIME (Redundant safety check)
+            const now = new Date();
+            const timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+            if(simTimeInput) simTimeInput.value = timeString;
+
+            if (devModal) devModal.classList.remove('hidden');
             showToast("Developer Mode Unlocked!", "success");
         } else {
             showToast("Invalid PIN", "error");
@@ -1026,31 +1004,104 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    simApplyBtn.addEventListener('click', () => {
-        isSimMode = simEnabledCheckbox.checked;
-        simTimeStr = simTimeInput.value + ":00";
-        simDayIndex = parseInt(simDaySelect.value);
-        if (isSimMode && !simTimeInput.value) { showToast("Please enter a time first!", "error"); return; }
-        showToast(isSimMode ? "Dev Simulation Active!" : "Real-time Mode Active", "success");
-        updateTime(); 
-    });
+    // --- TOGGLE DATE PICKER VISIBILITY ---
+    const dayDropdown = document.getElementById('sim-day');
+    const dateContainer = document.getElementById('sim-date-container');
+    const dateInput = document.getElementById('sim-date');
 
-    // --- UPDATED: Listener calls sync helper ---
+    if (dayDropdown && dateContainer && dateInput) {
+        dayDropdown.addEventListener('change', () => {
+            if (dayDropdown.value === 'specific') {
+                dateContainer.classList.remove('hidden');
+                dateInput.focus();
+            } else {
+                dateContainer.classList.add('hidden');
+                // Removed dateInput.value = '' to persist date selection
+            }
+        });
+    }
+
+    // --- UPDATED SIMULATION APPLY LOGIC ---
+    if (simApplyBtn) {
+        simApplyBtn.addEventListener('click', () => {
+            if (!simEnabledCheckbox || !simTimeInput) return;
+
+            isSimMode = simEnabledCheckbox.checked;
+            simTimeStr = simTimeInput.value + ":00";
+            
+            // Logic: Check Dropdown Value First
+            if (dayDropdown && dayDropdown.value === 'specific') {
+                // If specific date is chosen, validate input
+                if (dateInput && dateInput.value) {
+                    const d = new Date(dateInput.value);
+                    simDayIndex = d.getDay(); // 0-6
+                    showToast(`Simulating specific date: ${dateInput.value}`, "info");
+                } else {
+                    showToast("Please select a valid date.", "error");
+                    return;
+                }
+            } else if (dayDropdown) {
+                // Use generic day value
+                simDayIndex = parseInt(dayDropdown.value);
+            } else {
+                simDayIndex = 1; // Default fallback
+            }
+
+            if (isSimMode && !simTimeInput.value) { 
+                showToast("Please enter a time first!", "error"); 
+                return; 
+            }
+            
+            // Removed auto-close logic here as requested
+            // The panel will now stay open until manually closed
+
+            showToast(isSimMode ? "Dev Simulation Active!" : "Real-time Mode Active", "success");
+            
+            // Force immediate update
+            updateTime(); 
+            findNextTrains();
+        });
+    }
+
+    // --- NEW: SIMULATION EXIT LOGIC ---
+    const simExitBtn = document.getElementById('sim-exit-btn');
+    if (simExitBtn) {
+        simExitBtn.addEventListener('click', () => {
+            isSimMode = false;
+            
+            // Reset UI Controls
+            if(simEnabledCheckbox) simEnabledCheckbox.checked = false;
+            if(simTimeInput) simTimeInput.value = '';
+            
+            if(dayDropdown) dayDropdown.value = '1'; // Reset to Monday
+            if(dateContainer) dateContainer.classList.add('hidden');
+            if(dateInput) dateInput.value = '';
+            
+            // Close Modal
+            const devModal = document.getElementById('dev-modal');
+            if(devModal) devModal.classList.add('hidden');
+            
+            showToast("Exited Developer Mode", "info");
+            
+            // Force Real-Time Update
+            updateTime();
+            findNextTrains();
+        });
+    }
+
     stationSelect.addEventListener('change', () => {
         syncPlannerFromMain(stationSelect.value);
         findNextTrains();
     });
     
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
-    setupSwipeNavigation(); // NEW SWIPE LOGIC
-    initTabIndicator(); // NEW ANIMATED TABS
+    setupSwipeNavigation(); 
+    initTabIndicator(); 
     
-    // --- MAP VIEWER INIT (Extracted) ---
     if (typeof setupMapLogic === 'function') {
-        setupMapLogic(); // Calls logic from map-viewer.js
+        setupMapLogic(); 
     }
 
-    // 3. Startup Logic
     const savedDefault = localStorage.getItem('defaultRoute');
     
     if (savedDefault && ROUTES[savedDefault]) {
@@ -1071,12 +1122,10 @@ document.addEventListener('DOMContentLoaded', () => {
         showWelcomeScreen();
     }
 
-    // --- RESTORE ACTIVE TAB (New Requirement) ---
     const lastActiveTab = localStorage.getItem('activeTab');
     if (lastActiveTab) {
         switchTab(lastActiveTab);
     } else {
-        // Explicitly set default if nothing saved
         switchTab('next-train');
     }
 });
