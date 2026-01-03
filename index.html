@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.26 (Guardian Edition)
-  - Added "Specific Date" option to Dev Mode dropdown.
-  - Hidden Date Picker by default (Option B).
-  - Preserved all critical tags.
+  Metrorail Next Train V4.27 (Guardian Edition)
+  - Added rounded corners to loading screen icons.
+  - Preserved all previous Dev Mode UI & Logic.
 -->
 <html lang="en" class="dark">
 
@@ -341,7 +340,7 @@
             <div class="relative w-24 h-24 mb-6 shrink-0">
                 <div class="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-ping"></div>
                 <div class="relative bg-white dark:bg-gray-800 p-4 rounded-full shadow-xl ring-4 ring-blue-50 dark:ring-gray-700">
-                    <img src="icons/icon-192.png" class="w-full h-full object-contain" alt="Logo">
+                    <img src="icons/icon-192.png" class="w-full h-full object-contain rounded-2xl" alt="Logo">
                 </div>
             </div>
             <h1 class="text-3xl font-black text-gray-900 dark:text-white text-center mb-2 shrink-0">Next Train</h1>
@@ -659,8 +658,8 @@
     <div id="loading-overlay" class="absolute inset-0 bg-gray-100 dark:bg-blue-900 flex flex-col items-center justify-center z-50 transition-colors duration-300">
         <div class="train-loader-container">
             <div class="train-track"></div>
-            <img src="icons/icon-192.png" class="moving-icon light-mode-icon" alt="Loading Train">
-            <img src="icons/old/icon-192.png" class="moving-icon dark-mode-icon" alt="Loading Train">
+            <img src="icons/icon-192.png" class="moving-icon light-mode-icon rounded-2xl" alt="Loading Train">
+            <img src="icons/old/icon-192.png" class="moving-icon dark-mode-icon rounded-2xl" alt="Loading Train">
         </div>
         <div class="text-xl font-bold text-gray-700 dark:text-white mt-2" id="loading-text">Next Train</div>
     </div>
