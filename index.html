@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.16 (Guardian Edition - Always Visible Install)
-  - Install Button in Side Nav is now always visible.
-  - Logic handles "Browser Managed" fallback.
+  Metrorail Next Train V4.21 (Guardian Edition)
+  - Refactored Developer Panel into a Global Modal (#dev-modal).
+  - Enables access to Dev Tools from Trip Planner & Next Train tabs.
+  - Retains Date Picker for specific date simulation.
 -->
 <html lang="en" class="dark">
 
@@ -99,7 +100,7 @@
             <li class="route-item"><a class="" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
         </ul>
         <div class="mt-auto pt-2 border-t border-gray-700 dark:border-gray-600 pb-4">
-            <!-- NEW: Install Button in Side Nav (ALWAYS VISIBLE - NO 'hidden' CLASS) -->
+            <!-- Install Button (Always Visible) -->
             <div id="install-side-container" class="mb-3 px-1">
                 <button id="install-side-btn" class="w-full flex items-center justify-center px-4 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white font-bold transition-all shadow-md group">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
@@ -117,7 +118,7 @@
             <li class="route-item">
                 <a id="open-help-btn" class="cursor-pointer text-gray-300 hover:text-white">
                     <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Help & Guide
+                    User Guide & Tips
                 </a>
             </li>
             <li class="route-item">
@@ -192,11 +193,9 @@
                     </h2>
                     <svg class="w-4 h-4 text-gray-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
-                <!-- ADDED: Schedule Updated Text -->
                 <p id="last-updated-date" class="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Schedule updated: 22 December 2025</p>
             </div>
 
-            <!-- Consistent From Station Block -->
             <div class="mb-4">
                 <div class="mb-2 h-5">
                     <label for="station-select" class="block text-xs font-bold text-gray-500 uppercase ml-1">From Station</label>
@@ -213,7 +212,6 @@
                 </div>
             </div>
 
-            <!-- MOVED: Schedule Cards are now ABOVE the Fare -->
             <div class="space-y-6 mb-6">
                 <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
                     <h2 id="pretoria-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">Next train to <span class="text-blue-500 dark:text-blue-400">Pretoria</span></h2>
@@ -225,7 +223,6 @@
                 </div>
             </div>
 
-            <!-- MOVED: Fare Display is now HERE (Below Schedule Cards) -->
             <div id="fare-container" class="mb-6 p-3 bg-blue-50 dark:bg-gray-800 rounded-lg flex items-center justify-between shadow-sm border border-blue-100 dark:border-gray-700 hidden">
                 <div class="flex flex-col">
                     <span class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Estimated Fare</span>
@@ -253,33 +250,6 @@
                 </div>
                 <div id="copied-message" class="hidden text-center text-green-500 font-medium mt-2">Link copied to clipboard!</div>
                 
-                <div id="sim-panel" class="hidden mt-8 border-t border-gray-300 dark:border-gray-700 pt-4 bg-gray-200 dark:bg-gray-800 rounded-lg p-3">
-                    <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2">Developer Mode</h4>
-                    <div class="flex flex-col gap-3">
-                        <div class="flex items-center justify-between">
-                            <label class="text-sm font-medium">Enable Simulation</label>
-                            <input type="checkbox" id="sim-enabled" class="h-5 w-5">
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <label class="text-sm font-medium">Show All Trains</label>
-                            <input type="checkbox" id="sim-show-all" class="h-5 w-5">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium mb-1">Set Time (HH:MM:SS)</label>
-                            <input type="time" id="sim-time" step="1" class="w-full p-2 rounded bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium mb-1">Set Day</label>
-                            <select id="sim-day" class="w-full p-2 rounded bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm">
-                                <option value="1">Monday (Weekday)</option>
-                                <option value="6">Saturday</option>
-                                <option value="0">Sunday</option>
-                            </select>
-                        </div>
-                        <button id="sim-apply-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-xs uppercase">Apply Simulation</button>
-                    </div>
-                </div>
-
                 <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">2025 &copy; Kazembe CodeWorks. All rights reserved.</p>
             </div>
         </div>
@@ -288,26 +258,24 @@
         <div id="view-trip-planner" class="view-section p-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
             <!-- FIXED HEIGHT SPACER TO MATCH TAB 1 EXACTLY -->
             <div class="text-center mb-6 h-[50px] flex flex-col justify-center">
-                <!-- Replaced large text with a styled container matching "Next Train" -->
-                <div class="inline-flex items-center justify-center space-x-2 bg-white dark:bg-gray-800 px-4 py-1.5 h-[34px] rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1">
+                <!-- UPDATED: Informative Button -->
+                <button id="planner-info-btn" class="inline-flex items-center justify-center space-x-2 bg-white dark:bg-gray-800 px-4 py-1.5 h-[34px] rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <h2 class="text-sm font-bold text-gray-700 dark:text-gray-200">
                         Direct & Single Transfer Trips Only
                     </h2>
                     <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                </div>
-                <!-- Invisible Spacer Text to match the "Schedule Updated" line height in Tab 1 -->
+                </button>
                 <p class="text-[10px] text-transparent font-medium uppercase tracking-wide select-none">Schedule updated: 22 December 2025</p>
             </div>
             
             <div id="planner-input-section" class="space-y-6">
-                <!-- FROM SECTION (Copied exactly from Next Train Tab) -->
+                <!-- FROM SECTION -->
                 <div class="mb-4">
                     <div class="mb-2 h-5">
                         <label class="block text-xs font-bold text-gray-500 uppercase ml-1">From Station</label>
                     </div>
                     <div class="flex items-center gap-2">
                         <div class="relative flex-grow">
-                            <!-- Using planner-specific IDs but preserving styling -->
                             <input type="text" id="planner-from-search" name="search-station-from" placeholder="Search station..." autocomplete="off" autocorrect="off" spellcheck="false" class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl shadow-sm p-3 text-lg font-medium focus:ring-blue-500 focus:border-blue-500 transition-colors h-[54px] appearance-none">
                             <select id="planner-from" class="hidden w-full p-4 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-lg font-medium text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors">
                                 <option value="">Loading stations...</option>
@@ -352,11 +320,9 @@
             <!-- FOOTER BLOCK (For Trip Planner) -->
             <div class="mt-auto border-t border-gray-200 dark:border-gray-700 pt-6">
                 <div class="grid grid-cols-2 gap-4 mb-6">
-                    <!-- Cloned Share Button (Needs unique ID or class handling in JS, using class for now) -->
                     <button onclick="document.getElementById('share-app-btn').click()" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all">
                         <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg> Share App
                     </button>
-                    <!-- Cloned Feedback Button -->
                     <a href="#" onclick="document.getElementById('feedback-btn').click(); return false;" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all">
                          <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg> Feedback
                     </a>
@@ -369,7 +335,6 @@
     <!-- Toast & Modals... -->
     <div id="toast" class=""></div>
 
-    <!-- Modals Logic Kept for PWA functionality -->
     <!-- WELCOME MODAL -->
     <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-center p-6 transition-opacity duration-300">
         <div class="w-full max-w-sm flex flex-col items-center animate-fade-in-up">
@@ -386,7 +351,6 @@
         </div>
     </div>
     
-    <!-- ... (Other modals for Profile, Schedule, Map, etc. remain unchanged) ... -->
     <!-- PROFILE SETUP MODAL -->
     <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-md">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
@@ -504,34 +468,65 @@
         </div>
     </div>
 
-    <!-- NEW HELP MODAL -->
-    <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[80] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+    <!-- UPGRADED HELP / USER GUIDE MODAL -->
+    <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[80] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col transform transition-transform duration-300 scale-95">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                    <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Help & Tips
+                    <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    User Guide & Tips
                 </h3>
                 <button id="close-help-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
+            
             <div class="p-6 overflow-y-auto text-sm text-gray-700 dark:text-gray-300 space-y-6 leading-relaxed">
+                <!-- 1. TRIP PLANNER SECTION -->
                 <div>
-                    <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-2 flex items-center">
-                        <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">1</span>
-                        Trip Planner Limits
+                    <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-2 flex items-center text-base">
+                        <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full w-7 h-7 flex items-center justify-center text-sm mr-2 shadow-sm">🧭</span>
+                        The Trip Planner
                     </h4>
-                    <p class="pl-8">The Trip Planner currently supports <strong>Direct Trips</strong> and <strong>Single Transfers</strong>.</p>
+                    <p class="pl-9 mb-2">Our planner is designed to find the fastest connection between two points. It currently supports:</p>
+                    <ul class="pl-9 list-disc space-y-1 text-gray-600 dark:text-gray-400">
+                        <li><strong>Direct Trips:</strong> Trains that go straight from A to B.</li>
+                        <li><strong>Single Transfers:</strong> Trips involving ONE change at a major hub (e.g., Pretoria or Germiston) to switch lines.</li>
+                    </ul>
+                    <div class="mt-3 pl-9">
+                        <div class="p-3 bg-orange-50 dark:bg-orange-900/30 border-l-4 border-orange-400 rounded-r text-xs">
+                            <p class="font-bold text-orange-700 dark:text-orange-300 mb-1">Important Note:</p>
+                            Transfers within the same route/corridor (e.g. getting off at Hercules to wait for another train on the same line) are treated as a single continuous journey. They do not count as a "Transfer" in the planner results.
+                        </div>
+                    </div>
                 </div>
+
+                <!-- 2. NAVIGATION TIPS -->
                 <div>
-                    <h4 class="font-bold text-green-600 dark:text-green-400 mb-2 flex items-center">
-                        <span class="bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">2</span>
-                        Offline Mode
+                    <h4 class="font-bold text-green-600 dark:text-green-400 mb-2 flex items-center text-base">
+                        <span class="bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 rounded-full w-7 h-7 flex items-center justify-center text-sm mr-2 shadow-sm">🗺️</span>
+                        Using the Map
                     </h4>
-                    <p class="pl-8">Schedules are automatically saved to your device.</p>
+                    <p class="pl-9">
+                        Unsure of the path? Check the <strong>Network Map</strong> in the menu. Visually trace your route to see if you need to switch lines (colors).
+                    </p>
+                    <p class="pl-9 mt-2 text-xs text-gray-500">
+                        *Tip: If your trip requires multiple transfers, try planning it in legs (e.g. "From Home to Pretoria", then "From Pretoria to Work").
+                    </p>
+                </div>
+
+                <!-- 3. OFFLINE CAPABILITY -->
+                <div>
+                    <h4 class="font-bold text-purple-600 dark:text-purple-400 mb-2 flex items-center text-base">
+                        <span class="bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 rounded-full w-7 h-7 flex items-center justify-center text-sm mr-2 shadow-sm">⚡</span>
+                        Offline Capable
+                    </h4>
+                    <p class="pl-9">
+                        Lost signal? No problem. The app automatically saves schedules to your device, so you can check times even in tunnels or dead zones.
+                    </p>
                 </div>
             </div>
+
             <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-xl">
                 <button id="close-help-btn-2" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors">
                     Got it!
@@ -596,6 +591,47 @@
             <div class="flex space-x-2">
                 <button id="pin-cancel-btn" class="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white py-2 rounded">Cancel</button>
                 <button id="pin-submit-btn" class="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Unlock</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW DEVELOPER MODAL (Global Access) -->
+    <div id="dev-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
+            <div class="flex justify-between items-center mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+                    <span class="text-xl mr-2">🛠️</span> Developer Mode
+                </h3>
+                <button onclick="document.getElementById('dev-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div id="sim-panel" class="flex flex-col gap-4">
+                <div class="flex items-center justify-between bg-gray-100 dark:bg-gray-700 p-3 rounded-lg">
+                    <label class="text-sm font-bold text-gray-700 dark:text-gray-300">Enable Simulation</label>
+                    <input type="checkbox" id="sim-enabled" class="h-5 w-5 text-blue-600 rounded focus:ring-blue-500">
+                </div>
+                
+                <div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Set Time (HH:MM:SS)</label>
+                        <input type="time" id="sim-time" step="1" class="w-full p-2 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Set Date</label>
+                        <input type="date" id="sim-date" class="w-full p-2 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Show All Trains</label>
+                    <input type="checkbox" id="sim-show-all" class="h-4 w-4 text-blue-600 rounded">
+                </div>
+
+                <button id="sim-apply-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors text-sm uppercase tracking-wide">
+                    Apply Simulation
+                </button>
             </div>
         </div>
     </div>

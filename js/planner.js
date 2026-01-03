@@ -1,4 +1,4 @@
-// --- TRIP PLANNER LOGIC (V4.12 Smart History) ---
+// --- TRIP PLANNER LOGIC (V4.14 Holiday Fix) ---
 
 // State
 let plannerOrigin = null;
@@ -15,7 +15,7 @@ function initPlanner() {
     const resetBtn = document.getElementById('planner-reset-btn');
     const locateBtn = document.getElementById('planner-locate-btn');
     
-    // Inject Day Selector into Input Section
+    // Inject Day Selector
     const inputSection = document.getElementById('planner-input-section');
     if (inputSection && !document.getElementById('planner-day-select')) {
         const daySelectDiv = document.createElement('div');
@@ -28,83 +28,92 @@ function initPlanner() {
                 <option value="sunday">Sunday / Public Holiday</option>
             </select>
         `;
-        // Insert before the search button
         inputSection.insertBefore(daySelectDiv, searchBtn);
         
-        // Set default based on current real time
         const daySelect = document.getElementById('planner-day-select');
-        if (typeof currentDayType !== 'undefined') {
-            daySelect.value = currentDayType;
-        }
-        
-        // Listen for changes
-        daySelect.addEventListener('change', (e) => {
-            selectedPlannerDay = e.target.value;
-        });
+        if (typeof currentDayType !== 'undefined') daySelect.value = currentDayType;
+        daySelect.addEventListener('change', (e) => selectedPlannerDay = e.target.value);
     }
 
-    // NEW: Inject Recent History Container
+    // Inject History Container
     if (inputSection && !document.getElementById('planner-history-container')) {
         const historyContainer = document.createElement('div');
         historyContainer.id = 'planner-history-container';
-        historyContainer.className = "mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 hidden"; // Hidden by default
+        historyContainer.className = "mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 hidden";
         inputSection.appendChild(historyContainer);
-        
-        // Render history on load
         renderPlannerHistory();
     }
 
-    // Update Planner Time Display periodically (syncs with main clock)
+    // Planner Clock
     const plannerTimeEl = document.createElement('div');
     plannerTimeEl.id = 'planner-time-display';
     plannerTimeEl.className = 'text-center mb-4';
     
-    // Insert after header
-    const header = document.querySelector('#planner-modal .p-4.border-b');
-    if (header && !document.getElementById('planner-time-display')) {
-        header.parentNode.insertBefore(plannerTimeEl, header.nextSibling);
+    // Insert clock after the informative button container
+    const viewContainer = document.getElementById('view-trip-planner');
+    if (viewContainer) {
+        const headerContainer = viewContainer.querySelector('.text-center.mb-6');
+        if (headerContainer && !document.getElementById('planner-time-display')) {
+            headerContainer.parentNode.insertBefore(plannerTimeEl, headerContainer.nextSibling);
+        }
     }
 
-    // Function to update the planner clock
+    // UPDATED: Clock logic to respect Holiday/Scaled-Down text from ui.js logic
     const updatePlannerClock = () => {
-        if (!document.getElementById('planner-time-display')) return;
         const timeEl = document.getElementById('planner-time-display');
+        if (!timeEl || typeof currentTime === 'undefined') return;
         
-        // Use global variables from logic.js (currentTime, currentDayType)
-        if (typeof currentTime !== 'undefined') {
-            // Use selected day if available, otherwise global currentDayType
-            const activeDay = selectedPlannerDay || currentDayType;
-            
-            let displayType = "";
-            if (activeDay === 'sunday') displayType = "No Service / Sunday";
-            else if (activeDay === 'saturday') displayType = "Saturday Schedule";
-            else displayType = "Weekday Schedule";
+        const activeDay = selectedPlannerDay || currentDayType;
+        let displayType = "";
 
-            timeEl.innerHTML = `
-                <p class="text-base text-gray-700 dark:text-gray-300 font-medium">Current Time: ${currentTime} ${typeof isSimMode !== 'undefined' && isSimMode ? '(SIM)' : ''}</p>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
-                    Planning for: <span class="text-blue-600 dark:text-blue-400 font-bold">${displayType}</span>
-                </p>
-            `;
+        // Default Labels
+        if (activeDay === 'sunday') displayType = "No Service / Sunday";
+        else if (activeDay === 'saturday') displayType = "Saturday Schedule";
+        else displayType = "Weekday Schedule";
+
+        // RESTORED: Specific Holiday Overrides (Matches ui.js logic)
+        // Only apply if we are strictly viewing the schedule that corresponds to *today*
+        if (typeof currentDayType !== 'undefined' && activeDay === currentDayType && typeof isSimMode !== 'undefined' && !isSimMode) {
+             const now = new Date();
+             const d = now.getDate();
+             const m = now.getMonth();
+             const y = now.getFullYear();
+             
+             // 30 & 31 Dec 2025 (Run as Weekday)
+             if (y === 2025 && m === 11 && (d === 30 || d === 31)) {
+                 if (activeDay === 'weekday') displayType = "Scaled-Down Weekday Schedule";
+             }
+             // 1 Jan 2026 (Runs as Sunday)
+             else if (y === 2026 && m === 0 && d === 1) {
+                 displayType = "New Year's Day Schedule";
+             }
+             // 2 Jan 2026 (Runs as Saturday) - FIXED CONDITION HERE
+             else if (y === 2026 && m === 0 && d === 2) {
+                 if (activeDay === 'saturday') displayType = "Scaled-Down Weekday Schedule";
+             }
         }
+
+        timeEl.innerHTML = `
+            <p class="text-base text-gray-700 dark:text-gray-300 font-medium">Current Time: ${currentTime} ${typeof isSimMode !== 'undefined' && isSimMode ? '(SIM)' : ''}</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Planning for: <span class="text-blue-600 dark:text-blue-400 font-bold">${displayType}</span></p>
+        `;
     };
 
     updatePlannerClock();
     setInterval(updatePlannerClock, 1000);
 
-    // Developer Mode Access
-    const plannerHeader = document.querySelector('#planner-modal h3');
-    if (plannerHeader) {
+    // FIXED: Developer Mode Access (Targeting Tab instead of Modal Header)
+    const plannerTab = document.getElementById('tab-trip-planner');
+    if (plannerTab) {
         let pClickCount = 0;
         let pClickTimer = null;
-        plannerHeader.classList.add('cursor-pointer', 'select-none'); 
-        plannerHeader.addEventListener('click', () => {
+        plannerTab.addEventListener('click', () => {
             pClickCount++;
             if (pClickTimer) clearTimeout(pClickTimer);
             pClickTimer = setTimeout(() => { pClickCount = 0; }, 1000);
+            
             if (pClickCount >= 5) {
                 pClickCount = 0;
-                // Open global PIN modal
                 const pinModal = document.getElementById('pin-modal');
                 const pinInput = document.getElementById('pin-input');
                 const pinSubmit = document.getElementById('pin-submit-btn');
@@ -127,14 +136,14 @@ function initPlanner() {
 
     if (!fromSelect || !toSelect) return;
 
-    // 1. Setup Autocomplete Logic
+    // 1. Setup Autocomplete
     setupAutocomplete('planner-from-search', 'planner-from');
     setupAutocomplete('planner-to-search', 'planner-to');
 
     // 2. Populate Selects
     const populate = (select) => {
         select.innerHTML = '<option value="">Select...</option>';
-        if (typeof MASTER_STATION_LIST !== 'undefined' && MASTER_STATION_LIST.length > 0) {
+        if (typeof MASTER_STATION_LIST !== 'undefined') {
             MASTER_STATION_LIST.forEach(s => {
                 const opt = document.createElement('option');
                 opt.value = s;
@@ -160,21 +169,18 @@ function initPlanner() {
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    const userLat = position.coords.latitude;
-                    const userLon = position.coords.longitude;
-                    
+                    const { latitude: userLat, longitude: userLon } = position.coords;
                     let candidates = [];
                     for (const [stationName, coords] of Object.entries(globalStationIndex)) {
                         const dist = getDistanceFromLatLonInKm(userLat, userLon, coords.lat, coords.lon);
                         candidates.push({ stationName, dist });
                     }
-                    
                     candidates.sort((a, b) => a.dist - b.dist);
 
                     if (candidates.length > 0 && candidates[0].dist <= 6) { 
                         const nearest = candidates[0].stationName;
-                        const fromInput = document.getElementById('planner-from-search');
                         fromSelect.value = nearest;
+                        const fromInput = document.getElementById('planner-from-search');
                         if(fromInput) fromInput.value = nearest.replace(' STATION', '');
                         showToast(`Located: ${nearest.replace(' STATION', '')}`, "success");
                     } else {
@@ -182,7 +188,7 @@ function initPlanner() {
                     }
                     icon.classList.remove('animate-spin');
                 },
-                (err) => {
+                () => {
                     showToast("Could not retrieve location.", "error");
                     icon.classList.remove('animate-spin');
                 }
@@ -195,69 +201,46 @@ function initPlanner() {
         const fromInput = document.getElementById('planner-from-search');
         const toInput = document.getElementById('planner-to-search');
         
-        const tempVal = fromSelect.value;
-        fromSelect.value = toSelect.value;
-        toSelect.value = tempVal;
-        
-        const tempText = fromInput.value;
-        fromInput.value = toInput.value;
-        toInput.value = tempText;
+        [fromSelect.value, toSelect.value] = [toSelect.value, fromSelect.value];
+        [fromInput.value, toInput.value] = [toInput.value, fromInput.value];
     });
 
     searchBtn.addEventListener('click', () => {
-        // --- AUTO-RESOLVE LOGIC ---
         const resolveStation = (inputVal, selectEl) => {
-            if (selectEl.value) return selectEl.value; // Already set properly
-            if (!inputVal) return "";
-            if (typeof MASTER_STATION_LIST === 'undefined') return "";
+            if (selectEl.value) return selectEl.value;
+            if (!inputVal || typeof MASTER_STATION_LIST === 'undefined') return "";
 
             const cleanInput = inputVal.trim().toUpperCase();
-            
-            // 1. Exact Match
             const exact = MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === cleanInput);
             if (exact) return exact;
 
-            // 2. Fuzzy Match (if it's the only one)
             const matches = MASTER_STATION_LIST.filter(s => s.replace(' STATION', '').toUpperCase().includes(cleanInput));
-            if (matches.length === 1) return matches[0];
-            
-            return "";
+            return matches.length === 1 ? matches[0] : "";
         };
 
         const fromInput = document.getElementById('planner-from-search');
         const toInput = document.getElementById('planner-to-search');
 
-        // Attempt resolution
         if (!fromSelect.value && fromInput) fromSelect.value = resolveStation(fromInput.value, fromSelect);
         if (!toSelect.value && toInput) toSelect.value = resolveStation(toInput.value, toSelect);
 
         const from = fromSelect.value;
         const to = toSelect.value;
         
-        if (!from || !to) {
-            showToast("Please select valid stations from the list.", "error");
-            return;
-        }
-        if (from === to) {
-            showToast("Origin and Destination cannot be the same.", "error");
-            return;
-        }
+        if (!from || !to) return showToast("Please select valid stations from the list.", "error");
+        if (from === to) return showToast("Origin and Destination cannot be the same.", "error");
 
-        // NEW: Save to History before executing
         savePlannerHistory(from, to);
-        
         executeTripPlan(from, to);
     });
 
     resetBtn.addEventListener('click', () => {
         document.getElementById('planner-input-section').classList.remove('hidden');
         document.getElementById('planner-results-section').classList.add('hidden');
-        fromSelect.value = "";
-        toSelect.value = "";
+        fromSelect.value = ""; toSelect.value = "";
         document.getElementById('planner-from-search').value = "";
         document.getElementById('planner-to-search').value = "";
         
-        // Reset day selection to current default
         const daySelect = document.getElementById('planner-day-select');
         if (daySelect && typeof currentDayType !== 'undefined') {
             daySelect.value = currentDayType;
@@ -266,28 +249,16 @@ function initPlanner() {
     });
 }
 
-// --- HISTORY FUNCTIONS (New V4.12) ---
+// --- HISTORY FUNCTIONS ---
 function savePlannerHistory(from, to) {
     if (!from || !to) return;
-    
-    // Normalize logic for cleanup
     const cleanFrom = from.replace(' STATION', '');
     const cleanTo = to.replace(' STATION', '');
     const routeKey = `${cleanFrom}|${cleanTo}`;
     
-    let history = [];
-    try {
-        const stored = localStorage.getItem('plannerHistory');
-        if (stored) history = JSON.parse(stored);
-    } catch(e) {}
-    
-    // Remove existing if present (to bump to top)
+    let history = JSON.parse(localStorage.getItem('plannerHistory') || "[]");
     history = history.filter(item => `${item.from}|${item.to}` !== routeKey);
-    
-    // Add new at top
     history.unshift({ from: cleanFrom, to: cleanTo, fullFrom: from, fullTo: to });
-    
-    // Limit to 4 items
     if (history.length > 4) history = history.slice(0, 4);
     
     localStorage.setItem('plannerHistory', JSON.stringify(history));
@@ -298,12 +269,7 @@ function renderPlannerHistory() {
     const container = document.getElementById('planner-history-container');
     if (!container) return;
     
-    let history = [];
-    try {
-        const stored = localStorage.getItem('plannerHistory');
-        if (stored) history = JSON.parse(stored);
-    } catch(e) {}
-    
+    const history = JSON.parse(localStorage.getItem('plannerHistory') || "[]");
     if (history.length === 0) {
         container.classList.add('hidden');
         return;
@@ -326,7 +292,6 @@ function renderPlannerHistory() {
     `;
 }
 
-// Global function for onclick access
 window.restorePlannerSearch = function(fullFrom, fullTo) {
     const fromSelect = document.getElementById('planner-from');
     const toSelect = document.getElementById('planner-to');
@@ -336,7 +301,6 @@ window.restorePlannerSearch = function(fullFrom, fullTo) {
     if (fromSelect && toSelect) {
         fromSelect.value = fullFrom;
         toSelect.value = fullTo;
-        
         if (fromInput) fromInput.value = fullFrom.replace(' STATION', '');
         if (toInput) toInput.value = fullTo.replace(' STATION', '');
         
@@ -352,9 +316,7 @@ function setupAutocomplete(inputId, selectId) {
     if (!input || !select) return;
 
     select.classList.add('hidden');
-    if (input.parentNode) {
-        input.parentNode.style.position = 'relative';
-    }
+    if (input.parentNode) input.parentNode.style.position = 'relative';
 
     const chevron = document.createElement('div');
     chevron.className = "absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer p-2 hover:text-blue-500 z-10";
@@ -368,13 +330,7 @@ function setupAutocomplete(inputId, selectId) {
     const renderList = (filterText = '') => {
         list.innerHTML = '';
         const val = filterText.toUpperCase();
-        
-        let matches = [];
-        if (val.length === 0) {
-            matches = MASTER_STATION_LIST;
-        } else {
-            matches = MASTER_STATION_LIST.filter(s => s.includes(val));
-        }
+        const matches = val.length === 0 ? MASTER_STATION_LIST : MASTER_STATION_LIST.filter(s => s.includes(val));
 
         if (matches.length === 0) {
             const li = document.createElement('li');
@@ -386,7 +342,6 @@ function setupAutocomplete(inputId, selectId) {
                 const li = document.createElement('li');
                 li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors";
                 li.textContent = station.replace(' STATION', '');
-                
                 li.onclick = () => {
                     input.value = station.replace(' STATION', '');
                     select.value = station;
@@ -398,42 +353,20 @@ function setupAutocomplete(inputId, selectId) {
         list.classList.remove('hidden');
     };
 
-    input.addEventListener('input', () => {
-        select.value = ""; 
-        renderList(input.value);
-    });
-
-    input.addEventListener('focus', () => {
-        renderList(input.value);
-    });
-
-    chevron.addEventListener('click', (e) => {
-        e.stopPropagation(); 
-        if (list.classList.contains('hidden')) {
-            renderList(input.value);
-            input.focus();
-        } else {
-            list.classList.add('hidden');
-        }
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) {
-            list.classList.add('hidden');
-        }
-    });
+    input.addEventListener('input', () => { select.value = ""; renderList(input.value); });
+    input.addEventListener('focus', () => renderList(input.value));
+    chevron.addEventListener('click', (e) => { e.stopPropagation(); list.classList.contains('hidden') ? (renderList(input.value), input.focus()) : list.classList.add('hidden'); });
+    document.addEventListener('click', (e) => { if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) list.classList.add('hidden'); });
 }
 
 // --- DEV TOOLS INJECTION ---
 function renderPlannerDevUI() {
     const container = document.getElementById('planner-input-section');
-    if (!container) return;
-    if (document.getElementById('planner-dev-tools')) return;
+    if (!container || document.getElementById('planner-dev-tools')) return;
 
     const devDiv = document.createElement('div');
     devDiv.id = "planner-dev-tools";
     devDiv.className = "mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700 animate-fade-in-up";
-    
     devDiv.innerHTML = `
         <h4 class="text-xs font-bold text-green-400 uppercase mb-3 flex justify-between items-center">
             <span>Developer Simulation</span>
@@ -459,19 +392,13 @@ function renderPlannerDevUI() {
             <button id="p-sim-apply" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded text-xs uppercase transition-colors">Apply Override</button>
         </div>
     `;
-    
     container.prepend(devDiv);
     
     document.getElementById('p-sim-apply').addEventListener('click', () => {
         if (typeof isSimMode === 'undefined') { showToast("Sim vars not found", "error"); return; }
-        
         isSimMode = document.getElementById('p-sim-enabled').checked;
         simTimeStr = document.getElementById('p-sim-time').value + ":00";
         simDayIndex = parseInt(document.getElementById('p-sim-day').value);
-        
-        const globalCheck = document.getElementById('sim-enabled');
-        if(globalCheck) globalCheck.checked = isSimMode;
-        
         if (typeof updateTime === 'function') updateTime();
         showToast("Simulation Applied! Press Find Route again.", "success");
     });
@@ -480,7 +407,6 @@ function renderPlannerDevUI() {
 // --- CORE PLANNING LOGIC ---
 function executeTripPlan(origin, dest) {
     const resultsContainer = document.getElementById('planner-results-list');
-    
     resultsContainer.innerHTML = '<div class="text-center p-4"><svg class="w-8 h-8 animate-spin mx-auto text-blue-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p class="mt-2 text-xs text-gray-500">Calculating route...</p></div>';
     
     document.getElementById('planner-input-section').classList.add('hidden');
@@ -489,10 +415,9 @@ function executeTripPlan(origin, dest) {
     if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
 
     setTimeout(() => {
-        // 1. Try Direct Trip First
         const directPlan = planDirectTrip(origin, dest);
-
         let nextTripIndex = 0;
+
         if (directPlan.trips && directPlan.trips.length > 0) {
             if (!selectedPlannerDay || selectedPlannerDay === currentDayType) {
                 const nowSec = timeToSeconds(currentTime);
@@ -505,19 +430,14 @@ function executeTripPlan(origin, dest) {
         if (directPlan.status === 'FOUND') {
             currentTripOptions = directPlan.trips;
             renderTripResult(resultsContainer, currentTripOptions, nextTripIndex);
-        } 
-        else if (directPlan.status === 'NO_MORE_TODAY') {
+        } else if (directPlan.status === 'NO_MORE_TODAY') {
             currentTripOptions = directPlan.trips;
             renderNoMoreTrainsResult(resultsContainer, currentTripOptions, 0, "No more trains today");
-        }
-        else if (directPlan.status === 'NO_SERVICE_TODAY_FUTURE_FOUND') {
+        } else if (directPlan.status === 'NO_SERVICE_TODAY_FUTURE_FOUND') {
             currentTripOptions = directPlan.trips;
             renderNoMoreTrainsResult(resultsContainer, currentTripOptions, 0, "No Service Today");
-        }
-        else {
-            // 2. No Direct? Try Transfer
+        } else {
             const transferPlan = planHubTransferTrip(origin, dest);
-            
             let nextTransferIndex = 0;
             if (transferPlan.trips && transferPlan.trips.length > 0) {
                 if (!selectedPlannerDay || selectedPlannerDay === currentDayType) {
@@ -530,37 +450,31 @@ function executeTripPlan(origin, dest) {
             if (transferPlan.status === 'FOUND') {
                 currentTripOptions = transferPlan.trips;
                 renderTripResult(resultsContainer, currentTripOptions, nextTransferIndex);
-            } 
-            else if (directPlan.status === 'NO_SERVICE') {
+            } else if (directPlan.status === 'NO_SERVICE') {
                  resultsContainer.innerHTML = renderErrorCard("No Service", "This route exists, but there are no trains scheduled for the selected day.");
-            } 
-            else {
-                 resultsContainer.innerHTML = renderErrorCard(
-                     "No Route Found", 
-                     `We couldn't find a route between these stations. Transfers between different corridors are coming soon.`
-                 );
+            } else {
+                 resultsContainer.innerHTML = renderErrorCard("No Route Found", `We couldn't find a route between these stations. Transfers between different corridors are coming soon.`);
             }
         }
     }, 500); 
 }
 
-// UI Binding for Dropdown
 window.selectPlannerTrip = function(index) {
-    const resultsContainer = document.getElementById('planner-results-list');
     const idx = parseInt(index);
     if (!currentTripOptions || !currentTripOptions[idx]) return;
     
     const isNextDay = currentTripOptions[0].dayLabel !== undefined;
+    const container = document.getElementById('planner-results-list');
     
     if (isNextDay) {
         const title = selectedPlannerDay === 'sunday' ? "No Service Today" : "No more trains today";
-        renderNoMoreTrainsResult(resultsContainer, currentTripOptions, idx, title);
+        renderNoMoreTrainsResult(container, currentTripOptions, idx, title);
     } else {
-        renderTripResult(resultsContainer, currentTripOptions, idx);
+        renderTripResult(container, currentTripOptions, idx);
     }
 };
 
-// --- ALGORITHMS: DIRECT ---
+// --- ALGORITHMS: DIRECT & TRANSFER (Kept compact) ---
 function planDirectTrip(origin, dest) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
@@ -572,16 +486,14 @@ function planDirectTrip(origin, dest) {
     let nextDayTrips = [];
     let pathFoundToday = false;
     let pathExistsGenerally = false;
-
     const planningDay = selectedPlannerDay || currentDayType;
 
     for (const routeId of commonRoutes) {
         const routeConfig = ROUTES[routeId];
+        const directions = getDirectionsForRoute(routeConfig, planningDay);
         
-        let directions = getDirectionsForRoute(routeConfig, planningDay);
         for (let dir of directions) {
             if (!fullDatabase || !fullDatabase[dir.key]) continue;
-            
             const schedule = parseJSONSchedule(fullDatabase[dir.key]);
             const originRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(origin));
             const destRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(dest));
@@ -589,19 +501,15 @@ function planDirectTrip(origin, dest) {
             if (originRow && destRow) {
                 const originIdx = schedule.rows.indexOf(originRow);
                 const destIdx = schedule.rows.indexOf(destRow);
-
                 if (originIdx < destIdx) {
                     pathFoundToday = true; 
                     pathExistsGenerally = true;
-                    
                     const upcomingTrains = findUpcomingTrainsForLeg(schedule, originRow, destRow, true);
-                    
                     if (upcomingTrains.length > 0) {
-                        const tripObjects = upcomingTrains.map(info => 
+                        bestTrips = [...bestTrips, ...upcomingTrains.map(info => 
                             createTripObject(routeConfig, info, schedule, originIdx, destIdx, origin, dest)
-                        );
-                        bestTrips = [...bestTrips, ...tripObjects];
-
+                        )];
+                        // Optimistic caching
                         if (typeof findNextDirectTrain === 'function') {
                             const { allJourneys } = findNextDirectTrain(origin, schedule, dest);
                             if (!currentScheduleData) currentScheduleData = {};
@@ -611,7 +519,6 @@ function planDirectTrip(origin, dest) {
                 }
             }
         }
-
         if (bestTrips.length === 0) {
              const next = findNextDayTrips(routeConfig, origin, dest, planningDay);
              if (next && next.length > 0) {
@@ -621,59 +528,35 @@ function planDirectTrip(origin, dest) {
         }
     }
 
-    if (bestTrips.length > 0) {
-        bestTrips.sort((a,b) => timeToSeconds(a.depTime) - timeToSeconds(b.depTime));
-        return { status: 'FOUND', trips: bestTrips };
-    }
-    
-    if (nextDayTrips.length > 0) {
-        nextDayTrips.sort((a,b) => timeToSeconds(a.depTime) - timeToSeconds(b.depTime));
-        const status = pathFoundToday ? 'NO_MORE_TODAY' : 'NO_SERVICE_TODAY_FUTURE_FOUND';
-        return { status: status, trips: nextDayTrips };
-    }
-
-    if (pathExistsGenerally || pathFoundToday) return { status: 'NO_SERVICE' }; 
-    return { status: 'NO_PATH' };
+    if (bestTrips.length > 0) return { status: 'FOUND', trips: bestTrips.sort((a,b) => timeToSeconds(a.depTime) - timeToSeconds(b.depTime)) };
+    if (nextDayTrips.length > 0) return { status: pathFoundToday ? 'NO_MORE_TODAY' : 'NO_SERVICE_TODAY_FUTURE_FOUND', trips: nextDayTrips.sort((a,b) => timeToSeconds(a.depTime) - timeToSeconds(b.depTime)) };
+    return { status: (pathExistsGenerally || pathFoundToday) ? 'NO_SERVICE' : 'NO_PATH' };
 }
 
-// --- ALGORITHMS: TRANSFERS ---
 function planHubTransferTrip(origin, dest) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
-    
     const planningDay = selectedPlannerDay || currentDayType;
+    const HUBS = ['PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION', 'KEMPTON PARK STATION', 'HERCULES STATION', 'PRETORIA WEST STATION', 'WINTERSNEST STATION', 'WOLMERTON STATION', 'PRETORIA NOORD STATION']; 
     
-    const HUBS = [
-        'PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION', 'KEMPTON PARK STATION',
-        'HERCULES STATION', 'PRETORIA WEST STATION', 'WINTERSNEST STATION', 'WOLMERTON STATION', 'PRETORIA NOORD STATION'
-    ]; 
-    
-    let potentialHubs = [];
-
-    for (const hub of HUBS) {
-        const hubNorm = normalizeStationName(hub);
-        const hubData = globalStationIndex[hubNorm];
-        if (!hubData) continue;
-
+    let potentialHubs = HUBS.filter(hub => {
+        const hubData = globalStationIndex[normalizeStationName(hub)];
+        if (!hubData) return false;
         const toHub = [...originRoutes].some(rId => hubData.routes.has(rId));
         const fromHub = [...destRoutes].some(rId => hubData.routes.has(rId));
-
-        if (toHub && fromHub) potentialHubs.push(hub);
-    }
+        return toHub && fromHub;
+    });
 
     if (potentialHubs.length === 0) return { status: 'NO_PATH' };
 
     let allTransferOptions = [];
-
     for (const hub of potentialHubs) {
         const leg1Options = findAllLegsBetween(origin, hub, originRoutes, planningDay);
         if (leg1Options.length === 0) continue;
-
         const leg2Options = findAllLegsBetween(hub, dest, destRoutes, planningDay); 
         if (leg2Options.length === 0) continue;
 
-        const TRANSFER_BUFFER_SEC = 3 * 60; // 3 Min Buffer
-
+        const TRANSFER_BUFFER_SEC = 3 * 60;
         leg1Options.forEach(leg1 => {
             const arrivalSec = timeToSeconds(leg1.arrTime);
             leg2Options.forEach(leg2 => {
@@ -682,14 +565,10 @@ function planHubTransferTrip(origin, dest) {
                     allTransferOptions.push({
                         type: 'TRANSFER',
                         route: leg1.route, 
-                        from: origin,
-                        to: dest,
+                        from: origin, to: dest,
                         transferStation: hub,
-                        depTime: leg1.depTime,
-                        arrTime: leg2.arrTime,
-                        train: leg1.train,
-                        leg1: leg1,
-                        leg2: leg2,
+                        depTime: leg1.depTime, arrTime: leg2.arrTime,
+                        train: leg1.train, leg1: leg1, leg2: leg2,
                         totalDuration: (timeToSeconds(leg2.arrTime) - timeToSeconds(leg1.depTime))
                     });
                 }
@@ -700,54 +579,35 @@ function planHubTransferTrip(origin, dest) {
     if (allTransferOptions.length > 0) {
         allTransferOptions.sort((a,b) => {
             const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
-            if (depDiff !== 0) return depDiff;
-            return a.totalDuration - b.totalDuration;
+            return depDiff !== 0 ? depDiff : a.totalDuration - b.totalDuration;
         });
-        
+        // Dedupe
         const unique = [];
         const seenDepTimes = new Set();
-        
         allTransferOptions.forEach(opt => {
-            if(!seenDepTimes.has(opt.depTime)) {
-                seenDepTimes.add(opt.depTime);
-                unique.push(opt);
-            }
+            if(!seenDepTimes.has(opt.depTime)) { seenDepTimes.add(opt.depTime); unique.push(opt); }
         });
-
         return { status: 'FOUND', trips: unique };
     }
-
     return { status: 'NO_PATH' };
 }
 
 function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
     let legs = [];
     const routesToCheck = routeSet ? [...routeSet] : Object.keys(ROUTES);
-
     for (const rId of routesToCheck) {
         const routeConfig = ROUTES[rId];
         let directions = getDirectionsForRoute(routeConfig, dayType);
-
         for (let dir of directions) {
             if (!fullDatabase || !fullDatabase[dir.key]) continue;
             const schedule = parseJSONSchedule(fullDatabase[dir.key]);
-            
             const rowA = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(stationA));
             const rowB = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(stationB));
-
             if (rowA && rowB) {
                 const idxA = schedule.rows.indexOf(rowA);
                 const idxB = schedule.rows.indexOf(rowB);
-
                 if (idxA < idxB) {
-                    if (typeof findNextDirectTrain === 'function') {
-                        const { allJourneys } = findNextDirectTrain(stationA, schedule, stationB);
-                        if (!currentScheduleData) currentScheduleData = {};
-                        currentScheduleData[stationB] = allJourneys;
-                    }
-                    
-                    const trains = findUpcomingTrainsForLeg(schedule, rowA, rowB, true);
-                    trains.forEach(t => {
+                    findUpcomingTrainsForLeg(schedule, rowA, rowB, true).forEach(t => {
                         legs.push(createTripObject(routeConfig, t, schedule, idxA, idxB, stationA, stationB));
                     });
                 }
@@ -757,136 +617,76 @@ function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
     return legs;
 }
 
-function findNextDayTrips(routeConfig, origin, dest, currentDayTypeOverride = null) {
-    let dayName = 'Tomorrow';
-    let nextDayType = 'weekday';
-    
-    const baseDay = currentDayTypeOverride || currentDayType;
-    
+function findNextDayTrips(routeConfig, origin, dest, baseDay) {
+    let dayName = 'Tomorrow', nextDayType = 'weekday';
     if (baseDay === 'weekday') { nextDayType = 'weekday'; dayName = 'Tomorrow'; } 
     else if (baseDay === 'saturday') { nextDayType = 'sunday'; dayName = 'Sunday'; }
     else if (baseDay === 'sunday') { nextDayType = 'weekday'; dayName = 'Monday'; }
 
-    let directions = getDirectionsForRoute(routeConfig, nextDayType);
     let allNextDayTrains = [];
-
-    for (let dir of directions) {
-         if (!fullDatabase || !fullDatabase[dir.key]) continue;
+    getDirectionsForRoute(routeConfig, nextDayType).forEach(dir => {
+         if (!fullDatabase || !fullDatabase[dir.key]) return;
          const schedule = parseJSONSchedule(fullDatabase[dir.key]);
-         
          const originRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(origin));
          const destRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(dest));
-         
-         if (originRow && destRow) {
-             const originIdx = schedule.rows.indexOf(originRow);
-             const destIdx = schedule.rows.indexOf(destRow);
-
-             if (originIdx < destIdx) {
-                 const trains = schedule.headers.slice(1);
-                 trains.forEach(tName => {
-                     const dTime = originRow[tName];
-                     const aTime = destRow[tName];
-                     if(dTime && aTime) {
-                         allNextDayTrains.push({ trainName: tName, depTime: dTime, arrTime: aTime });
-                     }
-                 });
-             }
+         if (originRow && destRow && schedule.rows.indexOf(originRow) < schedule.rows.indexOf(destRow)) {
+             schedule.headers.slice(1).forEach(tName => {
+                 const dTime = originRow[tName], aTime = destRow[tName];
+                 if(dTime && aTime) allNextDayTrains.push({ trainName: tName, depTime: dTime, arrTime: aTime });
+             });
          }
-    }
-    
-    if (allNextDayTrains.length > 0) {
-        allNextDayTrains.sort((a,b) => timeToSeconds(a.depTime) - timeToSeconds(b.depTime));
-        return allNextDayTrains.map(info => {
-            const trip = createTripObject(routeConfig, info, null, 0, 0, origin, dest); 
-            trip.dayLabel = dayName;
-            return trip;
-        });
-    }
-    return [];
+    });
+    return allNextDayTrains.map(info => {
+        const trip = createTripObject(routeConfig, info, null, 0, 0, origin, dest); 
+        trip.dayLabel = dayName;
+        return trip;
+    });
 }
 
 function getDirectionsForRoute(route, dayType) {
-    let dirs = [];
-    if (dayType === 'weekday') {
-        dirs.push({ key: route.sheetKeys.weekday_to_a });
-        dirs.push({ key: route.sheetKeys.weekday_to_b });
-    } else {
-        dirs.push({ key: route.sheetKeys.saturday_to_a });
-        dirs.push({ key: route.sheetKeys.saturday_to_b });
-    }
-    return dirs;
+    if (dayType === 'weekday') return [{ key: route.sheetKeys.weekday_to_a }, { key: route.sheetKeys.weekday_to_b }];
+    return [{ key: route.sheetKeys.saturday_to_a }, { key: route.sheetKeys.saturday_to_b }];
 }
 
 function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, dest) {
-    const trip = {
-        type: 'DIRECT',
-        route: route,
-        from: origin,
-        to: dest,
-        train: trainInfo.trainName,
-        depTime: trainInfo.depTime,
-        arrTime: trainInfo.arrTime,
-        stops: []
+    return {
+        type: 'DIRECT', route: route, from: origin, to: dest,
+        train: trainInfo.trainName, depTime: trainInfo.depTime, arrTime: trainInfo.arrTime,
+        stops: (schedule && startIdx !== undefined) ? getIntermediateStops(schedule, startIdx, endIdx, trainInfo.trainName) : []
     };
-    
-    if (schedule && startIdx !== undefined && endIdx !== undefined) {
-        trip.stops = getIntermediateStops(schedule, startIdx, endIdx, trainInfo.trainName);
-    }
-    return trip;
 }
 
 function findUpcomingTrainsForLeg(schedule, originRow, destRow, allowPast = false) {
     const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
     const nowSeconds = (isToday && !allowPast) ? timeToSeconds(currentTime) : 0; 
-
-    const trains = schedule.headers.slice(1);
     let upcomingTrains = [];
-
-    trains.forEach(trainName => {
-        const depTime = originRow[trainName];
-        const arrTime = destRow[trainName];
-        
+    schedule.headers.slice(1).forEach(trainName => {
+        const depTime = originRow[trainName], arrTime = destRow[trainName];
         if (depTime && arrTime) {
             const depSeconds = timeToSeconds(depTime);
-            if (depSeconds >= nowSeconds) {
-                upcomingTrains.push({
-                    trainName: trainName,
-                    depTime: depTime,
-                    arrTime: arrTime,
-                    seconds: depSeconds
-                });
-            }
+            if (depSeconds >= nowSeconds) upcomingTrains.push({ trainName, depTime, arrTime, seconds: depSeconds });
         }
     });
-
-    upcomingTrains.sort((a, b) => a.seconds - b.seconds);
-    return upcomingTrains; 
+    return upcomingTrains.sort((a, b) => a.seconds - b.seconds);
 }
 
 function getIntermediateStops(schedule, startIndex, endIndex, trainName) {
     let stops = [];
     for (let i = startIndex; i <= endIndex; i++) {
         const row = schedule.rows[i];
-        const time = row[trainName];
-        if (time) {
-            stops.push({ station: row.STATION, time: time });
-        }
+        if (row[trainName]) stops.push({ station: row.STATION, time: row[trainName] });
     }
     return stops;
 }
 
 // --- UI RENDERING (MODULARIZED) ---
-
 function renderTripResult(container, trips, selectedIndex = 0) {
     const selectedTrip = trips[selectedIndex];
-    if (!selectedTrip) return;
-    container.innerHTML = PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
+    if (selectedTrip) container.innerHTML = PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
 }
 
 function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "No more trains today") {
     const selectedTrip = trips[selectedIndex];
-    const cardHtml = PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex);
-    
     container.innerHTML = `
         <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
             <div class="flex items-center mb-3">
@@ -896,7 +696,7 @@ function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "
                     <p class="text-xs text-orange-700 dark:text-orange-300">Showing trains for <b>${selectedTrip.dayLabel || 'Tomorrow'}</b></p>
                 </div>
             </div>
-            ${cardHtml}
+            ${PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex)}
         </div>
     `;
 }
@@ -910,9 +710,8 @@ function renderErrorCard(title, message) {
     `;
 }
 
-// --- NEW PLANNER RENDERER (Clean Template Engine) ---
+// --- PLANNER RENDERER ---
 const PlannerRenderer = {
-    
     format12h: (timeStr) => {
         if (!timeStr) return "--:--";
         const [h, m] = timeStr.split(':');
@@ -923,49 +722,41 @@ const PlannerRenderer = {
     },
 
     buildCard: (step, isNextDay, allOptions, selectedIndex) => {
-        const header = PlannerRenderer.renderHeader(step, isNextDay);
-        const options = PlannerRenderer.renderOptionsSelector(allOptions, selectedIndex, isNextDay);
-        const instruction = PlannerRenderer.renderInstruction(step);
-        const timeline = PlannerRenderer.renderTimeline(step);
-
         return `
             <div class="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 overflow-hidden mb-4">
-                ${header}
-                ${options}
-                ${instruction}
+                ${PlannerRenderer.renderHeader(step, isNextDay)}
+                ${PlannerRenderer.renderOptionsSelector(allOptions, selectedIndex, isNextDay)}
+                ${step.type !== 'TRANSFER' ? PlannerRenderer.renderInstruction(step) : ''}
                 <div class="p-4 bg-white dark:bg-gray-800">
                     <p class="text-xs font-bold text-gray-400 uppercase mb-2">Journey Timeline</p>
-                    ${timeline}
+                    ${PlannerRenderer.renderTimeline(step)}
                 </div>
             </div>
         `;
     },
 
     renderHeader: (step, isNextDay) => {
-        const timeColor = isNextDay ? "text-orange-600 dark:text-orange-400" : "text-blue-600 dark:text-blue-400";
-        const headerLabel = step.type === 'TRANSFER' ? 'Transfer Trip' : (isNextDay ? 'Future Trip' : 'Direct Trip');
-        const headerBg = step.type === 'TRANSFER' ? 'text-yellow-600 dark:text-yellow-400' : timeColor;
-
-        const depTime = PlannerRenderer.format12h(step.depTime);
-        const arrTime = PlannerRenderer.format12h(step.arrTime);
+        const isTransfer = step.type === 'TRANSFER';
+        const colorClass = isTransfer ? 'text-yellow-600 dark:text-yellow-400' : (isNextDay ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400');
+        const headerLabel = isTransfer ? 'Transfer Trip' : (isNextDay ? 'Future Trip' : 'Direct Trip');
         const { countdown, duration } = PlannerRenderer.calculateTimes(step, isNextDay);
 
         return `
             <div class="p-4 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
                 <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold ${headerBg} uppercase tracking-wider">${headerLabel}</span>
+                    <span class="text-xs font-bold ${colorClass} uppercase tracking-wider">${headerLabel}</span>
                     <span class="text-xs font-bold text-gray-500 bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">Train ${step.train}</span>
                 </div>
                 <div class="flex justify-between items-center mt-2">
                     <div class="text-left">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Depart</p>
                         <p class="text-lg font-black text-gray-900 dark:text-white leading-tight">${step.from.replace(' STATION', '')}</p>
-                        <p class="text-base font-black ${timeColor} mt-1">${depTime}</p>
+                        <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.depTime)}</p>
                     </div>
                     <div class="text-right">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Arrive</p>
                         <p class="text-lg font-black text-gray-900 dark:text-white leading-tight">${step.to.replace(' STATION', '')}</p>
-                        <p class="text-base font-black ${timeColor} mt-1">${arrTime}</p>
+                        <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.arrTime)}</p>
                     </div>
                 </div>
                 <div class="flex justify-between items-center mt-3 pt-2 border-t border-gray-200 dark:border-gray-600">
@@ -984,24 +775,15 @@ const PlannerRenderer = {
 
     renderOptionsSelector: (allOptions, selectedIndex, isNextDay) => {
         if (!allOptions || allOptions.length <= 1) return '';
-        
-        let optionsHtml = '';
         const nowSec = timeToSeconds(currentTime);
         const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
 
-        allOptions.forEach((opt, idx) => {
-            const selected = idx === selectedIndex ? 'selected' : '';
-            const typeLabel = opt.type === 'TRANSFER' ? 'Transfer' : 'Direct';
-            const optTime = formatTimeDisplay(opt.depTime);
-            
-            // Grey out past trains logic
-            const trainSec = timeToSeconds(opt.depTime);
-            const isPast = isToday && trainSec < nowSec;
-            const pastStyle = isPast ? 'style="color: #9ca3af;"' : ''; 
-            const pastLabel = isPast ? ' (Departed)' : '';
-
-            optionsHtml += `<option value="${idx}" ${selected} ${pastStyle} ${isPast ? 'class="text-gray-400"' : ''}>${optTime} - ${typeLabel}${pastLabel}</option>`;
-        });
+        const optionsHtml = allOptions.map((opt, idx) => {
+            const isPast = isToday && timeToSeconds(opt.depTime) < nowSec;
+            return `<option value="${idx}" ${idx === selectedIndex ? 'selected' : ''} ${isPast ? 'class="text-gray-400" disabled' : ''}>
+                ${formatTimeDisplay(opt.depTime)} - ${opt.type === 'TRANSFER' ? 'Transfer' : 'Direct'}${isPast ? ' (Departed)' : ''}
+            </option>`;
+        }).join('');
 
         return `
             <div class="px-4 pb-2">
@@ -1013,118 +795,88 @@ const PlannerRenderer = {
         `;
     },
 
-    renderInstruction: (step) => {
-        if (step.type === 'TRANSFER') return ''; 
-        return `
-            <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/50">
-                <div class="flex items-start">
-                    <span class="text-xl mr-3">💡</span>
-                    <p class="text-sm text-gray-700 dark:text-gray-300 leading-snug">
-                        <b>Instruction:</b> Take train <b>${step.train}</b> on the <b>${step.route.name}</b> line.
-                    </p>
-                </div>
+    renderInstruction: (step) => `
+        <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/50">
+            <div class="flex items-start">
+                <span class="text-xl mr-3">💡</span>
+                <p class="text-sm text-gray-700 dark:text-gray-300 leading-snug">
+                    <b>Instruction:</b> Take train <b>${step.train}</b> on the <b>${step.route.name}</b> line.
+                </p>
             </div>
-        `;
-    },
+        </div>
+    `,
 
     renderTimeline: (step) => {
         if (step.type === 'TRANSFER') return PlannerRenderer.renderTransferTimeline(step);
-        return PlannerRenderer.renderDirectTimeline(step);
-    },
-
-    renderDirectTimeline: (step) => {
-        if (!step.stops || step.stops.length === 0) return '';
         
         let html = '<div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-4">';
         step.stops.forEach((stop, i) => {
-            const isFirst = i === 0;
-            const isLast = i === step.stops.length - 1;
-            const circleClass = (isFirst || isLast) ? "bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900" : "bg-gray-400";
-            const textClass = (isFirst || isLast) ? "font-bold text-gray-900 dark:text-white text-sm" : "text-gray-500 dark:text-gray-400 text-xs";
-            const stopTime = formatTimeDisplay(stop.time);
-            
+            const isEnd = (i === 0 || i === step.stops.length - 1);
             html += `
                 <div class="relative pl-6">
-                    <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full ${circleClass}"></div>
+                    <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full ${isEnd ? "bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900" : "bg-gray-400"}"></div>
                     <div class="flex justify-between items-center">
-                        <span class="${textClass}">${stop.station.replace(' STATION', '')}</span>
-                        <span class="font-mono ${textClass}">${stopTime}</span>
+                        <span class="${isEnd ? "font-bold text-gray-900 dark:text-white text-sm" : "text-gray-500 dark:text-gray-400 text-xs"}">${stop.station.replace(' STATION', '')}</span>
+                        <span class="font-mono ${isEnd ? "font-bold text-gray-900 dark:text-white text-sm" : "text-gray-500 dark:text-gray-400 text-xs"}">${formatTimeDisplay(stop.time)}</span>
                     </div>
                 </div>
             `;
         });
         
-        const safeDest = step.to.replace(/'/g, "\\'").replace(' STATION', '');
-        html += `
-            <div class="mt-4 pl-6">
-                <button onclick="openScheduleModal('${safeDest}')" class="text-xs font-bold text-blue-500 hover:text-blue-600 underline">See Full Schedule</button>
-            </div></div>`;
-        return html;
+        return html + `<div class="mt-4 pl-6"><button onclick="openScheduleModal('${step.to.replace(/'/g, "\\'").replace(' STATION', '')}')" class="text-xs font-bold text-blue-500 hover:text-blue-600 underline">See Full Schedule</button></div></div>`;
     },
 
     renderTransferTimeline: (step) => {
-        const leg1Dep = formatTimeDisplay(step.leg1.depTime);
-        const leg1Arr = formatTimeDisplay(step.leg1.arrTime);
-        const leg2Dep = formatTimeDisplay(step.leg2.depTime);
-        const leg2Arr = formatTimeDisplay(step.leg2.arrTime);
-
-        // Wait time calculation
-        const arrivalSec = timeToSeconds(step.leg1.arrTime);
-        const departSec = timeToSeconds(step.leg2.depTime);
-        let waitMinutes = Math.floor((departSec - arrivalSec) / 60);
-        let waitString = waitMinutes > 59 
-            ? `<b>${Math.floor(waitMinutes/60)} hr ${waitMinutes%60 > 0 ? (waitMinutes%60)+' min' : ''}</b>` 
-            : `<b>${waitMinutes} Minutes</b>`;
+        const arrSec = timeToSeconds(step.leg1.arrTime);
+        const depSec = timeToSeconds(step.leg2.depTime);
+        const waitMins = Math.floor((depSec - arrSec) / 60);
+        const waitStr = waitMins > 59 ? `${Math.floor(waitMins/60)} hr ${waitMins%60} min` : `${waitMins} Minutes`;
 
         return `
             <div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-6">
-                <!-- Leg 1 Dep -->
                 <div class="relative pl-6">
                     <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
                     <div class="flex flex-col">
                         <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart from ${step.from.replace(' STATION', '')}</span>
-                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg1Dep}</span>
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.from.replace(' STATION', '')}</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.depTime)}</span>
                         </div>
                         <div class="text-xs text-blue-500 font-medium">Train ${step.leg1.train}</div>
                     </div>
                 </div>
 
-                <!-- Transfer Point -->
                 <div class="relative pl-6">
                     <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900"></div>
                     <div class="flex flex-col">
                         <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive at ${step.transferStation.replace(' STATION', '')}</span>
-                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg1Arr}</span>
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive ${step.transferStation.replace(' STATION', '')}</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.arrTime)}</span>
                         </div>
                         <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500">
                             <div class="font-bold uppercase tracking-wide mb-1">Transfer Required</div>
                             <div class="text-gray-600 dark:text-gray-400">
-                                <span class="font-bold text-gray-900 dark:text-white">⏳ ${waitString} Layover</span> &bull; Connect to Train ${step.leg2.train}
+                                <span class="font-bold text-gray-900 dark:text-white">⏳ <b>${waitStr}</b> Layover</span> &bull; Connect to Train ${step.leg2.train}
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Leg 2 Dep -->
                 <div class="relative pl-6">
                     <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
                     <div class="flex flex-col">
                         <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart from ${step.transferStation.replace(' STATION', '')}</span>
-                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg2Dep}</span>
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.transferStation.replace(' STATION', '')}</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg2.depTime)}</span>
                         </div>
                         <div class="text-xs text-blue-500 font-medium">Train ${step.leg2.train}</div>
                     </div>
                 </div>
 
-                <!-- Final Dest -->
                 <div class="relative pl-6">
                     <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-green-600 ring-4 ring-green-100 dark:ring-green-900"></div>
                     <div class="flex justify-between items-center">
                         <span class="font-bold text-gray-900 dark:text-white text-sm">${step.to.replace(' STATION', '')}</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${leg2Arr}</span>
+                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg2.arrTime)}</span>
                     </div>
                 </div>
             </div>
@@ -1135,27 +887,25 @@ const PlannerRenderer = {
         const nowSec = timeToSeconds(currentTime);
         const depSec = timeToSeconds(step.depTime);
         const arrSec = timeToSeconds(step.arrTime);
+        const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
         
-        let countdown = "";
-        if ((!selectedPlannerDay || selectedPlannerDay === currentDayType) && depSec > nowSec) {
-            const diff = depSec - nowSec;
-            const h = Math.floor(diff / 3600);
-            const m = Math.floor((diff % 3600) / 60);
-            countdown = h > 0 ? `Departs in ${h}h ${m}m` : `Departs in ${m} min`;
-        } else if ((!selectedPlannerDay || selectedPlannerDay === currentDayType) && depSec <= nowSec) {
-            countdown = "Departed";
-        } else if (isNextDay) {
-            countdown = "Scheduled";
+        let countdown = "Scheduled";
+        if (isToday) {
+            if (depSec > nowSec) {
+                const diff = depSec - nowSec;
+                const h = Math.floor(diff / 3600);
+                const m = Math.floor((diff % 3600) / 60);
+                // FIXED: Better "0 min" handling
+                countdown = h > 0 ? `Departs in ${h}h ${m}m` : (m === 0 ? "Departs in < 1 min" : `Departs in ${m} min`);
+            } else {
+                countdown = "Departed";
+            }
         }
 
-        let durSec = arrSec - depSec;
-        let duration = "";
-        if (durSec > 0) {
-            const h = Math.floor(durSec / 3600);
-            const m = Math.floor((durSec % 3600) / 60);
-            duration = h > 0 ? `${h}h ${m}m` : `${m}m`;
-        }
-
-        return { countdown, duration };
+        const durSec = arrSec - depSec;
+        const h = Math.floor(durSec / 3600);
+        const m = Math.floor((durSec % 3600) / 60);
+        
+        return { countdown, duration: h > 0 ? `${h}h ${m}m` : `${m}m` };
     }
 };

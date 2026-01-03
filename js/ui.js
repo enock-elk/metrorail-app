@@ -463,7 +463,6 @@ function populateStationList() {
     
     const currentSelectedStation = stationSelect.value;
     
-    // POPULATE HIDDEN SELECT
     stationSelect.innerHTML = '<option value="">Select a station...</option>';
     
     allStations.forEach(station => {
@@ -474,22 +473,7 @@ function populateStationList() {
             stationSelect.appendChild(option);
         }
     });
-    
-    if (allStations.includes(currentSelectedStation)) {
-        stationSelect.value = currentSelectedStation; 
-    } else {
-        stationSelect.value = ""; 
-    }
-
-    // --- NEW: SYNC SEARCH INPUT (Search 2.0) ---
-    const searchInput = document.getElementById('station-select-search');
-    if (searchInput) {
-        if (stationSelect.value) {
-            searchInput.value = stationSelect.value.replace(' STATION', '');
-        } else {
-            searchInput.value = '';
-        }
-    }
+    if (allStations.includes(currentSelectedStation)) stationSelect.value = currentSelectedStation; else stationSelect.value = ""; 
 }
 
 // --- SYNC HELPER: Updates Planner from Main Select ---
@@ -497,110 +481,15 @@ function syncPlannerFromMain(stationName) {
     if (!stationName) return;
     const plannerInput = document.getElementById('planner-from-search');
     const plannerSelect = document.getElementById('planner-from');
-    const mainInput = document.getElementById('station-select-search');
     
-    // 1. Sync Planner Inputs
+    // Only sync if elements exist
     if (plannerInput && plannerSelect) {
+        // Find matching option in planner select logic (reuse logic.js normalize if needed, but strings should match)
+        // Set hidden select value
         plannerSelect.value = stationName;
+        // Set visible input text (removing ' STATION' suffix for cleaner look)
         plannerInput.value = stationName.replace(' STATION', '');
     }
-
-    // 2. Sync Main Search Input (New for Search 2.0)
-    // Only update if it doesn't match, to avoid overwriting user typing if focused? 
-    // Actually, force sync is good when coming from Auto-Locate.
-    if (mainInput) {
-        mainInput.value = stationName.replace(' STATION', '');
-    }
-}
-
-// --- MAIN SEARCH 2.0 LOGIC ---
-function setupMainAutocomplete() {
-    const input = document.getElementById('station-select-search');
-    const select = document.getElementById('station-select');
-    if (!input || !select) return;
-
-    if (input.parentNode) {
-        input.parentNode.style.position = 'relative';
-    }
-
-    const chevron = document.createElement('div');
-    chevron.className = "absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer p-2 hover:text-blue-500 z-10";
-    chevron.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
-    input.parentNode.appendChild(chevron);
-
-    const list = document.createElement('ul');
-    list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0";
-    input.parentNode.appendChild(list);
-
-    const renderList = (filterText = '') => {
-        list.innerHTML = '';
-        const val = filterText.toUpperCase();
-        
-        // Use allStations (Current Route) instead of Master List
-        let matches = [];
-        if (val.length === 0) {
-            matches = allStations;
-        } else {
-            matches = allStations.filter(s => s.includes(val));
-        }
-
-        if (matches.length === 0) {
-            const li = document.createElement('li');
-            li.className = "p-3 text-sm text-gray-400 italic";
-            li.textContent = "No stations on this route";
-            list.appendChild(li);
-        } else {
-            matches.forEach(station => {
-                // Filter out metadata rows just in case
-                if (station.toLowerCase().includes('last updated')) return;
-
-                const li = document.createElement('li');
-                li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors";
-                li.textContent = station.replace(' STATION', '');
-                
-                li.onclick = () => {
-                    input.value = station.replace(' STATION', '');
-                    select.value = station; // Update hidden select
-                    list.classList.add('hidden');
-                    
-                    // Trigger Logic
-                    syncPlannerFromMain(station);
-                    findNextTrains();
-                };
-                list.appendChild(li);
-            });
-        }
-        list.classList.remove('hidden');
-    };
-
-    input.addEventListener('input', () => {
-        // Clear select if user clears input
-        if(input.value === '') {
-            select.value = "";
-            renderPlaceholder(); // Show "Select a station" UI
-        }
-        renderList(input.value);
-    });
-
-    input.addEventListener('focus', () => {
-        renderList(input.value);
-    });
-
-    chevron.addEventListener('click', (e) => {
-        e.stopPropagation(); 
-        if (list.classList.contains('hidden')) {
-            renderList(input.value);
-            input.focus();
-        } else {
-            list.classList.add('hidden');
-        }
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) {
-            list.classList.add('hidden');
-        }
-    });
 }
 
 // --- SETUP FUNCTIONS ---
@@ -813,75 +702,49 @@ function showRedirectModal(url, message) {
     redirectCancelBtn.addEventListener('click', cancelHandler);
 }
 
-// --- HELPER: Detect iOS ---
-function isIOS() {
-    return [
-        'iPad Simulator',
-        'iPhone Simulator',
-        'iPod Simulator',
-        'iPad',
-        'iPhone',
-        'iPod'
-    ].includes(navigator.platform)
-    // iPad on iOS 13 detection
-    || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
-}
-
 function setupFeatureButtons() {
     if (localStorage.theme === 'light') { document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } 
     else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); }
     themeToggleBtn.addEventListener('click', () => { if (localStorage.theme === 'dark') { localStorage.theme = 'light'; document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); } });
     shareBtn.addEventListener('click', async () => { const shareData = { title: 'Metrorail Next Train', text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive', url: '\n\nhttps://nexttrain.co.za' }; try { if (navigator.share) await navigator.share(shareData); else copyToClipboard(shareData.text + shareData.url); } catch (err) { copyToClipboard(shareData.text + shareData.url); } });
     
-    // --- UPDATED INSTALL PROMPT LOGIC (V4.13 Always-Visible Trigger) ---
+    // --- UPDATED INSTALL PROMPT LOGIC ---
     installBtn = document.getElementById('install-app-btn');
-    const installSideBtn = document.getElementById('install-side-btn');
-    const installSideContainer = document.getElementById('install-side-container');
-    const installModal = document.getElementById('install-modal');
-
-    // Handler for Install Clicks
-    const handleInstallClick = () => {
-        // Logic A: Android / Desktop (Native Prompt is READY)
-        if (window.deferredInstallPrompt) {
-            window.deferredInstallPrompt.prompt();
-            window.deferredInstallPrompt.userChoice.then((choiceResult) => {
-                if (choiceResult.outcome === 'accepted') {
-                    console.log('User accepted the install prompt');
-                } else {
-                    console.log('User dismissed the install prompt');
-                }
-                window.deferredInstallPrompt = null;
-                // Ideally hide button, but keeping it visible for "retry" is okay
-            });
-        } 
-        // Logic B: iOS (Instruction Modal)
-        else if (isIOS()) {
-            if (installModal) installModal.classList.remove('hidden');
-            // Close side nav if open
-            const sidenav = document.getElementById('sidenav');
-            const overlay = document.getElementById('sidenav-overlay');
-            if (sidenav && overlay) {
-                sidenav.classList.remove('open');
-                overlay.classList.remove('open');
-                document.body.classList.remove('sidenav-open');
-            }
-        }
-        // Logic C: Fallback (Browser not ready / already installed / not supported)
-        else {
-            showToast("To install: Tap your browser menu (⋮) -> 'Install App'", "info", 4000);
+    
+    const showInstallButton = () => {
+        if (installBtn) {
+            installBtn.classList.remove('hidden');
         }
     };
 
-    // Attach Click Listeners
-    if (installBtn) installBtn.addEventListener('click', handleInstallClick);
-    if (installSideBtn) installSideBtn.addEventListener('click', handleInstallClick);
-
-    // OPTIONAL: If main install button was hidden by default in CSS, show it if prompt is ready
-    if (window.deferredInstallPrompt && installBtn) {
-        installBtn.classList.remove('hidden');
+    if (window.deferredInstallPrompt) {
+        console.log("Found trapped install event from HEAD");
+        showInstallButton();
+    } 
+    else {
+        window.addEventListener('pwa-install-ready', () => {
+            console.log("Received custom install ready event");
+            showInstallButton();
+        });
     }
     
-    // (Note: Side button is now ALWAYS visible via HTML update)
+    if (installBtn) {
+        installBtn.addEventListener('click', () => { 
+            installBtn.classList.add('hidden'); 
+            const promptEvent = window.deferredInstallPrompt;
+            if (promptEvent) {
+                promptEvent.prompt(); 
+                promptEvent.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    } else {
+                        console.log('User dismissed the install prompt');
+                    }
+                    window.deferredInstallPrompt = null;
+                });
+            }
+        }); 
+    }
 
     const openNav = () => { sidenav.classList.add('open'); sidenavOverlay.classList.add('open'); document.body.classList.add('sidenav-open'); };
     openNavBtn.addEventListener('click', openNav); routeSubtitle.addEventListener('click', openNav);
@@ -1092,17 +955,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // Manual Locate Click - pass false to indicate manual interaction
     locateBtn.addEventListener('click', () => findNearestStation(false));
     
-    appTitle.addEventListener('click', () => {
-        clickCount++;
-        if (clickTimer) clearTimeout(clickTimer);
-        clickTimer = setTimeout(() => { clickCount = 0; }, 1000); 
-        if (clickCount >= 5) {
-            clickCount = 0;
-            pinModal.classList.remove('hidden');
-            pinInput.value = '';
-            pinInput.focus();
-        }
-    });
+    // --- UPDATED: Developer Mode Access Logic (Fixed & Robust) ---
+    if (appTitle) {
+        let localClickCount = 0; // Use local variable for safety
+        let localClickTimer = null;
+        
+        appTitle.style.cursor = 'pointer'; // Visual hint
+        appTitle.title = "Developer Access (Tap 5 times)";
+
+        appTitle.addEventListener('click', (e) => {
+            e.preventDefault(); // Stop double-tap zoom
+            localClickCount++;
+            
+            if (localClickTimer) clearTimeout(localClickTimer);
+            localClickTimer = setTimeout(() => { localClickCount = 0; }, 2000); // 2 Seconds
+            
+            if (localClickCount >= 5) {
+                localClickCount = 0;
+                pinModal.classList.remove('hidden');
+                if(pinInput) {
+                    pinInput.value = '';
+                    pinInput.focus();
+                }
+            }
+        });
+    }
 
     pinCancelBtn.addEventListener('click', () => { pinModal.classList.add('hidden'); });
     
@@ -1115,7 +992,33 @@ document.addEventListener('DOMContentLoaded', () => {
     pinSubmitBtn.addEventListener('click', () => {
         if (pinInput.value === "101101") {
             pinModal.classList.add('hidden');
-            simPanel.classList.remove('hidden');
+            
+            // --- FIX: Move Sim Panel to Global Sticky Position ---
+            if (simPanel) {
+                // 1. Remove specific 'Next Train' view classes to reset layout
+                simPanel.classList.remove('hidden', 'mt-8', 'border-t', 'pt-4', 'bg-gray-200', 'rounded-lg', 'p-3');
+                
+                // 2. Apply "Global Bar" styling
+                simPanel.className = "w-full bg-gray-800 text-white p-3 border-b border-gray-700 shadow-md z-40 animate-fade-in-down mb-0";
+                
+                // 3. Move it in the DOM (After the tabs, before the views)
+                // Use a robust selector for the tabs container
+                const tabContainer = document.querySelector('.sticky.top-0');
+                
+                if (tabContainer && tabContainer.parentNode) {
+                    tabContainer.parentNode.insertBefore(simPanel, tabContainer.nextSibling);
+                } else {
+                    // Fallback to top of content
+                    mainContent.prepend(simPanel);
+                }
+                
+                // 4. Ensure checkbox labels are visible in dark mode bar
+                const labels = simPanel.querySelectorAll('label');
+                labels.forEach(l => l.classList.add('text-gray-300'));
+                const title = simPanel.querySelector('h4');
+                if(title) title.className = "text-xs font-bold text-green-400 uppercase mb-2 flex justify-between items-center";
+            }
+            
             showToast("Developer Mode Unlocked!", "success");
         } else {
             showToast("Invalid PIN", "error");
@@ -1141,7 +1044,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
     setupSwipeNavigation(); // NEW SWIPE LOGIC
     initTabIndicator(); // NEW ANIMATED TABS
-    setupMainAutocomplete(); // NEW MAIN SEARCH
     
     // --- MAP VIEWER INIT (Extracted) ---
     if (typeof setupMapLogic === 'function') {
@@ -1170,8 +1072,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- RESTORE ACTIVE TAB (New Requirement) ---
-    // If user has a saved tab preference, load it. Otherwise, default to 'next-train'.
-    // If first load (no localStorage entry), it defaults to 'next-train'.
     const lastActiveTab = localStorage.getItem('activeTab');
     if (lastActiveTab) {
         switchTab(lastActiveTab);

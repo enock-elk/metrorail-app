@@ -28,15 +28,24 @@ let legalModal, legalTitle, legalContent, closeLegalBtn, closeLegalBtn2;
 let profileModal, navProfileDisplay, fareContainer, fareAmount, fareType, passengerTypeLabel;
 let welcomeModal, welcomeRouteList; 
 
-// --- HOLIDAY CONFIGURATION ---
+// --- HOLIDAY CONFIGURATION (2026) ---
+// Rule: Weekday Holidays -> 'saturday' schedule.
 const SPECIAL_DATES = {
-    //"12-16": "saturday",
-    //"12-22": "saturday", "12-23": "saturday",
-   // "12-25": "sunday", "12-26": "sunday",
-   // "12-30": "saturday", 
-   // "12-31": "saturday",
-   // "01-01": "sunday", 
-   // "01-02": "saturday"
+    // 2026
+    "01-01": "saturday", // New Year's Day
+    // "01-02" REMOVED: Normal Friday (Weekday)
+    "03-21": "saturday", // Human Rights Day
+    "04-03": "saturday", // Good Friday
+    "04-06": "saturday", // Family Day
+    "04-27": "saturday", // Freedom Day
+    "05-01": "saturday", // Workers' Day
+    "06-16": "saturday", // Youth Day
+    "08-09": "sunday",   // National Women's Day
+    "08-10": "saturday", // Women's Day Observed
+    "09-24": "saturday", // Heritage Day
+    "12-16": "saturday", // Day of Reconciliation
+    "12-25": "sunday",   // Christmas Day
+    "12-26": "saturday"  // Day of Goodwill
 };
 
 // --- SIMULATION STATE ---
@@ -98,7 +107,6 @@ async function loadAllSchedules(force = false) {
         if(pienaarspoortHeader) pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
         
         // --- SKELETON LOADER INJECTION ---
-        // Instead of a placeholder, we immediately show skeletons while fetching
         if (typeof renderSkeletonLoader === 'function') {
             if(pretoriaTimeEl) renderSkeletonLoader(pretoriaTimeEl);
             if(pienaarspoortTimeEl) renderSkeletonLoader(pienaarspoortTimeEl);
@@ -127,9 +135,6 @@ async function loadAllSchedules(force = false) {
             if (typeof initializeApp === 'function') initializeApp();
             usedCache = true;
         }
-
-        // REMOVED: Full screen loading overlay block
-        // We now rely on Skeleton Cards for perceived performance
         
         if(forceReloadBtn) {
             const reloadIcon = forceReloadBtn.querySelector('svg');
@@ -163,9 +168,6 @@ async function loadAllSchedules(force = false) {
             }
         } else {
             console.log("Data is up to date.");
-            // If we used skeletons but data is same, ensure we re-render actual data
-            // (If usedCache was true, initializeApp or findNextTrains already ran. 
-            // If usedCache was false, we need to init)
             if (!usedCache) {
                  if(typeof initializeApp === 'function') initializeApp();
             }
@@ -184,7 +186,6 @@ async function loadAllSchedules(force = false) {
             if(reloadIcon) reloadIcon.classList.remove('spinning');
         }
         
-        // UPDATED: Use Smooth Fade Out
         if (typeof hideLoadingOverlay === 'function') {
             hideLoadingOverlay();
         } else if(loadingOverlay) {
@@ -345,9 +346,7 @@ function buildGlobalStationIndex() {
     console.log(`Global Index Built: ${Object.keys(globalStationIndex).length} stations mapped.`);
 }
 
-// NEW FUNCTION: Build Master Station List for Trip Planner
 function buildMasterStationList() {
-    // Just grab keys from global index, which contains ALL stations from ALL routes
     MASTER_STATION_LIST = Object.keys(globalStationIndex).sort();
     console.log(`Master Station List Built: ${MASTER_STATION_LIST.length} stations.`);
 }
@@ -374,8 +373,6 @@ function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
 function getRouteFare(sheetKey, departureTimeStr) {
     const zoneKey = sheetKey + "_zone";
     let zoneCode = fullDatabase[zoneKey]; 
-    
-    // DEBUG FALLBACK: If no zone found in DB, assume Z1 for testing
     if (!zoneCode) {
         console.warn(`No zone found for ${zoneKey}, defaulting to Z1 for testing.`);
         zoneCode = "Z1";
@@ -387,10 +384,8 @@ function getRouteFare(sheetKey, departureTimeStr) {
     let isOffPeak = false;
     let isPromo = false;
 
-    // 1. Get Profile Config
     const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
     
-    // 2. Check Time for Off-Peak Status
     let useOffPeakRate = false;
     if (departureTimeStr) {
         try {
@@ -401,15 +396,14 @@ function getRouteFare(sheetKey, departureTimeStr) {
         } catch (e) { }
     }
 
-    // 3. Apply Multiplier
     const multiplier = useOffPeakRate ? profile.offPeak : profile.base;
 
     if (multiplier < 1.0) {
         basePrice = basePrice * multiplier;
         if (useOffPeakRate && profile.base === 1.0) {
-             isOffPeak = true; // Adult/Pensioner during off-peak
+             isOffPeak = true; 
         } else {
-             isPromo = true; // Scholar always, or other permanent discounts
+             isPromo = true; 
         }
     }
 
@@ -423,13 +417,11 @@ function getRouteFare(sheetKey, departureTimeStr) {
 // --- JOURNEY FINDING LOGIC ---
 
 function findNextTrains() {
-    // If no route selected (e.g. welcome screen active), do nothing
     if(!currentRouteId) return;
 
     const selectedStation = stationSelect.value;
     const currentRoute = ROUTES[currentRouteId];
     
-    // UI Calls
     if (selectedStation === "FIND_NEAREST") { findNearestStation(false); return; }
     if (!currentRoute) return;
     if (!currentRoute.isActive) { if(typeof renderComingSoon === 'function') renderComingSoon(currentRoute.name); return; }
@@ -453,19 +445,15 @@ function findNextTrains() {
         return;
     }
 
-    // USE GLOBAL NORMALIZATION
     const isAtStation = (s1, s2) => normalizeStationName(s1) === normalizeStationName(s2);
 
     let sharedRoutes = [];
-    // 1. Check for shared routes based on CORRIDOR ID (Primary)
-    // This allows different routes in the same corridor (e.g., North Line) to see each other
     Object.values(ROUTES).forEach(r => {
         if (r.id !== currentRouteId && r.isActive && r.corridorId === currentRoute.corridorId) {
             sharedRoutes.push(r.id);
         }
     });
 
-    // 2. Also check if specific station exists in other routes (Secondary)
     if (fullDatabase && globalStationIndex[normalizeStationName(selectedStation)]) {
         const stationData = globalStationIndex[normalizeStationName(selectedStation)];
         stationData.routes.forEach(rId => {
@@ -475,10 +463,7 @@ function findNextTrains() {
         });
     }
 
-    // NEW FILTER: Remove routes that only share 1 (or 0) stations with current route
-    // This effectively hides divergent routes (like Germ-Kwesine vs Germ-Leralla) that only share the starting hub
     sharedRoutes = sharedRoutes.filter(rId => getSharedStationCount(currentRouteId, rId) > 1);
-
     let primarySheetKey = (currentDayType === 'weekday') ? currentRoute.sheetKeys.weekday_to_a : currentRoute.sheetKeys.saturday_to_a;
 
     // --- DESTINATION A ---
@@ -490,14 +475,10 @@ function findNextTrains() {
         const { allJourneys: currentJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute);
         
         let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
-
-        // DEDUPLICATION TRACKER: Add trains from CURRENT route to 'seen' list
         const seenTrainsA = new Set(mergedJourneys.map(j => j.train || j.train1.train));
 
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
-            
-            // Check if Direction A matches (e.g. Both go to Pretoria)
             if (normalizeStationName(otherRoute.destA) === normalizeStationName(currentRoute.destA)) {
                 const key = (currentDayType === 'weekday') ? otherRoute.sheetKeys.weekday_to_a : otherRoute.sheetKeys.saturday_to_a;
                 const otherRows = fullDatabase[key];
@@ -505,11 +486,10 @@ function findNextTrains() {
                 const otherSchedule = parseJSONSchedule(otherRows, otherMeta);
                 const { allJourneys: otherJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", otherSchedule, otherRoute);
                 
-                // DEDUPLICATE: Only add shared trains if we haven't seen this Train Number yet
                 const uniqueOther = otherJourneys.filter(j => {
                     const tNum = j.train || j.train1.train;
-                    if (seenTrainsA.has(tNum)) return false; // Already exists in current route
-                    seenTrainsA.add(tNum); // Mark as seen
+                    if (seenTrainsA.has(tNum)) return false; 
+                    seenTrainsA.add(tNum); 
                     return true;
                 });
 
@@ -544,15 +524,10 @@ function findNextTrains() {
         const { allJourneys: currentJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute);
 
         let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
-
-        // DEDUPLICATION TRACKER: Add trains from CURRENT route to 'seen' list
         const seenTrainsB = new Set(mergedJourneys.map(j => j.train || j.train1.train));
 
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
-            
-            // LOGIC: If corridors match, we check schedules even if Dest B names are different (Divergent routes)
-            // e.g. Mabopane (Dest B) vs De Wildt (Dest B) vs Belle Ombre (Dest B)
             if (otherRoute.corridorId === currentRoute.corridorId) {
                  const key = (currentDayType === 'weekday') ? otherRoute.sheetKeys.weekday_to_b : otherRoute.sheetKeys.saturday_to_b;
                  const otherRows = fullDatabase[key];
@@ -560,7 +535,6 @@ function findNextTrains() {
                  const otherSchedule = parseJSONSchedule(otherRows, otherMeta);
                  const { allJourneys: otherJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", otherSchedule, otherRoute);
                  
-                 // DEDUPLICATE
                  const uniqueOther = otherJourneys.filter(j => {
                      const tNum = j.train || j.train1.train;
                      if (seenTrainsB.has(tNum)) return false; 
@@ -600,9 +574,6 @@ function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
         allTransferJourneys = allTransfers;
     }
     
-    // --- DEDUPLICATION FIX (Prioritize DIRECT trains) ---
-    // If a train is found in both Direct and Transfer lists, we KEEP the Direct one
-    // and remove it from the Transfer list.
     const directTrainNames = new Set(allDirectJourneys.map(j => j.train));
     const uniqueTransfers = allTransferJourneys.filter(j => !directTrainNames.has(j.train1.train));
     
@@ -627,9 +598,6 @@ function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
         allTransferJourneys = allTransfers;
     }
 
-    // --- DEDUPLICATION FIX (Prioritize DIRECT trains) ---
-    // If a train is found in both Direct and Transfer lists, we KEEP the Direct one
-    // and remove it from the Transfer list.
     const directTrainNames = new Set(allDirectJourneys.map(j => j.train));
     const uniqueTransfers = allTransferJourneys.filter(j => !directTrainNames.has(j.train1.train));
     
@@ -844,8 +812,6 @@ function findNearestStation(isAuto = false) {
                     if (typeof syncPlannerFromMain === 'function') {
                         syncPlannerFromMain(stationSelect.value);
                     }
-                    // ---------------------------
-
                     findNextTrains(); 
                     if (!isAuto) {
                         showToast(`Found: ${stationName.replace(' STATION', '')} (${distStr}km)`, "success");

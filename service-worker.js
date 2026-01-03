@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.16'; // Bumped version for Optimized install Prompt
+const CACHE_NAME = 'metrorail-next-train-v4.21'; // Bumped version for Optimized install Prompt
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
