@@ -349,7 +349,7 @@ function updateLastUpdatedText() {
     displayDate = displayDate.replace(/^last updated[:\s-]*/i, '').trim();
 
     if (displayDate && lastUpdatedEl) {
-         lastUpdatedEl.textContent = `Schedule updated: ${displayDate}`;
+         lastUpdatedEl.textContent = `Schedule Effective from: ${displayDate}`;
     }
 }
 
