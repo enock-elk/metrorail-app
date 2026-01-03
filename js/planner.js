@@ -1,4 +1,4 @@
-// --- TRIP PLANNER LOGIC (V4.24 - Sunday No Service Logic) ---
+// --- TRIP PLANNER LOGIC (V4.25 - Removed Full Schedule Link) ---
 
 // State
 let plannerOrigin = null;
@@ -172,12 +172,6 @@ function initPlanner() {
         
         if (!from || !to) return showToast("Please select valid stations from the list.", "error");
         if (from === to) return showToast("Origin and Destination cannot be the same.", "error");
-
-        // --- UPDATE SELECTED DAY FROM DROPDOWN BEFORE SEARCH ---
-        const daySelect = document.getElementById('planner-day-select');
-        if (daySelect) {
-            selectedPlannerDay = daySelect.value;
-        }
 
         savePlannerHistory(from, to);
         executeTripPlan(from, to);
@@ -858,7 +852,8 @@ const PlannerRenderer = {
             `;
         });
         
-        return html + `<div class="mt-4 pl-6"><button onclick="openScheduleModal('${step.to.replace(/'/g, "\\'").replace(' STATION', '')}')" class="text-xs font-bold text-blue-500 hover:text-blue-600 underline">See Full Schedule</button></div></div>`;
+        // --- REMOVED THE "See Full Schedule" BUTTON HTML HERE ---
+        return html + `</div>`;
     },
 
     renderTransferTimeline: (step) => {
