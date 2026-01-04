@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Prevent indexing of system files and error pages
+Disallow: /404.html
+Disallow: /offline.html
+Disallow: /js/
+Disallow: /css/
+Disallow: /icons/
+
+# Point to the Sitemap
+Sitemap: https://nexttrain.co.za/sitemap.xml
