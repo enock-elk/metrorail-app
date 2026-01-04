@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Metrorail Next Train - Project Status</title>
+    <title>Roadmap | Metrorail Next Train</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -20,174 +20,202 @@
                 }
             }
         }
+        // Force dark mode for status page consistency
+        document.documentElement.classList.add('dark');
     </script>
 
     <!-- Favicons -->
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=6">
-    <link rel="apple-touch-icon" href="icons/icon-192.png?v=6">
-    <link rel="shortcut icon" href="icons/icon-192.png?v=6" type="image/png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
+        .timeline-line { position: absolute; left: 15px; top: 30px; bottom: -20px; width: 2px; background: #4b5563; z-index: 0; }
+        .timeline-dot { z-index: 10; }
     </style>
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen p-6 transition-colors duration-300">
+<body class="bg-gray-900 text-gray-100 min-h-screen p-6">
 
     <!-- HEADER -->
-    <header class="max-w-7xl mx-auto mb-10 border-b border-gray-300 dark:border-gray-700 pb-6 flex flex-col md:flex-row justify-between items-start md:items-end">
+    <header class="max-w-4xl mx-auto mb-10 border-b border-gray-700 pb-6 flex flex-col md:flex-row justify-between items-start md:items-end">
         <div>
-            <h1 class="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-2">
-                Project Roadmap
-            </h1>
-            <p class="text-xl text-blue-600 dark:text-blue-400 font-semibold">
-                Metrorail Next Train
-            </p>
+            <div class="flex items-center space-x-3 mb-2">
+                <div class="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-1.447-.894L15 7m0 13V7"></path></svg>
+                </div>
+                <h1 class="text-3xl font-black tracking-tight text-white">
+                    Next Train <span class="text-blue-500">Guardian</span>
+                </h1>
+            </div>
+            <p class="text-gray-400 font-medium ml-1">Strategic Roadmap & System Health</p>
         </div>
         <div class="mt-4 md:mt-0 text-right">
-            <div class="inline-block bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-sm font-bold px-4 py-2 rounded-full">
-                Current: V4.40
+            <div class="inline-flex items-center space-x-2 bg-green-900/50 border border-green-700 text-green-400 px-4 py-2 rounded-full mb-1">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                <span class="text-sm font-bold uppercase tracking-wider">System Stable</span>
             </div>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Last Updated: Jan 4, 2026</p>
+            <p class="text-xs text-gray-500 font-mono">V4.40 (Live)</p>
         </div>
     </header>
 
-    <!-- MAIN GRID -->
-    <main class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- MAIN CONTENT -->
+    <main class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
 
-        <!-- COLUMN 1: CURRENT STATUS & HEALTH -->
-        <div class="flex flex-col">
-            <div class="flex items-center space-x-2 mb-4">
-                <div class="w-3 h-3 bg-green-500 rounded-full"></div>
-                <h2 class="text-lg font-bold uppercase tracking-wider text-green-600 dark:text-green-400">Live Status</h2>
-                <span class="bg-gray-200 dark:bg-gray-700 text-xs font-bold px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">Stable</span>
-            </div>
-            
-            <div class="space-y-4">
-                <!-- ELANDSFONTEIN UPDATE -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-green-500">
-                    <h3 class="font-bold text-lg mb-2">V4.40 Released</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Guardian Edition deployed.</p>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">🛤️</span> <strong>Elandsfontein Ext:</strong> Logic & Route active.</li>
-                        <li class="flex items-start"><span class="mr-2">🖼️</span> <strong>Brand Loader:</strong> Pulse animation live.</li>
-                        <li class="flex items-start"><span class="mr-2">🛠️</span> <strong>Dev Tools:</strong> Simulation Mode active.</li>
+        <!-- COLUMN 1: CURRENT ACHIEVEMENT (V4.40) -->
+        <section>
+            <h2 class="text-xl font-bold text-white mb-6 flex items-center">
+                <span class="bg-gray-800 p-2 rounded-md mr-3 border border-gray-700">✅</span>
+                Completed / Live
+            </h2>
+
+            <div class="space-y-6 relative">
+                <!-- V4.40 Card -->
+                <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 shadow-sm relative z-10">
+                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-blue-600 border-4 border-gray-900 flex items-center justify-center">
+                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    <h3 class="font-bold text-lg text-white mb-1">Guardian Edition (V4.40)</h3>
+                    <p class="text-xs text-gray-400 mb-3 uppercase tracking-wide">Foundation Secure</p>
+                    <ul class="text-sm space-y-2 text-gray-300">
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Analytics Shield:</strong> GA4 protection protocol active.</li>
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Trip Planner:</strong> Direct routes & transfers.</li>
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>New Routes:</strong> Germiston-Kwesine added.</li>
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Dev Tools:</strong> Simulation Mode & Time Travel.</li>
                     </ul>
                 </div>
 
-                <!-- SYSTEM HEALTH -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-blue-500">
-                    <h3 class="font-bold text-lg mb-2">System Health</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">🔌</span> <strong>Offline First:</strong> Service Worker V4.38 active.</li>
-                        <li class="flex items-start"><span class="mr-2">🛡️</span> <strong>Fail-Safe:</strong> Auto-reload on hang active.</li>
-                        <li class="flex items-start"><span class="mr-2">🔐</span> <strong>Play Store Prep:</strong> TWA Manifest underway.</li>
-                    </ul>
+                <!-- Previous Achievements (Summary) -->
+                <div class="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50 relative z-10 opacity-75">
+                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-gray-600 border-4 border-gray-900"></div>
+                    <h3 class="font-bold text-base text-gray-300 mb-2">Core Infrastructure</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">Service Worker V4.38</span>
+                        <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">Offline-First</span>
+                        <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">Smart Fares</span>
+                    </div>
                 </div>
+                
+                <!-- Vertical Line -->
+                <div class="absolute left-0 top-6 bottom-6 w-0.5 bg-gray-700 -z-0"></div>
             </div>
-        </div>
+        </section>
 
-        <!-- COLUMN 2: PRIORITY UPGRADES (Near Term) -->
-        <div class="flex flex-col">
-            <div class="flex items-center space-x-2 mb-4">
-                <div class="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                <h2 class="text-lg font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">Priority Upgrades</h2>
-                <span class="bg-gray-200 dark:bg-gray-700 text-xs font-bold px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">Next Sprint</span>
-            </div>
-
-            <div class="space-y-4">
-                <!-- PERFORMANCE -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-blue-500">
-                    <h3 class="font-bold text-lg mb-2">🚀 Performance</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">⚡</span> <strong>Lazy Load Map:</strong> Defer Leaflet JS until requested.</li>
-                        <li class="flex items-start"><span class="mr-2">🔄</span> <strong>Update Prompt:</strong> "Skip Waiting" toast for new versions.</li>
-                    </ul>
-                </div>
-
-                <!-- UX REFINEMENTS -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-blue-500">
-                    <h3 class="font-bold text-lg mb-2">✨ UX Polish</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">🧠</span> <strong>Smart Planner:</strong> Filter "To" list to exclude "From" station.</li>
-                        <li class="flex items-start"><span class="mr-2">🚫</span> <strong>Visual Constraints:</strong> Gray out UI on "No Service" days.</li>
-                        <li class="flex items-start"><span class="mr-2">👆</span> <strong>Gestures:</strong> "Pull to Refresh" for schedules.</li>
-                    </ul>
-                </div>
-
-                <!-- SMART FEATURES -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-blue-500">
-                    <h3 class="font-bold text-lg mb-2">💡 Smart Features</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">ℹ️</span> <strong>Fare Explainer:</strong> Tooltip detailing Zone/Off-peak pricing.</li>
-                        <li class="flex items-start"><span class="mr-2">🛡️</span> <strong>Data Integrity:</strong> Version checking for stale schedules.</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-
-        <!-- COLUMN 3: VISIONARY FEATURES (Growth Mode) -->
-        <div class="flex flex-col">
-            <div class="flex items-center space-x-2 mb-4">
-                <div class="w-3 h-3 bg-purple-500 rounded-full animate-pulse"></div>
-                <h2 class="text-lg font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">Visionary Features</h2>
-                <span class="bg-gray-200 dark:bg-gray-700 text-xs font-bold px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300">V5.0+</span>
-            </div>
+        <!-- COLUMN 2: GROWTH MODE (Upcoming) -->
+        <section>
+            <h2 class="text-xl font-bold text-blue-400 mb-6 flex items-center">
+                <span class="bg-blue-900/30 p-2 rounded-md mr-3 border border-blue-800">🚀</span>
+                Growth Roadmap
+            </h2>
 
             <div class="space-y-4">
-                <!-- TRIP MODE -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-purple-500 relative">
-                    <div class="absolute top-0 right-0 bg-purple-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">KEY GOAL</div>
-                    <h3 class="font-bold text-lg mb-2">🧭 Live Trip Mode</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">📍</span> <strong>Geofencing:</strong> "Next Stop" detection via GPS.</li>
-                        <li class="flex items-start"><span class="mr-2">🔔</span> <strong>Alerts:</strong> Wake/Audio notification on arrival.</li>
-                        <li class="flex items-start"><span class="mr-2">🔋</span> <strong>Wake Lock:</strong> Keep screen on during journey.</li>
+                
+                <!-- PRIORITY 1: Performance & UX -->
+                <div class="bg-gradient-to-br from-blue-900/40 to-gray-800 rounded-xl p-5 border border-blue-500/30 shadow-lg">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-bold text-white">1. Polish & Performance</h3>
+                        <span class="bg-blue-600 text-[10px] font-bold px-2 py-0.5 rounded text-white">NEXT SPRINT</span>
+                    </div>
+                    <ul class="text-sm space-y-3 mt-3">
+                        <li class="flex items-start">
+                            <span class="bg-blue-500/20 text-blue-300 p-1 rounded mr-3 text-xs">🛠️</span>
+                            <div>
+                                <strong class="block text-gray-200">Manifest Fix (TWA)</strong>
+                                <span class="text-gray-400 text-xs">Strict icon purpose & scope for Play Store compliance.</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="bg-blue-500/20 text-blue-300 p-1 rounded mr-3 text-xs">⚡</span>
+                            <div>
+                                <strong class="block text-gray-200">Lazy Load Maps</strong>
+                                <span class="text-gray-400 text-xs">Defer Leaflet JS to boost initial load speed.</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="bg-blue-500/20 text-blue-300 p-1 rounded mr-3 text-xs">🔄</span>
+                            <div>
+                                <strong class="block text-gray-200">"Skip Waiting" Prompt</strong>
+                                <span class="text-gray-400 text-xs">Toast notification to refresh SW updates immediately.</span>
+                            </div>
+                        </li>
                     </ul>
                 </div>
 
-                <!-- SOCIAL & DATA -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-purple-500">
-                    <h3 class="font-bold text-lg mb-2">🤝 Community</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">📤</span> <strong>Share Trip:</strong> WhatsApp-ready itinerary text.</li>
-                        <li class="flex items-start"><span class="mr-2">⭐</span> <strong>Favorites:</strong> "Work" & "Home" quick-select.</li>
-                        <li class="flex items-start"><span class="mr-2">📢</span> <strong>Crowdsource:</strong> "Report Delay" button (Data collection).</li>
+                <!-- PRIORITY 2: UX Enhancements -->
+                <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                    <h3 class="font-bold text-blue-400 mb-3">2. UX Refinements</h3>
+                    <ul class="text-sm space-y-3">
+                        <li class="flex items-start">
+                            <span class="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full mr-3 text-xs">🧠</span>
+                            <div>
+                                <strong class="block text-gray-200">Smart "To" Filtering</strong>
+                                <span class="text-gray-400 text-xs">Remove "From" station in "To" dropdown.</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full mr-3 text-xs">🚫</span>
+                            <div>
+                                <strong class="block text-gray-200">Visual "No Service" Cues</strong>
+                                <span class="text-gray-400 text-xs">Clearer UI state for Sundays/Holidays.</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full mr-3 text-xs">👆</span>
+                            <div>
+                                <strong class="block text-gray-200">Pull to Refresh</strong>
+                                <span class="text-gray-400 text-xs">Native mobile gesture for reloading.</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full mr-3 text-xs">ℹ️</span>
+                            <div>
+                                <strong class="block text-gray-200">Fare Explainer</strong>
+                                <span class="text-gray-400 text-xs">Tooltip breaking down Zone/Off-peak pricing.</span>
+                            </div>
+                        </li>
                     </ul>
                 </div>
 
-                <!-- EXPANSION & TECH -->
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-lg border-l-4 border-purple-500">
-                    <h3 class="font-bold text-lg mb-2">🌍 Expansion & Tech</h3>
-                    <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-300">
-                        <li class="flex items-start"><span class="mr-2">🏗️</span> <strong>New Routes:</strong> JHB-Naledi, JHB-Randfontein.</li>
-                        <li class="flex items-start"><span class="mr-2">🏗️</span> <strong>Architecture:</strong> Split logic.js -> navigator.js.</li>
-                        <li class="flex items-start"><span class="mr-2">🧹</span> <strong>Codebase:</strong> Consolidate constants to config.js.</li>
+                <!-- PRIORITY 3: High Value Features -->
+                <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+                    <h3 class="font-bold text-purple-400 mb-3">3. Advanced Features</h3>
+                    <ul class="text-sm space-y-3">
+                        <li class="flex items-center">
+                            <span class="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full mr-3 text-xs">📲</span>
+                            <span class="text-gray-300"><strong>Share Trip:</strong> WhatsApp itinerary generator.</span>
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full mr-3 text-xs">🧭</span>
+                            <span class="text-gray-300"><strong>Live Mode:</strong> Navigator.js with Geofencing.</span>
+                        </li>
+                        <li class="flex items-center">
+                            <span class="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full mr-3 text-xs">📢</span>
+                            <span class="text-gray-300"><strong>Crowdsource:</strong> "Report Delay" button.</span>
+                        </li>
                     </ul>
                 </div>
+
+                <!-- PRIORITY 4: Architecture -->
+                <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 opacity-75">
+                    <h3 class="font-bold text-gray-400 mb-2">4. Architecture</h3>
+                    <p class="text-xs text-gray-500 mb-2">Long-term maintainability.</p>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="border border-gray-600 rounded px-2 py-1 text-xs text-gray-400">Config Centralization</span>
+                        <span class="border border-gray-600 rounded px-2 py-1 text-xs text-gray-400">Data Versioning</span>
+                    </div>
+                </div>
+
             </div>
-        </div>
+        </section>
 
     </main>
 
-    <!-- FOOTER -->
-    <div class="max-w-7xl mx-auto mt-12 mb-10">
-        <div class="bg-gradient-to-r from-blue-600 to-purple-800 rounded-2xl p-8 shadow-2xl text-white flex flex-col md:flex-row items-center justify-between">
-            <div>
-                <h3 class="text-2xl font-bold mb-2">🌍 The Goal: Smart Mobility Companion</h3>
-                <p class="text-blue-100 max-w-xl">
-                    Transformation from a static viewer to a dynamic, price-aware commuter companion. The roadmap focuses on PWA robustness first, then advanced live features.
-                </p>
-            </div>
-            <div class="mt-6 md:mt-0">
-                <span class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-blue-700 bg-white shadow-sm hover:bg-blue-50">
-                    Current: V4.40
-                </span>
-            </div>
-        </div>
-        <div class="text-center mt-8 text-gray-500 dark:text-gray-400 text-sm">
-            Generated automatically by Kazembe CodeWorks Maintenance Bot
-        </div>
+    <!-- FOOTER LINK -->
+    <div class="max-w-4xl mx-auto mt-10 text-center">
+        <a href="index.html" class="inline-flex items-center text-sm font-bold text-gray-500 hover:text-white transition-colors">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Back to App
+        </a>
     </div>
 
 </body>
