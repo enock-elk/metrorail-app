@@ -21,5 +21,21 @@
       "type": "image/png",
       "purpose": "any"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Trip Planner",
+      "short_name": "Plan Trip",
+      "description": "Plan a direct or transfer trip",
+      "url": "./index.html?action=planner",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Network Map",
+      "short_name": "View Map",
+      "description": "View the full rail network map",
+      "url": "./index.html?action=map",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }

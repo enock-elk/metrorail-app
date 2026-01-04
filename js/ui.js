@@ -471,6 +471,36 @@ function updateTime() {
     }
 }
 
+// --- NEW: URL SHORTCUT HANDLER ---
+function handleShortcutActions() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const action = urlParams.get('action');
+    
+    if (action === 'planner') {
+        // Force Switch to Planner Tab
+        switchTab('trip-planner');
+        
+        // Clean URL so refresh doesn't stick
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({path: newUrl}, '', newUrl);
+        
+    } else if (action === 'map') {
+        // Open Map Modal
+        if (typeof setupMapLogic === 'function') {
+            const mapModal = document.getElementById('map-modal');
+            if (mapModal) {
+                mapModal.classList.remove('hidden');
+                // Reset map zoom/pan if needed
+                const mapImage = document.getElementById('map-image');
+                if(mapImage) mapImage.style.transform = `translate(0px, 0px) scale(1)`;
+            }
+        }
+        // Clean URL
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({path: newUrl}, '', newUrl);
+    }
+}
+
 function initializeApp() {
     loadUserProfile(); 
     populateStationList();
@@ -483,6 +513,10 @@ function initializeApp() {
 
     startClock();
     findNextTrains(); 
+    
+    // --- CHECK FOR SHORTCUT ACTIONS ---
+    handleShortcutActions();
+
     loadingOverlay.style.display = 'none';
     mainContent.style.display = 'block';
 }
@@ -550,6 +584,8 @@ function switchTab(tab) {
         moveTabIndicator(targetBtn);
     }
     
+    // Logic: Do not save 'activeTab' if we are in a shortcut action (to avoid getting stuck there on reload)
+    // But since handleShortcutActions cleans the URL, we are safe to save normally.
     localStorage.setItem('activeTab', tab);
 }
 
@@ -1122,10 +1158,17 @@ document.addEventListener('DOMContentLoaded', () => {
         showWelcomeScreen();
     }
 
-    const lastActiveTab = localStorage.getItem('activeTab');
-    if (lastActiveTab) {
-        switchTab(lastActiveTab);
+    // --- RESTORE ACTIVE TAB (Updated for URL Shortcuts) ---
+    // If URL has action, do not restore previous tab, respect the action.
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('action')) {
+        console.log("Shortcut action detected, ignoring saved tab preference.");
     } else {
-        switchTab('next-train');
+        const lastActiveTab = localStorage.getItem('activeTab');
+        if (lastActiveTab) {
+            switchTab(lastActiveTab);
+        } else {
+            switchTab('next-train');
+        }
     }
 });
