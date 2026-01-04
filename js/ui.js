@@ -107,14 +107,11 @@ function renderAtDestination(element) { element.innerHTML = `<div class="h-32 fl
 function processAndRenderJourney(allJourneys, element, header, destination) {
     const nowInSeconds = timeToSeconds(currentTime);
     
-    // --- SIMULATION LOGIC: SHOW ALL TRAINS ---
-    // If we are in Sim Mode AND "Show All" is checked, we bypass the filter.
-    const showAll = (typeof isSimMode !== 'undefined' && isSimMode && 
-                     document.getElementById('sim-show-all') && 
-                     document.getElementById('sim-show-all').checked);
+    // --- V4.37 UPDATE: SIMULATION LOGIC CLEANUP ---
+    // Removed "Show All" logic. We now strictly filter for future trains only.
+    // This fixes the bug where past trains (e.g. 5:05 AM) showed up during 12:00 PM simulation.
 
     const remainingJourneys = allJourneys.filter(j => {
-        if (showAll) return true; // Show everything in Sim Mode if requested
         return timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds;
     });
 
@@ -1001,14 +998,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const devModal = document.getElementById('dev-modal');
                 const devPinModal = document.getElementById('pin-modal');
                 
-                // AUTO-FILL CURRENT TIME
+                // AUTO-FILL CURRENT TIME (Pre-calculation)
                 const now = new Date();
                 const timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
-                if(simTimeInput) simTimeInput.value = timeString;
 
-                if (devPinModal) {
-                    devPinModal.classList.remove('hidden');
-                    if(pinInput) { pinInput.value = ''; pinInput.focus(); }
+                if (isSimMode) {
+                    // SESSION PERSISTENCE: Bypass PIN if already in simulation mode
+                    if (devModal) devModal.classList.remove('hidden');
+                    showToast("Developer Session Active", "info");
+                } else {
+                    // NEW SESSION: Require PIN & Auto-fill time
+                    if(simTimeInput) simTimeInput.value = timeString;
+                    if (devPinModal) {
+                        devPinModal.classList.remove('hidden');
+                        if(pinInput) { pinInput.value = ''; pinInput.focus(); }
+                    }
                 }
             }
         });
@@ -1088,10 +1092,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
             
-            // Removed auto-close logic here as requested
-            // The panel will now stay open until manually closed
-
             showToast(isSimMode ? "Dev Simulation Active!" : "Real-time Mode Active", "success");
+            
+            // NEW: Minimize Modal on Apply (UX Requirement)
+            const devModal = document.getElementById('dev-modal');
+            if(devModal) devModal.classList.add('hidden');
             
             // Force immediate update
             updateTime(); 
