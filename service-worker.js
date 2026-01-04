@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.32'; // Bumped version for new transparent logo
+const CACHE_NAME = 'metrorail-next-train-v4.33'; // Bumped version to Fix System Splash Screen
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -14,9 +14,11 @@ const ASSETS_TO_CACHE = [
   './js/map-viewer.js',
   './js/ui.js',
   './manifest.json',
+  './sitemap.xml',       // Added for completeness
+  './robots.txt',        // Added for completeness
   './icons/icon-192.png',
   './icons/old/icon-192.png',
-  './icons/loading-logo.png', // NEW: Cache the new transparent logo
+  './icons/loading-logo.png', // This is now the source for the Splash Screen
   './images/network-map.png',
   './images/offline-land.jpg',
   './images/offline-port.jpg'
@@ -28,7 +30,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('SW: Caching core assets (v4.32)...');
+        console.log('SW: Caching core assets (v4.33)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {
