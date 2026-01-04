@@ -1,4 +1,4 @@
-// --- TRIP PLANNER LOGIC (V4.36 - Removed Full Schedule Link) ---
+// --- TRIP PLANNER LOGIC (V4.38.1 - Removed Full Schedule Link) ---
 
 // State
 let plannerOrigin = null;
