@@ -1,10 +1,10 @@
-const CACHE_NAME = 'metrorail-next-train-v4.30'; // Bumped version for Optimized install Prompt
+const CACHE_NAME = 'metrorail-next-train-v4.32'; // Bumped version for new transparent logo
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './map.html',
   './status.html',
-  './offline.html',      // NEW: Cache the offline page
+  './offline.html',
   './css/style.css',
   './css/custom.css',
   './js/config.js',
@@ -16,9 +16,10 @@ const ASSETS_TO_CACHE = [
   './manifest.json',
   './icons/icon-192.png',
   './icons/old/icon-192.png',
+  './icons/loading-logo.png', // NEW: Cache the new transparent logo
   './images/network-map.png',
-  './images/offline-land.jpg', // NEW: Cache offline images
-  './images/offline-port.jpg'  // NEW: Cache offline images
+  './images/offline-land.jpg',
+  './images/offline-port.jpg'
 ];
 
 // 1. INSTALL: Cache Core Assets
@@ -27,7 +28,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('SW: Caching core assets (v4.12)...');
+        console.log('SW: Caching core assets (v4.32)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {
