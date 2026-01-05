@@ -574,10 +574,13 @@ function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
         allTransferJourneys = allTransfers;
     }
     
-    const directTrainNames = new Set(allDirectJourneys.map(j => j.train));
-    const uniqueTransfers = allTransferJourneys.filter(j => !directTrainNames.has(j.train1.train));
+    // FIX (V4.38.2): Reverted Deduplication Logic to V3 Standard.
+    // If a Transfer exists for a train, it means the Direct option is likely a "Short Train".
+    // We must HIDE the Direct option and SHOW the Transfer so the user isn't stranded.
+    const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
+    const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
     
-    const allJourneys = [...allDirectJourneys, ...uniqueTransfers];
+    const allJourneys = [...uniqueDirects, ...allTransferJourneys];
     
     allJourneys.sort((a, b) => {
         const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);
@@ -598,10 +601,11 @@ function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
         allTransferJourneys = allTransfers;
     }
 
-    const directTrainNames = new Set(allDirectJourneys.map(j => j.train));
-    const uniqueTransfers = allTransferJourneys.filter(j => !directTrainNames.has(j.train1.train));
+    // FIX (V4.38.2): Reverted Deduplication Logic to V3 Standard.
+    const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
+    const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
     
-    const allJourneys = [...allDirectJourneys, ...uniqueTransfers];
+    const allJourneys = [...uniqueDirects, ...allTransferJourneys];
     
     allJourneys.sort((a, b) => {
         const timeA = timeToSeconds(a.departureTime || a.train1.departureTime);

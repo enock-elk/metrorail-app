@@ -1,5 +1,8 @@
 // --- CONFIGURATION & CONSTANTS ---
 
+// 0. Version Control
+const APP_VERSION = "V4.39.0"; // Updated for Night Owl & Compact Mode
+
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
     terms: `

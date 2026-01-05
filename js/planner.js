@@ -1,4 +1,4 @@
-// --- TRIP PLANNER LOGIC (V4.38.1 - Removed Full Schedule Link) ---
+// --- TRIP PLANNER LOGIC (V4.38.2 - Night Owl & Hubs Update) ---
 
 // State
 let plannerOrigin = null;
@@ -53,7 +53,7 @@ function initPlanner() {
         });
     }
 
-    // FIXED: Developer Mode Access (Targeting Tab instead of Modal Header)
+    // Developer Mode Access
     const plannerTab = document.getElementById('tab-trip-planner');
     if (plannerTab) {
         let pClickCount = 0;
@@ -247,7 +247,6 @@ window.restorePlannerSearch = function(fullFrom, fullTo) {
         if (fromInput) fromInput.value = fullFrom.replace(' STATION', '');
         if (toInput) toInput.value = fullTo.replace(' STATION', '');
         
-        // --- ENSURE SELECTED DAY IS RESPECTED ---
         const daySelect = document.getElementById('planner-day-select');
         if (daySelect) {
             selectedPlannerDay = daySelect.value;
@@ -322,12 +321,22 @@ function executeTripPlan(origin, dest) {
         const directPlan = planDirectTrip(origin, dest);
         let nextTripIndex = 0;
 
+        // Smart Selection Logic with Night Owl support in mind
         if (directPlan.trips && directPlan.trips.length > 0) {
             if (!selectedPlannerDay || selectedPlannerDay === currentDayType) {
                 const nowSec = timeToSeconds(currentTime);
-                const idx = directPlan.trips.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
-                if (idx !== -1) nextTripIndex = idx;
-                else nextTripIndex = directPlan.trips.length - 1; 
+                // Night Owl Check: If > 20:00, prefer morning trains
+                const isLateNight = nowSec > (20 * 3600);
+                
+                if (isLateNight) {
+                    // Try to find first morning train
+                    const morningIdx = directPlan.trips.findIndex(t => timeToSeconds(t.depTime) < (12 * 3600));
+                    if (morningIdx !== -1) nextTripIndex = morningIdx;
+                } else {
+                    const idx = directPlan.trips.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
+                    if (idx !== -1) nextTripIndex = idx;
+                    else nextTripIndex = directPlan.trips.length - 1; 
+                }
             }
         }
 
@@ -346,8 +355,14 @@ function executeTripPlan(origin, dest) {
             if (transferPlan.trips && transferPlan.trips.length > 0) {
                 if (!selectedPlannerDay || selectedPlannerDay === currentDayType) {
                     const nowSec = timeToSeconds(currentTime);
-                    const idx = transferPlan.trips.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
-                    if (idx !== -1) nextTransferIndex = idx;
+                    const isLateNight = nowSec > (20 * 3600);
+                    if (isLateNight) {
+                        const morningIdx = transferPlan.trips.findIndex(t => timeToSeconds(t.depTime) < (12 * 3600));
+                        if (morningIdx !== -1) nextTransferIndex = morningIdx;
+                    } else {
+                        const idx = transferPlan.trips.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
+                        if (idx !== -1) nextTransferIndex = idx;
+                    }
                 }
             }
             
@@ -385,7 +400,7 @@ window.selectPlannerTrip = function(index) {
     }
 };
 
-// --- ALGORITHMS: DIRECT & TRANSFER (Kept compact) ---
+// --- ALGORITHMS: DIRECT & TRANSFER ---
 function planDirectTrip(origin, dest) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
@@ -399,7 +414,7 @@ function planDirectTrip(origin, dest) {
     let pathExistsGenerally = false;
     const planningDay = selectedPlannerDay || currentDayType;
 
-    // SUNDAY CHECK: If Sunday, skip today and get next day's trips
+    // SUNDAY CHECK
     if (planningDay === 'sunday') {
         for (const routeId of commonRoutes) {
             const routeConfig = ROUTES[routeId];
@@ -430,12 +445,12 @@ function planDirectTrip(origin, dest) {
                 if (originIdx < destIdx) {
                     pathFoundToday = true; 
                     pathExistsGenerally = true;
-                    const upcomingTrains = findUpcomingTrainsForLeg(schedule, originRow, destRow, true);
+                    // Note: findUpcomingTrainsForLeg logic assumes 'today', but we want ALL for planning
+                    const upcomingTrains = findUpcomingTrainsForLeg(schedule, originRow, destRow, true); 
                     if (upcomingTrains.length > 0) {
                         bestTrips = [...bestTrips, ...upcomingTrains.map(info => 
                             createTripObject(routeConfig, info, schedule, originIdx, destIdx, origin, dest)
                         )];
-                        // Optimistic caching
                         if (typeof findNextDirectTrain === 'function') {
                             const { allJourneys } = findNextDirectTrain(origin, schedule, dest);
                             if (!currentScheduleData) currentScheduleData = {};
@@ -463,7 +478,9 @@ function planHubTransferTrip(origin, dest) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     const planningDay = selectedPlannerDay || currentDayType;
-    const HUBS = ['PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION', 'KEMPTON PARK STATION', 'HERCULES STATION', 'PRETORIA WEST STATION', 'WINTERSNEST STATION', 'WOLMERTON STATION', 'PRETORIA NOORD STATION']; 
+    
+    // UPDATED: Added missing hubs KOEDOESPOORT and HERCULES
+    const HUBS = ['PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION', 'KEMPTON PARK STATION', 'HERCULES STATION', 'PRETORIA WEST STATION', 'WINTERSNEST STATION', 'WOLMERTON STATION', 'PRETORIA NOORD STATION', 'KOEDOESPOORT STATION']; 
     
     let potentialHubs = HUBS.filter(hub => {
         const hubData = globalStationIndex[normalizeStationName(hub)];
@@ -516,7 +533,6 @@ function planHubTransferTrip(origin, dest) {
             const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
             return depDiff !== 0 ? depDiff : a.totalDuration - b.totalDuration;
         });
-        // Dedupe
         const unique = [];
         const seenDepTimes = new Set();
         allTransferOptions.forEach(opt => {
@@ -530,10 +546,7 @@ function planHubTransferTrip(origin, dest) {
 // Helper for Sunday Transfer -> Monday
 function planHubTransferTripForNextDay(origin, dest, potentialHubs) {
     let allTransferOptions = [];
-    // Force 'weekday' logic
     const nextDay = 'weekday';
-    
-    // We need route sets again (global)
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
 
@@ -557,14 +570,13 @@ function planHubTransferTripForNextDay(origin, dest, potentialHubs) {
                         depTime: leg1.depTime, arrTime: leg2.arrTime,
                         train: leg1.train, leg1: leg1, leg2: leg2,
                         totalDuration: (timeToSeconds(leg2.arrTime) - timeToSeconds(leg1.depTime)),
-                        dayLabel: 'Monday' // Tag explicitly
+                        dayLabel: 'Monday' 
                     });
                 }
             });
         });
     }
     
-    // Sort & Dedupe same as normal
     if (allTransferOptions.length > 0) {
         allTransferOptions.sort((a,b) => {
             const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
@@ -608,12 +620,11 @@ function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
 function findNextDayTrips(routeConfig, origin, dest, baseDay) {
     let dayName = 'Tomorrow', nextDayType = 'weekday';
     
-    // UPDATED: Correct day skipping logic to avoid Sunday service
     if (baseDay === 'weekday') { 
         nextDayType = 'weekday'; 
         dayName = 'Tomorrow'; 
     } else if (baseDay === 'saturday') { 
-        nextDayType = 'weekday'; // Skip Sunday, go to Monday
+        nextDayType = 'weekday'; 
         dayName = 'Monday'; 
     } else if (baseDay === 'sunday') { 
         nextDayType = 'weekday'; 
@@ -640,11 +651,10 @@ function findNextDayTrips(routeConfig, origin, dest, baseDay) {
     });
 }
 
-// UPDATED: Strictly return empty for Sunday
 function getDirectionsForRoute(route, dayType) {
     if (dayType === 'weekday') return [{ key: route.sheetKeys.weekday_to_a }, { key: route.sheetKeys.weekday_to_b }];
     if (dayType === 'saturday') return [{ key: route.sheetKeys.saturday_to_a }, { key: route.sheetKeys.saturday_to_b }];
-    return []; // No Service on Sunday
+    return []; 
 }
 
 function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, dest) {
@@ -656,6 +666,7 @@ function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, 
 }
 
 function findUpcomingTrainsForLeg(schedule, originRow, destRow, allowPast = false) {
+    // Force allowPast to true for planning purposes (we filter/sort later)
     const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
     const nowSeconds = (isToday && !allowPast) ? timeToSeconds(currentTime) : 0; 
     let upcomingTrains = [];
@@ -663,7 +674,8 @@ function findUpcomingTrainsForLeg(schedule, originRow, destRow, allowPast = fals
         const depTime = originRow[trainName], arrTime = destRow[trainName];
         if (depTime && arrTime) {
             const depSeconds = timeToSeconds(depTime);
-            if (depSeconds >= nowSeconds) upcomingTrains.push({ trainName, depTime, arrTime, seconds: depSeconds });
+            // We want all trains for the day so user can see past ones too
+            if (depSeconds >= 0) upcomingTrains.push({ trainName, depTime, arrTime, seconds: depSeconds });
         }
     });
     return upcomingTrains.sort((a, b) => a.seconds - b.seconds);
@@ -678,9 +690,8 @@ function getIntermediateStops(schedule, startIndex, endIndex, trainName) {
     return stops;
 }
 
-// --- UI RENDERING (MODULARIZED) ---
+// --- UI RENDERING ---
 
-// NEW: Helper to get friendly name for planning day
 function getPlanningDayLabel() {
     const day = selectedPlannerDay || currentDayType;
     if (day === 'sunday') return "Sunday / Public Holiday";
@@ -691,8 +702,6 @@ function getPlanningDayLabel() {
 function renderTripResult(container, trips, selectedIndex = 0) {
     const selectedTrip = trips[selectedIndex];
     const dayLabel = getPlanningDayLabel();
-    
-    // Injected Row: Shows what day schedule we are using
     const infoHtml = `<div class="mb-3 px-1 text-center"><p class="text-xs text-gray-500 dark:text-gray-400">Planning for: <span class="font-bold text-blue-600 dark:text-blue-400">${dayLabel}</span></p></div>`;
     
     if (selectedTrip) {
@@ -703,8 +712,6 @@ function renderTripResult(container, trips, selectedIndex = 0) {
 function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "No more trains today") {
     const selectedTrip = trips[selectedIndex];
     const dayLabel = getPlanningDayLabel();
-    
-    // Injected Row (Consistent with normal result)
     const infoHtml = `<div class="mb-3 px-1 text-center"><p class="text-xs text-gray-500 dark:text-gray-400">Planning for: <span class="font-bold text-blue-600 dark:text-blue-400">${dayLabel}</span></p></div>`;
 
     container.innerHTML = infoHtml + `
@@ -798,19 +805,27 @@ const PlannerRenderer = {
         const nowSec = timeToSeconds(currentTime);
         const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
         
-        // --- SIMULATION LOGIC: SHOW ALL TRAINS ---
-        const showAll = (typeof isSimMode !== 'undefined' && isSimMode && 
-                         document.getElementById('sim-show-all') && 
-                         document.getElementById('sim-show-all').checked);
+        // --- NIGHT OWL LOGIC START ---
+        // If it's late (after 20:00) and the train is early (before 14:00), assume tomorrow.
+        const isLateNight = nowSec > (20 * 3600); 
 
         const optionsHtml = allOptions.map((opt, idx) => {
-            const isPast = isToday && timeToSeconds(opt.depTime) < nowSec;
-            // Only disable if it's past AND we are NOT showing all trains
-            const shouldDisable = isPast && !showAll;
-            const pastLabel = isPast ? ' (Departed)' : '';
+            const depSec = timeToSeconds(opt.depTime);
             
-            return `<option value="${idx}" ${idx === selectedIndex ? 'selected' : ''} ${shouldDisable ? 'class="text-gray-400" disabled' : ''}>
-                ${formatTimeDisplay(opt.depTime)} - ${opt.type === 'TRANSFER' ? 'Transfer' : 'Direct'}${pastLabel}
+            let isPast = isToday && depSec < nowSec;
+            let label = "";
+            
+            // Night Owl Override: If it's 20:30 PM, an 04:00 AM train is likely "Tomorrow", not "Departed"
+            if (isToday && isLateNight && depSec < (14 * 3600)) {
+                isPast = false; // Treat as future (tomorrow)
+                label = " (Tomorrow)";
+            } else if (isPast) {
+                label = " (Departed)";
+            }
+            
+            // UPDATED: Removed 'disabled' attribute to unlock full selection
+            return `<option value="${idx}" ${idx === selectedIndex ? 'selected' : ''} ${isPast ? 'class="text-gray-400 dark:text-gray-500"' : ''}>
+                ${formatTimeDisplay(opt.depTime)} - ${opt.type === 'TRANSFER' ? 'Transfer' : 'Direct'}${label}
             </option>`;
         }).join('');
 
@@ -852,7 +867,6 @@ const PlannerRenderer = {
             `;
         });
         
-        // --- REMOVED THE "See Full Schedule" BUTTON HTML HERE ---
         return html + `</div>`;
     },
 
@@ -920,9 +934,20 @@ const PlannerRenderer = {
         const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
         
         let countdown = "Scheduled";
-        if (isToday) {
-            if (depSec > nowSec) {
-                const diff = depSec - nowSec;
+        
+        // --- NIGHT OWL LOGIC FOR COUNTDOWN ---
+        const isLateNight = nowSec > (20 * 3600);
+        let effectiveDepSec = depSec;
+        let isTomorrowOverride = false;
+
+        if (isToday && isLateNight && depSec < (14 * 3600)) {
+             effectiveDepSec += 86400; // Shift to tomorrow (add 24h in seconds)
+             isTomorrowOverride = true;
+        }
+
+        if (isToday || isTomorrowOverride) {
+            if (effectiveDepSec > nowSec) {
+                const diff = effectiveDepSec - nowSec;
                 const h = Math.floor(diff / 3600);
                 const m = Math.floor((diff % 3600) / 60);
                 countdown = h > 0 ? `Departs in ${h}h ${m}m` : (m === 0 ? "Departs in < 1 min" : `Departs in ${m} min`);

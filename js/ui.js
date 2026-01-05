@@ -29,19 +29,18 @@ const HOLIDAY_NAMES = {
 
 // --- RENDERING FUNCTIONS ---
 
-// NEW: Skeleton Loader for Schedule Cards
+// UPDATED: Compact Skeleton Loader (h-24)
 function renderSkeletonLoader(element) {
-    // Exact height match for h-32 cards
     element.innerHTML = `
-        <div class="flex flex-row items-center w-full space-x-3 h-32 animate-pulse bg-gray-100 dark:bg-gray-800 rounded-lg p-2">
+        <div class="flex flex-row items-center w-full space-x-3 h-24 animate-pulse bg-gray-100 dark:bg-gray-800 rounded-lg p-2">
             <!-- Left Time Box Skeleton -->
             <div class="relative w-1/2 h-full bg-gray-300 dark:bg-gray-700 rounded-lg shadow-sm flex-shrink-0"></div>
             
             <!-- Right Info Skeleton -->
-            <div class="w-1/2 flex flex-col justify-center items-center space-y-3">
-                <div class="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
-                <div class="h-3 bg-gray-300 dark:bg-gray-700 rounded w-1/2"></div>
-                <div class="h-6 bg-gray-300 dark:bg-gray-700 rounded w-full mt-2"></div>
+            <div class="w-1/2 flex flex-col justify-center items-center space-y-2">
+                <div class="h-3 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
+                <div class="h-2 bg-gray-300 dark:bg-gray-700 rounded w-1/2"></div>
+                <div class="h-5 bg-gray-300 dark:bg-gray-700 rounded w-full mt-1"></div>
             </div>
         </div>
     `;
@@ -61,23 +60,25 @@ window.hideLoadingOverlay = function() {
     }, 300);
 };
 
+// UPDATED: Compact Placeholder (h-24)
 function renderPlaceholder() {
-    const placeholderHTML = `<div class="h-32 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500"><svg class="w-8 h-8 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-sm font-medium">Select a station above</span></div>`;
+    const placeholderHTML = `<div class="h-24 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500"><svg class="w-6 h-6 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg><span class="text-xs font-medium">Select a station above</span></div>`;
     pretoriaTimeEl.innerHTML = placeholderHTML;
     pienaarspoortTimeEl.innerHTML = placeholderHTML;
     if(fareContainer) fareContainer.classList.add('hidden'); // Hide fare box
 }
 
 function renderRouteError(error) {
-    const html = `<div class="text-center p-4 bg-red-100 dark:bg-red-900 rounded-md border border-red-400 dark:border-red-700"><div class="text-2xl mb-2">⚠️</div><p class="text-red-800 dark:text-red-200 font-medium">Connection failed. Please check internet.</p></div>`;
+    const html = `<div class="text-center p-3 bg-red-100 dark:bg-red-900 rounded-md border border-red-400 dark:border-red-700"><div class="text-xl mb-1">⚠️</div><p class="text-red-800 dark:text-red-200 text-sm font-medium">Connection failed. Please check internet.</p></div>`;
     pretoriaTimeEl.innerHTML = html; pienaarspoortTimeEl.innerHTML = html; stationSelect.innerHTML = '<option>Unable to load stations</option>';
 }
 
 function renderComingSoon(routeName) {
-    const msg = `<div class="h-32 flex flex-col justify-center items-center text-center p-6 bg-yellow-100 dark:bg-yellow-900 rounded-lg"><h3 class="text-xl font-bold text-yellow-700 dark:text-yellow-300 mb-2">🚧 Coming Soon</h3><p class="text-gray-700 dark:text-gray-300">We are working on the <strong>${routeName}</strong> schedule.</p></div>`;
+    const msg = `<div class="h-24 flex flex-col justify-center items-center text-center p-4 bg-yellow-100 dark:bg-yellow-900 rounded-lg"><h3 class="text-lg font-bold text-yellow-700 dark:text-yellow-300 mb-1">🚧 Coming Soon</h3><p class="text-xs text-gray-700 dark:text-gray-300">We are working on the <strong>${routeName}</strong> schedule.</p></div>`;
     pretoriaTimeEl.innerHTML = msg; pienaarspoortTimeEl.innerHTML = msg; stationSelect.innerHTML = '<option>Route not available</option>';
 }
 
+// UPDATED: Compact No Service (h-24)
 function renderNoService(element, destination) {
     const normalize = (s) => s ? s.toUpperCase().replace(/ STATION/g, '').trim() : '';
     const selectedStation = stationSelect.value;
@@ -97,20 +98,18 @@ function renderNoService(element, destination) {
     if (firstTrain) {
         const departureTime = formatTimeDisplay(firstTrain.departureTime || firstTrain.train1.departureTime);
         const timeDiffStr = calculateTimeDiffString(firstTrain.departureTime || firstTrain.train1.departureTime, 1); 
-        timeHTML = `<div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
+        timeHTML = `<div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
     }
-    element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center w-full"><div class="text-xl font-bold text-gray-600 dark:text-gray-400">No service on Sundays/Holidays.</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train next weekday is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2 w-3/4">${timeHTML}</div></div>`;
+    element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center w-full"><div class="text-sm font-bold text-gray-600 dark:text-gray-400">No service today.</div><p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train next weekday:</p><div class="text-center p-2 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-1 w-3/4">${timeHTML}</div></div>`;
 }
 
-function renderAtDestination(element) { element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-green-500 dark:text-green-400">You are at this station</div>`; }
+// UPDATED: Compact At Destination (h-24)
+function renderAtDestination(element) { element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-green-500 dark:text-green-400">You are at this station</div>`; }
 
 function processAndRenderJourney(allJourneys, element, header, destination) {
     const nowInSeconds = timeToSeconds(currentTime);
     
     // --- V4.37 UPDATE: SIMULATION LOGIC CLEANUP ---
-    // Removed "Show All" logic. We now strictly filter for future trains only.
-    // This fixes the bug where past trains (e.g. 5:05 AM) showed up during 12:00 PM simulation.
-
     const remainingJourneys = allJourneys.filter(j => {
         return timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds;
     });
@@ -128,13 +127,14 @@ function processAndRenderJourney(allJourneys, element, header, destination) {
         nextJourney.isLastTrain = (allRemainingTrainNames.size === 1);
     } else {
         if (allJourneys.length === 0) {
-              element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-gray-600 dark:text-gray-400">No scheduled trains from this station today.</div>`;
+              element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400">No scheduled trains.</div>`;
               return;
         }
     }
     renderJourney(element, header, nextJourney, firstTrainName, destination);
 }
 
+// UPDATED: Compact Render Journey (h-24)
 function renderJourney(element, headerElement, journey, firstTrainName, destination) {
     element.innerHTML = "";
     if (!journey) { renderNextAvailableTrain(element, destination); return; }
@@ -153,30 +153,30 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
     const safeDest = escapeHTML(destination);
     const timeDiffStr = calculateTimeDiffString(rawTime);
     const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
-    const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[10px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">See Full Schedule</button>`;
+    const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[9px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">See Full Schedule</button>`;
 
     let sharedTag = "";
     if (journey.isShared && journey.sourceRoute) {
          const routeName = journey.sourceRoute.replace("Pretoria <-> ", "").replace("Route", "").trim();
          if (journey.isDivergent) {
-             sharedTag = `<span class="block text-[10px] uppercase font-bold text-red-600 dark:text-red-400 mt-1 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-300 dark:border-red-700">⚠️ To ${journey.actualDestName}</span>`;
+             sharedTag = `<span class="block text-[9px] uppercase font-bold text-red-600 dark:text-red-400 mt-0.5 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-300 dark:border-red-700">⚠️ To ${journey.actualDestName}</span>`;
          } else {
-             sharedTag = `<span class="block text-[10px] uppercase font-bold text-purple-600 dark:text-purple-400 mt-1 bg-purple-100 dark:bg-purple-900 px-1 rounded w-fit mx-auto">From ${routeName}</span>`;
+             sharedTag = `<span class="block text-[9px] uppercase font-bold text-purple-600 dark:text-purple-400 mt-0.5 bg-purple-100 dark:bg-purple-900 px-1 rounded w-fit mx-auto">From ${routeName}</span>`;
          }
     }
 
     if (journey.type === 'direct') {
         const actualDest = journey.actualDestination ? normalizeStationName(journey.actualDestination) : '';
         const normDest = normalizeStationName(destination);
-        let destinationText = journey.arrivalTime ? `Arrives ${escapeHTML(formatTimeDisplay(journey.arrivalTime))}` : "Arrival time not available.";
+        let destinationText = journey.arrivalTime ? `Arrives ${escapeHTML(formatTimeDisplay(journey.arrivalTime))}` : "Arrival time n/a.";
         if (actualDest && normDest && actualDest !== normDest) {
             destinationText = `Terminates at ${escapeHTML(journey.actualDestination.replace(/ STATION/g,''))}.`;
         }
         
-        let trainTypeText = `<span class="font-bold text-yellow-600 dark:text-yellow-400">Direct train (${safeTrainName})</span>`;
-        if (journey.isLastTrain) trainTypeText = `<span class="font-bold text-red-600 dark:text-red-400">Last Direct train (${safeTrainName})</span>`;
+        let trainTypeText = `<span class="font-bold text-yellow-600 dark:text-yellow-400">Direct (${safeTrainName})</span>`;
+        if (journey.isLastTrain) trainTypeText = `<span class="font-bold text-red-600 dark:text-red-400">Last Direct (${safeTrainName})</span>`;
 
-        element.innerHTML = `<div class="flex flex-row items-center w-full space-x-3"><div class="relative w-1/2 h-32 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0"><div class="text-3xl font-bold text-gray-900 dark:text-white">${safeDepTime}</div><div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>${sharedTag}${buttonHtml}</div><div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1"><div class="text-sm text-gray-800 dark:text-gray-200 font-medium leading-tight">${trainTypeText}</div><div class="text-xs text-gray-500 dark:text-gray-400 leading-tight font-medium">${destinationText}</div></div></div>`;
+        element.innerHTML = `<div class="flex flex-row items-center w-full space-x-3"><div class="relative w-1/2 h-24 flex flex-col justify-center items-center text-center p-1 pb-5 ${timeClass} rounded-lg shadow-sm flex-shrink-0"><div class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">${safeDepTime}</div><div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>${sharedTag}${buttonHtml}</div><div class="w-1/2 flex flex-col justify-center items-center text-center space-y-0.5"><div class="text-xs text-gray-800 dark:text-gray-200 font-medium leading-tight">${trainTypeText}</div><div class="text-[10px] text-gray-500 dark:text-gray-400 leading-tight font-medium">${destinationText}</div></div></div>`;
     }
 
     if (journey.type === 'transfer') {
@@ -185,7 +185,7 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
         const termStation = escapeHTML(journey.train1.terminationStation.replace(/ STATION/g, ''));
         const arrivalAtTransfer = escapeHTML(formatTimeDisplay(journey.train1.arrivalAtTransfer));
         let train1Info = `Train ${safeTrainName} (Terminates at ${termStation} at ${arrivalAtTransfer})`;
-        if (journey.isLastTrain) train1Info = `<span class="text-red-600 dark:text-red-400 font-bold">Last Train (${safeTrainName})</span> (Terminates at ${termStation})`;
+        if (journey.isLastTrain) train1Info = `<span class="text-red-600 dark:text-red-400 font-bold">Last Train (${safeTrainName})</span>`;
 
         let connectionInfoHTML = "";
         if (nextFull) {
@@ -195,21 +195,22 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
             const nextTrain = escapeHTML(nextFull.train);
             const nextDest = escapeHTML(nextFull.actualDestination.replace(/ STATION/g, ''));
             const nextDep = escapeHTML(formatTimeDisplay(nextFull.departureTime));
-            const connection1Text = `Connect to Train ${connTrain} (to ${connDest}) at <b>${connDep}</b>`;
-            const connection2Text = `Next Train ${nextTrain} (to ${nextDest}) is at <b>${nextDep}</b>`;
-            connectionInfoHTML = `<div class="space-y-1"><div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div><div class="text-gray-500 dark:text-gray-400 text-xs font-medium">${connection2Text}</div></div>`;
+            const connection1Text = `Connect: Train ${connTrain} (to ${connDest}) @ <b>${connDep}</b>`;
+            const connection2Text = `Next: Train ${nextTrain} (to ${nextDest}) @ <b>${nextDep}</b>`;
+            connectionInfoHTML = `<div class="space-y-0.5"><div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div><div class="text-gray-500 dark:text-gray-400 text-[9px] font-medium">${connection2Text}</div></div>`;
         } else {
             const connTrain = escapeHTML(conn.train);
             const connDep = escapeHTML(formatTimeDisplay(conn.departureTime));
             const connArr = escapeHTML(formatTimeDisplay(conn.arrivalTime));
-            let connDestName = `(Arrives ${connArr})`; 
-            const connectionText = `Connect to Train ${connTrain} at <b>${connDep}</b> ${connDestName}`;
+            let connDestName = `(Arr ${connArr})`; 
+            const connectionText = `Connect: Train ${connTrain} @ <b>${connDep}</b> ${connDestName}`;
             connectionInfoHTML = `<div class="text-yellow-600 dark:text-yellow-400 font-medium">${connectionText}</div>`;
         }
-        element.innerHTML = `<div class="flex flex-row items-center w-full space-x-3"><div class="relative w-1/2 h-32 flex flex-col justify-center items-center text-center p-2 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0"><div class="text-3xl font-bold text-gray-900 dark:text-white">${safeDepTime}</div><div class="text-sm text-gray-700 dark:text-gray-300 font-medium mt-1">${timeDiffStr}</div>${sharedTag}${buttonHtml}</div><div class="w-1/2 flex flex-col justify-center items-center text-center space-y-1"><div class="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Transfer Required</div><div class="text-xs text-yellow-600 dark:text-yellow-400 leading-tight font-medium">${train1Info}</div><div class="text-xs leading-tight">${connectionInfoHTML}</div></div></div>`;
+        element.innerHTML = `<div class="flex flex-row items-center w-full space-x-3"><div class="relative w-1/2 h-24 flex flex-col justify-center items-center text-center p-1 pb-5 ${timeClass} rounded-lg shadow-sm flex-shrink-0"><div class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">${safeDepTime}</div><div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>${sharedTag}${buttonHtml}</div><div class="w-1/2 flex flex-col justify-center items-center text-center space-y-0.5"><div class="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-0.5">Transfer Required</div><div class="text-[10px] text-yellow-600 dark:text-yellow-400 leading-tight font-medium mb-1">${train1Info}</div><div class="text-[10px] leading-tight">${connectionInfoHTML}</div></div></div>`;
     }
 }
 
+// UPDATED: Compact Next Available (h-24)
 function renderNextAvailableTrain(element, destination) {
     const currentRoute = ROUTES[currentRouteId];
     let nextDayName = ""; let nextDaySheetKey = ""; let dayOffset = 1; 
@@ -219,19 +220,23 @@ function renderNextAvailableTrain(element, destination) {
         default: nextDayName = "tomorrow"; dayOffset = 1; nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; break;
     }
     const nextSchedule = schedules[nextDaySheetKey];
-    if (!nextSchedule) { element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-gray-600 dark:text-gray-400">No schedule found for next service day.</div>`; return; }
+    if (!nextSchedule) { element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400">No schedule found.</div>`; return; }
     const selectedStation = stationSelect.value;
     let allJourneys = [];
     if (destination === currentRoute.destA) { const res = findNextJourneyToDestA(selectedStation, "00:00:00", nextSchedule, currentRoute); allJourneys = res.allJourneys; } 
     else { const res = findNextJourneyToDestB(selectedStation, "00:00:00", nextSchedule, currentRoute); allJourneys = res.allJourneys; }
     const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
     const firstTrainOfNextDay = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
-    if (!firstTrainOfNextDay) { element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-gray-600 dark:text-gray-400">No trains found for ${nextDayName}.</div>`; return; }
+    if (!firstTrainOfNextDay) { element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400">No trains found.</div>`; return; }
     
     const rawTime = firstTrainOfNextDay.departureTime || firstTrainOfNextDay.train1.departureTime;
     const departureTime = formatTimeDisplay(rawTime);
     const timeDiffStr = calculateTimeDiffString(rawTime, dayOffset);
-    element.innerHTML = `<div class="h-32 flex flex-col justify-center items-center w-full"><div class="text-lg font-bold text-gray-600 dark:text-gray-400">No more trains today</div><p class="text-sm text-gray-400 dark:text-gray-500 mt-2">First train ${nextDayName} is at:</p><div class="text-center p-3 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-2 w-3/4"><div class="text-2xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-base text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div></div></div>`;
+    
+    const safeDest = escapeHTML(destination);
+    const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
+
+    element.innerHTML = `<div class="flex flex-col justify-center items-center w-full py-2"><div class="text-sm font-bold text-gray-600 dark:text-gray-400">No more trains today</div><p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${nextDayName} is at:</p><div class="text-center p-2 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-1 w-3/4"><div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div></div><button onclick="openScheduleModal('${safeDestForClick}')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">See Full Schedule</button></div>`;
 }
 
 // --- UPDATE FARE BOX LOGIC ---
