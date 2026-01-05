@@ -164,12 +164,12 @@ const ROUTES = {
     },
     'pta-kempton': { 
         id: 'pta-kempton', 
-        name: "Pretoria <-> Kempton Park", 
+        name: "Pretoria <-> Kempton (Ext)", // UPDATED: Cleaner name for UI
         corridorId: "SOUTH_LINE", 
         colorClass: "text-blue-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
-        destB: 'KEMPTON PARK STATION', 
+        destB: 'ELANDSFONTEIN STATION', // UPDATED: Logic terminus
         transferStation: null, 
         sheetKeys: {
             weekday_to_a: 'kemp_to_pta_weekday', 

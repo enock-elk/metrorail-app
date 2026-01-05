@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.38.1 (Guardian Edition - Fixed)
-  - RESTORED: Global Developer Mode (#dev-modal) and iOS Install Modal (#install-modal).
-  - UPDATED: Loader now uses 'loading-logo.png' with Pulse effect + "Metrorail Next Train" text.
+  Metrorail Next Train V4.40.1 (Guardian Edition - Live Navigator)
+  - ADDED: Live Mode Overlay (#live-mode-view)
+  - ADDED: navigator.js script reference
+  - PRESERVED: Analytics & Core Architecture
 -->
 <html lang="en" class="dark">
 
@@ -336,6 +337,61 @@
     <!-- Toast & Modals... -->
     <div id="toast" class=""></div>
 
+    <!-- LIVE MODE OVERLAY (NEW V4.40) -->
+    <div id="live-mode-view" class="hidden fixed inset-0 bg-gray-900 z-[100] flex flex-col text-white transition-opacity duration-300">
+        <!-- HEADER -->
+        <div class="p-4 flex justify-between items-center bg-gray-800 shadow-md">
+            <h2 class="text-lg font-bold flex items-center text-green-400">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse mr-2"></span>
+                Live Navigation
+            </h2>
+            <button onclick="Navigator.stop()" class="text-gray-400 hover:text-white text-sm font-bold uppercase tracking-wider">
+                Close
+            </button>
+        </div>
+        
+        <!-- DASHBOARD -->
+        <div class="flex-grow flex flex-col items-center justify-center p-6 text-center">
+            <p class="text-gray-500 uppercase text-xs font-bold tracking-[0.2em] mb-4">Approaching Destination</p>
+            
+            <h1 id="live-dest-name" class="text-3xl sm:text-4xl font-black mb-1 text-white leading-tight">Loading...</h1>
+            
+            <p id="live-arrival-time" class="text-5xl font-black text-white tracking-tight mb-2">--:--</p>
+            <p id="live-delay-indicator" class="hidden text-sm font-bold text-yellow-500 bg-yellow-900/30 px-3 py-1 rounded-full mb-8 border border-yellow-700/50">
+                (+0 min delay)
+            </p>
+            
+            <!-- METRICS GRID -->
+            <div class="grid grid-cols-2 gap-4 w-full max-w-sm">
+                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                     <span class="block text-[10px] text-gray-500 uppercase font-bold mb-1">Distance to Go</span>
+                     <span id="live-distance" class="text-2xl font-bold text-blue-400">-- km</span>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                     <span class="block text-[10px] text-gray-500 uppercase font-bold mb-1">Status</span>
+                     <span class="text-xl font-bold text-green-400">On Time</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- CONTROLS FOOTER -->
+        <div class="p-6 bg-gray-800 border-t border-gray-700 safe-area-pb">
+            <div class="flex gap-4">
+                <button onclick="Navigator.addDelay(5)" class="flex-1 bg-yellow-600/20 hover:bg-yellow-600/40 border-2 border-yellow-600 text-yellow-500 font-bold py-4 rounded-xl transition-all active:scale-95 flex flex-col items-center justify-center">
+                    <span class="text-xs uppercase opacity-70">Running Late?</span>
+                    <span class="text-lg">+5 Min</span>
+                </button>
+                <button onclick="Navigator.stop()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center">
+                    <span class="text-xs uppercase opacity-70">Done</span>
+                    <span class="text-lg">End Trip</span>
+                </button>
+            </div>
+            <div class="text-center mt-4">
+                 <button onclick="Navigator.resetDelay()" class="text-xs text-gray-500 underline hover:text-white">Reset Delay Offset</button>
+            </div>
+        </div>
+    </div>
+
     <!-- WELCOME MODAL -->
     <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-center p-6 transition-opacity duration-300">
         <div class="w-full max-w-sm flex flex-col items-center animate-fade-in-up">
@@ -666,6 +722,7 @@
     <script src="js/planner.js"></script>
     <script src="js/map-viewer.js"></script> 
     <script src="js/ui.js"></script>
+    <script src="js/navigator.js"></script> <!-- ADDED: Live Mode Logic -->
 
     <!-- Fail-Safe Script: Kills loading screen if JS hangs -->
     <script>

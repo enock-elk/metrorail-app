@@ -1,10 +1,28 @@
-// --- TRIP PLANNER LOGIC (V4.38.1 - Removed Full Schedule Link) ---
+// --- TRIP PLANNER LOGIC (V4.38.2 - Updated Live Mode UI) ---
 
 // State
 let plannerOrigin = null;
 let plannerDest = null;
 let currentTripOptions = []; // Store multiple train options
 let selectedPlannerDay = null; // Store user-selected day for planning
+
+// --- BRIDGE TO NAVIGATOR MODULE ---
+window.startLiveNavigation = function(index) {
+    if (!currentTripOptions || !currentTripOptions[index]) {
+        console.error("Invalid trip index selected.");
+        return;
+    }
+    
+    const tripData = currentTripOptions[index];
+    
+    // Check if the Navigator module (from navigator.js) is loaded
+    if (typeof Navigator !== 'undefined' && Navigator.start) {
+        Navigator.start(tripData);
+    } else {
+        if(typeof showToast === 'function') showToast("Trip Mode module not loaded. Please refresh.", "error");
+        else alert("Trip Mode module not loaded.");
+    }
+};
 
 // --- INITIALIZATION ---
 function initPlanner() {
@@ -746,11 +764,27 @@ const PlannerRenderer = {
             <div class="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 overflow-hidden mb-4">
                 ${PlannerRenderer.renderHeader(step, isNextDay)}
                 ${PlannerRenderer.renderOptionsSelector(allOptions, selectedIndex, isNextDay)}
+                ${PlannerRenderer.renderStartButton(selectedIndex)}
                 ${step.type !== 'TRANSFER' ? PlannerRenderer.renderInstruction(step) : ''}
                 <div class="p-4 bg-white dark:bg-gray-800">
                     <p class="text-xs font-bold text-gray-400 uppercase mb-2">Journey Timeline</p>
                     ${PlannerRenderer.renderTimeline(step)}
                 </div>
+            </div>
+        `;
+    },
+
+    // UPDATED: "Start Trip Mode" Button (Corrected Label)
+    renderStartButton: (index) => {
+        return `
+            <div class="px-4 pb-4">
+                <button onclick="startLiveNavigation(${index})" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 group active:scale-95">
+                    <span class="relative flex h-3 w-3">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+                    </span>
+                    Start Trip Mode
+                </button>
             </div>
         `;
     },
