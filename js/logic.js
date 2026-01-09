@@ -70,6 +70,41 @@ function getSharedStationCount(routeAId, routeBId) {
     return count;
 }
 
+// NEW HELPER (V4.39): Get all future stations on the current route from a starting point
+function getTargetStations(schedule, fromStation) {
+    if (!schedule || !schedule.rows) return new Set();
+    const rows = schedule.rows;
+    const fromIdx = rows.findIndex(r => normalizeStationName(r.STATION) === normalizeStationName(fromStation));
+    
+    if (fromIdx === -1) return new Set();
+    
+    const targets = new Set();
+    // Collect all stations AFTER the current station in the schedule's order
+    for (let i = fromIdx + 1; i < rows.length; i++) {
+        targets.add(normalizeStationName(rows[i].STATION));
+    }
+    return targets;
+}
+
+// NEW HELPER (V4.39): Check if a shared train actually stops at any of our target future stations
+function hasForwardOverlap(trainName, otherSchedule, fromStation, targetStations) {
+    if (!otherSchedule || !otherSchedule.rows) return false;
+    const rows = otherSchedule.rows;
+    const fromIdx = rows.findIndex(r => normalizeStationName(r.STATION) === normalizeStationName(fromStation));
+    
+    if (fromIdx === -1) return false;
+
+    // Check stops strictly AFTER the current station
+    for (let i = fromIdx + 1; i < rows.length; i++) {
+        const row = rows[i];
+        // If the train has a time for this station AND this station is in our target path
+        if (row[trainName] && targetStations.has(normalizeStationName(row.STATION))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function saveToLocalCache(key, data) { try { const cacheEntry = { timestamp: Date.now(), data: data }; localStorage.setItem(key, JSON.stringify(cacheEntry)); } catch (e) {} }
 function loadFromLocalCache(key) { try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } catch (e) { return null; } }
 
@@ -477,6 +512,9 @@ function findNextTrains() {
         let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
         const seenTrainsA = new Set(mergedJourneys.map(j => j.train || j.train1.train));
 
+        // V4.39: Get target stations for direction A
+        const targetStationsA = getTargetStations(schedule, selectedStation);
+
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
             if (normalizeStationName(otherRoute.destA) === normalizeStationName(currentRoute.destA)) {
@@ -486,9 +524,16 @@ function findNextTrains() {
                 const otherSchedule = parseJSONSchedule(otherRows, otherMeta);
                 const { allJourneys: otherJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", otherSchedule, otherRoute);
                 
+                // FILTER: Only include if valid overlaps forward (V4.39)
                 const uniqueOther = otherJourneys.filter(j => {
                     const tNum = j.train || j.train1.train;
-                    if (seenTrainsA.has(tNum)) return false; 
+                    if (seenTrainsA.has(tNum)) return false;
+                    
+                    // FORWARD OVERLAP CHECK
+                    if (!hasForwardOverlap(tNum, otherSchedule, selectedStation, targetStationsA)) {
+                        return false; 
+                    }
+
                     seenTrainsA.add(tNum); 
                     return true;
                 });
@@ -526,6 +571,9 @@ function findNextTrains() {
         let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
         const seenTrainsB = new Set(mergedJourneys.map(j => j.train || j.train1.train));
 
+        // V4.39: Get target stations for direction B
+        const targetStationsB = getTargetStations(schedule, selectedStation);
+
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
             if (otherRoute.corridorId === currentRoute.corridorId) {
@@ -538,6 +586,12 @@ function findNextTrains() {
                  const uniqueOther = otherJourneys.filter(j => {
                      const tNum = j.train || j.train1.train;
                      if (seenTrainsB.has(tNum)) return false; 
+                     
+                     // FORWARD OVERLAP CHECK (V4.39)
+                     if (!hasForwardOverlap(tNum, otherSchedule, selectedStation, targetStationsB)) {
+                         return false; 
+                     }
+
                      seenTrainsB.add(tNum); 
                      return true;
                  });
