@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.39.0"; // Updated for Night Owl & Compact Mode
+const APP_VERSION = "V4.39.1"; // Updated for SEO Fix & Precise Off-Peak
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -125,7 +125,6 @@ const ROUTES = {
         destB: 'KWESINE STATION', 
         transferStation: null, 
         sheetKeys: { 
-            // UPDATED: Based on user's specific sheet names (KWESI)
             weekday_to_a: 'kwesi_to_germ_weekday', 
             weekday_to_b: 'germ_to_kwesi_weekday', 
             saturday_to_a: 'kwesi_to_germ_sat', 
@@ -142,7 +141,6 @@ const ROUTES = {
         destB: 'IRENE STATION', 
         transferStation: null, 
         sheetKeys: { 
-            // FIXED: Now points to correct Irene data keys instead of Kempton
             weekday_to_a: 'irene_to_pta_weekday', 
             weekday_to_b: 'pta_to_irene_weekday', 
             saturday_to_a: 'irene_to_pta_sat', 
@@ -189,10 +187,10 @@ const ROUTES = {
 // 4. Refresh Settings
 const REFRESH_CONFIG = { standardInterval: 5 * 60 * 1000, activeInterval: 60 * 1000, nightModeStart: 21, nightModeEnd: 4 };
 
-// 5. Smart Pricing Configuration (V3.26)
+// 5. Smart Pricing Configuration (V4.39.1)
 const FARE_CONFIG = {
-    offPeakStart: 9,  // 09:00
-    offPeakEnd: 14,   // 14:00
+    offPeakStart: 9.5,  // 09:30
+    offPeakEnd: 14.5,   // 14:30
     zones: {
         "Z1": 10.00,
         "Z2": 12.00,

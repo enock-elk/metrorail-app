@@ -239,7 +239,7 @@ function renderNextAvailableTrain(element, destination) {
     element.innerHTML = `<div class="flex flex-col justify-center items-center w-full py-2"><div class="text-sm font-bold text-gray-600 dark:text-gray-400">No more trains today</div><p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${nextDayName} is at:</p><div class="text-center p-2 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-1 w-3/4"><div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div></div><button onclick="openScheduleModal('${safeDestForClick}')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">See Full Schedule</button></div>`;
 }
 
-// --- UPDATE FARE BOX LOGIC ---
+// --- UPDATE FARE BOX LOGIC (V4.39.1) ---
 function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     fareContainer = document.getElementById('fare-container');
     fareAmount = document.getElementById('fare-amount');
@@ -957,6 +957,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('tab-next-train').addEventListener('click', () => switchTab('next-train'));
     document.getElementById('tab-trip-planner').addEventListener('click', () => switchTab('trip-planner'));
+
+    // --- V4.39.1: INJECT VERSION NUMBER ---
+    const versionFooter = document.getElementById('app-version-footer');
+    if (versionFooter && typeof APP_VERSION !== 'undefined') {
+        versionFooter.textContent = APP_VERSION;
+    }
 
     const helpModal = document.getElementById('help-modal');
     const openHelpBtn = document.getElementById('open-help-btn');

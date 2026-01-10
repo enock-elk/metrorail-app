@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.38.2 (Guardian Edition - Fixed)
-  - RESTORED: Global Developer Mode (#dev-modal) and iOS Install Modal (#install-modal).
-  - UPDATED: Loader now uses 'loading-logo.png' with Pulse effect + "Metrorail Next Train" text.
+  Metrorail Next Train V4.39.1 (Guardian Edition - SEO & Speed)
+  - ADDED: Direct /favicon.ico link for Google Search crawler.
+  - REMOVED: Unused Leaflet.js scripts (saved ~140KB load).
+  - UPDATED: Version number in Sidenav.
+  - REMOVED: Install App button from Side Nav.
 -->
 <html lang="en" class="dark">
 
@@ -36,7 +38,8 @@
         });
     </script>
     
-    <!-- ICONS: Stable URLs for Google Search Indexing -->
+    <!-- ICONS: SEO Critical Fix -->
+    <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="shortcut icon" href="icons/icon-192.png" type="image/png">
@@ -50,8 +53,7 @@
         }
     </script>
     
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- LEAFLET REMOVED: Unused in index.html (Static Image Map Only) -->
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     
@@ -99,14 +101,8 @@
             <li class="route-item"><a class="" data-route-id="jhb-germiston"><span class="route-dot dot-red"></span>JHB <-> Germiston</a></li>
             <li class="route-item"><a class="" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
         </ul>
-        <div class="mt-auto pt-2 border-t border-gray-700 dark:border-gray-600 pb-4">
-            <!-- Install Button (Always Visible) -->
-            <div id="install-side-container" class="mb-3 px-1">
-                <button id="install-side-btn" class="w-full flex items-center justify-center px-4 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white font-bold transition-all shadow-md group">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    Install App
-                </button>
-            </div>
+        <div class="mt-auto pt-2 border-t border-gray-700 dark:border-gray-600 pb-2">
+            <!-- Install Button REMOVED from Side Nav -->
 
             <div class="mb-3 space-y-2 px-1">
                 <a id="view-map-btn" class="cursor-pointer w-full flex items-center px-4 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-green-500 dark:hover:border-green-500 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 font-bold transition-all group">
@@ -133,6 +129,10 @@
                     Privacy Policy
                 </a>
             </li>
+            <!-- VERSION FOOTER -->
+            <div class="mt-4 px-4 text-right">
+                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.39.1</p>
+            </div>
         </div>
     </div>
 
@@ -227,6 +227,7 @@
                 <div class="flex flex-col">
                     <span class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Estimated Fare</span>
                     <span id="fare-amount" class="text-xl font-black text-gray-900 dark:text-white">R--.--</span>
+                    <span class="text-[9px] text-gray-400 dark:text-gray-500 italic">Prices may vary</span>
                 </div>
                 <div class="text-right flex flex-col items-end">
                     <span id="fare-type" class="text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full mb-1">Standard</span>

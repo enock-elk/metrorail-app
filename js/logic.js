@@ -422,13 +422,22 @@ function getRouteFare(sheetKey, departureTimeStr) {
     const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
     
     let useOffPeakRate = false;
+    
+    // UPDATED V4.39.1: Precise Decimal Time Logic
     if (departureTimeStr) {
         try {
-            const hour = parseInt(departureTimeStr.split(':')[0], 10);
-            if (hour >= FARE_CONFIG.offPeakStart && hour < FARE_CONFIG.offPeakEnd) {
+            const parts = departureTimeStr.split(':');
+            const h = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) || 0;
+            // Convert to decimal (e.g., 9:30 = 9.5)
+            const decimalTime = h + (m / 60);
+            
+            if (decimalTime >= FARE_CONFIG.offPeakStart && decimalTime < FARE_CONFIG.offPeakEnd) {
                 useOffPeakRate = true;
             }
-        } catch (e) { }
+        } catch (e) { 
+            console.error("Time Parse Error in Fare:", e);
+        }
     }
 
     const multiplier = useOffPeakRate ? profile.offPeak : profile.base;
