@@ -1,4 +1,4 @@
-// --- TRIP PLANNER LOGIC (V4.39.1 - Merged Direct & Transfer Results) ---
+// --- TRIP PLANNER LOGIC (V4.41.0 - Guardian Edition: Same-Route Block) ---
 
 // State
 let plannerOrigin = null;
@@ -318,7 +318,6 @@ function executeTripPlan(origin, dest) {
     if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
 
     setTimeout(() => {
-        // --- NEW MERGED STRATEGY (V4.39.1) ---
         // Run BOTH strategies and combine valid results
         const directPlan = planDirectTrip(origin, dest);
         const transferPlan = planHubTransferTrip(origin, dest);
@@ -328,12 +327,22 @@ function executeTripPlan(origin, dest) {
         if (directPlan.trips) mergedTrips = [...mergedTrips, ...directPlan.trips];
         if (transferPlan.trips) mergedTrips = [...mergedTrips, ...transferPlan.trips];
         
-        // Remove duplicates (naive check on train + depTime)
-        // This handles cases where a transfer logic finds the same train as direct
+        // --- DIRECT SUPERIORITY & SAME-ROUTE FILTER ---
+        const directDepartureTimes = new Set();
+        mergedTrips.forEach(t => {
+            if (t.type === 'DIRECT') directDepartureTimes.add(t.depTime);
+        });
+
         const uniqueTrips = [];
         const seenKeys = new Set();
         
         mergedTrips.forEach(trip => {
+            // Filter 1: Phantom Transfer Check
+            if (trip.type === 'TRANSFER' && directDepartureTimes.has(trip.depTime)) {
+                return; 
+            }
+
+            // Filter 2: Standard Deduplication
             const key = `${trip.train}-${trip.depTime}-${trip.type}`;
             if (!seenKeys.has(key)) {
                 seenKeys.add(key);
@@ -342,11 +351,11 @@ function executeTripPlan(origin, dest) {
         });
         
         // Sort by Departure Time (earliest first)
-        // If times are same, prioritize DIRECT over TRANSFER
         uniqueTrips.sort((a, b) => {
             const tA = timeToSeconds(a.depTime);
             const tB = timeToSeconds(b.depTime);
             if (tA !== tB) return tA - tB;
+            // Fallback: Prioritize DIRECT over TRANSFER if times equal
             if (a.type === 'DIRECT' && b.type !== 'DIRECT') return -1;
             if (b.type === 'DIRECT' && a.type !== 'DIRECT') return 1;
             return 0;
@@ -362,22 +371,18 @@ function executeTripPlan(origin, dest) {
                 const isLateNight = nowSec > (20 * 3600);
                 
                 if (isLateNight) {
-                    // Try to find first morning train (before 12:00)
                     const morningIdx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) < (12 * 3600));
                     if (morningIdx !== -1) nextTripIndex = morningIdx;
                 } else {
-                    // Find first train departing >= now
                     const idx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
                     if (idx !== -1) nextTripIndex = idx;
-                    else nextTripIndex = currentTripOptions.length - 1; // Default to last one (likely tomorrow)
+                    else nextTripIndex = currentTripOptions.length - 1; 
                 }
             }
             
-            // Check if selected trip is "tomorrow" to decide on the card type
             const selectedTrip = currentTripOptions[nextTripIndex];
             const isTomorrow = selectedTrip.dayLabel !== undefined;
             const nowSec = timeToSeconds(currentTime);
-            // Also consider night owl override
             const isLateNight = nowSec > (20 * 3600);
             const effectivelyTomorrow = isTomorrow || (isLateNight && timeToSeconds(selectedTrip.depTime) < (12 * 3600));
 
@@ -472,11 +477,6 @@ function planDirectTrip(origin, dest) {
                         bestTrips = [...bestTrips, ...upcomingTrains.map(info => 
                             createTripObject(routeConfig, info, schedule, originIdx, destIdx, origin, dest)
                         )];
-                        if (typeof findNextDirectTrain === 'function') {
-                            const { allJourneys } = findNextDirectTrain(origin, schedule, dest);
-                            if (!currentScheduleData) currentScheduleData = {};
-                            currentScheduleData[dest] = allJourneys;
-                        }
                     }
                 }
             }
@@ -500,49 +500,33 @@ function planHubTransferTrip(origin, dest) {
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     const planningDay = selectedPlannerDay || currentDayType;
     
-    // START OPTIMIZED PHASE 2 LOGIC
-    // 1. Define standard Hubs
+    // START OPTIMIZED LOGIC
     const HUBS = ['PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION', 'KEMPTON PARK STATION', 'HERCULES STATION', 'PRETORIA WEST STATION', 'WINTERSNEST STATION', 'WOLMERTON STATION', 'PRETORIA NOORD STATION', 'KOEDOESPOORT STATION']; 
     
-    // 2. Add Route-Specific Transfer Stations from Config (Dynamic Hubs)
     let dynamicHubs = new Set(HUBS);
     
-    // Check Origin Route Configs
+    // Add dynamic hubs from config
     [...originRoutes].forEach(rId => {
-        if(ROUTES[rId] && ROUTES[rId].transferStation) {
-            dynamicHubs.add(normalizeStationName(ROUTES[rId].transferStation));
-        }
+        if(ROUTES[rId] && ROUTES[rId].transferStation) dynamicHubs.add(normalizeStationName(ROUTES[rId].transferStation));
     });
-    
-    // Check Destination Route Configs (less common but good for completeness)
     [...destRoutes].forEach(rId => {
-        if(ROUTES[rId] && ROUTES[rId].transferStation) {
-            dynamicHubs.add(normalizeStationName(ROUTES[rId].transferStation));
-        }
+        if(ROUTES[rId] && ROUTES[rId].transferStation) dynamicHubs.add(normalizeStationName(ROUTES[rId].transferStation));
     });
 
     const potentialHubs = [...dynamicHubs].filter(hub => {
         const hubData = globalStationIndex[normalizeStationName(hub)];
         if (!hubData) return false;
         
-        // Is Hub reachable from Origin?
-        // Note: We check if ANY route at Origin connects to Hub. 
-        // This includes "Within-Route" logic (e.g. Origin=Pretoria, Hub=Koedoespoort, Route=Pretoria-Pienaarspoort)
         const toHub = [...originRoutes].some(rId => hubData.routes.has(rId));
-        
-        // Is Dest reachable from Hub?
         const fromHub = [...destRoutes].some(rId => hubData.routes.has(rId));
-        
-        // Prevent Trivial "Transfers" where Hub == Origin or Hub == Dest
         const isTrivial = (normalizeStationName(hub) === normalizeStationName(origin)) || (normalizeStationName(hub) === normalizeStationName(dest));
         
         return toHub && fromHub && !isTrivial;
     });
-    // END OPTIMIZED PHASE 2 LOGIC
 
     if (potentialHubs.length === 0) return { status: 'NO_PATH' };
 
-    // SUNDAY CHECK FOR TRANSFERS
+    // SUNDAY CHECK
     if (planningDay === 'sunday') {
         const mondayPlan = planHubTransferTripForNextDay(origin, dest, potentialHubs);
         if (mondayPlan.trips.length > 0) {
@@ -553,11 +537,9 @@ function planHubTransferTrip(origin, dest) {
 
     let allTransferOptions = [];
     for (const hub of potentialHubs) {
-        // Updated: Pass originRoutes to narrow search space, but logic inside handles route iteration
         const leg1Options = findAllLegsBetween(origin, hub, originRoutes, planningDay);
         if (leg1Options.length === 0) continue;
         
-        // Updated: Pass destRoutes to narrow search space
         const leg2Options = findAllLegsBetween(hub, dest, destRoutes, planningDay); 
         if (leg2Options.length === 0) continue;
 
@@ -565,6 +547,14 @@ function planHubTransferTrip(origin, dest) {
         leg1Options.forEach(leg1 => {
             const arrivalSec = timeToSeconds(leg1.arrTime);
             leg2Options.forEach(leg2 => {
+                
+                // --- CRITICAL FIX: SAME-ROUTE BLOCK ---
+                // If Leg 1 and Leg 2 are on the exact same route (e.g., both "pta-pien"), discard.
+                // This prevents "back-tracking" suggestions.
+                if (leg1.route.id === leg2.route.id) {
+                    return; 
+                }
+
                 const departSec = timeToSeconds(leg2.depTime);
                 if (departSec > (arrivalSec + TRANSFER_BUFFER_SEC)) {
                     allTransferOptions.push({
@@ -613,6 +603,12 @@ function planHubTransferTripForNextDay(origin, dest, potentialHubs) {
         leg1Options.forEach(leg1 => {
             const arrivalSec = timeToSeconds(leg1.arrTime);
             leg2Options.forEach(leg2 => {
+                
+                // SAME-ROUTE BLOCK (Also for Next Day Logic)
+                if (leg1.route.id === leg2.route.id) {
+                    return; 
+                }
+
                 const departSec = timeToSeconds(leg2.depTime);
                 if (departSec > (arrivalSec + TRANSFER_BUFFER_SEC)) {
                     allTransferOptions.push({
@@ -719,7 +715,6 @@ function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, 
 }
 
 function findUpcomingTrainsForLeg(schedule, originRow, destRow, allowPast = false) {
-    // Force allowPast to true for planning purposes (we filter/sort later)
     const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
     const nowSeconds = (isToday && !allowPast) ? timeToSeconds(currentTime) : 0; 
     let upcomingTrains = [];
@@ -727,7 +722,6 @@ function findUpcomingTrainsForLeg(schedule, originRow, destRow, allowPast = fals
         const depTime = originRow[trainName], arrTime = destRow[trainName];
         if (depTime && arrTime) {
             const depSeconds = timeToSeconds(depTime);
-            // We want all trains for the day so user can see past ones too
             if (depSeconds >= 0) upcomingTrains.push({ trainName, depTime, arrTime, seconds: depSeconds });
         }
     });
@@ -859,7 +853,6 @@ const PlannerRenderer = {
         const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
         
         // --- NIGHT OWL LOGIC START ---
-        // If it's late (after 20:00) and the train is early (before 14:00), assume tomorrow.
         const isLateNight = nowSec > (20 * 3600); 
 
         const optionsHtml = allOptions.map((opt, idx) => {
@@ -868,7 +861,6 @@ const PlannerRenderer = {
             let isPast = isToday && depSec < nowSec;
             let label = "";
             
-            // Night Owl Override: If it's 20:30 PM, an 04:00 AM train is likely "Tomorrow", not "Departed"
             if (isToday && isLateNight && depSec < (14 * 3600)) {
                 isPast = false; // Treat as future (tomorrow)
                 label = " (Tomorrow)";
@@ -876,7 +868,6 @@ const PlannerRenderer = {
                 label = " (Departed)";
             }
             
-            // UPDATED: Removed 'disabled' attribute to unlock full selection
             return `<option value="${idx}" ${idx === selectedIndex ? 'selected' : ''} ${isPast ? 'class="text-gray-400 dark:text-gray-500"' : ''}>
                 ${formatTimeDisplay(opt.depTime)} - ${opt.type === 'TRANSFER' ? 'Transfer' : 'Direct'}${label}
             </option>`;
