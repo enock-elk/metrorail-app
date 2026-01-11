@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.39.1"; // Updated for SEO Fix & Precise Off-Peak
+const APP_VERSION = "V4.43.0"; // Updated for Soweto Expansion (Naledi)
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -179,9 +179,41 @@ const ROUTES = {
             saturday_to_b: 'pta_to_kemp_sat'
         } 
     },
+    'jhb-rand': { 
+        id: 'jhb-rand', 
+        name: "JHB <-> Randfontein", 
+        corridorId: "JHB_WEST", 
+        colorClass: "text-yellow-500", 
+        isActive: true, 
+        destA: 'JOHANNESBURG STATION', 
+        destB: 'RANDFONTEIN STATION', 
+        transferStation: null, 
+        sheetKeys: {
+            weekday_to_a: 'rand_to_jhb_weekday', 
+            weekday_to_b: 'jhb_to_rand_weekday',
+            saturday_to_a: 'rand_to_jhb_sat', 
+            saturday_to_b: 'jhb_to_rand_sat'
+        } 
+    },
+    // --- NEW: SOWETO EXPANSION ---
+    'jhb-soweto': { 
+        id: 'jhb-soweto', 
+        name: "JHB <-> Naledi (Soweto)", 
+        corridorId: "JHB_WEST", 
+        colorClass: "text-yellow-500", 
+        isActive: true, 
+        destA: 'JOHANNESBURG STATION', 
+        destB: 'NALEDI STATION', 
+        transferStation: null, 
+        sheetKeys: {
+            weekday_to_a: 'nald_to_jhb_weekday', 
+            weekday_to_b: 'jhb_to_nald_weekday',
+            saturday_to_a: 'nald_to_jhb_sat', 
+            saturday_to_b: 'jhb_to_nald_sat'
+        } 
+    },
     'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", corridorId: "JHB_SOUTH", colorClass: "text-purple-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
-    'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", corridorId: "JHB_EAST", colorClass: "text-red-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} },
-    'jhb-soweto': { id: 'jhb-soweto', name: "JHB <-> Naledi", corridorId: "JHB_WEST", colorClass: "text-yellow-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'NALEDI STATION', transferStation: null, sheetKeys: {} }
+    'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", corridorId: "JHB_EAST", colorClass: "text-red-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} }
 };
 
 // 4. Refresh Settings

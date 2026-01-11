@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.38.2'; // Bumped version to Fix System Splash Screen
+const CACHE_NAME = 'metrorail-next-train-v4.43.0'; // Bumped version to Fix System Splash Screen
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

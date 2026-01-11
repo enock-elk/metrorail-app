@@ -1,4 +1,4 @@
-// --- TRIP PLANNER LOGIC (V4.41.0 - Guardian Edition: Same-Route Block) ---
+// --- TRIP PLANNER LOGIC (V4.43.0 - Guardian Edition: Same-Route Block) ---
 
 // State
 let plannerOrigin = null;

@@ -80,9 +80,8 @@
     <div id="map"></div>
 
     <script>
-        // Initialize Map centered on Gauteng (Between JHB and PTA)
-        // Zoom Control moved to bottomright to avoid conflict with "Back to App" button
-        const map = L.map('map', { zoomControl: false }).setView([-26.05, 28.15], 10); 
+        // Initialize Map centered on Gauteng (Adjusted to see West Rand)
+        const map = L.map('map', { zoomControl: false }).setView([-26.15, 28.00], 10); 
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
         // Add OpenStreetMap Tile Layer (Light Theme)
@@ -94,11 +93,18 @@
 
         // --- DEFINE COORDINATES ---
         const ptaStation = [-25.7593, 28.1887];
-        const jhbStation = [-26.195, 28.040];
+        const jhbStation = [-26.1952, 28.0402];
         const germistonStation = [-26.215, 28.170];
         const kemptonStation = [-26.100, 28.240];
         const belleOmbreStation = [-25.742, 28.180];
         
+        // --- NEW COORDINATES FOR WEST & SOWETO ---
+        const langlaagte = [-26.215, 28.000]; // Junction
+        const newCanada = [-26.220, 27.950];  // Major Junction (Soweto/Randfontein split)
+        const roodepoort = [-26.160, 27.870];
+        const randfontein = [-26.180, 27.700]; // Far West
+        const naledi = [-26.260, 27.830];      // Soweto Heart
+
         // --- ACTIVE ROUTES ---
 
         // 1. PTA - Pienaarspoort (Green)
@@ -177,6 +183,25 @@
             [-26.330, 28.210]  // Kwesine
         ];
 
+        // 9. JHB - Randfontein (Yellow - West Line)
+        const route_jhb_rand = [
+            jhbStation,
+            langlaagte,
+            newCanada,
+            [-26.190, 27.910], // Maraisburg area
+            roodepoort,
+            [-26.150, 27.780], // Krugersdorp area
+            randfontein
+        ];
+
+        // 10. JHB - Naledi (Yellow - Soweto Line)
+        const route_jhb_soweto = [
+            newCanada, // Splits here
+            [-26.230, 27.920], // Orlando
+            [-26.250, 27.880], // Merafe
+            naledi
+        ];
+
         // --- DRAW FUNCTIONS ---
 
         function addRoute(latlngs, color, name, isActive = true) {
@@ -202,7 +227,9 @@
         addRoute(route_germ_leralla, '#3b82f6', 'Germiston - Leralla', true);
         addRoute(route_jhb_germ, '#ef4444', 'JHB - Germiston', true);
         addRoute(route_pta_kempton, '#3b82f6', 'Pretoria - Kempton Park', true); 
-        addRoute(route_germ_kwesine, '#eab308', 'Germiston - Kwesine', true); // Yellow
+        addRoute(route_germ_kwesine, '#eab308', 'Germiston - Kwesine', true);
+        addRoute(route_jhb_rand, '#eab308', 'JHB - Randfontein', true); // New Yellow
+        addRoute(route_jhb_soweto, '#eab308', 'JHB - Naledi', true);    // New Yellow
 
         // --- MARKERS ---
         const hubs = [
@@ -215,7 +242,10 @@
             { name: "De Wildt", coords: [-25.630, 27.950], type: 'end' },
             { name: "Pienaarspoort", coords: [-25.725, 28.420], type: 'end' },
             { name: "Leralla", coords: [-26.020, 28.210], type: 'end' },
-            { name: "Kwesine", coords: [-26.330, 28.210], type: 'end' } // Added
+            { name: "Kwesine", coords: [-26.330, 28.210], type: 'end' },
+            { name: "Randfontein", coords: randfontein, type: 'end' }, // New
+            { name: "Naledi", coords: naledi, type: 'end' },           // New
+            { name: "New Canada", coords: newCanada, type: 'hub' }     // New Hub
         ];
 
         hubs.forEach(hub => {
@@ -245,7 +275,9 @@
                 { color: '#3b82f6', text: 'Pretoria - Kempton Park', status: 'LIVE', bg: 'bg-green-500' },
                 { color: '#3b82f6', text: 'Germiston - Leralla', status: 'LIVE', bg: 'bg-green-500' },
                 { color: '#ef4444', text: 'JHB - Germiston', status: 'LIVE', bg: 'bg-green-500' },
-                { color: '#eab308', text: 'Germiston - Kwesine', status: 'LIVE', bg: 'bg-green-500' }
+                { color: '#eab308', text: 'Germiston - Kwesine', status: 'LIVE', bg: 'bg-green-500' },
+                { color: '#eab308', text: 'JHB - Randfontein', status: 'LIVE', bg: 'bg-green-500' },
+                { color: '#eab308', text: 'JHB - Naledi', status: 'LIVE', bg: 'bg-green-500' }
             ];
 
             div.innerHTML += '<h4>Network Status</h4>';
