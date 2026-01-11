@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.44.1 (Guardian Edition - Soweto Expansion)
-  - ADDED: Direct /favicon.ico link for Google Search crawler.
-  - REMOVED: Unused Leaflet.js scripts (saved ~140KB load).
-  - UPDATED: Version number in Sidenav.
-  - REMOVED: Install App button from Side Nav.
-  - ADDED: JHB <-> Randfontein & JHB <-> Naledi Routes to Side Nav.
+  Metrorail Next Train V4.44.2 (Guardian Edition - Analytics & Full Screen Map)
+  - ANALYTICS: Tracked in planner.js.
+  - MAP: Modal updated to full-screen immersive view.
+  - SIDE NAV: Version updated to V4.44.1 via config.js.
 -->
 <html lang="en" class="dark">
 
@@ -54,21 +52,23 @@
         }
     </script>
     
-    <!-- LEAFLET REMOVED: Unused in index.html (Static Image Map Only) -->
-
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/custom.css">
 
     <style>
-        .legend { padding: 10px; background: rgba(255, 255, 255, 0.95); box-shadow: 0 0 15px rgba(0, 0, 0, 0.2); border-radius: 8px; line-height: 24px; color: #333; font-family: 'Inter', sans-serif; max-width: 250px; }
-        .dark .legend { background: rgba(31, 41, 55, 0.95); color: #f3f4f6; }
-        .legend h4 { margin: 0 0 5px; color: #1f2937; font-weight: 800; font-size: 14px; text-transform: uppercase; }
-        .dark .legend h4 { color: #f3f4f6; }
-        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.9; border-radius: 4px; }
-        .legend-item { display: flex; align-items: center; margin-bottom: 4px; font-size: 12px; font-weight: 500; }
-        .status-badge { display: inline-block; font-size: 10px; padding: 1px 4px; border-radius: 4px; margin-left: auto; font-weight: bold; color: white; }
+        /* Force full screen map modal */
+        #map-modal.full-screen {
+            padding: 0 !important;
+        }
+        #map-modal.full-screen > div {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: none !important;
+            border-radius: 0 !important;
+            transform: none !important;
+        }
     </style>
 </head>
 
@@ -107,8 +107,7 @@
             <li class="route-item"><a class="" data-route-id="jhb-soweto"><span class="route-dot dot-yellow"></span>JHB <-> Naledi (Soweto)</a></li>
         </ul>
         <div class="mt-auto pt-2 border-t border-gray-700 dark:border-gray-600 pb-2">
-            <!-- Install Button REMOVED from Side Nav -->
-
+            
             <div class="mb-3 space-y-2 px-1">
                 <a id="view-map-btn" class="cursor-pointer w-full flex items-center px-4 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-green-500 dark:hover:border-green-500 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 font-bold transition-all group">
                     <svg class="w-5 h-5 mr-3 text-green-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -401,10 +400,10 @@
         </div>
     </div>
     
-    <!-- NETWORK MAP MODAL -->
-    <div id="map-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[70] hidden flex items-center justify-center p-2 backdrop-blur-md transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col transform transition-transform duration-300 scale-95 overflow-hidden relative">
-            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 rounded-t-xl z-20 relative">
+    <!-- NETWORK MAP MODAL (Full Screen Update) -->
+    <div id="map-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[70] hidden flex items-center justify-center p-0 full-screen backdrop-blur-md transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative">
                 <div class="flex items-center space-x-3">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Network Map</h3>
                     <a href="map.html" id="open-interactive-map-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm transition-colors flex items-center decoration-none">
@@ -434,7 +433,7 @@
                 </button>
             </div>
 
-            <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 rounded-b-xl z-20 relative">
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 rounded-b-none z-20 relative">
                 <button id="close-map-btn-2" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors">Close Map</button>
             </div>
         </div>

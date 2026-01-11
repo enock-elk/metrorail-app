@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.44.1"; // Updated for Soweto Expansion (Naledi)
+const APP_VERSION = "V4.44.2"; // Updated for Soweto Expansion (Naledi)
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
