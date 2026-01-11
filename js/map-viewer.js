@@ -1,6 +1,5 @@
-// --- METRORAIL MAP VIEWER (V4.08) ---
+// --- METRORAIL MAP VIEWER (V4.44.0 - Guardian Fixed) ---
 // Handles the pinch-to-zoom image viewer for the static network map.
-// Extracted from ui.js for modularity.
 
 let mapModal, closeMapBtn, closeMapBtn2, viewMapBtn;
 let mapContainer, mapImage, mapZoomIn, mapZoomOut;
@@ -19,6 +18,8 @@ let initialScale = 1;
 let lastTap = 0;
 
 function setupMapLogic() {
+    console.log("Map Viewer: Initializing...");
+
     mapModal = document.getElementById('map-modal');
     closeMapBtn = document.getElementById('close-map-btn');
     closeMapBtn2 = document.getElementById('close-map-btn-2');
@@ -29,7 +30,15 @@ function setupMapLogic() {
     mapZoomIn = document.getElementById('map-zoom-in');
     mapZoomOut = document.getElementById('map-zoom-out');
 
-    if (!mapModal || !viewMapBtn) return;
+    if (!mapModal) {
+        console.error("Map Viewer: Map Modal not found in DOM.");
+        return;
+    }
+    
+    if (!viewMapBtn) {
+        console.error("Map Viewer: View Map Button not found in DOM.");
+        return;
+    }
 
     const resetMap = () => {
         scale = 1;
@@ -47,8 +56,10 @@ function setupMapLogic() {
     };
 
     const openMap = () => {
+        console.log("Map Viewer: Opening Map...");
         mapModal.classList.remove('hidden');
         resetMap();
+        
         // Close Sidenav if open
         const sidenav = document.getElementById('sidenav');
         const sidenavOverlay = document.getElementById('sidenav-overlay');
@@ -63,17 +74,24 @@ function setupMapLogic() {
         mapModal.classList.add('hidden');
     };
 
+    // --- BINDING EVENTS ---
+    // Remove old listeners to prevent duplicates (not easily possible with anon funcs, but safe to re-add on reload)
+    viewMapBtn.onclick = openMap; // Direct assignment to ensure it works
+    
+    if (closeMapBtn) closeMapBtn.onclick = closeMap;
+    if (closeMapBtn2) closeMapBtn2.onclick = closeMap;
+
     // --- BUTTON ZOOM ---
     if (mapZoomIn) {
-        mapZoomIn.addEventListener('click', (e) => {
+        mapZoomIn.onclick = (e) => {
             e.stopPropagation();
             scale += 0.5;
             updateTransform();
-        });
+        };
     }
 
     if (mapZoomOut) {
-        mapZoomOut.addEventListener('click', (e) => {
+        mapZoomOut.onclick = (e) => {
             e.stopPropagation();
             if (scale > 1) { 
                 scale -= 0.5;
@@ -81,7 +99,7 @@ function setupMapLogic() {
                 if(scale === 1) { pointX = 0; pointY = 0; }
                 updateTransform();
             }
-        });
+        };
     }
 
     // --- MOUSE PAN ---
@@ -159,7 +177,7 @@ function setupMapLogic() {
                 startY = e.touches[0].clientY - pointY;
                 panning = true;
             }
-        });
+        }, {passive: false}); // Important for iOS
         
         mapContainer.addEventListener('touchmove', (e) => {
             // 1. PINCH MOVE (2 Fingers)
@@ -206,7 +224,7 @@ function setupMapLogic() {
             pointX = nextX;
             pointY = nextY;
             updateTransform();
-        });
+        }, {passive: false}); // Important for iOS
 
         mapContainer.addEventListener('touchend', (e) => {
             if (e.touches.length < 2) {
@@ -217,13 +235,13 @@ function setupMapLogic() {
             }
         });
     }
-
-    viewMapBtn.addEventListener('click', openMap);
-    closeMapBtn.addEventListener('click', closeMap);
-    closeMapBtn2.addEventListener('click', closeMap);
     
     // Close on background click
-    mapModal.addEventListener('click', (e) => {
-        if (e.target === mapModal) closeMap();
-    });
+    if (mapModal) {
+        mapModal.onclick = (e) => {
+            if (e.target === mapModal) closeMap();
+        };
+    }
+    
+    console.log("Map Viewer: Logic Setup Complete.");
 }

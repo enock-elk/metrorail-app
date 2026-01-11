@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.43.0'; // Bumped version to Fix System Splash Screen
+const CACHE_NAME = 'metrorail-next-train-v4.44.0'; // Bumped for Cache Safety Update
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -14,11 +14,11 @@ const ASSETS_TO_CACHE = [
   './js/map-viewer.js',
   './js/ui.js',
   './manifest.json',
-  './sitemap.xml',       // Added for completeness
-  './robots.txt',        // Added for completeness
+  './sitemap.xml',
+  './robots.txt',
   './icons/icon-192.png',
   './icons/old/icon-192.png',
-  './icons/loading-logo.png', // This is now the source for the Splash Screen
+  './icons/loading-logo.png',
   './images/network-map.png',
   './images/offline-land.jpg',
   './images/offline-port.jpg'
@@ -30,7 +30,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('SW: Caching core assets (v4.33)...');
+        console.log('SW: Caching core assets (v4.44)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {
@@ -39,11 +39,24 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// 2. ACTIVATE: Clean Old Caches
+// 2. ACTIVATE: Safe Cleanup Strategy
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
+    (async () => {
+      // SAFETY CHECK: Verify the new cache has the critical App Shell (index.html)
+      // before we delete the old cache. This prevents the "Cache Void".
+      const newCache = await caches.open(CACHE_NAME);
+      const appShell = await newCache.match('./index.html');
+
+      if (!appShell) {
+        console.error("SW: Safety Check Failed - index.html missing in new cache. Aborting cleanup to preserve old version.");
+        return; // ABORT: Do not delete old caches. Keep the old version running.
+      }
+
+      console.log("SW: Safety Check Passed. Index.html confirmed. Cleaning old caches...");
+
+      const cacheNames = await caches.keys();
+      await Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
             console.log('SW: Clearing old cache:', cache);
@@ -51,9 +64,10 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+      
+      await self.clients.claim(); 
+    })()
   );
-  self.clients.claim(); 
 });
 
 // 3. FETCH: Smart Strategy with Offline Fallback

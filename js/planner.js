@@ -1,10 +1,11 @@
-// --- TRIP PLANNER LOGIC (V4.43.0 - Guardian Edition: Same-Route Block) ---
+// --- TRIP PLANNER LOGIC (V4.44.1 - Guardian Edition: Analytics) ---
 
 // State
 let plannerOrigin = null;
 let plannerDest = null;
 let currentTripOptions = []; // Store multiple train options
 let selectedPlannerDay = null; // Store user-selected day for planning
+let plannerPulse = null; // Heartbeat timer ID
 
 // --- INITIALIZATION ---
 function initPlanner() {
@@ -178,6 +179,9 @@ function initPlanner() {
     });
 
     resetBtn.addEventListener('click', () => {
+        // STOP PULSE
+        if (plannerPulse) { clearInterval(plannerPulse); plannerPulse = null; }
+        
         document.getElementById('planner-input-section').classList.remove('hidden');
         document.getElementById('planner-results-section').classList.add('hidden');
         fromSelect.value = ""; toSelect.value = "";
@@ -317,6 +321,22 @@ function executeTripPlan(origin, dest) {
 
     if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
 
+    // --- NEW: ANALYTICS TRACKING ---
+    try {
+        if (typeof gtag === 'function') {
+            gtag('event', 'planner_search', {
+                'event_category': 'Engagement',
+                'event_label': `${origin.replace(' STATION', '')} to ${dest.replace(' STATION', '')}`,
+                'origin': origin,
+                'destination': dest,
+                'day_type': selectedPlannerDay
+            });
+            console.log("Analytics: Tracked Search", origin, "->", dest);
+        }
+    } catch (e) {
+        console.warn("Analytics Error:", e);
+    }
+
     setTimeout(() => {
         // Run BOTH strategies and combine valid results
         const directPlan = planDirectTrip(origin, dest);
@@ -380,17 +400,11 @@ function executeTripPlan(origin, dest) {
                 }
             }
             
-            const selectedTrip = currentTripOptions[nextTripIndex];
-            const isTomorrow = selectedTrip.dayLabel !== undefined;
-            const nowSec = timeToSeconds(currentTime);
-            const isLateNight = nowSec > (20 * 3600);
-            const effectivelyTomorrow = isTomorrow || (isLateNight && timeToSeconds(selectedTrip.depTime) < (12 * 3600));
+            renderSelectedTrip(resultsContainer, nextTripIndex);
+            
+            // --- START LIVE PULSE ---
+            startPlannerPulse(nextTripIndex);
 
-            if (effectivelyTomorrow) {
-                renderNoMoreTrainsResult(resultsContainer, currentTripOptions, nextTripIndex, "No more trains today");
-            } else {
-                renderTripResult(resultsContainer, currentTripOptions, nextTripIndex);
-            }
         } else {
             // No trips found at all
             if (directPlan.status === 'SUNDAY_NO_SERVICE' || transferPlan.status === 'SUNDAY_NO_SERVICE') {
@@ -404,26 +418,79 @@ function executeTripPlan(origin, dest) {
     }, 500); 
 }
 
+function renderSelectedTrip(container, index) {
+    const selectedTrip = currentTripOptions[index];
+    const isTomorrow = selectedTrip.dayLabel !== undefined;
+    const nowSec = timeToSeconds(currentTime);
+    const isLateNight = nowSec > (20 * 3600);
+    const effectivelyTomorrow = isTomorrow || (isLateNight && timeToSeconds(selectedTrip.depTime) < (12 * 3600));
+
+    if (effectivelyTomorrow) {
+        renderNoMoreTrainsResult(container, currentTripOptions, index, "No more trains today");
+    } else {
+        renderTripResult(container, currentTripOptions, index);
+    }
+}
+
+// --- NEW: LIVE PULSE ENGINE ---
+function startPlannerPulse(currentIndex) {
+    // Clear any existing pulse
+    if (plannerPulse) clearInterval(plannerPulse);
+    
+    // Safety check: Only pulse if we are looking at 'Today'
+    // If planning for Saturday/Sunday on a Monday, the static view is fine.
+    if (selectedPlannerDay && selectedPlannerDay !== currentDayType) return;
+
+    let trackedIndex = currentIndex;
+
+    plannerPulse = setInterval(() => {
+        const trip = currentTripOptions[trackedIndex];
+        if (!trip) return;
+
+        const nowSec = timeToSeconds(currentTime);
+        const depSec = timeToSeconds(trip.depTime);
+        
+        // 1. UPDATE UI: Re-calculate just the countdown text
+        // (For efficiency, we just re-render the header part or the whole card)
+        // Since re-rendering the whole card is fast enough in V4, we'll do that to keep code clean.
+        // If the user manually changed selection, tracking might be off, but selectPlannerTrip handles manual changes.
+        // We need to know which index is currently SELECTED in the dropdown.
+        const dropdown = document.querySelector('#planner-results-list select');
+        if(dropdown) trackedIndex = parseInt(dropdown.value);
+        
+        const currentSelectedTrip = currentTripOptions[trackedIndex];
+        
+        // 2. CHECK AUTO-ADVANCE: 1 Minute Buffer Rule
+        // If current displayed train has departed > 60 seconds ago
+        const currentDepSec = timeToSeconds(currentSelectedTrip.depTime);
+        if (nowSec > (currentDepSec + 60)) {
+            // Find next available
+            if (trackedIndex < currentTripOptions.length - 1) {
+                console.log("Planner Pulse: Auto-advancing to next train...");
+                trackedIndex++;
+                renderSelectedTrip(document.getElementById('planner-results-list'), trackedIndex);
+                showToast(`The ${formatTimeDisplay(currentSelectedTrip.depTime)} has departed. Showing next train.`, "info", 4000);
+                return; // Stop here, re-render happened
+            }
+        }
+
+        // 3. REFRESH COUNTDOWN (Visual Only)
+        // We only re-render if the train hasn't departed yet, to show the countdown ticking
+        if (nowSec <= currentDepSec) {
+             renderSelectedTrip(document.getElementById('planner-results-list'), trackedIndex);
+        }
+
+    }, 30000); // Check every 30 seconds
+}
+
 window.selectPlannerTrip = function(index) {
     const idx = parseInt(index);
     if (!currentTripOptions || !currentTripOptions[idx]) return;
     
-    const selectedTrip = currentTripOptions[idx];
-    const isNextDay = selectedTrip.dayLabel !== undefined;
+    renderSelectedTrip(document.getElementById('planner-results-list'), idx);
     
-    // Check local Night Owl
-    const nowSec = timeToSeconds(currentTime);
-    const isLateNight = nowSec > (20 * 3600);
-    const effectivelyTomorrow = isNextDay || (isLateNight && timeToSeconds(selectedTrip.depTime) < (12 * 3600));
-
-    const container = document.getElementById('planner-results-list');
-    
-    if (effectivelyTomorrow) {
-        const title = (selectedPlannerDay === 'sunday') ? "No Service Today" : "No more trains today";
-        renderNoMoreTrainsResult(container, currentTripOptions, idx, title);
-    } else {
-        renderTripResult(container, currentTripOptions, idx);
-    }
+    // Restart pulse with new index focus
+    startPlannerPulse(idx);
 };
 
 // --- ALGORITHMS: DIRECT & TRANSFER ---
@@ -764,7 +831,7 @@ function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "
     container.innerHTML = infoHtml + `
         <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
             <div class="flex items-center mb-3">
-                <span class="text-2xl mr-3">🌙</span>
+                <span class="text-2xl mr-3">🚫</span>
                 <div>
                     <h3 class="font-bold text-orange-800 dark:text-orange-200">${title}</h3>
                     <p class="text-xs text-orange-700 dark:text-orange-300">Showing trains for <b>${selectedTrip.dayLabel || 'Tomorrow'}</b></p>
@@ -886,7 +953,7 @@ const PlannerRenderer = {
     renderInstruction: (step) => `
         <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/50">
             <div class="flex items-start">
-                <span class="text-xl mr-3">💡</span>
+                <span class="text-xl mr-3">ℹ️</span>
                 <p class="text-sm text-gray-700 dark:text-gray-300 leading-snug">
                     <b>Instruction:</b> Take train <b>${step.train}</b> on the <b>${step.route.name}</b> line.
                 </p>
@@ -943,7 +1010,7 @@ const PlannerRenderer = {
                         <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500">
                             <div class="font-bold uppercase tracking-wide mb-1">Transfer Required</div>
                             <div class="text-gray-600 dark:text-gray-400">
-                                <span class="font-bold text-gray-900 dark:text-white">⏳ <b>${waitStr}</b> Layover</span> &bull; Connect to Train ${step.leg2.train}
+                                <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Layover</span> &bull; Connect to Train ${step.leg2.train}
                             </div>
                         </div>
                     </div>

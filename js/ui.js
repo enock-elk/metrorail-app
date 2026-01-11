@@ -78,7 +78,7 @@ function renderComingSoon(routeName) {
     pretoriaTimeEl.innerHTML = msg; pienaarspoortTimeEl.innerHTML = msg; stationSelect.innerHTML = '<option>Route not available</option>';
 }
 
-// UPDATED: Compact No Service (h-24)
+// UPDATED: "Night Owl" Style Layout for No Service
 function renderNoService(element, destination) {
     const normalize = (s) => s ? s.toUpperCase().replace(/ STATION/g, '').trim() : '';
     const selectedStation = stationSelect.value;
@@ -92,15 +92,36 @@ function renderNoService(element, destination) {
     let allJourneys = [];
     if (destination === currentRoute.destA) { const res = findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute); allJourneys = res.allJourneys; } 
     else { const res = findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute); allJourneys = res.allJourneys; }
+    
+    // Find next available train (simulating next day)
     const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
     const firstTrain = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
+    
     let timeHTML = 'N/A';
+    let timeDiffStr = '';
+    
     if (firstTrain) {
-        const departureTime = formatTimeDisplay(firstTrain.departureTime || firstTrain.train1.departureTime);
-        const timeDiffStr = calculateTimeDiffString(firstTrain.departureTime || firstTrain.train1.departureTime, 1); 
+        const rawTime = firstTrain.departureTime || firstTrain.train1.departureTime;
+        const departureTime = formatTimeDisplay(rawTime);
+        timeDiffStr = calculateTimeDiffString(rawTime, 1); // 1 day offset for next day
         timeHTML = `<div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
+    } else {
+        timeHTML = `<div class="text-lg font-bold text-gray-500">No Data</div>`;
     }
-    element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center w-full"><div class="text-sm font-bold text-gray-600 dark:text-gray-400">No service today.</div><p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train next weekday:</p><div class="text-center p-2 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-1 w-3/4">${timeHTML}</div></div>`;
+    
+    // NEW: "Check Monday" Button with Night Owl Layout
+    const safeDestForClick = escapeHTML(destination).replace(/'/g, "\\'");
+    
+    element.innerHTML = `
+        <div class="flex flex-col justify-center items-center w-full py-2">
+            <div class="text-sm font-bold text-gray-600 dark:text-gray-400">No service today</div>
+            <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train next weekday is at:</p>
+            <div class="text-center p-2 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-1 w-3/4">
+                ${timeHTML}
+            </div>
+            <button onclick="openScheduleModal('${safeDestForClick}', 'weekday')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">Check Monday's Schedule</button>
+        </div>
+    `;
 }
 
 // UPDATED: Compact At Destination (h-24)
@@ -681,10 +702,42 @@ function handleSwipe(startX, endX, startY, endY) {
     }
 }
 
-window.openScheduleModal = function(destination) {
-    if (!currentScheduleData || !currentScheduleData[destination]) { showToast("No full schedule data available.", "error"); return; }
-    const journeys = currentScheduleData[destination]; 
-    modalTitle.textContent = `Schedule to ${destination.replace(' STATION', '')}`; 
+// UPDATED: Modal now supports dynamic Day Override for "Check Monday" feature
+window.openScheduleModal = function(destination, dayOverride = null) {
+    
+    let journeys = [];
+    let titleSuffix = "";
+
+    // 1. Determine Journey Data Source
+    if (dayOverride === 'weekday') {
+        // Dynamic fetch for Monday (Weekday) override
+        const currentRoute = ROUTES[currentRouteId];
+        const sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
+        const schedule = schedules[sheetKey];
+        if (schedule) {
+            // Re-run logic for Weekday
+            if (destination === currentRoute.destA) {
+                journeys = findNextJourneyToDestA(stationSelect.value, "00:00:00", schedule, currentRoute).allJourneys;
+            } else {
+                journeys = findNextJourneyToDestB(stationSelect.value, "00:00:00", schedule, currentRoute).allJourneys;
+            }
+            titleSuffix = " (Monday/Weekday)";
+        }
+    } else {
+        // Default: Use pre-calculated current day data
+        if (!currentScheduleData || !currentScheduleData[destination]) { 
+            showToast("No full schedule data available.", "error"); 
+            return; 
+        }
+        journeys = currentScheduleData[destination]; 
+    }
+
+    if (!journeys || journeys.length === 0) {
+        showToast("No trains found for this schedule.", "error");
+        return;
+    }
+
+    modalTitle.textContent = `Schedule to ${destination.replace(' STATION', '')}${titleSuffix}`; 
     modalList.innerHTML = '';
     const nowSeconds = timeToSeconds(currentTime);
     let firstNextTrainFound = false;
@@ -694,7 +747,14 @@ window.openScheduleModal = function(destination) {
         const trainName = j.train || j.train1.train; 
         const type = j.type === 'transfer' ? 'Transfer' : 'Direct';
         const depSeconds = timeToSeconds(dep);
-        const isPassed = depSeconds < nowSeconds;
+        
+        // If overriding, everything is in the future relative to "Now" logic, 
+        // unless we want to highlight "past" trains of a theoretical day. 
+        // For Monday Preview, we treat all as valid list.
+        let isPassed = false;
+        if (!dayOverride) {
+            isPassed = depSeconds < nowSeconds;
+        }
 
         let divClass = "p-3 rounded shadow-sm flex justify-between items-center transition-opacity duration-300";
         if (isPassed) {
@@ -705,7 +765,9 @@ window.openScheduleModal = function(destination) {
 
         const div = document.createElement('div'); 
         div.className = divClass;
-        if (!isPassed && !firstNextTrainFound) {
+        
+        // Marker for scrolling
+        if (!isPassed && !firstNextTrainFound && !dayOverride) {
             div.id = "next-train-marker";
             firstNextTrainFound = true;
         }
@@ -728,10 +790,17 @@ window.openScheduleModal = function(destination) {
     
     scheduleModal.classList.remove('hidden'); 
     document.body.style.overflow = 'hidden'; 
-    setTimeout(() => {
-        const target = document.getElementById('next-train-marker');
-        if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' });
-    }, 10);
+    
+    if (!dayOverride) {
+        setTimeout(() => {
+            const target = document.getElementById('next-train-marker');
+            if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' });
+        }, 10);
+    } else {
+        // Scroll to top for Monday preview
+        const container = document.getElementById('modal-list');
+        if(container) container.scrollTop = 0;
+    }
 };
 
 function setupRedirectLogic() {
@@ -880,11 +949,57 @@ function closeLegal() {
     legalModal.classList.add('hidden');
 }
 
+// --- SERVICE WORKER UPDATE HANDLING & REGISTRATION ---
+let newWorker;
+
+function showUpdateToast(worker) {
+    // Check if toast already exists
+    if (document.getElementById('update-toast')) return;
+
+    const updateToastHTML = `
+        <div id="update-toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-3 rounded-lg shadow-2xl flex items-center space-x-3 z-50 cursor-pointer border border-gray-700 hover:scale-105 transition-transform" onclick="window.location.reload()">
+            <div class="bg-blue-600 rounded-full p-1 animate-pulse">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
+            </div>
+            <div class="flex flex-col">
+                <span class="text-sm font-bold">New Schedule Available</span>
+                <span class="text-xs text-gray-400">Tap to Refresh</span>
+            </div>
+        </div>
+    `;
+    
+    const div = document.createElement('div');
+    div.innerHTML = updateToastHTML;
+    document.body.appendChild(div.firstElementChild);
+}
+
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js')
-            .then(reg => console.log('Service Worker registered', reg))
-            .catch(err => console.log('Service Worker registration failed', err));
+        navigator.serviceWorker.register('./service-worker.js').then(reg => {
+            console.log('SW registered:', reg);
+
+            // Check if there's a waiting worker (update ready)
+            if (reg.waiting) {
+                showUpdateToast(reg.waiting);
+                return;
+            }
+
+            reg.addEventListener('updatefound', () => {
+                newWorker = reg.installing;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        showUpdateToast(newWorker);
+                    }
+                });
+            });
+        }).catch(err => console.error('SW reg failed:', err));
+        
+        let refreshing;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (refreshing) return;
+            window.location.reload();
+            refreshing = true;
+        });
     });
 }
 

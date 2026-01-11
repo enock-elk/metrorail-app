@@ -10,12 +10,6 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=6">
     <link rel="apple-touch-icon" href="icons/icon-192.png?v=6">
 
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-      
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
@@ -29,6 +23,7 @@
             z-index: 1000;
             max-width: 250px;
             width: 90%;
+            display: none; /* Hidden until map loads */
         }
         
         .legend-box {
@@ -50,7 +45,7 @@
 
         .legend-content {
             overflow: hidden;
-            max-height: 500px; /* Adjust based on content */
+            max-height: 500px; 
             transition: max-height 0.3s ease-in-out;
         }
 
@@ -92,6 +87,18 @@
         .toggle-icon.rotated {
             transform: rotate(180deg);
         }
+
+        /* Loading Placeholder */
+        #map-placeholder {
+            position: absolute;
+            inset: 0;
+            background-color: #f3f4f6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+        }
     </style>
 </head>
 <body class="bg-gray-100 overflow-hidden">
@@ -104,8 +111,29 @@
         </a>
     </div>
 
+    <!-- Lazy Load Placeholder -->
+    <div id="map-placeholder">
+        <div class="text-center p-6">
+            <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-1.447-.894L15 7m0 13V7"></path></svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Interactive Network Map</h3>
+            <p class="text-sm text-gray-500 mb-6">Load detailed map data (approx. 150KB)</p>
+            <button onclick="loadMapResources()" id="load-map-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform active:scale-95 flex items-center mx-auto">
+                Load Map
+            </button>
+            <div id="loading-spinner" class="hidden mt-4">
+                <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-xs text-gray-500 mt-2">Fetching map data...</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Collapsible Legend -->
-    <div class="legend-container">
+    <div class="legend-container" id="legend-container">
         <div class="legend-box">
             <div class="legend-header" onclick="toggleLegend()">
                 <h4 class="font-black text-xs uppercase tracking-wider text-gray-800">Network Status</h4>
@@ -120,286 +148,172 @@
     <div id="map"></div>
 
     <script>
-        // --- MAP INITIALIZATION ---
-        // Adjusted center to balance Pretoria and JHB/West Rand
-        const map = L.map('map', { zoomControl: false }).setView([-26.00, 28.10], 10); 
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        // --- LAZY LOAD LOGIC ---
+        function loadMapResources() {
+            const btn = document.getElementById('load-map-btn');
+            const spinner = document.getElementById('loading-spinner');
+            
+            btn.classList.add('hidden');
+            spinner.classList.remove('hidden');
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CARTO',
-            subdomains: 'abcd',
-            maxZoom: 19
-        }).addTo(map);
+            // 1. Load CSS
+            const cssLink = document.createElement('link');
+            cssLink.rel = 'stylesheet';
+            cssLink.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            cssLink.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+            cssLink.crossOrigin = '';
+            document.head.appendChild(cssLink);
 
-        // --- PRECISE DATA FROM CSVs ---
-        
-        // 1. Pretoria - Pienaarspoort (Green)
-        const route_pta_pien = [
-            [-25.7586, 28.1899], // Pretoria
-            [-25.7598, 28.2016], // Mears St
-            [-25.7606, 28.2100], // Devenish St
-            [-25.7601, 28.2135], // Walker St
-            [-25.7549, 28.2254], // Loftus
-            [-25.7493, 28.2323], // Rissik
-            [-25.7460, 28.2450], // Hartbeesspruit
-            [-25.7330, 28.2670], // Koedoespoort (Hub)
-            [-25.7300, 28.3100], // Silverton
-            [-25.7360, 28.3280], // Waltloo
-            [-25.7280, 28.3600], // Denneboom
-            [-25.7222, 28.3599], // Eerste Fabrieke
-            [-25.7271, 28.3852], // Mamelodi Gardens
-            [-25.7302, 28.4050], // Greenview
-            [-25.7347, 28.4270]  // Pienaarspoort
-        ];
-
-        // 2. Pretoria - Mabopane (Orange)
-        const route_pta_mab = [
-            [-25.7586, 28.1899], // Pretoria
-            [-25.7567, 28.1850], // Pretoria-B
-            [-25.7561, 28.1675], // Pretoria West
-            [-25.7244, 28.1674], // Hercules (Hub)
-            [-25.7139, 28.1661], // Daspoort
-            [-25.7012, 28.1710], // Mountain View
-            [-25.6794, 28.1825], // Wonderboom
-            [-25.6722, 28.1820], // Pretoria North
-            [-25.6568, 28.1663], // Wolmerton
-            [-25.6467, 28.1287], // Wintersnest
-            [-25.6234, 28.1074], // Akasiaboom
-            [-25.5813, 28.0903], // Kopanong
-            [-25.5209, 28.0828], // Soshanguve
-            [-25.4960, 28.0897]  // Mabopane
-        ];
-
-        // 3. Pretoria - De Wildt (Purple)
-        const route_pta_dewildt = [
-            [-25.6467, 28.1287], // Wintersnest (Split)
-            [-25.6377, 28.0949], // Rosslyn
-            [-25.6195, 27.9918], // Ga-Rankuwa
-            [-25.6178, 27.9724], // Taillardshoop
-            [-25.6246, 27.9441]  // De Wildt
-        ];
-
-        // 4. Pretoria - Saulsville (Green)
-        const route_pta_saul = [
-            [-25.7586, 28.1899], // Pretoria
-            [-25.7561, 28.1675], // Pretoria West
-            [-25.7562, 28.1628], // Mitchellstraat
-            [-25.7502, 28.1400], // Schuttestraat
-            [-25.7602, 28.0882], // Kalafong
-            [-25.7628, 28.0750], // Atteridgeville
-            [-25.7641, 28.0621]  // Saulsville
-        ];
-
-        // 5. Pretoria - Irene - Kempton Park (Blue)
-        const route_pta_kempton = [
-            [-25.7586, 28.1899], // Pretoria
-            [-25.7839, 28.1933], // Fonteine
-            [-25.8135, 28.2012], // Kloofsig
-            [-25.8247, 28.2057], // Sportpark
-            [-25.8349, 28.2108], // Centurion
-            [-25.8755, 28.2241], // Irene
-            [-25.9250, 28.2280], // Pinedene
-            [-25.9641, 28.2355], // Olifantsfontein
-            [-26.0058, 28.2486], // Oakmoor
-            [-26.0356, 28.2542], // Kaalfontein
-            [-26.0670, 28.2346], // Birchleigh
-            [-26.0880, 28.2217], // Van Riebeeckpark
-            [-26.1063, 28.2273]  // Kempton Park
-        ];
-
-        // 6. Germiston - Leralla (Blue)
-        const route_germ_leralla = [
-            [-26.2096, 28.1678], // Germiston
-            [-26.1957, 28.1962], // Knights
-            [-26.1809, 28.1998], // Ravensklip
-            [-26.1667, 28.2053], // Elandsfontein
-            [-26.1356, 28.2218], // Isando
-            [-26.1265, 28.2248], // Rhodesfield
-            [-26.1063, 28.2273], // Kempton Park
-            [-26.0880, 28.2217], // Van Riebeeckpark
-            [-26.0670, 28.2346], // Birchleigh
-            [-26.0356, 28.2542], // Kaalfontein
-            [-26.0164, 28.2117], // Tembisa
-            [-26.0110, 28.2147], // Limindlela
-            [-26.0292, 28.1964]  // Leralla
-        ];
-
-        // 7. Germiston - Kwesine (Yellow)
-        const route_germ_kwesine = [
-            [-26.2096, 28.1678], // Germiston
-            [-26.2421, 28.1935], // Elsburg
-            [-26.2620, 28.1950], // Wattles (Approx)
-            [-26.3075, 28.1614], // Katlehong
-            [-26.3262, 28.1582], // Lindela
-            [-26.3407, 28.1525], // Pilot
-            [-26.3654, 28.1528]  // Kwesine
-        ];
-
-        // 8. JHB - Germiston (Red)
-        const route_jhb_germ = [
-            [-26.1974, 28.0423], // JHB Park
-            [-26.1969, 28.0542], // Doornfontein
-            [-26.1987, 28.0590], // Ellis Park
-            [-26.2039, 28.0635], // Jeppe
-            [-26.2074, 28.0804], // George Goch
-            [-26.2057, 28.0971], // Denver
-            [-26.2039, 28.1104], // Tooronga
-            [-26.2083, 28.1184], // Cleveland
-            [-26.2078, 28.1329], // Geldenhuis
-            [-26.2151, 28.1635], // Driehoek
-            [-26.2116, 28.1599], // President
-            [-26.2096, 28.1678]  // Germiston
-        ];
-
-        // 9. JHB - Randfontein (Yellow - West Line)
-        const route_jhb_rand = [
-            [-26.1976, 28.0423], // JHB
-            [-26.1979, 28.0221], // Braamfontein
-            [-26.2044, 28.0144], // Mayfair
-            [-26.2030, 28.0059], // Grosvenor
-            [-26.2017, 27.9905], // Langlaagte (Junction)
-            [-26.1795, 27.9399], // Maraisburg
-            [-26.1793, 27.9266], // Unified
-            [-26.1768, 27.9143], // Florida
-            [-26.1676, 27.8936], // Hamberg
-            [-26.1647, 27.8800], // Georginia
-            [-26.1591, 27.8700], // Roodepoort
-            [-26.1466, 27.8637], // Horison
-            [-26.1326, 27.8534], // Princess
-            [-26.1267, 27.8304], // Witpoortjie
-            [-26.1116, 27.8090], // Luipaardsvlei
-            [-26.1087, 27.7705], // Krugersdorp
-            [-26.1118, 27.7483], // Wesrand
-            [-26.1285, 27.7390], // Millsite
-            [-26.1577, 27.7151], // Robinson
-            [-26.1679, 27.7074], // Homelake
-            [-26.1817, 27.6978]  // Randfontein
-        ];
-
-        // 10. JHB - Naledi (Yellow - Soweto Line)
-        const route_jhb_naledi = [
-            [-26.2017, 27.9905], // Langlaagte (Junction Start)
-            [-26.2070, 27.9750], // Croesus (Approx)
-            [-26.1985, 27.9629], // Longdale
-            [-26.2144, 27.9424], // New Canada
-            [-26.2239, 27.9215], // Mzimhlope
-            [-26.2267, 27.9087], // Phomolong
-            [-26.2230, 27.8970], // Phefeni
-            [-26.2329, 27.8924], // Dube
-            [-26.2307, 27.8771], // Ikwezi
-            [-26.2497, 27.8635], // Inhlazane
-            [-26.2621, 27.8466], // Merafe
-            [-26.2580, 27.8228]  // Naledi
-        ];
-
-        // --- DRAW LOGIC ---
-        function addRoute(latlngs, color, name, isActive = true) {
-            const opacity = isActive ? 0.9 : 0.4;
-            const weight = isActive ? 4 : 2;
-            const dashArray = isActive ? null : '5, 10';
-            const finalColor = isActive ? color : '#9ca3af';
-
-            L.polyline(latlngs, {
-                color: finalColor,
-                weight: weight,
-                opacity: opacity,
-                dashArray: dashArray,
-                smoothFactor: 1
-            }).addTo(map).bindPopup(`<b class="uppercase text-sm">${name}</b><br>${isActive ? '<span class="text-green-600 font-bold text-xs">Active Service</span>' : '<span class="text-red-500 font-bold text-xs">Suspended</span>'}`);
+            // 2. Load JS
+            const jsScript = document.createElement('script');
+            jsScript.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            jsScript.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+            jsScript.crossOrigin = '';
+            
+            jsScript.onload = () => {
+                // Wait a tiny bit for CSS to parse
+                setTimeout(() => {
+                    initMap();
+                    const placeholder = document.getElementById('map-placeholder');
+                    placeholder.style.opacity = '0';
+                    placeholder.style.transition = 'opacity 0.5s ease';
+                    setTimeout(() => placeholder.style.display = 'none', 500);
+                    
+                    document.getElementById('legend-container').style.display = 'block';
+                }, 100);
+            };
+            
+            document.body.appendChild(jsScript);
         }
 
-        // Draw active routes
-        addRoute(route_pta_pien, '#22c55e', 'Pretoria - Pienaarspoort');
-        addRoute(route_pta_mab, '#f97316', 'Pretoria - Mabopane');
-        addRoute(route_pta_dewildt, '#a855f7', 'Pretoria - De Wildt');
-        addRoute(route_pta_saul, '#22c55e', 'Pretoria - Saulsville');
-        addRoute(route_pta_kempton, '#3b82f6', 'Pretoria - Kempton Park');
-        addRoute(route_germ_leralla, '#3b82f6', 'Germiston - Leralla');
-        addRoute(route_germ_kwesine, '#eab308', 'Germiston - Kwesine');
-        addRoute(route_jhb_germ, '#ef4444', 'JHB - Germiston');
-        addRoute(route_jhb_rand, '#eab308', 'JHB - Randfontein');
-        addRoute(route_jhb_naledi, '#eab308', 'JHB - Naledi');
+        // --- MAP LOGIC (Wrapped) ---
+        function initMap() {
+            // Adjusted center to balance Pretoria and JHB/West Rand
+            const map = L.map('map', { zoomControl: false }).setView([-26.00, 28.10], 10); 
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-        // --- ALL STATION DOTS ---
-        const allRoutes = [
-            route_pta_pien, route_pta_mab, route_pta_dewildt, route_pta_saul, route_pta_kempton,
-            route_germ_leralla, route_germ_kwesine, route_jhb_germ, route_jhb_rand, route_jhb_naledi
-        ];
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
 
-        const drawnStations = new Set(); // To prevent duplicate dots at junctions
+            // --- DATA ---
+            const routes = {
+                pta_pien: [[-25.7586, 28.1899], [-25.7598, 28.2016], [-25.7606, 28.2100], [-25.7601, 28.2135], [-25.7549, 28.2254], [-25.7493, 28.2323], [-25.7460, 28.2450], [-25.7330, 28.2670], [-25.7300, 28.3100], [-25.7360, 28.3280], [-25.7280, 28.3600], [-25.7222, 28.3599], [-25.7271, 28.3852], [-25.7302, 28.4050], [-25.7347, 28.4270]],
+                pta_mab: [[-25.7586, 28.1899], [-25.7567, 28.1850], [-25.7561, 28.1675], [-25.7244, 28.1674], [-25.7139, 28.1661], [-25.7012, 28.1710], [-25.6794, 28.1825], [-25.6722, 28.1820], [-25.6568, 28.1663], [-25.6467, 28.1287], [-25.6234, 28.1074], [-25.5813, 28.0903], [-25.5209, 28.0828], [-25.4960, 28.0897]],
+                pta_dewildt: [[-25.6467, 28.1287], [-25.6377, 28.0949], [-25.6195, 27.9918], [-25.6178, 27.9724], [-25.6246, 27.9441]],
+                pta_saul: [[-25.7586, 28.1899], [-25.7561, 28.1675], [-25.7562, 28.1628], [-25.7502, 28.1400], [-25.7602, 28.0882], [-25.7628, 28.0750], [-25.7641, 28.0621]],
+                pta_kempton: [[-25.7586, 28.1899], [-25.7839, 28.1933], [-25.8135, 28.2012], [-25.8247, 28.2057], [-25.8349, 28.2108], [-25.8755, 28.2241], [-25.9250, 28.2280], [-25.9641, 28.2355], [-26.0058, 28.2486], [-26.0356, 28.2542], [-26.0670, 28.2346], [-26.0880, 28.2217], [-26.1063, 28.2273]],
+                germ_leralla: [[-26.2096, 28.1678], [-26.1957, 28.1962], [-26.1809, 28.1998], [-26.1667, 28.2053], [-26.1356, 28.2218], [-26.1265, 28.2248], [-26.1063, 28.2273], [-26.0880, 28.2217], [-26.0670, 28.2346], [-26.0356, 28.2542], [-26.0164, 28.2117], [-26.0110, 28.2147], [-26.0292, 28.1964]],
+                germ_kwesine: [[-26.2096, 28.1678], [-26.2421, 28.1935], [-26.2620, 28.1950], [-26.3075, 28.1614], [-26.3262, 28.1582], [-26.3407, 28.1525], [-26.3654, 28.1528]],
+                jhb_germ: [[-26.1974, 28.0423], [-26.1969, 28.0542], [-26.1987, 28.0590], [-26.2039, 28.0635], [-26.2074, 28.0804], [-26.2057, 28.0971], [-26.2039, 28.1104], [-26.2083, 28.1184], [-26.2078, 28.1329], [-26.2151, 28.1635], [-26.2116, 28.1599], [-26.2096, 28.1678]],
+                jhb_rand: [[-26.1976, 28.0423], [-26.1979, 28.0221], [-26.2044, 28.0144], [-26.2030, 28.0059], [-26.2017, 27.9905], [-26.1795, 27.9399], [-26.1793, 27.9266], [-26.1768, 27.9143], [-26.1676, 27.8936], [-26.1647, 27.8800], [-26.1591, 27.8700], [-26.1466, 27.8637], [-26.1326, 27.8534], [-26.1267, 27.8304], [-26.1116, 27.8090], [-26.1087, 27.7705], [-26.1118, 27.7483], [-26.1285, 27.7390], [-26.1577, 27.7151], [-26.1679, 27.7074], [-26.1817, 27.6978]],
+                jhb_naledi: [[-26.2017, 27.9905], [-26.2070, 27.9750], [-26.1985, 27.9629], [-26.2144, 27.9424], [-26.2239, 27.9215], [-26.2267, 27.9087], [-26.2230, 27.8970], [-26.2329, 27.8924], [-26.2307, 27.8771], [-26.2497, 27.8635], [-26.2621, 27.8466], [-26.2580, 27.8228]]
+            };
 
-        allRoutes.forEach(route => {
-            route.forEach(coord => {
-                const key = coord.join(',');
-                if (!drawnStations.has(key)) {
-                    // Small white dot for every station
-                    L.circleMarker(coord, {
-                        radius: 3,
-                        fillColor: "#ffffff",
-                        color: "#6b7280", // Gray-500
-                        weight: 1,
-                        opacity: 1,
-                        fillOpacity: 1
-                    }).addTo(map);
-                    drawnStations.add(key);
-                }
+            // --- DRAW LOGIC ---
+            function addRoute(latlngs, color, name, isActive = true) {
+                const opacity = isActive ? 0.9 : 0.4;
+                const weight = isActive ? 4 : 2;
+                const dashArray = isActive ? null : '5, 10';
+                const finalColor = isActive ? color : '#9ca3af';
+
+                L.polyline(latlngs, {
+                    color: finalColor,
+                    weight: weight,
+                    opacity: opacity,
+                    dashArray: dashArray,
+                    smoothFactor: 1
+                }).addTo(map).bindPopup(`<b class="uppercase text-sm">${name}</b><br>${isActive ? '<span class="text-green-600 font-bold text-xs">Active Service</span>' : '<span class="text-red-500 font-bold text-xs">Suspended</span>'}`);
+            }
+
+            // Draw active routes
+            addRoute(routes.pta_pien, '#22c55e', 'Pretoria - Pienaarspoort');
+            addRoute(routes.pta_mab, '#f97316', 'Pretoria - Mabopane');
+            addRoute(routes.pta_dewildt, '#a855f7', 'Pretoria - De Wildt');
+            addRoute(routes.pta_saul, '#22c55e', 'Pretoria - Saulsville');
+            addRoute(routes.pta_kempton, '#3b82f6', 'Pretoria - Kempton Park');
+            addRoute(routes.germ_leralla, '#3b82f6', 'Germiston - Leralla');
+            addRoute(routes.germ_kwesine, '#eab308', 'Germiston - Kwesine');
+            addRoute(routes.jhb_germ, '#ef4444', 'JHB - Germiston');
+            addRoute(routes.jhb_rand, '#eab308', 'JHB - Randfontein');
+            addRoute(routes.jhb_naledi, '#eab308', 'JHB - Naledi');
+
+            // --- ALL STATION DOTS ---
+            const drawnStations = new Set();
+            Object.values(routes).forEach(route => {
+                route.forEach(coord => {
+                    const key = coord.join(',');
+                    if (!drawnStations.has(key)) {
+                        L.circleMarker(coord, {
+                            radius: 3,
+                            fillColor: "#ffffff",
+                            color: "#6b7280",
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 1
+                        }).addTo(map);
+                        drawnStations.add(key);
+                    }
+                });
             });
-        });
 
-        // --- HUBS & ENDPOINTS (Visual Hierarchy Overrides) ---
-        // Redraw major stations on top with larger markers
-        const markers = [
-            { n: "Pretoria", c: [-25.7586, 28.1899], t: 'hub' },
-            { n: "JHB Park", c: [-26.1976, 28.0423], t: 'hub' },
-            { n: "Germiston", c: [-26.2096, 28.1678], t: 'hub' },
-            { n: "Kempton Park", c: [-26.1063, 28.2273], t: 'hub' },
-            { n: "Mabopane", c: [-25.4960, 28.0897], t: 'end' },
-            { n: "De Wildt", c: [-25.6246, 27.9441], t: 'end' },
-            { n: "Pienaarspoort", c: [-25.7347, 28.4270], t: 'end' },
-            { n: "Saulsville", c: [-25.7641, 28.0621], t: 'end' },
-            { n: "Leralla", c: [-26.0292, 28.1964], t: 'end' },
-            { n: "Kwesine", c: [-26.3654, 28.1528], t: 'end' },
-            { n: "Randfontein", c: [-26.1817, 27.6978], t: 'end' },
-            { n: "Naledi", c: [-26.2580, 27.8228], t: 'end' },
-            { n: "Langlaagte", c: [-26.2017, 27.9905], t: 'hub' } // Junction
-        ];
+            // --- HUBS & ENDPOINTS ---
+            const markers = [
+                { n: "Pretoria", c: [-25.7586, 28.1899], t: 'hub' },
+                { n: "JHB Park", c: [-26.1976, 28.0423], t: 'hub' },
+                { n: "Germiston", c: [-26.2096, 28.1678], t: 'hub' },
+                { n: "Kempton Park", c: [-26.1063, 28.2273], t: 'hub' },
+                { n: "Mabopane", c: [-25.4960, 28.0897], t: 'end' },
+                { n: "De Wildt", c: [-25.6246, 27.9441], t: 'end' },
+                { n: "Pienaarspoort", c: [-25.7347, 28.4270], t: 'end' },
+                { n: "Saulsville", c: [-25.7641, 28.0621], t: 'end' },
+                { n: "Leralla", c: [-26.0292, 28.1964], t: 'end' },
+                { n: "Kwesine", c: [-26.3654, 28.1528], t: 'end' },
+                { n: "Randfontein", c: [-26.1817, 27.6978], t: 'end' },
+                { n: "Naledi", c: [-26.2580, 27.8228], t: 'end' },
+                { n: "Langlaagte", c: [-26.2017, 27.9905], t: 'hub' }
+            ];
 
-        markers.forEach(m => {
-            const isHub = m.t === 'hub';
-            L.circleMarker(m.c, {
-                radius: isHub ? 6 : 4,
-                fillColor: "#ffffff",
-                color: "#1f2937",
-                weight: isHub ? 3 : 2,
-                opacity: 1,
-                fillOpacity: 1
-            }).addTo(map).bindPopup(`<b class="text-sm">${m.n}</b>`);
-        });
+            markers.forEach(m => {
+                const isHub = m.t === 'hub';
+                L.circleMarker(m.c, {
+                    radius: isHub ? 6 : 4,
+                    fillColor: "#ffffff",
+                    color: "#1f2937",
+                    weight: isHub ? 3 : 2,
+                    opacity: 1,
+                    fillOpacity: 1
+                }).addTo(map).bindPopup(`<b class="text-sm">${m.n}</b>`);
+            });
 
-        // --- LEGEND LOGIC ---
-        const legendItems = [
-            { color: '#22c55e', text: 'Pretoria - Pienaarspoort', bg: 'bg-green-500' },
-            { color: '#f97316', text: 'Pretoria - Mabopane', bg: 'bg-green-500' },
-            { color: '#a855f7', text: 'Pretoria - De Wildt', bg: 'bg-green-500' },
-            { color: '#22c55e', text: 'Pretoria - Saulsville', bg: 'bg-green-500' },
-            { color: '#3b82f6', text: 'Pretoria - Kempton', bg: 'bg-green-500' },
-            { color: '#3b82f6', text: 'Germiston - Leralla', bg: 'bg-green-500' },
-            { color: '#ef4444', text: 'JHB - Germiston', bg: 'bg-green-500' },
-            { color: '#eab308', text: 'Germiston - Kwesine', bg: 'bg-green-500' },
-            { color: '#eab308', text: 'JHB - Randfontein', bg: 'bg-green-500' },
-            { color: '#eab308', text: 'JHB - Naledi (Soweto)', bg: 'bg-green-500' }
-        ];
+            // --- LEGEND LOGIC ---
+            const legendItems = [
+                { color: '#22c55e', text: 'Pretoria - Pienaarspoort', bg: 'bg-green-500' },
+                { color: '#f97316', text: 'Pretoria - Mabopane', bg: 'bg-green-500' },
+                { color: '#a855f7', text: 'Pretoria - De Wildt', bg: 'bg-green-500' },
+                { color: '#22c55e', text: 'Pretoria - Saulsville', bg: 'bg-green-500' },
+                { color: '#3b82f6', text: 'Pretoria - Kempton', bg: 'bg-green-500' },
+                { color: '#3b82f6', text: 'Germiston - Leralla', bg: 'bg-green-500' },
+                { color: '#ef4444', text: 'JHB - Germiston', bg: 'bg-green-500' },
+                { color: '#eab308', text: 'Germiston - Kwesine', bg: 'bg-green-500' },
+                { color: '#eab308', text: 'JHB - Randfontein', bg: 'bg-green-500' },
+                { color: '#eab308', text: 'JHB - Naledi (Soweto)', bg: 'bg-green-500' }
+            ];
 
-        const legendContent = document.getElementById('legend-content');
-        legendItems.forEach(item => {
-            legendContent.innerHTML += `
-                <div class="legend-item">
-                    <span class="color-dot" style="background-color: ${item.color}"></span>
-                    <span class="text-gray-700">${item.text}</span>
-                    <span class="status-badge ${item.bg}">LIVE</span>
-                </div>
-            `;
-        });
+            const legendContent = document.getElementById('legend-content');
+            legendContent.innerHTML = ''; // Clear prev
+            legendItems.forEach(item => {
+                legendContent.innerHTML += `
+                    <div class="legend-item">
+                        <span class="color-dot" style="background-color: ${item.color}"></span>
+                        <span class="text-gray-700">${item.text}</span>
+                        <span class="status-badge ${item.bg}">LIVE</span>
+                    </div>
+                `;
+            });
+        }
 
         // Toggle Function
         function toggleLegend() {
