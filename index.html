@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.44.2 (Guardian Edition - Analytics & Full Screen Map)
-  - ANALYTICS: Tracked in planner.js.
-  - MAP: Modal updated to full-screen immersive view.
-  - SIDE NAV: Version updated to V4.44.1 via config.js.
+  Metrorail Next Train V4.44.3 (Guardian Edition - Social Share Fix)
+  - ADDED: Open Graph (OG) Meta Tags for Facebook/WhatsApp previews.
+  - ADDED: Twitter Card tags.
+  - RETAINED: Full-screen Map Modal & Analytics.
 -->
 <html lang="en" class="dark">
 
@@ -12,12 +12,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
 
     <title>Metrorail Next Train | Live Schedules & Fares</title>
-    <meta name="description" content="Check live train schedules and fares.">
+    <meta name="description" content="Check live train schedules and fares for Metrorail Gauteng (Pretoria, JHB, Soweto). Works offline!">
     
+    <!-- SOCIAL MEDIA META TAGS (Open Graph) -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://nexttrain.co.za/">
+    <meta property="og:title" content="Metrorail Next Train | Live Schedules">
+    <meta property="og:description" content="Stop guessing. Get live train times, ticket prices, and updates for Pretoria, JHB, and Soweto lines. Works offline!">
+    <meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+
+    <!-- TWITTER CARD -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Metrorail Next Train">
+    <meta name="twitter:description" content="Live Metrorail schedules for Gauteng. Plan your trip now.">
+    <meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png">
+
     <link rel="manifest" href="manifest.json">
     
     <!-- CRITICAL: Google Analytics 4 (Measurement ID: G-JM5DH6ERVX) -->
-    <!-- DO NOT REMOVE OR EDIT THIS SCRIPT TAG -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
@@ -37,7 +51,7 @@
         });
     </script>
     
-    <!-- ICONS: SEO Critical Fix -->
+    <!-- ICONS -->
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
