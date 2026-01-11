@@ -35,7 +35,7 @@
         <!-- HEADER -->
         <header class="border-b border-gray-700 pb-8 mb-8">
             <h1 class="text-4xl font-black text-white mb-2">Project Handover</h1>
-            <p class="text-xl text-blue-400 font-bold">Metrorail Next Train (Guardian Edition V4.40)</p>
+            <p class="text-xl text-blue-400 font-bold">Metrorail Next Train (Guardian Edition V4.43.0)</p>
             <p class="text-gray-400 mt-2">Technical Documentation & Operational Protocols</p>
         </header>
 
@@ -58,10 +58,10 @@
                     <h3 class="font-bold text-lg text-blue-300 mb-3">File Structure</h3>
                     <ul class="space-y-2 text-sm text-gray-300">
                         <li><code class="text-yellow-400">index.html</code>: App shell & Analytics container.</li>
-                        <li><code class="text-yellow-400">js/logic.js</code>: Data fetching & state management.</li>
-                        <li><code class="text-yellow-400">js/planner.js</code>: Trip planning algorithms.</li>
-                        <li><code class="text-yellow-400">js/config.js</code>: Routes, Fares & Constants.</li>
-                        <li><code class="text-yellow-400">service-worker.js</code>: Offline caching logic.</li>
+                        <li><code class="text-yellow-400">js/logic.js</code>: Data fetching, state & Holiday logic.</li>
+                        <li><code class="text-yellow-400">js/planner.js</code>: Trip planning algorithms (Direct + Transfers).</li>
+                        <li><code class="text-yellow-400">js/config.js</code>: Routes (East, North, West, Soweto), Fares & Constants.</li>
+                        <li><code class="text-yellow-400">service-worker.js</code>: Offline caching logic (Cache-First/Stale-While-Revalidate).</li>
                     </ul>
                 </div>
             </div>
@@ -90,10 +90,10 @@
                         </p>
                     </div>
                     <div>
-                        <h4 class="font-bold text-red-400 mb-2">3. CNAME Persistence</h4>
+                        <h4 class="font-bold text-red-400 mb-2">3. Planner "Same-Route" Block</h4>
                         <p class="text-sm text-gray-300">
-                            The <code>CNAME</code> file in the root directory ensures the custom domain works on GitHub Pages.
-                            <span class="block mt-2 font-bold text-white">DO NOT DELETE.</span>
+                            In <code>planner.js</code>, we strictly block transfers where Leg 1 and Leg 2 share the same <code>route.id</code> to prevent back-tracking loops.
+                            <span class="block mt-2 font-bold text-white">DO NOT REMOVE THIS FILTER.</span>
                         </p>
                     </div>
                 </div>
@@ -120,18 +120,23 @@
                         </tr>
                         <tr>
                             <td class="p-4 font-bold text-white">Deploy Code</td>
-                            <td class="p-4">Commit to <code>main</code> branch. GitHub Actions (if configured) or Pages auto-deploys.</td>
+                            <td class="p-4">Commit to <code>main</code> branch. GitHub Pages auto-deploys. Ensure <code>CNAME</code> exists.</td>
                         </tr>
                         <tr>
                             <td class="p-4 font-bold text-white">PWA Update</td>
                             <td class="p-4">
-                                Increment <code>CACHE_NAME</code> in <code>service-worker.js</code> (e.g., v4.40 -> v4.41). 
+                                Increment <code>CACHE_NAME</code> in <code>service-worker.js</code> (e.g., v4.43 -> v4.44). 
                                 Users get update on next visit.
                             </td>
                         </tr>
                         <tr>
-                            <td class="p-4 font-bold text-white">Data Cleaning</td>
-                            <td class="p-4">Ensure "Station" names in Sheets match <code>config.js</code> exactly.</td>
+                            <td class="p-4 font-bold text-white">Add New Route</td>
+                            <td class="p-4">
+                                1. Add Sheet to App Script.
+                                2. Add config block to <code>js/config.js</code>.
+                                3. Add coordinates to <code>map.html</code>.
+                                4. Add link to Side Nav in <code>index.html</code>.
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -145,20 +150,20 @@
             </h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                    <div class="text-purple-400 font-bold mb-1">1. Smart Filtering</div>
-                    <p class="text-xs text-gray-400">Prevent selecting same station for Origin/Dest in Planner.</p>
+                    <div class="text-purple-400 font-bold mb-1">1. Holiday Automation</div>
+                    <p class="text-xs text-gray-400">Algorithmic calculation of Easter/Public Holidays to replace hardcoded lists.</p>
                 </div>
                 <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                    <div class="text-purple-400 font-bold mb-1">2. Lazy Load Maps</div>
-                    <p class="text-xs text-gray-400">Defer Leaflet JS loading to speed up initial page render.</p>
+                    <div class="text-purple-400 font-bold mb-1">2. "Track My Train"</div>
+                    <p class="text-xs text-gray-400">WhatsApp itinerary generator for viral sharing.</p>
                 </div>
                 <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                    <div class="text-purple-400 font-bold mb-1">3. Live Mode</div>
-                    <p class="text-xs text-gray-400">Real-time trip tracking with "Next Stop" geofencing alerts.</p>
+                    <div class="text-purple-400 font-bold mb-1">3. Service Worker Toast</div>
+                    <p class="text-xs text-gray-400">"New Update Available" notification for instant PWA refreshing.</p>
                 </div>
                 <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                    <div class="text-purple-400 font-bold mb-1">4. Share Trip</div>
-                    <p class="text-xs text-gray-400">WhatsApp-ready itinerary generator for planner results.</p>
+                    <div class="text-purple-400 font-bold mb-1">4. Analytics Events</div>
+                    <p class="text-xs text-gray-400">Granular tracking of "Most Searched Routes" in Planner.</p>
                 </div>
             </div>
         </section>
@@ -166,7 +171,7 @@
         <!-- FOOTER -->
         <footer class="text-center text-gray-500 text-sm border-t border-gray-700 pt-8">
             <p>Generated by <strong>NextTrain Guardian AI</strong></p>
-            <p class="mt-1">Last Updated: Jan 2026</p>
+            <p class="mt-1">Last Updated: Jan 2026 (V4.43.0)</p>
             <a href="index.html" class="inline-block mt-4 text-blue-500 hover:underline">Back to Application</a>
         </footer>
 
