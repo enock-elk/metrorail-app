@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.44.3 (Guardian Edition - Social Share Fix)
-  - ADDED: Open Graph (OG) Meta Tags for Facebook/WhatsApp previews.
-  - ADDED: Twitter Card tags.
-  - RETAINED: Full-screen Map Modal & Analytics.
+  Metrorail Next Train V4.46 (Guardian Edition - Trust Update)
+  - UI: Planner label fixed ("To Station").
+  - NAV: Sidebar streamlined (Terms/Privacy moved to footer).
+  - FEAT: Added "About" Modal with Origin Story.
+  - SEO: Canonical, Schema, and ARIA labels preserved.
 -->
 <html lang="en" class="dark">
 
@@ -11,10 +12,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
 
-    <title>Metrorail Next Train | Live Schedules & Fares</title>
+    <!-- SEO: Freshness Signal -->
+    <title>Metrorail Next Train | 2026 Live Schedules & Fares</title>
+    
+    <!-- SEO: Canonical Tag -->
+    <link rel="canonical" href="https://nexttrain.co.za/">
+
     <meta name="description" content="Check live train schedules and fares for Metrorail Gauteng (Pretoria, JHB, Soweto). Works offline!">
     
-    <!-- SOCIAL MEDIA META TAGS (Open Graph) -->
+    <!-- SEO: JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Metrorail Next Train",
+      "operatingSystem": "Web, iOS, Android",
+      "applicationCategory": "TravelApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "ZAR"
+      },
+      "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
+      "softwareVersion": "4.45",
+      "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map",
+      "url": "https://nexttrain.co.za/"
+    }
+    </script>
+
+    <!-- SOCIAL MEDIA META TAGS -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nexttrain.co.za/">
     <meta property="og:title" content="Metrorail Next Train | Live Schedules">
@@ -73,10 +99,10 @@
 
     <style>
         /* Force full screen map modal */
-        #map-modal.full-screen {
+        #map-modal.full-screen, #about-modal.full-screen {
             padding: 0 !important;
         }
-        #map-modal.full-screen > div {
+        #map-modal.full-screen > div, #about-modal.full-screen > div {
             width: 100% !important;
             height: 100% !important;
             max-width: none !important;
@@ -90,7 +116,7 @@
 
     <div id="sidenav-overlay"></div>
     <div id="sidenav">
-        <button id="close-nav-btn" class="close-btn text-gray-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-300">&times;</button>
+        <button id="close-nav-btn" class="close-btn text-gray-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-300" aria-label="Close Menu">&times;</button>
         <div class="p-3 bg-blue-50 dark:bg-gray-800 border-b border-blue-100 dark:border-gray-700 mb-2">
             <p class="text-xs text-gray-500 uppercase font-bold mb-0.5">Passenger Profile</p>
             <div id="nav-profile-display" class="font-bold text-lg text-blue-600 dark:text-blue-400">Adult</div>
@@ -136,20 +162,15 @@
                 </a>
             </li>
             <li class="route-item">
-                <a onclick="openLegal('terms')" class="cursor-pointer text-gray-300 hover:text-white">
-                    <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    Terms of Use
+                <a id="open-about-btn" class="cursor-pointer text-gray-300 hover:text-white">
+                    <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    About Next Train
                 </a>
             </li>
-            <li class="route-item">
-                <a onclick="openLegal('privacy')" class="cursor-pointer text-gray-300 hover:text-white">
-                    <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                    Privacy Policy
-                </a>
-            </li>
+            
             <!-- VERSION FOOTER -->
             <div class="mt-4 px-4 text-right">
-                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.44.1</p>
+                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.45</p>
             </div>
         </div>
     </div>
@@ -162,18 +183,18 @@
         <!-- HEADER -->
         <div class="pt-4 px-6 pb-2 bg-white dark:bg-gray-800 z-20 shadow-sm relative">
              <div class="flex items-center justify-between relative mb-2">
-                <button id="open-nav-btn" class="p-2 -ml-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none">
+                <button id="open-nav-btn" class="p-2 -ml-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none" aria-label="Open Menu">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                 </button>
                 <div class="flex space-x-2">
-                    <button id="pin-route-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none" title="Pin this route">
+                    <button id="pin-route-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none" title="Pin this route" aria-label="Pin Route">
                         <svg id="pin-outline" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
                         <svg id="pin-filled" class="w-5 h-5 hidden text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
                     </button>
-                    <button id="force-reload-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none">
+                    <button id="force-reload-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none" aria-label="Refresh Schedule">
                         <svg id="reload-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                     </button>
-                    <button id="theme-toggle-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none">
+                    <button id="theme-toggle-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none" aria-label="Toggle Dark Mode">
                         <svg id="theme-toggle-dark-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
                         <svg id="theme-toggle-light-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 13a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm6.293-8.707a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 15.586a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM15.586 4.414a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 5.828A1 1 0 003 4.414l-.707.707a1 1 0 001.414 1.414l.707-.707z"></path></svg>
                     </button>
@@ -224,7 +245,7 @@
                             <option value="">Select a station...</option>
                         </select>
                     </div>
-                    <button id="locate-btn" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-md transition-colors flex-shrink-0 h-[54px] w-[54px] flex items-center justify-center" title="Find my nearest station">
+                    <button id="locate-btn" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-md transition-colors flex-shrink-0 h-[54px] w-[54px] flex items-center justify-center" title="Find my nearest station" aria-label="Find Nearest Station">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
                     </button>
                 </div>
@@ -269,7 +290,13 @@
                 </div>
                 <div id="copied-message" class="hidden text-center text-green-500 font-medium mt-2">Link copied to clipboard!</div>
                 
-                <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">2025 &copy; Kazembe CodeWorks. All rights reserved.</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">2026 &copy; Kazembe CodeWorks. All rights reserved.</p>
+                
+                <!-- NEW FOOTER LINKS -->
+                <div class="flex justify-center space-x-4 mt-3 pb-2">
+                    <button onclick="openLegal('terms')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Terms of Use</button>
+                    <button onclick="openLegal('privacy')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Privacy Policy</button>
+                </div>
             </div>
         </div>
 
@@ -300,7 +327,7 @@
                                 <option value="">Loading stations...</option>
                             </select>
                         </div>
-                        <button id="planner-locate-btn" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-md transition-colors flex-shrink-0 h-[54px] w-[54px] flex items-center justify-center" title="Find my nearest station">
+                        <button id="planner-locate-btn" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-md transition-colors flex-shrink-0 h-[54px] w-[54px] flex items-center justify-center" title="Find my nearest station" aria-label="Find Nearest Station">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
                         </button>
                     </div>
@@ -308,14 +335,14 @@
 
                 <!-- SWAP BUTTON -->
                 <div class="flex justify-center -my-3 relative z-10">
-                    <button id="planner-swap-btn" class="bg-blue-100 dark:bg-blue-900 p-2 rounded-full text-blue-600 dark:text-blue-400 border-4 border-gray-50 dark:border-gray-900 shadow-md hover:scale-110 transition-transform">
+                    <button id="planner-swap-btn" class="bg-blue-100 dark:bg-blue-900 p-2 rounded-full text-blue-600 dark:text-blue-400 border-4 border-gray-50 dark:border-gray-900 shadow-md hover:scale-110 transition-transform" aria-label="Swap Stations">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
                     </button>
                 </div>
 
-                <!-- TO SECTION -->
+                <!-- TO SECTION (FIXED LABEL) -->
                 <div class="relative">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">To</label>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">To Station</label>
                     <input type="text" id="planner-to-search" name="search-station-to" placeholder="Search station..." autocomplete="off" autocorrect="off" spellcheck="false" class="w-full mb-2 p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-lg font-medium shadow-sm h-[54px]">
                     <select id="planner-to" class="hidden w-full p-4 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-lg font-medium text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors">
                         <option value="">Loading stations...</option>
@@ -347,7 +374,13 @@
                          <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg> Feedback
                     </a>
                 </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 text-center">2025 &copy; Kazembe CodeWorks. All rights reserved.</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 text-center">2026 &copy; Kazembe CodeWorks. All rights reserved.</p>
+                
+                <!-- NEW FOOTER LINKS (Planner) -->
+                <div class="flex justify-center space-x-4 mt-3 pb-2">
+                    <button onclick="openLegal('terms')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Terms of Use</button>
+                    <button onclick="openLegal('privacy')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Privacy Policy</button>
+                </div>
             </div>
         </div>
     </div>
@@ -403,7 +436,7 @@
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col transform transition-transform duration-300 scale-95" id="modal-content">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
                 <h3 id="modal-title" class="text-lg font-bold text-gray-900 dark:text-white">Full Schedule</h3>
-                <button id="close-modal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition">
+                <button id="close-modal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Schedule">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
@@ -425,7 +458,7 @@
                         Coverage Map
                     </a>
                 </div>
-                <button id="close-map-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition">
+                <button id="close-map-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Map">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
@@ -439,10 +472,10 @@
             </div>
 
             <div class="absolute bottom-20 right-4 flex flex-col space-y-2 z-30">
-                <button id="map-zoom-in" class="bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+                <button id="map-zoom-in" class="bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition" aria-label="Zoom In">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                 </button>
-                <button id="map-zoom-out" class="bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+                <button id="map-zoom-out" class="bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition" aria-label="Zoom Out">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
                 </button>
             </div>
@@ -475,7 +508,7 @@
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col transform transition-transform duration-300 scale-95">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
                 <h3 id="legal-modal-title" class="text-lg font-bold text-gray-900 dark:text-white">Legal</h3>
-                <button id="close-legal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition">
+                <button id="close-legal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Legal">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
@@ -496,7 +529,7 @@
                     <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
                     User Guide & Tips
                 </h3>
-                <button id="close-help-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition">
+                <button id="close-help-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Help">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
@@ -561,7 +594,7 @@
             <div class="p-6">
                 <div class="flex justify-between items-start mb-4">
                     <h3 class="text-xl font-bold text-gray-900 dark:text-white">Install Next Train</h3>
-                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500">
+                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500" aria-label="Close Install Modal">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
@@ -603,6 +636,59 @@
         </div>
     </div>
 
+    <!-- NEW ABOUT MODAL (Full Screen) -->
+    <div id="about-modal" class="fixed inset-0 bg-white dark:bg-gray-900 z-[70] hidden flex flex-col items-center p-0 full-screen transition-opacity duration-300 overflow-y-auto">
+        <!-- Close Button Area -->
+        <div class="w-full max-w-2xl p-6 flex justify-end sticky top-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm z-20">
+            <button id="close-about-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition shadow-sm">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div class="w-full max-w-md px-6 pb-12 flex flex-col items-center text-center animate-fade-in-up">
+            <!-- Brand -->
+            <img src="icons/loading-logo.png" class="w-20 h-20 mb-6 shadow-lg rounded-full" alt="Next Train Logo">
+            <h2 class="text-3xl font-black text-gray-900 dark:text-white mb-2">Metrorail Next Train</h2>
+            <div class="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-wider mb-8">
+                Unofficial & Independent
+            </div>
+
+            <!-- Origin Story -->
+            <div class="text-left space-y-6 text-gray-600 dark:text-gray-300 leading-relaxed mb-10">
+                <p>
+                    <span class="text-2xl float-left mr-2">👋</span> 
+                    <strong>This project started as a simple way to help my family</strong> check train times without the hassle of downloading PDFs or squinting at notice boards.
+                </p>
+                <p>
+                    It evolved from just collecting schedule photos to a full digital app because I believe every commuter deserves reliable, accessible information in their pocket.
+                </p>
+                <p>
+                    It remains an <strong>independent passion project</strong>—not a PRASA official tool—but it is built with the same care and accuracy I demand for my own family's travels.
+                </p>
+            </div>
+
+            <!-- Developer Credit -->
+            <div class="w-full border-t border-gray-200 dark:border-gray-800 pt-8 mt-4">
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Built & Maintained By</p>
+                <div class="flex items-center justify-center space-x-4">
+                    <div class="text-right">
+                        <p class="text-lg font-bold text-gray-900 dark:text-white">Enock Kazembe</p>
+                        <p class="text-xs text-gray-500">Lead Developer</p>
+                    </div>
+                    <div class="h-10 w-0.5 bg-gray-300 dark:bg-gray-700"></div>
+                    <a href="https://www.facebook.com/enock.kazembe/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center px-4 py-2 bg-[#1877F2] hover:bg-blue-700 text-white rounded-lg font-bold text-sm transition-colors shadow-md group">
+                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                        Connect
+                    </a>
+                </div>
+            </div>
+
+            <p class="mt-12 text-[10px] text-gray-400 font-mono">
+                Version 4.45 (Guardian Edition)
+            </p>
+        </div>
+    </div>
+
     <!-- PIN ENTRY MODAL -->
     <div id="pin-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[80] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-95">
@@ -622,7 +708,7 @@
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center">
                     <span class="text-xl mr-2">🛠️</span> Developer Mode
                 </h3>
-                <button onclick="document.getElementById('dev-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500">
+                <button onclick="document.getElementById('dev-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500" aria-label="Close Dev Modal">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>

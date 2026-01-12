@@ -11,6 +11,20 @@ window.onerror = function(msg, url, line) {
     return false;
 };
 
+// --- ANALYTICS HELPER (New) ---
+function trackAnalyticsEvent(eventName, params = {}) {
+    try {
+        if (typeof gtag === 'function') {
+            gtag('event', eventName, params);
+            console.log(`[Analytics] Tracked: ${eventName}`, params);
+        } else {
+            console.log(`[Analytics] Skipped (gtag not found): ${eventName}`);
+        }
+    } catch (e) {
+        console.warn("[Analytics] Error tracking event:", e);
+    }
+}
+
 // --- HOLIDAY NAME MAPPING ---
 const HOLIDAY_NAMES = {
     "01-01": "New Year's Day",
@@ -663,7 +677,8 @@ function setupSwipeNavigation() {
     contentArea.addEventListener('touchstart', (e) => {
         if (document.body.classList.contains('sidenav-open') || 
             !document.getElementById('map-modal').classList.contains('hidden') ||
-            !document.getElementById('schedule-modal').classList.contains('hidden')) {
+            !document.getElementById('schedule-modal').classList.contains('hidden') ||
+            !document.getElementById('about-modal').classList.contains('hidden')) { // Block swipe if About is open
             return;
         }
         touchStartX = e.changedTouches[0].screenX;
@@ -673,7 +688,8 @@ function setupSwipeNavigation() {
     contentArea.addEventListener('touchend', (e) => {
         if (document.body.classList.contains('sidenav-open') || 
             !document.getElementById('map-modal').classList.contains('hidden') ||
-            !document.getElementById('schedule-modal').classList.contains('hidden')) {
+            !document.getElementById('schedule-modal').classList.contains('hidden') ||
+            !document.getElementById('about-modal').classList.contains('hidden')) { // Block swipe if About is open
             return;
         }
 
@@ -847,6 +863,9 @@ function setupFeatureButtons() {
     
     if (installBtn) {
         installBtn.addEventListener('click', () => { 
+            // ANALYTICS: Track Install Click
+            trackAnalyticsEvent('install_app_click', { location: 'main_view' });
+            
             installBtn.classList.add('hidden'); 
             const promptEvent = window.deferredInstallPrompt;
             if (promptEvent) {
@@ -854,8 +873,10 @@ function setupFeatureButtons() {
                 promptEvent.userChoice.then((choiceResult) => {
                     if (choiceResult.outcome === 'accepted') {
                         console.log('User accepted the install prompt');
+                        trackAnalyticsEvent('install_app_accepted');
                     } else {
                         console.log('User dismissed the install prompt');
+                        trackAnalyticsEvent('install_app_dismissed');
                     }
                     window.deferredInstallPrompt = null;
                 });
@@ -937,6 +958,9 @@ function selectWelcomeRoute(routeId) {
 }
 
 window.openLegal = function(type) {
+    // ANALYTICS: Track Legal View
+    trackAnalyticsEvent('view_legal_doc', { type: type });
+
     legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
     legalContent.innerHTML = LEGAL_TEXTS[type];
     legalModal.classList.remove('hidden');
@@ -1079,22 +1103,42 @@ document.addEventListener('DOMContentLoaded', () => {
         versionFooter.textContent = APP_VERSION;
     }
 
+    // --- NEW: ABOUT & HELP MODAL WIRING ---
     const helpModal = document.getElementById('help-modal');
     const openHelpBtn = document.getElementById('open-help-btn');
     const closeHelpBtn = document.getElementById('close-help-btn');
     const closeHelpBtn2 = document.getElementById('close-help-btn-2');
     
-    const openHelp = () => {
-        if(helpModal) helpModal.classList.remove('hidden');
+    const aboutModal = document.getElementById('about-modal');
+    const openAboutBtn = document.getElementById('open-about-btn');
+    const closeAboutBtn = document.getElementById('close-about-btn');
+
+    const closeSideNav = () => {
         if(sidenav) {
             sidenav.classList.remove('open');
             sidenavOverlay.classList.remove('open');
             document.body.classList.remove('sidenav-open');
         }
     };
+
+    const openHelp = () => {
+        trackAnalyticsEvent('view_user_guide', { location: 'sidebar' });
+        if(helpModal) helpModal.classList.remove('hidden');
+        closeSideNav();
+    };
     
     const closeHelp = () => {
         if(helpModal) helpModal.classList.add('hidden');
+    };
+    
+    const openAbout = () => {
+        trackAnalyticsEvent('view_about_page', { location: 'sidebar' });
+        if(aboutModal) aboutModal.classList.remove('hidden');
+        closeSideNav();
+    };
+
+    const closeAbout = () => {
+        if(aboutModal) aboutModal.classList.add('hidden');
     };
     
     if(openHelpBtn) openHelpBtn.addEventListener('click', openHelp);
@@ -1102,7 +1146,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if(closeHelpBtn2) closeHelpBtn2.addEventListener('click', closeHelp);
     if(helpModal) helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp(); });
 
-    locateBtn.addEventListener('click', () => findNearestStation(false));
+    if(openAboutBtn) openAboutBtn.addEventListener('click', openAbout);
+    if(closeAboutBtn) closeAboutBtn.addEventListener('click', closeAbout);
+    if(aboutModal) aboutModal.addEventListener('click', (e) => { if (e.target === aboutModal) closeAbout(); });
+
+    locateBtn.addEventListener('click', () => {
+        // ANALYTICS: Track Auto-Locate Click
+        trackAnalyticsEvent('click_auto_locate', { location: 'home_header' });
+        findNearestStation(false);
+    });
+    
+    // ANALYTICS: Network Map Button
+    const viewMapBtn = document.getElementById('view-map-btn');
+    if (viewMapBtn) {
+        viewMapBtn.addEventListener('click', () => {
+            trackAnalyticsEvent('click_network_map', { location: 'sidebar' });
+            // The button likely opens via href or separate map.js logic, but tracking happens here.
+        });
+    }
     
     if (appTitle) {
         let localClickCount = 0; 
