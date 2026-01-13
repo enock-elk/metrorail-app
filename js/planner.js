@@ -1,8 +1,6 @@
-// --- TRIP PLANNER LOGIC (V4.46 - Guardian Edition: Night Mode Fix & Clarity) ---
-// - FIX: Late night "Tomorrow Morning" status override.
-// - FIX: Transfer connection now shows destination (e.g., "Train 1234 to Mabopane").
-// - FIX: "Smart To" filtering prevents selecting same station.
-// - LOGIC: Show ALL trains in dropdown, but clarify status.
+// --- TRIP PLANNER LOGIC (V4.47 - Guardian Edition: Contextual Destinations) ---
+// - FIX: Transfer text now shows the TRAIN'S final destination (e.g. "Connect to De Wildt Train 4405")
+// - FIX: "Connect to" text moved to a new line for readability.
 
 // State
 let plannerOrigin = null;
@@ -103,20 +101,19 @@ function initPlanner() {
     populate(fromSelect);
     populate(toSelect);
 
-    // --- NEW: SMART TO FILTERING ---
+    // --- SMART TO FILTERING ---
     const filterToOptions = () => {
         const selectedFrom = fromSelect.value;
         Array.from(toSelect.options).forEach(opt => {
             if (opt.value === selectedFrom && opt.value !== "") {
                 opt.disabled = true;
-                opt.hidden = true; // Visually hide it too
+                opt.hidden = true; 
             } else {
                 opt.disabled = false;
                 opt.hidden = false;
             }
         });
         
-        // If current 'To' is invalid, reset it
         if (toSelect.value === selectedFrom) {
             toSelect.value = "";
             const toInput = document.getElementById('planner-to-search');
@@ -124,9 +121,7 @@ function initPlanner() {
         }
     };
     
-    // Attach listener to From dropdown changes
     fromSelect.addEventListener('change', filterToOptions);
-    // Also trigger on manual input selection via autocomplete
     const fromInput = document.getElementById('planner-from-search');
     if(fromInput) fromInput.addEventListener('change', filterToOptions);
 
@@ -159,7 +154,6 @@ function initPlanner() {
                         const fromInput = document.getElementById('planner-from-search');
                         if(fromInput) fromInput.value = nearest.replace(' STATION', '');
                         
-                        // Trigger Smart Filter
                         filterToOptions();
                         
                         showToast(`Located: ${nearest.replace(' STATION', '')}`, "success");
@@ -184,7 +178,6 @@ function initPlanner() {
         [fromSelect.value, toSelect.value] = [toSelect.value, fromSelect.value];
         [fromInput.value, toInput.value] = [toInput.value, fromInput.value];
         
-        // Re-run filter after swap
         filterToOptions();
     });
 
@@ -218,7 +211,6 @@ function initPlanner() {
     });
 
     resetBtn.addEventListener('click', () => {
-        // STOP PULSE
         if (plannerPulse) { clearInterval(plannerPulse); plannerPulse = null; }
         
         document.getElementById('planner-input-section').classList.remove('hidden');
@@ -227,7 +219,6 @@ function initPlanner() {
         document.getElementById('planner-from-search').value = "";
         document.getElementById('planner-to-search').value = "";
         
-        // Reset Smart Filter
         Array.from(toSelect.options).forEach(opt => { opt.disabled = false; opt.hidden = false; });
         
         const daySelect = document.getElementById('planner-day-select');
@@ -339,7 +330,6 @@ function setupAutocomplete(inputId, selectId) {
                 li.onclick = () => {
                     input.value = station.replace(' STATION', '');
                     select.value = station;
-                    // TRIGGER CHANGE EVENT MANUALLY FOR SMART FILTER
                     const event = new Event('change');
                     select.dispatchEvent(event);
                     
@@ -383,7 +373,6 @@ function executeTripPlan(origin, dest) {
     }
 
     setTimeout(() => {
-        // Run BOTH strategies and combine valid results
         const directPlan = planDirectTrip(origin, dest);
         const transferPlan = planHubTransferTrip(origin, dest);
         
@@ -392,7 +381,6 @@ function executeTripPlan(origin, dest) {
         if (directPlan.trips) mergedTrips = [...mergedTrips, ...directPlan.trips];
         if (transferPlan.trips) mergedTrips = [...mergedTrips, ...transferPlan.trips];
         
-        // --- DIRECT SUPERIORITY & SAME-ROUTE FILTER ---
         const directDepartureTimes = new Set();
         mergedTrips.forEach(t => {
             if (t.type === 'DIRECT') directDepartureTimes.add(t.depTime);
@@ -402,12 +390,10 @@ function executeTripPlan(origin, dest) {
         const seenKeys = new Set();
         
         mergedTrips.forEach(trip => {
-            // Filter 1: Phantom Transfer Check
             if (trip.type === 'TRANSFER' && directDepartureTimes.has(trip.depTime)) {
                 return; 
             }
 
-            // Filter 2: Standard Deduplication
             const key = `${trip.train}-${trip.depTime}-${trip.type}`;
             if (!seenKeys.has(key)) {
                 seenKeys.add(key);
@@ -415,12 +401,10 @@ function executeTripPlan(origin, dest) {
             }
         });
         
-        // Sort by Departure Time (earliest first)
         uniqueTrips.sort((a, b) => {
             const tA = timeToSeconds(a.depTime);
             const tB = timeToSeconds(b.depTime);
             if (tA !== tB) return tA - tB;
-            // Fallback: Prioritize DIRECT over TRANSFER if times equal
             if (a.type === 'DIRECT' && b.type !== 'DIRECT') return -1;
             if (b.type === 'DIRECT' && a.type !== 'DIRECT') return 1;
             return 0;
@@ -429,20 +413,15 @@ function executeTripPlan(origin, dest) {
         currentTripOptions = uniqueTrips;
         
         if (currentTripOptions.length > 0) {
-            // Smart Selection Logic (Night Owl)
             let nextTripIndex = 0;
             if (!selectedPlannerDay || selectedPlannerDay === currentDayType) {
                 const nowSec = timeToSeconds(currentTime);
-                // Night Owl Check: After 8 PM (20:00)
                 const isLateNight = nowSec > (20 * 3600);
                 
                 if (isLateNight) {
-                    // Try to find the first train of the NEXT day (e.g., 4 AM)
-                    // We assume anything < 12:00 is 'next morning' relative to 20:00
                     const morningIdx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) < (12 * 3600));
                     if (morningIdx !== -1) nextTripIndex = morningIdx;
                 } else {
-                    // Standard: Find next upcoming train
                     const idx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
                     if (idx !== -1) nextTripIndex = idx;
                     else nextTripIndex = currentTripOptions.length - 1; 
@@ -451,11 +430,9 @@ function executeTripPlan(origin, dest) {
             
             renderSelectedTrip(resultsContainer, nextTripIndex);
             
-            // --- START LIVE PULSE ---
             startPlannerPulse(nextTripIndex);
 
         } else {
-            // No trips found at all
             if (directPlan.status === 'SUNDAY_NO_SERVICE' || transferPlan.status === 'SUNDAY_NO_SERVICE') {
                  resultsContainer.innerHTML = renderErrorCard("No Service", "This route exists, but there are no trains scheduled for the selected day.");
             } else if (directPlan.status === 'NO_SERVICE' && transferPlan.status === 'NO_PATH') {
@@ -472,9 +449,6 @@ function renderSelectedTrip(container, index) {
     const isTomorrow = selectedTrip.dayLabel !== undefined;
     const nowSec = timeToSeconds(currentTime);
     
-    // Updated Night Owl Logic: 
-    // If it is late night (> 20:00) AND the selected trip is early morning (< 12:00),
-    // Treat it as 'effectively tomorrow' for rendering purposes
     const isLateNight = nowSec > (20 * 3600);
     const effectivelyTomorrow = isTomorrow || (isLateNight && timeToSeconds(selectedTrip.depTime) < (12 * 3600));
 
@@ -485,12 +459,9 @@ function renderSelectedTrip(container, index) {
     }
 }
 
-// --- GUARDIAN UPDATE: PASSIVE PERSISTENCE PULSE ---
 function startPlannerPulse(currentIndex) {
-    // Clear any existing pulse
     if (plannerPulse) clearInterval(plannerPulse);
     
-    // Safety check: Only pulse if we are looking at 'Today'
     if (selectedPlannerDay && selectedPlannerDay !== currentDayType) return;
 
     let trackedIndex = currentIndex;
@@ -499,23 +470,12 @@ function startPlannerPulse(currentIndex) {
         const trip = currentTripOptions[trackedIndex];
         if (!trip) return;
 
-        const nowSec = timeToSeconds(currentTime);
-        const depSec = timeToSeconds(trip.depTime);
-        
-        // 1. UPDATE UI: Always re-render to update countdowns
-        // (This ensures status changes from "Departs in 1m" to "Departed" automatically)
-        
-        // Check dropdown to ensure we render the user's currently selected index, not just the tracked one
         const dropdown = document.querySelector('#planner-results-list select');
         if(dropdown) trackedIndex = parseInt(dropdown.value);
         
-        // Re-render the current card in place
         renderSelectedTrip(document.getElementById('planner-results-list'), trackedIndex);
 
-        // NOTE: We do NOT auto-advance (trackedIndex++) anymore.
-        // We let the user see "Departed" state and decide to change trains manually.
-
-    }, 30000); // Update every 30 seconds
+    }, 30000); 
 }
 
 window.selectPlannerTrip = function(index) {
@@ -524,7 +484,6 @@ window.selectPlannerTrip = function(index) {
     
     renderSelectedTrip(document.getElementById('planner-results-list'), idx);
     
-    // Restart pulse with new index focus
     startPlannerPulse(idx);
 };
 
@@ -542,7 +501,6 @@ function planDirectTrip(origin, dest) {
     let pathExistsGenerally = false;
     const planningDay = selectedPlannerDay || currentDayType;
 
-    // SUNDAY CHECK
     if (planningDay === 'sunday') {
         for (const routeId of commonRoutes) {
             const routeConfig = ROUTES[routeId];
@@ -573,7 +531,6 @@ function planDirectTrip(origin, dest) {
                 if (originIdx < destIdx) {
                     pathFoundToday = true; 
                     pathExistsGenerally = true;
-                    // Note: findUpcomingTrainsForLeg logic assumes 'today', but we want ALL for planning
                     const upcomingTrains = findUpcomingTrainsForLeg(schedule, originRow, destRow, true); 
                     if (upcomingTrains.length > 0) {
                         bestTrips = [...bestTrips, ...upcomingTrains.map(info => 
@@ -602,12 +559,10 @@ function planHubTransferTrip(origin, dest) {
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     const planningDay = selectedPlannerDay || currentDayType;
     
-    // START OPTIMIZED LOGIC
     const HUBS = ['PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION', 'KEMPTON PARK STATION', 'HERCULES STATION', 'PRETORIA WEST STATION', 'WINTERSNEST STATION', 'WOLMERTON STATION', 'PRETORIA NOORD STATION', 'KOEDOESPOORT STATION']; 
     
     let dynamicHubs = new Set(HUBS);
     
-    // Add dynamic hubs from config
     [...originRoutes].forEach(rId => {
         if(ROUTES[rId] && ROUTES[rId].transferStation) dynamicHubs.add(normalizeStationName(ROUTES[rId].transferStation));
     });
@@ -628,7 +583,6 @@ function planHubTransferTrip(origin, dest) {
 
     if (potentialHubs.length === 0) return { status: 'NO_PATH' };
 
-    // SUNDAY CHECK
     if (planningDay === 'sunday') {
         const mondayPlan = planHubTransferTripForNextDay(origin, dest, potentialHubs);
         if (mondayPlan.trips.length > 0) {
@@ -650,9 +604,6 @@ function planHubTransferTrip(origin, dest) {
             const arrivalSec = timeToSeconds(leg1.arrTime);
             leg2Options.forEach(leg2 => {
                 
-                // --- CRITICAL FIX: SAME-ROUTE BLOCK ---
-                // If Leg 1 and Leg 2 are on the exact same route (e.g., both "pta-pien"), discard.
-                // This prevents "back-tracking" suggestions.
                 if (leg1.route.id === leg2.route.id) {
                     return; 
                 }
@@ -688,7 +639,6 @@ function planHubTransferTrip(origin, dest) {
     return { status: 'NO_PATH' };
 }
 
-// Helper for Sunday Transfer -> Monday
 function planHubTransferTripForNextDay(origin, dest, potentialHubs) {
     let allTransferOptions = [];
     const nextDay = 'weekday';
@@ -706,7 +656,6 @@ function planHubTransferTripForNextDay(origin, dest, potentialHubs) {
             const arrivalSec = timeToSeconds(leg1.arrTime);
             leg2Options.forEach(leg2 => {
                 
-                // SAME-ROUTE BLOCK (Also for Next Day Logic)
                 if (leg1.route.id === leg2.route.id) {
                     return; 
                 }
@@ -1046,8 +995,13 @@ const PlannerRenderer = {
         const waitMins = Math.floor((depSec - arrSec) / 60);
         const waitStr = waitMins > 59 ? `${Math.floor(waitMins/60)} hr ${waitMins%60} min` : `${waitMins} Minutes`;
         
-        // --- NEW: CLARITY FIX (Show Destination for Connection) ---
-        const connectionDest = step.leg2.to.replace(' STATION', '');
+        // --- NEW: CLARITY FIX (True Route Destination) ---
+        // Instead of user destination (step.to), we grab the Route's B-Side or Actual Destination of the train
+        let trainFinalDest = step.leg2.actualDestination || step.leg2.route.destB;
+        trainFinalDest = trainFinalDest.replace(' STATION', '').toLowerCase();
+        
+        // Capitalize First Letters
+        trainFinalDest = trainFinalDest.replace(/\b\w/g, l => l.toUpperCase());
 
         return `
             <div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-6">
@@ -1071,8 +1025,9 @@ const PlannerRenderer = {
                         </div>
                         <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500">
                             <div class="font-bold uppercase tracking-wide mb-1">Transfer Required</div>
-                            <div class="text-gray-600 dark:text-gray-400">
-                                <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Layover</span> &bull; Connect to Train ${step.leg2.train} <span class="font-bold text-blue-600 dark:text-blue-400">(to ${connectionDest})</span>
+                            <div class="text-gray-600 dark:text-gray-400 leading-snug">
+                                <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Layover</span><br>
+                                &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${trainFinalDest} Train ${step.leg2.train}</span>
                             </div>
                         </div>
                     </div>
