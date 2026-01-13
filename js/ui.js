@@ -1218,6 +1218,11 @@ document.addEventListener('DOMContentLoaded', () => {
             pinModal.classList.add('hidden');
             const devModal = document.getElementById('dev-modal');
             
+            // --- GUARDIAN ANALYTICS FLAG ---
+            // Set local flag to filter internal traffic from GA4
+            localStorage.setItem('analytics_ignore', 'true');
+            console.log("🛡️ Guardian: Analytics filter enabled for this device.");
+
             // AUTO-FILL CURRENT TIME (Redundant safety check)
             const now = new Date();
             const timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());

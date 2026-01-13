@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.48.1"; // Updated for Planner Intelligence (Contextual Destinations)
+const APP_VERSION = "V4.48.2"; // Updated for Planner Intelligence (Contextual Destinations)
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
