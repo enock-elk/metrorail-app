@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.46 (Guardian Edition - Trust Update)
+  Metrorail Next Train V4.48.1 (Guardian Edition - Trust Update)
   - UI: Planner label fixed ("To Station").
   - NAV: Sidebar streamlined (Terms/Privacy moved to footer).
   - FEAT: Added "About" Modal with Origin Story.
@@ -34,7 +34,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
-      "softwareVersion": "4.45",
+      "softwareVersion": "4.48.1",
       "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map",
       "url": "https://nexttrain.co.za/"
     }
@@ -170,7 +170,7 @@
             
             <!-- VERSION FOOTER -->
             <div class="mt-4 px-4 text-right">
-                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.45</p>
+                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.48.1</p>
             </div>
         </div>
     </div>
@@ -657,7 +657,7 @@
             <div class="text-left space-y-6 text-gray-600 dark:text-gray-300 leading-relaxed mb-10">
                 <p>
                     <span class="text-2xl float-left mr-2">👋</span> 
-                    <strong>This project started as a simple way to help my family</strong> check train times without the hassle of downloading PDFs or squinting at notice boards.
+                    <strong>This project started as a simple way to help my family</strong> check train times without the hassle of downloading blurry commuter notice images or squinting at notice boards.
                 </p>
                 <p>
                     It evolved from just collecting schedule photos to a full digital app because I believe every commuter deserves reliable, accessible information in their pocket.
@@ -684,7 +684,7 @@
             </div>
 
             <p class="mt-12 text-[10px] text-gray-400 font-mono">
-                Version 4.45 (Guardian Edition)
+                Version 4.48.1 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -772,17 +772,17 @@
     <script src="js/map-viewer.js"></script> 
     <script src="js/ui.js"></script>
 
-    <!-- Fail-Safe Script: Kills loading screen if JS hangs -->
+    <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>
         setTimeout(() => {
             const overlay = document.getElementById('loading-overlay');
-            const content = document.getElementById('main-content');
             if (overlay && overlay.style.display !== 'none') {
                 document.getElementById('loading-text').innerHTML = 
-                    '<span style="color:red">Loading Timeout</span><br><button onclick="window.location.reload(true)" style="padding:10px; margin-top:10px; border-radius:5px; background:white; color:black; font-weight:bold;">Force Reload</button>';
-                console.error("App load timeout - JS might be stalled.");
+                    '<span style="color:red">Connection Timeout</span><br>' +
+                    '<button onclick="window.location.reload()" style="margin-top:10px; padding:10px 20px; background:white; color:black; border-radius:5px; font-weight:bold; cursor:pointer;">Manual Retry</button>';
+                console.error("App load timeout - auto-reload disabled to prevent loops.");
             }
-        }, 8000); // 8 Seconds Safety Limit
+        }, 10000); // 10 Seconds Limit
     </script>
 </body>
 </html>

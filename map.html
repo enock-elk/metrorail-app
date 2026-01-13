@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- SEO: Canonical Tag -->
+    <link rel="canonical" href="https://nexttrain.co.za/map.html">
+    
     <title>Metrorail Network Map - Active Routes</title>
     
     <!-- FAVICONS -->
@@ -12,13 +15,17 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- STANDARD LOADING: Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" xintegrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSA8ZYferCkwBnJnMc569pG+xay39G5Je5F5w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
     <style>
-        #map { height: 100vh; width: 100%; z-index: 1; }
+        body, html { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #map { height: 100vh; width: 100%; z-index: 1; position: absolute; top: 0; left: 0; }
         
         /* Legend Styles */
         .legend-container {
             position: absolute;
-            top: 10px;
+            top: 60px; /* Moved down to avoid back button overlap on mobile */
             right: 10px;
             z-index: 1000;
             max-width: 250px;
@@ -97,7 +104,8 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 20;
+            z-index: 50; 
+            transition: opacity 0.5s ease;
         }
 
         /* Dynamic Tooltip Sizing */
@@ -106,34 +114,27 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 overflow-hidden">
+<body class="bg-gray-100">
 
-    <!-- Back Button Overlay -->
-    <div class="fixed top-4 left-4 z-50">
+    <!-- Back Button Overlay (Highest Z-Index) -->
+    <div class="fixed top-4 left-4 z-[60]">
         <a href="index.html" class="bg-white hover:bg-gray-100 text-gray-800 font-bold py-2 px-4 border border-gray-300 rounded-lg shadow-lg flex items-center transition-transform transform active:scale-95 text-sm">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             Back
         </a>
     </div>
 
-    <!-- Lazy Load Placeholder -->
+    <!-- Simple Spinner Placeholder -->
     <div id="map-placeholder">
         <div class="text-center p-6">
             <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-1.447-.894L15 7m0 13V7"></path></svg>
+                <svg class="w-8 h-8 text-blue-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-1.447-.894L15 7m0 13V7"></path></svg>
             </div>
-            <h3 class="text-xl font-bold text-gray-900 mb-2">Interactive Network Map</h3>
-            <p class="text-sm text-gray-500 mb-6">Load detailed map data (approx. 150KB)</p>
-            <button onclick="loadMapResources()" id="load-map-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform active:scale-95 flex items-center mx-auto">
-                Load Map
-            </button>
-            <div id="loading-spinner" class="hidden mt-4">
-                <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <p class="text-xs text-gray-500 mt-2">Fetching map data...</p>
-            </div>
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Loading Network...</h3>
+            <svg class="animate-spin h-6 w-6 text-blue-600 mx-auto mt-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
         </div>
     </div>
 
@@ -152,47 +153,156 @@
 
     <div id="map"></div>
 
+    <!-- STANDARD SCRIPT LOADING (Sequence Matters) -->
+    <!-- 2. Library (CDN) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" xintegrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdwv/PGkVgiIyGWCo8qaty4sV+uO4qBvsDSVIVaXk8k3v8k+t+a+iQ5N+a5sO+r6g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
     <script>
-        // --- LAZY LOAD LOGIC ---
-        function loadMapResources() {
-            const btn = document.getElementById('load-map-btn');
-            const spinner = document.getElementById('loading-spinner');
-            
-            btn.classList.add('hidden');
-            spinner.classList.remove('hidden');
+        // --- DATA EMBEDDED (Fallback for Missing File) ---
+        const STATION_COORDINATES = {
+            "PRETORIA": [-25.75864361043285, 28.189866445989118],
+            "MEARS STREET": [-25.759836388884576, 28.201559350093763],
+            "DEVENISH STREET": [-25.760571651064055, 28.209966455924803],
+            "WALKER STREET": [-25.76012800529803, 28.213499980098053],
+            "LOFTUS VERSFELD PARK": [-25.754940155678536, 28.22535667426071],
+            "RISSIK": [-25.749263370927064, 28.232274866782785],
+            "HARTBEESSPRUIT": [-25.746016335334863, 28.24495952932333],
+            "KOEDOESPOORT": [-25.733004332997367, 28.26698889945203],
+            "SILVERTON": [-25.729988266205932, 28.309990282121762],
+            "WALTLOO": [-25.736009669074716, 28.32800735162468],
+            "DENNEBOOM": [-25.719077472725353, 28.336637070658863],
+            "EERSTE FABRIEKE": [-25.7221815801619, 28.359894081240192],
+            "MAMELODI GARDENS": [-25.727137148700365, 28.38522516947939],
+            "GREENVIEW": [-25.73018814715231, 28.40503024599571],
+            "PIENAARSPOORT": [-25.734672061252613, 28.426968817228143],
+            "PRETORIA-B": [-25.756676856613193, 28.185038595618654],
+            "PRETORIA WES": [-25.75612607001734, 28.167454033423436],
+            "HERCULES": [-25.724426332570793, 28.16740145328856],
+            "DASPOORT": [-25.71389154994833, 28.16610216678128],
+            "MOUNTAIN VIEW": [-25.701154966265122, 28.1710407244521],
+            "WONDERBOOM": [-25.679398283013505, 28.182541636641577],
+            "PRETORIA-N": [-25.672156912459837, 28.181972182122085],
+            "WOLMERTON": [-25.656754583256834, 28.166308537943245],
+            "WINTERSNEST": [-25.646665143468105, 28.128664081235527],
+            "AKASIABOOM": [-25.62343788217021, 28.107351095613126],
+            "KOPANONG": [-25.581315356478292, 28.0903223133063],
+            "SOSHANGUVE": [-25.520916877100483, 28.082831418476943],
+            "MABOPANE": [-25.495963167301053, 28.089659387779985],
+            "ROSSLYN": [-25.637700722357806, 28.094920182723996],
+            "GA-RANKUWA": [-25.619463521827942, 27.991787773598496],
+            "TAILLARDSHOOP": [-25.617806769500547, 27.972401220150644],
+            "DE WILDT": [-25.624641315648187, 27.944111334913465],
+            "MITCHELLSTRAAT": [-25.75622307580123, 28.162751428886452],
+            "SCHUTTESTRAAT": [-25.75017407001962, 28.139987824474776],
+            "KALAFONG": [-25.760158250653994, 28.088193742988445],
+            "ATTERIDGEVILLE": [-25.76284784698717, 28.07501926678321],
+            "SAULSVILLE": [-25.76414387754825, 28.06212905285695],
+            "FONTEINE": [-25.783934589307606, 28.193278224251035],
+            "KLOOFSIG": [-25.81354583485274, 28.201211703182715],
+            "SPORTPARK": [-25.82467276464524, 28.20570286536511],
+            "CENTURION": [-25.83486600288455, 28.210815277978245],
+            "IRENE": [-25.875543329741795, 28.22408282846379],
+            "PINEDENE": [-25.925032822473873, 28.22802340576307],
+            "OLIFANTSFONTEIN": [-25.964142125962706, 28.2355174075199],
+            "OAKMOOR": [-26.00579639391282, 28.248566233475742],
+            "KAALFONTEIN": [-26.03555593578171, 28.25416120912308],
+            "BIRCHLEIGH": [-26.066977064619714, 28.234569695631336],
+            "VAN RIEBEECKPARK": [-26.08799580477522, 28.221739995632177],
+            "KEMPTON PARK": [-26.10627314041378, 28.22733384351009],
+            "RHODESFIELD": [-26.126491398917288, 28.22477839248156],
+            "ISANDO": [-26.135629334887778, 28.221811980118165],
+            "ELANDSFONTEIN": [-26.16670702075184, 28.20530291097802],
+            "RAVENSKLIP": [-26.180916686844835, 28.19981212632109],
+            "KNIGHTS": [-26.19566598383361, 28.196166697507],
+            "GERMISTON": [-26.209629310943757, 28.16775038029468],
+            "TEMBISA": [-26.016420349488346, 28.211708595220923],
+            "LIMINDLELA": [-26.01099489302983, 28.214712053300357],
+            "LERALLA": [-26.02917658612082, 28.196411826993103],
+            "ELSBURG": [-26.242074536681013, 28.193485066234086],
+            "KATLEHONG": [-26.307539143135436, 28.161448064536795],
+            "LINDELA": [-26.326156380004434, 28.158191665672334],
+            "PILOT": [-26.340713981819974, 28.152496274644147],
+            "KWESINE": [-26.365394305815887, 28.152781379926747],
+            "PRESIDENT": [-26.211589161672503, 28.159915894140354],
+            "DRIEHOEK": [-26.215102245088552, 28.163530080294848],
+            "GELDENHUIS": [-26.20778570409101, 28.132917922623346],
+            "CLEVELAND": [-26.20833436358959, 28.11835882447283],
+            "TOORONGA": [-26.203940084237757, 28.110387300000003],
+            "DENVER": [-26.20565353546564, 28.09711574417819],
+            "GEORGE GOCH": [-26.207362180909303, 28.08040019563714],
+            "JEPPE": [-26.203925808444886, 28.06346159144729],
+            "ELLIS PARK": [-26.198718312467125, 28.059031479241852],
+            "DOORNFONTEIN": [-26.19692478075003, 28.054170880294237],
+            "JOHANNESBURG": [-26.197647593316965, 28.04233618836466],
+            "BRAAMFONTEIN": [-26.19785038795819, 28.022075850924722],
+            "MAYFAIR": [-26.204357573800028, 28.014409877846887],
+            "GROSVENOR": [-26.202962977069127, 28.00593136680137],
+            "LANGLAAGTE": [-26.201719229862785, 27.99053926680137],
+            "MARAISBURG": [-26.179451103586576, 27.939930801976423],
+            "UNIFIED": [-26.17934640087511, 27.926554891892838],
+            "FLORIDA": [-26.176752716611063, 27.91426358618772],
+            "HAMBERG": [-26.16761329423407, 27.89363955466481],
+            "GEORGINIA": [-26.164695347837018, 27.87995514003489],
+            "ROODEPOORT": [-26.159057627819767, 27.869960853694568],
+            "HORISON": [-26.146612509666905, 27.86374942964767],
+            "PRINCESS": [-26.132583466401883, 27.853421824034942],
+            "WITPOORTJIE": [-26.126711162132259, 27.830401030605525],
+            "LUIPAARDSVLEI": [-26.11163273453303, 27.808953046777626],
+            "KRUGERSDORP": [-26.108673106302327, 27.77054582194475],
+            "WESRAND": [-26.111842932573754, 27.748279009896308],
+            "MILLSITE": [-26.128472634725075, 27.738984350810526],
+            "ROBINSON": [-26.15772328478757, 27.715139426035496],
+            "HOMELAKE": [-26.16792472543254, 27.707411915946505],
+            "RANDFONTEIN": [-26.18172322656187, 27.69778245070208],
+            "NEW CANADA": [-26.214411850342184, 27.94240072447306],
+            "LONGDALE": [-26.198503123750555, 27.962929509129903],
+            "MZIMHLOPE": [-26.223861505533936, 27.921532143394266],
+            "PHOMOLONG": [-26.226703184419414, 27.90867427408623],
+            "PHEFENI": [-26.22295627889571, 27.89695642447285],
+            "DUBE": [-26.232994816765324, 27.89235589471589],
+            "IKWEZI": [-26.23066586388434, 27.87708944718947],
+            "INHLAZANE": [-26.249713244610206, 27.863467738215245],
+            "MERAFE": [-26.26213048623854, 27.84657941488496],
+            "NALEDI": [-26.257998333942396, 27.822761926970013],
+            "BELLE-OMBRE": [-25.73740468957095, 28.178914335051033]
+        };
 
-            // 1. Load CSS
-            const cssLink = document.createElement('link');
-            cssLink.rel = 'stylesheet';
-            cssLink.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-            cssLink.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
-            cssLink.crossOrigin = '';
-            document.head.appendChild(cssLink);
-
-            // 2. Load JS
-            const jsScript = document.createElement('script');
-            jsScript.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-            jsScript.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
-            jsScript.crossOrigin = '';
-            
-            jsScript.onload = () => {
-                // Wait a tiny bit for CSS to parse
-                setTimeout(() => {
-                    initMap();
-                    const placeholder = document.getElementById('map-placeholder');
+        // --- MAP LOGIC (Auto-Init) ---
+        window.addEventListener('load', () => {
+            try {
+                initMap();
+                
+                // Remove placeholder on success
+                const placeholder = document.getElementById('map-placeholder');
+                if(placeholder) {
                     placeholder.style.opacity = '0';
-                    placeholder.style.transition = 'opacity 0.5s ease';
                     setTimeout(() => placeholder.style.display = 'none', 500);
-                    
-                    document.getElementById('legend-container').style.display = 'block';
-                }, 100);
-            };
-            
-            document.body.appendChild(jsScript);
-        }
+                }
+                const legend = document.getElementById('legend-container');
+                if(legend) legend.style.display = 'block';
 
-        // --- MAP LOGIC (Wrapped) ---
+            } catch (err) {
+                console.error("Map Init Failed:", err);
+                const placeholder = document.getElementById('map-placeholder');
+                if(placeholder) {
+                    placeholder.innerHTML = `
+                        <div class="text-center p-6 text-red-600">
+                            <p class="font-bold">Failed to load map.</p>
+                            <p class="text-xs mt-1">Check your connection.</p>
+                            <button onclick="window.location.reload()" class="mt-4 bg-white border border-red-200 px-4 py-2 rounded shadow-sm text-sm">Retry</button>
+                        </div>
+                    `;
+                }
+            }
+        });
+
         function initMap() {
+            // Safety Check
+            if (typeof L === 'undefined') throw new Error("Leaflet Missing");
+            if (typeof STATION_COORDINATES === 'undefined') throw new Error("Data Missing");
+
+            const stations = STATION_COORDINATES;
+
             // Adjusted center to balance Pretoria and JHB/West Rand
             const map = L.map('map', { zoomControl: false }).setView([-26.00, 28.10], 10); 
             L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -202,116 +312,6 @@
                 subdomains: 'abcd',
                 maxZoom: 19
             }).addTo(map);
-
-            // --- DATA SOURCE: PRE-PROCESSED FROM UPLOADED CSVs ---
-            // Normalized Station Data (Name -> [Lat, Lon])
-            const stations = {
-                "PRETORIA": [-25.75864361043285, 28.189866445989118],
-                "MEARS STREET": [-25.759836388884576, 28.201559350093763],
-                "DEVENISH STREET": [-25.760571651064055, 28.209966455924803],
-                "WALKER STREET": [-25.76012800529803, 28.213499980098053],
-                "LOFTUS VERSFELD PARK": [-25.754940155678536, 28.22535667426071],
-                "RISSIK": [-25.749263370927064, 28.232274866782785],
-                "HARTBEESSPRUIT": [-25.746016335334863, 28.24495952932333],
-                "KOEDOESPOORT": [-25.733004332997367, 28.26698889945203],
-                "SILVERTON": [-25.729988266205932, 28.309990282121762],
-                "WALTLOO": [-25.736009669074716, 28.32800735162468],
-                "DENNEBOOM": [-25.719077472725353, 28.336637070658863],
-                "EERSTE FABRIEKE": [-25.7221815801619, 28.359894081240192],
-                "MAMELODI GARDENS": [-25.727137148700365, 28.38522516947939],
-                "GREENVIEW": [-25.73018814715231, 28.40503024599571],
-                "PIENAARSPOORT": [-25.734672061252613, 28.426968817228143],
-                "PRETORIA-B": [-25.756676856613193, 28.185038595618654],
-                "PRETORIA WES": [-25.75612607001734, 28.167454033423436],
-                "HERCULES": [-25.724426332570793, 28.16740145328856],
-                "DASPOORT": [-25.71389154994833, 28.16610216678128],
-                "MOUNTAIN VIEW": [-25.701154966265122, 28.1710407244521],
-                "WONDERBOOM": [-25.679398283013505, 28.182541636641577],
-                "PRETORIA-N": [-25.672156912459837, 28.181972182122085],
-                "WOLMERTON": [-25.656754583256834, 28.166308537943245],
-                "WINTERSNEST": [-25.646665143468105, 28.128664081235527],
-                "AKASIABOOM": [-25.62343788217021, 28.107351095613126],
-                "KOPANONG": [-25.581315356478292, 28.0903223133063],
-                "SOSHANGUVE": [-25.520916877100483, 28.082831418476943],
-                "MABOPANE": [-25.495963167301053, 28.089659387779985],
-                "ROSSLYN": [-25.637700722357806, 28.094920182723996],
-                "GA-RANKUWA": [-25.619463521827942, 27.991787773598496],
-                "TAILLARDSHOOP": [-25.617806769500547, 27.972401220150644],
-                "DE WILDT": [-25.624641315648187, 27.944111334913465],
-                "MITCHELLSTRAAT": [-25.75622307580123, 28.162751428886452],
-                "SCHUTTESTRAAT": [-25.75017407001962, 28.139987824474776],
-                "KALAFONG": [-25.760158250653994, 28.088193742988445],
-                "ATTERIDGEVILLE": [-25.76284784698717, 28.07501926678321],
-                "SAULSVILLE": [-25.76414387754825, 28.06212905285695],
-                "FONTEINE": [-25.783934589307606, 28.193278224251035],
-                "KLOOFSIG": [-25.81354583485274, 28.201211703182715],
-                "SPORTPARK": [-25.82467276464524, 28.20570286536511],
-                "CENTURION": [-25.83486600288455, 28.210815277978245],
-                "IRENE": [-25.875543329741795, 28.22408282846379],
-                "PINEDENE": [-25.925032822473873, 28.22802340576307],
-                "OLIFANTSFONTEIN": [-25.964142125962706, 28.2355174075199],
-                "OAKMOOR": [-26.00579639391282, 28.248566233475742],
-                "KAALFONTEIN": [-26.03555593578171, 28.25416120912308],
-                "BIRCHLEIGH": [-26.066977064619714, 28.234569695631336],
-                "VAN RIEBEECKPARK": [-26.08799580477522, 28.221739995632177],
-                "KEMPTON PARK": [-26.10627314041378, 28.22733384351009],
-                "RHODESFIELD": [-26.126491398917288, 28.22477839248156],
-                "ISANDO": [-26.135629334887778, 28.221811980118165],
-                "ELANDSFONTEIN": [-26.16670702075184, 28.20530291097802],
-                "RAVENSKLIP": [-26.180916686844835, 28.19981212632109],
-                "KNIGHTS": [-26.19566598383361, 28.196166697507],
-                "GERMISTON": [-26.209629310943757, 28.16775038029468],
-                "TEMBISA": [-26.016420349488346, 28.211708595220923],
-                "LIMINDLELA": [-26.01099489302983, 28.214712053300357],
-                "LERALLA": [-26.02917658612082, 28.196411826993103],
-                "ELSBURG": [-26.242074536681013, 28.193485066234086],
-                "KATLEHONG": [-26.307539143135436, 28.161448064536795],
-                "LINDELA": [-26.326156380004434, 28.158191665672334],
-                "PILOT": [-26.340713981819974, 28.152496274644147],
-                "KWESINE": [-26.365394305815887, 28.152781379926747],
-                "PRESIDENT": [-26.211589161672503, 28.159915894140354],
-                "DRIEHOEK": [-26.215102245088552, 28.163530080294848],
-                "GELDENHUIS": [-26.20778570409101, 28.132917922623346],
-                "CLEVELAND": [-26.20833436358959, 28.11835882447283],
-                "TOORONGA": [-26.203940084237757, 28.110387300000003],
-                "DENVER": [-26.20565353546564, 28.09711574417819],
-                "GEORGE GOCH": [-26.207362180909303, 28.08040019563714],
-                "JEPPE": [-26.203925808444886, 28.06346159144729],
-                "ELLIS PARK": [-26.198718312467125, 28.059031479241852],
-                "DOORNFONTEIN": [-26.19692478075003, 28.054170880294237],
-                "JOHANNESBURG": [-26.197647593316965, 28.04233618836466],
-                "BRAAMFONTEIN": [-26.19785038795819, 28.022075850924722],
-                "MAYFAIR": [-26.204357573800028, 28.014409877846887],
-                "GROSVENOR": [-26.202962977069127, 28.00593136680137],
-                "LANGLAAGTE": [-26.201719229862785, 27.99053926680137],
-                "MARAISBURG": [-26.179451103586576, 27.939930801976423],
-                "UNIFIED": [-26.17934640087511, 27.926554891892838],
-                "FLORIDA": [-26.176752716611063, 27.91426358618772],
-                "HAMBERG": [-26.16761329423407, 27.89363955466481],
-                "GEORGINIA": [-26.164695347837018, 27.87995514003489],
-                "ROODEPOORT": [-26.159057627819767, 27.869960853694568],
-                "HORISON": [-26.146612509666905, 27.86374942964767],
-                "PRINCESS": [-26.132583466401883, 27.853421824034942],
-                "WITPOORTJIE": [-26.126711162132259, 27.830401030605525],
-                "LUIPAARDSVLEI": [-26.11163273453303, 27.808953046777626],
-                "KRUGERSDORP": [-26.108673106302327, 27.77054582194475],
-                "WESRAND": [-26.111842932573754, 27.748279009896308],
-                "MILLSITE": [-26.128472634725075, 27.738984350810526],
-                "ROBINSON": [-26.15772328478757, 27.715139426035496],
-                "HOMELAKE": [-26.16792472543254, 27.707411915946505],
-                "RANDFONTEIN": [-26.18172322656187, 27.69778245070208],
-                "NEW CANADA": [-26.214411850342184, 27.94240072447306],
-                "LONGDALE": [-26.198503123750555, 27.962929509129903],
-                "MZIMHLOPE": [-26.223861505533936, 27.921532143394266],
-                "PHOMOLONG": [-26.226703184419414, 27.90867427408623],
-                "PHEFENI": [-26.22295627889571, 27.89695642447285],
-                "DUBE": [-26.232994816765324, 27.89235589471589],
-                "IKWEZI": [-26.23066586388434, 27.87708944718947],
-                "INHLAZANE": [-26.249713244610206, 27.863467738215245],
-                "MERAFE": [-26.26213048623854, 27.84657941488496],
-                "NALEDI": [-26.257998333942396, 27.822761926970013],
-                "BELLE-OMBRE": [-25.73740468957095, 28.178914335051033]
-            };
 
             // --- ROUTES DEFINED BY STATION NAMES ---
             const routeDefinitions = {
@@ -403,16 +403,18 @@
             ];
 
             const legendContent = document.getElementById('legend-content');
-            legendContent.innerHTML = ''; 
-            legendItems.forEach(item => {
-                legendContent.innerHTML += `
-                    <div class="legend-item">
-                        <span class="color-dot" style="background-color: ${item.color}"></span>
-                        <span class="text-gray-700">${item.text}</span>
-                        <span class="status-badge ${item.bg}">LIVE</span>
-                    </div>
-                `;
-            });
+            if (legendContent) {
+                legendContent.innerHTML = ''; 
+                legendItems.forEach(item => {
+                    legendContent.innerHTML += `
+                        <div class="legend-item">
+                            <span class="color-dot" style="background-color: ${item.color}"></span>
+                            <span class="text-gray-700">${item.text}</span>
+                            <span class="status-badge ${item.bg}">LIVE</span>
+                        </div>
+                    `;
+                });
+            }
 
             // --- DYNAMIC TEXT RESIZING & VISIBILITY ---
             function updateTooltipSize() {
@@ -435,8 +437,6 @@
 
                 tooltips.forEach(t => {
                     t.style.fontSize = fontSize;
-                    // Only hide non-major stations if zoomed out, keep hubs visible longer if desired
-                    // For now apply globally based on zoom
                     t.style.display = display;
                 });
             }
@@ -449,8 +449,8 @@
         function toggleLegend() {
             const content = document.getElementById('legend-content');
             const icon = document.getElementById('legend-icon');
-            content.classList.toggle('collapsed');
-            icon.classList.toggle('rotated');
+            if(content) content.classList.toggle('collapsed');
+            if(icon) icon.classList.toggle('rotated');
         }
 
         // Auto-collapse on small screens

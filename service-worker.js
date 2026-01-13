@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.46'; // Bumped for Cache Safety Update
+const CACHE_NAME = 'metrorail-next-train-v4.48.1'; // Bumped for Planner Intelligence Update
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -30,7 +30,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('SW: Caching core assets (v4.44)...');
+        console.log('SW: Caching core assets (v4.48)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {

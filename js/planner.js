@@ -1,6 +1,7 @@
-// --- TRIP PLANNER LOGIC (V4.47 - Guardian Edition: Contextual Destinations) ---
-// - FIX: Transfer text now shows the TRAIN'S final destination (e.g. "Connect to De Wildt Train 4405")
-// - FIX: "Connect to" text moved to a new line for readability.
+// --- TRIP PLANNER LOGIC (V4.48.1 - Guardian Edition: Hybrid Durability) ---
+// - MERGED: V4.47 Logic (Better UX/Destinations) + V4.46 Comments (AI Safety).
+// - FEATURE: Transfer text shows TRAIN'S final destination.
+// - SAFEGUARD: Critical logic (Night Owl, Phantom Transfers) is explicitly commented.
 
 // State
 let plannerOrigin = null;
@@ -102,6 +103,7 @@ function initPlanner() {
     populate(toSelect);
 
     // --- SMART TO FILTERING ---
+    // Logic: Disable the 'From' station in the 'To' list to prevent same-station trips.
     const filterToOptions = () => {
         const selectedFrom = fromSelect.value;
         Array.from(toSelect.options).forEach(opt => {
@@ -386,10 +388,13 @@ function executeTripPlan(origin, dest) {
             if (t.type === 'DIRECT') directDepartureTimes.add(t.depTime);
         });
 
+        // Filter 2: Standard Deduplication
         const uniqueTrips = [];
         const seenKeys = new Set();
         
         mergedTrips.forEach(trip => {
+            // Filter 1: Phantom Transfer Check
+            // If a direct train exists at the exact same time, the transfer is likely redundant/fake.
             if (trip.type === 'TRANSFER' && directDepartureTimes.has(trip.depTime)) {
                 return; 
             }
@@ -401,6 +406,7 @@ function executeTripPlan(origin, dest) {
             }
         });
         
+        // Sort: Time (Earliest First) -> Type (Direct > Transfer)
         uniqueTrips.sort((a, b) => {
             const tA = timeToSeconds(a.depTime);
             const tB = timeToSeconds(b.depTime);
@@ -416,20 +422,24 @@ function executeTripPlan(origin, dest) {
             let nextTripIndex = 0;
             if (!selectedPlannerDay || selectedPlannerDay === currentDayType) {
                 const nowSec = timeToSeconds(currentTime);
+                // Night Owl Check: After 8 PM (20:00)
                 const isLateNight = nowSec > (20 * 3600);
                 
                 if (isLateNight) {
+                    // Logic: Find first train tomorrow morning (< 12:00)
                     const morningIdx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) < (12 * 3600));
                     if (morningIdx !== -1) nextTripIndex = morningIdx;
                 } else {
+                    // Standard Logic: Find next future train
                     const idx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
                     if (idx !== -1) nextTripIndex = idx;
-                    else nextTripIndex = currentTripOptions.length - 1; 
+                    else nextTripIndex = currentTripOptions.length - 1; // All departed, show last one
                 }
             }
             
             renderSelectedTrip(resultsContainer, nextTripIndex);
             
+            // Start heartbeat to update "Departing in X min"
             startPlannerPulse(nextTripIndex);
 
         } else {
@@ -449,6 +459,7 @@ function renderSelectedTrip(container, index) {
     const isTomorrow = selectedTrip.dayLabel !== undefined;
     const nowSec = timeToSeconds(currentTime);
     
+    // Night Owl Logic for Display
     const isLateNight = nowSec > (20 * 3600);
     const effectivelyTomorrow = isTomorrow || (isLateNight && timeToSeconds(selectedTrip.depTime) < (12 * 3600));
 
@@ -462,14 +473,17 @@ function renderSelectedTrip(container, index) {
 function startPlannerPulse(currentIndex) {
     if (plannerPulse) clearInterval(plannerPulse);
     
+    // If viewing a different day, no need to pulse (times are static)
     if (selectedPlannerDay && selectedPlannerDay !== currentDayType) return;
 
     let trackedIndex = currentIndex;
 
+    // Pulse every 30s to update "Departs in X min" without re-fetching
     plannerPulse = setInterval(() => {
         const trip = currentTripOptions[trackedIndex];
         if (!trip) return;
 
+        // Check if user manually changed the dropdown selection
         const dropdown = document.querySelector('#planner-results-list select');
         if(dropdown) trackedIndex = parseInt(dropdown.value);
         
@@ -484,6 +498,7 @@ window.selectPlannerTrip = function(index) {
     
     renderSelectedTrip(document.getElementById('planner-results-list'), idx);
     
+    // Restart pulse for the newly selected trip
     startPlannerPulse(idx);
 };
 
@@ -501,6 +516,7 @@ function planDirectTrip(origin, dest) {
     let pathExistsGenerally = false;
     const planningDay = selectedPlannerDay || currentDayType;
 
+    // Rule: Sunday trains are scarce. If no service found, check Monday (next working day).
     if (planningDay === 'sunday') {
         for (const routeId of commonRoutes) {
             const routeConfig = ROUTES[routeId];
@@ -528,6 +544,7 @@ function planDirectTrip(origin, dest) {
             if (originRow && destRow) {
                 const originIdx = schedule.rows.indexOf(originRow);
                 const destIdx = schedule.rows.indexOf(destRow);
+                // Direction Check: Origin must come BEFORE Destination
                 if (originIdx < destIdx) {
                     pathFoundToday = true; 
                     pathExistsGenerally = true;
@@ -540,6 +557,7 @@ function planDirectTrip(origin, dest) {
                 }
             }
         }
+        // If no trains found TODAY, check TOMORROW
         if (bestTrips.length === 0) {
              const next = findNextDayTrips(routeConfig, origin, dest, planningDay);
              if (next && next.length > 0) {
@@ -559,10 +577,13 @@ function planHubTransferTrip(origin, dest) {
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     const planningDay = selectedPlannerDay || currentDayType;
     
+    // START OPTIMIZED LOGIC:
+    // Only check major hubs that actually connect the Origin Line and Dest Line.
     const HUBS = ['PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION', 'KEMPTON PARK STATION', 'HERCULES STATION', 'PRETORIA WEST STATION', 'WINTERSNEST STATION', 'WOLMERTON STATION', 'PRETORIA NOORD STATION', 'KOEDOESPOORT STATION']; 
     
     let dynamicHubs = new Set(HUBS);
     
+    // Add implicit hubs (stations designated as transfers in Config)
     [...originRoutes].forEach(rId => {
         if(ROUTES[rId] && ROUTES[rId].transferStation) dynamicHubs.add(normalizeStationName(ROUTES[rId].transferStation));
     });
@@ -574,6 +595,7 @@ function planHubTransferTrip(origin, dest) {
         const hubData = globalStationIndex[normalizeStationName(hub)];
         if (!hubData) return false;
         
+        // Hub must be reachable from Origin AND lead to Dest
         const toHub = [...originRoutes].some(rId => hubData.routes.has(rId));
         const fromHub = [...destRoutes].some(rId => hubData.routes.has(rId));
         const isTrivial = (normalizeStationName(hub) === normalizeStationName(origin)) || (normalizeStationName(hub) === normalizeStationName(dest));
@@ -599,11 +621,13 @@ function planHubTransferTrip(origin, dest) {
         const leg2Options = findAllLegsBetween(hub, dest, destRoutes, planningDay); 
         if (leg2Options.length === 0) continue;
 
+        // Transfer Constraint: Must have at least 3 minutes to change trains
         const TRANSFER_BUFFER_SEC = 3 * 60;
         leg1Options.forEach(leg1 => {
             const arrivalSec = timeToSeconds(leg1.arrTime);
             leg2Options.forEach(leg2 => {
                 
+                // No Loopbacks: Don't get on the same train line you just got off
                 if (leg1.route.id === leg2.route.id) {
                     return; 
                 }
@@ -625,10 +649,12 @@ function planHubTransferTrip(origin, dest) {
     }
 
     if (allTransferOptions.length > 0) {
+        // Sort by Total Duration first to show fastest trips
         allTransferOptions.sort((a,b) => {
             const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
             return depDiff !== 0 ? depDiff : a.totalDuration - b.totalDuration;
         });
+        // Deduplicate: If multiple routes exist for same departure time, pick fastest
         const unique = [];
         const seenDepTimes = new Set();
         allTransferOptions.forEach(opt => {
@@ -641,7 +667,7 @@ function planHubTransferTrip(origin, dest) {
 
 function planHubTransferTripForNextDay(origin, dest, potentialHubs) {
     let allTransferOptions = [];
-    const nextDay = 'weekday';
+    const nextDay = 'weekday'; // Assume next avail day is Monday
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
 
@@ -1065,6 +1091,8 @@ const PlannerRenderer = {
         let isDeparted = false;
         
         // --- NIGHT OWL LOGIC FOR COUNTDOWN ---
+        // Logic: If it's late night (>20:00) and the train is early morning (<14:00), 
+        // treat it as 'Tomorrow' (add 24h) to show correct countdown.
         const isLateNight = nowSec > (20 * 3600);
         let effectiveDepSec = depSec;
         let isTomorrowOverride = false;
