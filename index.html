@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.49.0 (Guardian Edition - Midway Expansion)
-  - EXPANSION: Added Johannesburg <-> Midway Route.
-  - ANALYTICS: Preserved G-JM5DH6ERVX + Added Microsoft Clarity (v1aj19921i).
+  Metrorail Next Train V4.50.1 (Guardian Edition - Offline Polish)
+  - UX FIX: Added onerror handlers to logos to prevent "broken image" icons offline.
+  - ANALYTICS: Preserved G-JM5DH6ERVX + Microsoft Clarity (v1aj19921i).
   - SEO: Canonical, Schema, and ARIA labels preserved.
 -->
 <html lang="en" class="dark">
@@ -33,7 +33,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
-      "softwareVersion": "4.49.0",
+      "softwareVersion": "4.49.1",
       "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map",
       "url": "https://nexttrain.co.za/"
     }
@@ -186,7 +186,7 @@
             
             <!-- VERSION FOOTER -->
             <div class="mt-4 px-4 text-right">
-                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.49.0</p>
+                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.49.1</p>
             </div>
         </div>
     </div>
@@ -410,7 +410,8 @@
             <div class="relative w-24 h-24 mb-6 shrink-0">
                 <div class="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-ping"></div>
                 <div class="relative bg-white dark:bg-gray-800 p-4 rounded-full shadow-xl ring-4 ring-blue-50 dark:ring-gray-700">
-                    <img src="icons/loading-logo.png" class="w-full h-full object-contain" alt="Logo">
+                    <!-- UX FIX: Hide on error -->
+                    <img src="icons/loading-logo.png" class="w-full h-full object-contain" alt="Logo" onerror="this.style.display='none'">
                 </div>
             </div>
             <h1 class="text-3xl font-black text-gray-900 dark:text-white text-center mb-2 shrink-0">Next Train</h1>
@@ -663,7 +664,8 @@
 
         <div class="w-full max-w-md px-6 pb-12 flex flex-col items-center text-center animate-fade-in-up">
             <!-- Brand -->
-            <img src="icons/loading-logo.png" class="w-20 h-20 mb-6 shadow-lg rounded-full" alt="Next Train Logo">
+            <!-- UX FIX: Hide on error -->
+            <img src="icons/loading-logo.png" class="w-20 h-20 mb-6 shadow-lg rounded-full" alt="Next Train Logo" onerror="this.style.display='none'">
             <h2 class="text-3xl font-black text-gray-900 dark:text-white mb-2">Metrorail Next Train</h2>
             <div class="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-wider mb-8">
                 Unofficial & Independent
@@ -700,7 +702,7 @@
             </div>
 
             <p class="mt-12 text-[10px] text-gray-400 font-mono">
-                Version 4.49.0 (Guardian Edition)
+                Version 4.49.1 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -775,7 +777,8 @@
     <!-- MAIN LOADING OVERLAY -->
     <div id="loading-overlay" class="absolute inset-0 bg-gray-100 dark:bg-blue-900 flex flex-col items-center justify-center z-50 transition-colors duration-300">
         <div class="flex flex-col items-center">
-            <img src="icons/loading-logo.png" class="w-48 h-auto animate-pulse mb-4" alt="Metrorail Logo">
+            <!-- UX FIX: Hide on error (e.g. offline cache miss) to prevent broken image icon -->
+            <img src="icons/loading-logo.png" class="w-48 h-auto animate-pulse mb-4" alt="Metrorail Logo" onerror="this.style.display='none'">
         </div>
         <div class="text-xl font-bold text-gray-700 dark:text-white mt-2" id="loading-text">Metrorail Next Train</div>
     </div>

@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.50.0"; // Updated for Midway Route Expansion
+const APP_VERSION = "V4.50.1"; // Updated for UX Polish & Clarity Disclosure
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -15,7 +15,9 @@ const LEGAL_TEXTS = {
     `,
     privacy: `
         <h4 class="font-bold text-lg mb-2">1. Data Collection</h4>
-        <p>We use Google Analytics to understand app usage anonymously.</p>
+        <p>We use Google Analytics and Microsoft Clarity to understand how the app is used. This helps us fix bugs and improve the design.</p>
+        <p class="mt-2 text-xs text-gray-500">Note: All data is anonymous. We never see your personal details.</p>
+        
         <h4 class="font-bold text-lg mb-2 mt-4">2. Location Services</h4>
         <p>We may request your Location permission to identify your nearest station. This data is processed on your device and is not stored on our servers for tracking.</p>
         <h4 class="font-bold text-lg mb-2 mt-4">3. Third Parties</h4>
@@ -211,21 +213,21 @@ const ROUTES = {
             saturday_to_b: 'jhb_to_nald_sat'
         } 
     },
-    // --- NEW: JHB - MIDWAY ---
+    // --- NEW: JHB <-> MIDWAY ---
     'jhb-midway': { 
         id: 'jhb-midway', 
         name: "JHB <-> Midway", 
-        corridorId: "JHB_WEST", 
+        corridorId: "JHB_SOUTH", 
         colorClass: "text-yellow-500", 
         isActive: true, 
         destA: 'JOHANNESBURG STATION', 
         destB: 'MIDWAY STATION', 
         transferStation: null, 
         sheetKeys: {
-            weekday_to_a: 'midwy_to_jhb_weekday', 
-            weekday_to_b: 'jhb_to_midwy_weekday',
-            saturday_to_a: 'midwy_to_jhb_sat', 
-            saturday_to_b: 'jhb_to_midwy_sat'
+            weekday_to_a: 'mid_to_jhb_weekday', 
+            weekday_to_b: 'jhb_to_mid_weekday',
+            saturday_to_a: 'mid_to_jhb_sat', 
+            saturday_to_b: 'jhb_to_mid_sat'
         } 
     },
     'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", corridorId: "JHB_SOUTH", colorClass: "text-purple-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
