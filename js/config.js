@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.49.0"; // Updated for Midway Route Expansion
+const APP_VERSION = "V4.50.0"; // Updated for Midway Route Expansion
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
