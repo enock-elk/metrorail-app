@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.50.1'; // Bumped for Planner Intelligence Update
+const CACHE_NAME = 'metrorail-next-train-v4.50.2'; // Bumped: Added map-data.js to cache
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -12,6 +12,7 @@ const ASSETS_TO_CACHE = [
   './js/logic.js',
   './js/planner.js',
   './js/map-viewer.js',
+  './js/map-data.js', // NEW: Added to ensure offline map coordinates work
   './js/ui.js',
   './manifest.json',
   './sitemap.xml',
@@ -30,7 +31,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('SW: Caching core assets (v4.48)...');
+        console.log('SW: Caching core assets (v4.50.2)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {
