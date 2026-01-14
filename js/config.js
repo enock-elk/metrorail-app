@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.48.2"; // Updated for Planner Intelligence (Contextual Destinations)
+const APP_VERSION = "V4.49.0"; // Updated for Midway Route Expansion
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -195,7 +195,6 @@ const ROUTES = {
             saturday_to_b: 'jhb_to_rand_sat'
         } 
     },
-    // --- NEW: SOWETO EXPANSION ---
     'jhb-soweto': { 
         id: 'jhb-soweto', 
         name: "JHB <-> Naledi (Soweto)", 
@@ -210,6 +209,23 @@ const ROUTES = {
             weekday_to_b: 'jhb_to_nald_weekday',
             saturday_to_a: 'nald_to_jhb_sat', 
             saturday_to_b: 'jhb_to_nald_sat'
+        } 
+    },
+    // --- NEW: JHB - MIDWAY ---
+    'jhb-midway': { 
+        id: 'jhb-midway', 
+        name: "JHB <-> Midway", 
+        corridorId: "JHB_WEST", 
+        colorClass: "text-yellow-500", 
+        isActive: true, 
+        destA: 'JOHANNESBURG STATION', 
+        destB: 'MIDWAY STATION', 
+        transferStation: null, 
+        sheetKeys: {
+            weekday_to_a: 'midwy_to_jhb_weekday', 
+            weekday_to_b: 'jhb_to_midwy_weekday',
+            saturday_to_a: 'midwy_to_jhb_sat', 
+            saturday_to_b: 'jhb_to_midwy_sat'
         } 
     },
     'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", corridorId: "JHB_SOUTH", colorClass: "text-purple-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },

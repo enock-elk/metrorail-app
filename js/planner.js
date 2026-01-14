@@ -1,4 +1,4 @@
-// --- TRIP PLANNER LOGIC (V4.48.2 - Guardian Edition: Hybrid Durability) ---
+// --- TRIP PLANNER LOGIC (V4.49.0 - Guardian Edition: Hybrid Durability) ---
 // - MERGED: V4.47 Logic (Better UX/Destinations) + V4.46 Comments (AI Safety).
 // - FEATURE: Transfer text shows TRAIN'S final destination.
 // - SAFEGUARD: Critical logic (Night Owl, Phantom Transfers) is explicitly commented.
