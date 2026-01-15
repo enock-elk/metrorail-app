@@ -1,7 +1,7 @@
-// --- TRIP PLANNER LOGIC (V4.50.1 - Guardian Edition: Hybrid Durability) ---
-// - MERGED: V4.47 Logic (Better UX/Destinations) + V4.46 Comments (AI Safety).
-// - FEATURE: Transfer text shows TRAIN'S final destination.
-// - SAFEGUARD: Critical logic (Night Owl, Phantom Transfers) is explicitly commented.
+// --- TRIP PLANNER LOGIC (V4.51.0 - Guardian Edition: Dynamic Hubs) ---
+// - UPGRADE: Replaced hardcoded HUBS list with dynamic detection (Growth Mode).
+// - FEATURE: Automatically detects transfer points based on route intersections.
+// - SAFEGUARD: Critical logic (Night Owl, Phantom Transfers) remains protected.
 
 // State
 let plannerOrigin = null;
@@ -572,26 +572,44 @@ function planDirectTrip(origin, dest) {
     return { status: (pathExistsGenerally || pathFoundToday) ? 'NO_SERVICE' : 'NO_PATH' };
 }
 
+// --- GUARDIAN UPDATE: DYNAMIC HUB DETECTION (V4.51) ---
+function getDynamicHubs() {
+    if (typeof globalStationIndex === 'undefined') return [];
+    
+    // 1. Start with known Configured Transfer Stations
+    const explicitHubs = new Set();
+    Object.values(ROUTES).forEach(r => {
+        if(r.isActive && r.transferStation) {
+            explicitHubs.add(normalizeStationName(r.transferStation));
+        }
+    });
+
+    // 2. Add stations with > 1 Active Routes
+    const dynamicHubs = [];
+    Object.entries(globalStationIndex).forEach(([stationName, data]) => {
+        // Only consider stations with 2+ routes as potential hubs
+        if (data.routes && data.routes.size > 1) {
+            dynamicHubs.push(stationName);
+        } else if (explicitHubs.has(stationName)) {
+            dynamicHubs.push(stationName);
+        }
+    });
+
+    // 3. Optional: Filter out tiny/unsafe halts if we have a blocklist in future
+    return dynamicHubs;
+}
+
 function planHubTransferTrip(origin, dest) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     const planningDay = selectedPlannerDay || currentDayType;
     
-    // START OPTIMIZED LOGIC:
-    // Only check major hubs that actually connect the Origin Line and Dest Line.
-    const HUBS = ['PRETORIA STATION', 'GERMISTON STATION', 'JOHANNESBURG STATION', 'KEMPTON PARK STATION', 'HERCULES STATION', 'PRETORIA WEST STATION', 'WINTERSNEST STATION', 'WOLMERTON STATION', 'PRETORIA NOORD STATION', 'KOEDOESPOORT STATION']; 
+    // --- GUARDIAN UPDATE: USE DYNAMIC HUBS ---
+    // Instead of hardcoded array, we ask the network "Who connects these lines?"
+    const allKnownHubs = getDynamicHubs(); 
     
-    let dynamicHubs = new Set(HUBS);
-    
-    // Add implicit hubs (stations designated as transfers in Config)
-    [...originRoutes].forEach(rId => {
-        if(ROUTES[rId] && ROUTES[rId].transferStation) dynamicHubs.add(normalizeStationName(ROUTES[rId].transferStation));
-    });
-    [...destRoutes].forEach(rId => {
-        if(ROUTES[rId] && ROUTES[rId].transferStation) dynamicHubs.add(normalizeStationName(ROUTES[rId].transferStation));
-    });
-
-    const potentialHubs = [...dynamicHubs].filter(hub => {
+    // Filter hubs that are actually RELEVANT to this specific trip
+    const potentialHubs = allKnownHubs.filter(hub => {
         const hubData = globalStationIndex[normalizeStationName(hub)];
         if (!hubData) return false;
         
