@@ -306,6 +306,13 @@ function buildGlobalStationIndex() {
     globalStationIndex = {}; 
     if (!fullDatabase) return;
 
+    // GUARDIAN HELPER: Filter out ghost stations (rows with no time data)
+    // Returns true if at least one column (other than metadata) has a value
+    const hasActiveService = (row, sKey, cKey) => {
+        const ignored = new Set([sKey, cKey, 'KM_MARK', 'row_index']);
+        return Object.keys(row).some(k => !ignored.has(k) && row[k] && String(row[k]).trim() !== "");
+    };
+
     Object.values(ROUTES).forEach(route => {
         if (!route.sheetKeys) return;
 
@@ -338,6 +345,9 @@ function buildGlobalStationIndex() {
                       if (!coordKey && row['COORDINATES']) coordKey = 'COORDINATES';
 
                       if (stationKey && row[stationKey]) {
+                           // GHOST FILTER: Skip if no active service at this station
+                           if (!hasActiveService(row, stationKey, coordKey)) continue;
+
                            const stationName = normalizeStationName(row[stationKey]);
                            const coordVal = coordKey ? row[coordKey] : null;
                            
@@ -363,6 +373,9 @@ function buildGlobalStationIndex() {
             } else {
                  sheetData.forEach(row => {
                     if (row.STATION && row.COORDINATES) {
+                        // GHOST FILTER: Fallback branch
+                        if (!hasActiveService(row, 'STATION', 'COORDINATES')) return; // forEach uses return to skip
+
                         const stationName = normalizeStationName(row.STATION);
                         if (!globalStationIndex[stationName]) {
                             try {
