@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.53.1"; // Updated for UX Polish & Clarity Disclosure
+const APP_VERSION = "V4.54.2"; // Updated for UX Polish & Clarity Disclosure
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {

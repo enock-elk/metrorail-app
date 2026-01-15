@@ -1,7 +1,7 @@
-// --- TRIP PLANNER LOGIC (V4.53.1 - Guardian Edition: Multi-Leg Polish) ---
-// - FEATURE: Added 2-Transfer (3-Leg) Routing ("The Bridge").
-// - UPGRADE: Lazy loading for cross-corridor schedules.
-// - VISUAL: Consistent UX for multi-leg timelines (Layover times, "Connect to..." labels).
+// --- TRIP PLANNER LOGIC (V4.54.2 - Guardian Edition: Persistent UI State) ---
+// - FIX: Stop lists now stay open during countdown updates (State Tracking).
+// - UI: "Tap to Change" label & 3-Leg Collapsible Lists.
+// - PREV: Strict Deduplication & Map Fallback.
 
 // State
 let plannerOrigin = null;
@@ -9,6 +9,7 @@ let plannerDest = null;
 let currentTripOptions = []; // Store multiple train options
 let selectedPlannerDay = null; // Store user-selected day for planning
 let plannerPulse = null; // Heartbeat timer ID
+let plannerExpandedState = new Set(); // Tracks which stop lists are open
 
 // --- INITIALIZATION ---
 function initPlanner() {
@@ -219,6 +220,7 @@ function initPlanner() {
         fromSelect.value = ""; toSelect.value = "";
         document.getElementById('planner-from-search').value = "";
         document.getElementById('planner-to-search').value = "";
+        plannerExpandedState.clear(); // Reset UI state on new search
         
         Array.from(toSelect.options).forEach(opt => { opt.disabled = false; opt.hidden = false; });
         
@@ -382,6 +384,7 @@ function executeTripPlan(origin, dest) {
     
     document.getElementById('planner-input-section').classList.add('hidden');
     document.getElementById('planner-results-section').classList.remove('hidden');
+    plannerExpandedState.clear(); // Clear old UI state
 
     if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
 
@@ -405,17 +408,21 @@ function executeTripPlan(origin, dest) {
             }
         }
 
-        // 3. Deduplicate & Sort (Standard Logic)
-        const uniqueTrips = [];
-        const seenKeys = new Set();
-        
-        // Sort: Earliest Departure First
-        mergedTrips.sort((a, b) => timeToSeconds(a.depTime) - timeToSeconds(b.depTime));
+        // 3. STRICT DEDUPLICATION & SORTING (V4.54)
+        // Sort: Earliest Departure First, then Earliest Arrival (Shortest Duration)
+        mergedTrips.sort((a, b) => {
+            const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
+            if (depDiff !== 0) return depDiff;
+            return timeToSeconds(a.arrTime) - timeToSeconds(b.arrTime);
+        });
 
+        const uniqueTrips = [];
+        const seenDepartureTimes = new Set();
+        
+        // Filter: Keep only the FASTEST trip for each departure time slot
         mergedTrips.forEach(trip => {
-            const key = `${trip.depTime}-${trip.arrTime}-${trip.type}`;
-            if (!seenKeys.has(key)) {
-                seenKeys.add(key);
+            if (!seenDepartureTimes.has(trip.depTime)) {
+                seenDepartureTimes.add(trip.depTime);
                 uniqueTrips.push(trip);
             }
         });
@@ -433,8 +440,15 @@ function executeTripPlan(origin, dest) {
             startPlannerPulse(nextTripIndex);
 
         } else {
-            // Error Handling
-            resultsContainer.innerHTML = renderErrorCard("No Route Found", "We couldn't find a route between these stations. Transfers between different corridors are coming soon.");
+            // 4. MAP FALLBACK ERROR HANDLING (V4.54)
+            const errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path. You may need to plan this journey in segments (e.g., 'Home to Pretoria', then 'Pretoria to Work').";
+            const actionBtn = `
+                <button onclick="document.getElementById('map-modal').classList.remove('hidden')" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                    Open Network Map
+                </button>
+            `;
+            resultsContainer.innerHTML = renderErrorCard("No Route Found", errorMsg, actionBtn);
         }
     }, 100); 
 }
@@ -481,24 +495,35 @@ window.selectPlannerTrip = function(index) {
     const idx = parseInt(index);
     if (!currentTripOptions || !currentTripOptions[idx]) return;
     
+    // Clear expanded state when switching trips manually
+    plannerExpandedState.clear();
+    
     renderSelectedTrip(document.getElementById('planner-results-list'), idx);
     
     // Restart pulse for the newly selected trip
     startPlannerPulse(idx);
 };
 
-// --- NEW HELPER: TOGGLE STOPS (Global) ---
+// --- UPDATED HELPER: TOGGLE STOPS (State Tracking) ---
 window.togglePlannerStops = function(id) {
     const el = document.getElementById(id);
     const btn = document.getElementById(`btn-${id}`);
+    
     if (el) {
+        // Toggle UI
         el.classList.toggle('hidden');
+        const isHidden = el.classList.contains('hidden');
+        
+        // Update State
+        if (isHidden) {
+            plannerExpandedState.delete(id);
+        } else {
+            plannerExpandedState.add(id);
+        }
+
+        // Update Button Text
         if(btn) {
-            if (el.classList.contains('hidden')) {
-                btn.textContent = "Show All Stops";
-            } else {
-                btn.textContent = "Hide Stops";
-            }
+            btn.textContent = isHidden ? "Show All Stops" : "Hide Stops";
         }
     }
 };
@@ -994,11 +1019,12 @@ function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "
     `;
 }
 
-function renderErrorCard(title, message) {
+function renderErrorCard(title, message, actionHtml = "") {
     return `
         <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 text-center">
             <h3 class="font-bold text-yellow-800 dark:text-yellow-200 mb-1">${title}</h3>
             <p class="text-sm text-gray-600 dark:text-gray-400">${message}</p>
+            ${actionHtml}
         </div>
     `;
 }
@@ -1126,8 +1152,9 @@ const PlannerRenderer = {
 
         return `
             <div class="px-4 pb-2">
-                <label class="text-[10px] uppercase font-bold text-gray-500 mb-1 block">Choose Departure:</label>
-                <select onchange="selectPlannerTrip(this.value)" class="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded p-2 focus:ring-blue-500 focus:border-blue-500">
+                <!-- UPDATED LABEL: CLEAR CALL TO ACTION -->
+                <label class="text-[10px] uppercase font-bold text-blue-500 dark:text-blue-400 mb-1 block animate-pulse">👇 Tap to Change Time:</label>
+                <select onchange="selectPlannerTrip(this.value)" class="w-full bg-blue-50 dark:bg-gray-800 border-2 border-blue-200 dark:border-blue-900 text-gray-900 dark:text-white text-sm rounded p-2 focus:ring-blue-500 focus:border-blue-500 font-bold shadow-sm">
                     ${optionsHtml}
                 </select>
             </div>
@@ -1180,16 +1207,25 @@ const PlannerRenderer = {
         let train2Dest = step.leg2.actualDestination || step.leg2.route.destB;
         train2Dest = train2Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
 
-        // --- 2. Build Collapsible Lists ---
-        // Helper to build list HTML
-        const buildStopList = (stops) => {
+        // --- 2. Build Collapsible Lists (Fixed for Persistence) ---
+        // Helper to build list HTML with state check
+        const buildStopList = (stops, id) => {
             if(!stops || stops.length === 0) return '';
-            return stops.map(s => `
-                <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1">
-                    <span>${s.station.replace(' STATION', '')}</span>
-                    <span class="font-mono">${formatTimeDisplay(s.time)}</span>
+            const isExpanded = plannerExpandedState.has(id);
+            
+            return `
+                <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] text-gray-400 hover:text-blue-500 underline text-left mb-2 w-fit">
+                    ${isExpanded ? "Hide Stops" : "Show All Stops"}
+                </button>
+                <div id="${id}" class="${isExpanded ? "" : "hidden"} pl-2 border-l border-gray-200 dark:border-gray-700 space-y-1 mb-2">
+                    ${stops.map(s => `
+                        <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1">
+                            <span>${s.station.replace(' STATION', '')}</span>
+                            <span class="font-mono">${formatTimeDisplay(s.time)}</span>
+                        </div>
+                    `).join('')}
                 </div>
-            `).join('');
+            `;
         };
 
         const leg1StopsId = `stops-leg1-${step.train}`;
@@ -1209,14 +1245,7 @@ const PlannerRenderer = {
                         <div class="text-xs text-blue-500 font-medium mb-1">
                             ${train1Dest} Train ${step.leg1.train}
                         </div>
-                        <!-- Toggle Button -->
-                        <button id="btn-${leg1StopsId}" onclick="togglePlannerStops('${leg1StopsId}')" class="text-[10px] text-gray-400 hover:text-blue-500 underline text-left mb-2 w-fit">
-                            Show All Stops
-                        </button>
-                        <!-- Hidden Stop List -->
-                        <div id="${leg1StopsId}" class="hidden pl-2 border-l border-gray-200 dark:border-gray-700 space-y-1 mb-2">
-                            ${buildStopList(step.leg1.stops)}
-                        </div>
+                        ${buildStopList(step.leg1.stops, leg1StopsId)}
                     </div>
                 </div>
 
@@ -1250,14 +1279,7 @@ const PlannerRenderer = {
                         <div class="text-xs text-blue-500 font-medium mb-1">
                             ${train2Dest} Train ${step.leg2.train}
                         </div>
-                        <!-- Toggle Button -->
-                        <button id="btn-${leg2StopsId}" onclick="togglePlannerStops('${leg2StopsId}')" class="text-[10px] text-gray-400 hover:text-blue-500 underline text-left mb-2 w-fit">
-                            Show All Stops
-                        </button>
-                        <!-- Hidden Stop List -->
-                        <div id="${leg2StopsId}" class="hidden pl-2 border-l border-gray-200 dark:border-gray-700 space-y-1 mb-2">
-                            ${buildStopList(step.leg2.stops)}
-                        </div>
+                        ${buildStopList(step.leg2.stops, leg2StopsId)}
                     </div>
                 </div>
 
@@ -1292,6 +1314,31 @@ const PlannerRenderer = {
         
         const wait1 = calcWait(step.leg1.arrTime, step.leg2.depTime);
         const wait2 = calcWait(step.leg2.arrTime, step.leg3.depTime);
+
+        // Helper: Build Stop List (Same as before) with STATE CHECK
+        const buildStopList = (stops, id) => {
+            if(!stops || stops.length === 0) return '';
+            const isExpanded = plannerExpandedState.has(id);
+            
+            return `
+                <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] text-gray-400 hover:text-blue-500 underline text-left mb-2 w-fit">
+                    ${isExpanded ? "Hide Stops" : "Show All Stops"}
+                </button>
+                <div id="${id}" class="${isExpanded ? "" : "hidden"} pl-2 border-l border-gray-200 dark:border-gray-700 space-y-1 mb-2">
+                    ${stops.map(s => `
+                        <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1">
+                            <span>${s.station.replace(' STATION', '')}</span>
+                            <span class="font-mono">${formatTimeDisplay(s.time)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        };
+
+        // Unique IDs for collapsible sections
+        const l1ID = `stops-l1-${step.train}`;
+        const l2ID = `stops-l2-${step.train}`;
+        const l3ID = `stops-l3-${step.train}`;
     
         return `
             <div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-6">
@@ -1306,6 +1353,7 @@ const PlannerRenderer = {
                         <div class="text-xs text-blue-500 font-medium mb-1">
                             ${dest1} Train ${step.leg1.train}
                         </div>
+                        ${buildStopList(step.leg1.stops, l1ID)}
                     </div>
                 </div>
     
@@ -1338,6 +1386,7 @@ const PlannerRenderer = {
                         <div class="text-xs text-purple-500 font-medium mb-1">
                             ${dest2} Train ${step.leg2.train}
                         </div>
+                        ${buildStopList(step.leg2.stops, l2ID)}
                     </div>
                 </div>
 
@@ -1370,6 +1419,7 @@ const PlannerRenderer = {
                          <div class="text-xs text-blue-500 font-medium mb-1">
                             ${dest3} Train ${step.leg3.train}
                          </div>
+                         ${buildStopList(step.leg3.stops, l3ID)}
                     </div>
                 </div>
 
