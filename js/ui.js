@@ -192,7 +192,9 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
 
     let sharedTag = "";
     if (journey.isShared && journey.sourceRoute) {
-         const routeName = journey.sourceRoute.replace("Pretoria <-> ", "").replace("Route", "").trim();
+         // GUARDIAN UPDATE V4.51: Clean JHB/Germiston prefixes as well
+         const routeName = journey.sourceRoute.replace("Pretoria <-> ", "").replace("JHB <-> ", "").replace("Germiston <-> ", "").replace("Route", "").trim();
+         
          if (journey.isDivergent) {
              sharedTag = `<span class="block text-[9px] uppercase font-bold text-red-600 dark:text-red-400 mt-0.5 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-300 dark:border-red-700">⚠️ To ${journey.actualDestName}</span>`;
          } else {
@@ -790,7 +792,9 @@ window.openScheduleModal = function(destination, dayOverride = null) {
 
         let modalTag = "";
         if (j.isShared && j.sourceRoute) {
-             const routeName = j.sourceRoute.replace("Pretoria <-> ", "").replace("Route", "").trim();
+             // GUARDIAN UPDATE V4.51: Clean JHB/Germiston prefixes as well
+             const routeName = j.sourceRoute.replace("Pretoria <-> ", "").replace("JHB <-> ", "").replace("Germiston <-> ", "").replace("Route", "").trim();
+             
              if (j.isDivergent) {
                  modalTag = `<span class="text-[9px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-1.5 py-0.5 rounded uppercase ml-2 border border-red-200 dark:border-red-800">⚠️ To ${j.actualDestName}</span>`;
              } else {

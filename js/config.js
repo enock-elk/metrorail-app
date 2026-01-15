@@ -224,10 +224,10 @@ const ROUTES = {
         destB: 'MIDWAY STATION', 
         transferStation: null, 
         sheetKeys: {
-            weekday_to_a: 'mid_to_jhb_weekday', 
-            weekday_to_b: 'jhb_to_mid_weekday',
-            saturday_to_a: 'mid_to_jhb_sat', 
-            saturday_to_b: 'jhb_to_mid_sat'
+            weekday_to_a: 'midwy_to_jhb_weekday', 
+            weekday_to_b: 'jhb_to_midwy_weekday',
+            saturday_to_a: 'midwy_to_jhb_sat', 
+            saturday_to_b: 'jhb_to_midwy_sat'
         } 
     },
     'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", corridorId: "JHB_SOUTH", colorClass: "text-purple-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
