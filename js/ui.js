@@ -192,9 +192,7 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
 
     let sharedTag = "";
     if (journey.isShared && journey.sourceRoute) {
-         // GUARDIAN UPDATE V4.51: Clean JHB/Germiston prefixes as well
-         const routeName = journey.sourceRoute.replace("Pretoria <-> ", "").replace("JHB <-> ", "").replace("Germiston <-> ", "").replace("Route", "").trim();
-         
+         const routeName = journey.sourceRoute.replace("Pretoria <-> ", "").replace("Route", "").trim();
          if (journey.isDivergent) {
              sharedTag = `<span class="block text-[9px] uppercase font-bold text-red-600 dark:text-red-400 mt-0.5 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-300 dark:border-red-700">⚠️ To ${journey.actualDestName}</span>`;
          } else {
@@ -529,6 +527,9 @@ function handleShortcutActions() {
             const mapModal = document.getElementById('map-modal');
             if (mapModal) {
                 mapModal.classList.remove('hidden');
+                // Push State for Back Button logic
+                history.pushState({ modal: 'map' }, '', '#map');
+                
                 // Reset map zoom/pan if needed
                 const mapImage = document.getElementById('map-image');
                 if(mapImage) mapImage.style.transform = `translate(0px, 0px) scale(1)`;
@@ -598,14 +599,40 @@ function syncPlannerFromMain(stationName) {
     }
 }
 
+// --- GUARDIAN: SMART BACK BUTTON LOGIC ---
+// Replaced simple close listeners with history-aware closing
 function setupModalButtons() { 
-    const closeAction = () => { scheduleModal.classList.add('hidden'); document.body.style.overflow = ''; }; 
+    // Generic closer that respects history
+    const closeAction = () => { 
+        // If the modal was opened via history (hash exists), go back
+        if (location.hash === '#schedule') {
+            history.back();
+        } else {
+            // Fallback for manual open without history push (unlikely but safe)
+            scheduleModal.classList.add('hidden'); 
+            document.body.style.overflow = '';
+        }
+    }; 
+    
     closeModalBtn.addEventListener('click', closeAction); 
     closeModalBtn2.addEventListener('click', closeAction); 
     scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
 }
 
 function switchTab(tab) {
+    // History Management for Tabs
+    if (tab === 'trip-planner') {
+        if (location.hash !== '#planner') {
+            history.pushState({ tab: 'planner' }, '', '#planner');
+        }
+    } else {
+        // If going back to main, clear hash if it was planner
+        if (location.hash === '#planner') {
+            // Ideally replaceState to remove hash without triggering popstate loop
+            history.replaceState({ tab: 'next-train' }, '', ' '); 
+        }
+    }
+
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
     
@@ -627,6 +654,40 @@ function switchTab(tab) {
     // But since handleShortcutActions cleans the URL, we are safe to save normally.
     localStorage.setItem('activeTab', tab);
 }
+
+// --- GLOBAL BACK BUTTON HANDLER ---
+window.addEventListener('popstate', (event) => {
+    // 1. Close any open Modals first
+    const modals = [
+        { id: 'schedule-modal', hash: '#schedule' },
+        { id: 'map-modal', hash: '#map' },
+        { id: 'legal-modal', hash: '#legal' },
+        { id: 'help-modal', hash: '#help' },
+        { id: 'about-modal', hash: '#about' }
+    ];
+
+    let modalClosed = false;
+    modals.forEach(m => {
+        const el = document.getElementById(m.id);
+        if (el && !el.classList.contains('hidden')) {
+            el.classList.add('hidden');
+            document.body.style.overflow = ''; // Restore scroll
+            modalClosed = true;
+        }
+    });
+
+    if (modalClosed) return; // If we closed a modal, stop there.
+
+    // 2. Handle Tab Navigation (Back from Planner -> Next Train)
+    // If popstate fired and hash is empty, it means we went back from #planner to root
+    if (!location.hash) {
+        const activeTab = localStorage.getItem('activeTab');
+        if (activeTab === 'trip-planner') {
+            // Force switch visually without pushing state again
+            switchTab('next-train');
+        }
+    }
+});
 
 function initTabIndicator() {
     const tabNext = document.getElementById('tab-next-train');
@@ -721,8 +782,12 @@ function handleSwipe(startX, endX, startY, endY) {
 }
 
 // UPDATED: Modal now supports dynamic Day Override for "Check Monday" feature
+// AND History Support
 window.openScheduleModal = function(destination, dayOverride = null) {
     
+    // History Push
+    history.pushState({ modal: 'schedule' }, '', '#schedule');
+
     let journeys = [];
     let titleSuffix = "";
 
@@ -792,9 +857,7 @@ window.openScheduleModal = function(destination, dayOverride = null) {
 
         let modalTag = "";
         if (j.isShared && j.sourceRoute) {
-             // GUARDIAN UPDATE V4.51: Clean JHB/Germiston prefixes as well
-             const routeName = j.sourceRoute.replace("Pretoria <-> ", "").replace("JHB <-> ", "").replace("Germiston <-> ", "").replace("Route", "").trim();
-             
+             const routeName = j.sourceRoute.replace("Pretoria <-> ", "").replace("Route", "").trim();
              if (j.isDivergent) {
                  modalTag = `<span class="text-[9px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-1.5 py-0.5 rounded uppercase ml-2 border border-red-200 dark:border-red-800">⚠️ To ${j.actualDestName}</span>`;
              } else {
@@ -964,6 +1027,7 @@ function selectWelcomeRoute(routeId) {
 window.openLegal = function(type) {
     // ANALYTICS: Track Legal View
     trackAnalyticsEvent('view_legal_doc', { type: type });
+    history.pushState({ modal: 'legal' }, '', '#legal');
 
     legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
     legalContent.innerHTML = LEGAL_TEXTS[type];
@@ -974,7 +1038,11 @@ window.openLegal = function(type) {
 };
 
 function closeLegal() {
-    legalModal.classList.add('hidden');
+    if(location.hash === '#legal') {
+        history.back();
+    } else {
+        legalModal.classList.add('hidden');
+    }
 }
 
 // --- SERVICE WORKER UPDATE HANDLING & REGISTRATION ---
@@ -1127,22 +1195,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openHelp = () => {
         trackAnalyticsEvent('view_user_guide', { location: 'sidebar' });
+        history.pushState({ modal: 'help' }, '', '#help');
         if(helpModal) helpModal.classList.remove('hidden');
         closeSideNav();
     };
     
     const closeHelp = () => {
-        if(helpModal) helpModal.classList.add('hidden');
+        if(location.hash === '#help') {
+            history.back();
+        } else {
+            if(helpModal) helpModal.classList.add('hidden');
+        }
     };
     
     const openAbout = () => {
         trackAnalyticsEvent('view_about_page', { location: 'sidebar' });
+        history.pushState({ modal: 'about' }, '', '#about');
         if(aboutModal) aboutModal.classList.remove('hidden');
         closeSideNav();
     };
 
     const closeAbout = () => {
-        if(aboutModal) aboutModal.classList.add('hidden');
+        if(location.hash === '#about') {
+            history.back();
+        } else {
+            if(aboutModal) aboutModal.classList.add('hidden');
+        }
     };
     
     if(openHelpBtn) openHelpBtn.addEventListener('click', openHelp);

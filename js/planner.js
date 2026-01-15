@@ -1,7 +1,7 @@
-// --- TRIP PLANNER LOGIC (V4.51.0 - Guardian Edition: Dynamic Hubs) ---
-// - UPGRADE: Replaced hardcoded HUBS list with dynamic detection (Growth Mode).
-// - FEATURE: Automatically detects transfer points based on route intersections.
-// - SAFEGUARD: Critical logic (Night Owl, Phantom Transfers) remains protected.
+// --- TRIP PLANNER LOGIC (V4.52.3 - Guardian Edition: Visual Upgrades) ---
+// - UPGRADE: Added "Destination-Aware" Train Labels (e.g. "Saulsville Train 0007").
+// - FEATURE: Added Collapsible "Show Stops" buttons for Transfer legs.
+// - MAINTAINED: Dynamic Hub Detection & History State Integration.
 
 // State
 let plannerOrigin = null;
@@ -502,6 +502,22 @@ window.selectPlannerTrip = function(index) {
     startPlannerPulse(idx);
 };
 
+// --- NEW HELPER: TOGGLE STOPS (Global) ---
+window.togglePlannerStops = function(id) {
+    const el = document.getElementById(id);
+    const btn = document.getElementById(`btn-${id}`);
+    if (el) {
+        el.classList.toggle('hidden');
+        if(btn) {
+            if (el.classList.contains('hidden')) {
+                btn.textContent = "Show All Stops";
+            } else {
+                btn.textContent = "Hide Stops";
+            }
+        }
+    }
+};
+
 // --- ALGORITHMS: DIRECT & TRANSFER ---
 function planDirectTrip(origin, dest) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
@@ -802,9 +818,20 @@ function getDirectionsForRoute(route, dayType) {
 }
 
 function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, dest) {
+    // --- GUARDIAN: ADDED DESTINATION LOGIC ---
+    // Extract actual destination for proper labeling
+    let actualDest = dest;
+    if (schedule && schedule.rows && schedule.rows.length > 0) {
+        // Try to get the last station in this direction from schedule
+        const lastRow = schedule.rows[schedule.rows.length - 1];
+        if (lastRow && lastRow.STATION) actualDest = lastRow.STATION;
+    }
+
     return {
         type: 'DIRECT', route: route, from: origin, to: dest,
         train: trainInfo.trainName, depTime: trainInfo.depTime, arrTime: trainInfo.arrTime,
+        // Carry the true destination of the line for UI
+        actualDestination: actualDest,
         stops: (schedule && startIdx !== undefined) ? getIntermediateStops(schedule, startIdx, endIdx, trainInfo.trainName) : []
     };
 }
@@ -914,7 +941,6 @@ const PlannerRenderer = {
         let stateBadge = "";
         
         // --- NEW: FORCE 'TOMORROW' STATUS ---
-        // If isNextDay is TRUE, disregard the countdown and show "Tomorrow Morning"
         if (isNextDay) {
              stateBadge = `<div class="flex items-center text-sm font-bold text-orange-600 dark:text-orange-400">
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -1013,6 +1039,7 @@ const PlannerRenderer = {
         </div>
     `,
 
+    // --- UPGRADED RENDER TIMELINE: Supports Collapsible Stops ---
     renderTimeline: (step) => {
         if (step.type === 'TRANSFER') return PlannerRenderer.renderTransferTimeline(step);
         
@@ -1039,16 +1066,31 @@ const PlannerRenderer = {
         const waitMins = Math.floor((depSec - arrSec) / 60);
         const waitStr = waitMins > 59 ? `${Math.floor(waitMins/60)} hr ${waitMins%60} min` : `${waitMins} Minutes`;
         
-        // --- NEW: CLARITY FIX (True Route Destination) ---
-        // Instead of user destination (step.to), we grab the Route's B-Side or Actual Destination of the train
-        let trainFinalDest = step.leg2.actualDestination || step.leg2.route.destB;
-        trainFinalDest = trainFinalDest.replace(' STATION', '').toLowerCase();
-        
-        // Capitalize First Letters
-        trainFinalDest = trainFinalDest.replace(/\b\w/g, l => l.toUpperCase());
+        // --- 1. Destination Extraction Logic ---
+        let train1Dest = step.leg1.actualDestination || step.leg1.route.destB;
+        train1Dest = train1Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+
+        let train2Dest = step.leg2.actualDestination || step.leg2.route.destB;
+        train2Dest = train2Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+
+        // --- 2. Build Collapsible Lists ---
+        // Helper to build list HTML
+        const buildStopList = (stops) => {
+            if(!stops || stops.length === 0) return '';
+            return stops.map(s => `
+                <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1">
+                    <span>${s.station.replace(' STATION', '')}</span>
+                    <span class="font-mono">${formatTimeDisplay(s.time)}</span>
+                </div>
+            `).join('');
+        };
+
+        const leg1StopsId = `stops-leg1-${step.train}`;
+        const leg2StopsId = `stops-leg2-${step.train}`;
 
         return `
             <div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-6">
+                <!-- LEG 1 -->
                 <div class="relative pl-6">
                     <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
                     <div class="flex flex-col">
@@ -1056,10 +1098,22 @@ const PlannerRenderer = {
                             <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.from.replace(' STATION', '')}</span>
                             <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.depTime)}</span>
                         </div>
-                        <div class="text-xs text-blue-500 font-medium">Train ${step.leg1.train}</div>
+                        <!-- Updated Label -->
+                        <div class="text-xs text-blue-500 font-medium mb-1">
+                            ${train1Dest} Train ${step.leg1.train}
+                        </div>
+                        <!-- Toggle Button -->
+                        <button id="btn-${leg1StopsId}" onclick="togglePlannerStops('${leg1StopsId}')" class="text-[10px] text-gray-400 hover:text-blue-500 underline text-left mb-2 w-fit">
+                            Show All Stops
+                        </button>
+                        <!-- Hidden Stop List -->
+                        <div id="${leg1StopsId}" class="hidden pl-2 border-l border-gray-200 dark:border-gray-700 space-y-1 mb-2">
+                            ${buildStopList(step.leg1.stops)}
+                        </div>
                     </div>
                 </div>
 
+                <!-- TRANSFER HUB -->
                 <div class="relative pl-6">
                     <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900"></div>
                     <div class="flex flex-col">
@@ -1071,12 +1125,13 @@ const PlannerRenderer = {
                             <div class="font-bold uppercase tracking-wide mb-1">Transfer Required</div>
                             <div class="text-gray-600 dark:text-gray-400 leading-snug">
                                 <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Layover</span><br>
-                                &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${trainFinalDest} Train ${step.leg2.train}</span>
+                                &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${step.leg2.train}</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- LEG 2 -->
                 <div class="relative pl-6">
                     <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
                     <div class="flex flex-col">
@@ -1084,7 +1139,18 @@ const PlannerRenderer = {
                             <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.transferStation.replace(' STATION', '')}</span>
                             <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg2.depTime)}</span>
                         </div>
-                        <div class="text-xs text-blue-500 font-medium">Train ${step.leg2.train}</div>
+                        <!-- Updated Label -->
+                        <div class="text-xs text-blue-500 font-medium mb-1">
+                            ${train2Dest} Train ${step.leg2.train}
+                        </div>
+                        <!-- Toggle Button -->
+                        <button id="btn-${leg2StopsId}" onclick="togglePlannerStops('${leg2StopsId}')" class="text-[10px] text-gray-400 hover:text-blue-500 underline text-left mb-2 w-fit">
+                            Show All Stops
+                        </button>
+                        <!-- Hidden Stop List -->
+                        <div id="${leg2StopsId}" class="hidden pl-2 border-l border-gray-200 dark:border-gray-700 space-y-1 mb-2">
+                            ${buildStopList(step.leg2.stops)}
+                        </div>
                     </div>
                 </div>
 
@@ -1109,8 +1175,6 @@ const PlannerRenderer = {
         let isDeparted = false;
         
         // --- NIGHT OWL LOGIC FOR COUNTDOWN ---
-        // Logic: If it's late night (>20:00) and the train is early morning (<14:00), 
-        // treat it as 'Tomorrow' (add 24h) to show correct countdown.
         const isLateNight = nowSec > (20 * 3600);
         let effectiveDepSec = depSec;
         let isTomorrowOverride = false;

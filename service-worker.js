@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.50.2'; // Bumped: Added map-data.js to cache
+const CACHE_NAME = 'metrorail-next-train-v4.52.3'; // Bumped: Added map-data.js to cache
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
