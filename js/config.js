@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.54.4"; // Updated for UX Polish & Clarity Disclosure
+const APP_VERSION = "V4.58.1"; // Updated for Relay Station Logic (Koedoespoort/Roodepoort)
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -39,7 +39,8 @@ const ROUTES = {
         isActive: true, 
         destA: 'PRETORIA STATION', 
         destB: 'PIENAARSPOORT STATION', 
-        transferStation: 'KOEDOESPOORT STATION', 
+        transferStation: 'KOEDOESPOORT STATION',
+        relayStation: 'KOEDOESPOORT STATION', // NEW: Defines this as a forced split-point for planner
         sheetKeys: { weekday_to_a: 'pien_to_pta_weekday', weekday_to_b: 'pta_to_pien_weekday', saturday_to_a: 'pien_to_pta_sat', saturday_to_b: 'pta_to_pien_sat' } 
     },
     'pta-mabopane': { 
@@ -190,6 +191,7 @@ const ROUTES = {
         destA: 'JOHANNESBURG STATION', 
         destB: 'RANDFONTEIN STATION', 
         transferStation: null, 
+        relayStation: 'ROODEPOORT STATION', // NEW: Defines this as a forced split-point for planner
         sheetKeys: {
             weekday_to_a: 'rand_to_jhb_weekday', 
             weekday_to_b: 'jhb_to_rand_weekday',

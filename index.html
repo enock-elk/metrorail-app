@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.54.4 (Guardian Edition - Sidebar Clean Up)
-  - UI POLISH: Removed "Select Route" header to save space.
-  - UI POLISH: Moved "Change Profile" inline with Profile Type.
-  - ANALYTICS: Preserved G-JM5DH6ERVX + Microsoft Clarity (v1aj19921i).
+  Metrorail Next Train V4.58.1 (Guardian Edition - Analytics & ID Update)
+  - ANALYTICS: Dev Mode Filter Active (Clarity/GA4).
+  - TRACKING: Added ID to Facebook Connect button for event tracking.
 -->
 <html lang="en" class="dark">
 
@@ -33,7 +32,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
-      "softwareVersion": "4.54.1",
+      "softwareVersion": "4.54.2",
       "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map",
       "url": "https://nexttrain.co.za/"
     }
@@ -195,7 +194,7 @@
             
             <!-- VERSION FOOTER -->
             <div class="mt-4 px-4 text-right">
-                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.54.1</p>
+                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.54.2</p>
             </div>
         </div>
     </div>
@@ -701,7 +700,7 @@
                         <p class="text-xs text-gray-500">Lead Developer</p>
                     </div>
                     <div class="h-10 w-0.5 bg-gray-300 dark:bg-gray-700"></div>
-                    <a href="https://www.facebook.com/enock.kazembe/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center px-4 py-2 bg-[#1877F2] hover:bg-blue-700 text-white rounded-lg font-bold text-sm transition-colors shadow-md group">
+                    <a id="facebook-connect-link" href="https://www.facebook.com/enock.kazembe/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center px-4 py-2 bg-[#1877F2] hover:bg-blue-700 text-white rounded-lg font-bold text-sm transition-colors shadow-md group">
                         <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
                         Connect
                     </a>
@@ -709,7 +708,7 @@
             </div>
 
             <p class="mt-12 text-[10px] text-gray-400 font-mono">
-                Version 4.54.1 (Guardian Edition)
+                Version 4.54.2 (Guardian Edition)
             </p>
         </div>
     </div>

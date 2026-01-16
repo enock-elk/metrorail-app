@@ -2,7 +2,7 @@
   "name": "Metrorail Next Train",
   "short_name": "Next Train",
   "id": "./",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#1d4ed8",
@@ -27,14 +27,14 @@
       "name": "Trip Planner",
       "short_name": "Plan Trip",
       "description": "Plan a direct or transfer trip",
-      "url": "./index.html?action=planner",
+      "url": "./?action=planner",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Network Map",
       "short_name": "View Map",
       "description": "View the full rail network map",
-      "url": "./index.html?action=map",
+      "url": "./?action=map",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     }
   ]

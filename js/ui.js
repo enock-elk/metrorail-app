@@ -542,6 +542,15 @@ function handleShortcutActions() {
 }
 
 function initializeApp() {
+    
+    // --- GUARDIAN: URL CLEANER (Fix Analytics Split) ---
+    // If user is on /index.html, silently rewrite to /
+    if (window.location.pathname.endsWith('index.html')) {
+        const newPath = window.location.pathname.replace('index.html', '');
+        window.history.replaceState({}, '', newPath + window.location.search + window.location.hash);
+        console.log("🛡️ Guardian: URL normalized to root for analytics consistency.");
+    }
+
     loadUserProfile(); 
     populateStationList();
     
@@ -907,7 +916,18 @@ function setupFeatureButtons() {
     if (localStorage.theme === 'light') { document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } 
     else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); }
     themeToggleBtn.addEventListener('click', () => { if (localStorage.theme === 'dark') { localStorage.theme = 'light'; document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); } });
-    shareBtn.addEventListener('click', async () => { const shareData = { title: 'Metrorail Next Train', text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive:', url: '\n\nhttps://nexttrain.co.za' }; try { if (navigator.share) await navigator.share(shareData); else copyToClipboard(shareData.text + shareData.url); } catch (err) { copyToClipboard(shareData.text + shareData.url); } });
+    
+    // UPDATED: Share Button Tracking
+    shareBtn.addEventListener('click', async () => { 
+        // ANALYTICS: Track Share Click
+        trackAnalyticsEvent('click_share', { location: 'main_view' });
+        
+        const shareData = { title: 'Metrorail Next Train', text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive:', url: '\n\nhttps://nexttrain.co.za' }; 
+        try { 
+            if (navigator.share) await navigator.share(shareData); 
+            else copyToClipboard(shareData.text + shareData.url); 
+        } catch (err) { copyToClipboard(shareData.text + shareData.url); } 
+    });
     
     installBtn = document.getElementById('install-app-btn');
     
@@ -956,6 +976,7 @@ function setupFeatureButtons() {
     const closeNav = () => { sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open'); };
     closeNavBtn.addEventListener('click', closeNav); sidenavOverlay.addEventListener('click', closeNav);
     
+    // UPDATED: Route Selection Tracking
     routeList.addEventListener('click', (e) => { 
         const routeLink = e.target.closest('a'); 
         if (routeLink && routeLink.dataset.routeId) { 
@@ -965,6 +986,15 @@ function setupFeatureButtons() {
                 closeNav(); 
                 return; 
             } 
+            
+            // ANALYTICS: Track Route Selection
+            if (ROUTES[routeId]) {
+                trackAnalyticsEvent('select_route', {
+                    route_name: ROUTES[routeId].name,
+                    route_id: routeId
+                });
+            }
+
             currentRouteId = routeId;
             updateSidebarActiveState(); 
             closeNav(); 
@@ -1185,6 +1215,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const openAboutBtn = document.getElementById('open-about-btn');
     const closeAboutBtn = document.getElementById('close-about-btn');
 
+    // --- NEW: FACEBOOK BUTTON TRACKING (V4.54.2) ---
+    const facebookBtn = document.getElementById('facebook-connect-link');
+    if (facebookBtn) {
+        facebookBtn.addEventListener('click', () => {
+            trackAnalyticsEvent('click_social_facebook', { location: 'about_modal' });
+        });
+    }
+
     const closeSideNav = () => {
         if(sidenav) {
             sidenav.classList.remove('open');
@@ -1244,6 +1282,14 @@ document.addEventListener('DOMContentLoaded', () => {
         viewMapBtn.addEventListener('click', () => {
             trackAnalyticsEvent('click_network_map', { location: 'sidebar' });
             // The button likely opens via href or separate map.js logic, but tracking happens here.
+        });
+    }
+
+    // ANALYTICS: Interactive Map Button (Inside Modal)
+    const openInteractiveMapBtn = document.getElementById('open-interactive-map-btn');
+    if (openInteractiveMapBtn) {
+        openInteractiveMapBtn.addEventListener('click', () => {
+            trackAnalyticsEvent('open_interactive_map', { source: 'modal' });
         });
     }
     
