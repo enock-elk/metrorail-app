@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.58.1"; // Updated for Relay Station Logic (Koedoespoort/Roodepoort)
+const APP_VERSION = "V4.60.0"; // Updated for Pricing Accuracy & Roodepoort Context
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -190,8 +190,8 @@ const ROUTES = {
         isActive: true, 
         destA: 'JOHANNESBURG STATION', 
         destB: 'RANDFONTEIN STATION', 
-        transferStation: null, 
-        relayStation: 'ROODEPOORT STATION', // NEW: Defines this as a forced split-point for planner
+        transferStation: 'ROODEPOORT STATION', // UPDATED: Enabled Roodepoort as Transfer Hub
+        relayStation: 'ROODEPOORT STATION', 
         sheetKeys: {
             weekday_to_a: 'rand_to_jhb_weekday', 
             weekday_to_b: 'jhb_to_rand_weekday',
@@ -239,7 +239,7 @@ const ROUTES = {
 // 4. Refresh Settings
 const REFRESH_CONFIG = { standardInterval: 5 * 60 * 1000, activeInterval: 60 * 1000, nightModeStart: 21, nightModeEnd: 4 };
 
-// 5. Smart Pricing Configuration (V4.39.1)
+// 5. Smart Pricing Configuration (V4.58.2 - Adjusted for Pensioner/Military 50% Rule)
 const FARE_CONFIG = {
     offPeakStart: 9.5,  // 09:30
     offPeakEnd: 14.5,   // 14:30
@@ -250,9 +250,9 @@ const FARE_CONFIG = {
         "Z4": 15.00
     },
     profiles: {
-        "Adult":     { base: 1.0, offPeak: 0.6 }, 
-        "Scholar":   { base: 0.5, offPeak: 0.5 }, 
-        "Pensioner": { base: 1.0, offPeak: 0.5 }, 
-        "Military":  { base: 1.0, offPeak: 0.5 }  
+        "Adult":     { base: 1.0, offPeak: 0.6 }, // 40% Discount
+        "Scholar":   { base: 0.5, offPeak: 0.5 }, // Flat 50%
+        "Pensioner": { base: 1.0, offPeak: 0.5 }, // 50% Off-Peak Discount
+        "Military":  { base: 1.0, offPeak: 0.5 }  // 50% Off-Peak Discount
     }
 };

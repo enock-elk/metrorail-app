@@ -429,20 +429,20 @@ function getRouteFare(sheetKey, departureTimeStr) {
     if (!zoneCode || !FARE_CONFIG.zones[zoneCode]) return null;
 
     let basePrice = FARE_CONFIG.zones[zoneCode];
-    let isOffPeak = false;
-    let isPromo = false;
+    let discountLabel = null;
+    let isPromo = false; 
+    let isOffPeak = false; // Legacy flag, kept for backward compat if needed, but ui.js should use discountLabel if present
 
     const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
     
     let useOffPeakRate = false;
     
-    // UPDATED V4.39.1: Precise Decimal Time Logic
-    if (departureTimeStr) {
+    // GUARDIAN FIX V4.58.2: Off-Peak is strictly Weekday only.
+    if (currentDayType === 'weekday' && departureTimeStr) {
         try {
             const parts = departureTimeStr.split(':');
             const h = parseInt(parts[0], 10);
             const m = parseInt(parts[1], 10) || 0;
-            // Convert to decimal (e.g., 9:30 = 9.5)
             const decimalTime = h + (m / 60);
             
             if (decimalTime >= FARE_CONFIG.offPeakStart && decimalTime < FARE_CONFIG.offPeakEnd) {
@@ -453,21 +453,43 @@ function getRouteFare(sheetKey, departureTimeStr) {
         }
     }
 
+    // Explicit Rules for Pensioner & Military (Always Off-Peak rate if defined, or follows time?)
+    // Actually, Config says: Pensioner: { base: 1.0, offPeak: 0.5 }. 
+    // This implies they pay full price during peak, and 50% off during off-peak?
+    // OR is it a flat rate? Usually Pensioners get off-peak rates ALL day or specific times.
+    // Assuming standard time-based off-peak logic applies to them too unless stated otherwise.
+    
     const multiplier = useOffPeakRate ? profile.offPeak : profile.base;
 
+    // Apply Multiplier
+    let finalPrice = basePrice * multiplier;
+
+    // GUARDIAN FIX V4.58.3: Rounding to Nearest 50 cents
+    // Logic: Multiply by 2, Ceil, Divide by 2.
+    // Example: 6.30 * 2 = 12.6 -> Ceil(12.6) = 13 -> 13 / 2 = 6.50
+    finalPrice = Math.ceil(finalPrice * 2) / 2;
+
+    // Determine Label
     if (multiplier < 1.0) {
-        basePrice = basePrice * multiplier;
-        if (useOffPeakRate && profile.base === 1.0) {
-             isOffPeak = true; 
+        isPromo = true; // Trigger color change
+        if (currentUserProfile === "Pensioner") {
+            discountLabel = "50% Off-Peak";
+        } else if (currentUserProfile === "Military") {
+            discountLabel = "50% Off-Peak";
+        } else if (currentUserProfile === "Scholar") {
+            discountLabel = "50% Discount";
+        } else if (currentUserProfile === "Adult" && useOffPeakRate) {
+            discountLabel = "40% Off-Peak";
         } else {
-             isPromo = true; 
+            discountLabel = "Discounted"; // Fallback
         }
     }
 
     return {
-        price: basePrice.toFixed(2),
-        isOffPeak: isOffPeak,
-        isPromo: isPromo
+        price: finalPrice.toFixed(2),
+        isOffPeak: useOffPeakRate, // Legacy
+        isPromo: isPromo,
+        discountLabel: discountLabel // NEW: Specific Text
     };
 }
 
@@ -598,7 +620,11 @@ function findNextTrains() {
 
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
-            if (otherRoute.corridorId === currentRoute.corridorId) {
+            
+            // GUARDIAN FIX V4.58.3: Removed Strict Corridor Check
+            // We now allow trains from other corridors (like JHB West) to appear if they overlap forward.
+            // if (otherRoute.corridorId === currentRoute.corridorId) { <--- REMOVED
+            
                  const key = (currentDayType === 'weekday') ? otherRoute.sheetKeys.weekday_to_b : otherRoute.sheetKeys.saturday_to_b;
                  const otherRows = fullDatabase[key];
                  const otherMeta = fullDatabase[key + "_meta"];
@@ -609,7 +635,8 @@ function findNextTrains() {
                      const tNum = j.train || j.train1.train;
                      if (seenTrainsB.has(tNum)) return false; 
                      
-                     // FORWARD OVERLAP CHECK (V4.39)
+                     // FORWARD OVERLAP CHECK (V4.39) - SAFETY CRITICAL
+                     // This ensures we only show trains that actually go to one of the target stations.
                      if (!hasForwardOverlap(tNum, otherSchedule, selectedStation, targetStationsB)) {
                          return false; 
                      }
@@ -629,7 +656,7 @@ function findNextTrains() {
                      sheetKey: key
                  }));
                  mergedJourneys = [...mergedJourneys, ...tagged];
-            }
+            // } // End of removed corridor check
         });
 
         mergedJourneys.sort((a, b) => {

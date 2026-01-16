@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.58.1 (Guardian Edition - Analytics & ID Update)
-  - ANALYTICS: Dev Mode Filter Active (Clarity/GA4).
-  - TRACKING: Added ID to Facebook Connect button for event tracking.
+  Metrorail Next Train V4.60.0 (Guardian Edition - UI Polish)
+  - FIX: Removed stray "/" character from Route Subtitle in header.
+  - UI: Maintained Green "Interactive Map" button in modal.
+  - UI: Maintained Outlined "Network Map" button in sidebar.
 -->
 <html lang="en" class="dark">
 
@@ -32,7 +33,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
-      "softwareVersion": "4.54.2",
+      "softwareVersion": "4.58.5",
       "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map",
       "url": "https://nexttrain.co.za/"
     }
@@ -194,7 +195,7 @@
             
             <!-- VERSION FOOTER -->
             <div class="mt-4 px-4 text-right">
-                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.54.2</p>
+                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.58.5</p>
             </div>
         </div>
     </div>
@@ -250,10 +251,9 @@
         <div id="view-next-train" class="view-section active p-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
             
             <div class="text-center mb-6 h-[50px] flex flex-col justify-center">
+                <!-- ROUTE TITLE CONTAINER (CLEANED) -->
                 <div id="route-subtitle" class="inline-flex items-center justify-center space-x-2 cursor-pointer group bg-white dark:bg-gray-800 px-4 py-1.5 h-[34px] rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1">
-                    <h2 id="route-subtitle-text" class="text-sm font-bold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 transition-colors">
-                        Pretoria <-> Pienaarspoort
-                    </h2>
+                    <h2 id="route-subtitle-text" class="text-sm font-bold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 transition-colors">Pretoria <-> Pienaarspoort</h2>
                     <svg class="w-4 h-4 text-gray-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
                 <p id="last-updated-date" class="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Schedule updated: 22 December 2025</p>
@@ -478,9 +478,10 @@
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative">
                 <div class="flex items-center space-x-3">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Network Map</h3>
-                    <a href="map.html" id="open-interactive-map-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm transition-colors flex items-center decoration-none">
-                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        Coverage Map
+                    <!-- GUARDIAN: Updated Link to Interactive Map -->
+                    <a href="map.html" id="open-interactive-map-btn" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded-full shadow-md transition-all transform active:scale-95 flex items-center decoration-none animate-pulse">
+                        <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Open Interactive Map
                     </a>
                 </div>
                 <button id="close-map-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Map">
@@ -708,7 +709,7 @@
             </div>
 
             <p class="mt-12 text-[10px] text-gray-400 font-mono">
-                Version 4.54.2 (Guardian Edition)
+                Version 4.58.5 (Guardian Edition)
             </p>
         </div>
     </div>

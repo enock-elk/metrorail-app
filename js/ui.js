@@ -192,9 +192,15 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
 
     let sharedTag = "";
     if (journey.isShared && journey.sourceRoute) {
-         const routeName = journey.sourceRoute.replace("Pretoria <-> ", "").replace("Route", "").trim();
+         // GUARDIAN FIX: Dynamic Regex to strip ALL hub prefixes (Pretoria, JHB, Germiston, Mabopane)
+         // This fixes the "From JHB <-> Naledi" display bug.
+         const routeName = journey.sourceRoute
+            .replace(/^(Pretoria|JHB|Germiston|Mabopane)\s+<->\s+/i, "") // Strip prefix
+            .replace("Route", "")
+            .trim();
+
          if (journey.isDivergent) {
-             sharedTag = `<span class="block text-[9px] uppercase font-bold text-red-600 dark:text-red-400 mt-0.5 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-300 dark:border-red-700">⚠️ To ${journey.actualDestName}</span>`;
+             sharedTag = `<span class="block text-[9px] uppercase font-bold text-red-600 dark:text-red-400 mt-0.5 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-200 dark:border-red-700">⚠️ To ${journey.actualDestName}</span>`;
          } else {
              sharedTag = `<span class="block text-[9px] uppercase font-bold text-purple-600 dark:text-purple-400 mt-0.5 bg-purple-100 dark:bg-purple-900 px-1 rounded w-fit mx-auto">From ${routeName}</span>`;
          }
@@ -249,11 +255,31 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
 function renderNextAvailableTrain(element, destination) {
     const currentRoute = ROUTES[currentRouteId];
     let nextDayName = ""; let nextDaySheetKey = ""; let dayOffset = 1; 
+    
+    // GUARDIAN FIX: Identify the correct 'next day' type for modal
+    let nextDayType = 'weekday'; 
+
     switch (currentDayIndex) {
-        case 6: nextDayName = "Monday"; dayOffset = 2; nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; break;
-        case 5: nextDayName = "Saturday"; dayOffset = 1; nextDaySheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b'; break;
-        default: nextDayName = "tomorrow"; dayOffset = 1; nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; break;
+        case 6: // Saturday -> Monday
+            nextDayName = "Monday"; 
+            dayOffset = 2; 
+            nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; 
+            nextDayType = 'weekday';
+            break;
+        case 5: // Friday -> Saturday
+            nextDayName = "Saturday"; 
+            dayOffset = 1; 
+            nextDaySheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b'; 
+            nextDayType = 'saturday';
+            break;
+        default: // Sun-Thu -> Next Day
+            nextDayName = "tomorrow"; 
+            dayOffset = 1; 
+            nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; 
+            nextDayType = 'weekday';
+            break;
     }
+    
     const nextSchedule = schedules[nextDaySheetKey];
     if (!nextSchedule) { element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400">No schedule found.</div>`; return; }
     const selectedStation = stationSelect.value;
@@ -271,7 +297,8 @@ function renderNextAvailableTrain(element, destination) {
     const safeDest = escapeHTML(destination);
     const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
 
-    element.innerHTML = `<div class="flex flex-col justify-center items-center w-full py-2"><div class="text-sm font-bold text-gray-600 dark:text-gray-400">No more trains today</div><p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${nextDayName} is at:</p><div class="text-center p-2 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-1 w-3/4"><div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div></div><button onclick="openScheduleModal('${safeDestForClick}')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">See Full Schedule</button></div>`;
+    // GUARDIAN FIX: Pass 'nextDayType' to openScheduleModal
+    element.innerHTML = `<div class="flex flex-col justify-center items-center w-full py-2"><div class="text-sm font-bold text-gray-600 dark:text-gray-400">No more trains today</div><p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${nextDayName} is at:</p><div class="text-center p-2 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-1 w-3/4"><div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div></div><button onclick="openScheduleModal('${safeDestForClick}', '${nextDayType}')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">See Full Schedule</button></div>`;
 }
 
 // --- UPDATE FARE BOX LOGIC (V4.44.1) ---
@@ -801,19 +828,41 @@ window.openScheduleModal = function(destination, dayOverride = null) {
     let titleSuffix = "";
 
     // 1. Determine Journey Data Source
-    if (dayOverride === 'weekday') {
-        // Dynamic fetch for Monday (Weekday) override
+    // GUARDIAN FIX: Expanded to handle 'saturday', 'sunday', and 'weekday' properly
+    if (dayOverride) {
         const currentRoute = ROUTES[currentRouteId];
-        const sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
+        let sheetKey = null;
+        
+        // Map override to correct sheet key based on Day Type
+        if (dayOverride === 'weekday') {
+            sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
+            titleSuffix = " (Weekday)";
+        } else if (dayOverride === 'saturday') {
+            sheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b';
+            titleSuffix = " (Saturday)";
+        } else if (dayOverride === 'sunday') {
+            // Note: Sunday usually uses Weekday schedule in this system unless specified otherwise
+            // But logic.js treats Sunday as No Service. If we are here, we probably mean Monday.
+            // If the user clicked "Check Monday", dayOverride is 'weekday'.
+            // If the user clicked "First train Sunday", that might be valid if Sunday service existed.
+            // For now, let's map Sunday to Weekday to be safe (Monday), or Saturday if that's the rule.
+            // Based on config, Sunday = No Service usually.
+            // Assuming 'sunday' might be passed for future proofing or explicit Sunday schedules.
+            // For now, let's fallback to Weekday (Monday) if Sunday is requested but empty? 
+            // Actually, based on logic.js, Sunday redirects to Monday. 
+            // Let's stick to the requested day type if available.
+            sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; // Defaulting Sunday requests to Weekday (Monday)
+            titleSuffix = " (Monday)";
+        }
+
         const schedule = schedules[sheetKey];
         if (schedule) {
-            // Re-run logic for Weekday
+            // Re-run logic for the specific Day Type
             if (destination === currentRoute.destA) {
                 journeys = findNextJourneyToDestA(stationSelect.value, "00:00:00", schedule, currentRoute).allJourneys;
             } else {
                 journeys = findNextJourneyToDestB(stationSelect.value, "00:00:00", schedule, currentRoute).allJourneys;
             }
-            titleSuffix = " (Monday/Weekday)";
         }
     } else {
         // Default: Use pre-calculated current day data
@@ -866,7 +915,12 @@ window.openScheduleModal = function(destination, dayOverride = null) {
 
         let modalTag = "";
         if (j.isShared && j.sourceRoute) {
-             const routeName = j.sourceRoute.replace("Pretoria <-> ", "").replace("Route", "").trim();
+             // GUARDIAN FIX: Also fix modal labels for JHB/Midway
+             const routeName = j.sourceRoute
+                .replace(/^(Pretoria|JHB|Germiston|Mabopane)\s+<->\s+/i, "")
+                .replace("Route", "")
+                .trim();
+
              if (j.isDivergent) {
                  modalTag = `<span class="text-[9px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-1.5 py-0.5 rounded uppercase ml-2 border border-red-200 dark:border-red-800">⚠️ To ${j.actualDestName}</span>`;
              } else {
@@ -876,7 +930,31 @@ window.openScheduleModal = function(destination, dayOverride = null) {
 
         const formattedDep = formatTimeDisplay(dep);
         
-        div.innerHTML = `<div><span class="text-lg font-bold text-gray-900 dark:text-white">${formattedDep}</span><div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName} ${modalTag}</div></div><div class="flex flex-col items-end gap-1">${type === 'Direct' ? '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>' : `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase">Transfer @ ${j.train1.terminationStation.replace(' STATION','')}</span>`} ${j.isLastTrain ? '<span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800">LAST TRAIN</span>' : ''}</div>`;
+        // GUARDIAN: CLEAN STATUS DISPLAY LOGIC
+        // If we have a warning tag (modalTag), show it as the status pill on the right.
+        // Otherwise, show the standard "Direct" or "Transfer" status.
+        let rightPillHTML = "";
+        
+        if (modalTag && modalTag !== "") {
+            // Move Warning Tag to Right Side (Status Pill)
+            rightPillHTML = modalTag; 
+            // Clear modalTag from Left Side to prevent duplication
+            modalTag = ""; 
+        } else {
+            // Standard Status Pills
+            if (type === 'Direct') {
+                rightPillHTML = '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>';
+            } else {
+                rightPillHTML = `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase">Transfer @ ${j.train1.terminationStation.replace(' STATION','')}</span>`;
+            }
+        }
+
+        // Add Last Train Badge if needed
+        if (j.isLastTrain) {
+            rightPillHTML += ' <span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800">LAST TRAIN</span>';
+        }
+        
+        div.innerHTML = `<div><span class="text-lg font-bold text-gray-900 dark:text-white">${formattedDep}</span><div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName} ${modalTag}</div></div><div class="flex flex-col items-end gap-1">${rightPillHTML}</div>`;
         modalList.appendChild(div);
     });
     

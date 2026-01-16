@@ -68,7 +68,7 @@
                 <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
                 <span class="text-sm font-bold uppercase tracking-wider">System Stable</span>
             </div>
-            <p class="text-xs text-gray-500 font-mono">V4.48.0 (Live)</p>
+            <p class="text-xs text-gray-500 font-mono">V4.58.1 (Live)</p>
         </div>
     </header>
 
@@ -84,42 +84,55 @@
 
             <div class="space-y-6 relative">
                 
-                <!-- V4.48 Card (Latest) -->
+                <!-- V4.58.1 Card (Latest) -->
                 <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 shadow-sm relative z-10">
-                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-green-500 border-4 border-gray-900 flex items-center justify-center">
+                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-blue-500 border-4 border-gray-900 flex items-center justify-center">
+                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <h3 class="font-bold text-lg text-white mb-1">Smart Routing & Core Stability (V4.58.1)</h3>
+                    <p class="text-xs text-gray-400 mb-3 uppercase tracking-wide">Planner Logic & UX Fixes</p>
+                    <ul class="text-sm space-y-2 text-gray-300">
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Smart Pruning:</strong> Automatically removes redundant transfers if the direct train is faster.</li>
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Path Validation:</strong> Fixed "Boomerang" (U-turn) logic to prevent illogical routing.</li>
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Pretoria Unblocked:</strong> Fixed geometric constraints that blocked transfers via Pretoria Station.</li>
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Seamless Updates:</strong> Added "New Schedule Available" toast notification.</li>
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Map Fix:</strong> Corrected pinch-to-zoom behavior on mobile devices.</li>
+                    </ul>
+                </div>
+
+                <!-- V4.48 Card -->
+                <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 shadow-sm relative z-10 opacity-90">
+                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-green-600 border-4 border-gray-900 flex items-center justify-center">
                         <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                     </div>
                     <h3 class="font-bold text-lg text-white mb-1">Planner Intelligence (V4.48)</h3>
-                    <p class="text-xs text-gray-400 mb-3 uppercase tracking-wide">UX & Logic Upgrade</p>
+                    <p class="text-xs text-gray-400 mb-3 uppercase tracking-wide">Foundation Upgrade</p>
                     <ul class="text-sm space-y-2 text-gray-300">
-                        <li class="flex items-start"><span class="text-green-500 mr-2">▸</span> <strong>Contextual Destinations:</strong> Transfer instructions now show the <em>Train's</em> final stop (e.g., "Connect to De Wildt Train") matching platform signs.</li>
-                        <li class="flex items-start"><span class="text-green-500 mr-2">▸</span> <strong>Smart Filtering:</strong> Prevent selecting the same station for Origin/Destination.</li>
-                        <li class="flex items-start"><span class="text-green-500 mr-2">▸</span> <strong>Hybrid Durability:</strong> Codebase commented for AI safety.</li>
-                        <li class="flex items-start"><span class="text-green-500 mr-2">▸</span> <strong>Night Owl Fix:</strong> "Tomorrow Morning" logic for late-night planning.</li>
+                        <li class="flex items-start"><span class="text-green-600 mr-2">▸</span> <strong>Contextual Destinations:</strong> Transfer instructions match platform signs.</li>
+                        <li class="flex items-start"><span class="text-green-600 mr-2">▸</span> <strong>Night Owl Logic:</strong> "Tomorrow Morning" status for late-night planning.</li>
+                        <li class="flex items-start"><span class="text-green-600 mr-2">▸</span> <strong>Smart Filtering:</strong> Prevent selecting same Origin/Destination.</li>
                     </ul>
                 </div>
 
                 <!-- V4.43 Card -->
-                <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 shadow-sm relative z-10 opacity-90">
-                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-blue-600 border-4 border-gray-900 flex items-center justify-center">
+                <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 shadow-sm relative z-10 opacity-75">
+                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-gray-600 border-4 border-gray-900 flex items-center justify-center">
                         <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                     </div>
                     <h3 class="font-bold text-lg text-white mb-1">Soweto & West Expansion (V4.43)</h3>
                     <ul class="text-sm space-y-2 text-gray-300 mt-2">
-                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>New Route:</strong> JHB <-> Naledi (Soweto).</li>
-                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>New Route:</strong> JHB <-> Randfontein.</li>
-                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Network Map:</strong> Updated coverage.</li>
+                        <li class="flex items-start"><span class="text-gray-500 mr-2">▸</span> <strong>New Routes:</strong> JHB <-> Naledi & Randfontein.</li>
+                        <li class="flex items-start"><span class="text-gray-500 mr-2">▸</span> <strong>Network Map:</strong> Updated coverage.</li>
                     </ul>
                 </div>
 
                 <!-- Technical Foundation (Summary) -->
-                <div class="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50 relative z-10 opacity-75">
-                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-gray-600 border-4 border-gray-900"></div>
+                <div class="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50 relative z-10 opacity-60">
+                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-gray-700 border-4 border-gray-900"></div>
                     <h3 class="font-bold text-base text-gray-300 mb-2">Technical Foundation</h3>
                     <div class="flex flex-wrap gap-2">
                         <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">Analytics Events</span>
                         <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">Lazy Load Maps</span>
-                        <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">Manifest Polish</span>
                         <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">Smart Fares</span>
                         <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">Off-Peak Logic</span>
                     </div>
@@ -142,17 +155,10 @@
                 <!-- PRIORITY 1: High Value Features -->
                 <div class="bg-gradient-to-br from-blue-900/40 to-gray-800 rounded-xl p-5 border border-blue-500/30 shadow-lg">
                     <div class="flex justify-between items-start mb-2">
-                        <h3 class="font-bold text-white">1. Engagement & Trust</h3>
+                        <h3 class="font-bold text-white">1. Engagement & Virality</h3>
                         <span class="bg-blue-600 text-[10px] font-bold px-2 py-0.5 rounded text-white">NEXT SPRINT</span>
                     </div>
                     <ul class="text-sm space-y-3 mt-3">
-                        <li class="flex items-start">
-                            <span class="bg-blue-500/20 text-blue-300 p-1 rounded mr-3 text-xs">📅</span>
-                            <div>
-                                <strong class="block text-gray-200">Holiday Logic Automation</strong>
-                                <span class="text-gray-400 text-xs">Algorithmic calculation of Easter/Public Holidays to replace manual lists.</span>
-                            </div>
-                        </li>
                         <li class="flex items-start">
                             <span class="bg-blue-500/20 text-blue-300 p-1 rounded mr-3 text-xs">📲</span>
                             <div>
@@ -161,10 +167,10 @@
                             </div>
                         </li>
                         <li class="flex items-start">
-                            <span class="bg-blue-500/20 text-blue-300 p-1 rounded mr-3 text-xs">🔄</span>
+                            <span class="bg-blue-500/20 text-blue-300 p-1 rounded mr-3 text-xs">📅</span>
                             <div>
-                                <strong class="block text-gray-200">"Update Available" Toast</strong>
-                                <span class="text-gray-400 text-xs">Notify users when a new schedule is cached (Service Worker).</span>
+                                <strong class="block text-gray-200">Holiday Logic Automation</strong>
+                                <span class="text-gray-400 text-xs">Algorithmic calculation of Easter/Public Holidays to replace manual lists.</span>
                             </div>
                         </li>
                     </ul>

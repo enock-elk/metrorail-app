@@ -1,4 +1,4 @@
-// --- TRIP PLANNER LOGIC (V4.58.1 - Guardian Edition: Hybrid Logic) ---
+// --- TRIP PLANNER LOGIC (V4.60.0 - Guardian Edition: Hybrid Logic) ---
 // - FIX: Removed 'validateHubDirectionality' to unblock Pretoria transfers.
 // - NEW: Added 'isPathLogical' (Anti-Overshoot & Anti-Boomerang) to filter illogical U-turns.
 // - KPT: Retained 'Smart Pruning' (isTrainFasterDirect) from V4.58.
