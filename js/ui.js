@@ -192,8 +192,7 @@ function renderJourney(element, headerElement, journey, firstTrainName, destinat
 
     let sharedTag = "";
     if (journey.isShared && journey.sourceRoute) {
-         // GUARDIAN FIX: Dynamic Regex to strip ALL hub prefixes (Pretoria, JHB, Germiston, Mabopane)
-         // This fixes the "From JHB <-> Naledi" display bug.
+         // GUARDIAN FIX: Dynamic Regex to strip ALL hub prefixes
          const routeName = journey.sourceRoute
             .replace(/^(Pretoria|JHB|Germiston|Mabopane)\s+<->\s+/i, "") // Strip prefix
             .replace("Route", "")
@@ -429,10 +428,8 @@ function updateTime() {
             day = parseInt(simDayIndex);
             timeString = simTimeStr; 
             
-            // SIM MODE: Construct local date from input value to enable holiday check
             const dateInput = document.getElementById('sim-date');
             if (dateInput && dateInput.value) {
-                // Parse "YYYY-MM-DD" as local time components to avoid UTC shifts
                 const parts = dateInput.value.split('-');
                 if(parts.length === 3) {
                     dateToCheck = new Date(parts[0], parts[1] - 1, parts[2]);
@@ -452,7 +449,6 @@ function updateTime() {
         let newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
         let specialStatusText = "";
 
-        // Check for holidays (Now works in Sim Mode too!)
         if (dateToCheck) {
             var m = pad(dateToCheck.getMonth() + 1);
             var d = pad(dateToCheck.getDate());
@@ -461,9 +457,7 @@ function updateTime() {
             if (SPECIAL_DATES[dateKey]) {
                 newDayType = SPECIAL_DATES[dateKey];
                 
-                // Use Specific Name if available, otherwise generic
                 if (HOLIDAY_NAMES[dateKey]) {
-                    // We'll construct a custom display string below
                     specialStatusText = " (Holiday)"; 
                 } else {
                     specialStatusText = " (Holiday Schedule)";
@@ -486,16 +480,14 @@ function updateTime() {
         else if (newDayType === 'saturday') displayType = "Saturday Schedule";
         else displayType = "Weekday Schedule";
 
-        // OVERRIDE FOR NAMED HOLIDAYS
         if (dateToCheck) {
             var m = pad(dateToCheck.getMonth() + 1);
             var d = pad(dateToCheck.getDate());
             var dateKey = m + "-" + d;
             
             if (HOLIDAY_NAMES[dateKey]) {
-                // E.g. "Workers' Day Schedule" replacing "Saturday Schedule"
                 displayType = `${HOLIDAY_NAMES[dateKey]} Schedule`;
-                specialStatusText = ""; // Clear redundant text
+                specialStatusText = "";
             }
         }
 
@@ -541,28 +533,20 @@ function handleShortcutActions() {
     const action = urlParams.get('action');
     
     if (action === 'planner') {
-        // Force Switch to Planner Tab
         switchTab('trip-planner');
-        
-        // Clean URL so refresh doesn't stick
         const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
         window.history.replaceState({path: newUrl}, '', newUrl);
         
     } else if (action === 'map') {
-        // Open Map Modal
         if (typeof setupMapLogic === 'function') {
             const mapModal = document.getElementById('map-modal');
             if (mapModal) {
                 mapModal.classList.remove('hidden');
-                // Push State for Back Button logic
                 history.pushState({ modal: 'map' }, '', '#map');
-                
-                // Reset map zoom/pan if needed
                 const mapImage = document.getElementById('map-image');
                 if(mapImage) mapImage.style.transform = `translate(0px, 0px) scale(1)`;
             }
         }
-        // Clean URL
         const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
         window.history.replaceState({path: newUrl}, '', newUrl);
     }
@@ -570,8 +554,7 @@ function handleShortcutActions() {
 
 function initializeApp() {
     
-    // --- GUARDIAN: URL CLEANER (Fix Analytics Split) ---
-    // If user is on /index.html, silently rewrite to /
+    // --- GUARDIAN: URL CLEANER ---
     if (window.location.pathname.endsWith('index.html')) {
         const newPath = window.location.pathname.replace('index.html', '');
         window.history.replaceState({}, '', newPath + window.location.search + window.location.hash);
@@ -590,11 +573,354 @@ function initializeApp() {
     startClock();
     findNextTrains(); 
     
-    // --- CHECK FOR SHORTCUT ACTIONS ---
+    // NEW: Check for Service Alerts
+    checkServiceAlerts();
+    
     handleShortcutActions();
 
     loadingOverlay.style.display = 'none';
     mainContent.style.display = 'block';
+}
+
+// --- NEW FEATURE: SERVICE ALERTS (READ ONLY) ---
+async function checkServiceAlerts() {
+    const bellBtn = document.getElementById('notice-bell');
+    const dot = document.getElementById('notice-dot');
+    const modal = document.getElementById('notice-modal');
+    const content = document.getElementById('notice-content');
+    const timestamp = document.getElementById('notice-timestamp');
+    
+    if (!bellBtn) return;
+
+    try {
+        // Cache Buster Added (Date.now())
+        const response = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/notices.json?t=${Date.now()}`);
+        if (!response.ok) return; 
+        
+        const notices = await response.json();
+        if (!notices) {
+            bellBtn.classList.add('hidden');
+            return;
+        }
+
+        let activeNotice = notices[currentRouteId] || notices['all'];
+        
+        if (activeNotice) {
+            const now = Date.now();
+            if (activeNotice.expiresAt && now > activeNotice.expiresAt) {
+                console.log("Notice expired, ignoring.");
+                bellBtn.classList.add('hidden');
+                return;
+            }
+
+            const seenKey = `seen_notice_${activeNotice.id}`;
+            const hasSeen = localStorage.getItem(seenKey) === 'true';
+
+            bellBtn.classList.remove('hidden');
+            
+            if (!hasSeen) {
+                bellBtn.classList.add('animate-shake');
+                dot.classList.remove('hidden');
+            } else {
+                bellBtn.classList.remove('animate-shake');
+                dot.classList.add('hidden');
+            }
+
+            bellBtn.onclick = () => {
+                localStorage.setItem(seenKey, 'true');
+                bellBtn.classList.remove('animate-shake');
+                dot.classList.add('hidden');
+                
+                content.textContent = activeNotice.message;
+                const date = new Date(activeNotice.postedAt);
+                timestamp.textContent = `Posted: ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, ${date.toLocaleDateString()}`;
+                
+                modal.classList.remove('hidden');
+            };
+        } else {
+            bellBtn.classList.add('hidden');
+        }
+
+    } catch (e) {
+        console.warn("Alert check failed:", e);
+    }
+}
+
+// --- NEW FEATURE: SERVICE ALERTS MANAGER (DEV ONLY) ---
+// UPDATED: Phase 1 (Smart Key), Phase 2 (Rename), Phase 3 (Accordion)
+function setupServiceAlertsManager() {
+    const alertPanel = document.getElementById('alert-panel');
+    const alertMsg = document.getElementById('alert-msg');
+    const alertTarget = document.getElementById('alert-target');
+    const alertDuration = document.getElementById('alert-duration');
+    const alertKey = document.getElementById('alert-key');
+    const alertRemember = document.getElementById('alert-remember');
+    const sendBtn = document.getElementById('alert-send-btn');
+    const clearBtn = document.getElementById('alert-clear-btn');
+
+    if (!sendBtn || !alertPanel) return; 
+
+    // --- PHASE 3: ACCORDION STRUCTURE ---
+    // Inject the accordion wrapper if it doesn't exist
+    if (!document.getElementById('alert-header-btn')) {
+        const header = document.createElement('button');
+        header.id = 'alert-header-btn';
+        header.className = "w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none mb-4";
+        header.innerHTML = `
+            <span class="flex items-center"><span class="mr-2">📢</span> Service Alerts Manager</span>
+            <svg id="alert-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        `;
+
+        const body = document.createElement('div');
+        body.id = 'alert-body';
+        body.className = "hidden transition-all duration-300"; // Hidden by default
+
+        // Move existing children of alertPanel into the body
+        // We iterate backwards or use a loop because appendChild removes from old parent
+        while (alertPanel.firstChild) {
+            // Skip if it is the header we just created (logic check, though not attached yet)
+            if (alertPanel.firstChild.tagName === 'H4') {
+                alertPanel.removeChild(alertPanel.firstChild); // Remove old header title
+            } else {
+                body.appendChild(alertPanel.firstChild);
+            }
+        }
+
+        alertPanel.appendChild(header);
+        alertPanel.appendChild(body);
+
+        // Add Toggle Logic
+        header.addEventListener('click', () => {
+            body.classList.toggle('hidden');
+            const chevron = document.getElementById('alert-chevron');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+            } else {
+                chevron.classList.remove('-rotate-90');
+            }
+        });
+    }
+
+    // 1. Populate Target Dropdown
+    if (alertTarget && alertTarget.options.length <= 1) {
+        Object.values(ROUTES).forEach(r => {
+            if (r.isActive) {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = r.name;
+                alertTarget.appendChild(opt);
+            }
+        });
+    }
+
+    // 2. Auto-Fill Key from Storage (PHASE 1: Smart UI)
+    const savedKey = localStorage.getItem('admin_firebase_key');
+    
+    // Create the "Key Saved" Status Bar
+    // Check if it already exists to avoid duplication on re-runs
+    if (!document.getElementById('key-status-div')) {
+        const keyStatusDiv = document.createElement('div');
+        keyStatusDiv.id = 'key-status-div';
+        keyStatusDiv.className = "hidden flex items-center justify-between bg-green-50 dark:bg-green-900/20 p-2 rounded border border-green-200 dark:border-green-800 mb-2";
+        keyStatusDiv.innerHTML = `
+            <span class="text-xs font-bold text-green-700 dark:text-green-400 flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                Key Saved
+            </span>
+            <button id="alert-key-reset-btn" class="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300 font-bold underline px-2">Reset</button>
+        `;
+        
+        // Insert it before the input
+        if (alertKey && alertKey.parentNode) {
+            alertKey.parentNode.insertBefore(keyStatusDiv, alertKey);
+        }
+
+        // Reset Button Logic
+        const resetBtn = keyStatusDiv.querySelector('#alert-key-reset-btn');
+        if (resetBtn) {
+            resetBtn.onclick = (e) => {
+                e.preventDefault();
+                localStorage.removeItem('admin_firebase_key');
+                alertKey.value = '';
+                if(alertRemember) alertRemember.checked = false;
+                
+                keyStatusDiv.classList.add('hidden');
+                alertKey.classList.remove('hidden');
+                if (alertKey.nextElementSibling) alertKey.nextElementSibling.classList.remove('hidden'); // Show checkbox div
+                
+                showToast("Key cleared from device.", "info");
+            };
+        }
+    }
+
+    const keyStatusDiv = document.getElementById('key-status-div');
+
+    const showSavedMode = () => {
+        if(keyStatusDiv) keyStatusDiv.classList.remove('hidden');
+        alertKey.classList.add('hidden');
+        if (alertKey.nextElementSibling) alertKey.nextElementSibling.classList.add('hidden'); // Hide checkbox div
+    };
+
+    // Initial State Check
+    if (savedKey && alertKey) {
+        alertKey.value = savedKey;
+        if(alertRemember) alertRemember.checked = true;
+        showSavedMode();
+    }
+
+    // --- ENHANCEMENT: DYNAMIC DATE INPUT FOR DURATION (PHASE 2) ---
+    if (alertDuration && alertDuration.tagName === 'SELECT') {
+        const dateInput = document.createElement('input');
+        dateInput.type = 'datetime-local';
+        dateInput.id = 'alert-duration-custom';
+        dateInput.className = alertDuration.className; 
+        
+        // Default to Now + 2 hours
+        const now = new Date();
+        now.setHours(now.getHours() + 2);
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // Local timezone fix
+        dateInput.value = now.toISOString().slice(0, 16);
+
+        alertDuration.parentNode.replaceChild(dateInput, alertDuration);
+        
+        // Update label (PHASE 2: Label Rename)
+        const durationLabel = dateInput.previousElementSibling;
+        if(durationLabel) durationLabel.textContent = "Expiry Time";
+    }
+
+    // 3. EDIT MODE: Pre-fill current alert when target changes
+    const fetchCurrentAlert = async (target) => {
+        try {
+            const res = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/notices/${target}.json?t=${Date.now()}`);
+            const data = await res.json();
+            
+            // Reference the NEW date input
+            const dateInput = document.getElementById('alert-duration-custom');
+
+            if (data && data.message) {
+                alertMsg.value = data.message;
+                if(data.expiresAt && dateInput) {
+                    const expiryDate = new Date(data.expiresAt);
+                    expiryDate.setMinutes(expiryDate.getMinutes() - expiryDate.getTimezoneOffset());
+                    dateInput.value = expiryDate.toISOString().slice(0, 16);
+                }
+                showToast("Loaded existing alert for editing.", "info");
+                sendBtn.textContent = "Update Alert"; 
+            } else {
+                alertMsg.value = "";
+                sendBtn.textContent = "Post Alert";
+            }
+        } catch (e) { console.log("No active alert to pre-fill."); }
+    };
+
+    // Use a flag to prevent multiple listeners if function runs twice
+    if (!alertTarget.dataset.listenerAttached) {
+        alertTarget.addEventListener('change', () => fetchCurrentAlert(alertTarget.value));
+        alertTarget.dataset.listenerAttached = "true";
+    }
+    
+    // Trigger once on load
+    fetchCurrentAlert(alertTarget.value);
+
+    // 4. Send Logic
+    // Remove old listeners by cloning (simple trick) or assume function is idempotent enough
+    // Ideally we assign onclick directly to override previous
+    sendBtn.onclick = async () => {
+        const msg = alertMsg.value.trim();
+        // Use saved key OR input key
+        const secret = localStorage.getItem('admin_firebase_key') || alertKey.value.trim();
+        const target = alertTarget.value;
+        const dateInput = document.getElementById('alert-duration-custom');
+        
+        if (!msg || !secret) {
+            showToast("Message and Key required!", "error");
+            return;
+        }
+
+        let expiresAtVal;
+        if (dateInput && dateInput.value) {
+            expiresAtVal = new Date(dateInput.value).getTime();
+        } else {
+            // Fallback if something fails
+            expiresAtVal = Date.now() + (2 * 60 * 60 * 1000); 
+        }
+
+        if (alertRemember && alertRemember.checked) {
+            localStorage.setItem('admin_firebase_key', secret);
+            showSavedMode(); // Switch to saved mode immediately
+        } else {
+            // Only clear if NOT in saved mode (don't clear if user didn't check remember but is using a saved key)
+            if(!localStorage.getItem('admin_firebase_key')) {
+                localStorage.removeItem('admin_firebase_key');
+            }
+        }
+
+        const now = Date.now();
+        const payload = {
+            id: now.toString(), 
+            message: msg,
+            postedAt: now,
+            expiresAt: expiresAtVal
+        };
+
+        const url = `https://metrorail-next-train-default-rtdb.firebaseio.com/notices/${target}.json?auth=${secret}`;
+
+        try {
+            sendBtn.textContent = "Posting...";
+            sendBtn.disabled = true;
+            
+            const res = await fetch(url, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                showToast("Alert Posted Successfully!", "success");
+                checkServiceAlerts(); 
+            } else {
+                showToast("Failed. Check Admin Key.", "error");
+            }
+        } catch (e) {
+            showToast("Network Error: " + e.message, "error");
+        } finally {
+            sendBtn.textContent = "Update Alert";
+            sendBtn.disabled = false;
+        }
+    };
+
+    // 5. Clear Logic
+    clearBtn.onclick = async () => {
+        const secret = localStorage.getItem('admin_firebase_key') || alertKey.value.trim();
+        const target = alertTarget.value;
+
+        if (!secret) {
+            showToast("Admin Key required to clear.", "error");
+            return;
+        }
+
+        const targetName = target === 'all' ? "GLOBAL Alert" : ROUTES[target]?.name || target;
+
+        if(!confirm(`Delete the active alert for: ${targetName}?`)) return;
+
+        const url = `https://metrorail-next-train-default-rtdb.firebaseio.com/notices/${target}.json?auth=${secret}`;
+
+        try {
+            const res = await fetch(url, { method: 'DELETE' });
+            if (res.ok) {
+                showToast("Alert Cleared!", "info");
+                // Clear UI immediately
+                alertMsg.value = "";
+                sendBtn.textContent = "Post Alert";
+                // Only hide bell if we cleared the CURRENTLY visible alert context
+                // But generally safe to re-check
+                setTimeout(checkServiceAlerts, 500); 
+            } else {
+                showToast("Failed to clear.", "error");
+            }
+        } catch (e) {
+            showToast("Error: " + e.message, "error");
+        }
+    };
 }
 
 function populateStationList() {
@@ -636,15 +962,11 @@ function syncPlannerFromMain(stationName) {
 }
 
 // --- GUARDIAN: SMART BACK BUTTON LOGIC ---
-// Replaced simple close listeners with history-aware closing
 function setupModalButtons() { 
-    // Generic closer that respects history
     const closeAction = () => { 
-        // If the modal was opened via history (hash exists), go back
         if (location.hash === '#schedule') {
             history.back();
         } else {
-            // Fallback for manual open without history push (unlikely but safe)
             scheduleModal.classList.add('hidden'); 
             document.body.style.overflow = '';
         }
@@ -656,15 +978,12 @@ function setupModalButtons() {
 }
 
 function switchTab(tab) {
-    // History Management for Tabs
     if (tab === 'trip-planner') {
         if (location.hash !== '#planner') {
             history.pushState({ tab: 'planner' }, '', '#planner');
         }
     } else {
-        // If going back to main, clear hash if it was planner
         if (location.hash === '#planner') {
-            // Ideally replaceState to remove hash without triggering popstate loop
             history.replaceState({ tab: 'next-train' }, '', ' '); 
         }
     }
@@ -686,14 +1005,11 @@ function switchTab(tab) {
         moveTabIndicator(targetBtn);
     }
     
-    // Logic: Do not save 'activeTab' if we are in a shortcut action (to avoid getting stuck there on reload)
-    // But since handleShortcutActions cleans the URL, we are safe to save normally.
     localStorage.setItem('activeTab', tab);
 }
 
 // --- GLOBAL BACK BUTTON HANDLER ---
 window.addEventListener('popstate', (event) => {
-    // 1. Close any open Modals first
     const modals = [
         { id: 'schedule-modal', hash: '#schedule' },
         { id: 'map-modal', hash: '#map' },
@@ -707,19 +1023,16 @@ window.addEventListener('popstate', (event) => {
         const el = document.getElementById(m.id);
         if (el && !el.classList.contains('hidden')) {
             el.classList.add('hidden');
-            document.body.style.overflow = ''; // Restore scroll
+            document.body.style.overflow = ''; 
             modalClosed = true;
         }
     });
 
-    if (modalClosed) return; // If we closed a modal, stop there.
+    if (modalClosed) return;
 
-    // 2. Handle Tab Navigation (Back from Planner -> Next Train)
-    // If popstate fired and hash is empty, it means we went back from #planner to root
     if (!location.hash) {
         const activeTab = localStorage.getItem('activeTab');
         if (activeTab === 'trip-planner') {
-            // Force switch visually without pushing state again
             switchTab('next-train');
         }
     }
@@ -777,7 +1090,7 @@ function setupSwipeNavigation() {
         if (document.body.classList.contains('sidenav-open') || 
             !document.getElementById('map-modal').classList.contains('hidden') ||
             !document.getElementById('schedule-modal').classList.contains('hidden') ||
-            !document.getElementById('about-modal').classList.contains('hidden')) { // Block swipe if About is open
+            !document.getElementById('about-modal').classList.contains('hidden')) { 
             return;
         }
         touchStartX = e.changedTouches[0].screenX;
@@ -788,7 +1101,7 @@ function setupSwipeNavigation() {
         if (document.body.classList.contains('sidenav-open') || 
             !document.getElementById('map-modal').classList.contains('hidden') ||
             !document.getElementById('schedule-modal').classList.contains('hidden') ||
-            !document.getElementById('about-modal').classList.contains('hidden')) { // Block swipe if About is open
+            !document.getElementById('about-modal').classList.contains('hidden')) { 
             return;
         }
 
@@ -817,23 +1130,17 @@ function handleSwipe(startX, endX, startY, endY) {
     }
 }
 
-// UPDATED: Modal now supports dynamic Day Override for "Check Monday" feature
-// AND History Support
+// UPDATED: Modal now supports dynamic Day Override
 window.openScheduleModal = function(destination, dayOverride = null) {
-    
-    // History Push
     history.pushState({ modal: 'schedule' }, '', '#schedule');
 
     let journeys = [];
     let titleSuffix = "";
 
-    // 1. Determine Journey Data Source
-    // GUARDIAN FIX: Expanded to handle 'saturday', 'sunday', and 'weekday' properly
     if (dayOverride) {
         const currentRoute = ROUTES[currentRouteId];
         let sheetKey = null;
         
-        // Map override to correct sheet key based on Day Type
         if (dayOverride === 'weekday') {
             sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
             titleSuffix = " (Weekday)";
@@ -841,23 +1148,12 @@ window.openScheduleModal = function(destination, dayOverride = null) {
             sheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b';
             titleSuffix = " (Saturday)";
         } else if (dayOverride === 'sunday') {
-            // Note: Sunday usually uses Weekday schedule in this system unless specified otherwise
-            // But logic.js treats Sunday as No Service. If we are here, we probably mean Monday.
-            // If the user clicked "Check Monday", dayOverride is 'weekday'.
-            // If the user clicked "First train Sunday", that might be valid if Sunday service existed.
-            // For now, let's map Sunday to Weekday to be safe (Monday), or Saturday if that's the rule.
-            // Based on config, Sunday = No Service usually.
-            // Assuming 'sunday' might be passed for future proofing or explicit Sunday schedules.
-            // For now, let's fallback to Weekday (Monday) if Sunday is requested but empty? 
-            // Actually, based on logic.js, Sunday redirects to Monday. 
-            // Let's stick to the requested day type if available.
-            sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; // Defaulting Sunday requests to Weekday (Monday)
+            sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; 
             titleSuffix = " (Monday)";
         }
 
         const schedule = schedules[sheetKey];
         if (schedule) {
-            // Re-run logic for the specific Day Type
             if (destination === currentRoute.destA) {
                 journeys = findNextJourneyToDestA(stationSelect.value, "00:00:00", schedule, currentRoute).allJourneys;
             } else {
@@ -865,7 +1161,6 @@ window.openScheduleModal = function(destination, dayOverride = null) {
             }
         }
     } else {
-        // Default: Use pre-calculated current day data
         if (!currentScheduleData || !currentScheduleData[destination]) { 
             showToast("No full schedule data available.", "error"); 
             return; 
@@ -889,9 +1184,6 @@ window.openScheduleModal = function(destination, dayOverride = null) {
         const type = j.type === 'transfer' ? 'Transfer' : 'Direct';
         const depSeconds = timeToSeconds(dep);
         
-        // If overriding, everything is in the future relative to "Now" logic, 
-        // unless we want to highlight "past" trains of a theoretical day. 
-        // For Monday Preview, we treat all as valid list.
         let isPassed = false;
         if (!dayOverride) {
             isPassed = depSeconds < nowSeconds;
@@ -907,7 +1199,6 @@ window.openScheduleModal = function(destination, dayOverride = null) {
         const div = document.createElement('div'); 
         div.className = divClass;
         
-        // Marker for scrolling
         if (!isPassed && !firstNextTrainFound && !dayOverride) {
             div.id = "next-train-marker";
             firstNextTrainFound = true;
@@ -915,7 +1206,6 @@ window.openScheduleModal = function(destination, dayOverride = null) {
 
         let modalTag = "";
         if (j.isShared && j.sourceRoute) {
-             // GUARDIAN FIX: Also fix modal labels for JHB/Midway
              const routeName = j.sourceRoute
                 .replace(/^(Pretoria|JHB|Germiston|Mabopane)\s+<->\s+/i, "")
                 .replace("Route", "")
@@ -930,18 +1220,12 @@ window.openScheduleModal = function(destination, dayOverride = null) {
 
         const formattedDep = formatTimeDisplay(dep);
         
-        // GUARDIAN: CLEAN STATUS DISPLAY LOGIC
-        // If we have a warning tag (modalTag), show it as the status pill on the right.
-        // Otherwise, show the standard "Direct" or "Transfer" status.
         let rightPillHTML = "";
         
         if (modalTag && modalTag !== "") {
-            // Move Warning Tag to Right Side (Status Pill)
             rightPillHTML = modalTag; 
-            // Clear modalTag from Left Side to prevent duplication
             modalTag = ""; 
         } else {
-            // Standard Status Pills
             if (type === 'Direct') {
                 rightPillHTML = '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>';
             } else {
@@ -949,7 +1233,6 @@ window.openScheduleModal = function(destination, dayOverride = null) {
             }
         }
 
-        // Add Last Train Badge if needed
         if (j.isLastTrain) {
             rightPillHTML += ' <span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800">LAST TRAIN</span>';
         }
@@ -967,7 +1250,6 @@ window.openScheduleModal = function(destination, dayOverride = null) {
             if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' });
         }, 10);
     } else {
-        // Scroll to top for Monday preview
         const container = document.getElementById('modal-list');
         if(container) container.scrollTop = 0;
     }
@@ -995,9 +1277,7 @@ function setupFeatureButtons() {
     else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); }
     themeToggleBtn.addEventListener('click', () => { if (localStorage.theme === 'dark') { localStorage.theme = 'light'; document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); } });
     
-    // UPDATED: Share Button Tracking
     shareBtn.addEventListener('click', async () => { 
-        // ANALYTICS: Track Share Click
         trackAnalyticsEvent('click_share', { location: 'main_view' });
         
         const shareData = { title: 'Metrorail Next Train', text: 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive:', url: '\n\nhttps://nexttrain.co.za' }; 
@@ -1028,7 +1308,6 @@ function setupFeatureButtons() {
     
     if (installBtn) {
         installBtn.addEventListener('click', () => { 
-            // ANALYTICS: Track Install Click
             trackAnalyticsEvent('install_app_click', { location: 'main_view' });
             
             installBtn.classList.add('hidden'); 
@@ -1054,7 +1333,6 @@ function setupFeatureButtons() {
     const closeNav = () => { sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open'); };
     closeNavBtn.addEventListener('click', closeNav); sidenavOverlay.addEventListener('click', closeNav);
     
-    // UPDATED: Route Selection Tracking
     routeList.addEventListener('click', (e) => { 
         const routeLink = e.target.closest('a'); 
         if (routeLink && routeLink.dataset.routeId) { 
@@ -1065,7 +1343,6 @@ function setupFeatureButtons() {
                 return; 
             } 
             
-            // ANALYTICS: Track Route Selection
             if (ROUTES[routeId]) {
                 trackAnalyticsEvent('select_route', {
                     route_name: ROUTES[routeId].name,
@@ -1077,6 +1354,7 @@ function setupFeatureButtons() {
             updateSidebarActiveState(); 
             closeNav(); 
             loadAllSchedules(); 
+            checkServiceAlerts(); // Re-check alerts for new route
         } 
     });
     
@@ -1129,11 +1407,11 @@ function selectWelcomeRoute(routeId) {
         updateSidebarActiveState();
         updatePinUI();
         loadAllSchedules();
+        checkServiceAlerts(); // Check alerts on first load
     }, 300);
 }
 
 window.openLegal = function(type) {
-    // ANALYTICS: Track Legal View
     trackAnalyticsEvent('view_legal_doc', { type: type });
     history.pushState({ modal: 'legal' }, '', '#legal');
 
@@ -1157,7 +1435,6 @@ function closeLegal() {
 let newWorker;
 
 function showUpdateToast(worker) {
-    // Check if toast already exists
     if (document.getElementById('update-toast')) return;
 
     const updateToastHTML = `
@@ -1182,7 +1459,6 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./service-worker.js').then(reg => {
             console.log('SW registered:', reg);
 
-            // Check if there's a waiting worker (update ready)
             if (reg.waiting) {
                 showUpdateToast(reg.waiting);
                 return;
@@ -1283,7 +1559,6 @@ document.addEventListener('DOMContentLoaded', () => {
         versionFooter.textContent = APP_VERSION;
     }
 
-    // --- NEW: ABOUT & HELP MODAL WIRING ---
     const helpModal = document.getElementById('help-modal');
     const openHelpBtn = document.getElementById('open-help-btn');
     const closeHelpBtn = document.getElementById('close-help-btn');
@@ -1293,7 +1568,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const openAboutBtn = document.getElementById('open-about-btn');
     const closeAboutBtn = document.getElementById('close-about-btn');
 
-    // --- NEW: FACEBOOK BUTTON TRACKING (V4.54.2) ---
     const facebookBtn = document.getElementById('facebook-connect-link');
     if (facebookBtn) {
         facebookBtn.addEventListener('click', () => {
@@ -1349,21 +1623,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if(aboutModal) aboutModal.addEventListener('click', (e) => { if (e.target === aboutModal) closeAbout(); });
 
     locateBtn.addEventListener('click', () => {
-        // ANALYTICS: Track Auto-Locate Click
         trackAnalyticsEvent('click_auto_locate', { location: 'home_header' });
         findNearestStation(false);
     });
     
-    // ANALYTICS: Network Map Button
     const viewMapBtn = document.getElementById('view-map-btn');
     if (viewMapBtn) {
         viewMapBtn.addEventListener('click', () => {
             trackAnalyticsEvent('click_network_map', { location: 'sidebar' });
-            // The button likely opens via href or separate map.js logic, but tracking happens here.
         });
     }
 
-    // ANALYTICS: Interactive Map Button (Inside Modal)
     const openInteractiveMapBtn = document.getElementById('open-interactive-map-btn');
     if (openInteractiveMapBtn) {
         openInteractiveMapBtn.addEventListener('click', () => {
@@ -1387,20 +1657,19 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (localClickCount >= 5) {
                 localClickCount = 0;
-                // NEW: Open the Global Dev Modal (#dev-modal) instead of PIN modal
                 const devModal = document.getElementById('dev-modal');
                 const devPinModal = document.getElementById('pin-modal');
                 
-                // AUTO-FILL CURRENT TIME (Pre-calculation)
                 const now = new Date();
                 const timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
 
                 if (isSimMode) {
-                    // SESSION PERSISTENCE: Bypass PIN if already in simulation mode
-                    if (devModal) devModal.classList.remove('hidden');
+                    if (devModal) {
+                        devModal.classList.remove('hidden');
+                        setupServiceAlertsManager(); // Init alerts logic when opening
+                    }
                     showToast("Developer Session Active", "info");
                 } else {
-                    // NEW SESSION: Require PIN & Auto-fill time
                     if(simTimeInput) simTimeInput.value = timeString;
                     if (devPinModal) {
                         devPinModal.classList.remove('hidden');
@@ -1424,17 +1693,17 @@ document.addEventListener('DOMContentLoaded', () => {
             pinModal.classList.add('hidden');
             const devModal = document.getElementById('dev-modal');
             
-            // --- GUARDIAN ANALYTICS FLAG ---
-            // Set local flag to filter internal traffic from GA4
             localStorage.setItem('analytics_ignore', 'true');
             console.log("🛡️ Guardian: Analytics filter enabled for this device.");
 
-            // AUTO-FILL CURRENT TIME (Redundant safety check)
             const now = new Date();
             const timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
             if(simTimeInput) simTimeInput.value = timeString;
 
-            if (devModal) devModal.classList.remove('hidden');
+            if (devModal) {
+                devModal.classList.remove('hidden');
+                setupServiceAlertsManager(); // Init alerts logic
+            }
             showToast("Developer Mode Unlocked!", "success");
         } else {
             showToast("Invalid PIN", "error");
@@ -1454,12 +1723,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 dateInput.focus();
             } else {
                 dateContainer.classList.add('hidden');
-                // Removed dateInput.value = '' to persist date selection
             }
         });
     }
 
-    // --- UPDATED SIMULATION APPLY LOGIC ---
     if (simApplyBtn) {
         simApplyBtn.addEventListener('click', () => {
             if (!simEnabledCheckbox || !simTimeInput) return;
@@ -1467,22 +1734,19 @@ document.addEventListener('DOMContentLoaded', () => {
             isSimMode = simEnabledCheckbox.checked;
             simTimeStr = simTimeInput.value + ":00";
             
-            // Logic: Check Dropdown Value First
             if (dayDropdown && dayDropdown.value === 'specific') {
-                // If specific date is chosen, validate input
                 if (dateInput && dateInput.value) {
                     const d = new Date(dateInput.value);
-                    simDayIndex = d.getDay(); // 0-6
+                    simDayIndex = d.getDay(); 
                     showToast(`Simulating specific date: ${dateInput.value}`, "info");
                 } else {
                     showToast("Please select a valid date.", "error");
                     return;
                 }
             } else if (dayDropdown) {
-                // Use generic day value
                 simDayIndex = parseInt(dayDropdown.value);
             } else {
-                simDayIndex = 1; // Default fallback
+                simDayIndex = 1;
             }
 
             if (isSimMode && !simTimeInput.value) { 
@@ -1492,37 +1756,31 @@ document.addEventListener('DOMContentLoaded', () => {
             
             showToast(isSimMode ? "Dev Simulation Active!" : "Real-time Mode Active", "success");
             
-            // NEW: Minimize Modal on Apply (UX Requirement)
             const devModal = document.getElementById('dev-modal');
             if(devModal) devModal.classList.add('hidden');
             
-            // Force immediate update
             updateTime(); 
             findNextTrains();
         });
     }
 
-    // --- NEW: SIMULATION EXIT LOGIC ---
     const simExitBtn = document.getElementById('sim-exit-btn');
     if (simExitBtn) {
         simExitBtn.addEventListener('click', () => {
             isSimMode = false;
             
-            // Reset UI Controls
             if(simEnabledCheckbox) simEnabledCheckbox.checked = false;
             if(simTimeInput) simTimeInput.value = '';
             
-            if(dayDropdown) dayDropdown.value = '1'; // Reset to Monday
+            if(dayDropdown) dayDropdown.value = '1'; 
             if(dateContainer) dateContainer.classList.add('hidden');
             if(dateInput) dateInput.value = '';
             
-            // Close Modal
             const devModal = document.getElementById('dev-modal');
             if(devModal) devModal.classList.add('hidden');
             
             showToast("Exited Developer Mode", "info");
             
-            // Force Real-Time Update
             updateTime();
             findNextTrains();
         });
@@ -1561,8 +1819,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showWelcomeScreen();
     }
 
-    // --- RESTORE ACTIVE TAB (Updated for URL Shortcuts) ---
-    // If URL has action, do not restore previous tab, respect the action.
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('action')) {
         console.log("Shortcut action detected, ignoring saved tab preference.");

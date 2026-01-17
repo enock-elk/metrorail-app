@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.60.0"; // Updated for Pricing Accuracy & Roodepoort Context
+const APP_VERSION = "V4.60.1"; // Updated for Pricing Accuracy & Roodepoort Context
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
