@@ -1,12 +1,12 @@
 User-agent: *
 Allow: /
 
-# Prevent indexing of system files and error pages
+# System Pages (Keep these hidden)
 Disallow: /404.html
 Disallow: /offline.html
-Disallow: /js/
-Disallow: /css/
-Disallow: /icons/
+
+# Resources (Unblocked for SEO/Rendering)
+# JS, CSS, and Icons are now allowed so Google can render the App.
 
 # Point to the Sitemap
 Sitemap: https://nexttrain.co.za/sitemap.xml
