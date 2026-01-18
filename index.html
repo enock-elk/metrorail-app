@@ -1,17 +1,45 @@
 <!DOCTYPE html>
+<!-- 
+  Metrorail Next Train V4.60.3 (Guardian Edition - Analytics & ID Update)
+  - ANALYTICS: Dev Mode Filter Active (Clarity/GA4).
+  - TRACKING: Added ID to Facebook Connect button for event tracking.
+  - ADMIN: Restored admin.js for Service Alerts & Dev Mode trigger.
+-->
 <html lang="en" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
 
+    <!-- SEO: Freshness Signal -->
     <title>Metrorail Next Train | 2026 Live Schedules & Fares</title>
     
+    <!-- SEO: Canonical Tag -->
     <link rel="canonical" href="https://nexttrain.co.za/">
 
     <meta name="description" content="Check live train schedules and fares for Metrorail Gauteng (Pretoria, JHB, Soweto). Works offline!">
     
-    <!-- SOCIAL MEDIA META TAGS (Open Graph) -->
+    <!-- SEO: JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Metrorail Next Train",
+      "operatingSystem": "Web, iOS, Android",
+      "applicationCategory": "TravelApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "ZAR"
+      },
+      "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
+      "softwareVersion": "4.60.3",
+      "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map",
+      "url": "https://nexttrain.co.za/"
+    }
+    </script>
+
+    <!-- SOCIAL MEDIA META TAGS -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nexttrain.co.za/">
     <meta property="og:title" content="Metrorail Next Train | Live Schedules">
@@ -20,6 +48,7 @@
     <meta property="og:image:width" content="512">
     <meta property="og:image:height" content="512">
 
+    <!-- TWITTER CARD -->
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="Metrorail Next Train">
     <meta name="twitter:description" content="Live Metrorail schedules for Gauteng. Plan your trip now.">
@@ -27,7 +56,7 @@
 
     <link rel="manifest" href="manifest.json">
     
-    <!-- ANALYTICS (CRITICAL - DO NOT REMOVE) -->
+    <!-- CRITICAL: Google Analytics 4 (Measurement ID: G-JM5DH6ERVX) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
@@ -43,6 +72,7 @@
         gtag('config', 'G-JM5DH6ERVX', gaConfig);
     </script>
 
+    <!-- MICROSOFT CLARITY TRACKING CODE (With Dev Filter) -->
     <script type="text/javascript">
         // GUARDIAN: Only load Clarity if NOT in dev mode
         if (localStorage.getItem('analytics_ignore') !== 'true') {
@@ -67,6 +97,7 @@
         });
     </script>
     
+    <!-- ICONS -->
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -98,19 +129,6 @@
             border-radius: 0 !important;
             transform: none !important;
         }
-        /* Custom Shake Animation for Bell */
-        @keyframes shake {
-            0% { transform: rotate(0deg); }
-            20% { transform: rotate(-15deg); }
-            40% { transform: rotate(15deg); }
-            60% { transform: rotate(-10deg); }
-            80% { transform: rotate(10deg); }
-            100% { transform: rotate(0deg); }
-        }
-        .animate-shake {
-            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both infinite;
-            animation-delay: 2s; /* Pause between shakes */
-        }
     </style>
 </head>
 
@@ -120,6 +138,7 @@
     <div id="sidenav">
         <button id="close-nav-btn" class="close-btn text-gray-300 dark:text-gray-500 hover:text-white dark:hover:text-gray-300" aria-label="Close Menu">&times;</button>
         
+        <!-- COMPACT PROFILE HEADER -->
         <div class="p-3 bg-blue-50 dark:bg-gray-800 border-b border-blue-100 dark:border-gray-700 mb-2">
             <p class="text-xs text-gray-500 uppercase font-bold mb-1">Passenger Profile</p>
             <div class="flex justify-between items-baseline">
@@ -128,9 +147,9 @@
             </div>
         </div>
 
-        <!-- DYNAMIC ROUTE LIST (Filled by Renderer.js) -->
-        <ul id="route-list" class="mt-2"></ul>
-
+        <ul id="route-list" class="mt-2">
+            <!-- DYNAMIC CONTENT (Renderer.js) -->
+        </ul>
         <div class="mt-auto pt-2 border-t border-gray-700 dark:border-gray-600 pb-2">
             
             <div class="mb-3 space-y-2 px-1">
@@ -153,26 +172,29 @@
                 </a>
             </li>
             
+            <!-- VERSION FOOTER -->
             <div class="mt-4 px-4 text-right">
-                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.60.1</p>
+                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.60.3</p>
             </div>
         </div>
     </div>
 
+    <!-- MAIN APP CONTAINER -->
     <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden relative min-h-[600px] flex flex-col border border-gray-200 dark:border-gray-700 hidden">
         
-        <!-- FIX 1: HIDE OFFLINE INDICATOR BY DEFAULT -->
-        <div id="offline-indicator" style="display: none;">OFFLINE MODE - USING SAVED SCHEDULE</div>
+        <div id="offline-indicator">OFFLINE MODE - USING SAVED SCHEDULE</div>
         
+        <!-- HEADER -->
         <div class="pt-4 px-6 pb-2 bg-white dark:bg-gray-800 z-20 shadow-sm relative">
              <div class="flex items-center justify-between relative mb-2">
                 <button id="open-nav-btn" class="p-2 -ml-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none" aria-label="Open Menu">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                 </button>
                 <div class="flex space-x-2">
-                    <button id="notice-bell" class="hidden relative p-2 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 focus:outline-none transition-transform" aria-label="View Alerts">
-                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"></path></svg>
-                        <span id="notice-dot" class="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 border-2 border-white dark:border-gray-800 rounded-full hidden"></span>
+                    <!-- Service Alert Bell (Hidden by default) -->
+                    <button id="notice-bell" class="hidden relative p-2 rounded-full bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 focus:outline-none mr-1" aria-label="Service Alert">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                        <span id="notice-dot" class="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white bg-red-600 transform translate-x-1/4 -translate-y-1/4 hidden"></span>
                     </button>
 
                     <button id="pin-route-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none" title="Pin this route" aria-label="Pin Route">
@@ -190,7 +212,7 @@
             </div>
 
             <div class="text-center mb-4">
-                <h1 id="app-title" class="text-2xl font-bold text-gray-900 dark:text-white select-none cursor-default">Metrorail Next Train</h1>
+                <h1 id="app-title" class="text-2xl font-bold text-gray-900 dark:text-white select-none cursor-pointer" title="Developer Access (Tap 5 times)">Metrorail Next Train</h1>
                 
                 <div class="flex flex-col items-center mt-1">
                     <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium">--:--:--</p>
@@ -200,6 +222,7 @@
             </div>
         </div>
 
+        <!-- TABS -->
         <div class="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0 z-30">
             <button id="tab-next-train" class="tab-btn active">
                 Next Train
@@ -209,14 +232,17 @@
             </button>
         </div>
 
+        <!-- VIEW 1: NEXT TRAIN -->
         <div id="view-next-train" class="view-section active p-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
             
             <div class="text-center mb-6 h-[50px] flex flex-col justify-center">
                 <div id="route-subtitle" class="inline-flex items-center justify-center space-x-2 cursor-pointer group bg-white dark:bg-gray-800 px-4 py-1.5 h-[34px] rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1">
-                    <h2 id="route-subtitle-text" class="text-sm font-bold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 transition-colors">Pretoria <-> Pienaarspoort</h2>
+                    <h2 id="route-subtitle-text" class="text-sm font-bold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 transition-colors">
+                        Loading Route...
+                    </h2>
                     <svg class="w-4 h-4 text-gray-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
-                <p id="last-updated-date" class="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Schedule updated: 22 December 2025</p>
+                <p id="last-updated-date" class="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Schedule Effective from: --</p>
             </div>
 
             <div class="mb-4">
@@ -276,6 +302,7 @@
                 
                 <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">2026 &copy; Kazembe CodeWorks. All rights reserved.</p>
                 
+                <!-- NEW FOOTER LINKS -->
                 <div class="flex justify-center space-x-4 mt-3 pb-2">
                     <button onclick="openLegal('terms')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Terms of Use</button>
                     <button onclick="openLegal('privacy')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Privacy Policy</button>
@@ -283,18 +310,22 @@
             </div>
         </div>
 
+        <!-- VIEW 2: TRIP PLANNER -->
         <div id="view-trip-planner" class="view-section p-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
+            <!-- FIXED HEIGHT SPACER TO MATCH TAB 1 EXACTLY -->
             <div class="text-center mb-6 h-[50px] flex flex-col justify-center">
+                <!-- UPDATED: Informative Button -->
                 <button id="planner-info-btn" class="inline-flex items-center justify-center space-x-2 bg-white dark:bg-gray-800 px-4 py-1.5 h-[34px] rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <h2 class="text-sm font-bold text-gray-700 dark:text-gray-200">
                         Direct, Transfer & Bridge Trips
                     </h2>
                     <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 </button>
-                <p class="text-[10px] text-transparent font-medium uppercase tracking-wide select-none">Schedule updated: 22 December 2025</p>
+                <p class="text-[10px] text-transparent font-medium uppercase tracking-wide select-none">Schedule updated: --</p>
             </div>
             
             <div id="planner-input-section" class="space-y-6">
+                <!-- FROM SECTION -->
                 <div class="mb-4">
                     <div class="mb-2 h-5">
                         <label class="block text-xs font-bold text-gray-500 uppercase ml-1">From Station</label>
@@ -312,12 +343,14 @@
                     </div>
                 </div>
 
+                <!-- SWAP BUTTON -->
                 <div class="flex justify-center -my-3 relative z-10">
                     <button id="planner-swap-btn" class="bg-blue-100 dark:bg-blue-900 p-2 rounded-full text-blue-600 dark:text-blue-400 border-4 border-gray-50 dark:border-gray-900 shadow-md hover:scale-110 transition-transform" aria-label="Swap Stations">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
                     </button>
                 </div>
 
+                <!-- TO SECTION (FIXED LABEL) -->
                 <div class="relative">
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">To Station</label>
                     <input type="text" id="planner-to-search" name="search-station-to" placeholder="Search station..." autocomplete="off" autocorrect="off" spellcheck="false" class="w-full mb-2 p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-lg font-medium shadow-sm h-[54px]">
@@ -331,6 +364,7 @@
                 </button>
             </div>
 
+            <!-- Results Section -->
             <div id="planner-results-section" class="hidden mt-4 space-y-4">
                 <div class="flex justify-between items-center mb-4">
                     <h4 class="text-lg font-bold text-gray-900 dark:text-white">Your Journey</h4>
@@ -339,17 +373,20 @@
                 <div id="planner-results-list" class="space-y-4"></div>
             </div>
             
+            <!-- FOOTER BLOCK (For Trip Planner) -->
             <div class="mt-auto border-t border-gray-200 dark:border-gray-700 pt-6">
                 <div class="grid grid-cols-2 gap-4 mb-6">
                     <button onclick="document.getElementById('share-app-btn').click()" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all">
                         <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg> Share App
                     </button>
+                    <!-- Cloned Feedback Button -->
                     <a href="#" onclick="document.getElementById('feedback-btn').click(); return false;" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all">
                          <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg> Feedback
                     </a>
                 </div>
                 <p class="text-xs text-gray-500 dark:text-gray-400 text-center">2026 &copy; Kazembe CodeWorks. All rights reserved.</p>
                 
+                <!-- NEW FOOTER LINKS (Planner) -->
                 <div class="flex justify-center space-x-4 mt-3 pb-2">
                     <button onclick="openLegal('terms')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Terms of Use</button>
                     <button onclick="openLegal('privacy')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Privacy Policy</button>
@@ -358,34 +395,16 @@
         </div>
     </div>
     
+    <!-- Toast & Modals... -->
     <div id="toast" class=""></div>
 
-    <div id="notice-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[80] hidden flex items-center justify-center p-6 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 border-t-4 border-red-500">
-            <div class="flex items-start justify-between mb-3">
-                <div class="flex items-center">
-                    <span class="text-2xl mr-3">📢</span>
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Service Alert</h3>
-                </div>
-                <button onclick="document.getElementById('notice-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
-            <div id="notice-content" class="text-gray-700 dark:text-gray-200 text-sm mb-4 leading-relaxed">
-                </div>
-            <p id="notice-timestamp" class="text-xs text-gray-400 dark:text-gray-500 text-right"></p>
-            <button onclick="document.getElementById('notice-modal').classList.add('hidden')" class="w-full mt-4 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-colors">
-                Dismiss
-            </button>
-        </div>
-    </div>
-
-    <!-- EMPTY CONTAINER FOR WELCOME SCREEN (Dynamic Injection) -->
+    <!-- WELCOME MODAL -->
     <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-center p-6 transition-opacity duration-300">
         <div class="w-full max-w-sm flex flex-col items-center animate-fade-in-up">
             <div class="relative w-24 h-24 mb-6 shrink-0">
                 <div class="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-ping"></div>
                 <div class="relative bg-white dark:bg-gray-800 p-4 rounded-full shadow-xl ring-4 ring-blue-50 dark:ring-gray-700">
+                    <!-- UX FIX: Hide on error -->
                     <img src="icons/loading-logo.png" class="w-full h-full object-contain" alt="Logo" onerror="this.style.display='none'">
                 </div>
             </div>
@@ -396,6 +415,7 @@
         </div>
     </div>
     
+    <!-- PROFILE SETUP MODAL -->
     <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-md">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
             <div class="text-center">
@@ -422,6 +442,7 @@
         </div>
     </div>
 
+    <!-- SCHEDULE MODAL -->
     <div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col transform transition-transform duration-300 scale-95" id="modal-content">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
@@ -437,14 +458,15 @@
         </div>
     </div>
     
+    <!-- NETWORK MAP MODAL (Full Screen Update) -->
     <div id="map-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[70] hidden flex items-center justify-center p-0 full-screen backdrop-blur-md transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative">
                 <div class="flex items-center space-x-3">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Network Map</h3>
-                    <a href="map.html" id="open-interactive-map-btn" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded-full shadow-md transition-all transform active:scale-95 flex items-center decoration-none animate-pulse">
-                        <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        Open Interactive Map
+                    <a href="map.html" id="open-interactive-map-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm transition-colors flex items-center decoration-none">
+                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Coverage Map
                     </a>
                 </div>
                 <button id="close-map-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Map">
@@ -475,6 +497,7 @@
         </div>
     </div>
 
+    <!-- REDIRECT MODAL -->
     <div id="redirect-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[60] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95" id="redirect-modal-content">
             <div class="text-center">
@@ -491,6 +514,7 @@
         </div>
     </div>
 
+    <!-- LEGAL MODAL -->
     <div id="legal-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[70] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col transform transition-transform duration-300 scale-95">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
@@ -508,6 +532,7 @@
         </div>
     </div>
 
+    <!-- UPGRADED HELP / USER GUIDE MODAL -->
     <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[80] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col transform transition-transform duration-300 scale-95">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
@@ -521,6 +546,7 @@
             </div>
             
             <div class="p-6 overflow-y-auto text-sm text-gray-700 dark:text-gray-300 space-y-6 leading-relaxed">
+                <!-- 1. TRIP PLANNER SECTION -->
                 <div>
                     <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-2 flex items-center text-base">
                         <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full w-7 h-7 flex items-center justify-center text-sm mr-2 shadow-sm">🧭</span>
@@ -540,6 +566,7 @@
                     </div>
                 </div>
 
+                <!-- 2. NAVIGATION TIPS -->
                 <div>
                     <h4 class="font-bold text-green-600 dark:text-green-400 mb-2 flex items-center text-base">
                         <span class="bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 rounded-full w-7 h-7 flex items-center justify-center text-sm mr-2 shadow-sm">🗺️</span>
@@ -550,6 +577,7 @@
                     </p>
                 </div>
 
+                <!-- 3. OFFLINE CAPABILITY -->
                 <div>
                     <h4 class="font-bold text-purple-600 dark:text-purple-400 mb-2 flex items-center text-base">
                         <span class="bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 rounded-full w-7 h-7 flex items-center justify-center text-sm mr-2 shadow-sm">⚡</span>
@@ -569,54 +597,34 @@
         </div>
     </div>
 
-    <div id="install-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[90] hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-t-xl sm:rounded-xl shadow-2xl w-full max-w-sm mx-auto flex flex-col transform transition-transform duration-300 translate-y-full sm:translate-y-0" id="install-modal-content">
-            <div class="p-6">
-                <div class="flex justify-between items-start mb-4">
-                    <h3 class="text-xl font-bold text-gray-900 dark:text-white">Install Next Train</h3>
-                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500" aria-label="Close Install Modal">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
+    <!-- NOTICE / SERVICE ALERT MODAL (Passenger View) -->
+    <div id="notice-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
+            <div class="flex items-start mb-4">
+                <div class="flex-shrink-0 bg-red-100 dark:bg-red-900 rounded-full p-2 mr-3">
+                    <svg class="w-6 h-6 text-red-600 dark:text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                 </div>
-                
-                <p class="text-sm text-gray-600 dark:text-gray-300 mb-6">Install this app on your iPhone for the best experience.</p>
-                
-                <div class="space-y-6">
-                    <div class="flex items-start">
-                        <span class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-bold mr-3">1</span>
-                        <div>
-                            <p class="text-sm font-medium text-gray-900 dark:text-white mb-1">Tap the <span class="font-bold">Share</span> button</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Look for the icon at the bottom of your Safari browser.</p>
-                            <div class="mt-2 text-blue-500">
-                                <svg class="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0L8 8m4-4v12"></path></svg>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="flex items-start">
-                        <span class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-bold mr-3">2</span>
-                        <div>
-                            <p class="text-sm font-medium text-gray-900 dark:text-white mb-1">Select <span class="font-bold">"Add to Home Screen"</span></p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Scroll down in the share menu until you see this option.</p>
-                        </div>
-                    </div>
-                    
-                    <div class="flex items-start">
-                        <span class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-bold mr-3">3</span>
-                        <div>
-                            <p class="text-sm font-medium text-gray-900 dark:text-white mb-1">Tap <span class="font-bold">Add</span></p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Confirm in the top right corner.</p>
-                        </div>
-                    </div>
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Service Alert</h3>
+                    <p id="notice-timestamp" class="text-xs text-gray-500 dark:text-gray-400 mt-1">Posted: Just now</p>
                 </div>
             </div>
-            <div class="p-4 bg-gray-50 dark:bg-gray-900 rounded-b-xl border-t border-gray-200 dark:border-gray-700">
-                <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-sm">Got it</button>
+            
+            <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600 mb-6">
+                <p id="notice-content" class="text-sm text-gray-800 dark:text-gray-200 font-medium leading-relaxed">
+                    <!-- Dynamic Content Here -->
+                </p>
             </div>
+
+            <button onclick="document.getElementById('notice-modal').classList.add('hidden')" class="w-full bg-gray-900 dark:bg-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-lg shadow-sm transition-colors">
+                Dismiss
+            </button>
         </div>
     </div>
 
+    <!-- NEW ABOUT MODAL (Full Screen) -->
     <div id="about-modal" class="fixed inset-0 bg-white dark:bg-gray-900 z-[70] hidden flex flex-col items-center p-0 full-screen transition-opacity duration-300 overflow-y-auto">
+        <!-- Close Button Area -->
         <div class="w-full max-w-2xl p-6 flex justify-end sticky top-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm z-20">
             <button id="close-about-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition shadow-sm">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -624,12 +632,15 @@
         </div>
 
         <div class="w-full max-w-md px-6 pb-12 flex flex-col items-center text-center animate-fade-in-up">
+            <!-- Brand -->
+            <!-- UX FIX: Hide on error -->
             <img src="icons/loading-logo.png" class="w-20 h-20 mb-6 shadow-lg rounded-full" alt="Next Train Logo" onerror="this.style.display='none'">
             <h2 class="text-3xl font-black text-gray-900 dark:text-white mb-2">Metrorail Next Train</h2>
             <div class="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-wider mb-8">
                 Unofficial & Independent
             </div>
 
+            <!-- Origin Story -->
             <div class="text-left space-y-6 text-gray-600 dark:text-gray-300 leading-relaxed mb-10">
                 <p>
                     <span class="text-2xl float-left mr-2">👋</span> 
@@ -643,6 +654,7 @@
                 </p>
             </div>
 
+            <!-- Developer Credit -->
             <div class="w-full border-t border-gray-200 dark:border-gray-800 pt-8 mt-4">
                 <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Built & Maintained By</p>
                 <div class="flex items-center justify-center space-x-4">
@@ -659,95 +671,118 @@
             </div>
 
             <p class="mt-12 text-[10px] text-gray-400 font-mono">
-                Version 4.60.1 (Guardian Edition)
+                Version 4.60.3 (Guardian Edition)
             </p>
         </div>
     </div>
 
-    <!-- DEVELOPMENT TOOLS MODAL (Dynamically populated by admin.js) -->
-    <div id="dev-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300 overflow-y-auto">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 my-8">
-            <div class="flex justify-between items-center mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                    <span class="text-xl mr-2">🛠️</span> Developer Mode
+    <!-- PIN ENTRY MODAL (Simple) -->
+    <div id="pin-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[80] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-95">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 text-center">Developer Access</h3>
+            <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*" class="w-full p-3 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-center text-lg tracking-widest mb-4" placeholder="Enter PIN" maxlength="6">
+            <div class="flex space-x-2">
+                <button id="pin-cancel-btn" class="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white py-2 rounded font-bold">Cancel</button>
+                <button id="pin-submit-btn" class="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Unlock</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GLOBAL DEVELOPER MODAL (Combined Simulation & Admin) -->
+    <div id="dev-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300 overflow-y-auto">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100 my-auto">
+            <div class="flex justify-between items-center mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                    <span class="text-2xl mr-2">🛠️</span> Developer Mode
                 </h3>
-                <button onclick="document.getElementById('dev-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500" aria-label="Close Dev Modal">
+                <button onclick="document.getElementById('dev-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors" aria-label="Close Dev Modal">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
             
-            <div id="sim-panel" class="flex flex-col gap-4 mb-6">
-                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Time Simulation</h4>
-                <div class="flex items-center justify-between bg-gray-100 dark:bg-gray-700 p-3 rounded-lg">
-                    <label class="text-sm font-bold text-gray-700 dark:text-gray-300">Enable Simulation</label>
-                    <input type="checkbox" id="sim-enabled" class="h-5 w-5 text-blue-600 rounded focus:ring-blue-500">
-                </div>
-                
-                <div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg space-y-3">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Set Time (HH:MM:SS)</label>
-                        <input type="time" id="sim-time" step="1" class="w-full p-2 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-sm focus:ring-blue-500 focus:border-blue-500">
+            <!-- SECTION 1: SIMULATION CONTROLS -->
+            <div class="mb-6">
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Time Simulation</h4>
+                <div class="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-bold text-gray-700 dark:text-gray-300">Enable Sim Mode</label>
+                        <input type="checkbox" id="sim-enabled" class="h-5 w-5 text-blue-600 rounded focus:ring-blue-500 bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500">
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Set Day</label>
-                        <select id="sim-day" class="w-full p-2 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-sm focus:ring-blue-500 focus:border-blue-500">
-                            <option value="1">Monday (Weekday)</option>
-                            <option value="6">Saturday</option>
-                            <option value="0">Sunday</option>
-                            <option value="specific">Select Specific Date...</option>
-                        </select>
-                    </div>
-                    <div id="sim-date-container" class="hidden">
-                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Select Date (2026)</label>
-                        <input type="date" id="sim-date" class="w-full p-2 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-sm focus:ring-blue-500 focus:border-blue-500">
-                    </div>
-                </div>
-
-                <div class="flex flex-col gap-2">
-                    <button id="sim-apply-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors text-sm uppercase tracking-wide">
-                        Apply Simulation
-                    </button>
-                    <button id="sim-exit-btn" class="w-full bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-900 text-red-600 dark:text-red-300 font-bold py-3 rounded-lg shadow-sm transition-colors text-sm uppercase tracking-wide border border-red-200 dark:border-red-800">
-                        Exit & Close
-                    </button>
-                </div>
-            </div>
-
-            <!-- SERVICE ALERTS CONTAINER (Populated by admin.js) -->
-            <div id="alert-panel" class="flex flex-col gap-4 border-t border-gray-200 dark:border-gray-700 pt-6">
-                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center">
-                    <span class="mr-2">📢</span> Service Alerts Manager
-                </h4>
-                
-                <div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg space-y-3">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Alert Message</label>
-                        <textarea id="alert-msg" rows="2" placeholder="e.g. 15min delays due to signal failure" class="w-full p-2 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-sm focus:ring-red-500 focus:border-red-500"></textarea>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
+                    
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target</label>
-                            <select id="alert-target" class="w-full p-2 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-xs focus:ring-red-500">
-                                <option value="all">Global (All Routes)</option>
-                                </select>
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Time (HH:MM)</label>
+                            <input type="time" id="sim-time" step="1" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Duration</label>
-                            <select id="alert-duration" class="w-full p-2 rounded bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-xs focus:ring-red-500">
-                                <option value="1">1 Hour</option>
-                                <option value="3">3 Hours</option>
-                                <option value="12">12 Hours</option>
-                                <option value="24">24 Hours</option>
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Day Type</label>
+                            <select id="sim-day" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option value="1">Weekday (Mon)</option>
+                                <option value="6">Saturday</option>
+                                <option value="0">Sunday</option>
+                                <option value="specific">Specific Date...</option>
                             </select>
                         </div>
                     </div>
-                    
+
+                    <!-- Hidden by default, shown via JS if 'specific' selected -->
+                    <div id="sim-date-container" class="hidden">
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Select Date (2026)</label>
+                        <input type="date" id="sim-date" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+
+                    <div class="flex gap-2 pt-2">
+                        <button id="sim-apply-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm">
+                            Apply
+                        </button>
+                        <button id="sim-exit-btn" class="flex-1 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm">
+                            Exit
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: SERVICE ALERTS (Admin Only) -->
+            <!-- This section is populated by admin.js logic -->
+            <div id="alert-panel" class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <!-- Header (Accordion Trigger) -->
+                <!-- Dynamic Injection by admin.js -->
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Service Alerts Manager</h4>
+                
+                <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-200 dark:border-red-800 space-y-4">
                     <div>
-                        <label class="block text-xs font-bold text-red-500 uppercase mb-1">Admin Key (Firebase Secret)</label>
-                        <input type="password" id="alert-key" placeholder="Paste Secret Key Here" class="w-full p-2 rounded bg-white dark:bg-gray-600 border-2 border-red-200 dark:border-red-900 text-gray-900 dark:text-white text-sm focus:ring-red-500 focus:border-red-500">
-                        <div class="flex items-center mt-2">
-                            <input type="checkbox" id="alert-remember" class="h-4 w-4 text-red-600 rounded focus:ring-red-500">
-                            <label for="alert-remember" class="ml-2 text-xs text-gray-500 dark:text-gray-400">Remember on this device</label>
+                        <label class="block text-[10px] font-bold text-red-800 dark:text-red-300 uppercase mb-1">Target Route</label>
+                        <select id="alert-target" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-red-500 outline-none">
+                            <option value="all">Global Alert (All Routes)</option>
+                            <!-- Routes populated by JS -->
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold text-red-800 dark:text-red-300 uppercase mb-1">Message</label>
+                        <textarea id="alert-msg" rows="3" class="w-full p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-red-500 outline-none resize-none" placeholder="e.g. Delays of 45min due to cable theft..."></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-red-800 dark:text-red-300 uppercase mb-1">Duration</label>
+                            <select id="alert-duration" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-red-500 outline-none">
+                                <option value="2">2 Hours</option>
+                                <option value="4">4 Hours</option>
+                                <option value="8">8 Hours</option>
+                                <option value="24">24 Hours</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-red-800 dark:text-red-300 uppercase mb-1">Admin Key</label>
+                            <input type="password" id="alert-key" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-red-500 outline-none" placeholder="******">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="alert-remember" class="h-4 w-4 text-red-600 rounded border-gray-300 focus:ring-red-500">
+                            <label for="alert-remember" class="ml-2 text-xs font-medium text-gray-500 dark:text-gray-400">Remember on this device</label>
                         </div>
                     </div>
                 </div>
@@ -768,14 +803,36 @@
     <script src="js/renderer.js"></script>
     
     <!-- ADMIN TOOLS (Loaded before UI to ensure Admin object availability) -->
-    <script src="js/admin.js"></script>
+    <!-- DEFERRED for better LCP Performance -->
+    <script src="js/admin.js" defer></script>
 
     <script src="js/utils.js"></script>
     <script src="js/config.js"></script>
     <script src="js/logic.js"></script>
-    <script src="js/planner.js"></script>
+    
+    <!-- PLANNER MODULARIZATION V4.60.2 -->
+    <!-- CRITICAL: CORE MUST LOAD BEFORE UI -->
+    <script src="js/planner-core.js"></script>
+    <script src="js/planner-ui.js"></script>
+    
     <script src="js/map-viewer.js"></script> 
+    
+    <!-- MAIN UI CONTROLLER (Loads last) -->
     <script src="js/ui.js"></script>
 
+    <!-- Fail-Safe Script: Prevents infinite reloading loops -->
+    <script>
+        setTimeout(() => {
+            // Check if content is still hidden after 10s
+            const content = document.getElementById('main-content');
+            if (content && content.style.display === 'none') {
+                console.warn("App load timeout - Forcing display.");
+                content.style.display = 'block';
+                // Remove legacy overlay if it exists
+                const overlay = document.getElementById('loading-overlay');
+                if(overlay) overlay.style.display = 'none';
+            }
+        }, 8000); 
+    </script>
 </body>
 </html>

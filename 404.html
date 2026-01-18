@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
+    <!-- SEO: Canonical Tag (Self-referencing to prevent issues, but noindex is primary) -->
+    <link rel="canonical" href="https://nexttrain.co.za/404.html">
     <!-- SEO: Prevent indexing of error pages -->
     <meta name="robots" content="noindex, nofollow">
 
@@ -24,126 +26,40 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Check system theme or saved preference immediately to prevent flash
-        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-
-        // Configuration for Tailwind
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                    animation: {
-                        'float': 'float 6s ease-in-out infinite',
-                        'blob': 'blob 7s infinite',
-                        'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
-                    },
-                    keyframes: {
-                        float: {
-                            '0%, 100%': { transform: 'translateY(0)' },
-                            '50%': { transform: 'translateY(-10px)' },
-                        },
-                        blob: {
-                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
-                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
-                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
-                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
-                        },
-                        fadeInUp: {
-                            '0%': { opacity: '0', transform: 'translateY(10px)' },
-                            '100%': { opacity: '1', transform: 'translateY(0)' },
-                        }
-                    }
-                }
-            }
+        if (typeof tailwind !== 'undefined') {
+            tailwind.config = { darkMode: 'class' }
         }
     </script>
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        /* Custom scrollbar for a polished feel */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background-color: #cbd5e1;
-            border-radius: 20px;
-        }
-        .dark ::-webkit-scrollbar-thumb {
-            background-color: #475569;
-        }
-        
-        /* Glassmorphism utility */
-        .glass {
-            background: rgba(255, 255, 255, 0.7);
-            backdrop-filter: blur(10px);
-        }
-        .dark .glass {
-            background: rgba(30, 41, 59, 0.7);
-        }
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
     </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex items-center justify-center p-6 font-sans transition-colors duration-300 overflow-x-hidden">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col overflow-hidden relative">
 
-    <div class="max-w-6xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center relative z-10">
+    <!-- TOP NAV -->
+    <div class="absolute top-0 left-0 w-full p-6 z-20 flex justify-between items-center">
+        <div class="text-sm font-bold tracking-widest uppercase opacity-70">Page Not Found</div>
+        <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
+    </div>
+
+    <!-- MAIN VISUAL -->
+    <main class="flex-grow flex flex-col items-center justify-center relative z-10 px-6">
         
-        <!-- Left Side: Content -->
-        <div class="text-center md:text-left order-2 md:order-1 space-y-6 animate-fade-in-up">
-            <p class="text-blue-600 dark:text-blue-400 font-bold tracking-wider uppercase text-sm">Error 404</p>
+        <!-- Illustration Container -->
+        <div class="relative w-full max-w-sm aspect-square mb-8">
+            <div class="absolute inset-0 bg-red-600 rounded-full opacity-10 blur-3xl animate-pulse"></div>
             
-            <h1 class="text-5xl md:text-7xl font-black text-gray-900 dark:text-white leading-tight">
-                End of the <br>
-                <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">Line.</span>
-            </h1>
-            
-            <p class="text-lg text-gray-600 dark:text-gray-400 leading-relaxed max-w-lg mx-auto md:mx-0">
-                You've arrived at a station that doesn't exist. The train might have been delayed, or the tracks were never built.
-            </p>
-
-            <div class="pt-4 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-                <a href="/" class="group relative inline-flex h-12 items-center justify-center overflow-hidden rounded-xl bg-blue-600 px-8 font-medium text-white shadow-lg transition-all duration-300 hover:bg-blue-700 hover:scale-105 hover:shadow-blue-500/25 active:scale-95">
-                    <span class="mr-2 h-5 w-5 transition-transform group-hover:-translate-x-1">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
-                    </span>
-                    <span>Back to Next Train homepage</span>
-                </a>
-            </div>
-            
-            <div class="pt-8 flex items-center justify-center md:justify-start gap-3 text-sm text-gray-400">
-                <span class="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-                System Operational
-            </div>
-        </div>
-
-        <!-- Right Side: Image/Visual -->
-        <div class="order-1 md:order-2 flex justify-center md:justify-end relative">
-            <!-- Decorative blobs -->
-            <div class="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 dark:opacity-10 animate-blob"></div>
-            <div class="absolute bottom-0 left-0 -ml-20 -mb-20 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 dark:opacity-10 animate-blob animation-delay-2000"></div>
-
-            <!-- Main Image Card -->
-            <!-- Mobile: Taller aspect ratio (3/4) | Desktop: Video aspect ratio (16/9) -->
-            <div class="relative w-full max-w-md aspect-[3/4] md:aspect-video rounded-3xl overflow-hidden shadow-2xl transform rotate-3 transition-transform hover:rotate-0 duration-500 bg-gray-200 dark:bg-gray-800">
-                
-                <picture class="w-full h-full block">
-                    <!-- Desktop: Landscape Image (screens wider than 768px) -->
-                    <source media="(min-width: 768px)" srcset="images/land-404.jpg">
-                    
-                    <!-- Mobile: Portrait Image (default fallback) -->
-                    <img 
-                        src="images/port-404.jpg" 
+            <div class="relative w-full h-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                <!-- High Quality Unsplash Image (Empty Station) -->
+                <picture>
+                    <img src="https://images.unsplash.com/photo-1518135114454-9a5a7536c050?auto=format&fit=crop&q=80&w=800&h=800" 
                         alt="Empty Train Station" 
-                        class="object-cover w-full h-full"
+                        class="object-cover w-full h-full grayscale opacity-60"
                     >
                 </picture>
                 
@@ -157,14 +73,33 @@
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                         </div>
                         <div>
-                            <p class="text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Status</p>
-                            <p class="text-sm font-bold text-gray-900 dark:text-white">Station Not Found</p>
+                            <div class="text-xs font-bold uppercase tracking-wider text-gray-400">Status</div>
+                            <div class="text-sm font-bold text-white">End of the Line</div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+
+        <!-- Text Content -->
+        <div class="text-center max-w-xs mx-auto">
+            <h1 class="text-4xl font-black mb-2 tracking-tight">404 Error</h1>
+            <p class="text-gray-400 text-sm mb-8 leading-relaxed">
+                The station you are looking for does not exist or has been moved.
+            </p>
+            
+            <button onclick="window.location.href='/'" class="w-full bg-white text-gray-900 font-bold py-4 rounded-xl hover:bg-gray-100 transition-transform active:scale-95 shadow-xl flex items-center justify-center gap-2 group">
+                <svg class="w-5 h-5 group-hover:-translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Return Home
+            </button>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="p-6 text-center z-10">
+        <p class="text-[10px] text-gray-600 font-mono">ERR_STATION_NOT_FOUND</p>
+    </footer>
 
 </body>
 </html>

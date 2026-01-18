@@ -1,15 +1,18 @@
-// --- TRIP PLANNER LOGIC (V4.60.1 - Guardian Edition: Hybrid Logic) ---
-// - FIX: Removed 'validateHubDirectionality' to unblock Pretoria transfers.
-// - NEW: Added 'isPathLogical' (Anti-Overshoot & Anti-Boomerang) to filter illogical U-turns.
-// - KPT: Retained 'Smart Pruning' (isTrainFasterDirect) from V4.58.
+/**
+ * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.3 - Guardian Edition)
+ * --------------------------------------------------------------
+ * THE "HEAD CHEF" (Controller)
+ * * This module handles user interaction, DOM updates, and event listeners.
+ * It calls the pure logic functions from planner-core.js.
+ */
 
-// State
+// State (UI Specific)
 let plannerOrigin = null;
 let plannerDest = null;
-let currentTripOptions = []; // Store multiple train options
-let selectedPlannerDay = null; // Store user-selected day for planning
-let plannerPulse = null; // Heartbeat timer ID
-let plannerExpandedState = new Set(); // Tracks which stop lists are open
+let currentTripOptions = []; 
+let selectedPlannerDay = null; 
+let plannerPulse = null; 
+let plannerExpandedState = new Set(); 
 
 // --- INITIALIZATION ---
 function initPlanner() {
@@ -20,7 +23,7 @@ function initPlanner() {
     const resetBtn = document.getElementById('planner-reset-btn');
     const locateBtn = document.getElementById('planner-locate-btn');
     
-    // Inject Day Selector
+    // Inject Day Selector if missing
     const inputSection = document.getElementById('planner-input-section');
     if (inputSection && !document.getElementById('planner-day-select')) {
         const daySelectDiv = document.createElement('div');
@@ -49,7 +52,7 @@ function initPlanner() {
         renderPlannerHistory();
     }
 
-    // --- INFO BUTTON WIRING ---
+    // Wiring Info Button
     const infoBtn = document.getElementById('planner-info-btn');
     if (infoBtn) {
         infoBtn.addEventListener('click', () => {
@@ -58,7 +61,7 @@ function initPlanner() {
         });
     }
 
-    // Developer Mode Access
+    // Developer Access (5-Tap)
     const plannerTab = document.getElementById('tab-trip-planner');
     if (plannerTab) {
         let pClickCount = 0;
@@ -70,10 +73,8 @@ function initPlanner() {
             
             if (pClickCount >= 5) {
                 pClickCount = 0;
-                const devModal = document.getElementById('dev-modal');
                 const pinModal = document.getElementById('pin-modal');
                 const pinInput = document.getElementById('pin-input');
-                
                 if (pinModal) {
                     pinModal.classList.remove('hidden');
                     if(pinInput) { pinInput.value = ''; pinInput.focus(); }
@@ -84,11 +85,9 @@ function initPlanner() {
 
     if (!fromSelect || !toSelect) return;
 
-    // 1. Setup Autocomplete
     setupAutocomplete('planner-from-search', 'planner-from');
     setupAutocomplete('planner-to-search', 'planner-to');
 
-    // 2. Populate Selects
     const populate = (select) => {
         select.innerHTML = '<option value="">Select...</option>';
         if (typeof MASTER_STATION_LIST !== 'undefined') {
@@ -103,7 +102,6 @@ function initPlanner() {
     populate(fromSelect);
     populate(toSelect);
 
-    // --- SMART TO FILTERING ---
     const filterToOptions = () => {
         const selectedFrom = fromSelect.value;
         Array.from(toSelect.options).forEach(opt => {
@@ -115,7 +113,6 @@ function initPlanner() {
                 opt.hidden = false;
             }
         });
-        
         if (toSelect.value === selectedFrom) {
             toSelect.value = "";
             const toInput = document.getElementById('planner-to-search');
@@ -127,8 +124,6 @@ function initPlanner() {
     const fromInput = document.getElementById('planner-from-search');
     if(fromInput) fromInput.addEventListener('change', filterToOptions);
 
-
-    // 3. Auto Locate
     if (locateBtn) {
         locateBtn.addEventListener('click', () => {
             const icon = locateBtn.querySelector('svg');
@@ -144,6 +139,7 @@ function initPlanner() {
                 (position) => {
                     const { latitude: userLat, longitude: userLon } = position.coords;
                     let candidates = [];
+                    // Using globalStationIndex from logic.js
                     for (const [stationName, coords] of Object.entries(globalStationIndex)) {
                         const dist = getDistanceFromLatLonInKm(userLat, userLon, coords.lat, coords.lon);
                         candidates.push({ stationName, dist });
@@ -157,8 +153,11 @@ function initPlanner() {
                         if(fromInput) fromInput.value = nearest.replace(' STATION', '');
                         
                         filterToOptions();
-                        
                         showToast(`Located: ${nearest.replace(' STATION', '')}`, "success");
+                        
+                        if (typeof trackAnalyticsEvent === 'function') {
+                            trackAnalyticsEvent('planner_auto_locate', { station: nearest });
+                        }
                     } else {
                         showToast("No stations found nearby.", "error");
                     }
@@ -172,14 +171,12 @@ function initPlanner() {
         });
     }
 
-    // 4. Event Listeners
     swapBtn.addEventListener('click', () => {
         const fromInput = document.getElementById('planner-from-search');
         const toInput = document.getElementById('planner-to-search');
         
         [fromSelect.value, toSelect.value] = [toSelect.value, fromSelect.value];
         [fromInput.value, toInput.value] = [toInput.value, fromInput.value];
-        
         filterToOptions();
     });
 
@@ -208,6 +205,14 @@ function initPlanner() {
         if (!from || !to) return showToast("Please select valid stations from the list.", "error");
         if (from === to) return showToast("Origin and Destination cannot be the same.", "error");
 
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('planner_search', {
+                origin: from,
+                destination: to,
+                day: selectedPlannerDay || currentDayType || 'unknown'
+            });
+        }
+
         savePlannerHistory(from, to);
         executeTripPlan(from, to);
     });
@@ -220,7 +225,7 @@ function initPlanner() {
         fromSelect.value = ""; toSelect.value = "";
         document.getElementById('planner-from-search').value = "";
         document.getElementById('planner-to-search').value = "";
-        plannerExpandedState.clear(); // Reset UI state on new search
+        plannerExpandedState.clear(); 
         
         Array.from(toSelect.options).forEach(opt => { opt.disabled = false; opt.hidden = false; });
         
@@ -232,7 +237,7 @@ function initPlanner() {
     });
 }
 
-// --- HISTORY FUNCTIONS ---
+// --- HISTORY & AUTOCOMPLETE ---
 function savePlannerHistory(from, to) {
     if (!from || !to) return;
     const cleanFrom = from.replace(' STATION', '');
@@ -293,11 +298,15 @@ window.restorePlannerSearch = function(fullFrom, fullTo) {
         }
 
         showToast("Restored recent search", "info", 1000);
+        
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('planner_history_restore', { origin: fullFrom, destination: fullTo });
+        }
+
         executeTripPlan(fullFrom, fullTo);
     }
 };
 
-// --- AUTOCOMPLETE HELPER ---
 function setupAutocomplete(inputId, selectId) {
     const input = document.getElementById(inputId);
     const select = document.getElementById(selectId);
@@ -350,48 +359,24 @@ function setupAutocomplete(inputId, selectId) {
     document.addEventListener('click', (e) => { if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) list.classList.add('hidden'); });
 }
 
-// --- LAZY DATA LOADER ---
-function ensureScheduleLoaded(routeId) {
-    if (!fullDatabase) return null; 
-    const route = ROUTES[routeId];
-    if (!route) return null;
-
-    const dayType = selectedPlannerDay || currentDayType;
-    let sheetKeys = [];
-
-    if (dayType === 'weekday') {
-        sheetKeys = [route.sheetKeys.weekday_to_a, route.sheetKeys.weekday_to_b];
-    } else if (dayType === 'saturday' || dayType === 'sunday') {
-        sheetKeys = [route.sheetKeys.saturday_to_a, route.sheetKeys.saturday_to_b];
-    }
-
-    return sheetKeys.map(key => {
-        if (!fullDatabase[key]) return null;
-        return parseJSONSchedule(fullDatabase[key], fullDatabase[key + "_meta"]);
-    }).filter(s => s !== null);
-}
-
-// --- CORE PLANNING LOGIC (ORCHESTRATOR) ---
+// --- ORCHESTRATION ---
 function executeTripPlan(origin, dest) {
     const resultsContainer = document.getElementById('planner-results-list');
     resultsContainer.innerHTML = '<div class="text-center p-4"><svg class="w-8 h-8 animate-spin mx-auto text-blue-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p class="mt-2 text-xs text-gray-500">Calculating route...</p></div>';
     
     document.getElementById('planner-input-section').classList.add('hidden');
     document.getElementById('planner-results-section').classList.remove('hidden');
-    plannerExpandedState.clear(); // Clear old UI state
+    plannerExpandedState.clear();
 
     if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
 
     // Run Asynchronously to prevent UI freeze
     setTimeout(() => {
-        // 1. Standard Direct Plan
-        const directPlan = planDirectTrip(origin, dest);
-        
-        // 2. Standard Hub Transfer Plan (Now with Recursive Relay Check)
-        const transferPlan = planHubTransferTrip(origin, dest);
-        
-        // 3. Explicit Relay Station Plan (For same-route transfers)
-        const relayPlan = planRelayTransferTrip(origin, dest);
+        // --- CALL TO PLANNER CORE ---
+        // We pass 'selectedPlannerDay' to all functions to ensure they are stateless
+        const directPlan = planDirectTrip(origin, dest, selectedPlannerDay);
+        const transferPlan = planHubTransferTrip(origin, dest, selectedPlannerDay);
+        const relayPlan = planRelayTransferTrip(origin, dest, selectedPlannerDay);
 
         let mergedTrips = [];
         if (directPlan.trips) mergedTrips = [...mergedTrips, ...directPlan.trips];
@@ -401,44 +386,30 @@ function executeTripPlan(origin, dest) {
         // 4. Try Double Transfer (Bridge) if results are thin
         if (mergedTrips.length === 0) {
             console.log("No simple route found. Attempting 2-Transfer Bridge...");
-            const doubleTransferPlan = planDoubleTransferTrip(origin, dest);
+            const doubleTransferPlan = planDoubleTransferTrip(origin, dest, selectedPlannerDay);
             if (doubleTransferPlan.trips) {
                 mergedTrips = [...mergedTrips, ...doubleTransferPlan.trips];
             }
         }
 
-        // 5. GUARDIAN FIX: BEST-IN-SLOT DEDUPLICATION (V4.57.0)
-        // Instead of a simple Set that keeps the first trip found for a time slot,
-        // we use a Map to compare and keep the BEST trip for that slot.
+        // 5. Best-In-Slot Deduplication (UI Logic)
         const bestTripsMap = new Map();
-
         mergedTrips.forEach(trip => {
-            const key = trip.depTime; // Group by Departure Time
-            
+            const key = trip.depTime;
             if (!bestTripsMap.has(key)) {
-                // First trip for this time? Take it.
                 bestTripsMap.set(key, trip);
             } else {
-                // Conflict! Let's duel.
                 const existing = bestTripsMap.get(key);
-                
-                // RULE 1: Direct Beats Transfer
                 if (trip.type === 'DIRECT' && existing.type !== 'DIRECT') {
-                    bestTripsMap.set(key, trip); // Winner: Direct
-                }
-                // RULE 2: If both are same type (or both transfers), check Arrival Time (Duration)
-                else if (trip.type === existing.type || (trip.type !== 'DIRECT' && existing.type !== 'DIRECT')) {
+                    bestTripsMap.set(key, trip); 
+                } else if (trip.type === existing.type || (trip.type !== 'DIRECT' && existing.type !== 'DIRECT')) {
                     const existingArr = timeToSeconds(existing.arrTime);
                     const newArr = timeToSeconds(trip.arrTime);
-                    
-                    if (newArr < existingArr) {
-                        bestTripsMap.set(key, trip); // Winner: Faster Trip
-                    }
+                    if (newArr < existingArr) bestTripsMap.set(key, trip); 
                 }
             }
         });
 
-        // Convert Map back to Array and Sort by Departure
         const uniqueTrips = Array.from(bestTripsMap.values());
         uniqueTrips.sort((a, b) => {
             const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
@@ -453,13 +424,17 @@ function executeTripPlan(origin, dest) {
             const nowSec = timeToSeconds(currentTime);
             const idx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
             if (idx !== -1) nextTripIndex = idx;
-            else nextTripIndex = currentTripOptions.length - 1; // Show last if all departed
+            else nextTripIndex = currentTripOptions.length - 1;
 
             renderSelectedTrip(resultsContainer, nextTripIndex);
             startPlannerPulse(nextTripIndex);
 
         } else {
-            // 6. MAP FALLBACK ERROR HANDLING
+            // Error Handling (Map Fallback)
+            if (typeof trackAnalyticsEvent === 'function') {
+                trackAnalyticsEvent('planner_no_result', { origin: origin, destination: dest });
+            }
+
             const errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path. You may need to plan this journey in segments (e.g., 'Home to Pretoria', then 'Pretoria to Work').";
             const actionBtn = `
                 <button onclick="document.getElementById('map-modal').classList.remove('hidden')" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center">
@@ -476,8 +451,6 @@ function renderSelectedTrip(container, index) {
     const selectedTrip = currentTripOptions[index];
     const isTomorrow = selectedTrip.dayLabel !== undefined;
     const nowSec = timeToSeconds(currentTime);
-    
-    // Night Owl Logic for Display
     const isLateNight = nowSec > (20 * 3600);
     const effectivelyTomorrow = isTomorrow || (isLateNight && timeToSeconds(selectedTrip.depTime) < (12 * 3600));
 
@@ -490,23 +463,15 @@ function renderSelectedTrip(container, index) {
 
 function startPlannerPulse(currentIndex) {
     if (plannerPulse) clearInterval(plannerPulse);
-    
-    // If viewing a different day, no need to pulse (times are static)
     if (selectedPlannerDay && selectedPlannerDay !== currentDayType) return;
 
     let trackedIndex = currentIndex;
-
-    // Pulse every 30s to update "Departs in X min" without re-fetching
     plannerPulse = setInterval(() => {
         const trip = currentTripOptions[trackedIndex];
         if (!trip) return;
-
-        // Check if user manually changed the dropdown selection
         const dropdown = document.querySelector('#planner-results-list select');
         if(dropdown) trackedIndex = parseInt(dropdown.value);
-        
         renderSelectedTrip(document.getElementById('planner-results-list'), trackedIndex);
-
     }, 30000); 
 }
 
@@ -514,651 +479,33 @@ window.selectPlannerTrip = function(index) {
     const idx = parseInt(index);
     if (!currentTripOptions || !currentTripOptions[idx]) return;
     
-    // Clear expanded state when switching trips manually
+    if (typeof trackAnalyticsEvent === 'function') {
+        const trip = currentTripOptions[idx];
+        trackAnalyticsEvent('planner_trip_select', { 
+            train: trip.train, 
+            time: trip.depTime,
+            type: trip.type
+        });
+    }
+
     plannerExpandedState.clear();
-    
     renderSelectedTrip(document.getElementById('planner-results-list'), idx);
-    
-    // Restart pulse for the newly selected trip
     startPlannerPulse(idx);
 };
 
-// --- UPDATED HELPER: TOGGLE STOPS (State Tracking) ---
 window.togglePlannerStops = function(id) {
     const el = document.getElementById(id);
     const btn = document.getElementById(`btn-${id}`);
-    
     if (el) {
-        // Toggle UI
         el.classList.toggle('hidden');
         const isHidden = el.classList.contains('hidden');
-        
-        // Update State
-        if (isHidden) {
-            plannerExpandedState.delete(id);
-        } else {
-            plannerExpandedState.add(id);
-        }
-
-        // Update Button Text
-        if(btn) {
-            btn.textContent = isHidden ? "Show All Stops" : "Hide Stops";
-        }
+        if (isHidden) plannerExpandedState.delete(id);
+        else plannerExpandedState.add(id);
+        if(btn) btn.textContent = isHidden ? "Show All Stops" : "Hide Stops";
     }
 };
 
-// --- ALGORITHMS: DIRECT & TRANSFER ---
-function planDirectTrip(origin, dest) {
-    const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
-    const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
-    const commonRoutes = [...originRoutes].filter(x => destRoutes.has(x));
-
-    if (commonRoutes.length === 0) return { status: 'NO_PATH' };
-
-    let bestTrips = [];
-    let nextDayTrips = [];
-    let pathFoundToday = false;
-    let pathExistsGenerally = false;
-    const planningDay = selectedPlannerDay || currentDayType;
-
-    // Rule: Sunday trains are scarce. If no service found, check Monday (next working day).
-    if (planningDay === 'sunday') {
-        for (const routeId of commonRoutes) {
-            const routeConfig = ROUTES[routeId];
-            const next = findNextDayTrips(routeConfig, origin, dest, 'sunday');
-            if (next && next.length > 0) {
-                nextDayTrips = [...nextDayTrips, ...next];
-            }
-        }
-        if (nextDayTrips.length > 0) {
-            return { status: 'SUNDAY_NO_SERVICE', trips: nextDayTrips.sort((a,b) => timeToSeconds(a.depTime) - timeToSeconds(b.depTime)) };
-        }
-        return { status: 'NO_SERVICE' };
-    }
-
-    for (const routeId of commonRoutes) {
-        const routeConfig = ROUTES[routeId];
-        const directions = getDirectionsForRoute(routeConfig, planningDay);
-        
-        for (let dir of directions) {
-            if (!fullDatabase || !fullDatabase[dir.key]) continue;
-            const schedule = parseJSONSchedule(fullDatabase[dir.key]);
-            const originRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(origin));
-            const destRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(dest));
-
-            if (originRow && destRow) {
-                const originIdx = schedule.rows.indexOf(originRow);
-                const destIdx = schedule.rows.indexOf(destRow);
-                // Direction Check: Origin must come BEFORE Destination
-                if (originIdx < destIdx) {
-                    pathFoundToday = true; 
-                    pathExistsGenerally = true;
-                    const upcomingTrains = findUpcomingTrainsForLeg(schedule, originRow, destRow, true); 
-                    if (upcomingTrains.length > 0) {
-                        bestTrips = [...bestTrips, ...upcomingTrains.map(info => 
-                            createTripObject(routeConfig, info, schedule, originIdx, destIdx, origin, dest)
-                        )];
-                    }
-                }
-            }
-        }
-        // If no trains found TODAY, check TOMORROW
-        if (bestTrips.length === 0) {
-             const next = findNextDayTrips(routeConfig, origin, dest, planningDay);
-             if (next && next.length > 0) {
-                 nextDayTrips = [...nextDayTrips, ...next];
-                 pathExistsGenerally = true;
-             }
-        }
-    }
-
-    if (bestTrips.length > 0) return { status: 'FOUND', trips: bestTrips.sort((a,b) => timeToSeconds(a.depTime) - timeToSeconds(b.depTime)) };
-    if (nextDayTrips.length > 0) return { status: pathFoundToday ? 'NO_MORE_TODAY' : 'NO_SERVICE_TODAY_FUTURE_FOUND', trips: nextDayTrips.sort((a,b) => timeToSeconds(a.depTime) - timeToSeconds(b.depTime)) };
-    return { status: (pathExistsGenerally || pathFoundToday) ? 'NO_SERVICE' : 'NO_PATH' };
-}
-
-// --- GUARDIAN: DYNAMIC HUB DETECTION (V4.51) ---
-function getDynamicHubs() {
-    if (typeof globalStationIndex === 'undefined') return [];
-    
-    // 1. Start with known Configured Transfer Stations
-    const explicitHubs = new Set();
-    Object.values(ROUTES).forEach(r => {
-        if(r.isActive && r.transferStation) {
-            explicitHubs.add(normalizeStationName(r.transferStation));
-        }
-    });
-
-    // 2. Add stations with > 1 Active Routes
-    const dynamicHubs = [];
-    Object.entries(globalStationIndex).forEach(([stationName, data]) => {
-        // Only consider stations with 2+ routes as potential hubs
-        if (data.routes && data.routes.size > 1) {
-            dynamicHubs.push(stationName);
-        } else if (explicitHubs.has(stationName)) {
-            dynamicHubs.push(stationName);
-        }
-    });
-
-    return dynamicHubs;
-}
-
-// --- NEW HELPER: SMART PRUNING CHECK (V4.58.0) ---
-// Returns TRUE if the specific train on 'route' goes directly to 'targetStation'
-// AND arrives there faster or equal to 'limitTime'.
-function isTrainFasterDirect(route, trainName, targetStation, limitTime) {
-    if (!route || !trainName || !targetStation) return false;
-    
-    // Check both directions for the route to find the train
-    const directions = getDirectionsForRoute(route, selectedPlannerDay || currentDayType);
-    
-    for (let dir of directions) {
-        if (!fullDatabase || !fullDatabase[dir.key]) continue;
-        const schedule = parseJSONSchedule(fullDatabase[dir.key]);
-        
-        // Find the row for target station
-        const targetRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(targetStation));
-        
-        if (targetRow && targetRow[trainName]) {
-            // Train goes to destination!
-            // Now check time: Is Direct Arrival <= Limit Time?
-            const directArr = timeToSeconds(targetRow[trainName]);
-            const limitArr = timeToSeconds(limitTime);
-            
-            // If direct train arrives earlier or same time, it is faster/better.
-            if (directArr <= limitArr) {
-                return true; 
-            }
-        }
-    }
-    return false;
-}
-
-// --- NEW HELPER: LOGICAL PATH VALIDATION (V4.59.0) ---
-// Returns TRUE if the transfer path makes geographic/sequence sense.
-// 1. Overshoot: Stops Leg 1 if it visits the Destination before the Hub.
-// 2. Boomerang: Stops Leg 2 if it visits a station Leg 1 already passed.
-function isPathLogical(leg1, leg2, finalDest) {
-    if (!leg1.stops || !leg2.stops) return true; // Can't validate without stops, allow.
-
-    const normDest = normalizeStationName(finalDest);
-    const hubName = normalizeStationName(leg1.to); // The Transfer Hub
-
-    // --- RULE 1: OVERSHOOT CHECK ---
-    // Did Leg 1 visit the Final Destination before reaching the Hub?
-    // Iterate all stops in Leg 1 (which includes Origin...Hub)
-    const leg1Stations = new Set();
-    
-    for (const stop of leg1.stops) {
-        const sName = normalizeStationName(stop.station);
-        
-        // If we hit the destination and it's NOT the hub (trivial case), 
-        // then we overshot. Why didn't we get off?
-        if (sName === normDest && sName !== hubName) {
-            return false; 
-        }
-        leg1Stations.add(sName);
-    }
-
-    // --- RULE 2: BOOMERANG CHECK ---
-    // Does Leg 2 visit any station that Leg 1 already visited?
-    // Exclude the Hub itself (which is the link).
-    for (const stop of leg2.stops) {
-        const sName = normalizeStationName(stop.station);
-        
-        if (sName !== hubName && leg1Stations.has(sName)) {
-            // We are revisiting a station we already passed. 
-            // This is a U-turn/Loopback.
-            return false; 
-        }
-    }
-
-    return true;
-}
-
-// --- UPDATED: RECURSIVE HUB TRANSFER (V4.59.0 - Hybrid Logic) ---
-function planHubTransferTrip(origin, dest) {
-    const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
-    const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
-    const planningDay = selectedPlannerDay || currentDayType;
-    
-    const allKnownHubs = getDynamicHubs(); 
-    
-    // Filter hubs that are actually RELEVANT
-    const potentialHubs = allKnownHubs.filter(hub => {
-        const hubData = globalStationIndex[normalizeStationName(hub)];
-        if (!hubData) return false;
-        
-        // Basic Connectivity Check
-        const toHub = [...originRoutes].some(rId => hubData.routes.has(rId));
-        const fromHub = [...destRoutes].some(rId => hubData.routes.has(rId));
-        const isTrivial = (normalizeStationName(hub) === normalizeStationName(origin)) || (normalizeStationName(hub) === normalizeStationName(dest));
-        
-        if (!toHub || !fromHub || isTrivial) return false;
-
-        // GUARDIAN FIX: Removed validateHubDirectionality (It was blocking Pretoria)
-        return true;
-    });
-
-    if (potentialHubs.length === 0) return { status: 'NO_PATH' };
-
-    let allTransferOptions = [];
-    
-    for (const hub of potentialHubs) {
-        // LEG 1: Origin -> Hub
-        const leg1Options = findAllLegsBetween(origin, hub, originRoutes, planningDay);
-        if (leg1Options.length === 0) continue;
-        
-        // LEG 2: Hub -> Dest (STANDARD + RELAY RECURSION)
-        const leg2Options = findAllLegsWithRelayExpansion(hub, dest, destRoutes, planningDay); 
-        if (leg2Options.length === 0) continue;
-
-        const TRANSFER_BUFFER_SEC = 2 * 60; // 2 min minimum (sprint)
-        const MAX_HUB_WAIT_SEC = 180 * 60; // 3 hours (Metrorail reality)
-
-        leg1Options.forEach(leg1 => {
-            
-            // GUARDIAN PRUNING:
-            // If the train for Leg 1 goes to the Destination directly...
-            // AND arrives there faster than this whole transfer... skip it.
-            const arrivalSec = timeToSeconds(leg1.arrTime);
-            
-            leg2Options.forEach(leg2 => {
-                
-                // No Loopbacks (Route ID check, simple)
-                if (leg1.route.id === leg2.route.id && !leg2.isRelayComposite) {
-                    return; 
-                }
-
-                // SMART PRUNING CHECK (V4.58 Feature)
-                if (isTrainFasterDirect(leg1.route, leg1.train, dest, leg2.arrTime)) {
-                    // This train goes to the destination directly and arrives earlier/same time.
-                    return; 
-                }
-
-                // LOGICAL PATH CHECK (V4.59 Feature)
-                if (!isPathLogical(leg1, leg2, dest)) {
-                    // This path overshoots or loops back.
-                    return;
-                }
-
-                const departSec = timeToSeconds(leg2.depTime);
-                const waitTime = departSec - arrivalSec;
-
-                if (waitTime >= TRANSFER_BUFFER_SEC && waitTime <= MAX_HUB_WAIT_SEC) {
-                    allTransferOptions.push({
-                        type: 'TRANSFER',
-                        route: leg1.route, 
-                        from: origin, to: dest,
-                        transferStation: hub,
-                        depTime: leg1.depTime, arrTime: leg2.arrTime,
-                        train: leg1.train, leg1: leg1, leg2: leg2,
-                        totalDuration: (timeToSeconds(leg2.arrTime) - timeToSeconds(leg1.depTime))
-                    });
-                }
-            });
-        });
-    }
-
-    if (allTransferOptions.length > 0) {
-        allTransferOptions.sort((a,b) => {
-            const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
-            return depDiff !== 0 ? depDiff : a.totalDuration - b.totalDuration;
-        });
-        const unique = [];
-        const seenDepTimes = new Set();
-        allTransferOptions.forEach(opt => {
-            if(!seenDepTimes.has(opt.depTime)) { seenDepTimes.add(opt.depTime); unique.push(opt); }
-        });
-        return { status: 'FOUND', trips: unique };
-    }
-    return { status: 'NO_PATH' };
-}
-
-// --- NEW HELPER: FIND LEGS WITH RELAY EXPANSION ---
-// Finds direct trains OR relay-connected trains within the same route
-function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType) {
-    let allLegs = [];
-    const routesToCheck = routeSet ? [...routeSet] : Object.keys(ROUTES);
-
-    for (const rId of routesToCheck) {
-        const routeConfig = ROUTES[rId];
-        
-        // 1. Find Direct Legs (Standard)
-        let directLegs = findAllLegsBetween(stationA, stationB, new Set([rId]), dayType);
-        allLegs = [...allLegs, ...directLegs];
-
-        // 2. Find Relay Composite Legs (The Fix for Koedoespoort/Roodepoort)
-        if (routeConfig.relayStation) {
-            const relay = normalizeStationName(routeConfig.relayStation);
-            
-            // Check Geometry: Hub -> Relay -> Dest
-            const legsToRelay = findAllLegsBetween(stationA, relay, new Set([rId]), dayType);
-            if (legsToRelay.length > 0) {
-                const legsFromRelay = findAllLegsBetween(relay, stationB, new Set([rId]), dayType);
-                
-                if (legsFromRelay.length > 0) {
-                    // Stitch them together
-                    const TRANSFER_BUFFER = 2 * 60;
-                    const MAX_RELAY_WAIT = 180 * 60; // 3 hours
-
-                    legsToRelay.forEach(l1 => {
-                        const arr1 = timeToSeconds(l1.arrTime);
-                        
-                        legsFromRelay.forEach(l2 => {
-                            const dep2 = timeToSeconds(l2.depTime);
-                            const wait = dep2 - arr1;
-                            
-                            if (wait >= TRANSFER_BUFFER && wait <= MAX_RELAY_WAIT) {
-                                // Create Composite Leg
-                                allLegs.push({
-                                    ...l1, // Inherit basic props from first leg
-                                    arrTime: l2.arrTime, // Arrival is final dest
-                                    actualDestination: l2.actualDestination,
-                                    isRelayComposite: true,
-                                    stops: [...l1.stops, ...l2.stops],
-                                    internalTransfer: {
-                                        station: relay,
-                                        train1: l1.train,
-                                        train2: l2.train,
-                                        wait: wait
-                                    }
-                                });
-                            }
-                        });
-                    });
-                }
-            }
-        }
-    }
-    return allLegs;
-}
-
-// --- NEW: RELAY TRANSFER TRIP (Direct Origin-Dest check) ---
-// Finds transfers at specific "Relay Stations" (e.g. Koedoespoort) 
-// that happen within the SAME route ID.
-function planRelayTransferTrip(origin, dest) {
-    const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
-    const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
-    // Intersection: Same route for Start and End (but logic forces a split)
-    const commonRoutes = [...originRoutes].filter(x => destRoutes.has(x));
-    
-    if (commonRoutes.length === 0) return { trips: [] };
-
-    let allRelayTrips = [];
-    const planningDay = selectedPlannerDay || currentDayType;
-
-    commonRoutes.forEach(routeId => {
-        const routeConfig = ROUTES[routeId];
-        // 1. Check if this route has a configured Relay Station
-        if (!routeConfig.relayStation) return;
-
-        const relayStationName = normalizeStationName(routeConfig.relayStation);
-        
-        // 3. Find Legs: Origin -> Relay
-        const legs1 = findAllLegsBetween(origin, relayStationName, new Set([routeId]), planningDay);
-        if (legs1.length === 0) return;
-
-        // 4. Find Legs: Relay -> Dest
-        const legs2 = findAllLegsBetween(relayStationName, dest, new Set([routeId]), planningDay);
-        if (legs2.length === 0) return;
-
-        const TRANSFER_BUFFER_SEC = 2 * 60; 
-        const MAX_WAIT_SEC = 180 * 60; // 3 hours
-
-        legs1.forEach(l1 => {
-            const arr1 = timeToSeconds(l1.arrTime);
-            
-            legs2.forEach(l2 => {
-                const dep2 = timeToSeconds(l2.depTime);
-                const wait = dep2 - arr1;
-
-                if (wait >= TRANSFER_BUFFER_SEC && wait <= MAX_WAIT_SEC) {
-                    allRelayTrips.push({
-                        type: 'TRANSFER', // Reuse existing UI type
-                        route: routeConfig, // Main Route
-                        from: origin, to: dest,
-                        transferStation: routeConfig.relayStation,
-                        depTime: l1.depTime,
-                        arrTime: l2.arrTime,
-                        train: l1.train,
-                        leg1: l1,
-                        leg2: l2,
-                        totalDuration: (timeToSeconds(l2.arrTime) - timeToSeconds(l1.depTime))
-                    });
-                }
-            });
-        });
-    });
-
-    return { trips: allRelayTrips };
-}
-
-// --- 2-TRANSFER (3-LEG) PLANNER ---
-function planDoubleTransferTrip(origin, dest) {
-    const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
-    const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
-    
-    const allRouteIds = Object.keys(ROUTES).filter(id => ROUTES[id].isActive);
-    let potentialTrips = [];
-
-    // 1. Find Valid Path: OriginRoute -> BridgeRoute -> DestRoute
-    for (const startRouteId of originRoutes) {
-        for (const endRouteId of destRoutes) {
-            if (startRouteId === endRouteId) continue;
-            
-            for (const bridgeRouteId of allRouteIds) {
-                if (bridgeRouteId === startRouteId || bridgeRouteId === endRouteId) continue;
-
-                // FIX: Get ALL Intersections, not just the first one found
-                const hubs1 = findIntersections(startRouteId, bridgeRouteId);
-                if (hubs1.length === 0) continue;
-
-                const hubs2 = findIntersections(bridgeRouteId, endRouteId);
-                if (hubs2.length === 0) continue;
-
-                // Nested Loop to check ALL Hub Combinations
-                for (const hub1 of hubs1) {
-                    for (const hub2 of hubs2) {
-                        // Hubs must be different to form a bridge
-                        if (normalizeStationName(hub1) === normalizeStationName(hub2)) continue;
-
-                        const trips = calculateThreeLegTrip(
-                            origin, hub1, hub2, dest,
-                            ROUTES[startRouteId], ROUTES[bridgeRouteId], ROUTES[endRouteId]
-                        );
-                        potentialTrips = [...potentialTrips, ...trips];
-                    }
-                }
-            }
-        }
-    }
-
-    if (potentialTrips.length > 0) {
-        potentialTrips.sort((a,b) => timeToSeconds(a.arrTime) - timeToSeconds(b.arrTime));
-        return { status: 'FOUND', trips: potentialTrips };
-    }
-    return { status: 'NO_PATH' };
-}
-
-// Helper: Find ALL shared stations between two routes (Fix for Hub Selection)
-function findIntersections(routeAId, routeBId) {
-    const intersections = [];
-    for (const [stationName, data] of Object.entries(globalStationIndex)) {
-        if (data.routes.has(routeAId) && data.routes.has(routeBId)) {
-            intersections.push(stationName);
-        }
-    }
-    return intersections;
-}
-
-// Calculation Engine for 3 Legs (Optimized with Smart Pruning)
-function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3) {
-    const dayType = selectedPlannerDay || currentDayType;
-    const TRANSFER_BUFFER = 5 * 60; // 5 minutes safe buffer
-
-    // 1. Get All Leg Options ONCE (Performance Fix)
-    const legs1 = findAllLegsBetween(origin, hub1, new Set([route1.id]), dayType);
-    if (legs1.length === 0) return [];
-
-    const legs2 = findAllLegsBetween(hub1, hub2, new Set([route2.id]), dayType);
-    if (legs2.length === 0) return [];
-
-    const legs3 = findAllLegsBetween(hub2, dest, new Set([route3.id]), dayType);
-    if (legs3.length === 0) return [];
-
-    const trips = [];
-
-    // Nested Loop with Pre-Calculated Legs AND Smart Pruning
-    for (const l1 of legs1) {
-        
-        // PRUNE: If Leg 1 goes straight to Hub 2 faster than Transfer at Hub 1...
-        // Then Hub 1 is redundant. Skip.
-        if (isTrainFasterDirect(l1.route, l1.train, hub2, null)) {
-            continue; 
-        }
-
-        const arr1 = timeToSeconds(l1.arrTime);
-        const validLegs2 = legs2.filter(l2 => timeToSeconds(l2.depTime) >= arr1 + TRANSFER_BUFFER);
-
-        for (const l2 of validLegs2) {
-            
-            // PRUNE: If Leg 2 goes straight to Dest faster than Transfer at Hub 2...
-            // Then Hub 2 is redundant. Skip.
-            if (isTrainFasterDirect(l2.route, l2.train, dest, null)) {
-                continue;
-            }
-
-            const arr2 = timeToSeconds(l2.arrTime);
-            const validLegs3 = legs3.filter(l3 => timeToSeconds(l3.depTime) >= arr2 + TRANSFER_BUFFER);
-
-            for (const l3 of validLegs3) {
-                trips.push({
-                    type: 'DOUBLE_TRANSFER',
-                    from: origin, to: dest,
-                    depTime: l1.depTime,
-                    arrTime: l3.arrTime,
-                    totalDuration: timeToSeconds(l3.arrTime) - timeToSeconds(l1.depTime),
-                    train: l1.train, 
-                    leg1: l1, hub1: hub1,
-                    leg2: l2, hub2: hub2,
-                    leg3: l3,
-                    routePath: [route1.name, route2.name, route3.name]
-                });
-            }
-        }
-    }
-    return trips;
-}
-
-function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
-    let legs = [];
-    const routesToCheck = routeSet ? [...routeSet] : Object.keys(ROUTES);
-    for (const rId of routesToCheck) {
-        const routeConfig = ROUTES[rId];
-        let directions = getDirectionsForRoute(routeConfig, dayType);
-        for (let dir of directions) {
-            if (!fullDatabase || !fullDatabase[dir.key]) continue;
-            const schedule = parseJSONSchedule(fullDatabase[dir.key]);
-            const rowA = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(stationA));
-            const rowB = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(stationB));
-            if (rowA && rowB) {
-                const idxA = schedule.rows.indexOf(rowA);
-                const idxB = schedule.rows.indexOf(rowB);
-                if (idxA < idxB) {
-                    findUpcomingTrainsForLeg(schedule, rowA, rowB, true).forEach(t => {
-                        legs.push(createTripObject(routeConfig, t, schedule, idxA, idxB, stationA, stationB));
-                    });
-                }
-            }
-        }
-    }
-    return legs;
-}
-
-function findNextDayTrips(routeConfig, origin, dest, baseDay) {
-    let dayName = 'Tomorrow', nextDayType = 'weekday';
-    
-    if (baseDay === 'weekday') { 
-        nextDayType = 'weekday'; 
-        dayName = 'Tomorrow'; 
-    } else if (baseDay === 'saturday') { 
-        nextDayType = 'weekday'; 
-        dayName = 'Monday'; 
-    } else if (baseDay === 'sunday') { 
-        nextDayType = 'weekday'; 
-        dayName = 'Monday'; 
-    }
-
-    let allNextDayTrains = [];
-    getDirectionsForRoute(routeConfig, nextDayType).forEach(dir => {
-         if (!fullDatabase || !fullDatabase[dir.key]) return;
-         const schedule = parseJSONSchedule(fullDatabase[dir.key]);
-         const originRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(origin));
-         const destRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(dest));
-         if (originRow && destRow && schedule.rows.indexOf(originRow) < schedule.rows.indexOf(destRow)) {
-             schedule.headers.slice(1).forEach(tName => {
-                 const dTime = originRow[tName], aTime = destRow[tName];
-                 if(dTime && aTime) allNextDayTrains.push({ trainName: tName, depTime: dTime, arrTime: aTime });
-             });
-         }
-    });
-    return allNextDayTrains.map(info => {
-        const trip = createTripObject(routeConfig, info, null, 0, 0, origin, dest); 
-        trip.dayLabel = dayName;
-        return trip;
-    });
-}
-
-function getDirectionsForRoute(route, dayType) {
-    if (dayType === 'weekday') return [{ key: route.sheetKeys.weekday_to_a }, { key: route.sheetKeys.weekday_to_b }];
-    if (dayType === 'saturday') return [{ key: route.sheetKeys.saturday_to_a }, { key: route.sheetKeys.saturday_to_b }];
-    return []; 
-}
-
-function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, dest) {
-    // --- GUARDIAN: ADDED DESTINATION LOGIC ---
-    // Extract actual destination for proper labeling
-    let actualDest = dest;
-    if (schedule && schedule.rows && schedule.rows.length > 0) {
-        // Try to get the last station in this direction from schedule
-        const lastRow = schedule.rows[schedule.rows.length - 1];
-        if (lastRow && lastRow.STATION) actualDest = lastRow.STATION;
-    }
-
-    return {
-        type: 'DIRECT', route: route, from: origin, to: dest,
-        train: trainInfo.trainName, depTime: trainInfo.depTime, arrTime: trainInfo.arrTime,
-        // Carry the true destination of the line for UI
-        actualDestination: actualDest,
-        stops: (schedule && startIdx !== undefined) ? getIntermediateStops(schedule, startIdx, endIdx, trainInfo.trainName) : []
-    };
-}
-
-function findUpcomingTrainsForLeg(schedule, originRow, destRow, allowPast = false) {
-    const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
-    const nowSeconds = (isToday && !allowPast) ? timeToSeconds(currentTime) : 0; 
-    let upcomingTrains = [];
-    schedule.headers.slice(1).forEach(trainName => {
-        const depTime = originRow[trainName], arrTime = destRow[trainName];
-        if (depTime && arrTime) {
-            const depSeconds = timeToSeconds(depTime);
-            if (depSeconds >= 0) upcomingTrains.push({ trainName, depTime, arrTime, seconds: depSeconds });
-        }
-    });
-    return upcomingTrains.sort((a, b) => a.seconds - b.seconds);
-}
-
-function getIntermediateStops(schedule, startIndex, endIndex, trainName) {
-    let stops = [];
-    for (let i = startIndex; i <= endIndex; i++) {
-        const row = schedule.rows[i];
-        if (row[trainName]) stops.push({ station: row.STATION, time: row[trainName] });
-    }
-    return stops;
-}
-
-// --- UI RENDERING ---
+// --- VIEW COMPONENTS ---
 
 function getPlanningDayLabel() {
     const day = selectedPlannerDay || currentDayType;
@@ -1206,7 +553,6 @@ function renderErrorCard(title, message, actionHtml = "") {
     `;
 }
 
-// --- PLANNER RENDERER ---
 const PlannerRenderer = {
     format12h: (timeStr) => {
         if (!timeStr) return "--:--";
@@ -1243,10 +589,8 @@ const PlannerRenderer = {
 
         const { countdown, duration, isDeparted } = PlannerRenderer.calculateTimes(step, isNextDay);
 
-        // Dynamic State UI:
         let stateBadge = "";
         
-        // --- NEW: FORCE 'TOMORROW' STATUS ---
         if (isNextDay) {
              stateBadge = `<div class="flex items-center text-sm font-bold text-orange-600 dark:text-orange-400">
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -1308,7 +652,6 @@ const PlannerRenderer = {
 
         const optionsHtml = allOptions.map((opt, idx) => {
             const depSec = timeToSeconds(opt.depTime);
-            
             let isPast = isToday && depSec < nowSec;
             let label = "";
             let typeLabel = "Direct";
@@ -1316,7 +659,7 @@ const PlannerRenderer = {
             if (opt.type === 'DOUBLE_TRANSFER') typeLabel = "2 Transfers";
             
             if (isToday && isLateNight && depSec < (14 * 3600)) {
-                isPast = false; // Treat as future (tomorrow)
+                isPast = false;
                 label = " (Tomorrow)";
             } else if (isPast) {
                 label = " (Departed)";
@@ -1329,7 +672,6 @@ const PlannerRenderer = {
 
         return `
             <div class="px-4 pb-2">
-                <!-- UPDATED LABEL: CLEAR CALL TO ACTION -->
                 <label class="text-[10px] uppercase font-bold text-blue-500 dark:text-blue-400 mb-1 block animate-pulse">👇 Tap to Change Time:</label>
                 <select onchange="selectPlannerTrip(this.value)" class="w-full bg-blue-50 dark:bg-gray-800 border-2 border-blue-200 dark:border-blue-900 text-gray-900 dark:text-white text-sm rounded p-2 focus:ring-blue-500 focus:border-blue-500 font-bold shadow-sm">
                     ${optionsHtml}
@@ -1349,7 +691,6 @@ const PlannerRenderer = {
         </div>
     `,
 
-    // --- UPGRADED RENDER TIMELINE: Supports Collapsible Stops ---
     renderTimeline: (step) => {
         if (step.type === 'TRANSFER') return PlannerRenderer.renderTransferTimeline(step);
         if (step.type === 'DOUBLE_TRANSFER') return PlannerRenderer.renderDoubleTransferTimeline(step);
@@ -1367,7 +708,6 @@ const PlannerRenderer = {
                 </div>
             `;
         });
-        
         return html + `</div>`;
     },
 
@@ -1377,19 +717,15 @@ const PlannerRenderer = {
         const waitMins = Math.floor((depSec - arrSec) / 60);
         const waitStr = waitMins > 59 ? `${Math.floor(waitMins/60)} hr ${waitMins%60} min` : `${waitMins} Minutes`;
         
-        // --- 1. Destination Extraction Logic ---
         let train1Dest = step.leg1.actualDestination || step.leg1.route.destB;
         train1Dest = train1Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
 
         let train2Dest = step.leg2.actualDestination || step.leg2.route.destB;
         train2Dest = train2Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
 
-        // --- 2. Build Collapsible Lists (Fixed for Persistence) ---
-        // Helper to build list HTML with state check
         const buildStopList = (stops, id) => {
             if(!stops || stops.length === 0) return '';
             const isExpanded = plannerExpandedState.has(id);
-            
             return `
                 <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] text-gray-400 hover:text-blue-500 underline text-left mb-2 w-fit">
                     ${isExpanded ? "Hide Stops" : "Show All Stops"}
@@ -1408,20 +744,13 @@ const PlannerRenderer = {
         const leg1StopsId = `stops-leg1-${step.train}`;
         const leg2StopsId = `stops-leg2-${step.train}`;
 
-        // --- NEW: RENDER INTERNAL TRANSFER (Koedoespoort) ---
         let internalTransferBlock = "";
-        let leg2StopsToRender = step.leg2.stops;
-
         if (step.leg2.internalTransfer) {
             const it = step.leg2.internalTransfer;
             const waitMin = Math.floor(it.wait / 60);
             const waitText = waitMin > 59 ? `${Math.floor(waitMin/60)}h ${waitMin%60}m` : `${waitMin} min`;
             const transferStn = it.station.replace(' STATION', '');
 
-            // Split stops for rendering accuracy (before/after transfer)
-            // Note: stops array is already flattened, so we just show the block at the top of Leg 2 
-            // to indicate the break, as the user is effectively starting a "new" trip here.
-            
             internalTransferBlock = `
                 <div class="mt-2 mb-2 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
                     <div class="font-bold uppercase tracking-wide mb-1">Internal Transfer @ ${transferStn}</div>
@@ -1443,7 +772,6 @@ const PlannerRenderer = {
                             <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.from.replace(' STATION', '')}</span>
                             <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.depTime)}</span>
                         </div>
-                        <!-- Updated Label -->
                         <div class="text-xs text-blue-500 font-medium mb-1">
                             ${train1Dest} Train ${step.leg1.train}
                         </div>
@@ -1480,7 +808,6 @@ const PlannerRenderer = {
                         
                         ${internalTransferBlock}
 
-                        <!-- Updated Label -->
                         <div class="text-xs text-blue-500 font-medium mb-1">
                             ${train2Dest} Train ${step.leg2.train}
                         </div>
@@ -1499,15 +826,12 @@ const PlannerRenderer = {
         `;
     },
 
-    // --- NEW: RENDER DOUBLE TRANSFER TIMELINE (UX POLISH) ---
     renderDoubleTransferTimeline: (step) => {
-        // Helper: Calculate wait time string
         const calcWait = (arr, dep) => {
             const mins = Math.floor((timeToSeconds(dep) - timeToSeconds(arr)) / 60);
             return mins > 59 ? `${Math.floor(mins/60)} hr ${mins%60} min` : `${mins} Minutes`;
         };
         
-        // Helper: Get Destination Name
         const getDestName = (leg) => {
             const dest = leg.actualDestination || leg.route.destB;
             return dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
@@ -1520,11 +844,9 @@ const PlannerRenderer = {
         const wait1 = calcWait(step.leg1.arrTime, step.leg2.depTime);
         const wait2 = calcWait(step.leg2.arrTime, step.leg3.depTime);
 
-        // Helper: Build Stop List (Same as before) with STATE CHECK
         const buildStopList = (stops, id) => {
             if(!stops || stops.length === 0) return '';
             const isExpanded = plannerExpandedState.has(id);
-            
             return `
                 <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] text-gray-400 hover:text-blue-500 underline text-left mb-2 w-fit">
                     ${isExpanded ? "Hide Stops" : "Show All Stops"}
@@ -1540,7 +862,6 @@ const PlannerRenderer = {
             `;
         };
 
-        // Unique IDs for collapsible sections
         const l1ID = `stops-l1-${step.train}`;
         const l2ID = `stops-l2-${step.train}`;
         const l3ID = `stops-l3-${step.train}`;
@@ -1649,13 +970,12 @@ const PlannerRenderer = {
         let countdown = "Scheduled";
         let isDeparted = false;
         
-        // --- NIGHT OWL LOGIC FOR COUNTDOWN ---
         const isLateNight = nowSec > (20 * 3600);
         let effectiveDepSec = depSec;
         let isTomorrowOverride = false;
 
         if (isToday && isLateNight && depSec < (14 * 3600)) {
-             effectiveDepSec += 86400; // Shift to tomorrow (add 24h in seconds)
+             effectiveDepSec += 86400; 
              isTomorrowOverride = true;
         }
 

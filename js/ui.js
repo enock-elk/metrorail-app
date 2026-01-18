@@ -2,10 +2,7 @@
 window.onerror = function(msg, url, line) {
     console.error("Global Error Caught:", msg);
     
-    // Safety check: loadingOverlay no longer exists in App Shell mode
-    const overlay = document.getElementById('loading-overlay');
-    if(overlay) overlay.style.display = 'none';
-    
+    // Safety check: Ensure main content is visible if error occurs during init
     if(mainContent) mainContent.style.display = 'block';
     
     if(toast) {
@@ -15,17 +12,38 @@ window.onerror = function(msg, url, line) {
     return false;
 };
 
-// --- ANALYTICS HELPER ---
+// --- ANALYTICS HELPER (Google Analytics + MS Clarity) ---
 function trackAnalyticsEvent(eventName, params = {}) {
+    // 1. Google Analytics 4
     try {
         if (typeof gtag === 'function') {
             gtag('event', eventName, params);
-            console.log(`[Analytics] Tracked: ${eventName}`, params);
+            console.log(`[Analytics] GA4 Tracked: ${eventName}`, params);
         } else {
-            console.log(`[Analytics] Skipped (gtag not found): ${eventName}`);
+            console.log(`[Analytics] Skipped GA4 (not found): ${eventName}`);
         }
     } catch (e) {
-        console.warn("[Analytics] Error tracking event:", e);
+        console.warn("[Analytics] GA4 Error:", e);
+    }
+
+    // 2. Microsoft Clarity
+    try {
+        if (typeof clarity === 'function') {
+            // A. Log the Event (Smart Event)
+            clarity("event", eventName);
+
+            // B. Set Tags (Session Labels)
+            // Note: Clarity treats params as session tags. 
+            // Useful for filtering recordings (e.g., "Watch all sessions where user selected Route X")
+            if (params) {
+                Object.keys(params).forEach(key => {
+                    clarity("set", key, String(params[key]));
+                });
+            }
+            console.log(`[Analytics] Clarity Tagged: ${eventName}`);
+        }
+    } catch (e) {
+        console.warn("[Analytics] Clarity Error:", e);
     }
 }
 
@@ -46,13 +64,6 @@ const HOLIDAY_NAMES = {
 };
 
 // --- BRIDGES TO RENDERER (Safety Wrapped) ---
-
-// No longer needed in App Shell, but kept empty for API compatibility
-window.hideLoadingOverlay = function() {
-    const overlay = document.getElementById('loading-overlay');
-    if (!overlay) return;
-    overlay.style.display = 'none';
-};
 
 function renderSkeletonLoader(element) {
     if (element && typeof Renderer !== 'undefined') Renderer.renderSkeletonLoader(element);
@@ -302,14 +313,13 @@ function updateTime() {
         let dateToCheck = null; 
 
         // Check if Admin global is available for simulation state
-        // Otherwise fallback to window globals if Admin sets them
         const simActive = (typeof window.isSimMode !== 'undefined') ? window.isSimMode : false;
 
         if (simActive) {
             day = parseInt(window.simDayIndex || 1);
             timeString = window.simTimeStr || "12:00:00"; 
             
-            // Check for specific date in DOM
+            // Check for specific date in DOM (Admin injected)
             const dateInput = document.getElementById('sim-date');
             if (dateInput && dateInput.value) {
                 const parts = dateInput.value.split('-');
@@ -422,17 +432,10 @@ function initializeApp() {
     startClock();
     findNextTrains(); 
     
-    // Check service alerts via Admin or directly? 
-    // Logic.js is for pure data, UI handles display.
-    // For now, keep the read-only check here or delegate.
     checkServiceAlerts();
     
     handleShortcutActions();
 
-    // Remove fallback for overlay if it still exists (it shouldn't)
-    const overlay = document.getElementById('loading-overlay');
-    if(overlay) overlay.style.display = 'none';
-    
     if(mainContent) mainContent.style.display = 'block';
 }
 
@@ -633,20 +636,6 @@ function setupSwipeNavigation() {
         
         handleSwipe(touchStartX, touchEndX, touchStartY, touchEndY);
     }, {passive: true});
-}
-
-function handleSwipe(startX, endX, startY, endY) {
-    const minSwipeDistance = 75;
-    const maxVerticalVariance = 50; 
-    const distX = startX - endX;
-    const distY = Math.abs(startY - endY);
-
-    if (distY > maxVerticalVariance) return;
-
-    if (Math.abs(distX) > minSwipeDistance) {
-        if (distX > 0) switchTab('trip-planner');
-        else switchTab('next-train');
-    }
 }
 
 // UPDATED: Modal now supports dynamic Day Override
@@ -928,9 +917,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Safety check for main content
     mainContent = document.getElementById('main-content');
     
-    // Safety check for overlay (should be gone in new HTML)
-    loadingOverlay = document.getElementById('loading-overlay');
-    
     offlineIndicator = document.getElementById('offline-indicator');
     scheduleModal = document.getElementById('schedule-modal');
     modalTitle = document.getElementById('modal-title');
@@ -959,21 +945,9 @@ document.addEventListener('DOMContentLoaded', () => {
     routeSubtitleText = document.getElementById('route-subtitle-text');
     pinnedSection = document.getElementById('pinned-section');
     toast = document.getElementById('toast');
-    checkUpdatesBtn = document.getElementById('check-updates-btn');
     feedbackBtn = document.getElementById('feedback-btn');
     lastUpdatedEl = document.getElementById('last-updated-date');
-
-    // Admin/Sim Elements (Might not exist if modal not open)
-    simPanel = document.getElementById('sim-panel');
-    simEnabledCheckbox = document.getElementById('sim-enabled');
-    simTimeInput = document.getElementById('sim-time');
-    simDaySelect = document.getElementById('sim-day');
-    simApplyBtn = document.getElementById('sim-apply-btn');
     appTitle = document.getElementById('app-title');
-    pinModal = document.getElementById('pin-modal');
-    pinInput = document.getElementById('pin-input');
-    pinCancelBtn = document.getElementById('pin-cancel-btn');
-    pinSubmitBtn = document.getElementById('pin-submit-btn');
     
     legalModal = document.getElementById('legal-modal');
     legalTitle = document.getElementById('legal-modal-title');
@@ -1032,7 +1006,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const openInteractiveMapBtn = document.getElementById('open-interactive-map-btn');
     if (openInteractiveMapBtn) openInteractiveMapBtn.addEventListener('click', () => trackAnalyticsEvent('open_interactive_map', { source: 'modal' }));
     
-    // --- ADMIN / DEV TRIGGER (FIXED) ---
+    // --- ADMIN / DEV TRIGGER ---
     if (appTitle) {
         // Delegate logic to Admin module if available
         if (typeof Admin !== 'undefined' && Admin.setupPinAccess) {
@@ -1059,7 +1033,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     } else {
         console.log("First time user (or no pinned route). Showing Welcome Screen.");
-        // Overlay removal is now instant in HTML, no JS needed.
         showWelcomeScreen();
     }
 

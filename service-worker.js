@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.60.2'; // Bumped: Added map-data.js to cache
+const CACHE_NAME = 'metrorail-next-train-v4.60.3'; // BUMPED: Modular Planner + SEO Fixes
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -10,9 +10,12 @@ const ASSETS_TO_CACHE = [
   './js/config.js',
   './js/utils.js',
   './js/logic.js',
-  './js/planner.js',
+  // PLANNER MODULARIZATION UPDATE
+  './js/planner-core.js',
+  './js/planner-ui.js',
   './js/map-viewer.js',
-  './js/map-data.js', // NEW: Added to ensure offline map coordinates work
+  './js/renderer.js', // Ensure Renderer is cached
+  './js/admin.js',    // Ensure Admin is cached
   './js/ui.js',
   './manifest.json',
   './sitemap.xml',
@@ -31,7 +34,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('SW: Caching core assets (v4.50.2)...');
+        console.log('SW: Caching core assets (v4.60.2)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {
