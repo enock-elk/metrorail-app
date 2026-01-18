@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.3 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.6 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -25,7 +25,6 @@ function initPlanner() {
     
     // NEW: Action Buttons in Results Header
     const backBtn = document.getElementById('planner-back-btn');
-    const swapResultBtn = document.getElementById('planner-swap-result-btn');
 
     // Inject Day Selector if missing
     const inputSection = document.getElementById('planner-input-section');
@@ -237,14 +236,6 @@ function initPlanner() {
 
     if (resetBtn) resetBtn.addEventListener('click', resetAction);
     if (backBtn) backBtn.addEventListener('click', resetAction);
-
-    // --- SWAP RESULT BUTTON LOGIC (Delegated if element doesn't exist yet) ---
-    // Note: Since swapResultBtn is in index.html now, this listener is valid.
-    // However, if we re-render the header dynamically (we don't currently), we'd need delegation.
-    // The current index.html has it static, so this works.
-    // BUT: We moved the button INSIDE the card header in the plan.
-    // So we need to bind it dynamically inside the renderer or use global onclick.
-    // Strategy: We'll use a global window function for the swap action, referenced by onclick in the HTML string.
 }
 
 // --- NEW: SWAP RESULTS FUNCTION ---
@@ -553,35 +544,44 @@ function getPlanningDayLabel() {
     return "Weekday Schedule";
 }
 
-// UPDATED: New Badge Design
-function renderTripResult(container, trips, selectedIndex = 0) {
-    const selectedTrip = trips[selectedIndex];
-    const dayLabel = getPlanningDayLabel();
-    const infoHtml = `
-        <div class="flex justify-center mb-4">
+// NEW: Helper to update the External Header
+function updatePlannerHeader(dayLabel) {
+    const headerTitle = document.querySelector('#planner-results-section h4');
+    const spacer = document.querySelector('#planner-results-section .w-8');
+    if (headerTitle) {
+        headerTitle.innerHTML = `
             <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200 shadow-sm flex items-center">
                 <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                 Schedule: ${dayLabel}
             </span>
-        </div>`;
+        `;
+        // Ensure it's visible if hidden previously
+        headerTitle.classList.remove('hidden');
+    }
+    // Hide the spacer so the flex-between pins the badge to the right
+    if (spacer) spacer.style.display = 'none';
+}
+
+function renderTripResult(container, trips, selectedIndex = 0) {
+    const selectedTrip = trips[selectedIndex];
+    const dayLabel = getPlanningDayLabel();
     
+    // Update Header Badge OUTSIDE the card
+    updatePlannerHeader(dayLabel);
+
     if (selectedTrip) {
-        container.innerHTML = infoHtml + PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
+        container.innerHTML = PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
     }
 }
 
 function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "No more trains today") {
     const selectedTrip = trips[selectedIndex];
     const dayLabel = getPlanningDayLabel();
-    const infoHtml = `
-        <div class="flex justify-center mb-4">
-            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200 shadow-sm flex items-center">
-                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                Schedule: ${dayLabel}
-            </span>
-        </div>`;
+    
+    // Update Header Badge OUTSIDE the card
+    updatePlannerHeader(dayLabel);
 
-    container.innerHTML = infoHtml + `
+    container.innerHTML = `
         <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
             <div class="flex items-center mb-3">
                 <span class="text-2xl mr-3">🚫</span>
@@ -666,28 +666,26 @@ const PlannerRenderer = {
                           </div>`;
         }
 
-        // UPDATED: Swap Button Integration
         return `
             <div class="p-4 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between mb-2">
                     <span class="text-xs font-bold ${colorClass} uppercase tracking-wider">${headerLabel}</span>
                     <span class="text-xs font-bold text-gray-500 bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">Train ${step.train}</span>
                 </div>
                 <div class="flex justify-between items-center mt-2">
-                    <div class="text-left">
+                    <div class="text-left flex-1 w-0">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Depart</p>
-                        <p class="text-lg font-black text-gray-900 dark:text-white leading-tight">${step.from.replace(' STATION', '')}</p>
+                        <p class="text-lg font-black text-gray-900 dark:text-white leading-tight truncate" title="${step.from}">${step.from.replace(' STATION', '')}</p>
                         <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.depTime)}</p>
                     </div>
                     
-                    <!-- CENTER: SWAP BUTTON -->
-                    <button onclick="swapPlannerResults()" class="p-2 bg-white dark:bg-gray-700 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 transition shadow-sm border border-gray-200 dark:border-gray-600 mx-2" title="Reverse Trip">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                    <button onclick="swapPlannerResults()" class="flex-none p-1 bg-white dark:bg-gray-700 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 transition shadow-sm border border-gray-200 dark:border-gray-600 mx-1" title="Reverse Trip">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
                     </button>
 
-                    <div class="text-right">
+                    <div class="text-right flex-1 w-0">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Arrive</p>
-                        <p class="text-lg font-black text-gray-900 dark:text-white leading-tight">${step.to.replace(' STATION', '')}</p>
+                        <p class="text-lg font-black text-gray-900 dark:text-white leading-tight truncate" title="${step.to}">${step.to.replace(' STATION', '')}</p>
                         <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.arrTime)}</p>
                     </div>
                 </div>
@@ -771,9 +769,10 @@ const PlannerRenderer = {
     },
 
     renderTransferTimeline: (step) => {
-        const arrSec = timeToSeconds(step.leg1.arrTime);
-        const depSec = timeToSeconds(step.leg2.depTime);
-        const waitMins = Math.floor((depSec - arrSec) / 60);
+        // STANDARD CALCULATION (Wait at Hub)
+        const hubArr = timeToSeconds(step.leg1.arrTime);
+        const hubDep = timeToSeconds(step.leg2.depTime);
+        const waitMins = Math.floor((hubDep - hubArr) / 60);
         const waitStr = waitMins > 59 ? `${Math.floor(waitMins/60)} hr ${waitMins%60} min` : `${waitMins} Minutes`;
         
         let train1Dest = step.leg1.actualDestination || step.leg1.route.destB;
@@ -782,53 +781,8 @@ const PlannerRenderer = {
         let train2Dest = step.leg2.actualDestination || step.leg2.route.destB;
         train2Dest = train2Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
 
-        const buildStopList = (stops, id) => {
-            if(!stops || stops.length === 0) return '';
-            const isExpanded = plannerExpandedState.has(id);
-            return `
-                <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] text-gray-400 hover:text-blue-500 underline text-left mb-2 w-fit">
-                    ${isExpanded ? "Hide Stops" : "Show All Stops"}
-                </button>
-                <div id="${id}" class="${isExpanded ? "" : "hidden"} pl-2 border-l border-gray-200 dark:border-gray-700 space-y-1 mb-2">
-                    ${stops.map(s => `
-                        <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1">
-                            <span>${s.station.replace(' STATION', '')}</span>
-                            <span class="font-mono">${formatTimeDisplay(s.time)}</span>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        };
-
-        const leg1StopsId = `stops-leg1-${step.train}`;
-        const leg2StopsId = `stops-leg2-${step.train}`;
-
-        // UPDATED: Internal Transfer Block (Logic for moving to middle)
-        let internalTransferBlock = "";
-        if (step.leg2.internalTransfer) {
-            const it = step.leg2.internalTransfer;
-            const waitMin = Math.floor(it.wait / 60);
-            const waitText = waitMin > 59 ? `${Math.floor(waitMin/60)}h ${waitMin%60}m` : `${waitMin} min`;
-            const transferStn = it.station.replace(' STATION', '');
-
-            internalTransferBlock = `
-                <!-- INTERNAL TRANSFER BLOCK (INJECTED MIDDLE) -->
-                <div class="relative pl-6 pb-6 pt-2">
-                    <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
-                    <div class="mt-1 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
-                        <div class="font-bold uppercase tracking-wide mb-1">Internal Transfer @ ${transferStn}</div>
-                        <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                            <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitText}</b> Wait</span><br>
-                            &bull; Switch from Train ${it.train1} to ${it.train2}
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        // STANDARD TRANSFER BLOCK
+        // STANDARD HUB TRANSFER BLOCK (Yellow)
         const standardTransferBlock = `
-            <!-- TRANSFER HUB BLOCK -->
             <div class="relative pl-6 pb-6 pt-2">
                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900 z-10"></div>
                 <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500">
@@ -841,7 +795,54 @@ const PlannerRenderer = {
             </div>
         `;
 
-        const transferBlockToRender = step.leg2.internalTransfer ? internalTransferBlock : standardTransferBlock;
+        // BUILD STOP LIST (Smart Injection for Relay)
+        const buildStopList = (stops, id, internalTransfer) => {
+            if(!stops || stops.length === 0) return '';
+            const isExpanded = plannerExpandedState.has(id);
+            let stopsHtml = '';
+            let relayInjected = false;
+
+            stops.forEach(s => {
+                const sName = s.station.replace(' STATION', '');
+                stopsHtml += `
+                    <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1">
+                        <span>${sName}</span>
+                        <span class="font-mono">${formatTimeDisplay(s.time)}</span>
+                    </div>
+                `;
+
+                // INJECT INTERNAL TRANSFER BLOCK IF NEEDED
+                // We inject it immediately AFTER the relay station's first appearance (Arrival)
+                if (internalTransfer && !relayInjected && normalizeStationName(s.station) === normalizeStationName(internalTransfer.station)) {
+                    const it = internalTransfer;
+                    const iWaitMin = Math.floor(it.wait / 60);
+                    const iWaitText = iWaitMin > 59 ? `${Math.floor(iWaitMin/60)}h ${iWaitMin%60}m` : `${iWaitMin} min`;
+                    
+                    stopsHtml += `
+                        <div class="my-2 p-2 bg-purple-50 dark:bg-purple-900/30 border-l-2 border-purple-500 rounded text-xs ml-[-8px]">
+                            <div class="font-bold text-purple-800 dark:text-purple-300 uppercase mb-1">Internal Transfer @ ${sName}</div>
+                            <div class="text-gray-600 dark:text-gray-400">
+                                ⏱ <b>${iWaitText}</b> Wait<br>
+                                • Switch from Train ${it.train1} to ${it.train2}
+                            </div>
+                        </div>
+                    `;
+                    relayInjected = true;
+                }
+            });
+
+            return `
+                <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] text-gray-400 hover:text-blue-500 underline text-left mb-2 w-fit">
+                    ${isExpanded ? "Hide Stops" : "Show All Stops"}
+                </button>
+                <div id="${id}" class="${isExpanded ? "" : "hidden"} pl-2 border-l border-gray-200 dark:border-gray-700 space-y-1 mb-2">
+                    ${stopsHtml}
+                </div>
+            `;
+        };
+
+        const leg1StopsId = `stops-leg1-${step.train}`;
+        const leg2StopsId = `stops-leg2-${step.train}`;
 
         return `
             <div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-0">
@@ -856,21 +857,21 @@ const PlannerRenderer = {
                         <div class="text-xs text-blue-500 font-medium mb-1">
                             ${train1Dest} Train ${step.leg1.train}
                         </div>
-                        ${buildStopList(step.leg1.stops, leg1StopsId)}
+                        ${buildStopList(step.leg1.stops, leg1StopsId, null)}
                     </div>
                 </div>
 
                 <!-- LEG 1 END (Arrival at Hub) -->
                 <div class="relative pl-6">
-                    <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div> <!-- Intermediate dot -->
+                    <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div>
                     <div class="flex justify-between items-center mb-1">
                         <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive ${step.transferStation.replace(' STATION', '')}</span>
                         <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.arrTime)}</span>
                     </div>
                 </div>
 
-                <!-- INJECTED MIDDLE BLOCK (Transfer Details) -->
-                ${transferBlockToRender}
+                <!-- MAIN HUB TRANSFER BLOCK (Always Visible) -->
+                ${standardTransferBlock}
 
                 <!-- LEG 2 START (Departure from Hub) -->
                 <div class="relative pl-6 pb-6">
@@ -884,7 +885,8 @@ const PlannerRenderer = {
                         <div class="text-xs text-blue-500 font-medium mb-1">
                             ${train2Dest} Train ${step.leg2.train}
                         </div>
-                        ${buildStopList(step.leg2.stops, leg2StopsId)}
+                        <!-- Inject Internal Transfer into Leg 2 list if present -->
+                        ${buildStopList(step.leg2.stops, leg2StopsId, step.leg2.internalTransfer)}
                     </div>
                 </div>
 
