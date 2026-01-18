@@ -605,6 +605,24 @@ function moveTabIndicator(element) {
     indicator.style.transform = `translateX(${element.offsetLeft}px)`;
 }
 
+// --- MISSING FUNCTION RESTORED ---
+function handleSwipe(startX, endX, startY, endY) {
+    const diffX = endX - startX;
+    const diffY = endY - startY;
+    
+    // Threshold for swipe length (e.g., 50px)
+    // Also ensure it's more horizontal than vertical
+    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+        if (diffX > 0) {
+            // Swipe Right -> Next Train (Tab 1)
+            switchTab('next-train');
+        } else {
+            // Swipe Left -> Trip Planner (Tab 2)
+            switchTab('trip-planner');
+        }
+    }
+}
+
 function setupSwipeNavigation() {
     let touchStartX = 0;
     let touchStartY = 0;

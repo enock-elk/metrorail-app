@@ -238,16 +238,17 @@ function initPlanner() {
     if (resetBtn) resetBtn.addEventListener('click', resetAction);
     if (backBtn) backBtn.addEventListener('click', resetAction);
 
-    // --- SWAP RESULT BUTTON LOGIC ---
-    if (swapResultBtn) {
-        swapResultBtn.addEventListener('click', () => {
-            swapPlannerResults();
-        });
-    }
+    // --- SWAP RESULT BUTTON LOGIC (Delegated if element doesn't exist yet) ---
+    // Note: Since swapResultBtn is in index.html now, this listener is valid.
+    // However, if we re-render the header dynamically (we don't currently), we'd need delegation.
+    // The current index.html has it static, so this works.
+    // BUT: We moved the button INSIDE the card header in the plan.
+    // So we need to bind it dynamically inside the renderer or use global onclick.
+    // Strategy: We'll use a global window function for the swap action, referenced by onclick in the HTML string.
 }
 
 // --- NEW: SWAP RESULTS FUNCTION ---
-function swapPlannerResults() {
+window.swapPlannerResults = function() {
     const fromSelect = document.getElementById('planner-from');
     const toSelect = document.getElementById('planner-to');
     const fromInput = document.getElementById('planner-from-search');
@@ -273,7 +274,7 @@ function swapPlannerResults() {
     
     // Trigger Search
     executeTripPlan(oldTo, oldFrom);
-}
+};
 
 // --- HISTORY & AUTOCOMPLETE ---
 function savePlannerHistory(from, to) {
@@ -552,10 +553,17 @@ function getPlanningDayLabel() {
     return "Weekday Schedule";
 }
 
+// UPDATED: New Badge Design
 function renderTripResult(container, trips, selectedIndex = 0) {
     const selectedTrip = trips[selectedIndex];
     const dayLabel = getPlanningDayLabel();
-    const infoHtml = `<div class="mb-3 px-1 text-center"><p class="text-xs text-gray-500 dark:text-gray-400">Planning for: <span class="font-bold text-blue-600 dark:text-blue-400">${dayLabel}</span></p></div>`;
+    const infoHtml = `
+        <div class="flex justify-center mb-4">
+            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200 shadow-sm flex items-center">
+                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                Schedule: ${dayLabel}
+            </span>
+        </div>`;
     
     if (selectedTrip) {
         container.innerHTML = infoHtml + PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
@@ -565,7 +573,13 @@ function renderTripResult(container, trips, selectedIndex = 0) {
 function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "No more trains today") {
     const selectedTrip = trips[selectedIndex];
     const dayLabel = getPlanningDayLabel();
-    const infoHtml = `<div class="mb-3 px-1 text-center"><p class="text-xs text-gray-500 dark:text-gray-400">Planning for: <span class="font-bold text-blue-600 dark:text-blue-400">${dayLabel}</span></p></div>`;
+    const infoHtml = `
+        <div class="flex justify-center mb-4">
+            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200 shadow-sm flex items-center">
+                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                Schedule: ${dayLabel}
+            </span>
+        </div>`;
 
     container.innerHTML = infoHtml + `
         <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
@@ -652,6 +666,7 @@ const PlannerRenderer = {
                           </div>`;
         }
 
+        // UPDATED: Swap Button Integration
         return `
             <div class="p-4 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
                 <div class="flex items-center justify-between">
@@ -664,6 +679,12 @@ const PlannerRenderer = {
                         <p class="text-lg font-black text-gray-900 dark:text-white leading-tight">${step.from.replace(' STATION', '')}</p>
                         <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.depTime)}</p>
                     </div>
+                    
+                    <!-- CENTER: SWAP BUTTON -->
+                    <button onclick="swapPlannerResults()" class="p-2 bg-white dark:bg-gray-700 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 transition shadow-sm border border-gray-200 dark:border-gray-600 mx-2" title="Reverse Trip">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                    </button>
+
                     <div class="text-right">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Arrive</p>
                         <p class="text-lg font-black text-gray-900 dark:text-white leading-tight">${step.to.replace(' STATION', '')}</p>
@@ -783,8 +804,6 @@ const PlannerRenderer = {
         const leg2StopsId = `stops-leg2-${step.train}`;
 
         // UPDATED: Internal Transfer Block (Logic for moving to middle)
-        // If an internal transfer exists, we build the HTML block here.
-        // But crucially, we inject it into the main template flow below.
         let internalTransferBlock = "";
         if (step.leg2.internalTransfer) {
             const it = step.leg2.internalTransfer;
@@ -822,8 +841,6 @@ const PlannerRenderer = {
             </div>
         `;
 
-        // DECISION: Use Standard OR Internal Block?
-        // If it's a Relay (Internal), use that block. If Hub Transfer, use Standard.
         const transferBlockToRender = step.leg2.internalTransfer ? internalTransferBlock : standardTransferBlock;
 
         return `
