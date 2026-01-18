@@ -453,20 +453,12 @@ function getRouteFare(sheetKey, departureTimeStr) {
         }
     }
 
-    // Explicit Rules for Pensioner & Military (Always Off-Peak rate if defined, or follows time?)
-    // Actually, Config says: Pensioner: { base: 1.0, offPeak: 0.5 }. 
-    // This implies they pay full price during peak, and 50% off during off-peak?
-    // OR is it a flat rate? Usually Pensioners get off-peak rates ALL day or specific times.
-    // Assuming standard time-based off-peak logic applies to them too unless stated otherwise.
-    
     const multiplier = useOffPeakRate ? profile.offPeak : profile.base;
 
     // Apply Multiplier
     let finalPrice = basePrice * multiplier;
 
     // GUARDIAN FIX V4.58.3: Rounding to Nearest 50 cents
-    // Logic: Multiply by 2, Ceil, Divide by 2.
-    // Example: 6.30 * 2 = 12.6 -> Ceil(12.6) = 13 -> 13 / 2 = 6.50
     finalPrice = Math.ceil(finalPrice * 2) / 2;
 
     // Determine Label
@@ -501,6 +493,9 @@ function findNextTrains() {
     const selectedStation = stationSelect.value;
     const currentRoute = ROUTES[currentRouteId];
     
+    // Helper must be defined BEFORE use
+    const isAtStation = (s1, s2) => normalizeStationName(s1) === normalizeStationName(s2);
+
     if (selectedStation === "FIND_NEAREST") { findNearestStation(false); return; }
     if (!currentRoute) return;
     if (!currentRoute.isActive) { if(typeof renderComingSoon === 'function') renderComingSoon(currentRoute.name); return; }
@@ -516,15 +511,27 @@ function findNextTrains() {
         pretoriaTimeEl.innerHTML = msg; pienaarspoortTimeEl.innerHTML = msg; return;
     }
     
+    // GUARDIAN FIX V4.60.11: Specific "No Service" Logic
+    // Must handle "You are here" case BEFORE "No Service" case.
     if (currentDayType === 'sunday') {
         if(typeof renderNoService === 'function') {
-            renderNoService(pretoriaTimeEl, currentRoute.destA); 
-            renderNoService(pienaarspoortTimeEl, currentRoute.destB); 
+            
+            // Check DEST A
+            if (isAtStation(selectedStation, currentRoute.destA)) {
+                if(typeof renderAtDestination === 'function') renderAtDestination(pretoriaTimeEl);
+            } else {
+                renderNoService(pretoriaTimeEl, currentRoute.destA); 
+            }
+
+            // Check DEST B
+            if (isAtStation(selectedStation, currentRoute.destB)) {
+                if(typeof renderAtDestination === 'function') renderAtDestination(pienaarspoortTimeEl);
+            } else {
+                renderNoService(pienaarspoortTimeEl, currentRoute.destB); 
+            }
         }
         return;
     }
-
-    const isAtStation = (s1, s2) => normalizeStationName(s1) === normalizeStationName(s2);
 
     let sharedRoutes = [];
     Object.values(ROUTES).forEach(r => {
@@ -621,10 +628,6 @@ function findNextTrains() {
         sharedRoutes.forEach(rId => {
             const otherRoute = ROUTES[rId];
             
-            // GUARDIAN FIX V4.58.3: Removed Strict Corridor Check
-            // We now allow trains from other corridors (like JHB West) to appear if they overlap forward.
-            // if (otherRoute.corridorId === currentRoute.corridorId) { <--- REMOVED
-            
                  const key = (currentDayType === 'weekday') ? otherRoute.sheetKeys.weekday_to_b : otherRoute.sheetKeys.saturday_to_b;
                  const otherRows = fullDatabase[key];
                  const otherMeta = fullDatabase[key + "_meta"];
@@ -656,7 +659,6 @@ function findNextTrains() {
                      sheetKey: key
                  }));
                  mergedJourneys = [...mergedJourneys, ...tagged];
-            // } // End of removed corridor check
         });
 
         mergedJourneys.sort((a, b) => {

@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V4.60.3 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V4.60.6 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -518,12 +518,32 @@ function findNextDayTrips(routeConfig, origin, dest, baseDay) {
          if (originRow && destRow && schedule.rows.indexOf(originRow) < schedule.rows.indexOf(destRow)) {
              schedule.headers.slice(1).forEach(tName => {
                  const dTime = originRow[tName], aTime = destRow[tName];
-                 if(dTime && aTime) allNextDayTrains.push({ trainName: tName, depTime: dTime, arrTime: aTime });
+                 if(dTime && aTime) {
+                     // FIXED (V4.60.6): Capture full context so stops can be generated
+                     allNextDayTrains.push({ 
+                        trainName: tName, 
+                        depTime: dTime, 
+                        arrTime: aTime,
+                        schedule: schedule, 
+                        originIdx: schedule.rows.indexOf(originRow),
+                        destIdx: schedule.rows.indexOf(destRow)
+                     });
+                 }
              });
          }
     });
+    
     return allNextDayTrains.map(info => {
-        const trip = createTripObject(routeConfig, info, null, 0, 0, origin, dest); 
+        // FIXED (V4.60.6): Pass the captured schedule & indices instead of null/0
+        const trip = createTripObject(
+            routeConfig, 
+            info, 
+            info.schedule, 
+            info.originIdx, 
+            info.destIdx, 
+            origin, 
+            dest
+        ); 
         trip.dayLabel = dayName;
         return trip;
     });
