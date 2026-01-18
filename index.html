@@ -11,25 +11,7 @@
 
     <meta name="description" content="Check live train schedules and fares for Metrorail Gauteng (Pretoria, JHB, Soweto). Works offline!">
     
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "Metrorail Next Train",
-      "operatingSystem": "Web, iOS, Android",
-      "applicationCategory": "TravelApplication",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "ZAR"
-      },
-      "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
-      "softwareVersion": "4.60.1",
-      "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map, Service Alerts",
-      "url": "https://nexttrain.co.za/"
-    }
-    </script>
-
+    <!-- SOCIAL MEDIA META TAGS (Open Graph) -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nexttrain.co.za/">
     <meta property="og:title" content="Metrorail Next Train | Live Schedules">
@@ -45,6 +27,7 @@
 
     <link rel="manifest" href="manifest.json">
     
+    <!-- ANALYTICS (CRITICAL - DO NOT REMOVE) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
@@ -145,30 +128,9 @@
             </div>
         </div>
 
-        <ul id="route-list" class="mt-2">
-            <div id="pinned-section" class="hidden border-b border-gray-700 dark:border-gray-600 pb-2 mb-2">
-                <li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li>
-            </div>
-            
-            <li class="route-category">Northern Corridor (Pretoria)</li>
-            <li class="route-item"><a class="active" data-route-id="pta-pien"><span class="route-dot dot-green"></span>Pretoria <-> Pienaarspoort</a></li>
-            <li class="route-item"><a class="" data-route-id="pta-mabopane"><span class="route-dot dot-orange"></span>Pretoria <-> Mabopane</a></li>
-            <li class="route-item"><a class="" data-route-id="mab-belle"><span class="route-dot dot-orange"></span>Mabopane <-> Belle Ombre</a></li>
-            <li class="route-item"><a class="" data-route-id="pta-dewildt"><span class="route-dot dot-purple"></span>Pretoria <-> De Wildt</a></li>
-            <li class="route-item"><a class="" data-route-id="pta-saul"><span class="route-dot dot-green"></span>Pretoria <-> Saulsville</a></li>
-            
-            <li class="route-category">Pretoria - JHB Line</li>
-            <li class="route-item"><a class="" data-route-id="germ-leralla"><span class="route-dot dot-blue"></span>Germiston <-> Leralla</a></li>
-            <li class="route-item"><a class="" data-route-id="germ-kwesine"><span class="route-dot dot-yellow"></span>Germiston <-> Kwesine</a></li>
-            <li class="route-item"><a class="" data-route-id="pta-irene"><span class="route-dot dot-blue"></span>Pretoria <-> Irene</a></li>
-            <li class="route-item"><a class="" data-route-id="jhb-germiston"><span class="route-dot dot-red"></span>JHB <-> Germiston</a></li>
-            <li class="route-item"><a class="" data-route-id="pta-kempton"><span class="route-dot dot-blue"></span>Pretoria <-> Kempton Park</a></li>
+        <!-- DYNAMIC ROUTE LIST (Filled by Renderer.js) -->
+        <ul id="route-list" class="mt-2"></ul>
 
-            <li class="route-category">JHB West Line</li>
-            <li class="route-item"><a class="" data-route-id="jhb-rand"><span class="route-dot dot-yellow"></span>JHB <-> Randfontein</a></li>
-            <li class="route-item"><a class="" data-route-id="jhb-soweto"><span class="route-dot dot-yellow"></span>JHB <-> Naledi (Soweto)</a></li>
-            <li class="route-item"><a class="" data-route-id="jhb-midway"><span class="route-dot dot-yellow"></span>JHB <-> Midway</a></li>
-        </ul>
         <div class="mt-auto pt-2 border-t border-gray-700 dark:border-gray-600 pb-2">
             
             <div class="mb-3 space-y-2 px-1">
@@ -199,7 +161,8 @@
 
     <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden relative min-h-[600px] flex flex-col border border-gray-200 dark:border-gray-700 hidden">
         
-        <div id="offline-indicator">OFFLINE MODE - USING SAVED SCHEDULE</div>
+        <!-- FIX 1: HIDE OFFLINE INDICATOR BY DEFAULT -->
+        <div id="offline-indicator" style="display: none;">OFFLINE MODE - USING SAVED SCHEDULE</div>
         
         <div class="pt-4 px-6 pb-2 bg-white dark:bg-gray-800 z-20 shadow-sm relative">
              <div class="flex items-center justify-between relative mb-2">
@@ -417,6 +380,7 @@
         </div>
     </div>
 
+    <!-- EMPTY CONTAINER FOR WELCOME SCREEN (Dynamic Injection) -->
     <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-center p-6 transition-opacity duration-300">
         <div class="w-full max-w-sm flex flex-col items-center animate-fade-in-up">
             <div class="relative w-24 h-24 mb-6 shrink-0">
@@ -700,17 +664,7 @@
         </div>
     </div>
 
-    <div id="pin-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[80] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-95">
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 text-center">Developer Access</h3>
-            <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*" class="w-full p-3 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-center text-lg tracking-widest mb-4" placeholder="Enter PIN" maxlength="6">
-            <div class="flex space-x-2">
-                <button id="pin-cancel-btn" class="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white py-2 rounded">Cancel</button>
-                <button id="pin-submit-btn" class="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Unlock</button>
-            </div>
-        </div>
-    </div>
-
+    <!-- DEVELOPMENT TOOLS MODAL (Dynamically populated by admin.js) -->
     <div id="dev-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300 overflow-y-auto">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 my-8">
             <div class="flex justify-between items-center mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
@@ -759,6 +713,7 @@
                 </div>
             </div>
 
+            <!-- SERVICE ALERTS CONTAINER (Populated by admin.js) -->
             <div id="alert-panel" class="flex flex-col gap-4 border-t border-gray-200 dark:border-gray-700 pt-6">
                 <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center">
                     <span class="mr-2">📢</span> Service Alerts Manager
@@ -809,12 +764,11 @@
         </div>
     </div>
 
-    <div id="loading-overlay" class="absolute inset-0 bg-gray-100 dark:bg-blue-900 flex flex-col items-center justify-center z-50 transition-colors duration-300">
-        <div class="flex flex-col items-center">
-            <img src="icons/loading-logo.png" class="w-48 h-auto animate-pulse mb-4" alt="Metrorail Logo" onerror="this.style.display='none'">
-        </div>
-        <div class="text-xl font-bold text-gray-700 dark:text-white mt-2" id="loading-text">Metrorail Next Train</div>
-    </div>
+    <!-- RENDERER ENGINE (Must be loaded BEFORE ui.js) -->
+    <script src="js/renderer.js"></script>
+    
+    <!-- ADMIN TOOLS (Loaded before UI to ensure Admin object availability) -->
+    <script src="js/admin.js"></script>
 
     <script src="js/utils.js"></script>
     <script src="js/config.js"></script>
@@ -823,16 +777,5 @@
     <script src="js/map-viewer.js"></script> 
     <script src="js/ui.js"></script>
 
-    <script>
-        setTimeout(() => {
-            const overlay = document.getElementById('loading-overlay');
-            if (overlay && overlay.style.display !== 'none') {
-                document.getElementById('loading-text').innerHTML = 
-                    '<span style="color:red">Connection Timeout</span><br>' +
-                    '<button onclick="window.location.reload()" style="margin-top:10px; padding:10px 20px; background:white; color:black; border-radius:5px; font-weight:bold; cursor:pointer;">Manual Retry</button>';
-                console.error("App load timeout - auto-reload disabled to prevent loops.");
-            }
-        }, 10000); 
-    </script>
 </body>
 </html>
