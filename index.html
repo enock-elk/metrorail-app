@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.60.12 (Guardian Edition - Analytics & ID Update)
+  Metrorail Next Train V4.60.15 (Guardian Edition - Service Alerts Fix)
+  - FIX: Added missing 'notice-modal' to prevent ui.js crash.
   - ANALYTICS: Dev Mode Filter Active (Clarity/GA4).
   - TRACKING: Added ID to Facebook Connect button for event tracking.
   - ADMIN: Restored admin.js for Service Alerts & Dev Mode trigger.
-  - UX UPDATE: Enhanced Planner Header (Icons + Swap Button).
 -->
 <html lang="en" class="dark">
 
@@ -829,6 +829,29 @@
                     </button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- SERVICE ALERT MODAL (NEW: Injected to Fix Crash) -->
+    <div id="notice-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 border-l-4 border-red-500">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex items-center text-red-600 dark:text-red-400">
+                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Service Alert</h3>
+                </div>
+                <button onclick="document.getElementById('notice-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <p id="notice-content" class="text-gray-700 dark:text-gray-300 text-sm mb-4 leading-relaxed"></p>
+            
+            <p id="notice-timestamp" class="text-xs text-gray-400 dark:text-gray-500 font-mono mb-4 border-t border-gray-100 dark:border-gray-700 pt-2"></p>
+            
+            <button onclick="document.getElementById('notice-modal').classList.add('hidden')" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition-colors">
+                Close
+            </button>
         </div>
     </div>
 

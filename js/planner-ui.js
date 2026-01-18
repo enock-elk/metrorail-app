@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.8 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.14 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -1030,6 +1030,16 @@ const PlannerRenderer = {
         const leg2Id = `l2-${step.train}`;
         const leg3Id = `l3-${step.train}`;
 
+        // --- NEW: DESTINATION NAMES ---
+        let train1Dest = step.leg1.actualDestination || step.leg1.route.destB;
+        train1Dest = train1Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+
+        let train2Dest = step.leg2.actualDestination || step.leg2.route.destB;
+        train2Dest = train2Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+
+        let train3Dest = step.leg3.actualDestination || step.leg3.route.destB;
+        train3Dest = train3Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+
         const transferBlock1 = `
             <div class="relative pl-6 pb-6 pt-2">
                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900 z-10"></div>
@@ -1037,7 +1047,7 @@ const PlannerRenderer = {
                     <div class="font-bold uppercase tracking-wide mb-1">Transfer 1 @ ${hub1Name}</div>
                     <div class="text-gray-600 dark:text-gray-400 leading-snug">
                         <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait1Str}</b> Layover</span><br>
-                        &bull; Connect to Train ${step.leg2.train}
+                        &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${step.leg2.train}</span>
                     </div>
                 </div>
             </div>
@@ -1050,7 +1060,7 @@ const PlannerRenderer = {
                     <div class="font-bold uppercase tracking-wide mb-1">Transfer 2 @ ${hub2Name}</div>
                     <div class="text-gray-600 dark:text-gray-400 leading-snug">
                         <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait2Str}</b> Layover</span><br>
-                        &bull; Connect to Train ${step.leg3.train}
+                        &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train3Dest} Train ${step.leg3.train}</span>
                     </div>
                 </div>
             </div>
@@ -1066,7 +1076,9 @@ const PlannerRenderer = {
                             <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.from.replace(' STATION', '')}</span>
                             <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.depTime)}</span>
                         </div>
-                        <div class="text-xs text-blue-500 font-medium">Train ${step.leg1.train}</div>
+                        <div class="text-xs text-blue-500 font-medium">
+                            ${train1Dest} Train ${step.leg1.train}
+                        </div>
                     </div>
                 </div>
                 
@@ -1091,7 +1103,9 @@ const PlannerRenderer = {
                             <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${hub1Name}</span>
                             <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg2.depTime)}</span>
                         </div>
-                        <div class="text-xs text-blue-500 font-medium">Train ${step.leg2.train}</div>
+                        <div class="text-xs text-blue-500 font-medium">
+                            ${train2Dest} Train ${step.leg2.train}
+                        </div>
                     </div>
                 </div>
 
@@ -1116,7 +1130,9 @@ const PlannerRenderer = {
                             <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${hub2Name}</span>
                             <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg3.depTime)}</span>
                         </div>
-                        <div class="text-xs text-blue-500 font-medium">Train ${step.leg3.train}</div>
+                        <div class="text-xs text-blue-500 font-medium">
+                            ${train3Dest} Train ${step.leg3.train}
+                        </div>
                     </div>
                 </div>
 
