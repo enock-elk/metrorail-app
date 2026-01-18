@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.7 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.8 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -598,27 +598,30 @@ window.selectPlannerTrip = function(index) {
 };
 
 window.togglePlannerStops = function(id) {
+    // Try finding the standard ID first
     const el = document.getElementById(id);
     const btn = document.getElementById(`btn-${id}`);
     
-    // Also toggle the 'split' parts if they exist
+    // Try finding split IDs (for internal transfers)
     const elBefore = document.getElementById(`${id}-before`);
     const elAfter = document.getElementById(`${id}-after`);
 
     let isHidden = true;
 
     if (elBefore && elAfter) {
+        // Toggle both
         elBefore.classList.toggle('hidden');
         elAfter.classList.toggle('hidden');
         isHidden = elBefore.classList.contains('hidden');
     } else if (el) {
+        // Toggle standard
         el.classList.toggle('hidden');
         isHidden = el.classList.contains('hidden');
     }
 
     if (isHidden) plannerExpandedState.delete(id);
     else plannerExpandedState.add(id);
-    
+
     if(btn) btn.textContent = isHidden ? "Show All Stops" : "Hide Stops";
 };
 
@@ -700,6 +703,70 @@ const PlannerRenderer = {
         const suffix = hour >= 12 ? 'PM' : 'AM';
         hour = hour % 12 || 12;
         return `${hour}:${m} ${suffix}`;
+    },
+
+    // REFACTORED: Shared Logic for Building Stop Lists
+    buildStopListHTML: (stops, id, internalTransfer) => {
+        if (!stops || stops.length === 0) return '';
+        const isExpanded = plannerExpandedState.has(id);
+
+        const renderStops = (list) => list.map(s => `
+            <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1 relative pl-6">
+                <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800"></div>
+                <span>${s.station.replace(' STATION', '')}</span>
+                <span class="font-mono">${formatTimeDisplay(s.time)}</span>
+            </div>
+        `).join('');
+
+        let contentHTML = '';
+
+        if (internalTransfer) {
+            // Split list for internal transfers (Complex Case)
+            const transferIndex = stops.findIndex(s => normalizeStationName(s.station) === normalizeStationName(internalTransfer.station));
+            if (transferIndex !== -1) {
+                const stopsBefore = stops.slice(0, transferIndex + 1);
+                const stopsAfter = stops.slice(transferIndex + 1);
+                
+                const it = internalTransfer;
+                const iWaitMin = Math.floor(it.wait / 60);
+                const iWaitText = iWaitMin > 59 ? `${Math.floor(iWaitMin/60)}h ${iWaitMin%60}m` : `${iWaitMin} min`;
+                const sName = it.station.replace(' STATION', '');
+
+                const internalTransferHTML = `
+                    <div class="relative pl-6 pb-6 pt-2">
+                        <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
+                        <div class="mt-1 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
+                            <div class="font-bold uppercase tracking-wide mb-1">Internal Transfer @ ${sName}</div>
+                            <div class="text-gray-600 dark:text-gray-400 leading-snug">
+                                <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${iWaitText}</b> Wait</span><br>
+                                &bull; Switch from Train ${it.train1} to ${it.train2}
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                contentHTML = `
+                    <div id="${id}-before" class="${isExpanded ? "" : "hidden"} space-y-1 mb-0">${renderStops(stopsBefore)}</div>
+                    <div>${internalTransferHTML}</div>
+                    <div id="${id}-after" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2">${renderStops(stopsAfter)}</div>
+                `;
+            } else {
+                // Fallback to standard if transfer station not found in stops
+                contentHTML = `<div id="${id}" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2">${renderStops(stops)}</div>`;
+            }
+        } else {
+            // Standard Simple List
+            contentHTML = `<div id="${id}" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2">${renderStops(stops)}</div>`;
+        }
+
+        return `
+            <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full transition-colors mb-2 w-fit ml-6 -mt-1 relative top-[-5px]">
+                    ${isExpanded ? "Hide Stops" : "Show All Stops"}
+                </button>
+                ${contentHTML}
+            </div>
+        `;
     },
 
     buildCard: (step, isNextDay, allOptions, selectedIndex) => {
@@ -839,7 +906,10 @@ const PlannerRenderer = {
         if (step.type === 'TRANSFER') return PlannerRenderer.renderTransferTimeline(step);
         if (step.type === 'DOUBLE_TRANSFER') return PlannerRenderer.renderDoubleTransferTimeline(step);
         
+        // DIRECT TRIP
         let html = '<div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-4">';
+        // Use inline generation for simple direct list to avoid overhead of expandable logic if not needed, 
+        // OR we can unify everything. For now, keeping the simple look for Direct.
         step.stops.forEach((stop, i) => {
             const isEnd = (i === 0 || i === step.stops.length - 1);
             html += `
@@ -856,7 +926,6 @@ const PlannerRenderer = {
     },
 
     renderTransferTimeline: (step) => {
-        // STANDARD CALCULATION (Wait at Hub)
         const hubArr = timeToSeconds(step.leg1.arrTime);
         const hubDep = timeToSeconds(step.leg2.depTime);
         const waitMins = Math.floor((hubDep - hubArr) / 60);
@@ -868,7 +937,6 @@ const PlannerRenderer = {
         let train2Dest = step.leg2.actualDestination || step.leg2.route.destB;
         train2Dest = train2Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
 
-        // STANDARD HUB TRANSFER BLOCK (Yellow)
         const standardTransferBlock = `
             <div class="relative pl-6 pb-6 pt-2">
                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900 z-10"></div>
@@ -881,95 +949,6 @@ const PlannerRenderer = {
                 </div>
             </div>
         `;
-
-        // BUILD STOP LIST (Guaranteed Internal Transfer Visibility)
-        const buildStopList = (stops, id, internalTransfer) => {
-            if(!stops || stops.length === 0) return '';
-            const isExpanded = plannerExpandedState.has(id);
-            
-            // IF INTERNAL TRANSFER: Split the list into Before/Transfer/After
-            if (internalTransfer) {
-                const transferIndex = stops.findIndex(s => normalizeStationName(s.station) === normalizeStationName(internalTransfer.station));
-                
-                // Safety check: if not found, render standard list
-                if (transferIndex === -1) return renderStandardList(stops, id, isExpanded);
-
-                const stopsBefore = stops.slice(0, transferIndex + 1);
-                const stopsAfter = stops.slice(transferIndex + 1); 
-
-                const it = internalTransfer;
-                const iWaitMin = Math.floor(it.wait / 60);
-                const iWaitText = iWaitMin > 59 ? `${Math.floor(iWaitMin/60)}h ${iWaitMin%60}m` : `${iWaitMin} min`;
-                const sName = it.station.replace(' STATION', '');
-
-                const internalTransferHTML = `
-                    <div class="relative pl-6 pb-6 pt-2">
-                        <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
-                        <div class="mt-1 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
-                            <div class="font-bold uppercase tracking-wide mb-1">Internal Transfer @ ${sName}</div>
-                            <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                                <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${iWaitText}</b> Wait</span><br>
-                                &bull; Switch from Train ${it.train1} to ${it.train2}
-                            </div>
-                        </div>
-                    </div>
-                `;
-
-                const renderStops = (list) => list.map(s => `
-                    <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1 relative pl-6">
-                        <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800"></div>
-                        <span>${s.station.replace(' STATION', '')}</span>
-                        <span class="font-mono">${formatTimeDisplay(s.time)}</span>
-                    </div>
-                `).join('');
-
-                // MODIFIED: Wrapped in bordered div to maintain timeline line
-                return `
-                    <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                        <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full transition-colors mb-2 w-fit ml-6 -mt-1 relative top-[-5px]">
-                            ${isExpanded ? "Hide Stops" : "Show All Stops"}
-                        </button>
-                        
-                        <div id="${id}-before" class="${isExpanded ? "" : "hidden"} space-y-1 mb-0">
-                            ${renderStops(stopsBefore)}
-                        </div>
-
-                        <div>
-                            ${internalTransferHTML}
-                        </div>
-
-                        <div id="${id}-after" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2">
-                            ${renderStops(stopsAfter)}
-                        </div>
-                    </div>
-                `;
-            } else {
-                // Standard Render
-                return renderStandardList(stops, id, isExpanded);
-            }
-        };
-
-        const renderStandardList = (stops, id, isExpanded) => {
-            const stopsHtml = stops.map(s => `
-                <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1 relative pl-6">
-                    <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800"></div>
-                    <span>${s.station.replace(' STATION', '')}</span>
-                    <span class="font-mono">${formatTimeDisplay(s.time)}</span>
-                </div>
-            `).join('');
-
-            // MODIFIED: Wrapped in bordered div to maintain timeline line
-            return `
-                <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full transition-colors mb-2 w-fit ml-6 -mt-1 relative top-[-5px]">
-                        ${isExpanded ? "Hide Stops" : "Show All Stops"}
-                    </button>
-                    <div id="${id}" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2">
-                        ${stopsHtml}
-                    </div>
-                </div>
-            `;
-        }
 
         const leg1StopsId = `stops-leg1-${step.train}`;
         const leg2StopsId = `stops-leg2-${step.train}`;
@@ -990,10 +969,8 @@ const PlannerRenderer = {
                     </div>
                 </div>
                 
-                <!-- LEG 1 STOPS (Standard) -->
-                ${buildStopList(step.leg1.stops, leg1StopsId, null)}
+                ${PlannerRenderer.buildStopListHTML(step.leg1.stops, leg1StopsId, null)}
 
-                <!-- LEG 1 END (Arrival at Hub) -->
                 <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div>
                     <div class="flex justify-between items-center mb-1">
@@ -1002,12 +979,10 @@ const PlannerRenderer = {
                     </div>
                 </div>
 
-                <!-- MAIN HUB TRANSFER BLOCK (Always Visible) -->
                 <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     ${standardTransferBlock}
                 </div>
 
-                <!-- LEG 2 START (Departure from Hub) -->
                 <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
                     <div class="flex flex-col">
@@ -1022,10 +997,8 @@ const PlannerRenderer = {
                     </div>
                 </div>
 
-                <!-- LEG 2 STOPS (With Internal Transfer Injection) -->
-                ${buildStopList(step.leg2.stops, leg2StopsId, step.leg2.internalTransfer)}
+                ${PlannerRenderer.buildStopListHTML(step.leg2.stops, leg2StopsId, step.leg2.internalTransfer)}
 
-                <!-- LEG 2 END (Final Destination) -->
                 <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-green-600 ring-4 ring-green-100 dark:ring-green-900"></div>
                     <div class="flex justify-between items-center">
@@ -1038,43 +1011,125 @@ const PlannerRenderer = {
     },
 
     renderDoubleTransferTimeline: (step) => {
-        // ... (Double transfer code remains unchanged for brevity, but follows same visual pattern)
-        // For strictness, I'll return the original code for this block to avoid partial file errors
-        const calcWait = (arr, dep) => {
-            const mins = Math.floor((timeToSeconds(dep) - timeToSeconds(arr)) / 60);
-            return mins > 59 ? `${Math.floor(mins/60)} hr ${mins%60} min` : `${mins} Minutes`;
-        };
-        const getDestName = (leg) => {
-            const dest = leg.actualDestination || leg.route.destB;
-            return dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-        };
-        const dest1 = getDestName(step.leg1); const dest2 = getDestName(step.leg2); const dest3 = getDestName(step.leg3);
-        const wait1 = calcWait(step.leg1.arrTime, step.leg2.depTime);
-        const wait2 = calcWait(step.leg2.arrTime, step.leg3.depTime);
-        const buildStopList = (stops, id) => {
-            if(!stops || stops.length === 0) return '';
-            const isExpanded = plannerExpandedState.has(id);
-            // MODIFIED: Wrapped in bordered div for line continuity and updated button style
-            return `
-            <div class="border-l-2 border-gray-200 dark:border-gray-700 ml-2">
-                <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full transition-colors mb-2 w-fit ml-6 -mt-1 relative top-[-5px]">
-                    ${isExpanded ? "Hide Stops" : "Show All Stops"}
-                </button>
-                <div id="${id}" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2 pl-6">
-                    ${stops.map(s => `<div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1"><span>${s.station.replace(' STATION', '')}</span><span class="font-mono">${formatTimeDisplay(s.time)}</span></div>`).join('')}
+        // --- CALCULATIONS ---
+        const arr1 = timeToSeconds(step.leg1.arrTime);
+        const dep2 = timeToSeconds(step.leg2.depTime);
+        const wait1Mins = Math.floor((dep2 - arr1) / 60);
+        const wait1Str = wait1Mins > 59 ? `${Math.floor(wait1Mins/60)} hr ${wait1Mins%60} min` : `${wait1Mins} Minutes`;
+
+        const arr2 = timeToSeconds(step.leg2.arrTime);
+        const dep3 = timeToSeconds(step.leg3.depTime);
+        const wait2Mins = Math.floor((dep3 - arr2) / 60);
+        const wait2Str = wait2Mins > 59 ? `${Math.floor(wait2Mins/60)} hr ${wait2Mins%60} min` : `${wait2Mins} Minutes`;
+
+        const formatStation = (s) => s.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+        const hub1Name = formatStation(step.hub1);
+        const hub2Name = formatStation(step.hub2);
+        
+        const leg1Id = `l1-${step.train}`;
+        const leg2Id = `l2-${step.train}`;
+        const leg3Id = `l3-${step.train}`;
+
+        const transferBlock1 = `
+            <div class="relative pl-6 pb-6 pt-2">
+                <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900 z-10"></div>
+                <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500">
+                    <div class="font-bold uppercase tracking-wide mb-1">Transfer 1 @ ${hub1Name}</div>
+                    <div class="text-gray-600 dark:text-gray-400 leading-snug">
+                        <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait1Str}</b> Layover</span><br>
+                        &bull; Connect to Train ${step.leg2.train}
+                    </div>
                 </div>
-            </div>`;
-        };
-        const l1ID = `stops-l1-${step.train}`; const l2ID = `stops-l2-${step.train}`; const l3ID = `stops-l3-${step.train}`;
-    
+            </div>
+        `;
+
+        const transferBlock2 = `
+            <div class="relative pl-6 pb-6 pt-2">
+                <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
+                <div class="mt-1 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
+                    <div class="font-bold uppercase tracking-wide mb-1">Transfer 2 @ ${hub2Name}</div>
+                    <div class="text-gray-600 dark:text-gray-400 leading-snug">
+                        <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait2Str}</b> Layover</span><br>
+                        &bull; Connect to Train ${step.leg3.train}
+                    </div>
+                </div>
+            </div>
+        `;
+
         return `
-            <div class="mt-4 ml-0 space-y-6">
-                <!-- Simplified for brevity, matches previous output -->
-                <div class="relative pl-8 border-l-2 border-gray-300 ml-2"><div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600"></div><span class="font-bold">Depart ${step.from.replace(' STATION', '')}</span></div>
-                ${buildStopList(step.leg1.stops, l1ID)}
-                <div class="relative pl-8 border-l-2 border-gray-300 ml-2"><div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-yellow-500"></div><span class="font-bold">Transfer @ ${step.hub1.replace(' STATION', '')}</span></div>
-                <div class="relative pl-8 border-l-2 border-gray-300 ml-2"><div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-purple-500"></div><span class="font-bold">Transfer @ ${step.hub2.replace(' STATION', '')}</span></div>
-                <div class="relative pl-8 border-l-2 border-gray-300 ml-2"><div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-green-600"></div><span class="font-bold">Arrive ${step.to.replace(' STATION', '')}</span></div>
+            <div class="mt-4 ml-0 space-y-0">
+                <!-- LEG 1 -->
+                <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
+                    <div class="flex flex-col">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.from.replace(' STATION', '')}</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.depTime)}</span>
+                        </div>
+                        <div class="text-xs text-blue-500 font-medium">Train ${step.leg1.train}</div>
+                    </div>
+                </div>
+                
+                ${PlannerRenderer.buildStopListHTML(step.leg1.stops, leg1Id, null)}
+
+                <!-- HUB 1 -->
+                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive ${hub1Name}</span>
+                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.arrTime)}</span>
+                    </div>
+                </div>
+
+                <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">${transferBlock1}</div>
+
+                <!-- LEG 2 -->
+                <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
+                    <div class="flex flex-col">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${hub1Name}</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg2.depTime)}</span>
+                        </div>
+                        <div class="text-xs text-blue-500 font-medium">Train ${step.leg2.train}</div>
+                    </div>
+                </div>
+
+                ${PlannerRenderer.buildStopListHTML(step.leg2.stops, leg2Id, null)}
+
+                <!-- HUB 2 -->
+                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive ${hub2Name}</span>
+                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg2.arrTime)}</span>
+                    </div>
+                </div>
+
+                <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">${transferBlock2}</div>
+
+                <!-- LEG 3 -->
+                <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
+                    <div class="flex flex-col">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${hub2Name}</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg3.depTime)}</span>
+                        </div>
+                        <div class="text-xs text-blue-500 font-medium">Train ${step.leg3.train}</div>
+                    </div>
+                </div>
+
+                ${PlannerRenderer.buildStopListHTML(step.leg3.stops, leg3Id, null)}
+
+                <!-- FINAL DEST -->
+                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-green-600 ring-4 ring-green-100 dark:ring-green-900"></div>
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-gray-900 dark:text-white text-sm">${step.to.replace(' STATION', '')}</span>
+                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg3.arrTime)}</span>
+                    </div>
+                </div>
             </div>
         `;
     },
@@ -1103,33 +1158,4 @@ const PlannerRenderer = {
         const m = Math.floor((durSec % 3600) / 60);
         return { countdown, duration: h > 0 ? `${h}h ${m}m` : `${m}m`, isDeparted };
     }
-};
-
-// UPDATED: Global toggle function to handle split lists
-window.togglePlannerStops = function(id) {
-    // Try finding the standard ID first
-    const el = document.getElementById(id);
-    const btn = document.getElementById(`btn-${id}`);
-    
-    // Try finding split IDs (for internal transfers)
-    const elBefore = document.getElementById(`${id}-before`);
-    const elAfter = document.getElementById(`${id}-after`);
-
-    let isHidden = true;
-
-    if (elBefore && elAfter) {
-        // Toggle both
-        elBefore.classList.toggle('hidden');
-        elAfter.classList.toggle('hidden');
-        isHidden = elBefore.classList.contains('hidden');
-    } else if (el) {
-        // Toggle standard
-        el.classList.toggle('hidden');
-        isHidden = el.classList.contains('hidden');
-    }
-
-    if (isHidden) plannerExpandedState.delete(id);
-    else plannerExpandedState.add(id);
-
-    if(btn) btn.textContent = isHidden ? "Show All Stops" : "Hide Stops";
 };
