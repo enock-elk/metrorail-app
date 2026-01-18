@@ -23,6 +23,10 @@ function initPlanner() {
     const resetBtn = document.getElementById('planner-reset-btn');
     const locateBtn = document.getElementById('planner-locate-btn');
     
+    // NEW: Action Buttons in Results Header
+    const backBtn = document.getElementById('planner-back-btn');
+    const swapResultBtn = document.getElementById('planner-swap-result-btn');
+
     // Inject Day Selector if missing
     const inputSection = document.getElementById('planner-input-section');
     if (inputSection && !document.getElementById('planner-day-select')) {
@@ -73,12 +77,9 @@ function initPlanner() {
             
             if (pClickCount >= 5) {
                 pClickCount = 0;
-                const pinModal = document.getElementById('pin-modal');
-                const pinInput = document.getElementById('pin-input');
-                if (pinModal) {
-                    pinModal.classList.remove('hidden');
-                    if(pinInput) { pinInput.value = ''; pinInput.focus(); }
-                }
+                // Delegate to Global Admin Trigger
+                const appTitle = document.getElementById('app-title');
+                if (appTitle) appTitle.click(); // Hack to trigger main logic
             }
         });
     }
@@ -217,24 +218,61 @@ function initPlanner() {
         executeTripPlan(from, to);
     });
 
-    resetBtn.addEventListener('click', () => {
+    // --- RESET / BACK BUTTON LOGIC ---
+    const resetAction = () => {
         if (plannerPulse) { clearInterval(plannerPulse); plannerPulse = null; }
         
         document.getElementById('planner-input-section').classList.remove('hidden');
         document.getElementById('planner-results-section').classList.add('hidden');
-        fromSelect.value = ""; toSelect.value = "";
-        document.getElementById('planner-from-search').value = "";
-        document.getElementById('planner-to-search').value = "";
-        plannerExpandedState.clear(); 
         
-        Array.from(toSelect.options).forEach(opt => { opt.disabled = false; opt.hidden = false; });
+        // Don't clear inputs if just going back, allows refinement
+        // But reset expanded state
+        plannerExpandedState.clear(); 
         
         const daySelect = document.getElementById('planner-day-select');
         if (daySelect && typeof currentDayType !== 'undefined') {
-            daySelect.value = currentDayType;
-            selectedPlannerDay = currentDayType;
+            // Keep user selected day? Or reset? Let's keep it for now.
         }
-    });
+    };
+
+    if (resetBtn) resetBtn.addEventListener('click', resetAction);
+    if (backBtn) backBtn.addEventListener('click', resetAction);
+
+    // --- SWAP RESULT BUTTON LOGIC ---
+    if (swapResultBtn) {
+        swapResultBtn.addEventListener('click', () => {
+            swapPlannerResults();
+        });
+    }
+}
+
+// --- NEW: SWAP RESULTS FUNCTION ---
+function swapPlannerResults() {
+    const fromSelect = document.getElementById('planner-from');
+    const toSelect = document.getElementById('planner-to');
+    const fromInput = document.getElementById('planner-from-search');
+    const toInput = document.getElementById('planner-to-search');
+
+    if (!fromSelect || !toSelect) return;
+
+    // Swap Values
+    const oldFrom = fromSelect.value;
+    const oldTo = toSelect.value;
+    
+    // Safety
+    if (!oldFrom || !oldTo) return;
+
+    // Update UI
+    fromSelect.value = oldTo;
+    toSelect.value = oldFrom;
+    
+    if (fromInput) fromInput.value = oldTo.replace(' STATION', '');
+    if (toInput) toInput.value = oldFrom.replace(' STATION', '');
+
+    showToast("Reversing Direction...", "info", 1000);
+    
+    // Trigger Search
+    executeTripPlan(oldTo, oldFrom);
 }
 
 // --- HISTORY & AUTOCOMPLETE ---
@@ -744,6 +782,9 @@ const PlannerRenderer = {
         const leg1StopsId = `stops-leg1-${step.train}`;
         const leg2StopsId = `stops-leg2-${step.train}`;
 
+        // UPDATED: Internal Transfer Block (Logic for moving to middle)
+        // If an internal transfer exists, we build the HTML block here.
+        // But crucially, we inject it into the main template flow below.
         let internalTransferBlock = "";
         if (step.leg2.internalTransfer) {
             const it = step.leg2.internalTransfer;
@@ -752,20 +793,43 @@ const PlannerRenderer = {
             const transferStn = it.station.replace(' STATION', '');
 
             internalTransferBlock = `
-                <div class="mt-2 mb-2 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
-                    <div class="font-bold uppercase tracking-wide mb-1">Internal Transfer @ ${transferStn}</div>
-                    <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                        <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitText}</b> Wait</span><br>
-                        &bull; Switch from Train ${it.train1} to ${it.train2}
+                <!-- INTERNAL TRANSFER BLOCK (INJECTED MIDDLE) -->
+                <div class="relative pl-6 pb-6 pt-2">
+                    <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
+                    <div class="mt-1 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
+                        <div class="font-bold uppercase tracking-wide mb-1">Internal Transfer @ ${transferStn}</div>
+                        <div class="text-gray-600 dark:text-gray-400 leading-snug">
+                            <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitText}</b> Wait</span><br>
+                            &bull; Switch from Train ${it.train1} to ${it.train2}
+                        </div>
                     </div>
                 </div>
             `;
         }
 
+        // STANDARD TRANSFER BLOCK
+        const standardTransferBlock = `
+            <!-- TRANSFER HUB BLOCK -->
+            <div class="relative pl-6 pb-6 pt-2">
+                <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900 z-10"></div>
+                <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500">
+                    <div class="font-bold uppercase tracking-wide mb-1">Transfer Required</div>
+                    <div class="text-gray-600 dark:text-gray-400 leading-snug">
+                        <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Layover</span><br>
+                        &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${step.leg2.train}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // DECISION: Use Standard OR Internal Block?
+        // If it's a Relay (Internal), use that block. If Hub Transfer, use Standard.
+        const transferBlockToRender = step.leg2.internalTransfer ? internalTransferBlock : standardTransferBlock;
+
         return `
-            <div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-6">
-                <!-- LEG 1 -->
-                <div class="relative pl-6">
+            <div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-0">
+                <!-- LEG 1 START -->
+                <div class="relative pl-6 pb-6">
                     <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
                     <div class="flex flex-col">
                         <div class="flex justify-between items-center mb-1">
@@ -779,26 +843,20 @@ const PlannerRenderer = {
                     </div>
                 </div>
 
-                <!-- TRANSFER HUB -->
+                <!-- LEG 1 END (Arrival at Hub) -->
                 <div class="relative pl-6">
-                    <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900"></div>
-                    <div class="flex flex-col">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive ${step.transferStation.replace(' STATION', '')}</span>
-                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.arrTime)}</span>
-                        </div>
-                        <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500">
-                            <div class="font-bold uppercase tracking-wide mb-1">Transfer Required</div>
-                            <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                                <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Layover</span><br>
-                                &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${step.leg2.train}</span>
-                            </div>
-                        </div>
+                    <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div> <!-- Intermediate dot -->
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive ${step.transferStation.replace(' STATION', '')}</span>
+                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.arrTime)}</span>
                     </div>
                 </div>
 
-                <!-- LEG 2 -->
-                <div class="relative pl-6">
+                <!-- INJECTED MIDDLE BLOCK (Transfer Details) -->
+                ${transferBlockToRender}
+
+                <!-- LEG 2 START (Departure from Hub) -->
+                <div class="relative pl-6 pb-6">
                     <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
                     <div class="flex flex-col">
                         <div class="flex justify-between items-center mb-1">
@@ -806,8 +864,6 @@ const PlannerRenderer = {
                             <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg2.depTime)}</span>
                         </div>
                         
-                        ${internalTransferBlock}
-
                         <div class="text-xs text-blue-500 font-medium mb-1">
                             ${train2Dest} Train ${step.leg2.train}
                         </div>
@@ -815,6 +871,7 @@ const PlannerRenderer = {
                     </div>
                 </div>
 
+                <!-- LEG 2 END (Final Destination) -->
                 <div class="relative pl-6">
                     <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-green-600 ring-4 ring-green-100 dark:ring-green-900"></div>
                     <div class="flex justify-between items-center">

@@ -4,6 +4,7 @@
   - ANALYTICS: Dev Mode Filter Active (Clarity/GA4).
   - TRACKING: Added ID to Facebook Connect button for event tracking.
   - ADMIN: Restored admin.js for Service Alerts & Dev Mode trigger.
+  - UX UPDATE: Enhanced Planner Header (Icons + Swap Button).
 -->
 <html lang="en" class="dark">
 
@@ -366,9 +367,18 @@
 
             <!-- Results Section -->
             <div id="planner-results-section" class="hidden mt-4 space-y-4">
+                <!-- REDESIGNED HEADER: Back Button & Swap Button -->
                 <div class="flex justify-between items-center mb-4">
+                    <button id="planner-back-btn" class="flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group">
+                        <svg class="w-4 h-4 mr-1 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                        Back
+                    </button>
+                    
                     <h4 class="text-lg font-bold text-gray-900 dark:text-white">Your Journey</h4>
-                    <button id="planner-reset-btn" class="text-sm text-blue-500 font-medium underline">New Search</button>
+                    
+                    <button id="planner-swap-result-btn" class="flex items-center text-sm font-bold text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors" title="Swap Direction">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                    </button>
                 </div>
                 <div id="planner-results-list" class="space-y-4"></div>
             </div>
@@ -597,28 +607,51 @@
         </div>
     </div>
 
-    <!-- NOTICE / SERVICE ALERT MODAL (Passenger View) -->
-    <div id="notice-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100">
-            <div class="flex items-start mb-4">
-                <div class="flex-shrink-0 bg-red-100 dark:bg-red-900 rounded-full p-2 mr-3">
-                    <svg class="w-6 h-6 text-red-600 dark:text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+    <!-- NEW iOS INSTALL INSTRUCTIONS MODAL -->
+    <div id="install-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[90] hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-t-xl sm:rounded-xl shadow-2xl w-full max-w-sm mx-auto flex flex-col transform transition-transform duration-300 translate-y-full sm:translate-y-0" id="install-modal-content">
+            <div class="p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white">Install Next Train</h3>
+                    <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-500" aria-label="Close Install Modal">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
                 </div>
-                <div>
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">Service Alert</h3>
-                    <p id="notice-timestamp" class="text-xs text-gray-500 dark:text-gray-400 mt-1">Posted: Just now</p>
+                
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-6">Install this app on your iPhone for the best experience.</p>
+                
+                <div class="space-y-6">
+                    <div class="flex items-start">
+                        <span class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-bold mr-3">1</span>
+                        <div>
+                            <p class="text-sm font-medium text-gray-900 dark:text-white mb-1">Tap the <span class="font-bold">Share</span> button</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Look for the icon at the bottom of your Safari browser.</p>
+                            <div class="mt-2 text-blue-500">
+                                <svg class="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0L8 8m4-4v12"></path></svg>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <span class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-bold mr-3">2</span>
+                        <div>
+                            <p class="text-sm font-medium text-gray-900 dark:text-white mb-1">Select <span class="font-bold">"Add to Home Screen"</span></p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Scroll down in the share menu until you see this option.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <span class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-bold mr-3">3</span>
+                        <div>
+                            <p class="text-sm font-medium text-gray-900 dark:text-white mb-1">Tap <span class="font-bold">Add</span></p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Confirm in the top right corner.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-            
-            <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600 mb-6">
-                <p id="notice-content" class="text-sm text-gray-800 dark:text-gray-200 font-medium leading-relaxed">
-                    <!-- Dynamic Content Here -->
-                </p>
+            <div class="p-4 bg-gray-50 dark:bg-gray-900 rounded-b-xl border-t border-gray-200 dark:border-gray-700">
+                <button onclick="document.getElementById('install-modal').classList.add('hidden')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-sm">Got it</button>
             </div>
-
-            <button onclick="document.getElementById('notice-modal').classList.add('hidden')" class="w-full bg-gray-900 dark:bg-black hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-lg shadow-sm transition-colors">
-                Dismiss
-            </button>
         </div>
     </div>
 
@@ -676,7 +709,7 @@
         </div>
     </div>
 
-    <!-- PIN ENTRY MODAL (Simple) -->
+    <!-- PIN ENTRY MODAL -->
     <div id="pin-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[80] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-95">
             <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 text-center">Developer Access</h3>
@@ -728,7 +761,7 @@
                     <!-- Hidden by default, shown via JS if 'specific' selected -->
                     <div id="sim-date-container" class="hidden">
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Select Date (2026)</label>
-                        <input type="date" id="sim-date" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        <input type="date" id="sim-date" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                     </div>
 
                     <div class="flex gap-2 pt-2">
