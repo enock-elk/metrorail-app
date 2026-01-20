@@ -1,10 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.60.15 (Guardian Edition - Service Alerts Fix)
-  - FIX: Added missing 'notice-modal' to prevent ui.js crash.
-  - ANALYTICS: Dev Mode Filter Active (Clarity/GA4).
-  - TRACKING: Added ID to Facebook Connect button for event tracking.
-  - ADMIN: Restored admin.js for Service Alerts & Dev Mode trigger.
+  Metrorail Next Train V4.60.16 (Guardian Edition - Offline Tailwind)
+  - CHANGE: Replaced external Tailwind CDN with local 'js/tailwind.js'.
+  - FIX: Ensures UI remains styled even when offline.
 -->
 <html lang="en" class="dark">
 
@@ -34,7 +32,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
-      "softwareVersion": "4.60.3",
+      "softwareVersion": "4.60.16",
       "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map",
       "url": "https://nexttrain.co.za/"
     }
@@ -106,7 +104,8 @@
 
     <meta name="theme-color" content="#1d4ed8">
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- GUARDIAN: Local Tailwind for Offline Support -->
+    <script src="js/tailwind.js"></script>
     <script>
         if (typeof tailwind !== 'undefined') {
             tailwind.config = { darkMode: 'class' }
@@ -175,7 +174,7 @@
             
             <!-- VERSION FOOTER -->
             <div class="mt-4 px-4 text-right">
-                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.60.3</p>
+                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.60.16</p>
             </div>
         </div>
     </div>
@@ -704,7 +703,7 @@
             </div>
 
             <p class="mt-12 text-[10px] text-gray-400 font-mono">
-                Version 4.60.4 (Guardian Edition)
+                Version 4.60.16 (Guardian Edition)
             </p>
         </div>
     </div>

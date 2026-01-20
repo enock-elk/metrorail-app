@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.60.15'; // BUMPED: Modular Planner + SEO Fixes
+const CACHE_NAME = 'metrorail-next-train-v4.60.16'; // BUMPED: Offline Tailwind
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -10,13 +10,13 @@ const ASSETS_TO_CACHE = [
   './js/config.js',
   './js/utils.js',
   './js/logic.js',
-  // PLANNER MODULARIZATION UPDATE
   './js/planner-core.js',
   './js/planner-ui.js',
   './js/map-viewer.js',
-  './js/renderer.js', // Ensure Renderer is cached
-  './js/admin.js',    // Ensure Admin is cached
+  './js/renderer.js',
+  './js/admin.js',
   './js/ui.js',
+  './js/tailwind.js', // NEW: Local Tailwind Engine
   './manifest.json',
   './sitemap.xml',
   './robots.txt',
@@ -34,7 +34,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('SW: Caching core assets (v4.60.2)...');
+        console.log('SW: Caching core assets (v4.60.16)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {

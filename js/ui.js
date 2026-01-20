@@ -1,5 +1,12 @@
 // --- GLOBAL ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
+    // Phase 1: Silence "Script error." noise (Cross-Origin CDN/Extension issues)
+    // This prevents frightening users with toasts caused by spotty CDN connections or browser extensions.
+    if (typeof msg === 'string' && (msg === "Script error." || msg.indexOf("Script error") > -1)) {
+        console.warn("Global Error Suppressed (Script Error):", msg);
+        return false; // Suppress toast, let browser handle silently
+    }
+
     console.error("Global Error Caught:", msg);
     
     // Safety check: Ensure main content is visible if error occurs during init

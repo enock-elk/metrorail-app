@@ -45,7 +45,7 @@ const SPECIAL_DATES = {
     "09-24": "saturday", // Heritage Day
     "12-16": "saturday", // Day of Reconciliation
     "12-25": "sunday",   // Christmas Day
-    "12-26": "saturday"  // Day of Goodwill
+    "12-26": "sunday"  // Day of Goodwill
 };
 
 // --- SIMULATION STATE ---
