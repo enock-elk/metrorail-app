@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.60.29-1'; // BUMPED: Offline Tailwind
+const CACHE_NAME = 'metrorail-next-train-v4.60.29-2'; // BUMPED: Offline Tailwind
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const ASSETS_TO_CACHE = [
   './js/admin.js',
   './js/ui.js',
   './js/tailwind.js', // NEW: Local Tailwind Engine
+  './js/grid-order.js', // NEW: Grid Order Module
   './manifest.json',
   './sitemap.xml',
   './robots.txt',
