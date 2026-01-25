@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.60.16 OFFLINE"; // Updated for Pricing Accuracy & Roodepoort Context
+const APP_VERSION = "V4.60.29 With GRIDS"; // Updated for Modular Grid Config
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -73,7 +73,7 @@ const ROUTES = {
     'pta-dewildt': { 
         id: 'pta-dewildt', 
         name: "Pretoria <-> De Wildt", 
-        corridorId: "NORTH_LINE",
+        corridorId: "NORTH_LINE", 
         colorClass: "text-purple-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 

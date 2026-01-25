@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.60.16 (Guardian Edition - Offline Tailwind)
-  - CHANGE: Replaced external Tailwind CDN with local 'js/tailwind.js'.
-  - FIX: Ensures UI remains styled even when offline.
+  Metrorail Next Train V4.60.29 (Guardian Edition - Modular Config)
+  - ADDED: js/grid-order.js for clean schedule management.
 -->
 <html lang="en" class="dark">
 
@@ -119,15 +118,27 @@
 
     <style>
         /* Force full screen map modal */
-        #map-modal.full-screen, #about-modal.full-screen {
+        #map-modal.full-screen, #about-modal.full-screen, #full-schedule-modal.full-screen {
             padding: 0 !important;
         }
-        #map-modal.full-screen > div, #about-modal.full-screen > div {
+        #map-modal.full-screen > div, #about-modal.full-screen > div, #full-schedule-modal.full-screen > div {
             width: 100% !important;
             height: 100% !important;
             max-width: none !important;
             border-radius: 0 !important;
             transform: none !important;
+        }
+        
+        /* Sticky Column Styles for Full Schedule */
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            background-color: inherit;
+            z-index: 10;
+            border-right: 1px solid #e5e7eb; /* gray-200 */
+        }
+        .dark .sticky-col {
+            border-right-color: #374151; /* gray-700 */
         }
     </style>
 </head>
@@ -174,7 +185,7 @@
             
             <!-- VERSION FOOTER -->
             <div class="mt-4 px-4 text-right">
-                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.60.16</p>
+                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.60.29</p>
             </div>
         </div>
     </div>
@@ -466,6 +477,46 @@
         </div>
     </div>
     
+    <!-- FULL SCHEDULE GRID MODAL (Phase 3: The Trust Layer) -->
+    <div id="full-schedule-modal" class="fixed inset-0 bg-white dark:bg-gray-900 z-[95] hidden flex items-center justify-center p-0 full-screen transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative shadow-sm">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        Full Timetable
+                    </h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Scroll right to see later times &rarr;</p>
+                </div>
+                <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden')" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Grid">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative">
+                <!-- GRID INJECTED HERE -->
+                <!-- Example Structure for Dev:
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 sticky top-0 z-20">
+                        <tr>
+                            <th class="sticky left-0 bg-gray-50 dark:bg-gray-700 z-30 p-3 border-b dark:border-gray-600">Station</th>
+                            <th class="p-3 border-b dark:border-gray-600 whitespace-nowrap">04:00</th>
+                            ...
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ...
+                    </tbody>
+                </table>
+                -->
+            </div>
+
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
+                <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors">Close Timetable</button>
+            </div>
+        </div>
+    </div>
+
     <!-- NETWORK MAP MODAL (Full Screen Update) -->
     <div id="map-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[70] hidden flex items-center justify-center p-0 full-screen backdrop-blur-md transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
@@ -703,7 +754,7 @@
             </div>
 
             <p class="mt-12 text-[10px] text-gray-400 font-mono">
-                Version 4.60.16 (Guardian Edition)
+                Version 4.60.29 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -862,6 +913,10 @@
     <script src="js/admin.js" defer></script>
 
     <script src="js/utils.js"></script>
+    
+    <!-- GRID ORDER (New for V4.60.29) -->
+    <script src="js/grid-order.js"></script>
+    
     <script src="js/config.js"></script>
     <script src="js/logic.js"></script>
     

@@ -418,6 +418,7 @@ function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
     } catch (e) { return ""; }
 }
 
+// GUARDIAN UPDATE V4.60.17: Pricing based on CURRENT TIME, not Departure Time.
 function getRouteFare(sheetKey, departureTimeStr) {
     const zoneKey = sheetKey + "_zone";
     let zoneCode = fullDatabase[zoneKey]; 
@@ -431,21 +432,20 @@ function getRouteFare(sheetKey, departureTimeStr) {
     let basePrice = FARE_CONFIG.zones[zoneCode];
     let discountLabel = null;
     let isPromo = false; 
-    let isOffPeak = false; // Legacy flag, kept for backward compat if needed, but ui.js should use discountLabel if present
+    let isOffPeak = false;
 
     const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
     
     let useOffPeakRate = false;
     
-    // GUARDIAN FIX V4.58.2: Off-Peak is strictly Weekday only.
-    if (currentDayType === 'weekday' && departureTimeStr) {
+    // UPDATED LOGIC: Check 'currentTime' instead of 'departureTimeStr'
+    // This allows "Buy Now" pricing display.
+    if (currentDayType === 'weekday' && currentTime) {
         try {
-            const parts = departureTimeStr.split(':');
-            const h = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10) || 0;
-            const decimalTime = h + (m / 60);
+            const [nowH, nowM] = currentTime.split(':').map(Number);
+            const decimalNow = nowH + (nowM / 60);
             
-            if (decimalTime >= FARE_CONFIG.offPeakStart && decimalTime < FARE_CONFIG.offPeakEnd) {
+            if (decimalNow >= FARE_CONFIG.offPeakStart && decimalNow < FARE_CONFIG.offPeakEnd) {
                 useOffPeakRate = true;
             }
         } catch (e) { 
@@ -479,9 +479,9 @@ function getRouteFare(sheetKey, departureTimeStr) {
 
     return {
         price: finalPrice.toFixed(2),
-        isOffPeak: useOffPeakRate, // Legacy
+        isOffPeak: useOffPeakRate,
         isPromo: isPromo,
-        discountLabel: discountLabel // NEW: Specific Text
+        discountLabel: discountLabel
     };
 }
 

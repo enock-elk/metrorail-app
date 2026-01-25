@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.16 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.29 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -538,6 +538,9 @@ function executeTripPlan(origin, dest, preferredTime = null) {
             if (typeof trackAnalyticsEvent === 'function') {
                 trackAnalyticsEvent('planner_no_result', { origin: origin, destination: dest });
             }
+            
+            // Update header to hide Share button (or show empty state header)
+            updatePlannerHeader("No Route Found", false);
 
             const errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path. You may need to plan this journey in segments (e.g., 'Home to Pretoria', then 'Pretoria to Work').";
             const actionBtn = `
@@ -634,22 +637,78 @@ function getPlanningDayLabel() {
     return "Weekday Schedule";
 }
 
-// NEW: Helper to update the External Header
-function updatePlannerHeader(dayLabel) {
+// NEW: Helper to update the External Header with Share Button (REDESIGNED V4.60.17)
+function updatePlannerHeader(dayLabel, showShare = true) {
     const headerTitle = document.querySelector('#planner-results-section h4');
-    const spacer = document.querySelector('#planner-results-section .w-8');
+    const spacer = document.querySelector('#planner-results-section .w-8'); 
+    
     if (headerTitle) {
-        headerTitle.innerHTML = `
-            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200 shadow-sm flex items-center">
-                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                Schedule: ${dayLabel}
-            </span>
+        headerTitle.innerHTML = "";
+        // GUARDIAN FIX: Added 'flex-1 w-0' to allow text truncation if needed
+        headerTitle.className = "flex-1 w-0 flex justify-center mx-2"; 
+        
+        // Schedule Badge (with Truncation)
+        const badge = document.createElement("span");
+        badge.className = "bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200 shadow-sm flex items-center max-w-full truncate";
+        badge.innerHTML = `
+            <svg class="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <span class="truncate">${dayLabel}</span>
         `;
-        // Ensure it's visible if hidden previously
+        headerTitle.appendChild(badge);
         headerTitle.classList.remove('hidden');
     }
-    // Hide the spacer so the flex-between pins the badge to the right
-    if (spacer) spacer.style.display = 'none';
+
+    // Handle Share Button Placement (Replacing the Spacer)
+    if (spacer) {
+        spacer.innerHTML = ""; // Clear existing
+        spacer.style.display = 'block'; 
+        // GUARDIAN FIX: Prevent shrinking
+        spacer.className = "flex-none"; 
+
+        if (showShare) {
+            // Get Current Context
+            const dropdown = document.querySelector('#planner-results-list select');
+            let selectedTime = null;
+            if (dropdown && currentTripOptions.length > 0) {
+                 const idx = parseInt(dropdown.value);
+                 if (currentTripOptions[idx]) selectedTime = currentTripOptions[idx].depTime;
+            }
+            if (!selectedTime && currentTripOptions.length > 0) selectedTime = currentTripOptions[0].depTime;
+            
+            const fromStation = document.getElementById('planner-from-search').value || "";
+            const toStation = document.getElementById('planner-to-search').value || "";
+            const shareLink = `https://nexttrain.co.za/?action=planner&from=${encodeURIComponent(fromStation)}&to=${encodeURIComponent(toStation)}&time=${selectedTime}&day=${selectedPlannerDay}`;
+            const shareText = `Trip Plan: ${fromStation} to ${toStation}. Check details here: ${shareLink}`;
+
+            const shareBtn = document.createElement("button");
+            // GUARDIAN FIX V4.60.17: Matching Back Button Style (bg-blue-50 text-blue-600) + No Shrink
+            shareBtn.className = "flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group flex-none whitespace-nowrap";
+            shareBtn.title = "Share Trip Plan";
+            shareBtn.onclick = async () => {
+                const data = { title: 'Next Train Trip Plan', text: shareText, url: shareLink };
+                try { 
+                    if (navigator.share) await navigator.share(data); 
+                    else {
+                        const textArea = document.createElement('textarea');
+                        textArea.value = shareText;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        alert('Link copied to clipboard!');
+                    }
+                } catch(e) {}
+            };
+            
+            // Replaced icon with text "Share Trip" and symmetrical icon
+            shareBtn.innerHTML = `
+                Share Trip
+                <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+            `;
+            
+            spacer.appendChild(shareBtn);
+        }
+    }
 }
 
 function renderTripResult(container, trips, selectedIndex = 0) {
@@ -657,7 +716,7 @@ function renderTripResult(container, trips, selectedIndex = 0) {
     const dayLabel = getPlanningDayLabel();
     
     // Update Header Badge OUTSIDE the card
-    updatePlannerHeader(dayLabel);
+    updatePlannerHeader(dayLabel, true);
 
     if (selectedTrip) {
         container.innerHTML = PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
@@ -669,7 +728,7 @@ function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "
     const dayLabel = getPlanningDayLabel();
     
     // Update Header Badge OUTSIDE the card
-    updatePlannerHeader(dayLabel);
+    updatePlannerHeader(dayLabel, true);
 
     container.innerHTML = `
         <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
