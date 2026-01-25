@@ -598,8 +598,12 @@ function initTabIndicator() {
 function moveTabIndicator(element) {
     const indicator = document.getElementById('tab-sliding-indicator');
     if (!indicator || !element) return;
-    indicator.style.width = `${element.offsetWidth}px`;
-    indicator.style.transform = `translateX(${element.offsetLeft}px)`;
+    
+    // GUARDIAN FIX V4.60.31: Use requestAnimationFrame for layout accuracy
+    requestAnimationFrame(() => {
+        indicator.style.width = `${element.offsetWidth}px`;
+        indicator.style.transform = `translateX(${element.offsetLeft}px)`;
+    });
 }
 
 function handleSwipe(startX, endX, startY, endY) {
@@ -1191,4 +1195,6 @@ document.addEventListener('DOMContentLoaded', () => {
             switchTab('next-train');
         }
     }
+
+    initializeApp();
 });
