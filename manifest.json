@@ -1,13 +1,14 @@
 {
   "name": "Metrorail Next Train",
   "short_name": "Next Train",
-  "id": "./",
-  "start_url": "./",
-  "scope": "./",
+  "description": "Check live Metrorail schedules and fares for Gauteng.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#1d4ed8",
   "theme_color": "#1d4ed8",
-  "orientation": "portrait",
+  "orientation": "any",
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -19,7 +20,7 @@
       "src": "icons/loading-logo.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ],
   "shortcuts": [
@@ -27,15 +28,25 @@
       "name": "Trip Planner",
       "short_name": "Plan Trip",
       "description": "Plan a direct or transfer trip",
-      "url": "./?action=planner",
-      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+      "url": "/?action=planner",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Network Map",
       "short_name": "View Map",
       "description": "View the full rail network map",
-      "url": "./?action=map",
-      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+      "url": "/?action=map",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

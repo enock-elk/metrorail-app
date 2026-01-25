@@ -1,32 +1,32 @@
-const CACHE_NAME = 'metrorail-next-train-v4.60.30-2'; // BUMPED: Offline Tailwind
+const CACHE_NAME = 'metrorail-next-train-v4.60.30-10'; // BUMPED: Root-Relative Path Update
 const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  './map.html',
-  './status.html',
-  './offline.html',
-  './css/style.css',
-  './css/custom.css',
-  './js/config.js',
-  './js/utils.js',
-  './js/logic.js',
-  './js/planner-core.js',
-  './js/planner-ui.js',
-  './js/map-viewer.js',
-  './js/renderer.js',
-  './js/admin.js',
-  './js/ui.js',
-  './js/tailwind.js', // NEW: Local Tailwind Engine
-  './js/grid-order.js', // NEW: Grid Order Module
-  './manifest.json',
-  './sitemap.xml',
-  './robots.txt',
-  './icons/icon-192.png',
-  './icons/old/icon-192.png',
-  './icons/loading-logo.png',
-  './images/network-map.png',
-  './images/offline-land.jpg',
-  './images/offline-port.jpg'
+  '/',
+  '/index.html',
+  '/map.html',
+  '/status.html',
+  '/offline.html',
+  '/css/style.css',
+  '/css/custom.css',
+  '/js/config.js',
+  '/js/utils.js',
+  '/js/logic.js',
+  '/js/planner-core.js',
+  '/js/planner-ui.js',
+  '/js/map-viewer.js',
+  '/js/renderer.js',
+  '/js/admin.js',
+  '/js/ui.js',
+  '/js/tailwind.js',
+  '/js/grid-order.js',
+  '/manifest.json',
+  '/sitemap.xml',
+  '/robots.txt',
+  '/icons/icon-192.png',
+  '/icons/old/icon-192.png',
+  '/icons/loading-logo.png',
+  '/images/network-map.png',
+  '/images/offline-land.jpg',
+  '/images/offline-port.jpg'
 ];
 
 // 1. INSTALL: Cache Core Assets
@@ -35,7 +35,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('SW: Caching core assets (v4.60.16)...');
+        console.log('SW: Caching core assets (v4.60.31)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {
@@ -49,13 +49,12 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       // SAFETY CHECK: Verify the new cache has the critical App Shell (index.html)
-      // before we delete the old cache. This prevents the "Cache Void".
       const newCache = await caches.open(CACHE_NAME);
-      const appShell = await newCache.match('./index.html');
+      const appShell = await newCache.match('/index.html');
 
       if (!appShell) {
-        console.error("SW: Safety Check Failed - index.html missing in new cache. Aborting cleanup to preserve old version.");
-        return; // ABORT: Do not delete old caches. Keep the old version running.
+        console.error("SW: Safety Check Failed - index.html missing in new cache. Aborting cleanup.");
+        return; 
       }
 
       console.log("SW: Safety Check Passed. Index.html confirmed. Cleaning old caches...");
@@ -80,7 +79,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   // STRATEGY A: Network-First for HTML (with Offline Fallback)
-  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname === '/') {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
@@ -95,9 +94,8 @@ self.addEventListener('fetch', (event) => {
             if (cachedResponse) {
                 return cachedResponse;
             } else {
-                // FALLBACK: If page is not in cache (e.g. new user), serve offline.html
                 console.log('SW: Page not in cache. Serving offline.html');
-                return caches.match('./offline.html');
+                return caches.match('/offline.html');
             }
           });
         })
