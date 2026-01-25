@@ -345,7 +345,8 @@ function handleShortcutActions() {
             if (welcomeModal) welcomeModal.classList.add('hidden');
             loadAllSchedules().then(() => {
                 trackAnalyticsEvent('deep_link_open', { type: 'route', route_id: route });
-                showToast(`Opened shared route: ${ROUTES[route].name}`, "success");
+                // GUARDIAN UPDATE V4.60.30: Reduced Toast Duration (2s)
+                showToast(`Opened shared route: ${ROUTES[route].name}`, "success", 2000);
                 
                 if (view === 'grid') {
                     const direction = urlParams.get('dir') || 'A';
@@ -616,9 +617,9 @@ window.openScheduleModal = function(destination, dayOverride = null) {
     // UPDATED V4.60.20: Use "From [Current] towards [Dest]" format
     let fromStationName = "Upcoming Trains";
     if (stationSelect && stationSelect.value) {
-        fromStationName = "From " + stationSelect.value.replace(' STATION', '');
+        fromStationName = stationSelect.value.replace(' STATION', '');
     }
-    modalTitle.textContent = `${fromStationName} towards ${destination.replace(' STATION', '')}${titleSuffix}`; 
+    modalTitle.textContent = `${fromStationName} -> ${destination.replace(' STATION', '')}${titleSuffix}`; 
     
     modalList.innerHTML = '';
     const nowSeconds = timeToSeconds(currentTime);
@@ -674,15 +675,26 @@ function setupFeatureButtons() {
     if (localStorage.theme === 'light') { document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } 
     else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); }
     themeToggleBtn.addEventListener('click', () => { if (localStorage.theme === 'dark') { localStorage.theme = 'light'; document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); } });
+    
+    // UPDATED V4.60.33: Share Button Always Shares Homepage (No Deep Links)
     shareBtn.addEventListener('click', async () => { 
         trackAnalyticsEvent('click_share', { location: 'main_view' });
-        const currentId = typeof currentRouteId !== 'undefined' ? currentRouteId : null;
-        const currentName = (currentId && ROUTES[currentId]) ? ROUTES[currentId].name : "Metrorail Next Train";
-        const shareLink = currentId ? `https://nexttrain.co.za/?route=${currentId}` : 'https://nexttrain.co.za';
-        const shareText = currentId ? `Check the ${currentName} schedule here: ` : 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive: ';
-        const shareData = { title: currentName, text: shareText, url: shareLink }; 
-        try { if (navigator.share) await navigator.share(shareData); else copyToClipboard(shareData.text + shareData.url); } catch (err) { copyToClipboard(shareData.text + shareData.url); } 
+        
+        const shareText = 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive: ';
+        const shareUrl = 'https://nexttrain.co.za/';
+
+        const shareData = { title: "Metrorail Next Train", text: shareText, url: shareUrl }; 
+        try { 
+            if (navigator.share) {
+                await navigator.share(shareData); 
+            } else { 
+                copyToClipboard(`${shareText} ${shareUrl}`); 
+            } 
+        } catch (err) { 
+            copyToClipboard(`${shareText} ${shareUrl}`); 
+        } 
     });
+
     installBtn = document.getElementById('install-app-btn');
     const showInstallButton = () => { if (installBtn) installBtn.classList.remove('hidden'); };
     if (window.deferredInstallPrompt) { showInstallButton(); } else { window.addEventListener('pwa-install-ready', () => { showInstallButton(); }); }
@@ -819,21 +831,27 @@ window.renderFullScheduleGrid = function(direction = 'A') {
     const container = document.getElementById('grid-container');
     const headerTitle = modal.querySelector('h3');
     
-    // Update Header with Direction Switcher and Share Button
+    // Updated Logic: sanitize date string
+    let displayDate = schedule.lastUpdated || "Standard Schedule";
+    // Aggressively remove ANY variation of "Scroll right" text inheritance
+    displayDate = displayDate.replace(/(Scroll right|→)[\s\S]*/i, "").trim();
+
+    // Update Header: Separated Scroll Text to prevent duplication
+    // COMPACT LAYOUT: One line for date + scroll hint
     headerTitle.innerHTML = `
-        <div class="flex flex-col w-full">
-            <div class="flex items-center justify-between w-full">
-                <span class="text-sm font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider mr-2">Trains to ${destName}</span>
-                <div class="flex space-x-2">
-                    <button onclick="shareGridDeepLink('${direction}')" class="p-2 bg-blue-50 dark:bg-gray-700 rounded-full text-blue-600 dark:text-blue-400 hover:bg-blue-100" title="Share this Timetable">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
-                    </button>
-                    <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}')" class="text-[10px] font-bold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-300 transition-colors">
-                        ⇄ To ${altDestName}
-                    </button>
-                </div>
+        <div class="flex flex-col w-full space-y-2">
+            <span class="text-sm font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider">Trains to ${destName}</span>
+            
+            <div class="flex items-center justify-between">
+                <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}')" class="text-[10px] font-bold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-300 transition-colors">
+                    ⇄ To ${altDestName}
+                </button>
             </div>
-            <span class="text-[10px] text-gray-400 font-mono mt-1">${schedule.lastUpdated || "Standard Schedule"}</span>
+
+            <div class="flex items-center justify-between border-t border-gray-100 dark:border-gray-800 pt-2 mt-1">
+                <span class="text-[10px] text-gray-400 font-mono">Effective: ${displayDate}</span>
+                </span>
+            </div>
         </div>
     `;
 
@@ -986,19 +1004,6 @@ window.highlightGridRow = function(tr) {
     if (stickyCell) {
         stickyCell.classList.remove('bg-white', 'dark:bg-gray-900');
         stickyCell.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40');
-    }
-};
-
-window.shareGridDeepLink = function(direction) {
-    const route = ROUTES[currentRouteId];
-    if (!route) return;
-    const url = `https://nexttrain.co.za/?route=${currentRouteId}&view=grid&dir=${direction}`;
-    const text = `Check the full ${route.name} timetable here: ${url}`;
-    
-    if (navigator.share) {
-        navigator.share({ title: 'Metrorail Timetable', text: text, url: url });
-    } else {
-        copyToClipboard(text);
     }
 };
 

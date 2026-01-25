@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.60.29 With GRIDS"; // Updated for Modular Grid Config
+const APP_VERSION = "V4.60.30 -25JAN"; // Updated for Modular Grid Config
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
