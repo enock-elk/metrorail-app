@@ -1,14 +1,46 @@
 // --- GLOBAL ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
-    if (typeof msg === 'string' && (msg === "Script error." || msg.indexOf("Script error") > -1)) {
-        console.warn("Global Error Suppressed (Script Error):", msg);
-        return false; 
+    // 1. Noise Filter: Ignore known external errors that don't affect the app
+    const IGNORED_ERRORS = [
+        "Script error.",
+        "_AutofillCallbackHandler", // Facebook In-App Browser Bug
+        "ResizeObserver loop limit exceeded" // Benign layout warning
+    ];
+
+    if (typeof msg === 'string' && IGNORED_ERRORS.some(err => msg.indexOf(err) > -1)) {
+        console.warn("Global Error Suppressed (Known Noise):", msg);
+        return false; // Silent fail
     }
+
     console.error("Global Error Caught:", msg);
+    
+    // Recovery: Ensure UI is visible even if error happened during load
+    if(loadingOverlay) loadingOverlay.style.display = 'none';
     if(mainContent) mainContent.style.display = 'block';
+    
+    // 2. One-Time Force Reload Logic
+    const hasReloaded = sessionStorage.getItem('error_reloaded');
+
+    if (!hasReloaded) {
+        sessionStorage.setItem('error_reloaded', 'true');
+        if(toast) {
+            toast.textContent = "Error detected. Recovering...";
+            toast.className = "toast-error show";
+        }
+        setTimeout(() => window.location.reload(), 1000);
+        return false;
+    }
+
+    // 3. Persistent Error with Close Button (If reload didn't fix it)
     if(toast) {
-        toast.textContent = "Error: " + msg; 
+        toast.innerHTML = `
+            <div class="flex justify-between items-start">
+                <span class="mr-2">Error: ${msg}</span>
+                <button onclick="this.closest('#toast').classList.remove('show')" class="text-white bg-white/20 hover:bg-white/40 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold transition-colors flex-shrink-0" aria-label="Dismiss Error">✕</button>
+            </div>
+        `;
         toast.className = "toast-error show";
+        // No timeout for critical errors that persist after reload
     }
     return false;
 };
@@ -69,7 +101,6 @@ function renderSkeletonLoader(element) { if (element && typeof Renderer !== 'und
 function renderPlaceholder() {
     const triggerShake = "document.getElementById('station-select').classList.add('animate-shake', 'ring-4', 'ring-blue-300'); setTimeout(() => document.getElementById('station-select').classList.remove('animate-shake', 'ring-4', 'ring-blue-300'), 500); document.getElementById('station-select').focus();";
     
-    // Custom HTML to override default Renderer styling (No border, full clickable area)
     const placeholderHTML = `
         <div onclick="${triggerShake}" class="h-24 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors group w-full">
             <svg class="w-6 h-6 mb-1 opacity-50 group-hover:scale-110 transition-transform text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
@@ -79,7 +110,6 @@ function renderPlaceholder() {
     if(pretoriaTimeEl) pretoriaTimeEl.innerHTML = placeholderHTML;
     if(pienaarspoortTimeEl) pienaarspoortTimeEl.innerHTML = placeholderHTML;
 
-    // Persistence Logic
     if(fareContainer) {
         fareContainer.classList.remove('hidden'); 
         if(fareAmount) fareAmount.textContent = "R --.--";
@@ -179,8 +209,6 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     if (!fareContainer) return;
     if (passengerTypeLabel) passengerTypeLabel.textContent = currentUserProfile;
 
-    // GUARDIAN FIX V4.60.18: Persistence Logic
-    // If no route/time provided, show placeholder but keep visible
     if (!sheetKey || !nextTrainTimeStr) {
         fareContainer.classList.remove('hidden');
         fareAmount.textContent = "R --.--";
@@ -208,7 +236,6 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
         }
         fareContainer.classList.remove('hidden');
     } else {
-        // Fallback for unexpected missing fare data
         fareContainer.classList.remove('hidden');
         fareAmount.textContent = "R --.--";
         fareType.textContent = "Rate Unavailable";
@@ -218,7 +245,16 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
 }
 
 // --- UTILS ---
-function showToast(message, type = 'info', duration = 3000) { if (toastTimeout) clearTimeout(toastTimeout); toast.textContent = message; toast.className = `toast-info`; if (type === 'success') toast.classList.add('toast-success'); else if (type === 'error') toast.classList.add('toast-error'); toast.classList.add('show'); toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration); }
+function showToast(message, type = 'info', duration = 3000) { 
+    if (toastTimeout) clearTimeout(toastTimeout); 
+    toast.textContent = message; 
+    toast.className = `toast-info`; 
+    if (type === 'success') toast.classList.add('toast-success'); 
+    else if (type === 'error') toast.classList.add('toast-error'); 
+    toast.classList.add('show'); 
+    toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration); 
+}
+
 function copyToClipboard(text) { const textArea = document.createElement('textarea'); textArea.value = text; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { const successful = document.execCommand('copy'); if (successful) showToast("Link copied to clipboard!", "success", 2000); } catch (err) {} document.body.removeChild(textArea); }
 
 function loadUserProfile() {
@@ -680,7 +716,8 @@ function setupFeatureButtons() {
     shareBtn.addEventListener('click', async () => { 
         trackAnalyticsEvent('click_share', { location: 'main_view' });
         
-        const shareText = 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive: ';
+        // GUARDIAN FIX V4.60.34: Remove URL from text body to prevent duplication
+        const shareText = 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive.';
         const shareUrl = 'https://nexttrain.co.za/';
 
         const shareData = { title: "Metrorail Next Train", text: shareText, url: shareUrl }; 
@@ -770,7 +807,19 @@ if ('serviceWorker' in navigator) {
             if (reg.waiting) { showUpdateToast(reg.waiting); return; }
             reg.addEventListener('updatefound', () => { newWorker = reg.installing; newWorker.addEventListener('statechange', () => { if (newWorker.state === 'installed' && navigator.serviceWorker.controller) showUpdateToast(newWorker); }); });
         }).catch(err => console.error('SW reg failed:', err));
-        let refreshing; navigator.serviceWorker.addEventListener('controllerchange', () => { if (refreshing) return; window.location.reload(); refreshing = true; });
+        
+        let refreshing; 
+        navigator.serviceWorker.addEventListener('controllerchange', () => { 
+            if (refreshing) return; 
+            refreshing = true;
+            
+            // GUARDIAN FIX V4.60.34: Smooth Update Logic (Option B with Twist)
+            if(toast) {
+                toast.textContent = "Ready for offline use. Refreshing to activate...";
+                toast.className = "toast-success show";
+            }
+            setTimeout(() => window.location.reload(), 1000);
+        });
     });
 }
 
@@ -1104,36 +1153,42 @@ document.addEventListener('DOMContentLoaded', () => {
     
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
     setupSwipeNavigation(); initTabIndicator(); 
-    if (typeof setupMapLogic === 'function') setupMapLogic(); 
-
-    // Inject Trigger on Init
-    // This is safe because updateNextTrainView handles the DOM check
-    updateNextTrainView();
-    // Render placeholder if needed to ensure click handlers are active
-    if (!stationSelect.value) renderPlaceholder();
-
-    // Hook updateFareDisplay to updateNextTrainView to ensure it stays in sync
-    const originalUpdateFare = updateFareDisplay;
-    updateFareDisplay = function(sheetKey, nextTime) {
-        originalUpdateFare(sheetKey, nextTime);
-        updateNextTrainView();
-    };
+    
+    if (typeof setupMapLogic === 'function') {
+        setupMapLogic(); 
+    }
 
     const savedDefault = localStorage.getItem('defaultRoute');
+    
     if (savedDefault && ROUTES[savedDefault]) {
         currentRouteId = savedDefault;
         loadAllSchedules().then(() => {
             if (navigator.permissions && navigator.permissions.query) {
                 navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
-                    if (result.state === 'granted') { console.log("Location permission already granted. Auto-locating..."); findNearestStation(true); }
+                    if (result.state === 'granted') {
+                        console.log("Location permission already granted. Auto-locating...");
+                        findNearestStation(true);
+                    }
                 });
             }
         });
     } else {
         console.log("First time user (or no pinned route). Showing Welcome Screen.");
+        loadingOverlay.style.display = 'none';
         showWelcomeScreen();
     }
 
+    // --- RESTORE ACTIVE TAB (Updated for URL Shortcuts) ---
+    // If URL has action, do not restore previous tab, respect the action.
     const urlParams = new URLSearchParams(window.location.search);
-    if (!urlParams.has('action') && !urlParams.has('route')) { findNextTrains(); }
+    if (urlParams.has('action')) {
+        console.log("Shortcut action detected, ignoring saved tab preference.");
+    } else {
+        const lastActiveTab = localStorage.getItem('activeTab');
+        if (lastActiveTab) {
+            switchTab(lastActiveTab);
+        } else {
+            switchTab('next-train');
+        }
+    }
 });
