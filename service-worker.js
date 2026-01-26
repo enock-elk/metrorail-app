@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.60.16'; // BUMPED: Offline Tailwind
+const CACHE_NAME = 'metrorail-next-train-v4.60.16-Fix'; // BUMPED: Offline Tailwind
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
