@@ -132,7 +132,7 @@ async function loadAllSchedules(force = false) {
         const currentRoute = ROUTES[currentRouteId];
         if (!currentRoute) return;
         
-        // UI Updates
+        // UI Updates (handled here for flow, but using global refs)
         if(routeSubtitleText) {
             routeSubtitleText.textContent = currentRoute.name;
             routeSubtitleText.className = `text-lg font-medium ${currentRoute.colorClass} group-hover:opacity-80 transition-colors`;
@@ -147,6 +147,7 @@ async function loadAllSchedules(force = false) {
             if(pienaarspoortTimeEl) renderSkeletonLoader(pienaarspoortTimeEl);
         }
 
+        if(offlineIndicator) offlineIndicator.style.display = 'none';
         if (typeof updatePinUI === 'function') updatePinUI(); 
 
         if (!currentRoute.isActive) {
@@ -158,8 +159,6 @@ async function loadAllSchedules(force = false) {
         const cachedDB = loadFromLocalCache('full_db');
         let usedCache = false;
 
-        // GUARDIAN UPDATE V4.60.29: Deep Link Priority Fix
-        // If cache exists, render it IMMEDIATELY to prevent "Loading Forever" feel.
         if (cachedDB) {
             console.log("Restoring from cache...");
             fullDatabase = cachedDB.data;
@@ -167,18 +166,7 @@ async function loadAllSchedules(force = false) {
             buildGlobalStationIndex(); 
             buildMasterStationList(); 
             updateLastUpdatedText();
-            
-            // CRITICAL: Unblock UI Immediately (Option B)
-            if(mainContent) mainContent.style.display = 'block';
-            if(offlineIndicator) offlineIndicator.style.display = 'none'; 
-            
-            // GUARDIAN FIX: Hide Overlay NOW. Do not wait for network.
-            if (typeof hideLoadingOverlay === 'function') {
-                hideLoadingOverlay();
-            } else if(loadingOverlay) {
-                loadingOverlay.style.display = 'none';
-            }
-
+            // Call UI init
             if (typeof initializeApp === 'function') initializeApp();
             usedCache = true;
         }
@@ -189,80 +177,41 @@ async function loadAllSchedules(force = false) {
             forceReloadBtn.disabled = true;
         }
 
-        // --- GUARDIAN UPDATE V4.60.31: ABORT CONTROLLER TIMEOUT ---
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 Second Timeout
+        const response = await fetch(DATABASE_URL);
+        if (!response.ok) throw new Error("Firebase fetch failed");
+        const newDatabase = await response.json();
+        if (!newDatabase) throw new Error("Empty database");
 
-        try {
-            const response = await fetch(DATABASE_URL, { signal: controller.signal });
-            clearTimeout(timeoutId); // Clear timeout on success
+        const newStr = JSON.stringify(newDatabase);
+        const oldStr = cachedDB ? JSON.stringify(cachedDB.data) : "";
 
-            if (!response.ok) throw new Error("Firebase fetch failed");
-            const newDatabase = await response.json();
-            if (!newDatabase) throw new Error("Empty database");
-
-            const newStr = JSON.stringify(newDatabase);
-            const oldStr = cachedDB ? JSON.stringify(cachedDB.data) : "";
-
-            if (newStr !== oldStr) {
-                console.log("New data! Updating...");
-                fullDatabase = newDatabase;
-                saveToLocalCache('full_db', fullDatabase);
-                
-                processRouteDataFromDB(currentRoute);
-                buildGlobalStationIndex(); 
-                buildMasterStationList(); 
-                updateLastUpdatedText();
-                
-                if (usedCache) { 
-                    if(typeof showToast === 'function') showToast("Schedule updated!", "success", 3000); 
-                    findNextTrains(); 
-                } else { 
-                    if(typeof initializeApp === 'function') initializeApp(); 
-                }
-            } else {
-                console.log("Data is up to date.");
-                if (!usedCache) {
-                     if(typeof initializeApp === 'function') initializeApp();
-                }
-            }
+        if (newStr !== oldStr) {
+            console.log("New data! Updating...");
+            fullDatabase = newDatabase;
+            saveToLocalCache('full_db', fullDatabase);
             
-            // Success: Ensure offline indicator is hidden
-            if(offlineIndicator) offlineIndicator.style.display = 'none';
-
-        } catch (fetchError) {
-            // GUARDIAN FIX: Handle Abort specifically
-            if (fetchError.name === 'AbortError') {
-                console.warn("Fetch aborted due to timeout (Slow Network).");
-            } else {
-                throw fetchError; // Re-throw real errors to outer catch
-            }
-        }
-
-    } catch (error) {
-        console.error("Fetch Error:", error);
-        
-        // GUARDIAN UPDATE V4.60.29: Silent Fail Logic (Option A + C)
-        if (loadFromLocalCache('full_db')) {
-            if (navigator.onLine) {
-                // Scenario: Mobile Data Handover Delay / Timeout
-                // We are "Online" but fetch failed/timed out. Don't show scary Banner.
-                console.log("Network glitch (Silent Fail). Using saved data.");
-                if(typeof showToast === 'function') showToast("Weak signal. Using saved schedule.", "info");
-                if(offlineIndicator) offlineIndicator.style.display = 'none'; // Keep it hidden!
-                
-                // GUARDIAN FIX: Force hide overlay if we failed silently
-                if (typeof hideLoadingOverlay === 'function') {
-                    hideLoadingOverlay();
-                } else if(loadingOverlay) {
-                    loadingOverlay.style.display = 'none';
-                }
-            } else {
-                // Scenario: True Offline
-                if(offlineIndicator) offlineIndicator.style.display = 'block';
+            processRouteDataFromDB(currentRoute);
+            buildGlobalStationIndex(); 
+            buildMasterStationList(); 
+            updateLastUpdatedText();
+            
+            if (usedCache) { 
+                if(typeof showToast === 'function') showToast("Schedule updated!", "success", 3000); 
+                findNextTrains(); 
+            } else { 
+                if(typeof initializeApp === 'function') initializeApp(); 
             }
         } else {
-            // No cache + No Network = Fatal Error
+            console.log("Data is up to date.");
+            if (!usedCache) {
+                 if(typeof initializeApp === 'function') initializeApp();
+            }
+        }
+    } catch (error) {
+        console.error("Fetch Error:", error);
+        if (loadFromLocalCache('full_db')) {
+            if(offlineIndicator) offlineIndicator.style.display = 'block';
+        } else {
             if (typeof renderRouteError === 'function') renderRouteError(error);
         }
     } finally {
@@ -278,10 +227,7 @@ async function loadAllSchedules(force = false) {
             loadingOverlay.style.display = 'none';
         }
 
-        // Ensure main content is visible even if fetch failed (if we have cache)
-        if(currentRouteId && mainContent && loadFromLocalCache('full_db')) {
-            mainContent.style.display = 'block';
-        }
+        if(currentRouteId && mainContent) mainContent.style.display = 'block';
     }
 }
 
@@ -472,7 +418,6 @@ function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
     } catch (e) { return ""; }
 }
 
-// GUARDIAN UPDATE V4.60.17: Pricing based on CURRENT TIME, not Departure Time.
 function getRouteFare(sheetKey, departureTimeStr) {
     const zoneKey = sheetKey + "_zone";
     let zoneCode = fullDatabase[zoneKey]; 
@@ -486,20 +431,21 @@ function getRouteFare(sheetKey, departureTimeStr) {
     let basePrice = FARE_CONFIG.zones[zoneCode];
     let discountLabel = null;
     let isPromo = false; 
-    let isOffPeak = false;
+    let isOffPeak = false; // Legacy flag, kept for backward compat if needed, but ui.js should use discountLabel if present
 
     const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
     
     let useOffPeakRate = false;
     
-    // UPDATED LOGIC: Check 'currentTime' instead of 'departureTimeStr'
-    // This allows "Buy Now" pricing display.
-    if (currentDayType === 'weekday' && currentTime) {
+    // GUARDIAN FIX V4.58.2: Off-Peak is strictly Weekday only.
+    if (currentDayType === 'weekday' && departureTimeStr) {
         try {
-            const [nowH, nowM] = currentTime.split(':').map(Number);
-            const decimalNow = nowH + (nowM / 60);
+            const parts = departureTimeStr.split(':');
+            const h = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) || 0;
+            const decimalTime = h + (m / 60);
             
-            if (decimalNow >= FARE_CONFIG.offPeakStart && decimalNow < FARE_CONFIG.offPeakEnd) {
+            if (decimalTime >= FARE_CONFIG.offPeakStart && decimalTime < FARE_CONFIG.offPeakEnd) {
                 useOffPeakRate = true;
             }
         } catch (e) { 
@@ -533,9 +479,9 @@ function getRouteFare(sheetKey, departureTimeStr) {
 
     return {
         price: finalPrice.toFixed(2),
-        isOffPeak: useOffPeakRate,
+        isOffPeak: useOffPeakRate, // Legacy
         isPromo: isPromo,
-        discountLabel: discountLabel
+        discountLabel: discountLabel // NEW: Specific Text
     };
 }
 
