@@ -674,8 +674,11 @@ function findNextTrains() {
 function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
     const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA);
     let allTransferJourneys = [];
-    if (routeConfig.transferStation) {
-        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destA);
+    
+    // GUARDIAN UPDATE V4.60.30: Support Relay Station as Transfer Hub
+    const transferHub = routeConfig.transferStation || routeConfig.relayStation;
+    if (transferHub) {
+        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destA);
         allTransferJourneys = allTransfers;
     }
     
@@ -701,8 +704,11 @@ function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
 function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
     const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destB);
     let allTransferJourneys = [];
-    if (routeConfig.transferStation) {
-        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, routeConfig.transferStation, routeConfig.destB);
+    
+    // GUARDIAN UPDATE V4.60.30: Support Relay Station as Transfer Hub
+    const transferHub = routeConfig.transferStation || routeConfig.relayStation;
+    if (transferHub) {
+        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destB);
         allTransferJourneys = allTransfers;
     }
 
@@ -724,6 +730,7 @@ function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
 }
 
 function findNextDirectTrain(fromStation, schedule, destinationStation) {
+    // GUARDIAN FIX V4.60.32: Critical guard clause for undefined/null schedules
     if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
@@ -768,6 +775,7 @@ function findNextDirectTrain(fromStation, schedule, destinationStation) {
 }
 
 function findTransfers(fromStation, schedule, terminalStation, finalDestination) {
+    // GUARDIAN FIX V4.60.32: Critical guard clause
     if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
@@ -812,6 +820,8 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination)
 }
 
 function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination, incomingTrainName) {
+    // GUARDIAN FIX V4.60.32: Guard clause
+    if (!schedule || !schedule.rows) return null;
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
     let possibleConnections = [];
@@ -955,13 +965,17 @@ function populateStationList() {
     const stationSet = new Set();
     const hasTimes = (row) => { const keys = Object.keys(row); return keys.some(key => key !== 'STATION' && key !== 'COORDINATES' && key !== 'KM_MARK' && row[key] && row[key].trim() !== ""); };
     
+    // GUARDIAN FIX V4.60.32: Added safety checks for undefined schedules
     if (schedules.weekday_to_a && schedules.weekday_to_a.rows) schedules.weekday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
     if (schedules.weekday_to_b && schedules.weekday_to_b.rows) schedules.weekday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
     if (schedules.saturday_to_a && schedules.saturday_to_a.rows) schedules.saturday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
     if (schedules.saturday_to_b && schedules.saturday_to_b.rows) schedules.saturday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
 
     allStations = Array.from(stationSet);
-    if (schedules.weekday_to_a.rows) { const orderMap = schedules.weekday_to_a.rows.map(r => r.STATION); allStations.sort((a, b) => orderMap.indexOf(a) - orderMap.indexOf(b)); }
+    if (schedules.weekday_to_a && schedules.weekday_to_a.rows) { 
+        const orderMap = schedules.weekday_to_a.rows.map(r => r.STATION); 
+        allStations.sort((a, b) => orderMap.indexOf(a) - orderMap.indexOf(b)); 
+    }
     
     const currentSelectedStation = stationSelect.value;
     

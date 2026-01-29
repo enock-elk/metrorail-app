@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.16 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.40 - Guardian Hotfix)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -14,687 +14,7 @@ let selectedPlannerDay = null;
 let plannerPulse = null; 
 let plannerExpandedState = new Set(); 
 
-// --- INITIALIZATION ---
-function initPlanner() {
-    const fromSelect = document.getElementById('planner-from');
-    const toSelect = document.getElementById('planner-to');
-    const swapBtn = document.getElementById('planner-swap-btn');
-    const searchBtn = document.getElementById('planner-search-btn');
-    const resetBtn = document.getElementById('planner-reset-btn');
-    const locateBtn = document.getElementById('planner-locate-btn');
-    
-    // NEW: Action Buttons in Results Header
-    const backBtn = document.getElementById('planner-back-btn');
-
-    // Inject Day Selector if missing
-    const inputSection = document.getElementById('planner-input-section');
-    if (inputSection && !document.getElementById('planner-day-select')) {
-        const daySelectDiv = document.createElement('div');
-        daySelectDiv.className = "mb-4";
-        daySelectDiv.innerHTML = `
-            <label class="block text-xs font-bold text-gray-500 uppercase ml-1 mb-1">Travel Day</label>
-            <select id="planner-day-select" class="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
-                <option value="weekday">Weekday (Mon-Fri)</option>
-                <option value="saturday">Saturday</option>
-                <option value="sunday">Sunday / Public Holiday</option>
-            </select>
-        `;
-        inputSection.insertBefore(daySelectDiv, searchBtn);
-        
-        const daySelect = document.getElementById('planner-day-select');
-        if (typeof currentDayType !== 'undefined') daySelect.value = currentDayType;
-        daySelect.addEventListener('change', (e) => selectedPlannerDay = e.target.value);
-    }
-
-    // Inject History Container
-    if (inputSection && !document.getElementById('planner-history-container')) {
-        const historyContainer = document.createElement('div');
-        historyContainer.id = 'planner-history-container';
-        historyContainer.className = "mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 hidden";
-        inputSection.appendChild(historyContainer);
-        renderPlannerHistory();
-    }
-
-    // Wiring Info Button
-    const infoBtn = document.getElementById('planner-info-btn');
-    if (infoBtn) {
-        infoBtn.addEventListener('click', () => {
-            const helpModal = document.getElementById('help-modal');
-            if (helpModal) helpModal.classList.remove('hidden');
-        });
-    }
-
-    // Developer Access (5-Tap)
-    const plannerTab = document.getElementById('tab-trip-planner');
-    if (plannerTab) {
-        let pClickCount = 0;
-        let pClickTimer = null;
-        plannerTab.addEventListener('click', () => {
-            pClickCount++;
-            if (pClickTimer) clearTimeout(pClickTimer);
-            pClickTimer = setTimeout(() => { pClickCount = 0; }, 1000);
-            
-            if (pClickCount >= 5) {
-                pClickCount = 0;
-                // Delegate to Global Admin Trigger
-                const appTitle = document.getElementById('app-title');
-                if (appTitle) appTitle.click(); // Hack to trigger main logic
-            }
-        });
-    }
-
-    if (!fromSelect || !toSelect) return;
-
-    setupAutocomplete('planner-from-search', 'planner-from');
-    setupAutocomplete('planner-to-search', 'planner-to');
-
-    const populate = (select) => {
-        select.innerHTML = '<option value="">Select...</option>';
-        if (typeof MASTER_STATION_LIST !== 'undefined') {
-            MASTER_STATION_LIST.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s;
-                opt.textContent = s.replace(' STATION', '').trim();
-                select.appendChild(opt);
-            });
-        }
-    };
-    populate(fromSelect);
-    populate(toSelect);
-
-    const filterToOptions = () => {
-        const selectedFrom = fromSelect.value;
-        Array.from(toSelect.options).forEach(opt => {
-            if (opt.value === selectedFrom && opt.value !== "") {
-                opt.disabled = true;
-                opt.hidden = true; 
-            } else {
-                opt.disabled = false;
-                opt.hidden = false;
-            }
-        });
-        if (toSelect.value === selectedFrom) {
-            toSelect.value = "";
-            const toInput = document.getElementById('planner-to-search');
-            if(toInput) toInput.value = "";
-        }
-    };
-    
-    fromSelect.addEventListener('change', filterToOptions);
-    const fromInput = document.getElementById('planner-from-search');
-    if(fromInput) fromInput.addEventListener('change', filterToOptions);
-
-    if (locateBtn) {
-        locateBtn.addEventListener('click', () => {
-            const icon = locateBtn.querySelector('svg');
-            icon.classList.add('animate-spin'); 
-            
-            if (!navigator.geolocation) {
-                showToast("Geolocation is not supported.", "error");
-                icon.classList.remove('animate-spin');
-                return;
-            }
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const { latitude: userLat, longitude: userLon } = position.coords;
-                    let candidates = [];
-                    // Using globalStationIndex from logic.js
-                    for (const [stationName, coords] of Object.entries(globalStationIndex)) {
-                        const dist = getDistanceFromLatLonInKm(userLat, userLon, coords.lat, coords.lon);
-                        candidates.push({ stationName, dist });
-                    }
-                    candidates.sort((a, b) => a.dist - b.dist);
-
-                    if (candidates.length > 0 && candidates[0].dist <= 6) { 
-                        const nearest = candidates[0].stationName;
-                        fromSelect.value = nearest;
-                        const fromInput = document.getElementById('planner-from-search');
-                        if(fromInput) fromInput.value = nearest.replace(' STATION', '');
-                        
-                        filterToOptions();
-                        showToast(`Located: ${nearest.replace(' STATION', '')}`, "success");
-                        
-                        if (typeof trackAnalyticsEvent === 'function') {
-                            trackAnalyticsEvent('planner_auto_locate', { station: nearest });
-                        }
-                    } else {
-                        showToast("No stations found nearby.", "error");
-                    }
-                    icon.classList.remove('animate-spin');
-                },
-                () => {
-                    showToast("Could not retrieve location.", "error");
-                    icon.classList.remove('animate-spin');
-                }
-            );
-        });
-    }
-
-    // --- ROBUST SWAP LOGIC (Fixes Empty Swap Bug) ---
-    swapBtn.addEventListener('click', () => {
-        const fromInput = document.getElementById('planner-from-search');
-        const toInput = document.getElementById('planner-to-search');
-        
-        // 1. Capture Visible Text (Source of Truth)
-        let txtFrom = fromInput.value;
-        let txtTo = toInput.value;
-
-        // 2. Perform Swap
-        fromInput.value = txtTo;
-        toInput.value = txtFrom;
-
-        // 3. Resolve to Select Options
-        // We use the helper logic to find the exact station ID for the hidden select
-        const resolve = (txt) => {
-            if (!txt) return "";
-            const clean = txt.trim().toUpperCase();
-            if (typeof MASTER_STATION_LIST !== 'undefined') {
-                return MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === clean) || "";
-            }
-            return "";
-        };
-
-        fromSelect.value = resolve(toInput.value); // Use 'toInput' because we just swapped it into there? No, fromInput has the NEW 'from' value.
-        fromSelect.value = resolve(fromInput.value);
-        toSelect.value = resolve(toInput.value);
-
-        // 4. Trigger Filter to update disabled states
-        filterToOptions();
-    });
-
-    searchBtn.addEventListener('click', () => {
-        const resolveStation = (inputVal, selectEl) => {
-            if (selectEl.value) return selectEl.value;
-            if (!inputVal || typeof MASTER_STATION_LIST === 'undefined') return "";
-
-            const cleanInput = inputVal.trim().toUpperCase();
-            const exact = MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === cleanInput);
-            if (exact) return exact;
-
-            const matches = MASTER_STATION_LIST.filter(s => s.replace(' STATION', '').toUpperCase().includes(cleanInput));
-            return matches.length === 1 ? matches[0] : "";
-        };
-
-        const fromInput = document.getElementById('planner-from-search');
-        const toInput = document.getElementById('planner-to-search');
-
-        if (!fromSelect.value && fromInput) fromSelect.value = resolveStation(fromInput.value, fromSelect);
-        if (!toSelect.value && toInput) toSelect.value = resolveStation(toInput.value, toSelect);
-
-        const from = fromSelect.value;
-        const to = toSelect.value;
-        
-        if (!from || !to) return showToast("Please select valid stations from the list.", "error");
-        if (from === to) return showToast("Origin and Destination cannot be the same.", "error");
-
-        if (typeof trackAnalyticsEvent === 'function') {
-            trackAnalyticsEvent('planner_search', {
-                origin: from,
-                destination: to,
-                day: selectedPlannerDay || currentDayType || 'unknown'
-            });
-        }
-
-        savePlannerHistory(from, to);
-        executeTripPlan(from, to);
-    });
-
-    // --- RESET / BACK BUTTON LOGIC ---
-    const resetAction = () => {
-        if (plannerPulse) { clearInterval(plannerPulse); plannerPulse = null; }
-        
-        document.getElementById('planner-input-section').classList.remove('hidden');
-        document.getElementById('planner-results-section').classList.add('hidden');
-        
-        // Don't clear inputs if just going back, allows refinement
-        // But reset expanded state
-        plannerExpandedState.clear(); 
-        
-        const daySelect = document.getElementById('planner-day-select');
-        if (daySelect && typeof currentDayType !== 'undefined') {
-            // Keep user selected day
-        }
-    };
-
-    if (resetBtn) resetBtn.addEventListener('click', resetAction);
-    if (backBtn) backBtn.addEventListener('click', resetAction);
-}
-
-// --- UPDATED: SMART SWAP RESULTS FUNCTION ---
-window.swapPlannerResults = function() {
-    const fromSelect = document.getElementById('planner-from');
-    const toSelect = document.getElementById('planner-to');
-    const fromInput = document.getElementById('planner-from-search');
-    const toInput = document.getElementById('planner-to-search');
-
-    // 1. Capture Smart Time Context
-    let preferredTime = null;
-    const dropdown = document.querySelector('#planner-results-list select');
-    if (dropdown && currentTripOptions.length > 0) {
-        const selectedIdx = parseInt(dropdown.value);
-        if (currentTripOptions[selectedIdx]) {
-            preferredTime = currentTripOptions[selectedIdx].depTime;
-        }
-    }
-
-    // 2. Perform Robust Swap (Reading Inputs first)
-    if (!fromInput || !toInput) return;
-    
-    let txtFrom = fromInput.value;
-    let txtTo = toInput.value;
-    
-    // Fallback: If inputs empty (glitch), read selects
-    if (!txtFrom && fromSelect.value) txtFrom = fromSelect.value.replace(' STATION', '');
-    if (!txtTo && toSelect.value) txtTo = toSelect.value.replace(' STATION', '');
-
-    if (!txtFrom || !txtTo) return; // Cannot swap empty
-
-    // Update Inputs
-    fromInput.value = txtTo;
-    toInput.value = txtFrom;
-
-    // Resolve IDs
-    const resolve = (txt) => {
-        if (!txt) return "";
-        const clean = txt.trim().toUpperCase();
-        if (typeof MASTER_STATION_LIST !== 'undefined') {
-            return MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === clean) || "";
-        }
-        return "";
-    };
-
-    const newFromId = resolve(txtTo);
-    const newToId = resolve(txtFrom);
-
-    if (fromSelect) fromSelect.value = newFromId;
-    if (toSelect) toSelect.value = newToId;
-
-    showToast("Reversing Direction...", "info", 1000);
-    
-    // 3. Trigger Search with Context
-    executeTripPlan(newFromId, newToId, preferredTime);
-};
-
-// --- HISTORY & AUTOCOMPLETE ---
-function savePlannerHistory(from, to) {
-    if (!from || !to) return;
-    const cleanFrom = from.replace(' STATION', '');
-    const cleanTo = to.replace(' STATION', '');
-    const routeKey = `${cleanFrom}|${cleanTo}`;
-    
-    let history = JSON.parse(localStorage.getItem('plannerHistory') || "[]");
-    history = history.filter(item => `${item.from}|${item.to}` !== routeKey);
-    history.unshift({ from: cleanFrom, to: cleanTo, fullFrom: from, fullTo: to });
-    if (history.length > 4) history = history.slice(0, 4);
-    
-    localStorage.setItem('plannerHistory', JSON.stringify(history));
-    renderPlannerHistory();
-}
-
-function renderPlannerHistory() {
-    const container = document.getElementById('planner-history-container');
-    if (!container) return;
-    
-    const history = JSON.parse(localStorage.getItem('plannerHistory') || "[]");
-    if (history.length === 0) {
-        container.classList.add('hidden');
-        return;
-    }
-    
-    container.classList.remove('hidden');
-    container.innerHTML = `
-        <div class="flex items-center justify-between mb-2 px-1">
-             <p class="text-xs font-bold text-gray-400 uppercase">Recent Trips</p>
-             <button onclick="localStorage.removeItem('plannerHistory'); renderPlannerHistory()" class="text-[10px] text-gray-400 hover:text-red-500">Clear</button>
-        </div>
-        <div class="flex flex-col gap-2">
-            ${history.map(item => `
-                <button onclick="restorePlannerSearch('${item.fullFrom}', '${item.fullTo}')" 
-                    class="w-full flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 shadow-sm hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group text-left">
-                    <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                        ${item.from} <span class="text-gray-400 mx-1">&rarr;</span> ${item.to}
-                    </span>
-                    <svg class="w-3 h-3 text-gray-300 group-hover:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                </button>
-            `).join('')}
-        </div>
-    `;
-}
-
-window.restorePlannerSearch = function(fullFrom, fullTo) {
-    const fromSelect = document.getElementById('planner-from');
-    const toSelect = document.getElementById('planner-to');
-    const fromInput = document.getElementById('planner-from-search');
-    const toInput = document.getElementById('planner-to-search');
-    
-    if (fromSelect && toSelect) {
-        fromSelect.value = fullFrom;
-        toSelect.value = fullTo;
-        if (fromInput) fromInput.value = fullFrom.replace(' STATION', '');
-        if (toInput) toInput.value = fullTo.replace(' STATION', '');
-        
-        const daySelect = document.getElementById('planner-day-select');
-        if (daySelect) {
-            selectedPlannerDay = daySelect.value;
-        }
-
-        showToast("Restored recent search", "info", 1000);
-        
-        if (typeof trackAnalyticsEvent === 'function') {
-            trackAnalyticsEvent('planner_history_restore', { origin: fullFrom, destination: fullTo });
-        }
-
-        executeTripPlan(fullFrom, fullTo);
-    }
-};
-
-function setupAutocomplete(inputId, selectId) {
-    const input = document.getElementById(inputId);
-    const select = document.getElementById(selectId);
-    if (!input || !select) return;
-
-    select.classList.add('hidden');
-    if (input.parentNode) input.parentNode.style.position = 'relative';
-
-    const chevron = document.createElement('div');
-    chevron.className = "absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer p-2 hover:text-blue-500 z-10";
-    chevron.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
-    input.parentNode.appendChild(chevron);
-
-    const list = document.createElement('ul');
-    list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0";
-    input.parentNode.appendChild(list);
-
-    const renderList = (filterText = '') => {
-        list.innerHTML = '';
-        const val = filterText.toUpperCase();
-        const matches = val.length === 0 ? MASTER_STATION_LIST : MASTER_STATION_LIST.filter(s => s.includes(val));
-
-        if (matches.length === 0) {
-            const li = document.createElement('li');
-            li.className = "p-3 text-sm text-gray-400 italic";
-            li.textContent = "No stations found";
-            list.appendChild(li);
-        } else {
-            matches.forEach(station => {
-                const li = document.createElement('li');
-                li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors";
-                li.textContent = station.replace(' STATION', '');
-                li.onclick = () => {
-                    input.value = station.replace(' STATION', '');
-                    select.value = station;
-                    const event = new Event('change');
-                    select.dispatchEvent(event);
-                    
-                    list.classList.add('hidden');
-                };
-                list.appendChild(li);
-            });
-        }
-        list.classList.remove('hidden');
-    };
-
-    input.addEventListener('input', () => { select.value = ""; renderList(input.value); });
-    input.addEventListener('focus', () => renderList(input.value));
-    chevron.addEventListener('click', (e) => { e.stopPropagation(); list.classList.contains('hidden') ? (renderList(input.value), input.focus()) : list.classList.add('hidden'); });
-    document.addEventListener('click', (e) => { if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) list.classList.add('hidden'); });
-}
-
-// --- ORCHESTRATION ---
-function executeTripPlan(origin, dest, preferredTime = null) {
-    const resultsContainer = document.getElementById('planner-results-list');
-    resultsContainer.innerHTML = '<div class="text-center p-4"><svg class="w-8 h-8 animate-spin mx-auto text-blue-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p class="mt-2 text-xs text-gray-500">Calculating route...</p></div>';
-    
-    document.getElementById('planner-input-section').classList.add('hidden');
-    document.getElementById('planner-results-section').classList.remove('hidden');
-    plannerExpandedState.clear();
-
-    if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
-
-    // Run Asynchronously to prevent UI freeze
-    setTimeout(() => {
-        // --- CALL TO PLANNER CORE ---
-        // We pass 'selectedPlannerDay' to all functions to ensure they are stateless
-        const directPlan = planDirectTrip(origin, dest, selectedPlannerDay);
-        const transferPlan = planHubTransferTrip(origin, dest, selectedPlannerDay);
-        const relayPlan = planRelayTransferTrip(origin, dest, selectedPlannerDay);
-
-        let mergedTrips = [];
-        if (directPlan.trips) mergedTrips = [...mergedTrips, ...directPlan.trips];
-        if (transferPlan.trips) mergedTrips = [...mergedTrips, ...transferPlan.trips];
-        if (relayPlan.trips) mergedTrips = [...mergedTrips, ...relayPlan.trips];
-
-        // 4. Try Double Transfer (Bridge) if results are thin
-        if (mergedTrips.length === 0) {
-            console.log("No simple route found. Attempting 2-Transfer Bridge...");
-            const doubleTransferPlan = planDoubleTransferTrip(origin, dest, selectedPlannerDay);
-            if (doubleTransferPlan.trips) {
-                mergedTrips = [...mergedTrips, ...doubleTransferPlan.trips];
-            }
-        }
-
-        // 5. Best-In-Slot Deduplication (UI Logic)
-        const bestTripsMap = new Map();
-        mergedTrips.forEach(trip => {
-            const key = trip.depTime;
-            if (!bestTripsMap.has(key)) {
-                bestTripsMap.set(key, trip);
-            } else {
-                const existing = bestTripsMap.get(key);
-                if (trip.type === 'DIRECT' && existing.type !== 'DIRECT') {
-                    bestTripsMap.set(key, trip); 
-                } else if (trip.type === existing.type || (trip.type !== 'DIRECT' && existing.type !== 'DIRECT')) {
-                    const existingArr = timeToSeconds(existing.arrTime);
-                    const newArr = timeToSeconds(trip.arrTime);
-                    if (newArr < existingArr) bestTripsMap.set(key, trip); 
-                }
-            }
-        });
-
-        const uniqueTrips = Array.from(bestTripsMap.values());
-        uniqueTrips.sort((a, b) => {
-            const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
-            if (depDiff !== 0) return depDiff;
-            return timeToSeconds(a.arrTime) - timeToSeconds(b.arrTime);
-        });
-        
-        currentTripOptions = uniqueTrips;
-        
-        if (currentTripOptions.length > 0) {
-            let nextTripIndex = 0;
-            
-            // --- SMART SELECTION LOGIC ---
-            if (preferredTime) {
-                // Find trip closest to preferred time (e.g. user just swapped)
-                const targetSec = timeToSeconds(preferredTime);
-                let closestDist = Infinity;
-                
-                currentTripOptions.forEach((trip, index) => {
-                    const tripSec = timeToSeconds(trip.depTime);
-                    const dist = Math.abs(tripSec - targetSec);
-                    if (dist < closestDist) {
-                        closestDist = dist;
-                        nextTripIndex = index;
-                    }
-                });
-                console.log(`Smart Swap: Preserved context near ${preferredTime} -> Selected ${currentTripOptions[nextTripIndex].depTime}`);
-                
-            } else {
-                // Default: Next Train from Now
-                const nowSec = timeToSeconds(currentTime);
-                const isLateNight = nowSec > (20 * 3600);
-                
-                const idx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
-                if (idx !== -1) nextTripIndex = idx;
-                else nextTripIndex = currentTripOptions.length - 1;
-            }
-
-            renderSelectedTrip(resultsContainer, nextTripIndex);
-            startPlannerPulse(nextTripIndex);
-
-        } else {
-            // Error Handling (Map Fallback)
-            if (typeof trackAnalyticsEvent === 'function') {
-                trackAnalyticsEvent('planner_no_result', { origin: origin, destination: dest });
-            }
-
-            const errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path. You may need to plan this journey in segments (e.g., 'Home to Pretoria', then 'Pretoria to Work').";
-            const actionBtn = `
-                <button onclick="document.getElementById('map-modal').classList.remove('hidden')" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
-                    Open Network Map
-                </button>
-            `;
-            resultsContainer.innerHTML = renderErrorCard("No Route Found", errorMsg, actionBtn);
-        }
-    }, 100); 
-}
-
-function renderSelectedTrip(container, index) {
-    const selectedTrip = currentTripOptions[index];
-    const isTomorrow = selectedTrip.dayLabel !== undefined;
-    const nowSec = timeToSeconds(currentTime);
-    const isLateNight = nowSec > (20 * 3600);
-    const effectivelyTomorrow = isTomorrow || (isLateNight && timeToSeconds(selectedTrip.depTime) < (12 * 3600));
-
-    if (effectivelyTomorrow) {
-        renderNoMoreTrainsResult(container, currentTripOptions, index, "No more trains today");
-    } else {
-        renderTripResult(container, currentTripOptions, index);
-    }
-}
-
-function startPlannerPulse(currentIndex) {
-    if (plannerPulse) clearInterval(plannerPulse);
-    if (selectedPlannerDay && selectedPlannerDay !== currentDayType) return;
-
-    let trackedIndex = currentIndex;
-    plannerPulse = setInterval(() => {
-        const trip = currentTripOptions[trackedIndex];
-        if (!trip) return;
-        const dropdown = document.querySelector('#planner-results-list select');
-        if(dropdown) trackedIndex = parseInt(dropdown.value);
-        renderSelectedTrip(document.getElementById('planner-results-list'), trackedIndex);
-    }, 30000); 
-}
-
-window.selectPlannerTrip = function(index) {
-    const idx = parseInt(index);
-    if (!currentTripOptions || !currentTripOptions[idx]) return;
-    
-    if (typeof trackAnalyticsEvent === 'function') {
-        const trip = currentTripOptions[idx];
-        trackAnalyticsEvent('planner_trip_select', { 
-            train: trip.train, 
-            time: trip.depTime,
-            type: trip.type
-        });
-    }
-
-    plannerExpandedState.clear();
-    renderSelectedTrip(document.getElementById('planner-results-list'), idx);
-    startPlannerPulse(idx);
-};
-
-window.togglePlannerStops = function(id) {
-    // Try finding the standard ID first
-    const el = document.getElementById(id);
-    const btn = document.getElementById(`btn-${id}`);
-    
-    // Try finding split IDs (for internal transfers)
-    const elBefore = document.getElementById(`${id}-before`);
-    const elAfter = document.getElementById(`${id}-after`);
-
-    let isHidden = true;
-
-    if (elBefore && elAfter) {
-        // Toggle both
-        elBefore.classList.toggle('hidden');
-        elAfter.classList.toggle('hidden');
-        isHidden = elBefore.classList.contains('hidden');
-    } else if (el) {
-        // Toggle standard
-        el.classList.toggle('hidden');
-        isHidden = el.classList.contains('hidden');
-    }
-
-    if (isHidden) plannerExpandedState.delete(id);
-    else plannerExpandedState.add(id);
-
-    if(btn) btn.textContent = isHidden ? "Show All Stops" : "Hide Stops";
-};
-
-// --- VIEW COMPONENTS ---
-
-function getPlanningDayLabel() {
-    const day = selectedPlannerDay || currentDayType;
-    if (day === 'sunday') return "Sunday / Public Holiday";
-    if (day === 'saturday') return "Saturday Schedule";
-    return "Weekday Schedule";
-}
-
-// NEW: Helper to update the External Header
-function updatePlannerHeader(dayLabel) {
-    const headerTitle = document.querySelector('#planner-results-section h4');
-    const spacer = document.querySelector('#planner-results-section .w-8');
-    if (headerTitle) {
-        headerTitle.innerHTML = `
-            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200 shadow-sm flex items-center">
-                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                Schedule: ${dayLabel}
-            </span>
-        `;
-        // Ensure it's visible if hidden previously
-        headerTitle.classList.remove('hidden');
-    }
-    // Hide the spacer so the flex-between pins the badge to the right
-    if (spacer) spacer.style.display = 'none';
-}
-
-function renderTripResult(container, trips, selectedIndex = 0) {
-    const selectedTrip = trips[selectedIndex];
-    const dayLabel = getPlanningDayLabel();
-    
-    // Update Header Badge OUTSIDE the card
-    updatePlannerHeader(dayLabel);
-
-    if (selectedTrip) {
-        container.innerHTML = PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
-    }
-}
-
-function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "No more trains today") {
-    const selectedTrip = trips[selectedIndex];
-    const dayLabel = getPlanningDayLabel();
-    
-    // Update Header Badge OUTSIDE the card
-    updatePlannerHeader(dayLabel);
-
-    container.innerHTML = `
-        <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
-            <div class="flex items-center mb-3">
-                <span class="text-2xl mr-3">🚫</span>
-                <div>
-                    <h3 class="font-bold text-orange-800 dark:text-orange-200">${title}</h3>
-                    <p class="text-xs text-orange-700 dark:text-orange-300">Showing trains for <b>${selectedTrip.dayLabel || 'Tomorrow'}</b></p>
-                </div>
-            </div>
-            ${PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex)}
-        </div>
-    `;
-}
-
-function renderErrorCard(title, message, actionHtml = "") {
-    return `
-        <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 text-center">
-            <h3 class="font-bold text-yellow-800 dark:text-yellow-200 mb-1">${title}</h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400">${message}</p>
-            ${actionHtml}
-        </div>
-    `;
-}
-
+// --- MOVED TO TOP TO PREVENT TDZ ERRORS (Fix 1) ---
 const PlannerRenderer = {
     format12h: (timeStr) => {
         if (!timeStr) return "--:--";
@@ -770,8 +90,19 @@ const PlannerRenderer = {
     },
 
     buildCard: (step, isNextDay, allOptions, selectedIndex) => {
+        // GUARDIAN UPDATE V4.60.30: Visual Distinction Logic
+        let borderColor = "border-blue-200 dark:border-blue-800"; // Default (Direct)
+        
+        if (step.type === 'TRANSFER') {
+            borderColor = "border-yellow-300 dark:border-yellow-700";
+        } else if (step.type === 'DOUBLE_TRANSFER') {
+            borderColor = "border-purple-300 dark:border-purple-700";
+        } else if (isNextDay) {
+            borderColor = "border-orange-200 dark:border-orange-800";
+        }
+
         return `
-            <div class="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 overflow-hidden mb-4">
+            <div class="bg-white dark:bg-gray-700 rounded-xl shadow-sm border-2 ${borderColor} overflow-hidden mb-4">
                 ${PlannerRenderer.renderHeader(step, isNextDay)}
                 ${PlannerRenderer.renderOptionsSelector(allOptions, selectedIndex, isNextDay)}
                 ${step.type !== 'TRANSFER' && step.type !== 'DOUBLE_TRANSFER' ? PlannerRenderer.renderInstruction(step) : ''}
@@ -786,6 +117,8 @@ const PlannerRenderer = {
     renderHeader: (step, isNextDay) => {
         const isTransfer = step.type === 'TRANSFER';
         const isDoubleTransfer = step.type === 'DOUBLE_TRANSFER';
+        
+        // Color Coding for Header Text
         const colorClass = (isTransfer || isDoubleTransfer) ? 'text-yellow-600 dark:text-yellow-400' : (isNextDay ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400');
         
         let headerLabel = 'Direct Trip';
@@ -819,13 +152,20 @@ const PlannerRenderer = {
                             ${countdown}
                           </div>`;
         }
+        
+        // GUARDIAN UPDATE V4.60.30: New Layout for Small Devices
+        // Day Label is now injected HERE instead of the main header, ensuring context is attached to the card.
+        const dayLabel = getPlanningDayLabel();
 
         return `
             <div class="p-4 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-bold ${colorClass} uppercase tracking-wider">${headerLabel}</span>
-                    <span class="text-xs font-bold text-gray-500 bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">Train ${step.train}</span>
+                <!-- ROW 1: Trip Type & Day Context -->
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-bold ${colorClass} uppercase tracking-wider bg-white dark:bg-gray-700 px-2 py-1 rounded border border-gray-200 dark:border-gray-600 shadow-sm">${headerLabel}</span>
+                    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded-full">${dayLabel}</span>
                 </div>
+
+                <!-- ROW 2: Times & Stations -->
                 <div class="flex justify-between items-center mt-2">
                     <div class="text-left flex-1 w-0">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Depart</p>
@@ -833,7 +173,7 @@ const PlannerRenderer = {
                         <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.depTime)}</p>
                     </div>
                     
-                    <button onclick="swapPlannerResults()" class="flex-none p-1 bg-white dark:bg-gray-700 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 transition shadow-sm border border-gray-200 dark:border-gray-600 mx-1" title="Reverse Trip">
+                    <button onclick="swapPlannerResults()" class="flex-none p-2 bg-white dark:bg-gray-700 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 transition shadow-sm border border-gray-200 dark:border-gray-600 mx-2" title="Reverse Trip">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
                     </button>
 
@@ -843,11 +183,13 @@ const PlannerRenderer = {
                         <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.arrTime)}</p>
                     </div>
                 </div>
-                <div class="flex justify-between items-center mt-3 pt-2 border-t border-gray-200 dark:border-gray-600">
+
+                <!-- ROW 3: Status & Duration -->
+                <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
                      ${stateBadge}
                      <div class="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400">
                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                        Duration: ${duration}
+                        ${duration}
                      </div>
                 </div>
             </div>
@@ -884,7 +226,7 @@ const PlannerRenderer = {
         return `
             <div class="px-4 pb-2">
                 <label class="text-[10px] uppercase font-bold text-blue-500 dark:text-blue-400 mb-1 block animate-pulse">👇 Tap to Change Time:</label>
-                <select onchange="selectPlannerTrip(this.value)" class="w-full bg-blue-50 dark:bg-gray-800 border-2 border-blue-200 dark:border-blue-900 text-gray-900 dark:text-white text-sm rounded p-2 focus:ring-blue-500 focus:border-blue-500 font-bold shadow-sm">
+                <select onchange="selectPlannerTrip(this.value)" class="w-full bg-blue-50 dark:bg-gray-800 border-2 border-blue-200 dark:border-blue-900 text-gray-900 dark:text-white text-sm rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 font-bold shadow-sm">
                     ${optionsHtml}
                 </select>
             </div>
@@ -1175,3 +517,745 @@ const PlannerRenderer = {
         return { countdown, duration: h > 0 ? `${h}h ${m}m` : `${m}m`, isDeparted };
     }
 };
+
+// --- INITIALIZATION ---
+function initPlanner() {
+    const fromSelect = document.getElementById('planner-from');
+    const toSelect = document.getElementById('planner-to');
+    const swapBtn = document.getElementById('planner-swap-btn');
+    const searchBtn = document.getElementById('planner-search-btn');
+    const resetBtn = document.getElementById('planner-reset-btn');
+    const locateBtn = document.getElementById('planner-locate-btn');
+    
+    // NEW: Action Buttons in Results Header
+    const backBtn = document.getElementById('planner-back-btn');
+
+    // Inject Day Selector if missing
+    const inputSection = document.getElementById('planner-input-section');
+    if (inputSection && !document.getElementById('planner-day-select')) {
+        const daySelectDiv = document.createElement('div');
+        daySelectDiv.className = "mb-4";
+        daySelectDiv.innerHTML = `
+            <label class="block text-xs font-bold text-gray-500 uppercase ml-1 mb-1">Travel Day</label>
+            <select id="planner-day-select" class="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
+                <option value="weekday">Weekday (Mon-Fri)</option>
+                <option value="saturday">Saturday</option>
+                <option value="sunday">Sunday / Public Holiday</option>
+            </select>
+        `;
+        inputSection.insertBefore(daySelectDiv, searchBtn);
+        
+        const daySelect = document.getElementById('planner-day-select');
+        if (typeof currentDayType !== 'undefined') daySelect.value = currentDayType;
+        daySelect.addEventListener('change', (e) => selectedPlannerDay = e.target.value);
+    }
+
+    // Inject History Container
+    if (inputSection && !document.getElementById('planner-history-container')) {
+        const historyContainer = document.createElement('div');
+        historyContainer.id = 'planner-history-container';
+        historyContainer.className = "mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 hidden";
+        inputSection.appendChild(historyContainer);
+        renderPlannerHistory();
+    }
+
+    // Wiring Info Button
+    const infoBtn = document.getElementById('planner-info-btn');
+    if (infoBtn) {
+        infoBtn.addEventListener('click', () => {
+            const helpModal = document.getElementById('help-modal');
+            if (helpModal) helpModal.classList.remove('hidden');
+        });
+    }
+
+    // Developer Access (5-Tap)
+    const plannerTab = document.getElementById('tab-trip-planner');
+    if (plannerTab) {
+        let pClickCount = 0;
+        let pClickTimer = null;
+        plannerTab.addEventListener('click', () => {
+            pClickCount++;
+            if (pClickTimer) clearTimeout(pClickTimer);
+            pClickTimer = setTimeout(() => { pClickCount = 0; }, 1000);
+            
+            if (pClickCount >= 5) {
+                pClickCount = 0;
+                // Delegate to Global Admin Trigger
+                const appTitle = document.getElementById('app-title');
+                if (appTitle) appTitle.click(); // Hack to trigger main logic
+            }
+        });
+    }
+
+    if (!fromSelect || !toSelect) return;
+
+    setupAutocomplete('planner-from-search', 'planner-from');
+    setupAutocomplete('planner-to-search', 'planner-to');
+
+    const populate = (select) => {
+        select.innerHTML = '<option value="">Select...</option>';
+        if (typeof MASTER_STATION_LIST !== 'undefined') {
+            MASTER_STATION_LIST.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = s.replace(' STATION', '').trim();
+                select.appendChild(opt);
+            });
+        }
+    };
+    populate(fromSelect);
+    populate(toSelect);
+
+    const filterToOptions = () => {
+        const selectedFrom = fromSelect.value;
+        Array.from(toSelect.options).forEach(opt => {
+            if (opt.value === selectedFrom && opt.value !== "") {
+                opt.disabled = true;
+                opt.hidden = true; 
+            } else {
+                opt.disabled = false;
+                opt.hidden = false;
+            }
+        });
+        if (toSelect.value === selectedFrom) {
+            toSelect.value = "";
+            const toInput = document.getElementById('planner-to-search');
+            if(toInput) toInput.value = "";
+        }
+    };
+    
+    fromSelect.addEventListener('change', filterToOptions);
+    const fromInput = document.getElementById('planner-from-search');
+    if(fromInput) fromInput.addEventListener('change', filterToOptions);
+
+    if (locateBtn) {
+        locateBtn.addEventListener('click', () => {
+            const icon = locateBtn.querySelector('svg');
+            icon.classList.add('animate-spin'); 
+            
+            if (!navigator.geolocation) {
+                showToast("Geolocation is not supported.", "error");
+                icon.classList.remove('animate-spin');
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude: userLat, longitude: userLon } = position.coords;
+                    let candidates = [];
+                    // Using globalStationIndex from logic.js
+                    for (const [stationName, coords] of Object.entries(globalStationIndex)) {
+                        const dist = getDistanceFromLatLonInKm(userLat, userLon, coords.lat, coords.lon);
+                        candidates.push({ stationName, dist });
+                    }
+                    candidates.sort((a, b) => a.dist - b.dist);
+
+                    if (candidates.length > 0 && candidates[0].dist <= 6) { 
+                        const nearest = candidates[0].stationName;
+                        fromSelect.value = nearest;
+                        const fromInput = document.getElementById('planner-from-search');
+                        if(fromInput) fromInput.value = nearest.replace(' STATION', '');
+                        
+                        filterToOptions();
+                        showToast(`Located: ${nearest.replace(' STATION', '')}`, "success");
+                        
+                        if (typeof trackAnalyticsEvent === 'function') {
+                            trackAnalyticsEvent('planner_auto_locate', { station: nearest });
+                        }
+                    } else {
+                        showToast("No stations found nearby.", "error");
+                    }
+                    icon.classList.remove('animate-spin');
+                },
+                () => {
+                    showToast("Could not retrieve location.", "error");
+                    icon.classList.remove('animate-spin');
+                }
+            );
+        });
+    }
+
+    // --- ROBUST SWAP LOGIC (Fixes Empty Swap Bug) ---
+    swapBtn.addEventListener('click', () => {
+        const fromInput = document.getElementById('planner-from-search');
+        const toInput = document.getElementById('planner-to-search');
+        
+        // 1. Capture Visible Text (Source of Truth)
+        let txtFrom = fromInput.value;
+        let txtTo = toInput.value;
+
+        // 2. Perform Swap
+        fromInput.value = txtTo;
+        toInput.value = txtFrom;
+
+        // 3. Resolve to Select Options
+        // We use the helper logic to find the exact station ID for the hidden select
+        const resolve = (txt) => {
+            if (!txt) return "";
+            const clean = txt.trim().toUpperCase();
+            if (typeof MASTER_STATION_LIST !== 'undefined') {
+                return MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === clean) || "";
+            }
+            return "";
+        };
+
+        fromSelect.value = resolve(toInput.value); // Use 'toInput' because we just swapped it into there? No, fromInput has the NEW 'from' value.
+        fromSelect.value = resolve(fromInput.value);
+        toSelect.value = resolve(toInput.value);
+
+        // 4. Trigger Filter to update disabled states
+        filterToOptions();
+    });
+
+    searchBtn.addEventListener('click', () => {
+        const resolveStation = (inputVal, selectEl) => {
+            if (selectEl.value) return selectEl.value;
+            if (!inputVal || typeof MASTER_STATION_LIST === 'undefined') return "";
+
+            const cleanInput = inputVal.trim().toUpperCase();
+            const exact = MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === cleanInput);
+            if (exact) return exact;
+
+            const matches = MASTER_STATION_LIST.filter(s => s.replace(' STATION', '').toUpperCase().includes(cleanInput));
+            return matches.length === 1 ? matches[0] : "";
+        };
+
+        const fromInput = document.getElementById('planner-from-search');
+        const toInput = document.getElementById('planner-to-search');
+
+        if (!fromSelect.value && fromInput) fromSelect.value = resolveStation(fromInput.value, fromSelect);
+        if (!toSelect.value && toInput) toSelect.value = resolveStation(toInput.value, toSelect);
+
+        const from = fromSelect.value;
+        const to = toSelect.value;
+        
+        if (!from || !to) return showToast("Please select valid stations from the list.", "error");
+        if (from === to) return showToast("Origin and Destination cannot be the same.", "error");
+
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('planner_search', {
+                origin: from,
+                destination: to,
+                day: selectedPlannerDay || currentDayType || 'unknown'
+            });
+        }
+
+        savePlannerHistory(from, to);
+        executeTripPlan(from, to);
+    });
+
+    // --- RESET / BACK BUTTON LOGIC ---
+    const resetAction = () => {
+        if (plannerPulse) { clearInterval(plannerPulse); plannerPulse = null; }
+        
+        document.getElementById('planner-input-section').classList.remove('hidden');
+        document.getElementById('planner-results-section').classList.add('hidden');
+        
+        // Don't clear inputs if just going back, allows refinement
+        // But reset expanded state
+        plannerExpandedState.clear(); 
+        
+        const daySelect = document.getElementById('planner-day-select');
+        if (daySelect && typeof currentDayType !== 'undefined') {
+            // Keep user selected day
+        }
+        
+        // Reset header to default state
+        const headerTitle = document.querySelector('#planner-results-section h4');
+        const spacer = document.querySelector('#planner-results-section .w-8');
+        if (headerTitle) {
+            headerTitle.textContent = "Your Journey";
+            headerTitle.className = "text-lg font-bold text-gray-900 dark:text-white";
+        }
+        if (spacer) {
+             // Reset spacer to just be an empty div, or whatever default was
+             spacer.innerHTML = "";
+             spacer.className = "w-8";
+        }
+    };
+
+    if (resetBtn) resetBtn.addEventListener('click', resetAction);
+    if (backBtn) backBtn.addEventListener('click', resetAction);
+}
+
+// --- UPDATED: SMART SWAP RESULTS FUNCTION ---
+window.swapPlannerResults = function() {
+    const fromSelect = document.getElementById('planner-from');
+    const toSelect = document.getElementById('planner-to');
+    const fromInput = document.getElementById('planner-from-search');
+    const toInput = document.getElementById('planner-to-search');
+
+    // 1. Capture Smart Time Context
+    let preferredTime = null;
+    const dropdown = document.querySelector('#planner-results-list select');
+    if (dropdown && currentTripOptions.length > 0) {
+        const selectedIdx = parseInt(dropdown.value);
+        if (currentTripOptions[selectedIdx]) {
+            preferredTime = currentTripOptions[selectedIdx].depTime;
+        }
+    }
+
+    // 2. Perform Robust Swap (Reading Inputs first)
+    if (!fromInput || !toInput) return;
+    
+    let txtFrom = fromInput.value;
+    let txtTo = toInput.value;
+    
+    // Fallback: If inputs empty (glitch), read selects
+    if (!txtFrom && fromSelect.value) txtFrom = fromSelect.value.replace(' STATION', '');
+    if (!txtTo && toSelect.value) txtTo = toSelect.value.replace(' STATION', '');
+
+    if (!txtFrom || !txtTo) return; // Cannot swap empty
+
+    // Update Inputs
+    fromInput.value = txtTo;
+    toInput.value = txtFrom;
+
+    // Resolve IDs
+    const resolve = (txt) => {
+        if (!txt) return "";
+        const clean = txt.trim().toUpperCase();
+        if (typeof MASTER_STATION_LIST !== 'undefined') {
+            return MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === clean) || "";
+        }
+        return "";
+    };
+
+    const newFromId = resolve(txtTo);
+    const newToId = resolve(txtFrom);
+
+    if (fromSelect) fromSelect.value = newFromId;
+    if (toSelect) toSelect.value = newToId;
+
+    showToast("Reversing Direction...", "info", 1000);
+    
+    // 3. Trigger Search with Context
+    executeTripPlan(newFromId, newToId, preferredTime);
+};
+
+// --- HISTORY & AUTOCOMPLETE ---
+function savePlannerHistory(from, to) {
+    if (!from || !to) return;
+    const cleanFrom = from.replace(' STATION', '');
+    const cleanTo = to.replace(' STATION', '');
+    const routeKey = `${cleanFrom}|${cleanTo}`;
+    
+    let history = JSON.parse(localStorage.getItem('plannerHistory') || "[]");
+    history = history.filter(item => `${item.from}|${item.to}` !== routeKey);
+    history.unshift({ from: cleanFrom, to: cleanTo, fullFrom: from, fullTo: to });
+    if (history.length > 4) history = history.slice(0, 4);
+    
+    localStorage.setItem('plannerHistory', JSON.stringify(history));
+    renderPlannerHistory();
+}
+
+function renderPlannerHistory() {
+    const container = document.getElementById('planner-history-container');
+    if (!container) return;
+    
+    const history = JSON.parse(localStorage.getItem('plannerHistory') || "[]");
+    if (history.length === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+    
+    container.classList.remove('hidden');
+    container.innerHTML = `
+        <div class="flex items-center justify-between mb-2 px-1">
+             <p class="text-xs font-bold text-gray-400 uppercase">Recent Trips</p>
+             <button onclick="localStorage.removeItem('plannerHistory'); renderPlannerHistory()" class="text-[10px] text-gray-400 hover:text-red-500">Clear</button>
+        </div>
+        <div class="flex flex-col gap-2">
+            ${history.map(item => `
+                <button onclick="restorePlannerSearch('${item.fullFrom}', '${item.fullTo}')" 
+                    class="w-full flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 shadow-sm hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group text-left">
+                    <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                        ${item.from} <span class="text-gray-400 mx-1">&rarr;</span> ${item.to}
+                    </span>
+                    <svg class="w-3 h-3 text-gray-300 group-hover:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            `).join('')}
+        </div>
+    `;
+}
+
+window.restorePlannerSearch = function(fullFrom, fullTo) {
+    const fromSelect = document.getElementById('planner-from');
+    const toSelect = document.getElementById('planner-to');
+    const fromInput = document.getElementById('planner-from-search');
+    const toInput = document.getElementById('planner-to-search');
+    
+    if (fromSelect && toSelect) {
+        fromSelect.value = fullFrom;
+        toSelect.value = fullTo;
+        if (fromInput) fromInput.value = fullFrom.replace(' STATION', '');
+        if (toInput) toInput.value = fullTo.replace(' STATION', '');
+        
+        const daySelect = document.getElementById('planner-day-select');
+        if (daySelect) {
+            selectedPlannerDay = daySelect.value;
+        }
+
+        showToast("Restored recent search", "info", 1000);
+        
+        if (typeof trackAnalyticsEvent === 'function') {
+            trackAnalyticsEvent('planner_history_restore', { origin: fullFrom, destination: fullTo });
+        }
+
+        executeTripPlan(fullFrom, fullTo);
+    }
+};
+
+function setupAutocomplete(inputId, selectId) {
+    const input = document.getElementById(inputId);
+    const select = document.getElementById(selectId);
+    if (!input || !select) return;
+
+    select.classList.add('hidden');
+    if (input.parentNode) input.parentNode.style.position = 'relative';
+
+    const chevron = document.createElement('div');
+    chevron.className = "absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer p-2 hover:text-blue-500 z-10";
+    chevron.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+    input.parentNode.appendChild(chevron);
+
+    const list = document.createElement('ul');
+    list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0";
+    input.parentNode.appendChild(list);
+
+    const renderList = (filterText = '') => {
+        list.innerHTML = '';
+        const val = filterText.toUpperCase();
+        const matches = val.length === 0 ? MASTER_STATION_LIST : MASTER_STATION_LIST.filter(s => s.includes(val));
+
+        if (matches.length === 0) {
+            const li = document.createElement('li');
+            li.className = "p-3 text-sm text-gray-400 italic";
+            li.textContent = "No stations found";
+            list.appendChild(li);
+        } else {
+            matches.forEach(station => {
+                const li = document.createElement('li');
+                li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors";
+                li.textContent = station.replace(' STATION', '');
+                li.onclick = () => {
+                    input.value = station.replace(' STATION', '');
+                    select.value = station;
+                    const event = new Event('change');
+                    select.dispatchEvent(event);
+                    
+                    list.classList.add('hidden');
+                };
+                list.appendChild(li);
+            });
+        }
+        list.classList.remove('hidden');
+    };
+
+    input.addEventListener('input', () => { select.value = ""; renderList(input.value); });
+    input.addEventListener('focus', () => renderList(input.value));
+    chevron.addEventListener('click', (e) => { e.stopPropagation(); list.classList.contains('hidden') ? (renderList(input.value), input.focus()) : list.classList.add('hidden'); });
+    document.addEventListener('click', (e) => { if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) list.classList.add('hidden'); });
+}
+
+// --- ORCHESTRATION ---
+function executeTripPlan(origin, dest, preferredTime = null) {
+    const resultsContainer = document.getElementById('planner-results-list');
+    resultsContainer.innerHTML = '<div class="text-center p-4"><svg class="w-8 h-8 animate-spin mx-auto text-blue-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p class="mt-2 text-xs text-gray-500">Calculating route...</p></div>';
+    
+    document.getElementById('planner-input-section').classList.add('hidden');
+    document.getElementById('planner-results-section').classList.remove('hidden');
+    plannerExpandedState.clear();
+
+    if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
+
+    // Run Asynchronously to prevent UI freeze
+    setTimeout(() => {
+        // --- CALL TO PLANNER CORE ---
+        // We pass 'selectedPlannerDay' to all functions to ensure they are stateless
+        const directPlan = planDirectTrip(origin, dest, selectedPlannerDay);
+        const transferPlan = planHubTransferTrip(origin, dest, selectedPlannerDay);
+        const relayPlan = planRelayTransferTrip(origin, dest, selectedPlannerDay);
+
+        let mergedTrips = [];
+        if (directPlan.trips) mergedTrips = [...mergedTrips, ...directPlan.trips];
+        if (transferPlan.trips) mergedTrips = [...mergedTrips, ...transferPlan.trips];
+        if (relayPlan.trips) mergedTrips = [...mergedTrips, ...relayPlan.trips];
+
+        // 4. Try Double Transfer (Bridge) if results are thin
+        if (mergedTrips.length === 0) {
+            console.log("No simple route found. Attempting 2-Transfer Bridge...");
+            const doubleTransferPlan = planDoubleTransferTrip(origin, dest, selectedPlannerDay);
+            if (doubleTransferPlan.trips) {
+                mergedTrips = [...mergedTrips, ...doubleTransferPlan.trips];
+            }
+        }
+
+        // 5. Best-In-Slot Deduplication (UI Logic)
+        const bestTripsMap = new Map();
+        mergedTrips.forEach(trip => {
+            const key = trip.depTime;
+            if (!bestTripsMap.has(key)) {
+                bestTripsMap.set(key, trip);
+            } else {
+                const existing = bestTripsMap.get(key);
+                if (trip.type === 'DIRECT' && existing.type !== 'DIRECT') {
+                    bestTripsMap.set(key, trip); 
+                } else if (trip.type === existing.type || (trip.type !== 'DIRECT' && existing.type !== 'DIRECT')) {
+                    const existingArr = timeToSeconds(existing.arrTime);
+                    const newArr = timeToSeconds(trip.arrTime);
+                    if (newArr < existingArr) bestTripsMap.set(key, trip); 
+                }
+            }
+        });
+
+        const uniqueTrips = Array.from(bestTripsMap.values());
+        uniqueTrips.sort((a, b) => {
+            const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
+            if (depDiff !== 0) return depDiff;
+            return timeToSeconds(a.arrTime) - timeToSeconds(b.arrTime);
+        });
+        
+        currentTripOptions = uniqueTrips;
+        
+        if (currentTripOptions.length > 0) {
+            let nextTripIndex = 0;
+            
+            // --- SMART SELECTION LOGIC ---
+            if (preferredTime) {
+                // Find trip closest to preferred time (e.g. user just swapped)
+                const targetSec = timeToSeconds(preferredTime);
+                let closestDist = Infinity;
+                
+                currentTripOptions.forEach((trip, index) => {
+                    const tripSec = timeToSeconds(trip.depTime);
+                    const dist = Math.abs(tripSec - targetSec);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        nextTripIndex = index;
+                    }
+                });
+                console.log(`Smart Swap: Preserved context near ${preferredTime} -> Selected ${currentTripOptions[nextTripIndex].depTime}`);
+                
+            } else {
+                // Default: Next Train from Now
+                const nowSec = timeToSeconds(currentTime);
+                const isLateNight = nowSec > (20 * 3600);
+                
+                const idx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
+                if (idx !== -1) nextTripIndex = idx;
+                else nextTripIndex = currentTripOptions.length - 1;
+            }
+
+            renderSelectedTrip(resultsContainer, nextTripIndex);
+            startPlannerPulse(nextTripIndex);
+
+        } else {
+            // Error Handling (Map Fallback)
+            if (typeof trackAnalyticsEvent === 'function') {
+                trackAnalyticsEvent('planner_no_result', { origin: origin, destination: dest });
+            }
+            
+            // Update header to hide Share button (or show empty state header)
+            updatePlannerHeader("No Route Found", false);
+
+            const errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path. You may need to plan this journey in segments (e.g., 'Home to Pretoria', then 'Pretoria to Work').";
+            const actionBtn = `
+                <button onclick="document.getElementById('map-modal').classList.remove('hidden')" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                    Open Network Map
+                </button>
+            `;
+            resultsContainer.innerHTML = renderErrorCard("No Route Found", errorMsg, actionBtn);
+        }
+    }, 100); 
+}
+
+function renderSelectedTrip(container, index) {
+    const selectedTrip = currentTripOptions[index];
+    if (!selectedTrip) return; // FIX 2: Guard Clause added
+
+    const isTomorrow = selectedTrip.dayLabel !== undefined;
+    const nowSec = timeToSeconds(currentTime);
+    const isLateNight = nowSec > (20 * 3600);
+    const effectivelyTomorrow = isTomorrow || (isLateNight && timeToSeconds(selectedTrip.depTime) < (12 * 3600));
+
+    if (effectivelyTomorrow) {
+        renderNoMoreTrainsResult(container, currentTripOptions, index, "No more trains today");
+    } else {
+        renderTripResult(container, currentTripOptions, index);
+    }
+}
+
+function startPlannerPulse(currentIndex) {
+    if (plannerPulse) clearInterval(plannerPulse);
+    if (selectedPlannerDay && selectedPlannerDay !== currentDayType) return;
+
+    let trackedIndex = currentIndex;
+    plannerPulse = setInterval(() => {
+        const trip = currentTripOptions[trackedIndex];
+        if (!trip) return;
+        const dropdown = document.querySelector('#planner-results-list select');
+        if(dropdown) trackedIndex = parseInt(dropdown.value);
+        renderSelectedTrip(document.getElementById('planner-results-list'), trackedIndex);
+    }, 30000); 
+}
+
+window.selectPlannerTrip = function(index) {
+    const idx = parseInt(index);
+    if (!currentTripOptions || !currentTripOptions[idx]) return;
+    
+    if (typeof trackAnalyticsEvent === 'function') {
+        const trip = currentTripOptions[idx];
+        trackAnalyticsEvent('planner_trip_select', { 
+            train: trip.train, 
+            time: trip.depTime,
+            type: trip.type
+        });
+    }
+
+    plannerExpandedState.clear();
+    renderSelectedTrip(document.getElementById('planner-results-list'), idx);
+    startPlannerPulse(idx);
+};
+
+window.togglePlannerStops = function(id) {
+    // Try finding the standard ID first
+    const el = document.getElementById(id);
+    const btn = document.getElementById(`btn-${id}`);
+    
+    // Try finding split IDs (for internal transfers)
+    const elBefore = document.getElementById(`${id}-before`);
+    const elAfter = document.getElementById(`${id}-after`);
+
+    let isHidden = true;
+
+    if (elBefore && elAfter) {
+        // Toggle both
+        elBefore.classList.toggle('hidden');
+        elAfter.classList.toggle('hidden');
+        isHidden = elBefore.classList.contains('hidden');
+    } else if (el) {
+        // Toggle standard
+        el.classList.toggle('hidden');
+        isHidden = el.classList.contains('hidden');
+    }
+
+    if (isHidden) plannerExpandedState.delete(id);
+    else plannerExpandedState.add(id);
+
+    if(btn) btn.textContent = isHidden ? "Show All Stops" : "Hide Stops";
+};
+
+// --- VIEW COMPONENTS ---
+
+function getPlanningDayLabel() {
+    const day = selectedPlannerDay || currentDayType;
+    if (day === 'sunday') return "Sunday / Public Holiday";
+    if (day === 'saturday') return "Saturday Schedule";
+    return "Weekday Schedule";
+}
+
+// NEW: Helper to update the External Header with Share Button (REDESIGNED V4.60.17)
+function updatePlannerHeader(dayLabel, showShare = true) {
+    // GUARDIAN UPDATE V4.60.30: Simplified Header (Day Label moved to Card)
+    // We now ONLY manage the Share button here. The title "Your Journey" is static in HTML.
+    
+    const spacer = document.querySelector('#planner-results-section .w-8'); 
+    
+    // Handle Share Button Placement (Replacing the Spacer)
+    if (spacer) {
+        spacer.innerHTML = ""; // Clear existing
+        // GUARDIAN FIX: Prevent shrinking
+        spacer.className = "flex-none"; 
+
+        if (showShare) {
+            // Get Current Context
+            const dropdown = document.querySelector('#planner-results-list select');
+            let selectedTime = null;
+            if (dropdown && currentTripOptions.length > 0) {
+                 const idx = parseInt(dropdown.value);
+                 if (currentTripOptions[idx]) selectedTime = currentTripOptions[idx].depTime;
+            }
+            if (!selectedTime && currentTripOptions.length > 0) selectedTime = currentTripOptions[0].depTime;
+            
+            const fromStation = document.getElementById('planner-from-search').value || "";
+            const toStation = document.getElementById('planner-to-search').value || "";
+            const shareLink = `https://nexttrain.co.za/?action=planner&from=${encodeURIComponent(fromStation)}&to=${encodeURIComponent(toStation)}&time=${selectedTime}&day=${selectedPlannerDay}`;
+            const shareText = `Trip Plan: ${fromStation} to ${toStation}. Check details here: ${shareLink}`;
+
+            const shareBtn = document.createElement("button");
+            // GUARDIAN FIX V4.60.17: Matching Back Button Style (bg-blue-50 text-blue-600) + No Shrink
+            shareBtn.className = "flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group flex-none whitespace-nowrap";
+            shareBtn.title = "Share Trip Plan";
+            shareBtn.onclick = async () => {
+                const data = { title: 'Next Train Trip Plan', text: shareText, url: shareLink };
+                try { 
+                    if (navigator.share) await navigator.share(data); 
+                    else {
+                        const textArea = document.createElement('textarea');
+                        textArea.value = shareText;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        alert('Link copied to clipboard!');
+                    }
+                } catch(e) {}
+            };
+            
+            // Replaced icon with text "Share Trip" and symmetrical icon
+            shareBtn.innerHTML = `
+                Share Trip
+                <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+            `;
+            
+            spacer.appendChild(shareBtn);
+        }
+    }
+}
+
+function renderTripResult(container, trips, selectedIndex = 0) {
+    const selectedTrip = trips[selectedIndex];
+    if (!selectedTrip) return; // Added safety check here too
+
+    const dayLabel = getPlanningDayLabel();
+    
+    // Update Header Badge OUTSIDE the card
+    updatePlannerHeader(dayLabel, true);
+
+    container.innerHTML = PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
+}
+
+function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "No more trains today") {
+    const selectedTrip = trips[selectedIndex];
+    if (!selectedTrip) return; // Added safety check here too
+
+    const dayLabel = getPlanningDayLabel();
+    
+    // Update Header Badge OUTSIDE the card
+    updatePlannerHeader(dayLabel, true);
+
+    container.innerHTML = `
+        <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
+            <div class="flex items-center mb-3">
+                <span class="text-2xl mr-3">🚫</span>
+                <div>
+                    <h3 class="font-bold text-orange-800 dark:text-orange-200">${title}</h3>
+                    <p class="text-xs text-orange-700 dark:text-orange-300">Showing trains for <b>${selectedTrip.dayLabel || 'Tomorrow'}</b></p>
+                </div>
+            </div>
+            ${PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex)}
+        </div>
+    `;
+}
+
+function renderErrorCard(title, message, actionHtml = "") {
+    return `
+        <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 text-center">
+            <h3 class="font-bold text-yellow-800 dark:text-yellow-200 mb-1">${title}</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">${message}</p>
+            ${actionHtml}
+        </div>
+    `;
+}

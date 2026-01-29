@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V4.60.11)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V4.60.40 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -8,7 +8,7 @@
 
 const Renderer = {
 
-    // --- 1. DYNAMIC MENU GENERATION (New for App Shell) ---
+    // --- 1. DYNAMIC MENU GENERATION ---
 
     /**
      * Renders the Sidebar Route Menu dynamically from config.js
@@ -123,7 +123,6 @@ const Renderer = {
                 <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
             `;
 
-            // Attach Click Event (using the callback passed from UI)
             if (typeof onSelectCallback === 'function') {
                 btn.onclick = () => onSelectCallback(route.id);
             }
@@ -137,10 +136,7 @@ const Renderer = {
     renderSkeletonLoader: (element) => {
         element.innerHTML = `
             <div class="flex flex-row items-center w-full space-x-3 h-24 animate-pulse bg-gray-100 dark:bg-gray-800 rounded-lg p-2">
-                <!-- Left Time Box Skeleton -->
                 <div class="relative w-1/2 h-full bg-gray-300 dark:bg-gray-700 rounded-lg shadow-sm flex-shrink-0"></div>
-                
-                <!-- Right Info Skeleton -->
                 <div class="w-1/2 flex flex-col justify-center items-center space-y-2">
                     <div class="h-3 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
                     <div class="h-2 bg-gray-300 dark:bg-gray-700 rounded w-1/2"></div>
@@ -151,11 +147,14 @@ const Renderer = {
     },
 
     renderPlaceholder: (element1, element2) => {
+        const triggerShake = "document.getElementById('station-select').classList.add('animate-shake', 'ring-4', 'ring-blue-300'); setTimeout(() => document.getElementById('station-select').classList.remove('animate-shake', 'ring-4', 'ring-blue-300'), 500); document.getElementById('station-select').focus();";
+        
         const placeholderHTML = `
-            <div class="h-24 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500">
-                <svg class="w-6 h-6 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                <span class="text-xs font-medium">Select a station above</span>
+            <div onclick="${triggerShake}" class="h-24 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors group w-full">
+                <svg class="w-6 h-6 mb-1 opacity-50 group-hover:scale-110 transition-transform text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                <span class="text-xs font-bold group-hover:text-blue-500 transition-colors">Tap to select station</span>
             </div>`;
+            
         if (element1) element1.innerHTML = placeholderHTML;
         if (element2) element2.innerHTML = placeholderHTML;
     },
@@ -174,14 +173,12 @@ const Renderer = {
         if (element) element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-green-500 dark:text-green-400">You are at this station</div>`;
     },
 
-    // "Night Owl" No Service Card
     renderNoService: (element, destination, firstNextTrain, dayOffset, openModalCallback) => {
         let timeHTML = 'N/A';
         
         if (firstNextTrain) {
             const rawTime = firstNextTrain.departureTime || firstNextTrain.train1.departureTime;
             const departureTime = formatTimeDisplay(rawTime);
-            // Assuming calculateTimeDiffString is available globally via logic.js
             const timeDiffStr = (typeof calculateTimeDiffString === 'function') 
                 ? calculateTimeDiffString(rawTime, dayOffset) 
                 : ""; 
@@ -192,16 +189,13 @@ const Renderer = {
         }
         
         const safeDestForClick = escapeHTML(destination).replace(/'/g, "\\'");
-        
-        // Note: We use a specialized onclick attribute that ui.js will need to handle or we rely on global scope.
-        // For Phase 1, we assume openScheduleModal is global (it is in ui.js).
         const buttonHTML = `<button onclick="openScheduleModal('${safeDestForClick}', 'weekday')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">Check Monday's Schedule</button>`;
 
         element.innerHTML = `
-            <div class="flex flex-col justify-center items-center w-full py-2">
+            <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div class="text-sm font-bold text-gray-600 dark:text-gray-400">No service today</div>
                 <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train next weekday is at:</p>
-                <div class="text-center p-2 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-1 w-3/4">
+                <div class="text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md transition-all mt-1 w-3/4 shadow-sm border border-gray-100 dark:border-gray-800">
                     ${timeHTML}
                 </div>
                 ${buttonHTML}
@@ -220,14 +214,14 @@ const Renderer = {
         const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
 
         element.innerHTML = `
-            <div class="flex flex-col justify-center items-center w-full py-2">
+            <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div class="text-sm font-bold text-gray-600 dark:text-gray-400">No more trains today</div>
                 <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${dayName} is at:</p>
-                <div class="text-center p-2 bg-gray-200 dark:bg-gray-900 rounded-md transition-all mt-1 w-3/4">
+                <div class="text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md transition-all mt-1 w-3/4 shadow-sm border border-gray-100 dark:border-gray-800">
                     <div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
                     <div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
                 </div>
-                <button onclick="openScheduleModal('${safeDestForClick}', '${dayType}')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">See Full Schedule</button>
+                <button onclick="openScheduleModal('${safeDestForClick}', '${dayType}')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">See Upcoming Trains</button>
             </div>
         `;
     },
@@ -252,7 +246,7 @@ const Renderer = {
             : "";
         
         const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
-        const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[9px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-md transition-colors truncate">See Full Schedule</button>`;
+        const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[9px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-lg transition-colors truncate">See Upcoming Trains</button>`;
 
         let sharedTag = "";
         if (journey.isShared && journey.sourceRoute) {
@@ -320,6 +314,7 @@ const Renderer = {
                 const connectionText = `Connect: Train ${connTrain} @ <b>${connDep}</b> ${connDestName}`;
                 connectionInfoHTML = `<div class="text-yellow-600 dark:text-yellow-400 font-medium">${connectionText}</div>`;
             }
+            
             element.innerHTML = `
                 <div class="flex flex-row items-center w-full space-x-3">
                     <div class="relative w-1/2 h-24 flex flex-col justify-center items-center text-center p-1 pb-5 ${timeClass} rounded-lg shadow-sm flex-shrink-0">
@@ -329,7 +324,7 @@ const Renderer = {
                         ${buttonHtml}
                     </div>
                     <div class="w-1/2 flex flex-col justify-center items-center text-center space-y-0.5">
-                        <div class="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-0.5">Transfer Required</div>
+                        <!-- TOPMOST GRAY TEXT REMOVED TO FIX REPEAT BUG -->
                         <div class="text-[10px] text-yellow-600 dark:text-yellow-400 leading-tight font-medium mb-1">${train1Info}</div>
                         <div class="text-[10px] leading-tight">${connectionInfoHTML}</div>
                     </div>
@@ -350,4 +345,200 @@ const Renderer = {
         if (colorClass.includes('red')) return 'dot-red';
         return 'dot-gray';
     }
+};
+
+// --- GRID ENGINE (Moved from UI.js) ---
+
+window.renderFullScheduleGrid = function(direction = 'A') {
+    const route = ROUTES[currentRouteId];
+    if (!route) return;
+
+    trackAnalyticsEvent('view_full_grid', { route: route.name, direction: direction });
+
+    const destName = (direction === 'A' ? route.destA : route.destB).replace(' STATION', '');
+    const altDestName = (direction === 'A' ? route.destB : route.destA).replace(' STATION', '');
+    
+    let sheetKey;
+    if (currentDayType === 'sunday') {
+        sheetKey = (direction === 'A') ? 'weekday_to_a' : 'weekday_to_b'; 
+    } else if (currentDayType === 'saturday') {
+        sheetKey = (direction === 'A') ? 'saturday_to_a' : 'saturday_to_b';
+    } else {
+        sheetKey = (direction === 'A') ? 'weekday_to_a' : 'weekday_to_b';
+    }
+
+    const schedule = schedules[sheetKey];
+    if (!schedule || !schedule.rows || schedule.rows.length === 0) {
+        showToast("Schedule data unavailable for this view.", "error");
+        return;
+    }
+
+    // GUARDIAN UPDATE V4.60.33: Auto-Inject Modal if Missing (Anti-Cache Fix)
+    let modal = document.getElementById('full-schedule-modal');
+    if (!modal) {
+        console.log("GUARDIAN: Injecting Missing Grid Modal");
+        modal = document.createElement('div');
+        modal.id = 'full-schedule-modal';
+        modal.className = 'fixed inset-0 bg-white dark:bg-gray-900 z-[95] hidden flex items-center justify-center p-0 full-screen transition-opacity duration-300';
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative shadow-sm">
+                    <h3><!-- Dynamic Header --></h3>
+                    <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden')" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Grid">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative"></div>
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
+                    <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors">Close Timetable</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    const container = document.getElementById('grid-container');
+    const headerTitle = modal.querySelector('h3');
+    
+    // GUARDIAN UPDATE V4.60.33: REMOVED SHARE BUTTON to prevent crash loop
+    if (headerTitle) {
+        headerTitle.innerHTML = `
+            <div class="flex flex-col w-full">
+                <div class="flex items-center justify-between w-full">
+                    <span class="text-sm font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider mr-2">Trains to ${destName}</span>
+                    <div class="flex space-x-2">
+                        <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}')" class="text-[10px] font-bold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-300 transition-colors">
+                            ⇄ To ${altDestName}
+                        </button>
+                    </div>
+                </div>
+                <span class="text-[10px] text-gray-400 font-mono mt-1">${schedule.lastUpdated || "Standard Schedule"}</span>
+            </div>
+        `;
+    }
+
+    const trainCols = schedule.headers.slice(1).filter(header => /^\d{4}$/.test(header.trim()));
+    let sortedCols = [];
+    // Access route.sheetKeys directly or via global ROUTES lookup if needed
+    const actualSheetName = route.sheetKeys[sheetKey];
+
+    if (typeof MANUAL_GRID_ORDER !== 'undefined' && MANUAL_GRID_ORDER[actualSheetName]) {
+        const manualOrder = MANUAL_GRID_ORDER[actualSheetName];
+        manualOrder.forEach(tNum => { if (trainCols.includes(tNum)) sortedCols.push(tNum); });
+        const manualSet = new Set(manualOrder);
+        const remainingCols = trainCols.filter(t => !manualSet.has(t));
+        remainingCols.sort((a, b) => a.localeCompare(b));
+        sortedCols = [...sortedCols, ...remainingCols];
+    } else {
+        const isValidTime = (val) => val && val !== '-' && /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim());
+        const colStats = trainCols.map(colId => {
+            let earliestTime = 86400 * 2;
+            let hasData = false;
+            for (const row of schedule.rows) {
+                const val = row[colId];
+                if (isValidTime(val)) {
+                    const t = timeToSeconds(val);
+                    if (t > 0) {
+                        if (t < earliestTime) earliestTime = t;
+                        hasData = true;
+                    }
+                }
+            }
+            return { id: colId, time: earliestTime, hasData };
+        });
+        colStats.sort((a, b) => {
+            if (!a.hasData && !b.hasData) return a.id.localeCompare(b.id);
+            if (!a.hasData) return 1;
+            if (!b.hasData) return -1;
+            return a.time - b.time;
+        });
+        sortedCols = colStats.map(c => c.id);
+    }
+
+    let activeColIndex = -1;
+    if (currentTime) {
+        const nowSec = timeToSeconds(currentTime);
+        for (let i = 0; i < sortedCols.length; i++) {
+             let firstTimeSec = 0;
+             for (const row of schedule.rows) {
+                 const val = row[sortedCols[i]];
+                 if (val && val !== "-" && /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim())) {
+                     firstTimeSec = timeToSeconds(val);
+                     break;
+                 }
+             }
+             if (firstTimeSec >= nowSec) { activeColIndex = i; break; }
+        }
+    }
+
+    let html = `
+        <table class="w-full text-xs text-left border-collapse">
+            <thead class="text-[10px] uppercase bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 sticky top-0 z-20 shadow-sm">
+                <tr>
+                    <th class="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 p-3 border-b border-r border-gray-200 dark:border-gray-700 font-bold min-w-[120px] shadow-lg">Station</th>
+                    ${sortedCols.map((h, i) => {
+                        const isHighlight = i === activeColIndex;
+                        const bgClass = isHighlight ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold' : '';
+                        return `<th class="p-3 border-b border-r border-gray-200 dark:border-gray-700 whitespace-nowrap text-center ${bgClass} min-w-[60px]" ${isHighlight ? 'id="grid-active-col"' : ''}>${h}</th>`;
+                    }).join('')}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+    `;
+
+    schedule.rows.forEach(row => {
+        if (!row.STATION || row.STATION.toLowerCase().includes('updated')) return; 
+        const cleanStation = row.STATION.replace(' STATION', '');
+        let hasData = false;
+        sortedCols.forEach(col => { if (row[col] && row[col] !== "-" && row[col] !== "") hasData = true; });
+        if (!hasData) return;
+
+        html += `
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer" onclick="highlightGridRow(this)">
+                <td class="sticky left-0 z-10 bg-white dark:bg-gray-900 p-2 border-r border-gray-200 dark:border-gray-700 font-bold text-gray-900 dark:text-gray-100 truncate max-w-[120px] shadow-lg border-b">${cleanStation}</td>
+                ${sortedCols.map((col, i) => {
+                    let val = row[col] || "-";
+                    if (val !== "-") {
+                        const isValidTime = /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim());
+                        if (!isValidTime) val = "-";
+                    }
+                    const isHighlight = i === activeColIndex;
+                    let cellClass = "p-2 text-center border-r border-gray-100 dark:border-gray-800 border-b";
+                    if (val !== "-") {
+                        cellClass += " font-mono text-gray-700 dark:text-gray-300";
+                        if (isHighlight) cellClass += " bg-blue-50 dark:bg-blue-900/20 font-bold text-blue-700 dark:text-blue-300";
+                    } else { cellClass += " text-gray-200 dark:text-gray-700"; }
+                    return `<td class="${cellClass}">${val}</td>`;
+                }).join('')}
+            </tr>
+        `;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+    modal.classList.remove('hidden');
+    history.pushState({ modal: 'grid' }, '', '#grid');
+
+    setTimeout(() => {
+        const activeCol = document.getElementById('grid-active-col');
+        if (activeCol) activeCol.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, 100);
+};
+
+window.highlightGridRow = function(tr) {
+    const allRows = document.querySelectorAll('#grid-container tr');
+    allRows.forEach(r => {
+        r.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40');
+        const sticky = r.querySelector('td.sticky');
+        if(sticky) { sticky.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40'); sticky.classList.add('bg-white', 'dark:bg-gray-900'); }
+    });
+    tr.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40');
+    const stickyCell = tr.querySelector('td.sticky');
+    if (stickyCell) { stickyCell.classList.remove('bg-white', 'dark:bg-gray-900'); stickyCell.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40'); }
+};
+
+// GUARDIAN UPDATE V4.60.33: Deprecated Share Functionality
+window.shareGridDeepLink = function(direction) {
+    // Disabled to prevent crash loop.
+    console.warn("Grid share functionality temporarily disabled for stability.");
 };
