@@ -419,37 +419,59 @@ function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
 }
 
 function getRouteFare(sheetKey, departureTimeStr) {
+    // 1. Resolve Zone
     const zoneKey = sheetKey + "_zone";
     let zoneCode = fullDatabase[zoneKey]; 
+    
     if (!zoneCode) {
-        console.warn(`No zone found for ${zoneKey}, defaulting to Z1 for testing.`);
-        zoneCode = "Z1";
+        // Fallback Logic: Try to find the sibling sheet (opposite direction)
+        // If sheetKey is 'pta_to_pien_weekday', sibling is 'pien_to_pta_weekday'
+        // This handles cases where only one direction was tagged in DB
+        let siblingKey = null;
+        if (sheetKey.includes('_to_')) {
+            const parts = sheetKey.split('_to_');
+            if (parts.length === 2) {
+                // simple swap heuristic
+                // e.g. pta_to_pien -> pien_to_pta
+                // This is a rough guess, but logic.js doesn't know route config perfectly here without reverse lookup
+                // Better approach: Check if it's missing and log it
+                console.warn(`[Fares] Zone missing for ${zoneKey}.`);
+            }
+        }
+        zoneCode = "Z1"; // Ultimate fallback
     }
 
-    if (!zoneCode || !FARE_CONFIG.zones[zoneCode]) return null;
+    if (!zoneCode || !FARE_CONFIG.zones[zoneCode]) {
+        console.warn(`[Fares] Invalid Zone Code: ${zoneCode} for ${sheetKey}`);
+        return null;
+    }
 
     let basePrice = FARE_CONFIG.zones[zoneCode];
     let discountLabel = null;
     let isPromo = false; 
-    let isOffPeak = false; // Legacy flag, kept for backward compat if needed, but ui.js should use discountLabel if present
+    let isOffPeak = false; // Legacy flag
 
     const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
     
     let useOffPeakRate = false;
     
-    // GUARDIAN FIX V4.58.2: Off-Peak is strictly Weekday only.
-    if (currentDayType === 'weekday' && departureTimeStr) {
-        try {
-            const parts = departureTimeStr.split(':');
-            const h = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10) || 0;
-            const decimalTime = h + (m / 60);
-            
-            if (decimalTime >= FARE_CONFIG.offPeakStart && decimalTime < FARE_CONFIG.offPeakEnd) {
-                useOffPeakRate = true;
-            }
-        } catch (e) { 
-            console.error("Time Parse Error in Fare:", e);
+    // GUARDIAN FIX V4.60.42: Off-Peak based on WALL CLOCK, not Train Time
+    if (currentDayType === 'weekday') {
+        const now = new Date();
+        // If in simulation mode, parse simTimeStr
+        let checkH, checkM;
+        if (typeof window.isSimMode !== 'undefined' && window.isSimMode && window.simTimeStr) {
+            const parts = window.simTimeStr.split(':');
+            checkH = parseInt(parts[0], 10);
+            checkM = parseInt(parts[1], 10);
+        } else {
+            checkH = now.getHours();
+            checkM = now.getMinutes();
+        }
+        
+        const decimalTime = checkH + (checkM / 60);
+        if (decimalTime >= FARE_CONFIG.offPeakStart && decimalTime < FARE_CONFIG.offPeakEnd) {
+            useOffPeakRate = true;
         }
     }
 
@@ -483,6 +505,22 @@ function getRouteFare(sheetKey, departureTimeStr) {
         isPromo: isPromo,
         discountLabel: discountLabel // NEW: Specific Text
     };
+}
+
+// NEW V4.60.42: Helper to fetch detailed pricing for a route
+function getDetailedFare(sheetKey) {
+    if (!fullDatabase || !sheetKey) return null;
+    const zoneKey = sheetKey + "_zone";
+    let zoneCode = fullDatabase[zoneKey]; 
+    if (!zoneCode) zoneCode = "Z1"; // Fallback to match getRouteFare behavior
+
+    if (FARE_CONFIG.zones_detailed && FARE_CONFIG.zones_detailed[zoneCode]) {
+        return {
+            code: zoneCode,
+            prices: FARE_CONFIG.zones_detailed[zoneCode]
+        };
+    }
+    return null;
 }
 
 // --- JOURNEY FINDING LOGIC ---

@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.60.40 02-FEB"; // Updated for Pricing Accuracy & Roodepoort Contexts
+const APP_VERSION = "V4.60.50 03-FEB"; // Updated for Detailed Zone Fares
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -40,7 +40,7 @@ const ROUTES = {
         destA: 'PRETORIA STATION', 
         destB: 'PIENAARSPOORT STATION', 
         transferStation: 'KOEDOESPOORT STATION',
-        relayStation: 'KOEDOESPOORT STATION', // NEW: Defines this as a forced split-point for planner
+        relayStation: 'KOEDOESPOORT STATION', 
         sheetKeys: { weekday_to_a: 'pien_to_pta_weekday', weekday_to_b: 'pta_to_pien_weekday', saturday_to_a: 'pien_to_pta_sat', saturday_to_b: 'pta_to_pien_sat' } 
     },
     'pta-mabopane': { 
@@ -78,7 +78,8 @@ const ROUTES = {
         isActive: true, 
         destA: 'PRETORIA STATION', 
         destB: 'DE WILDT STATION', 
-        transferStation: null, 
+        transferStation: 'ROSSLYN STATION', 
+        relayStation: 'ROSSLYN STATION', 
         sheetKeys: { 
             weekday_to_a: 'dewil_to_pta_weekday', 
             weekday_to_b: 'pta_to_dewil_weekday',
@@ -89,7 +90,7 @@ const ROUTES = {
     'pta-saul': { 
         id: 'pta-saul', 
         name: "Pretoria <-> Saulsville", 
-        corridorId: "SAUL_LINE",
+        corridorId: "SAUL_LINE", 
         colorClass: "text-green-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -190,7 +191,7 @@ const ROUTES = {
         isActive: true, 
         destA: 'JOHANNESBURG STATION', 
         destB: 'RANDFONTEIN STATION', 
-        transferStation: 'ROODEPOORT STATION', // UPDATED: Enabled Roodepoort as Transfer Hub
+        transferStation: 'ROODEPOORT STATION', 
         relayStation: 'ROODEPOORT STATION', 
         sheetKeys: {
             weekday_to_a: 'rand_to_jhb_weekday', 
@@ -215,7 +216,6 @@ const ROUTES = {
             saturday_to_b: 'jhb_to_nald_sat'
         } 
     },
-    // --- NEW: JHB <-> MIDWAY ---
     'jhb-midway': { 
         id: 'jhb-midway', 
         name: "JHB <-> Midway", 
@@ -239,16 +239,27 @@ const ROUTES = {
 // 4. Refresh Settings
 const REFRESH_CONFIG = { standardInterval: 5 * 60 * 1000, activeInterval: 60 * 1000, nightModeStart: 21, nightModeEnd: 4 };
 
-// 5. Smart Pricing Configuration (V4.58.2 - Adjusted for Pensioner/Military 50% Rule)
+// 5. Smart Pricing Configuration
 const FARE_CONFIG = {
     offPeakStart: 9.5,  // 09:30
     offPeakEnd: 14.5,   // 14:30
+    
+    // Legacy support for logic.js (keeps existing code working)
     zones: {
         "Z1": 10.00,
         "Z2": 12.00,
         "Z3": 14.00,
         "Z4": 15.00
     },
+
+    // NEW V4.60.42: Detailed Pricing Table
+    zones_detailed: {
+        "Z1": { single: 10.00, return: 20.00, weekly_mon_fri: 60.00, weekly_mon_sat: 75.00, monthly: 180.00 },
+        "Z2": { single: 12.00, return: 24.00, weekly_mon_fri: 70.00, weekly_mon_sat: 80.00, monthly: 220.00 },
+        "Z3": { single: 14.00, return: 28.00, weekly_mon_fri: 80.00, weekly_mon_sat: 100.00, monthly: 250.00 },
+        "Z4": { single: 15.00, return: 30.00, weekly_mon_fri: 90.00, weekly_mon_sat: 120.00, monthly: 280.00 }
+    },
+
     profiles: {
         "Adult":     { base: 1.0, offPeak: 0.6 }, // 40% Discount
         "Scholar":   { base: 0.5, offPeak: 0.5 }, // Flat 50%

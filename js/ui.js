@@ -126,7 +126,7 @@ function renderPlaceholder() {
         if(fareAmount) fareAmount.textContent = "R --.--";
         if(fareType) { 
             fareType.textContent = "Select Stations"; 
-            fareType.className = "text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mb-1"; 
+            fareType.className = "text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mb-2"; 
         }
     }
     updateNextTrainView();
@@ -220,40 +220,146 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     if (!fareContainer) return;
     if (passengerTypeLabel) passengerTypeLabel.textContent = currentUserProfile;
 
+    // Reset Click Listener (Avoid duplication)
+    const newFareContainer = fareContainer.cloneNode(true);
+    fareContainer.parentNode.replaceChild(newFareContainer, fareContainer);
+    fareContainer = newFareContainer;
+    fareAmount = document.getElementById('fare-amount');
+    fareType = document.getElementById('fare-type');
+    passengerTypeLabel = document.getElementById('passenger-type-label');
+
+    // Make it look interactive
+    fareContainer.classList.add('cursor-pointer', 'hover:bg-blue-100', 'dark:hover:bg-gray-700', 'transition-colors', 'group', 'relative');
+
     if (!sheetKey || !nextTrainTimeStr) {
         fareContainer.classList.remove('hidden');
         fareAmount.textContent = "R --.--";
         fareType.textContent = "Select Station";
-        fareType.className = "text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mb-1";
+        // GUARDIAN: Increased bottom margin for better spacing
+        fareType.className = "text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mb-2";
         fareAmount.className = "text-xl font-black text-gray-300 dark:text-gray-600";
         return;
     }
 
     const fareData = getRouteFare(sheetKey, nextTrainTimeStr);
+    
+    // UPDATE V4.60.42: Get detailed fares if available
+    const detailed = typeof getDetailedFare === 'function' ? getDetailedFare(sheetKey) : null;
+    
+    // Bind Click to Open Modal
+    if (detailed && detailed.prices) {
+        fareContainer.onclick = () => openFareModal(detailed);
+        
+        // Add visual hint icon
+        if (!document.getElementById('fare-chevron')) {
+            const chevron = document.createElement('div');
+            chevron.id = 'fare-chevron';
+            // Pushed to the right edge with absolute positioning or flex alignment
+            chevron.className = "absolute right-3 top-1/2 transform -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity";
+            chevron.innerHTML = `<svg class="w-5 h-5 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>`;
+            fareContainer.appendChild(chevron);
+        }
+    }
+
     if (fareData) {
         fareAmount.textContent = `R${fareData.price}`;
         if (fareData.isPromo) {
             fareType.textContent = fareData.discountLabel || "Discounted";
-            fareType.className = "text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full mb-1";
+            fareType.className = "text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full mb-2";
             fareAmount.className = "text-xl font-black text-blue-600 dark:text-blue-400";
         } else if (fareData.isOffPeak) {
             fareType.textContent = "40% Off-Peak";
-            fareType.className = "text-[10px] font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded-full mb-1";
+            fareType.className = "text-[10px] font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded-full mb-2";
             fareAmount.className = "text-xl font-black text-green-600 dark:text-green-400";
         } else {
             fareType.textContent = "Standard";
-            fareType.className = "text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full mb-1";
+            fareType.className = "text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full mb-2";
             fareAmount.className = "text-xl font-black text-gray-900 dark:text-white";
         }
+        
         fareContainer.classList.remove('hidden');
     } else {
         fareContainer.classList.remove('hidden');
         fareAmount.textContent = "R --.--";
         fareType.textContent = "Rate Unavailable";
-        fareType.className = "text-[10px] font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full mb-1";
+        fareType.className = "text-[10px] font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full mb-2";
         fareAmount.className = "text-xl font-black text-gray-400";
     }
 }
+
+// --- NEW V4.60.43: FARE TABLE MODAL (Updated) ---
+window.openFareModal = function(fareDetails) {
+    if (!fareDetails) return;
+    
+    // TRACK ANALYTICS
+    trackAnalyticsEvent('view_fare_modal', { zone: fareDetails.code });
+
+    // Lazy Load Modal HTML
+    let modal = document.getElementById('fare-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'fare-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-70 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-0 overflow-hidden transform transition-all scale-95">
+                <div class="p-4 bg-blue-600 dark:bg-blue-800 text-white flex justify-between items-center">
+                    <h3 class="font-bold text-lg">Ticket Prices</h3>
+                    <button onclick="document.getElementById('fare-modal').classList.add('hidden')" class="text-white hover:bg-white/20 rounded-full p-1">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div class="p-6">
+                    <div id="fare-zone-badge" class="inline-block px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs font-bold text-gray-600 dark:text-gray-300 mb-4">
+                        Zone -- Pricing:
+                    </div>
+                    <div id="fare-table-content" class="space-y-3"></div>
+                </div>
+                <div class="p-3 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 text-center">
+                    <button onclick="document.getElementById('fare-modal').classList.add('hidden')" class="w-full text-sm font-bold text-blue-600 py-2">Close</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    // Populate Data
+    const zoneEl = document.getElementById('fare-zone-badge');
+    const tableEl = document.getElementById('fare-table-content');
+    
+    zoneEl.textContent = `Zone ${fareDetails.code} Pricing:`;
+
+    // Calculate Prices based on Profile
+    const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
+    const prices = fareDetails.prices;
+    
+    const calc = (basePrice) => (Math.ceil((basePrice * profile.base) * 2) / 2).toFixed(2);
+    
+    // Generate Rows (Updated V4.60.42: Includes split weekly tickets)
+    tableEl.innerHTML = `
+        <div class="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+            <span class="text-gray-600 dark:text-gray-400 text-sm">Single Trip</span>
+            <span class="font-bold text-gray-900 dark:text-white">R${calc(prices.single)}</span>
+        </div>
+        <div class="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+            <span class="text-gray-600 dark:text-gray-400 text-sm">Return Trip</span>
+            <span class="font-bold text-gray-900 dark:text-white">R${calc(prices.return)}</span>
+        </div>
+        <div class="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700 bg-green-50 dark:bg-green-900/10 -mx-2 px-2 rounded">
+            <span class="text-green-700 dark:text-green-400 text-sm font-bold">Weekly (Mon-Fri)</span>
+            <span class="font-bold text-green-700 dark:text-green-400">R${calc(prices.weekly_mon_fri)}</span>
+        </div>
+        <div class="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700 bg-green-50 dark:bg-green-900/10 -mx-2 px-2 rounded">
+            <span class="text-green-700 dark:text-green-400 text-sm font-bold">Weekly (Mon-Sat)</span>
+            <span class="font-bold text-green-700 dark:text-green-400">R${calc(prices.weekly_mon_sat)}</span>
+        </div>
+        <div class="flex justify-between items-center py-2 bg-blue-50 dark:bg-blue-900/10 -mx-2 px-2 rounded">
+            <span class="text-blue-700 dark:text-blue-400 text-sm font-bold">Monthly</span>
+            <span class="font-bold text-blue-700 dark:text-blue-400">R${calc(prices.monthly)}</span>
+        </div>
+    `;
+
+    modal.classList.remove('hidden');
+};
 
 // --- UTILS ---
 function showToast(message, type = 'info', duration = 3000) { 
@@ -272,17 +378,25 @@ function loadUserProfile() {
     profileModal = document.getElementById('profile-modal');
     navProfileDisplay = document.getElementById('nav-profile-display');
     const savedProfile = localStorage.getItem('userProfile');
+    
+    // UPDATE V4.60.41: Auto-Select Adult if New User
     if (savedProfile) {
         currentUserProfile = savedProfile;
-        if(navProfileDisplay) navProfileDisplay.textContent = currentUserProfile;
     } else {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (!urlParams.has('action') && !urlParams.has('route')) {
-            if(profileModal) profileModal.classList.remove('hidden');
-        } else {
-            currentUserProfile = "Adult";
-            localStorage.setItem('userProfile', "Adult");
-        }
+        // Silent default for new users (UX improvement)
+        currentUserProfile = "Adult";
+        localStorage.setItem('userProfile', "Adult");
+    }
+    
+    // Ensure UI is synced
+    if(navProfileDisplay) navProfileDisplay.textContent = currentUserProfile;
+    
+    // Check URL params for edge case overrides (optional but safe to keep)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (!savedProfile && !urlParams.has('action') && !urlParams.has('route')) {
+        // We used to show modal here. Now we skip it.
+        // If you ever want to force the modal back for marketing, uncomment below:
+        // if(profileModal) profileModal.classList.remove('hidden');
     }
 }
 
@@ -518,7 +632,10 @@ async function checkServiceAlerts() {
                 localStorage.setItem(seenKey, 'true');
                 bellBtn.classList.remove('animate-shake');
                 dot.classList.add('hidden');
-                content.textContent = activeNotice.message;
+                
+                // UPDATE V4.60.41: Use innerHTML to support rich text (line breaks, bold, emojis)
+                content.innerHTML = activeNotice.message;
+                
                 const date = new Date(activeNotice.postedAt);
                 timestamp.textContent = `Posted: ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, ${date.toLocaleDateString()}`;
                 modal.classList.remove('hidden');
@@ -563,7 +680,11 @@ function switchTab(tab) {
         targetBtn = document.getElementById('tab-trip-planner');
         document.getElementById('view-trip-planner').classList.add('active');
     }
-    if(targetBtn) { targetBtn.classList.add('active'); moveTabIndicator(targetBtn); }
+    if(targetBtn) { 
+        targetBtn.classList.add('active'); 
+        // GUARDIAN FIX V4.60.42: Delay tab indicator update to ensure layout stability
+        setTimeout(() => moveTabIndicator(targetBtn), 50); 
+    }
     localStorage.setItem('activeTab', tab);
 }
 
@@ -610,10 +731,10 @@ function initTabIndicator() {
     }
     const activeBtn = document.querySelector('.tab-btn.active') || tabNext;
     
-    // GUARDIAN FIX V4.60.20: Delay calculation to ensure DOM is ready
-    setTimeout(() => {
-        moveTabIndicator(activeBtn);
-    }, 50);
+    // GUARDIAN FIX V4.60.42: Double-delayed init for stability
+    requestAnimationFrame(() => {
+        setTimeout(() => moveTabIndicator(activeBtn), 100);
+    });
     
     window.addEventListener('resize', () => { const current = document.querySelector('.tab-btn.active'); if (current) moveTabIndicator(current); });
 }
@@ -822,27 +943,25 @@ window.openLegal = function(type) {
 function closeLegal() { if(location.hash === '#legal') history.back(); else legalModal.classList.add('hidden'); }
 
 // --- SERVICE WORKER ---
-let newWorker;
-function showUpdateToast(worker) {
-    if (document.getElementById('update-toast')) return;
-    const updateToastHTML = `<div id="update-toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-3 rounded-lg shadow-2xl flex items-center space-x-3 z-50 cursor-pointer border border-gray-700 hover:scale-105 transition-transform" onclick="window.location.reload()"><div class="bg-blue-600 rounded-full p-1 animate-pulse"><svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg></div><div class="flex flex-col"><span class="text-sm font-bold">New Schedule Available</span><span class="text-xs text-gray-400">Tap to Refresh</span></div></div>`;
-    const div = document.createElement('div'); div.innerHTML = updateToastHTML; document.body.appendChild(div.firstElementChild);
-}
+// CLEANED UP V4.60.42: Removed duplicate "Grey Toast" logic to prevent echo effect.
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js').then(reg => {
-            if (reg.waiting) { showUpdateToast(reg.waiting); return; }
-            reg.addEventListener('updatefound', () => { newWorker = reg.installing; newWorker.addEventListener('statechange', () => { if (newWorker.state === 'installed' && navigator.serviceWorker.controller) showUpdateToast(newWorker); }); });
-        }).catch(err => console.error('SW reg failed:', err));
+        navigator.serviceWorker.register('./service-worker.js')
+            .then(reg => {
+                // Registration successful.
+                // We do NOT listen for 'updatefound' here anymore because we rely on the controller change below.
+            })
+            .catch(err => console.error('SW reg failed:', err));
         
         let refreshing; 
+        // This is the ONE source of truth for updates. When the new SW takes over (via skipWaiting), this fires.
         navigator.serviceWorker.addEventListener('controllerchange', () => { 
             if (refreshing) return; 
             refreshing = true;
             
-            // GUARDIAN FIX V4.60.34: Smooth Update Logic (Option B with Twist)
+            // GUARDIAN UPDATE V4.60.42: Streamlined Green Toast
             if(toast) {
-                toast.textContent = "Ready for offline use. Refreshing to activate...";
+                toast.textContent = "New app version, reloading...";
                 toast.className = "toast-success show";
             }
             setTimeout(() => window.location.reload(), 1000);

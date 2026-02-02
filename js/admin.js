@@ -1,11 +1,11 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V4.60.9)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V4.60.50)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (Write Access)
- * 2. PIN Unlock Logic
+ * 2. PIN Unlock Logic & Signature Mgmt
  * 3. Simulation Controls
- * * * PART OF PHASE 4: MODULARIZATION
+ * * * PART OF PHASE 1: MODULARIZATION
  */
 
 const Admin = {
@@ -77,11 +77,23 @@ const Admin = {
 
         if (pinSubmitBtn) {
             pinSubmitBtn.addEventListener('click', () => {
-                if (pinInput.value === "101101") {
+                // UPDATE V4.60.41: Multi-Admin Support
+                const PIN_MAP = {
+                    "101101": "Enock",  // Lead Developer
+                    "202626": "Admin"   // Fallback/Guest
+                };
+
+                const enteredPin = pinInput.value;
+                const adminName = PIN_MAP[enteredPin];
+
+                if (adminName) {
                     pinModal.classList.add('hidden');
                     
+                    // Store identity for session
+                    sessionStorage.setItem('admin_session_name', adminName);
+                    
                     localStorage.setItem('analytics_ignore', 'true');
-                    console.log("🛡️ Guardian: Analytics filter enabled for this device.");
+                    console.log(`🛡️ Guardian: Analytics filter enabled for ${adminName}.`);
 
                     const now = new Date();
                     const timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
@@ -91,7 +103,7 @@ const Admin = {
                         devModal.classList.remove('hidden');
                         Admin.setupServiceAlertsManager();
                     }
-                    showToast("Developer Mode Unlocked!", "success");
+                    showToast(`Welcome back, ${adminName}!`, "success");
                 } else {
                     showToast("Invalid PIN", "error");
                     pinInput.value = '';
@@ -329,7 +341,15 @@ const Admin = {
                 const dateInput = document.getElementById('alert-duration-custom');
 
                 if (data && data.message) {
-                    alertMsg.value = data.message;
+                    // Strip HTML breaks for editing
+                    const rawMsg = data.message
+                        .replace(/<br>/g, "\n")
+                        .replace(/<b>/g, "*")
+                        .replace(/<\/b>/g, "*")
+                        .split("<br><br><span")[0]; // Remove signature
+
+                    alertMsg.value = rawMsg;
+                    
                     if(data.expiresAt && dateInput) {
                         const expiryDate = new Date(data.expiresAt);
                         expiryDate.setMinutes(expiryDate.getMinutes() - expiryDate.getTimezoneOffset());
@@ -353,7 +373,7 @@ const Admin = {
 
         // POST Logic
         sendBtn.onclick = async () => {
-            const msg = alertMsg.value.trim();
+            let msg = alertMsg.value.trim();
             const secret = localStorage.getItem('admin_firebase_key') || alertKey.value.trim();
             const target = alertTarget.value;
             const dateInput = document.getElementById('alert-duration-custom');
@@ -362,6 +382,16 @@ const Admin = {
                 showToast("Message and Key required!", "error");
                 return;
             }
+
+            // UPDATE V4.60.41: Rich Text Formatting
+            // 1. Convert Newlines to <br>
+            msg = msg.replace(/\n/g, "<br>");
+            // 2. Convert *bold* to <b>bold</b>
+            msg = msg.replace(/\*(.*?)\*/g, "<b>$1</b>");
+            
+            // 3. Append Signature
+            const author = sessionStorage.getItem('admin_session_name') || "Admin";
+            msg += `<br><br><span class="opacity-75 text-xs">— ${author}</span>`;
 
             let expiresAtVal;
             if (dateInput && dateInput.value) {

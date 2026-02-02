@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v4.60.50'; // BUMPED: Added Grid Order Module
+const CACHE_NAME = 'metrorail-next-train-v4.60.16'; // BUMPED: Offline Tailwind
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -7,7 +7,6 @@ const ASSETS_TO_CACHE = [
   './offline.html',
   './css/style.css',
   './css/custom.css',
-  './js/grid-order.js', // NEW: Critical Schedule Matrix
   './js/config.js',
   './js/utils.js',
   './js/logic.js',
@@ -17,7 +16,7 @@ const ASSETS_TO_CACHE = [
   './js/renderer.js',
   './js/admin.js',
   './js/ui.js',
-  './js/tailwind.js', // Local Tailwind Engine
+  './js/tailwind.js', // NEW: Local Tailwind Engine
   './manifest.json',
   './sitemap.xml',
   './robots.txt',
@@ -35,7 +34,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('SW: Caching core assets (v4.60.33)...');
+        console.log('SW: Caching core assets (v4.60.16)...');
         return cache.addAll(ASSETS_TO_CACHE);
       })
       .catch((err) => {

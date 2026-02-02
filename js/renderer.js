@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V4.60.40 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V4.60.50 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -400,7 +400,14 @@ window.renderFullScheduleGrid = function(direction = 'A') {
     const container = document.getElementById('grid-container');
     const headerTitle = modal.querySelector('h3');
     
-    // GUARDIAN UPDATE V4.60.33: REMOVED SHARE BUTTON to prevent crash loop
+    // GUARDIAN UPDATE V4.60.42: Format Effective Date
+    let effectiveDate = "Standard Schedule";
+    if (schedule.lastUpdated) {
+        // Strip prefix if exists
+        const cleanDate = schedule.lastUpdated.replace(/^last updated[:\s-]*/i, '').trim();
+        effectiveDate = `Schedule Effective from: ${cleanDate}`;
+    }
+
     if (headerTitle) {
         headerTitle.innerHTML = `
             <div class="flex flex-col w-full">
@@ -412,7 +419,7 @@ window.renderFullScheduleGrid = function(direction = 'A') {
                         </button>
                     </div>
                 </div>
-                <span class="text-[10px] text-gray-400 font-mono mt-1">${schedule.lastUpdated || "Standard Schedule"}</span>
+                <span class="text-[10px] text-gray-400 font-mono mt-1">${effectiveDate}</span>
             </div>
         `;
     }
@@ -498,9 +505,14 @@ window.renderFullScheduleGrid = function(direction = 'A') {
                 <td class="sticky left-0 z-10 bg-white dark:bg-gray-900 p-2 border-r border-gray-200 dark:border-gray-700 font-bold text-gray-900 dark:text-gray-100 truncate max-w-[120px] shadow-lg border-b">${cleanStation}</td>
                 ${sortedCols.map((col, i) => {
                     let val = row[col] || "-";
+                    // GUARDIAN FIX V4.60.43: Format Grid Times (Remove Seconds)
                     if (val !== "-") {
                         const isValidTime = /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim());
-                        if (!isValidTime) val = "-";
+                        if (isValidTime) {
+                            val = formatTimeDisplay(val); // Strip seconds
+                        } else {
+                            val = "-";
+                        }
                     }
                     const isHighlight = i === activeColIndex;
                     let cellClass = "p-2 text-center border-r border-gray-100 dark:border-gray-800 border-b";

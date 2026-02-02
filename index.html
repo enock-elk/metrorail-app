@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V4.60.40 (Guardian Edition)
-  - CHANGE: Added Grid Order Module for Schedule Matrix.
-  - FIX: Updated Cache-Busting to v4.60.40.
+  Metrorail Next Train V4.60.50 (Guardian Edition)
+  - CHANGE: Visual Layout Fixes for Samsung/Narrow Screens (Points 1 & 2).
+  - FIX: Route Header flexible height.
 -->
 <html lang="en" class="dark">
 
@@ -174,7 +174,7 @@
             
             <!-- VERSION FOOTER -->
             <div class="mt-4 px-4 text-right">
-                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.60.40</p>
+                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v4.60.42</p>
             </div>
         </div>
     </div>
@@ -235,12 +235,14 @@
         <!-- VIEW 1: NEXT TRAIN -->
         <div id="view-next-train" class="view-section active p-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
             
-            <div class="text-center mb-6 h-[50px] flex flex-col justify-center">
-                <div id="route-subtitle" class="inline-flex items-center justify-center space-x-2 cursor-pointer group bg-white dark:bg-gray-800 px-4 py-1.5 h-[34px] rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1">
-                    <h2 id="route-subtitle-text" class="text-sm font-bold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 transition-colors">
+            <div class="text-center mb-6 h-auto min-h-[50px] flex flex-col justify-center">
+                <!-- UPDATED V4.60.43: Responsive Route Header (Point 2) -->
+                <!-- Removed explicit h-[34px] to allow multiline wrap if needed, added min-h for stability -->
+                <div id="route-subtitle" class="inline-flex items-center justify-center space-x-2 cursor-pointer group bg-white dark:bg-gray-800 px-4 py-2 min-h-[34px] h-auto rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1 max-w-full">
+                    <h2 id="route-subtitle-text" class="text-sm font-bold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 transition-colors whitespace-normal leading-tight text-center">
                         Loading Route...
                     </h2>
-                    <svg class="w-4 h-4 text-gray-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    <svg class="w-4 h-4 text-gray-400 group-hover:text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
                 <p id="last-updated-date" class="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Schedule Effective from: --</p>
             </div>
@@ -313,13 +315,13 @@
         <!-- VIEW 2: TRIP PLANNER -->
         <div id="view-trip-planner" class="view-section p-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
             <!-- FIXED HEIGHT SPACER TO MATCH TAB 1 EXACTLY -->
-            <div class="text-center mb-6 h-[50px] flex flex-col justify-center">
+            <div class="text-center mb-6 h-auto min-h-[50px] flex flex-col justify-center">
                 <!-- UPDATED: Informative Button -->
-                <button id="planner-info-btn" class="inline-flex items-center justify-center space-x-2 bg-white dark:bg-gray-800 px-4 py-1.5 h-[34px] rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    <h2 class="text-sm font-bold text-gray-700 dark:text-gray-200">
+                <button id="planner-info-btn" class="inline-flex items-center justify-center space-x-2 bg-white dark:bg-gray-800 px-4 py-2 min-h-[34px] h-auto rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-normal leading-tight max-w-full">
+                    <h2 class="text-sm font-bold text-gray-700 dark:text-gray-200 text-center">
                         Direct, Transfer & Bridge Trips
                     </h2>
-                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <svg class="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 </button>
                 <p class="text-[10px] text-transparent font-medium uppercase tracking-wide select-none">Schedule updated: --</p>
             </div>
@@ -332,7 +334,8 @@
                     </div>
                     <div class="flex items-center gap-2">
                         <div class="relative flex-grow">
-                            <input type="text" id="planner-from-search" name="search-station-from" placeholder="Search station..." autocomplete="off" autocorrect="off" spellcheck="false" class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl shadow-sm p-3 text-lg font-medium focus:ring-blue-500 focus:border-blue-500 transition-colors h-[54px] appearance-none">
+                            <!-- UPDATE V4.60.43: Autocomplete=off and Random Name -->
+                            <input type="text" id="planner-from-search" name="station_search_origin_secure" placeholder="Search station..." autocomplete="off" autocorrect="off" spellcheck="false" class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl shadow-sm p-3 text-lg font-medium focus:ring-blue-500 focus:border-blue-500 transition-colors h-[54px] appearance-none">
                             <select id="planner-from" class="hidden w-full p-4 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-lg font-medium text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors">
                                 <option value="">Loading stations...</option>
                             </select>
@@ -353,7 +356,7 @@
                 <!-- TO SECTION (FIXED LABEL) -->
                 <div class="relative">
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">To Station</label>
-                    <input type="text" id="planner-to-search" name="search-station-to" placeholder="Search station..." autocomplete="off" autocorrect="off" spellcheck="false" class="w-full mb-2 p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-lg font-medium shadow-sm h-[54px]">
+                    <input type="text" id="planner-to-search" name="station_search_dest_secure" placeholder="Search station..." autocomplete="off" autocorrect="off" spellcheck="false" class="w-full mb-2 p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-lg font-medium shadow-sm h-[54px]">
                     <select id="planner-to" class="hidden w-full p-4 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-lg font-medium text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors">
                         <option value="">Loading stations...</option>
                     </select>
@@ -367,16 +370,18 @@
             <!-- Results Section -->
             <div id="planner-results-section" class="hidden mt-4 space-y-4">
                 <!-- REDESIGNED HEADER: Back Button & Swap Button -->
-                <div class="flex justify-between items-center mb-4">
-                    <button id="planner-back-btn" class="flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group">
+                <!-- UPDATE V4.60.43: Improved Header Layout (Point 1) -->
+                <!-- Changed to flex-wrap to handle narrow screens -->
+                <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+                    <button id="planner-back-btn" class="flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group flex-shrink-0">
                         <svg class="w-4 h-4 mr-1 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                         Back
                     </button>
                     
-                    <h4 class="text-lg font-bold text-gray-900 dark:text-white">Your Journey</h4>
+                    <h4 class="text-lg font-bold text-gray-900 dark:text-white flex-grow text-center min-w-[120px]">Your Journey</h4>
                     
                     <!-- Placeholder for potential top-right action, effectively hides if empty but keeps layout balanced if needed -->
-                    <div class="w-8"></div>
+                    <div class="w-8 flex-shrink-0"></div>
                 </div>
                 <div id="planner-results-list" class="space-y-4"></div>
             </div>
@@ -703,7 +708,7 @@
             </div>
 
             <p class="mt-12 text-[10px] text-gray-400 font-mono">
-                Version 4.60.40 (Guardian Edition)
+                Version 4.60.42 (Guardian Edition)
             </p>
         </div>
     </div>

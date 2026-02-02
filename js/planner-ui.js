@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.40 - Guardian Hotfix)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.50 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -589,6 +589,22 @@ function initPlanner() {
 
     if (!fromSelect || !toSelect) return;
 
+    // UPDATE V4.60.41: Security Fix - Prevent Password Autocomplete
+    // 1. Force autocomplete="off" on DOM Elements
+    // 2. Set Random Name attribute to confuse password managers
+    const fromInput = document.getElementById('planner-from-search');
+    const toInput = document.getElementById('planner-to-search');
+    
+    if (fromInput) {
+        fromInput.setAttribute('autocomplete', 'off');
+        fromInput.setAttribute('name', 'station_search_origin_' + Math.random().toString(36).substring(7));
+    }
+    
+    if (toInput) {
+        toInput.setAttribute('autocomplete', 'off');
+        toInput.setAttribute('name', 'station_search_dest_' + Math.random().toString(36).substring(7));
+    }
+
     setupAutocomplete('planner-from-search', 'planner-from');
     setupAutocomplete('planner-to-search', 'planner-to');
 
@@ -625,7 +641,6 @@ function initPlanner() {
     };
     
     fromSelect.addEventListener('change', filterToOptions);
-    const fromInput = document.getElementById('planner-from-search');
     if(fromInput) fromInput.addEventListener('change', filterToOptions);
 
     if (locateBtn) {
@@ -937,9 +952,9 @@ function setupAutocomplete(inputId, selectId) {
             matches.forEach(station => {
                 const li = document.createElement('li');
                 li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors";
-                li.textContent = station.replace(' STATION', '');
+                li.textContent = station.replace(' STATION', '').trim();
                 li.onclick = () => {
-                    input.value = station.replace(' STATION', '');
+                    input.value = station.replace(' STATION', '').trim();
                     select.value = station;
                     const event = new Event('change');
                     select.dispatchEvent(event);
@@ -1051,29 +1066,51 @@ function executeTripPlan(origin, dest, preferredTime = null) {
             startPlannerPulse(nextTripIndex);
 
         } else {
-            // Error Handling (Map Fallback)
+            // FAILURE HANDLING: Specific Feedback Logic (V4.60.41)
+            let errorTitle = "No Route Found";
+            let errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path.";
+            
+            // 1. Sunday Check
+            if (selectedPlannerDay === 'sunday') {
+                errorTitle = "No Sunday Service";
+                errorMsg = "Most Metrorail lines do not operate on Sundays or Public Holidays. Please check Monday schedules.";
+            } 
+            // 2. De Wildt / Rosslyn Specific (Shuttle)
+            else if (origin.includes('DE WILDT') || dest.includes('DE WILDT') || origin.includes('ROSSLYN') || dest.includes('ROSSLYN')) {
+                errorTitle = "Shuttle Connection Required";
+                errorMsg = "Trains on this line often require a shuttle transfer at <b>Rosslyn</b>. The planner could not auto-link these trips. Please check the 'Next Train' tab for the specific shuttle times.";
+            }
+            // 3. Cross-Corridor / Long Distance (Heuristic: > 50km apart or different regions)
+            else {
+                errorMsg += " You may need to plan this journey in segments (e.g., 'Home -> Pretoria', then 'Pretoria -> Work').";
+            }
+
+            // Analytics
             if (typeof trackAnalyticsEvent === 'function') {
-                trackAnalyticsEvent('planner_no_result', { origin: origin, destination: dest });
+                trackAnalyticsEvent('planner_no_result', { origin: origin, destination: dest, reason: errorTitle });
             }
             
-            // Update header to hide Share button (or show empty state header)
-            updatePlannerHeader("No Route Found", false);
+            updatePlannerHeader("No Route", false);
 
-            const errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path. You may need to plan this journey in segments (e.g., 'Home to Pretoria', then 'Pretoria to Work').";
             const actionBtn = `
                 <button onclick="document.getElementById('map-modal').classList.remove('hidden')" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
                     Open Network Map
                 </button>
             `;
-            resultsContainer.innerHTML = renderErrorCard("No Route Found", errorMsg, actionBtn);
+            resultsContainer.innerHTML = renderErrorCard(errorTitle, errorMsg, actionBtn);
         }
     }, 100); 
 }
 
 function renderSelectedTrip(container, index) {
     const selectedTrip = currentTripOptions[index];
-    if (!selectedTrip) return; // FIX 2: Guard Clause added
+    if (!selectedTrip) return; // Added safety check here too
+
+    const dayLabel = getPlanningDayLabel();
+    
+    // Update Header Badge OUTSIDE the card
+    updatePlannerHeader(dayLabel, true);
 
     const isTomorrow = selectedTrip.dayLabel !== undefined;
     const nowSec = timeToSeconds(currentTime);
