@@ -40,6 +40,7 @@ const MANUAL_GRID_ORDER = {
         "1173",
         "1129",
         "9121",
+        "9121b",
         "9123"
     ],
     "pien_to_pta_weekday": [
@@ -75,6 +76,7 @@ const MANUAL_GRID_ORDER = {
         "1170",
         "1128",
         "1174",
+        "9122b",
         "9122"
     ],
     "pta_to_pien_sat": [
