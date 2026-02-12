@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.60.60 08-FEB"; // Updated for Detailed Zone Fares
+const APP_VERSION = "V4.60.70 12-FEB"; // Updated for Detailed Zone Fares
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {

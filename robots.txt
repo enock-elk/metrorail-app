@@ -1,12 +1,36 @@
-User-agent: *
+User-agent: Googlebot
 Allow: /
 
-# System Pages (Keep these hidden)
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# --- BLOCK AI SCRAPERS & DATA MINERS ---
+# We block these to prevent them from training on your proprietary schedule data.
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Anthropic-AI
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+# --- GENERAL RULES ---
+User-agent: *
+Allow: /
+# Keep system pages hidden from search results
 Disallow: /404.html
 Disallow: /offline.html
-
-# Resources (Unblocked for SEO/Rendering)
-# JS, CSS, and Icons are now allowed so Google can render the App.
+Disallow: /cdn-cgi/
 
 # Point to the Sitemap
 Sitemap: https://nexttrain.co.za/sitemap.xml
