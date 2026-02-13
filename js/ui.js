@@ -492,7 +492,8 @@ function updateTime() {
     } catch(e) { console.error("Error in updateTime", e); }
 }
 
-// --- DEEP LINK HANDLER (UPDATED V4.60.17) ---
+// --- DEEP LINK HANDLER (UPDATED V4.60.60) ---
+// Now supports Grid Deep Links via 'view=grid', 'dir', and 'day' parameters
 function handleShortcutActions() {
     const urlParams = new URLSearchParams(window.location.search);
     const action = urlParams.get('action');
@@ -509,9 +510,16 @@ function handleShortcutActions() {
                 // GUARDIAN UPDATE V4.60.30: Reduced Toast Duration (2s)
                 showToast(`Opened shared route: ${ROUTES[route].name}`, "success", 2000);
                 
+                // GUARDIAN UPDATE V4.60.60: Grid View Deep Link
                 if (view === 'grid') {
                     const direction = urlParams.get('dir') || 'A';
-                    if (typeof renderFullScheduleGrid === 'function') renderFullScheduleGrid(direction);
+                    const dayOverride = urlParams.get('day') || null;
+                    if (typeof renderFullScheduleGrid === 'function') {
+                        // Delay slightly to ensure UI is ready
+                        setTimeout(() => {
+                            renderFullScheduleGrid(direction, dayOverride);
+                        }, 500);
+                    }
                 }
             });
             return;
@@ -855,10 +863,38 @@ function showRedirectModal(url, message) {
     redirectCancelBtn.addEventListener('click', cancelHandler);
 }
 
+// GUARDIAN UPDATE V4.60.60: System Theme Detection Logic
 function setupFeatureButtons() {
-    if (localStorage.theme === 'light') { document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } 
-    else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); }
-    themeToggleBtn.addEventListener('click', () => { if (localStorage.theme === 'dark') { localStorage.theme = 'light'; document.documentElement.classList.remove('dark'); darkIcon.classList.add('hidden'); lightIcon.classList.remove('hidden'); } else { localStorage.theme = 'dark'; document.documentElement.classList.add('dark'); darkIcon.classList.remove('hidden'); lightIcon.classList.add('hidden'); } });
+    // 1. Determine Initial Theme (Respect System Preference if no override)
+    const storedTheme = localStorage.theme;
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (storedTheme === 'dark' || (!storedTheme && systemDark)) {
+        document.documentElement.classList.add('dark');
+        localStorage.theme = 'dark'; // Save it so we don't flip-flop
+        darkIcon.classList.remove('hidden');
+        lightIcon.classList.add('hidden');
+    } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.theme = 'light';
+        darkIcon.classList.add('hidden');
+        lightIcon.classList.remove('hidden');
+    }
+
+    // 2. Toggle Handler
+    themeToggleBtn.addEventListener('click', () => { 
+        if (localStorage.theme === 'dark') { 
+            localStorage.theme = 'light'; 
+            document.documentElement.classList.remove('dark'); 
+            darkIcon.classList.add('hidden'); 
+            lightIcon.classList.remove('hidden'); 
+        } else { 
+            localStorage.theme = 'dark'; 
+            document.documentElement.classList.add('dark'); 
+            darkIcon.classList.remove('hidden'); 
+            lightIcon.classList.add('hidden'); 
+        } 
+    });
     
     // UPDATED V4.60.33: Share Button Always Shares Homepage (No Deep Links)
     shareBtn.addEventListener('click', async () => { 

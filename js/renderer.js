@@ -1,8 +1,9 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V4.60.80 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V4.60.81 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
- * MERGED VERSION: Includes all Phase 1 UI Fixes + All Original Helper Functions.
+ * It separates the "View" from the "Logic" (ui.js/logic.js).
+ * * PART OF PHASE 1: MODULARIZATION
  */
 
 const Renderer = {
@@ -11,26 +12,35 @@ const Renderer = {
 
     /**
      * Renders the Sidebar Route Menu dynamically from config.js
+     * Groups routes by Corridor ID mapped to display categories.
      */
     renderRouteMenu: (containerId, routes, activeRouteId) => {
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        // Grouping Map
+        // Grouping Map (Maps Config Corridor IDs to Display Categories)
         const categoryMap = {
             "EAST_LINE": "Northern Corridor (Pretoria)",
             "NORTH_LINE": "Northern Corridor (Pretoria)",
             "SAUL_LINE": "Northern Corridor (Pretoria)",
+            
             "SOUTH_LINE": "Pretoria - JHB Line",
             "JHB_EAST": "Pretoria - JHB Line",
             "JHB_CORE": "Pretoria - JHB Line",
+            
             "JHB_WEST": "JHB West Line",
             "JHB_SOUTH": "JHB West Line"
         };
 
-        const categoryOrder = ["Northern Corridor (Pretoria)", "Pretoria - JHB Line", "JHB West Line"];
+        // Custom Order for Categories
+        const categoryOrder = [
+            "Northern Corridor (Pretoria)",
+            "Pretoria - JHB Line",
+            "JHB West Line"
+        ];
+
+        // Group Routes
         const groups = {};
-        
         Object.values(routes).forEach(route => {
             if (!route.isActive) return;
             const cat = categoryMap[route.corridorId] || "Other Routes";
@@ -40,7 +50,7 @@ const Renderer = {
 
         let html = '';
 
-        // Pinned Section
+        // Render Pinned Section First
         const savedDefault = localStorage.getItem('defaultRoute');
         if (savedDefault && routes[savedDefault]) {
             const r = routes[savedDefault];
@@ -59,7 +69,7 @@ const Renderer = {
             `;
         }
 
-        // Categories
+        // Render Categories
         categoryOrder.forEach(cat => {
             if (groups[cat]) {
                 html += `<li class="route-category">${cat}</li>`;
@@ -76,6 +86,7 @@ const Renderer = {
                 });
             }
         });
+
         container.innerHTML = html;
     },
 
@@ -90,8 +101,10 @@ const Renderer = {
         
         Object.values(routes).forEach(route => {
             if (!route.isActive) return;
+
             const btn = document.createElement('button');
             
+            // Determine Border Color based on config colorClass
             let borderColor = 'border-gray-500';
             if (route.colorClass.includes('orange')) borderColor = 'border-orange-500';
             else if (route.colorClass.includes('purple')) borderColor = 'border-purple-500';
@@ -113,129 +126,12 @@ const Renderer = {
             if (typeof onSelectCallback === 'function') {
                 btn.onclick = () => onSelectCallback(route.id);
             }
+
             container.appendChild(btn);
         });
     },
 
-    // --- 2. TRAIN CARD & HEADER RENDERING (Phase 1 Fixes) ---
-    
-    /**
-     * Renders the Route Header (e.g. "Pienaarspoort to Pretoria")
-     * FIXED: Added flex-wrap and responsive sizing for narrow screens (Fold/Flip)
-     */
-    renderHeader: (direction, fromStation, toStation, timeToNext) => {
-        // Safe defaults
-        const from = fromStation || "Origin";
-        const to = toStation || "Destination";
-        const time = timeToNext || "--";
-
-        // Determine badge color based on time
-        let badgeColor = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
-        if (time.includes("min")) badgeColor = "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
-        if (time === "Departed" || time === "Finished") badgeColor = "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
-
-        return `
-            <div class="flex flex-col w-full">
-                <!-- Row 1: Route Name -->
-                <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Direction</span>
-                    ${direction === 'To Pretoria' || direction === 'To JHB' ? 
-                        '<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700">INBOUND</span>' : 
-                        '<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700">OUTBOUND</span>'}
-                </div>
-                
-                <!-- Row 2: Stations & Time (Wrapped for Small Screens) -->
-                <div class="flex flex-wrap items-end justify-between gap-y-2">
-                    <div class="flex flex-col mr-2 min-w-0 max-w-[70%]">
-                        <h2 class="text-lg sm:text-xl font-black text-gray-900 dark:text-white leading-tight truncate">
-                            ${to}
-                        </h2>
-                        <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                            <span class="mr-1">from</span>
-                            <span class="font-medium text-gray-700 dark:text-gray-300 truncate">${from}</span>
-                        </div>
-                    </div>
-
-                    <div class="flex-shrink-0 ml-auto">
-                        <span class="${badgeColor} text-xs sm:text-sm font-bold px-2 py-1 rounded-lg whitespace-nowrap shadow-sm">
-                            ${time}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        `;
-    },
-
-    /**
-     * Renders a single Train Card (Next Train / Schedule Item)
-     * FIXED: Prevent button wrapping and time squishing on narrow devices
-     */
-    renderTrainCard: (train, index, isNextTrain = false, onTrackClick = null) => {
-        if (!train) return '';
-
-        const isDeparted = train.status === 'Departed';
-        const opacityClass = isDeparted ? 'opacity-60 grayscale' : '';
-        const borderClass = isNextTrain ? 'border-l-4 border-l-blue-600 shadow-md ring-1 ring-blue-100 dark:ring-blue-900' : 'border border-gray-200 dark:border-gray-700';
-        
-        // Track Button Logic
-        let buttonHtml = '';
-        if (isNextTrain && !isDeparted) {
-            const btnId = `track-btn-${index}`;
-            buttonHtml = `
-                <button id="${btnId}" class="ml-2 p-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 transition-colors flex-shrink-0" aria-label="Track this train">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-            `;
-            setTimeout(() => {
-                const btn = document.getElementById(btnId);
-                if (btn && onTrackClick) btn.onclick = (e) => { e.stopPropagation(); onTrackClick(train); };
-            }, 0);
-        }
-
-        const departureTime = train.departureTime; 
-        
-        return `
-            <div class="relative bg-white dark:bg-gray-800 rounded-xl p-4 mb-3 ${borderClass} ${opacityClass} transition-all hover:shadow-lg">
-                <div class="flex items-center justify-between">
-                    
-                    <!-- Left: Train Info -->
-                    <div class="flex items-center min-w-0 flex-1">
-                        <div class="flex flex-col min-w-0">
-                            <div class="flex items-center">
-                                <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 mr-2">
-                                    #${train.trainNumber}
-                                </span>
-                                ${isNextTrain ? '<span class="flex h-2 w-2 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span></span>' : ''}
-                            </div>
-                            <div class="mt-1 flex items-baseline">
-                                <span class="text-2xl font-black text-gray-900 dark:text-white leading-none mr-2">
-                                    ${departureTime}
-                                </span>
-                                <span class="text-xs text-gray-500 dark:text-gray-400 font-medium truncate">
-                                    to ${train.destination}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right: Status / Action -->
-                    <div class="flex items-center flex-shrink-0 ml-2">
-                        <div class="text-right mr-1">
-                             <div class="text-xs font-bold ${isDeparted ? 'text-gray-400' : (isNextTrain ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500')}">
-                                ${isDeparted ? 'Departed' : (isNextTrain ? 'Scheduled' : 'Next')}
-                            </div>
-                        </div>
-                        ${buttonHtml}
-                    </div>
-
-                </div>
-            </div>
-        `;
-    },
-
-    // --- 3. STATUS & FEEDBACK RENDERING ---
+    // --- 2. JOURNEY CARDS & STATUS ---
 
     renderSkeletonLoader: (element) => {
         element.innerHTML = `
@@ -252,11 +148,13 @@ const Renderer = {
 
     renderPlaceholder: (element1, element2) => {
         const triggerShake = "document.getElementById('station-select').classList.add('animate-shake', 'ring-4', 'ring-blue-300'); setTimeout(() => document.getElementById('station-select').classList.remove('animate-shake', 'ring-4', 'ring-blue-300'), 500); document.getElementById('station-select').focus();";
+        
         const placeholderHTML = `
             <div onclick="${triggerShake}" class="h-24 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors group w-full">
                 <svg class="w-6 h-6 mb-1 opacity-50 group-hover:scale-110 transition-transform text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                 <span class="text-xs font-bold group-hover:text-blue-500 transition-colors">Tap to select station</span>
             </div>`;
+            
         if (element1) element1.innerHTML = placeholderHTML;
         if (element2) element2.innerHTML = placeholderHTML;
     },
@@ -277,15 +175,19 @@ const Renderer = {
 
     renderNoService: (element, destination, firstNextTrain, dayOffset, openModalCallback) => {
         let timeHTML = 'N/A';
+        
         if (firstNextTrain) {
             const rawTime = firstNextTrain.departureTime || firstNextTrain.train1.departureTime;
             const departureTime = formatTimeDisplay(rawTime);
             const timeDiffStr = (typeof calculateTimeDiffString === 'function') 
-                ? calculateTimeDiffString(rawTime, dayOffset) : ""; 
+                ? calculateTimeDiffString(rawTime, dayOffset) 
+                : ""; 
+            
             timeHTML = `<div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
         } else {
             timeHTML = `<div class="text-lg font-bold text-gray-500">No Data</div>`;
         }
+        
         const safeDestForClick = escapeHTML(destination).replace(/'/g, "\\'");
         const buttonHTML = `<button onclick="openScheduleModal('${safeDestForClick}', 'weekday')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">Check Monday's Schedule</button>`;
 
@@ -305,7 +207,8 @@ const Renderer = {
         const rawTime = firstTrain.departureTime || firstTrain.train1.departureTime;
         const departureTime = formatTimeDisplay(rawTime);
         const timeDiffStr = (typeof calculateTimeDiffString === 'function') 
-            ? calculateTimeDiffString(rawTime, dayOffset) : "";
+            ? calculateTimeDiffString(rawTime, dayOffset) 
+            : "";
         
         const safeDest = escapeHTML(destination);
         const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
@@ -323,7 +226,7 @@ const Renderer = {
         `;
     },
 
-    // Main Journey Card Renderer (Planner Results)
+    // Main Journey Card Renderer
     renderJourney: (element, journey, destination) => {
         element.innerHTML = "";
         
@@ -338,13 +241,20 @@ const Renderer = {
         const safeDepTime = escapeHTML(formatTimeDisplay(rawTime));
         const safeTrainName = escapeHTML(journey.train || journey.train1.train);
         const safeDest = escapeHTML(destination);
-        const timeDiffStr = (typeof calculateTimeDiffString === 'function') ? calculateTimeDiffString(rawTime) : "";
+        const timeDiffStr = (typeof calculateTimeDiffString === 'function') 
+            ? calculateTimeDiffString(rawTime) 
+            : "";
+        
         const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
         const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[9px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-lg transition-colors truncate">See Upcoming Trains</button>`;
 
         let sharedTag = "";
         if (journey.isShared && journey.sourceRoute) {
-             const routeName = journey.sourceRoute.replace(/^(Pretoria|JHB|Germiston|Mabopane)\s+<->\s+/i, "").replace("Route", "").trim();
+             const routeName = journey.sourceRoute
+                .replace(/^(Pretoria|JHB|Germiston|Mabopane)\s+<->\s+/i, "") 
+                .replace("Route", "")
+                .trim();
+
              if (journey.isDivergent) {
                  sharedTag = `<span class="block text-[9px] uppercase font-bold text-red-600 dark:text-red-400 mt-0.5 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-200 dark:border-red-700">⚠️ To ${journey.actualDestName}</span>`;
              } else {
@@ -393,13 +303,16 @@ const Renderer = {
                 const nextTrain = escapeHTML(nextFull.train);
                 const nextDest = escapeHTML(nextFull.actualDestination.replace(/ STATION/g, ''));
                 const nextDep = escapeHTML(formatTimeDisplay(nextFull.departureTime));
-                connectionInfoHTML = `<div class="space-y-0.5"><div class="text-yellow-600 dark:text-yellow-400 font-medium">Connect: Train ${connTrain} (to ${connDest}) @ <b>${connDep}</b></div><div class="text-gray-500 dark:text-gray-400 text-[9px] font-medium">Next: Train ${nextTrain} (to ${nextDest}) @ <b>${nextDep}</b></div></div>`;
+                const connection1Text = `Connect: Train ${connTrain} (to ${connDest}) @ <b>${connDep}</b>`;
+                const connection2Text = `Next: Train ${nextTrain} (to ${nextDest}) @ <b>${nextDep}</b>`;
+                connectionInfoHTML = `<div class="space-y-0.5"><div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div><div class="text-gray-500 dark:text-gray-400 text-[9px] font-medium">${connection2Text}</div></div>`;
             } else {
                 const connTrain = escapeHTML(conn.train);
                 const connDep = escapeHTML(formatTimeDisplay(conn.departureTime));
                 const connArr = escapeHTML(formatTimeDisplay(conn.arrivalTime));
                 let connDestName = `(Arr ${connArr})`; 
-                connectionInfoHTML = `<div class="text-yellow-600 dark:text-yellow-400 font-medium">Connect: Train ${connTrain} @ <b>${connDep}</b> ${connDestName}</div>`;
+                const connectionText = `Connect: Train ${connTrain} @ <b>${connDep}</b> ${connDestName}`;
+                connectionInfoHTML = `<div class="text-yellow-600 dark:text-yellow-400 font-medium">${connectionText}</div>`;
             }
             
             element.innerHTML = `
@@ -411,6 +324,7 @@ const Renderer = {
                         ${buttonHtml}
                     </div>
                     <div class="w-1/2 flex flex-col justify-center items-center text-center space-y-0.5">
+                        <!-- TOPMOST GRAY TEXT REMOVED TO FIX REPEAT BUG -->
                         <div class="text-[10px] text-yellow-600 dark:text-yellow-400 leading-tight font-medium mb-1">${train1Info}</div>
                         <div class="text-[10px] leading-tight">${connectionInfoHTML}</div>
                     </div>
@@ -419,7 +333,8 @@ const Renderer = {
         }
     },
 
-    // --- 4. INTERNAL HELPERS ---
+    // --- 3. INTERNAL HELPERS ---
+    
     _getDotColor: (colorClass) => {
         if (!colorClass) return 'dot-gray';
         if (colorClass.includes('green')) return 'dot-green';
@@ -432,29 +347,46 @@ const Renderer = {
     }
 };
 
-// --- 5. GRID ENGINE (Phase 1 Moved Logic) ---
+// --- GRID ENGINE (Moved from UI.js) ---
 
-window.renderFullScheduleGrid = function(direction = 'A') {
+// GUARDIAN UPDATE V4.60.81: Fixed Simulation Sync + Readability
+window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     const route = ROUTES[currentRouteId];
     if (!route) return;
 
-    trackAnalyticsEvent('view_full_grid', { route: route.name, direction: direction });
+    // 1. Determine Day Context (Fixed: Use currentDayIndex if available)
+    const selectedDay = dayOverride || currentDayType;
+    let sheetDayType = 'weekday';
+    
+    if (selectedDay === 'saturday' || selectedDay === 'sunday') {
+        sheetDayType = 'saturday';
+    }
+
+    // GUARDIAN FIX: Respect Simulation Mode / Current State logic
+    // Default to 'currentDayIndex' (which respects sim) instead of 'new Date().getDay()'
+    let dayIdx = (typeof currentDayIndex !== 'undefined') ? currentDayIndex : new Date().getDay();
+    
+    // Override if user selected a specific filter in the Grid UI
+    if (dayOverride) {
+        if (dayOverride === 'weekday') dayIdx = 1; // Default to Mon
+        if (dayOverride === 'saturday') dayIdx = 6;
+        if (dayOverride === 'sunday') dayIdx = 0;
+    }
+
+    trackAnalyticsEvent('view_full_grid', { 
+        route: route.name, 
+        direction: direction,
+        day: selectedDay 
+    });
 
     const destName = (direction === 'A' ? route.destA : route.destB).replace(' STATION', '');
     const altDestName = (direction === 'A' ? route.destB : route.destA).replace(' STATION', '');
     
-    let sheetKey;
-    if (currentDayType === 'sunday') {
-        sheetKey = (direction === 'A') ? 'weekday_to_a' : 'weekday_to_b'; 
-    } else if (currentDayType === 'saturday') {
-        sheetKey = (direction === 'A') ? 'saturday_to_a' : 'saturday_to_b';
-    } else {
-        sheetKey = (direction === 'A') ? 'weekday_to_a' : 'weekday_to_b';
-    }
-
+    const sheetKey = `${sheetDayType}_to_${direction.toLowerCase()}`;
     const schedule = schedules[sheetKey];
+
     if (!schedule || !schedule.rows || schedule.rows.length === 0) {
-        showToast("Schedule data unavailable for this view.", "error");
+        showToast(`No ${sheetDayType} schedule available for this route.`, "error");
         return;
     }
 
@@ -468,9 +400,12 @@ window.renderFullScheduleGrid = function(direction = 'A') {
             <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
                 <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative shadow-sm">
                     <h3><!-- Dynamic Header --></h3>
-                    <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden')" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Grid">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
+                    <div class="flex items-center space-x-2">
+                         <div id="grid-controls"><!-- Dynamic Controls --></div>
+                         <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden')" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Grid">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
                 </div>
                 <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative"></div>
                 <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
@@ -483,25 +418,58 @@ window.renderFullScheduleGrid = function(direction = 'A') {
 
     const container = document.getElementById('grid-container');
     const headerTitle = modal.querySelector('h3');
+    const controlsDiv = modal.querySelector('#grid-controls');
     
     let effectiveDate = "Standard Schedule";
     if (schedule.lastUpdated) {
         const cleanDate = schedule.lastUpdated.replace(/^last updated[:\s-]*/i, '').trim();
-        effectiveDate = `Schedule Effective from: ${cleanDate}`;
+        effectiveDate = `Effective: ${cleanDate}`;
     }
 
     if (headerTitle) {
         headerTitle.innerHTML = `
             <div class="flex flex-col w-full">
                 <div class="flex items-center justify-between w-full">
-                    <span class="text-sm font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider mr-2">Trains to ${destName}</span>
-                    <div class="flex space-x-2">
-                        <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}')" class="text-[10px] font-bold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-300 transition-colors">
-                            ⇄ To ${altDestName}
-                        </button>
-                    </div>
+                    <span class="text-sm font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider mr-2">To ${destName}</span>
                 </div>
-                <span class="text-[10px] text-gray-400 font-mono mt-1">${effectiveDate}</span>
+                <span class="text-[10px] text-gray-400 font-mono mt-0.5">${effectiveDate}</span>
+            </div>
+        `;
+    }
+
+    if (controlsDiv) {
+        const isWk = sheetDayType === 'weekday';
+        const shareUrl = `https://nexttrain.co.za/?action=route&route=${currentRouteId}&view=grid&dir=${direction}&day=${selectedDay}`;
+        const shareText = `Check out the ${sheetDayType} schedule to ${destName}`;
+        
+        window.shareCurrentGrid = async () => {
+            const data = { title: 'Next Train Schedule', text: shareText, url: shareUrl };
+            try {
+                if (navigator.share) await navigator.share(data);
+                else {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = shareUrl;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    alert('Schedule link copied to clipboard!');
+                }
+            } catch (e) {}
+        };
+
+        controlsDiv.innerHTML = `
+            <div class="flex items-center space-x-1">
+                <button onclick="shareCurrentGrid()" class="p-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded hover:bg-blue-100 transition mr-1" title="Share Schedule Link">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                </button>
+                <select onchange="renderFullScheduleGrid('${direction}', this.value)" class="text-[10px] font-bold bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-1 py-1 text-gray-700 dark:text-gray-200 focus:outline-none">
+                    <option value="weekday" ${isWk ? 'selected' : ''}>Mon-Fri</option>
+                    <option value="saturday" ${!isWk ? 'selected' : ''}>Sat/Sun</option>
+                </select>
+                <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[10px] font-bold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 px-2 py-1 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-200 transition-colors whitespace-nowrap">
+                    ⇄ Return
+                </button>
             </div>
         `;
     }
@@ -544,7 +512,10 @@ window.renderFullScheduleGrid = function(direction = 'A') {
     }
 
     let activeColIndex = -1;
-    if (currentTime) {
+    const isTodayType = (currentDayType === 'weekday' && sheetDayType === 'weekday') || 
+                        (currentDayType !== 'weekday' && sheetDayType === 'saturday');
+
+    if (currentTime && isTodayType) {
         const nowSec = timeToSeconds(currentTime);
         for (let i = 0; i < sortedCols.length; i++) {
              let firstTimeSec = 0;
@@ -566,8 +537,14 @@ window.renderFullScheduleGrid = function(direction = 'A') {
                     <th class="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 p-3 border-b border-r border-gray-200 dark:border-gray-700 font-bold min-w-[120px] shadow-lg">Station</th>
                     ${sortedCols.map((h, i) => {
                         const isHighlight = i === activeColIndex;
-                        const bgClass = isHighlight ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold' : '';
-                        return `<th class="p-3 border-b border-r border-gray-200 dark:border-gray-700 whitespace-nowrap text-center ${bgClass} min-w-[60px]" ${isHighlight ? 'id="grid-active-col"' : ''}>${h}</th>`;
+                        const isExcluded = (typeof isTrainExcluded === 'function') && isTrainExcluded(h, currentRouteId, dayIdx);
+                        
+                        let bgClass = isHighlight ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold' : '';
+                        if (isExcluded) bgClass = 'bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-300 opacity-90';
+
+                        const headerContent = isExcluded ? `<span class="block text-[8px] text-red-600 font-black mb-0.5 tracking-tight">🚫 NO SVC</span>${h}` : h;
+
+                        return `<th class="p-3 border-b border-r border-gray-200 dark:border-gray-700 whitespace-nowrap text-center ${bgClass} min-w-[60px]" ${isHighlight ? 'id="grid-active-col"' : ''}>${headerContent}</th>`;
                     }).join('')}
                 </tr>
             </thead>
@@ -588,15 +565,26 @@ window.renderFullScheduleGrid = function(direction = 'A') {
                     let val = row[col] || "-";
                     if (val !== "-") {
                         const isValidTime = /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim());
-                        if (isValidTime) val = formatTimeDisplay(val);
-                        else val = "-";
+                        if (isValidTime) {
+                            val = formatTimeDisplay(val); 
+                        } else {
+                            val = "-";
+                        }
                     }
                     const isHighlight = i === activeColIndex;
+                    const isExcluded = (typeof isTrainExcluded === 'function') && isTrainExcluded(col, currentRouteId, dayIdx);
+
                     let cellClass = "p-2 text-center border-r border-gray-100 dark:border-gray-800 border-b";
+                    
                     if (val !== "-") {
                         cellClass += " font-mono text-gray-700 dark:text-gray-300";
                         if (isHighlight) cellClass += " bg-blue-50 dark:bg-blue-900/20 font-bold text-blue-700 dark:text-blue-300";
-                    } else { cellClass += " text-gray-200 dark:text-gray-700"; }
+                        // GUARDIAN FIX V4.60.81: Improved Contrast for Ghost Trains
+                        if (isExcluded) cellClass += " text-red-400 dark:text-red-400 bg-red-50 dark:bg-red-900/20 opacity-80 font-normal decoration-slice";
+                    } else { 
+                        cellClass += " text-gray-200 dark:text-gray-700"; 
+                        if (isExcluded) cellClass += " bg-red-50 dark:bg-red-900/10";
+                    }
                     return `<td class="${cellClass}">${val}</td>`;
                 }).join('')}
             </tr>
@@ -626,6 +614,8 @@ window.highlightGridRow = function(tr) {
     if (stickyCell) { stickyCell.classList.remove('bg-white', 'dark:bg-gray-900'); stickyCell.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40'); }
 };
 
+// GUARDIAN UPDATE V4.60.33: Deprecated Share Functionality
 window.shareGridDeepLink = function(direction) {
+    // Disabled to prevent crash loop.
     console.warn("Grid share functionality temporarily disabled for stability.");
 };

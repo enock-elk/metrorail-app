@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V4.60.70 12-FEB"; // Updated for Detailed Zone Fares
+const APP_VERSION = "V4.60.71 13th-FEB"; // Updated Ghost Train Lists
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -39,7 +39,7 @@ const ROUTES = {
         isActive: true, 
         destA: 'PRETORIA STATION', 
         destB: 'PIENAARSPOORT STATION', 
-        transferStation: 'KOEDOESPOORT STATION',
+        transferStation: 'KOEDOESPOORT STATION', 
         relayStation: 'KOEDOESPOORT STATION', 
         sheetKeys: { weekday_to_a: 'pien_to_pta_weekday', weekday_to_b: 'pta_to_pien_weekday', saturday_to_a: 'pien_to_pta_sat', saturday_to_b: 'pta_to_pien_sat' } 
     },
@@ -73,7 +73,7 @@ const ROUTES = {
     'pta-dewildt': { 
         id: 'pta-dewildt', 
         name: "Pretoria <-> De Wildt", 
-        corridorId: "NORTH_LINE",
+        corridorId: "NORTH_LINE", 
         colorClass: "text-purple-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -265,5 +265,39 @@ const FARE_CONFIG = {
         "Scholar":   { base: 0.5, offPeak: 0.5 }, // Flat 50%
         "Pensioner": { base: 1.0, offPeak: 0.5 }, // 50% Off-Peak Discount
         "Military":  { base: 1.0, offPeak: 0.5 }  // 50% Off-Peak Discount
+    }
+};
+
+// 6. GHOST TRAIN PROTOCOL (Default Exclusions)
+// Fallback rules if Firebase is unreachable.
+// Day Index: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+const DEFAULT_EXCLUSIONS = {
+    'pta-dewildt': {
+        // High Speed Testing on Thu(4) / Fri(5) - Specific Trains Only
+        "4511": { days: [4, 5], reason: "Testing" },
+        "4409": { days: [4, 5], reason: "Testing" },
+        "4513": { days: [4, 5], reason: "Testing" },
+        "4411": { days: [4, 5], reason: "Testing" },
+        "4515": { days: [4, 5], reason: "Testing" },
+        "4413": { days: [4, 5], reason: "Testing" },
+        "4517": { days: [4, 5], reason: "Testing" },
+        "4415": { days: [4, 5], reason: "Testing" },
+        "4519": { days: [4, 5], reason: "Testing" },
+        "4417": { days: [4, 5], reason: "Testing" },
+        // Return trips
+        "4512": { days: [4, 5], reason: "Testing" },
+        "4412": { days: [4, 5], reason: "Testing" },
+        "4514": { days: [4, 5], reason: "Testing" },
+        "4414": { days: [4, 5], reason: "Testing" },
+        "4516": { days: [4, 5], reason: "Testing" },
+        "4416": { days: [4, 5], reason: "Testing" },
+        "4518": { days: [4, 5], reason: "Testing" },
+        "4418": { days: [4, 5], reason: "Testing" },
+        "4520": { days: [4, 5], reason: "Testing" }
+    },
+    'pta-kempton': {
+        // Runs Tue, Wed, Thu only. Exclude Mon (1) and Fri (5).
+        "0618": { days: [1, 5], reason: "Runs Tue-Thu Only" },
+        "0619": { days: [1, 5], reason: "Runs Tue-Thu Only" }
     }
 };

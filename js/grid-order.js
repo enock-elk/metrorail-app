@@ -624,7 +624,7 @@ const MANUAL_GRID_ORDER = {
     "pta_to_kemp_weekday": [
         "0604",
         "0616",
-        "0618 (Tue-Thu Only)",
+        "0618",
         "0620",
         "0622",
         "0654"
@@ -633,7 +633,7 @@ const MANUAL_GRID_ORDER = {
         "0603",
         "0615",
         "0617",
-        "0619 (Tue-Thu Only)",
+        "0619",
         "0621",
         "0623"
     ],

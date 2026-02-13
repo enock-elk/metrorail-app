@@ -12,6 +12,8 @@ let currentDayIndex = 0;
 let currentScheduleData = {};
 let refreshTimer = null;
 let currentUserProfile = "Adult"; 
+// GUARDIAN V4.60.70: Ghost Train Exclusions
+let globalExclusions = {}; 
 
 // --- SHARED UI REFERENCES (Declared here, Assigned in UI.js) ---
 let stationSelect, locateBtn, pretoriaTimeEl, pienaarspoortTimeEl, pretoriaHeader, pienaarspoortHeader;
@@ -105,6 +107,27 @@ function hasForwardOverlap(trainName, otherSchedule, fromStation, targetStations
     return false;
 }
 
+// GUARDIAN HELPER V4.60.70: Ghost Train Logic
+// Checks if a train is banned on a specific day index (0=Sun, 1=Mon... 6=Sat)
+function isTrainExcluded(trainNumber, routeId, dayIdx) {
+    if (!trainNumber) return false;
+    
+    // 1. Resolve Rules (Firebase Priority, then Config Fallback)
+    const rules = (globalExclusions && globalExclusions[routeId]) 
+                  ? globalExclusions[routeId] 
+                  : (typeof DEFAULT_EXCLUSIONS !== 'undefined' ? DEFAULT_EXCLUSIONS[routeId] : null);
+    
+    // 2. Check Specific Rule
+    if (rules && rules[trainNumber]) {
+        const rule = rules[trainNumber];
+        // Ensure dayIdx is treated as integer
+        if (rule.days && rule.days.includes(parseInt(dayIdx))) {
+            return true; // BANNED
+        }
+    }
+    return false;
+}
+
 function saveToLocalCache(key, data) { try { const cacheEntry = { timestamp: Date.now(), data: data }; localStorage.setItem(key, JSON.stringify(cacheEntry)); } catch (e) {} }
 function loadFromLocalCache(key) { try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } catch (e) { return null; } }
 
@@ -156,6 +179,15 @@ async function loadAllSchedules(force = false) {
             if(loadingOverlay) loadingOverlay.style.display = 'none';
         }
         
+        // 1. Fetch Dynamic Exclusions First (Lightweight)
+        try {
+            const exclResp = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/exclusions.json?t=${Date.now()}`);
+            if (exclResp.ok) {
+                const exclData = await exclResp.json();
+                if (exclData) globalExclusions = exclData;
+            }
+        } catch(e) { console.warn("Exclusions fetch failed, using defaults."); }
+
         const cachedDB = loadFromLocalCache('full_db');
         let usedCache = false;
 
@@ -776,6 +808,10 @@ function findNextDirectTrain(fromStation, schedule, destinationStation) {
 
     for (const train of trainHeaders) {
         if (!train || train === "") continue;
+        
+        // GUARDIAN GHOST PROTOCOL (V4.60.70): Exclude Banned Trains
+        if (isTrainExcluded(train, currentRouteId, currentDayIndex)) continue; 
+
         const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
         const departureTime = fromRow ? fromRow[train] : null;
 
@@ -830,6 +866,10 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination)
 
     for (const train1 of trainHeaders) {
         if (!train1 || train1 === "") continue;
+        
+        // GUARDIAN GHOST PROTOCOL (V4.60.70): Exclude Banned Trains
+        if (isTrainExcluded(train1, currentRouteId, currentDayIndex)) continue; 
+
         const departureTime = fromRow[train1]; 
         const terminationTime = termRow[train1];
         if (!departureTime || !terminationTime) continue;
@@ -874,6 +914,9 @@ function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, fin
         if (!train || train === "") continue;
         if (train === incomingTrainName) continue; 
         
+        // GUARDIAN GHOST PROTOCOL (V4.60.70): Exclude Banned Connection Trains
+        if (isTrainExcluded(train, currentRouteId, currentDayIndex)) continue; 
+
         const connectionTime = connRow[train];
         if (!connectionTime) continue;
         if (timeToSeconds(connectionTime) < arrivalSeconds) continue;
