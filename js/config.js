@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V5.00.00 13FEB - Stable"; // Updated Ghost Train Lists
+const APP_VERSION = "V5.00.01 13 FEB"; // Updated Ghost Train Lists
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -301,3 +301,35 @@ const DEFAULT_EXCLUSIONS = {
         "0619": { days: [1, 5], reason: "Runs Tue-Thu Only" }
     }
 };
+
+// 7. CHANGELOG (NEW V5.00.00)
+// This drives the "What's New" modal.
+const CHANGELOG_DATA = [
+    {
+        version: "V5.00.00",
+        date: "13 Feb 2026",
+        features: [
+            "🚀 <b>Trip Planner:</b> Now supports Bridge Trips (2 Transfers) for long-distance travel.",
+            "🛠 <b>Maintenance Mode:</b> Added real-time status banner for service upgrades.",
+            "👻 <b>Ghost Train Protocol:</b> Smarter filtering of testing/inactive trains.",
+            "🎨 <b>UI Polish:</b> Redesigned headers and improved dark mode contrast."
+        ]
+    },
+    {
+        version: "V4.60.40",
+        date: "01 Feb 2026",
+        features: [
+            "🗺 <b>Network Map:</b> Added high-res zoomable map.",
+            "💰 <b>Smart Fares:</b> Detailed pricing tables for Weekly/Monthly tickets.",
+            "🔗 <b>Deep Linking:</b> Share specific routes or trip plans with one click."
+        ]
+    },
+    {
+        version: "V4.50.00",
+        date: "15 Jan 2026",
+        features: [
+            "⚡ <b>Performance:</b> Faster load times and reduced data usage.",
+            "📱 <b>Install Prompts:</b> Improved PWA installation guide for iOS users."
+        ]
+    }
+];

@@ -673,7 +673,9 @@ function findNextTrains() {
         const nowInSeconds = timeToSeconds(currentTime);
         const upcoming = mergedJourneys.find(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
         if (upcoming) {
-             if(typeof updateFareDisplay === 'function') updateFareDisplay(upcoming.sheetKey, upcoming.departureTime || upcoming.train1.departureTime);
+             // GUARDIAN FIX V5.00.01: Enforce Route Context for Fares
+             // Forces the current route's sheet key to be used for pricing lookups, ignoring shared route keys.
+             if(typeof updateFareDisplay === 'function') updateFareDisplay(currentSheetKey, upcoming.departureTime || upcoming.train1.departureTime);
         } else {
              if(typeof updateFareDisplay === 'function') updateFareDisplay(primarySheetKey, currentTime);
         }

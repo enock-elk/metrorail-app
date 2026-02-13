@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V5.00.00 - Stacked Layout)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V5.00.01 - Stacked Layout)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -324,7 +324,6 @@ const Renderer = {
                         ${buttonHtml}
                     </div>
                     <div class="w-1/2 flex flex-col justify-center items-center text-center space-y-0.5">
-                        <!-- TOPMOST GRAY TEXT REMOVED TO FIX REPEAT BUG -->
                         <div class="text-[10px] text-yellow-600 dark:text-yellow-400 leading-tight font-medium mb-1">${train1Info}</div>
                         <div class="text-[10px] leading-tight">${connectionInfoHTML}</div>
                     </div>
@@ -344,6 +343,63 @@ const Renderer = {
         if (colorClass.includes('yellow')) return 'dot-yellow';
         if (colorClass.includes('red')) return 'dot-red';
         return 'dot-gray';
+    },
+
+    // --- 4. CHANGELOG MODAL (NEW V5.00.00) ---
+    renderChangelogModal: (changelogData) => {
+        history.pushState({ modal: 'changelog' }, '', '#changelog');
+        let modal = document.getElementById('changelog-modal');
+        
+        // Build if missing
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'changelog-modal';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-70 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-0 overflow-hidden transform transition-all scale-95 flex flex-col max-h-[85vh]">
+                    <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
+                        <h3 class="font-bold text-lg text-gray-900 dark:text-white flex items-center">
+                            <span class="mr-2">🚀</span> What's New
+                        </h3>
+                        <button onclick="history.back()" class="text-gray-500 hover:text-gray-900 dark:hover:text-white p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    <div class="p-6 overflow-y-auto flex-grow space-y-6" id="changelog-list">
+                        <!-- Items Injected Here -->
+                    </div>
+                    <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-center">
+                        <button onclick="history.back()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors">Got it!</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        const listContainer = document.getElementById('changelog-list');
+        listContainer.innerHTML = '';
+
+        if (!changelogData || changelogData.length === 0) {
+            listContainer.innerHTML = '<p class="text-center text-gray-500 italic">No updates found.</p>';
+        } else {
+            changelogData.forEach((entry, index) => {
+                const isLatest = index === 0;
+                listContainer.innerHTML += `
+                    <div class="relative pl-4 border-l-2 ${isLatest ? 'border-blue-500' : 'border-gray-300 dark:border-gray-700'}">
+                        ${isLatest ? '<span class="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-blue-100 dark:ring-blue-900"></span>' : '<span class="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-700"></span>'}
+                        <div class="mb-1 flex items-baseline justify-between">
+                            <h4 class="font-bold text-gray-900 dark:text-white ${isLatest ? 'text-lg' : 'text-sm'}">${entry.version}</h4>
+                            <span class="text-xs text-gray-500 dark:text-gray-400 font-mono">${entry.date}</span>
+                        </div>
+                        <ul class="space-y-2">
+                            ${entry.features.map(f => `<li class="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">${f}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            });
+        }
+
+        modal.classList.remove('hidden');
     }
 };
 

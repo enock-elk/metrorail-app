@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V5.00.00 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V5.00.01 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -159,10 +159,9 @@ const PlannerRenderer = {
 
         return `
             <div class="p-4 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                <!-- ROW 1: Trip Type & Day Context -->
+                <!-- ROW 1: Trip Type -->
                 <div class="flex items-center justify-between mb-3">
                     <span class="text-xs font-bold ${colorClass} uppercase tracking-wider bg-white dark:bg-gray-700 px-2 py-1 rounded border border-gray-200 dark:border-gray-600 shadow-sm">${headerLabel}</span>
-                    <span class="text-[10px] font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded-full">${dayLabel}</span>
                 </div>
 
                 <!-- ROW 2: Times & Stations -->
@@ -760,7 +759,8 @@ function initPlanner() {
     });
 
     // --- RESET / BACK BUTTON LOGIC ---
-    const resetAction = () => {
+    // GUARDIAN UPDATE V5.00.01: Exposed Globally for Header Logic
+    window.resetPlannerUI = () => {
         if (plannerPulse) { clearInterval(plannerPulse); plannerPulse = null; }
         
         document.getElementById('planner-input-section').classList.remove('hidden');
@@ -774,23 +774,10 @@ function initPlanner() {
         if (daySelect && typeof currentDayType !== 'undefined') {
             // Keep user selected day
         }
-        
-        // Reset header to default state
-        const headerTitle = document.querySelector('#planner-results-section h4');
-        const spacer = document.querySelector('#planner-results-section .w-8');
-        if (headerTitle) {
-            headerTitle.textContent = "Your Journey";
-            headerTitle.className = "text-lg font-bold text-gray-900 dark:text-white";
-        }
-        if (spacer) {
-             // Reset spacer to just be an empty div, or whatever default was
-             spacer.innerHTML = "";
-             spacer.className = "w-8";
-        }
     };
 
-    if (resetBtn) resetBtn.addEventListener('click', resetAction);
-    if (backBtn) backBtn.addEventListener('click', resetAction);
+    if (resetBtn) resetBtn.addEventListener('click', window.resetPlannerUI);
+    // Note: planner-back-btn is now dynamically replaced, so listener is inline onclick.
 }
 
 // --- UPDATED: SMART SWAP RESULTS FUNCTION ---
@@ -1193,63 +1180,79 @@ function getPlanningDayLabel() {
     return "Weekday Schedule";
 }
 
-// NEW: Helper to update the External Header with Share Button (REDESIGNED V4.60.17)
+// GUARDIAN UPDATE V5.00.01: UNIFIED HEADER REDESIGN & DOUBLE LINK FIX
+// 1. Replaces the fragmented header with a clean Flexbox bar injected dynamically.
+// 2. Fixes share bug by separating Text and URL params.
 function updatePlannerHeader(dayLabel, showShare = true) {
-    // GUARDIAN UPDATE V4.60.30: Simplified Header (Day Label moved to Card)
-    // We now ONLY manage the Share button here. The title "Your Journey" is static in HTML.
+    // Target the Header Container in HTML (The div containing Back button and Title)
+    // We replace its ENTIRE content to ensure clean layout.
+    const headerContainer = document.querySelector('#planner-results-section .flex.flex-wrap'); 
     
-    const spacer = document.querySelector('#planner-results-section .w-8'); 
-    
-    // Handle Share Button Placement (Replacing the Spacer)
-    if (spacer) {
-        spacer.innerHTML = ""; // Clear existing
-        // GUARDIAN FIX: Prevent shrinking
-        spacer.className = "flex-none"; 
+    if (!headerContainer) return;
 
-        if (showShare) {
-            // Get Current Context
-            const dropdown = document.querySelector('#planner-results-list select');
-            let selectedTime = null;
-            if (dropdown && currentTripOptions.length > 0) {
-                 const idx = parseInt(dropdown.value);
-                 if (currentTripOptions[idx]) selectedTime = currentTripOptions[idx].depTime;
-            }
-            if (!selectedTime && currentTripOptions.length > 0) selectedTime = currentTripOptions[0].depTime;
-            
-            const fromStation = document.getElementById('planner-from-search').value || "";
-            const toStation = document.getElementById('planner-to-search').value || "";
-            const shareLink = `https://nexttrain.co.za/?action=planner&from=${encodeURIComponent(fromStation)}&to=${encodeURIComponent(toStation)}&time=${selectedTime}&day=${selectedPlannerDay}`;
-            const shareText = `Trip Plan: ${fromStation} to ${toStation}. Check details here: ${shareLink}`;
-
-            const shareBtn = document.createElement("button");
-            // GUARDIAN FIX V4.60.17: Matching Back Button Style (bg-blue-50 text-blue-600) + No Shrink
-            shareBtn.className = "flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group flex-none whitespace-nowrap";
-            shareBtn.title = "Share Trip Plan";
-            shareBtn.onclick = async () => {
-                const data = { title: 'Next Train Trip Plan', text: shareText, url: shareLink };
-                try { 
-                    if (navigator.share) await navigator.share(data); 
-                    else {
-                        const textArea = document.createElement('textarea');
-                        textArea.value = shareText;
-                        document.body.appendChild(textArea);
-                        textArea.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(textArea);
-                        alert('Link copied to clipboard!');
-                    }
-                } catch(e) {}
-            };
-            
-            // Replaced icon with text "Share Trip" and symmetrical icon
-            shareBtn.innerHTML = `
-                Share Trip
-                <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
-            `;
-            
-            spacer.appendChild(shareBtn);
+    // --- SHARE LOGIC ---
+    let shareButtonHtml = "";
+    if (showShare) {
+        // Get Current Context
+        const dropdown = document.querySelector('#planner-results-list select');
+        let selectedTime = null;
+        if (dropdown && currentTripOptions.length > 0) {
+             const idx = parseInt(dropdown.value);
+             if (currentTripOptions[idx]) selectedTime = currentTripOptions[idx].depTime;
         }
+        if (!selectedTime && currentTripOptions.length > 0) selectedTime = currentTripOptions[0].depTime;
+        
+        const fromStation = (document.getElementById('planner-from-search').value || "").replace(' STATION','');
+        const toStation = (document.getElementById('planner-to-search').value || "").replace(' STATION','');
+        
+        // CLEAN SHARE DATA
+        const shareUrl = `https://nexttrain.co.za/?action=planner&from=${encodeURIComponent(fromStation)}&to=${encodeURIComponent(toStation)}&time=${selectedTime}&day=${selectedPlannerDay}`;
+        const shareMessage = `Trip Plan: ${fromStation} to ${toStation}`; 
+        
+        // Escape for HTML attribute
+        const safeShareUrl = shareUrl.replace(/"/g, '&quot;');
+        const safeShareMsg = shareMessage.replace(/"/g, '&quot;');
+
+        // Define global handler if not exists (to avoid inline complexity)
+        window.triggerPlannerShare = async (msg, url) => {
+            const data = { title: 'Next Train Trip', text: msg, url: url };
+            try { 
+                if (navigator.share) await navigator.share(data); 
+                else {
+                    const fallbackText = `${msg}. Check details here: ${url}`;
+                    copyToClipboard(fallbackText);
+                }
+            } catch(e) { 
+                console.log(e);
+            }
+        };
+
+        shareButtonHtml = `
+            <button onclick="triggerPlannerShare('${safeShareMsg}', '${safeShareUrl}')" class="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors shadow-sm" title="Share Trip">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+            </button>
+        `;
+    } else {
+        // Empty spacer to keep title centered if no share button
+        shareButtonHtml = `<div class="w-9"></div>`;
     }
+
+    // --- RENDER UNIFIED HEADER ---
+    headerContainer.className = "flex items-center justify-between px-1 mb-2 w-full border-b border-gray-100 dark:border-gray-700 pb-2";
+    
+    headerContainer.innerHTML = `
+        <button onclick="window.resetPlannerUI()" class="flex items-center text-sm font-bold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors py-2">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Back
+        </button>
+        
+        <div class="text-center">
+            <h4 class="text-base font-black text-gray-900 dark:text-white uppercase tracking-wide">Trip Plan</h4>
+            <span class="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-widest block -mt-0.5">${dayLabel}</span>
+        </div>
+        
+        ${shareButtonHtml}
+    `;
 }
 
 function renderTripResult(container, trips, selectedIndex = 0) {

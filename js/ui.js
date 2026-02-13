@@ -492,13 +492,21 @@ function updateTime() {
     } catch(e) { console.error("Error in updateTime", e); }
 }
 
-// --- DEEP LINK HANDLER (UPDATED V4.60.60) ---
+// --- DEEP LINK HANDLER (UPDATED V5.00.01 - LOOP FIX) ---
 // Now supports Grid Deep Links via 'view=grid', 'dir', and 'day' parameters
 function handleShortcutActions() {
     const urlParams = new URLSearchParams(window.location.search);
     const action = urlParams.get('action');
     const route = urlParams.get('route');
     const view = urlParams.get('view'); 
+
+    // GUARDIAN FIX V5.00.01: Clean URL IMMEDIATELY to prevent reload loops
+    // If the renderer crashes or user refreshes, we want a clean state so it doesn't loop.
+    if (action || route) {
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({path: newUrl}, '', newUrl);
+        console.log("[DeepLink] URL Params Sanitized.");
+    }
 
     if (route && ROUTES[route]) {
         console.log(`[DeepLink] Auto-loading route: ${route}`);
@@ -576,8 +584,7 @@ function handleShortcutActions() {
                 showToast("Connection timeout: Could not load trip data.", "error");
             }
         }, 500);
-        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-        window.history.replaceState({path: newUrl}, '', newUrl);
+        // Note: Clean up logic is now handled at top of function
     } else if (action === 'map') {
         if (typeof setupMapLogic === 'function') {
             const mapModal = document.getElementById('map-modal');
@@ -588,8 +595,7 @@ function handleShortcutActions() {
                 if(mapImage) mapImage.style.transform = `translate(0px, 0px) scale(1)`;
             }
         }
-        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-        window.history.replaceState({path: newUrl}, '', newUrl);
+        // Note: Clean up logic is now handled at top of function
     }
 }
 
@@ -606,6 +612,7 @@ function initializeApp() {
     const urlParams = new URLSearchParams(window.location.search);
     if (!urlParams.has('action') && !urlParams.has('route')) { findNextTrains(); }
     checkServiceAlerts();
+    checkMaintenanceStatus(); // NEW: V5.00.00
     handleShortcutActions();
     if(mainContent) mainContent.style.display = 'block';
     
@@ -616,6 +623,31 @@ function initializeApp() {
     if (navigator.onLine) { setTimeout(OfflineTracker.flush, 5000); }
 }
 
+// GUARDIAN UPDATE V5.00.00: Maintenance Mode Checker
+async function checkMaintenanceStatus() {
+    if (!navigator.onLine) return; // Only relevant for online users
+    try {
+        const res = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/config/maintenance.json`);
+        const isActive = await res.json();
+        
+        if (isActive === true) {
+            // Inject Banner if not present
+            if (!document.getElementById('maintenance-banner')) {
+                const banner = document.createElement('div');
+                banner.id = 'maintenance-banner';
+                // Striped Yellow Background
+                banner.style.background = 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 10px, #d97706 10px, #d97706 20px)';
+                banner.className = "text-white text-xs font-bold text-center py-2 px-4 shadow-md sticky top-0 z-[100]";
+                banner.innerHTML = `⚠️ MAINTENANCE IN PROGRESS. Schedules may be intermittent.`;
+                
+                // Insert at TOP of body
+                document.body.prepend(banner);
+            }
+        }
+    } catch(e) { /* silent fail */ }
+}
+
+// GUARDIAN UPDATE V5.00.00: Tiered Service Alerts
 async function checkServiceAlerts() {
     const bellBtn = document.getElementById('notice-bell');
     const dot = document.getElementById('notice-dot');
@@ -628,24 +660,61 @@ async function checkServiceAlerts() {
         if (!response.ok) return; 
         const notices = await response.json();
         if (!notices) { bellBtn.classList.add('hidden'); return; }
+        
+        // Priority: Route Specific > Global
         let activeNotice = notices[currentRouteId] || notices['all'];
+        
         if (activeNotice) {
             const now = Date.now();
             if (activeNotice.expiresAt && now > activeNotice.expiresAt) { bellBtn.classList.add('hidden'); return; }
+            
             const seenKey = `seen_notice_${activeNotice.id}`;
             const hasSeen = localStorage.getItem(seenKey) === 'true';
+            
+            // TIERED ALERT LOGIC
+            const severity = activeNotice.severity || 'info';
+            
+            // Reset Classes
+            bellBtn.className = "relative p-2 rounded-full focus:outline-none mr-1 transition-all duration-300";
+            dot.className = "absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white transform translate-x-1/4 -translate-y-1/4 hidden";
+            
+            // Apply Severity Styles
+            if (severity === 'critical') {
+                bellBtn.classList.add('bg-red-100', 'dark:bg-red-900', 'text-red-600', 'dark:text-red-300');
+                dot.classList.add('bg-red-600');
+                if (!hasSeen) bellBtn.classList.add('animate-shake'); // Only critical shakes
+            } else if (severity === 'warning') {
+                bellBtn.classList.add('bg-yellow-100', 'dark:bg-yellow-900', 'text-yellow-600', 'dark:text-yellow-300');
+                dot.classList.add('bg-yellow-500');
+            } else {
+                // Info (Blue)
+                bellBtn.classList.add('bg-blue-100', 'dark:bg-blue-900', 'text-blue-600', 'dark:text-blue-300');
+                dot.classList.add('bg-blue-500');
+            }
+
             bellBtn.classList.remove('hidden');
-            if (!hasSeen) { bellBtn.classList.add('animate-shake'); dot.classList.remove('hidden'); } else { bellBtn.classList.remove('animate-shake'); dot.classList.add('hidden'); }
+            if (!hasSeen) dot.classList.remove('hidden');
+
             bellBtn.onclick = () => {
                 localStorage.setItem(seenKey, 'true');
                 bellBtn.classList.remove('animate-shake');
                 dot.classList.add('hidden');
                 
-                // UPDATE V4.60.41: Use innerHTML to support rich text (line breaks, bold, emojis)
+                // Content Rendering
                 content.innerHTML = activeNotice.message;
+                
+                // Inject "Verified" Badge if Critical
+                if (severity === 'critical') {
+                    content.innerHTML += `<div class="mt-3 text-xs text-red-600 font-bold border border-red-200 bg-red-50 p-2 rounded text-center">🔴 CRITICAL SERVICE DISRUPTION</div>`;
+                }
                 
                 const date = new Date(activeNotice.postedAt);
                 timestamp.textContent = `Posted: ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, ${date.toLocaleDateString()}`;
+                
+                // NEW: Boss Note Button Injection (Hook for Step 3)
+                // We will add a container div here for the button to be injected by Renderer later if needed
+                // For now, we keep it simple.
+                
                 modal.classList.remove('hidden');
             };
         } else { bellBtn.classList.add('hidden'); }
@@ -703,7 +772,8 @@ window.addEventListener('popstate', (event) => {
         { id: 'legal-modal', hash: '#legal' },
         { id: 'help-modal', hash: '#help' },
         { id: 'about-modal', hash: '#about' },
-        { id: 'full-schedule-modal', hash: '#grid' } 
+        { id: 'full-schedule-modal', hash: '#grid' },
+        { id: 'changelog-modal', hash: '#changelog' } // NEW: Changelog support
     ];
     let modalClosed = false;
     modals.forEach(m => {
@@ -739,9 +809,13 @@ function initTabIndicator() {
     }
     const activeBtn = document.querySelector('.tab-btn.active') || tabNext;
     
-    // GUARDIAN FIX V4.60.42: Double-delayed init for stability
+    // GUARDIAN FIX V5.00.02: Lazy Selector to fix Race Condition (Ghost Revert)
+    // We re-query the DOM inside the timeout to ensure we capture the state *after* Deep Links have processed.
     requestAnimationFrame(() => {
-        setTimeout(() => moveTabIndicator(activeBtn), 100);
+        setTimeout(() => {
+            const currentActive = document.querySelector('.tab-btn.active') || document.getElementById('tab-next-train');
+            if (currentActive) moveTabIndicator(currentActive);
+        }, 150); // Slight bump to 150ms to be safe
     });
     
     window.addEventListener('resize', () => { const current = document.querySelector('.tab-btn.active'); if (current) moveTabIndicator(current); });
@@ -1153,8 +1227,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tab-next-train').addEventListener('click', () => switchTab('next-train'));
     document.getElementById('tab-trip-planner').addEventListener('click', () => switchTab('trip-planner'));
 
+    // GUARDIAN UPDATE V5.00.00: Clickable Changelog
     const versionFooter = document.getElementById('app-version-footer');
-    if (versionFooter && typeof APP_VERSION !== 'undefined') versionFooter.textContent = APP_VERSION;
+    if (versionFooter && typeof APP_VERSION !== 'undefined') {
+        versionFooter.textContent = APP_VERSION;
+        versionFooter.classList.add('cursor-pointer', 'underline', 'hover:text-blue-500', 'transition-colors');
+        versionFooter.onclick = () => {
+            if (typeof Renderer !== 'undefined' && Renderer.renderChangelogModal) {
+                Renderer.renderChangelogModal(typeof CHANGELOG_DATA !== 'undefined' ? CHANGELOG_DATA : []);
+            }
+        };
+    }
 
     const helpModal = document.getElementById('help-modal');
     const openHelpBtn = document.getElementById('open-help-btn');
