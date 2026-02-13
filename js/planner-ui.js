@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V5.00.01 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V5.00.02 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -310,7 +310,8 @@ const PlannerRenderer = {
                     </div>
                 </div>
                 
-                ${PlannerRenderer.buildStopListHTML(step.leg1.stops, leg1StopsId, null)}
+                <!-- GUARDIAN FIX V5.00.02: Pass internal transfer for Leg 1 -->
+                ${PlannerRenderer.buildStopListHTML(step.leg1.stops, leg1StopsId, step.leg1.internalTransfer)}
 
                 <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div>

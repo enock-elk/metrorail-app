@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V5.00.01 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V5.00.02 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -105,8 +105,9 @@ function planHubTransferTrip(origin, dest, dayType) {
     let allTransferOptions = [];
     
     for (const hub of potentialHubs) {
-        // LEG 1: Origin -> Hub
-        const leg1Options = findAllLegsBetween(origin, hub, originRoutes, dayType);
+        // LEG 1: Origin -> Hub (FIX: ENABLED RELAY EXPANSION)
+        // This allows Ga-Rankuwa -> Rosslyn -> Pretoria to be seen as a valid path to the hub.
+        const leg1Options = findAllLegsWithRelayExpansion(origin, hub, originRoutes, dayType);
         if (leg1Options.length === 0) continue;
         
         // LEG 2: Hub -> Dest (STANDARD + RELAY RECURSION)
@@ -122,7 +123,7 @@ function planHubTransferTrip(origin, dest, dayType) {
             leg2Options.forEach(leg2 => {
                 
                 // No Loopbacks (Route ID check, simple)
-                if (leg1.route.id === leg2.route.id && !leg2.isRelayComposite) {
+                if (leg1.route.id === leg2.route.id && !leg2.isRelayComposite && !leg1.isRelayComposite) {
                     return; 
                 }
 
@@ -206,7 +207,7 @@ function planRelayTransferTrip(origin, dest, dayType) {
                 const dep2 = timeToSeconds(l2.depTime);
                 const wait = dep2 - arr1;
 
-                if (wait >= TRANSFER_BUFFER_SEC && wait <= MAX_WAIT_SEC) {
+                if (wait >= TRANSFER_BUFFER && wait <= MAX_WAIT_SEC) {
                     allRelayTrips.push({
                         type: 'TRANSFER', // Reuse existing UI type
                         route: routeConfig, // Main Route
@@ -367,6 +368,9 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType) {
         if (routeConfig.relayStation) {
             const relay = normalizeStationName(routeConfig.relayStation);
             
+            // Cannot use relay if start/end IS the relay (avoid loops)
+            if (normalizeStationName(stationA) === relay || normalizeStationName(stationB) === relay) continue;
+
             const legsToRelay = findAllLegsBetween(stationA, relay, new Set([rId]), dayType);
             if (legsToRelay.length > 0) {
                 const legsFromRelay = findAllLegsBetween(relay, stationB, new Set([rId]), dayType);

@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V5.00.01 13 FEB"; // Updated Ghost Train Lists
+const APP_VERSION = "V5.00.02 13 FEB"; // Added Hercules Route
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -85,6 +85,22 @@ const ROUTES = {
             weekday_to_b: 'pta_to_dewil_weekday',
             saturday_to_a: 'dewil_to_pta_sat', 
             saturday_to_b: 'pta_to_dewil_sat'
+        } 
+    },
+    'herc-koed': { 
+        id: 'herc-koed', 
+        name: "Hercules <-> Koedoespoort", 
+        corridorId: "NORTH_LINE", 
+        colorClass: "text-indigo-500", 
+        isActive: true, 
+        destA: 'HERCULES STATION', 
+        destB: 'KOEDOESPOORT STATION', 
+        transferStation: null, // Acts as a bridge itself
+        sheetKeys: { 
+            weekday_to_a: 'koed_to_herc_weekday', 
+            weekday_to_b: 'herc_to_koed_weekday',
+            saturday_to_a: 'koed_to_herc_sat', 
+            saturday_to_b: 'herc_to_koed_sat'
         } 
     },
     'pta-saul': { 
@@ -306,13 +322,13 @@ const DEFAULT_EXCLUSIONS = {
 // This drives the "What's New" modal.
 const CHANGELOG_DATA = [
     {
-        version: "V5.00.00",
+        version: "V5.01.00",
         date: "13 Feb 2026",
         features: [
+            "🛤 <b>New Route:</b> Hercules <-> Koedoespoort now available (Weekday Service).",
             "🚀 <b>Trip Planner:</b> Now supports Bridge Trips (2 Transfers) for long-distance travel.",
             "🛠 <b>Maintenance Mode:</b> Added real-time status banner for service upgrades.",
-            "👻 <b>Ghost Train Protocol:</b> Smarter filtering of testing/inactive trains.",
-            "🎨 <b>UI Polish:</b> Redesigned headers and improved dark mode contrast."
+            "👻 <b>Ghost Train Protocol:</b> Smarter filtering of testing/inactive trains."
         ]
     },
     {

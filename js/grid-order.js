@@ -751,5 +751,20 @@ const MANUAL_GRID_ORDER = {
         "6547",
         "6551",
         "6555"
-    ]
+    ],
+    "herc_to_koed_weekday": [
+        "1201",
+        "1203",
+        "1215",
+        "1217"
+    ],
+    "koed_to_herc_weekday": [
+        "1202",
+        "1204",
+        "1216",
+        "1218",
+        "1220"
+    ],
+    "herc_to_koed_sat": [],
+    "koed_to_herc_sat": []
 };

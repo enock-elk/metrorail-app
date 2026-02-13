@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V5.00.01 - Stacked Layout)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V5.00.02 - Stacked Layout)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -112,6 +112,7 @@ const Renderer = {
             else if (route.colorClass.includes('blue')) borderColor = 'border-blue-500';
             else if (route.colorClass.includes('red')) borderColor = 'border-red-500';
             else if (route.colorClass.includes('yellow')) borderColor = 'border-yellow-500';
+            else if (route.colorClass.includes('indigo')) borderColor = 'border-indigo-500'; // Added for Hercules
 
             btn.className = `w-full text-left p-4 rounded-xl shadow-md flex items-center justify-between group transition-all transform hover:scale-[1.02] active:scale-95 bg-white dark:bg-gray-800 border-l-4 ${borderColor}`;
             
@@ -339,6 +340,7 @@ const Renderer = {
         if (colorClass.includes('green')) return 'dot-green';
         if (colorClass.includes('orange')) return 'dot-orange';
         if (colorClass.includes('purple')) return 'dot-purple';
+        if (colorClass.includes('indigo')) return 'dot-purple'; // GUARDIAN FIX: Maps Indigo to Purple for visual fallback
         if (colorClass.includes('blue')) return 'dot-blue';
         if (colorClass.includes('yellow')) return 'dot-yellow';
         if (colorClass.includes('red')) return 'dot-red';

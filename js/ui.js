@@ -192,23 +192,74 @@ function processAndRenderJourney(allJourneys, element, header, destination) {
     }
 }
 
+// GUARDIAN FIX V5.01.00: Weekend Gap Protocol
+// Automatically fast-forwards to Monday if looking at Friday night/Weekend and no trains exist.
 function renderNextAvailableTrain(element, destination) {
     if (!element) return;
     const currentRoute = ROUTES[currentRouteId];
     if (!currentRoute) return;
+
+    // 1. Determine "Standard" Next Day
     let nextDayName = "", nextDaySheetKey = "", dayOffset = 1, nextDayType = 'weekday'; 
+    let checkMondayFallback = false;
+
     switch (currentDayIndex) {
-        case 6: nextDayName = "Monday"; dayOffset = 2; nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; nextDayType = 'weekday'; break;
-        case 5: nextDayName = "Saturday"; dayOffset = 1; nextDaySheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b'; nextDayType = 'saturday'; break;
-        default: nextDayName = "tomorrow"; dayOffset = 1; nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; nextDayType = 'weekday'; break;
+        case 6: // Saturday -> Next is Monday
+            nextDayName = "Monday"; 
+            dayOffset = 2; 
+            nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; 
+            nextDayType = 'weekday'; 
+            break;
+        case 5: // Friday -> Next is Saturday
+            nextDayName = "Saturday"; 
+            dayOffset = 1; 
+            nextDaySheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b'; 
+            nextDayType = 'saturday'; 
+            checkMondayFallback = true; // Enable fallback if Sat empty
+            break;
+        default: // Weekday -> Next is Tomorrow
+            nextDayName = "tomorrow"; 
+            dayOffset = 1; 
+            nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; 
+            nextDayType = 'weekday'; 
+            break;
     }
-    const nextSchedule = schedules[nextDaySheetKey];
-    if (!nextSchedule) { element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400">No schedule found.</div>`; return; }
-    const res = (destination === currentRoute.destA) 
-        ? findNextJourneyToDestA(stationSelect.value, "00:00:00", nextSchedule, currentRoute)
-        : findNextJourneyToDestB(stationSelect.value, "00:00:00", nextSchedule, currentRoute);
-    const firstTrainOfNextDay = res.allJourneys.find(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
-    if (!firstTrainOfNextDay) { element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400">No trains found.</div>`; return; }
+
+    // 2. Fetch Schedule
+    let nextSchedule = schedules[nextDaySheetKey];
+    let res = { allJourneys: [] };
+    
+    if (nextSchedule) {
+        res = (destination === currentRoute.destA) 
+            ? findNextJourneyToDestA(stationSelect.value, "00:00:00", nextSchedule, currentRoute)
+            : findNextJourneyToDestB(stationSelect.value, "00:00:00", nextSchedule, currentRoute);
+    }
+
+    let firstTrainOfNextDay = res.allJourneys.find(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
+
+    // 3. Fallback Logic: If Friday night (looking at Sat) and no trains, check Monday
+    if (!firstTrainOfNextDay && checkMondayFallback) {
+        // Switch context to Monday
+        nextDayName = "Monday";
+        dayOffset = 3; // Fri -> Mon is 3 days
+        nextDayType = 'weekday';
+        nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
+        nextSchedule = schedules[nextDaySheetKey];
+        
+        if (nextSchedule) {
+            res = (destination === currentRoute.destA) 
+                ? findNextJourneyToDestA(stationSelect.value, "00:00:00", nextSchedule, currentRoute)
+                : findNextJourneyToDestB(stationSelect.value, "00:00:00", nextSchedule, currentRoute);
+            firstTrainOfNextDay = res.allJourneys.find(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
+        }
+    }
+
+    // 4. Final Render
+    if (!firstTrainOfNextDay) { 
+        element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400">No upcoming trains.</div>`; 
+        return; 
+    }
+    
     if (typeof Renderer !== 'undefined') Renderer.renderNextAvailableTrain(element, destination, firstTrainOfNextDay, nextDayName, nextDayType, dayOffset);
 }
 
@@ -1278,7 +1329,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (appTitle && typeof Admin !== 'undefined' && Admin.setupPinAccess) { Admin.setupPinAccess(); }
 
-    stationSelect.addEventListener('change', () => { syncPlannerFromMain(stationSelect.value); findNextTrains(); });
+    // GUARDIAN FIX V5.01.00: Added Analytics Tracking for Station Selection
+    stationSelect.addEventListener('change', () => { 
+        trackAnalyticsEvent('select_station', { station: stationSelect.value, route_id: currentRouteId });
+        syncPlannerFromMain(stationSelect.value); 
+        findNextTrains(); 
+    });
     
     setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
     setupSwipeNavigation(); initTabIndicator(); 
