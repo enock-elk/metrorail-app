@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.70 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V4.60.75 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -539,8 +539,8 @@ function initPlanner() {
             <label class="block text-xs font-bold text-gray-500 uppercase ml-1 mb-1">Travel Day</label>
             <select id="planner-day-select" class="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
                 <option value="weekday">Weekday (Mon-Fri)</option>
-                <option value="saturday">Saturday</option>
-                <option value="sunday">Sunday / Public Holiday</option>
+                <option value="saturday">Saturday / Public Holiday</option>
+                <option value="sunday">Sunday</option>
             </select>
         `;
         inputSection.insertBefore(daySelectDiv, searchBtn);

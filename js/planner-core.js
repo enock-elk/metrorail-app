@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V4.60.70 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V4.60.75 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -55,7 +55,8 @@ function planDirectTrip(origin, dest, dayType) {
                 if (originIdx < destIdx) {
                     pathFoundToday = true; 
                     pathExistsGenerally = true;
-                    const upcomingTrains = findUpcomingTrainsForLeg(schedule, originRow, destRow, dayType, true); 
+                    // GUARDIAN: Pass routeId for exclusion checks
+                    const upcomingTrains = findUpcomingTrainsForLeg(schedule, originRow, destRow, dayType, true, routeId); 
                     if (upcomingTrains.length > 0) {
                         bestTrips = [...bestTrips, ...upcomingTrains.map(info => 
                             createTripObject(routeConfig, info, schedule, originIdx, destIdx, origin, dest)
@@ -485,7 +486,7 @@ function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
                 const idxA = schedule.rows.indexOf(rowA);
                 const idxB = schedule.rows.indexOf(rowB);
                 if (idxA < idxB) {
-                    findUpcomingTrainsForLeg(schedule, rowA, rowB, dayType, true).forEach(t => {
+                    findUpcomingTrainsForLeg(schedule, rowA, rowB, dayType, true, rId).forEach(t => {
                         legs.push(createTripObject(routeConfig, t, schedule, idxA, idxB, stationA, stationB));
                     });
                 }
@@ -498,15 +499,23 @@ function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
 function findNextDayTrips(routeConfig, origin, dest, baseDay) {
     let dayName = 'Tomorrow', nextDayType = 'weekday';
     
+    // GUARDIAN GHOST PROTOCOL (V4.60.82): 
+    // Determine the next day's index for exclusion checks
+    let nextDayIdx = (currentDayIndex + 1) % 7; 
+
     if (baseDay === 'weekday') { 
         nextDayType = 'weekday'; 
         dayName = 'Tomorrow'; 
+        // If today is Friday (5), tomorrow is Saturday (6). 
+        // If today is Sunday (0), tomorrow is Monday (1).
     } else if (baseDay === 'saturday') { 
         nextDayType = 'weekday'; 
         dayName = 'Monday'; 
+        nextDayIdx = 1; // Force check against Monday rules
     } else if (baseDay === 'sunday') { 
         nextDayType = 'weekday'; 
         dayName = 'Monday'; 
+        nextDayIdx = 1; // Force check against Monday rules
     }
 
     let allNextDayTrains = [];
@@ -517,6 +526,10 @@ function findNextDayTrips(routeConfig, origin, dest, baseDay) {
          const destRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(dest));
          if (originRow && destRow && schedule.rows.indexOf(originRow) < schedule.rows.indexOf(destRow)) {
              schedule.headers.slice(1).forEach(tName => {
+                 
+                 // GUARDIAN: Check Exclusions for the *Next* Day
+                 if (isTrainExcluded(tName, routeConfig.id, nextDayIdx)) return;
+
                  const dTime = originRow[tName], aTime = destRow[tName];
                  if(dTime && aTime) {
                      // FIXED (V4.60.6): Capture full context so stops can be generated
@@ -571,13 +584,29 @@ function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, 
     };
 }
 
-function findUpcomingTrainsForLeg(schedule, originRow, destRow, dayType, allowPast = false) {
+function findUpcomingTrainsForLeg(schedule, originRow, destRow, dayType, allowPast = false, routeId = null) {
     // Only check current time if we are planning for the CURRENT day type
     const isToday = (dayType === currentDayType);
     const nowSeconds = (isToday && !allowPast) ? timeToSeconds(currentTime) : 0; 
     
+    // GUARDIAN GHOST PROTOCOL (V4.60.82): Determine Day Index
+    // If planning for Today, use currentDayIndex (Real/Sim).
+    // If planning for "Weekday" generically, assume Monday (1) to show full service unless excluded globally.
+    // If planning for Saturday/Sunday, use 6 or 0.
+    let exclusionDayIdx = 1; // Default Monday
+    if (isToday) {
+        exclusionDayIdx = currentDayIndex;
+    } else {
+        if (dayType === 'saturday') exclusionDayIdx = 6;
+        if (dayType === 'sunday') exclusionDayIdx = 0;
+    }
+
     let upcomingTrains = [];
     schedule.headers.slice(1).forEach(trainName => {
+        
+        // GUARDIAN: The Excluder
+        if (routeId && isTrainExcluded(trainName, routeId, exclusionDayIdx)) return;
+
         const depTime = originRow[trainName], arrTime = destRow[trainName];
         if (depTime && arrTime) {
             const depSeconds = timeToSeconds(depTime);

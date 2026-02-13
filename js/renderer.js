@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V4.60.81 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V4.60.85 - Snapshot Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -349,7 +349,7 @@ const Renderer = {
 
 // --- GRID ENGINE (Moved from UI.js) ---
 
-// GUARDIAN UPDATE V4.60.81: Fixed Simulation Sync + Readability
+// GUARDIAN UPDATE V4.60.85: Added Snapshot Capability
 window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     const route = ROUTES[currentRouteId];
     if (!route) return;
@@ -363,10 +363,8 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     }
 
     // GUARDIAN FIX: Respect Simulation Mode / Current State logic
-    // Default to 'currentDayIndex' (which respects sim) instead of 'new Date().getDay()'
     let dayIdx = (typeof currentDayIndex !== 'undefined') ? currentDayIndex : new Date().getDay();
     
-    // Override if user selected a specific filter in the Grid UI
     if (dayOverride) {
         if (dayOverride === 'weekday') dayIdx = 1; // Default to Mon
         if (dayOverride === 'saturday') dayIdx = 6;
@@ -460,6 +458,9 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
 
         controlsDiv.innerHTML = `
             <div class="flex items-center space-x-1">
+                <button onclick="takeGridSnapshot()" class="p-1.5 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 transition mr-1" title="Save as Image">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                </button>
                 <button onclick="shareCurrentGrid()" class="p-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded hover:bg-blue-100 transition mr-1" title="Share Schedule Link">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                 </button>
@@ -614,8 +615,106 @@ window.highlightGridRow = function(tr) {
     if (stickyCell) { stickyCell.classList.remove('bg-white', 'dark:bg-gray-900'); stickyCell.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40'); }
 };
 
-// GUARDIAN UPDATE V4.60.33: Deprecated Share Functionality
-window.shareGridDeepLink = function(direction) {
-    // Disabled to prevent crash loop.
-    console.warn("Grid share functionality temporarily disabled for stability.");
+// GUARDIAN SNAPSHOT ENGINE (Phase 5)
+window.takeGridSnapshot = async function() {
+    // 1. Load Engine
+    if (typeof html2canvas === 'undefined') {
+        showToast("Loading snapshot engine...", "info", 1500);
+        try {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        } catch(e) {
+            showToast("Failed to load snapshot engine.", "error");
+            return;
+        }
+    }
+
+    const sourceTable = document.querySelector('#grid-container table');
+    if (!sourceTable) { showToast("Table not ready.", "error"); return; }
+
+    showToast("📸 Capturing schedule...", "info", 3000);
+
+    // 2. Clone & Brand
+    const exportContainer = document.createElement('div');
+    exportContainer.style.position = 'fixed';
+    exportContainer.style.left = '-9999px';
+    exportContainer.style.top = '0';
+    exportContainer.style.width = '800px'; 
+    exportContainer.style.padding = '30px';
+    exportContainer.style.fontFamily = 'system-ui, sans-serif';
+    
+    // Theme Match
+    const isDark = document.documentElement.classList.contains('dark');
+    exportContainer.style.backgroundColor = isDark ? '#111827' : '#ffffff';
+    exportContainer.style.color = isDark ? '#f3f4f6' : '#111827';
+    if(isDark) exportContainer.classList.add('dark');
+
+    const routeName = ROUTES[currentRouteId]?.name || "Train Schedule";
+    const headerTitle = document.querySelector('#full-schedule-modal h3')?.innerText.split('\n')[0] || "Train Schedule";
+    
+    exportContainer.innerHTML = `
+        <div style="margin-bottom: 20px; text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 15px;">
+            <h1 style="font-size: 24px; font-weight: 900; color: ${isDark ? '#60a5fa' : '#1e3a8a'}; margin: 0; text-transform: uppercase;">${routeName}</h1>
+            <h2 style="font-size: 16px; font-weight: bold; color: ${isDark ? '#9ca3af' : '#4b5563'}; margin: 5px 0;">${headerTitle}</h2>
+            <div style="font-size: 10px; color: #6b7280; margin-top: 5px; font-weight: bold; letter-spacing: 1px;">GENERATED BY NEXTTRAIN.CO.ZA</div>
+        </div>
+        <div id="export-table-wrapper" style="font-size: 12px;"></div>
+    `;
+
+    document.body.appendChild(exportContainer);
+    
+    const tableClone = sourceTable.cloneNode(true);
+    // Force colors on clone to ensure visibility in snapshot
+    if (isDark) {
+        tableClone.querySelectorAll('td, th').forEach(el => el.style.borderColor = '#374151');
+    }
+    
+    exportContainer.querySelector('#export-table-wrapper').appendChild(tableClone);
+
+    // 3. Render
+    try {
+        const canvas = await html2canvas(exportContainer, {
+            scale: 2, 
+            backgroundColor: isDark ? '#111827' : '#ffffff',
+            logging: false,
+            useCORS: true
+        });
+
+        canvas.toBlob(async (blob) => {
+            const fileName = `Schedule_${routeName.replace(/\s/g,'_')}_${Date.now()}.png`;
+            const file = new File([blob], fileName, { type: "image/png" });
+
+            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        files: [file],
+                        title: 'Next Train Schedule',
+                        text: `Here is the schedule for ${routeName}.`
+                    });
+                    showToast("Shared!", "success");
+                } catch (e) {
+                    // Ignore cancel
+                }
+            } else {
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = canvas.toDataURL();
+                link.click();
+                showToast("Image saved to gallery.", "success");
+            }
+            document.body.removeChild(exportContainer);
+        });
+    } catch (e) {
+        console.error(e);
+        showToast("Snapshot failed.", "error");
+        if(document.body.contains(exportContainer)) document.body.removeChild(exportContainer);
+    }
 };
+
+// Deprecated old Share
+window.shareGridDeepLink = function(direction) { console.warn("Use snapshot."); };
