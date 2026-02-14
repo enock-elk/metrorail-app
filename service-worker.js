@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v5.00.02'; // BUMPED: Added ignoreSearch fix + Safety Check
+const CACHE_NAME = 'metrorail-next-train-v5.00.04'; // BUMPED: Added ignoreSearch fix + Safety Check
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
