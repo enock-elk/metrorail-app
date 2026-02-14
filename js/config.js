@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V5.00.02 13 FEB"; // Added Hercules Route
+const APP_VERSION = "V5.00.04 14 FEB"; // Added Hercules Route
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
