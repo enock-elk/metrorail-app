@@ -207,7 +207,7 @@ function planRelayTransferTrip(origin, dest, dayType) {
                 const dep2 = timeToSeconds(l2.depTime);
                 const wait = dep2 - arr1;
 
-                if (wait >= TRANSFER_BUFFER && wait <= MAX_WAIT_SEC) {
+                if (wait >= TRANSFER_BUFFER_SEC && wait <= MAX_WAIT_SEC) {
                     allRelayTrips.push({
                         type: 'TRANSFER', // Reuse existing UI type
                         route: routeConfig, // Main Route
@@ -376,7 +376,7 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType) {
                 const legsFromRelay = findAllLegsBetween(relay, stationB, new Set([rId]), dayType);
                 
                 if (legsFromRelay.length > 0) {
-                    const TRANSFER_BUFFER = 2 * 60;
+                    const TRANSFER_BUFFER_SEC = 2 * 60;
                     const MAX_RELAY_WAIT = 180 * 60; // 3 hours
 
                     legsToRelay.forEach(l1 => {
@@ -386,7 +386,7 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType) {
                             const dep2 = timeToSeconds(l2.depTime);
                             const wait = dep2 - arr1;
                             
-                            if (wait >= TRANSFER_BUFFER && wait <= MAX_RELAY_WAIT) {
+                            if (wait >= TRANSFER_BUFFER_SEC && wait <= MAX_RELAY_WAIT) {
                                 // Create Composite Leg
                                 allLegs.push({
                                     ...l1, // Inherit basic props from first leg
@@ -422,7 +422,7 @@ function findIntersections(routeAId, routeBId) {
 }
 
 function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3, dayType) {
-    const TRANSFER_BUFFER = 5 * 60; // 5 minutes safe buffer
+    const TRANSFER_BUFFER_SEC = 5 * 60; // 5 minutes safe buffer
 
     // 1. Get All Leg Options ONCE
     const legs1 = findAllLegsBetween(origin, hub1, new Set([route1.id]), dayType);
@@ -444,7 +444,7 @@ function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3,
         }
 
         const arr1 = timeToSeconds(l1.arrTime);
-        const validLegs2 = legs2.filter(l2 => timeToSeconds(l2.depTime) >= arr1 + TRANSFER_BUFFER);
+        const validLegs2 = legs2.filter(l2 => timeToSeconds(l2.depTime) >= arr1 + TRANSFER_BUFFER_SEC);
 
         for (const l2 of validLegs2) {
             
@@ -454,7 +454,7 @@ function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3,
             }
 
             const arr2 = timeToSeconds(l2.arrTime);
-            const validLegs3 = legs3.filter(l3 => timeToSeconds(l3.depTime) >= arr2 + TRANSFER_BUFFER);
+            const validLegs3 = legs3.filter(l3 => timeToSeconds(l3.depTime) >= arr2 + TRANSFER_BUFFER_SEC);
 
             for (const l3 of validLegs3) {
                 trips.push({
