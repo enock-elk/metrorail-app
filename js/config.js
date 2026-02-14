@@ -318,7 +318,7 @@ const DEFAULT_EXCLUSIONS = {
     }
 };
 
-// 7. CHANGELOG (NEW V5.00.00)
+// 7. CHANGELOG (NEW V5.00.01)
 // This drives the "What's New" modal.
 const CHANGELOG_DATA = [
     {
