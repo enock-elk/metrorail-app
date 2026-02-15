@@ -121,14 +121,12 @@ function renderPlaceholder() {
     if(pretoriaTimeEl) pretoriaTimeEl.innerHTML = placeholderHTML;
     if(pienaarspoortTimeEl) pienaarspoortTimeEl.innerHTML = placeholderHTML;
 
-    if(fareContainer) {
-        fareContainer.classList.remove('hidden'); 
-        if(fareAmount) fareAmount.textContent = "R --.--";
-        if(fareType) { 
-            fareType.textContent = "Select Stations"; 
-            fareType.className = "text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mb-2"; 
-        }
+    // GUARDIAN FIX V5.00.11: Force Fare Update even in placeholder state
+    // This allows the "Default Zone" logic to run and show general pricing
+    if (typeof updateFareDisplay === 'function') {
+        updateFareDisplay(null, null);
     }
+    
     updateNextTrainView();
 }
 
@@ -263,6 +261,7 @@ function renderNextAvailableTrain(element, destination) {
     if (typeof Renderer !== 'undefined') Renderer.renderNextAvailableTrain(element, destination, firstTrainOfNextDay, nextDayName, nextDayType, dayOffset);
 }
 
+// GUARDIAN UPDATE V5.00.11: Smart Fare Handling
 function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     fareContainer = document.getElementById('fare-container');
     fareAmount = document.getElementById('fare-amount');
@@ -282,60 +281,76 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     // Make it look interactive
     fareContainer.classList.add('cursor-pointer', 'hover:bg-blue-100', 'dark:hover:bg-gray-700', 'transition-colors', 'group', 'relative');
 
-    if (!sheetKey || !nextTrainTimeStr) {
-        fareContainer.classList.remove('hidden');
-        fareAmount.textContent = "R --.--";
-        fareType.textContent = "Select Station";
-        // GUARDIAN: Increased bottom margin for better spacing
-        fareType.className = "text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mb-2";
-        fareAmount.className = "text-xl font-black text-gray-300 dark:text-gray-600";
-        return;
-    }
-
+    // 1. Attempt to Get Fare Data
     const fareData = getRouteFare(sheetKey, nextTrainTimeStr);
     
-    // UPDATE V4.60.42: Get detailed fares if available
+    // 2. Setup Detailed Modal Interaction
+    // If we have a fare (or at least a valid zone from fallback), enable the modal
     const detailed = typeof getDetailedFare === 'function' ? getDetailedFare(sheetKey) : null;
     
-    // Bind Click to Open Modal
+    // Add chevron if interaction is possible
     if (detailed && detailed.prices) {
         fareContainer.onclick = () => openFareModal(detailed);
         
-        // Add visual hint icon
         if (!document.getElementById('fare-chevron')) {
             const chevron = document.createElement('div');
             chevron.id = 'fare-chevron';
-            // Pushed to the right edge with absolute positioning or flex alignment
             chevron.className = "absolute right-3 top-1/2 transform -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity";
             chevron.innerHTML = `<svg class="w-5 h-5 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>`;
             fareContainer.appendChild(chevron);
         }
+    } else {
+        // No valid zone data at all
+        const existingChevron = document.getElementById('fare-chevron');
+        if(existingChevron) existingChevron.remove();
+        fareContainer.classList.remove('cursor-pointer', 'hover:bg-blue-100', 'dark:hover:bg-gray-700');
     }
 
+    // 3. Render State
     if (fareData) {
+        // VALID FARE FOUND (Either via train or route default)
         fareAmount.textContent = `R${fareData.price}`;
-        if (fareData.isPromo) {
-            fareType.textContent = fareData.discountLabel || "Discounted";
-            fareType.className = "text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full mb-2";
-            fareAmount.className = "text-xl font-black text-blue-600 dark:text-blue-400";
-        } else if (fareData.isOffPeak) {
-            fareType.textContent = "40% Off-Peak";
-            fareType.className = "text-[10px] font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded-full mb-2";
-            fareAmount.className = "text-xl font-black text-green-600 dark:text-green-400";
-        } else {
-            fareType.textContent = "Standard";
-            fareType.className = "text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full mb-2";
+        
+        // Case A: Specific Train (Time provided)
+        if (nextTrainTimeStr) {
+            if (fareData.isPromo) {
+                fareType.textContent = fareData.discountLabel || "Discounted";
+                fareType.className = "text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full mb-2";
+                fareAmount.className = "text-xl font-black text-blue-600 dark:text-blue-400";
+            } else if (fareData.isOffPeak) {
+                fareType.textContent = "40% Off-Peak";
+                fareType.className = "text-[10px] font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded-full mb-2";
+                fareAmount.className = "text-xl font-black text-green-600 dark:text-green-400";
+            } else {
+                fareType.textContent = "Standard";
+                fareType.className = "text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full mb-2";
+                fareAmount.className = "text-xl font-black text-gray-900 dark:text-white";
+            }
+        } 
+        // Case B: General Route Pricing (No specific train yet)
+        // This is the "Zone 3 Pricing" Fix
+        else {
+            fareType.textContent = "General Pricing";
+            fareType.className = "text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mb-2";
             fareAmount.className = "text-xl font-black text-gray-900 dark:text-white";
         }
         
-        fareContainer.classList.remove('hidden');
     } else {
-        fareContainer.classList.remove('hidden');
+        // UNKNOWN ZONE (Graceful Degrade)
         fareAmount.textContent = "R --.--";
-        fareType.textContent = "Rate Unavailable";
-        fareType.className = "text-[10px] font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full mb-2";
-        fareAmount.className = "text-xl font-black text-gray-400";
+        
+        // Check if we are loading vs actually missing data
+        if (stationSelect && stationSelect.value) {
+             fareType.textContent = "Rate Unavailable";
+             fareType.className = "text-[10px] font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full mb-2";
+        } else {
+             fareType.textContent = "Select Station";
+             fareType.className = "text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mb-2";
+        }
+        fareAmount.className = "text-xl font-black text-gray-300 dark:text-gray-600";
     }
+    
+    fareContainer.classList.remove('hidden');
 }
 
 // --- NEW V4.60.43: FARE TABLE MODAL (Updated) ---

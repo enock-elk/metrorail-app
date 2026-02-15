@@ -671,8 +671,8 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
             </div>
             
             <div class="flex items-center space-x-2 border-l border-gray-200 dark:border-gray-700 pl-3 ml-1">
-                <button onclick="takeGridSnapshot()" class="flex items-center space-x-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600" title="Save Image">
-                    <span class="text-[10px] font-bold text-gray-700 dark:text-gray-300">Save</span>
+                <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center space-x-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600" title="Save Image">
+                    <span class="text-[10px] font-bold text-gray-700 dark:text-gray-300">Save Image</span>
                     <svg class="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 </button>
                 <button onclick="shareCurrentGrid()" class="p-2 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100 transition shadow-sm" title="Share Link">
@@ -710,7 +710,8 @@ window.highlightGridRow = function(tr) {
 };
 
 // --- SNAPSHOT ENGINE V2.2 (Header Swap & Light Mode Tweaks) ---
-window.takeGridSnapshot = async function() {
+// UPDATED V5.00.11: Added direction & day parameters for Analytics
+window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     if (typeof html2canvas === 'undefined') {
         showToast("Loading snapshot engine...", "info", 1500);
         try {
@@ -732,8 +733,8 @@ window.takeGridSnapshot = async function() {
     const route = ROUTES[currentRouteId];
     if (!route) return;
 
-    const daySelect = document.querySelector('#grid-controls select');
-    const selectedDay = daySelect ? daySelect.value : 'weekday';
+    // Use passed params or fallback
+    const selectedDay = dayType || 'weekday';
     let sheetDayType = selectedDay;
     if (selectedDay === 'sunday') sheetDayType = 'weekday'; 
 
@@ -912,6 +913,15 @@ window.takeGridSnapshot = async function() {
                 link.href = canvas.toDataURL();
                 link.click();
                 showToast("Image saved.", "success");
+            }
+            
+            // GUARDIAN ANALYTICS: Track Save Event
+            if (typeof trackAnalyticsEvent === 'function') {
+                trackAnalyticsEvent('grid_save_image', { 
+                    route_id: currentRouteId,
+                    day_type: selectedDay,
+                    direction: direction 
+                });
             }
             
             document.body.removeChild(exportContainer);

@@ -450,48 +450,67 @@ function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
     } catch (e) { return ""; }
 }
 
-function getRouteFare(sheetKey, departureTimeStr) {
-    // 1. Resolve Zone
-    const zoneKey = sheetKey + "_zone";
-    let zoneCode = fullDatabase[zoneKey]; 
+// GUARDIAN FIX V5.00.10: Smart Zone Resolution
+// Looks through all sheets in a route to find a valid Zone Code.
+function resolveZoneForRoute(routeId) {
+    if (!fullDatabase || !routeId || !ROUTES[routeId]) return null;
+    const route = ROUTES[routeId];
     
-    // GUARDIAN FIX V5.00.04: Smart Directional Fallback
-    // If the primary zone is missing (e.g. jhb_to_rand), try to find the reverse (rand_to_jhb)
-    // before giving up.
-    if (!zoneCode) {
-        if (sheetKey.includes('_to_')) {
-            const parts = sheetKey.split('_to_');
+    // Check all known keys for this route
+    const keysToCheck = Object.values(route.sheetKeys);
+    
+    for (const key of keysToCheck) {
+        const zoneVal = fullDatabase[key + "_zone"];
+        if (zoneVal && FARE_CONFIG.zones[zoneVal]) {
+            return zoneVal; // Found a valid zone!
+        }
+    }
+    
+    // Try reverse lookup heuristic if standard keys fail
+    for (const key of keysToCheck) {
+        if (key.includes('_to_')) {
+            const parts = key.split('_to_');
             if (parts.length === 2) {
-                // Heuristic: swap "origin" and "dest_daytype"
-                // This logic assumes keys are roughly "origin_to_dest_daytype"
-                // Example: jhb_to_rand_weekday
-                const prefix = parts[0]; // jhb
-                const rest = parts[1]; // rand_weekday
+                // Construct potential reverse key
+                const prefix = parts[0]; 
+                const rest = parts[1];
+                let suffix = "";
+                let dest = "";
                 
-                let dayTypeSuffix = "";
-                let destStationCode = "";
+                if (rest.endsWith('_weekday')) { suffix = '_weekday'; dest = rest.replace('_weekday', ''); }
+                else if (rest.endsWith('_saturday')) { suffix = '_saturday'; dest = rest.replace('_saturday', ''); }
                 
-                if (rest.endsWith('_weekday')) { dayTypeSuffix = '_weekday'; destStationCode = rest.replace('_weekday', ''); }
-                else if (rest.endsWith('_saturday')) { dayTypeSuffix = '_saturday'; destStationCode = rest.replace('_saturday', ''); }
-                else if (rest.endsWith('_sunday')) { dayTypeSuffix = '_sunday'; destStationCode = rest.replace('_sunday', ''); }
-                
-                if (destStationCode && dayTypeSuffix) {
-                    const reverseSheetKey = `${destStationCode}_to_${prefix}${dayTypeSuffix}`;
-                    const reverseZoneKey = reverseSheetKey + "_zone";
-                    if (fullDatabase[reverseZoneKey]) {
-                        zoneCode = fullDatabase[reverseZoneKey];
-                        // console.log(`[Fares] Found zone via reverse lookup: ${zoneCode}`);
-                    }
+                if (dest && suffix) {
+                    const reverseKey = `${dest}_to_${prefix}${suffix}_zone`;
+                    const reverseZone = fullDatabase[reverseKey];
+                    if (reverseZone && FARE_CONFIG.zones[reverseZone]) return reverseZone;
                 }
             }
         }
-        
-        if (!zoneCode) zoneCode = "Z1"; // Ultimate fallback
+    }
+    
+    return null;
+}
+
+function getRouteFare(sheetKey, departureTimeStr) {
+    let zoneCode = null;
+    
+    // 1. Try Direct Lookup
+    if (sheetKey) {
+        const zoneKey = sheetKey + "_zone";
+        zoneCode = fullDatabase[zoneKey];
+    }
+    
+    // 2. Smart Fallback (Guardian Fix)
+    // GUARDIAN UPDATE V5.00.11: Removed Z1 default. Returns null if unknown.
+    if (!zoneCode && currentRouteId) {
+        zoneCode = resolveZoneForRoute(currentRouteId);
     }
 
     if (!zoneCode || !FARE_CONFIG.zones[zoneCode]) {
-        console.warn(`[Fares] Invalid Zone Code: ${zoneCode} for ${sheetKey}`);
-        return null;
+        // Return null to indicate "Unknown" to UI. 
+        // Do NOT default to Z1.
+        return null; 
     }
 
     let basePrice = FARE_CONFIG.zones[zoneCode];
@@ -557,10 +576,23 @@ function getRouteFare(sheetKey, departureTimeStr) {
 
 // NEW V4.60.42: Helper to fetch detailed pricing for a route
 function getDetailedFare(sheetKey) {
-    if (!fullDatabase || !sheetKey) return null;
-    const zoneKey = sheetKey + "_zone";
-    let zoneCode = fullDatabase[zoneKey]; 
-    if (!zoneCode) zoneCode = "Z1"; // Fallback to match getRouteFare behavior
+    if (!fullDatabase) return null;
+    
+    let zoneCode = null;
+    
+    // 1. Try Direct Key
+    if (sheetKey) {
+        const zoneKey = sheetKey + "_zone";
+        zoneCode = fullDatabase[zoneKey];
+    }
+    
+    // 2. Smart Fallback (Guardian Fix)
+    if (!zoneCode && currentRouteId) {
+        zoneCode = resolveZoneForRoute(currentRouteId);
+    }
+    
+    // GUARDIAN V5.00.11: If no zone found, return null (No default Z1)
+    if (!zoneCode) return null; 
 
     if (FARE_CONFIG.zones_detailed && FARE_CONFIG.zones_detailed[zoneCode]) {
         return {

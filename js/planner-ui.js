@@ -157,6 +157,9 @@ const PlannerRenderer = {
         // Day Label is now injected HERE instead of the main header, ensuring context is attached to the card.
         const dayLabel = getPlanningDayLabel();
 
+        // GUARDIAN UPDATE V5.00.12: Formal Text ("Direct Train 1150")
+        const safeTrainName = step.train || "Unknown"; // Fallback safety
+
         return `
             <div class="p-4 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
                 <!-- ROW 1: Trip Type -->
@@ -272,20 +275,33 @@ const PlannerRenderer = {
         const waitMins = Math.floor((hubDep - hubArr) / 60);
         const waitStr = waitMins > 59 ? `${Math.floor(waitMins/60)} hr ${waitMins%60} min` : `${waitMins} Minutes`;
         
-        let train1Dest = step.leg1.actualDestination || step.leg1.route.destB;
-        train1Dest = train1Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+        const safeTrain1 = step.leg1.train;
+        const safeTrain2 = step.leg2.train;
+        const train1Term = step.leg1.terminationStation || step.transferStation; // Should exist if transfer trip
+        const train1ArrTransfer = step.leg1.arrivalAtTransfer || step.leg1.arrTime;
+        const train2ArrFinal = step.leg2.arrTime;
+        
+        const transferStationName = step.transferStation.replace(' STATION', '');
+        const train1TermName = train1Term.replace(' STATION', '');
 
-        let train2Dest = step.leg2.actualDestination || step.leg2.route.destB;
-        train2Dest = train2Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-
+        // GUARDIAN UPDATE V5.00.12: Formal Description Logic
         const standardTransferBlock = `
             <div class="relative pl-6 pb-6 pt-2">
                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900 z-10"></div>
                 <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500">
                     <div class="font-bold uppercase tracking-wide mb-1">Transfer Required</div>
-                    <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                        <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Layover</span><br>
-                        &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${step.leg2.train}</span>
+                    <div class="text-gray-600 dark:text-gray-400 leading-snug space-y-1">
+                        <div>
+                            <span class="font-bold">Train ${safeTrain1}</span>
+                            <span class="opacity-90">(Arrives ${transferStationName} at ${formatTimeDisplay(train1ArrTransfer)})</span>
+                        </div>
+                        <div>
+                            <span class="font-bold">Connect:</span> Train ${safeTrain2} @ ${formatTimeDisplay(step.leg2.depTime)}
+                            <span class="opacity-90">(Arr ${formatTimeDisplay(train2ArrFinal)})</span>
+                        </div>
+                        <div class="pt-1 mt-1 border-t border-yellow-200 dark:border-yellow-800/50 text-[10px] uppercase font-bold text-yellow-700 dark:text-yellow-400">
+                            ⏱ ${waitStr} Layover
+                        </div>
                     </div>
                 </div>
             </div>
@@ -305,7 +321,7 @@ const PlannerRenderer = {
                             <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.depTime)}</span>
                         </div>
                         <div class="text-xs text-blue-500 font-medium mb-1">
-                            ${train1Dest} Train ${step.leg1.train}
+                            Train ${safeTrain1}
                         </div>
                     </div>
                 </div>
@@ -334,7 +350,7 @@ const PlannerRenderer = {
                         </div>
                         
                         <div class="text-xs text-blue-500 font-medium mb-1">
-                            ${train2Dest} Train ${step.leg2.train}
+                            Train ${safeTrain2}
                         </div>
                     </div>
                 </div>
@@ -699,6 +715,7 @@ function initPlanner() {
         let txtFrom = fromInput.value ? fromInput.value.trim() : "";
         let txtTo = toInput.value ? toInput.value.trim() : "";
 
+        // GUARDIAN FIX V5.00.12: Allow swap even if one is empty
         // 2. Perform Swap
         fromInput.value = txtTo;
         toInput.value = txtFrom;
@@ -1237,28 +1254,32 @@ function updatePlannerHeader(dayLabel, showShare = true) {
             }
         };
 
+        // GUARDIAN UPDATE V5.00.12: Styled Share Button with Text
         shareButtonHtml = `
-            <button onclick="triggerPlannerShare('${safeShareMsg}', '${safeShareUrl}')" class="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors shadow-sm" title="Share Trip">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+            <button onclick="triggerPlannerShare('${safeShareMsg}', '${safeShareUrl}')" class="flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group shadow-sm flex-shrink-0" title="Share Trip">
+                <svg class="w-4 h-4 mr-1 transform group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                Share
             </button>
         `;
     } else {
         // Empty spacer to keep title centered if no share button
-        shareButtonHtml = `<div class="w-9"></div>`;
+        shareButtonHtml = `<div class="w-16"></div>`;
     }
 
     // --- RENDER UNIFIED HEADER ---
+    // GUARDIAN FIX V5.00.12: Removed 'mb-2' to tighten spacing with card
     headerContainer.className = "flex items-center justify-between px-1 mb-2 w-full border-b border-gray-100 dark:border-gray-700 pb-2";
     
+    // GUARDIAN UPDATE V5.00.12: Styled Back Button (Matching Share)
     headerContainer.innerHTML = `
-        <button onclick="window.resetPlannerUI()" class="flex items-center text-sm font-bold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors py-2">
-            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        <button onclick="window.resetPlannerUI()" class="flex items-center text-sm font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors group shadow-sm flex-shrink-0">
+            <svg class="w-4 h-4 mr-1 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             Back
         </button>
         
-        <div class="text-center">
-            <h4 class="text-base font-black text-gray-900 dark:text-white uppercase tracking-wide">Trip Plan</h4>
-            <span class="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-widest block -mt-0.5">${dayLabel}</span>
+        <div class="text-center flex-grow mx-2 min-w-0">
+            <h4 class="text-base font-black text-gray-900 dark:text-white uppercase tracking-wide truncate">Trip Plan</h4>
+            <span class="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-widest block -mt-0.5 truncate">${dayLabel}</span>
         </div>
         
         ${shareButtonHtml}

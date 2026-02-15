@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V5.00.10 (Guardian Edition)
+  Metrorail Next Train V5.00.10.1 (Guardian Edition)
   - CHANGE: Removed inline style on body to fix Light Mode toggle.
   - UPDATED: Script versions bumped to v5.00.10 for cache busting.
-  - SEO FIX: Added WebSite Structured Data for Google Site Name.
-  - SEO FIX: Enhanced Meta Description for better search snippets.
+  - FIXED: Admin script load order (Removed defer) & Notice Modal Z-Index (110).
 -->
 <html lang="en" class="dark">
 
@@ -18,10 +17,9 @@
     <!-- SEO: Canonical Tag -->
     <link rel="canonical" href="https://nexttrain.co.za/">
 
-    <!-- SEO: Enhanced Meta Description -->
-    <meta name="description" content="The essential commuter tool for Metrorail Gauteng. Get 2026 train schedules, live updates, ticket prices, and trip planning for Pretoria, Johannesburg, and Soweto. Works offline.">
+    <meta name="description" content="Check live train schedules and fares for Metrorail Gauteng (Pretoria, JHB, Soweto). Works offline!">
     
-    <!-- SEO: JSON-LD Structured Data (Software App) -->
+    <!-- SEO: JSON-LD Structured Data -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -37,17 +35,6 @@
       "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
       "softwareVersion": "5.00.10",
       "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map",
-      "url": "https://nexttrain.co.za/"
-    }
-    </script>
-
-    <!-- SEO: JSON-LD Structured Data (WebSite - Google Site Name Fix) -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "Metrorail Next Train",
-      "alternateName": ["Next Train", "NextTrain", "Metrorail App"],
       "url": "https://nexttrain.co.za/"
     }
     </script>
@@ -852,8 +839,8 @@
         </div>
     </div>
 
-    <!-- SERVICE ALERT MODAL (NEW: Injected to Fix Crash) -->
-    <div id="notice-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+    <!-- SERVICE ALERT MODAL (FIXED Z-INDEX 110) -->
+    <div id="notice-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[110] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 border-l-4 border-red-500">
             <div class="flex justify-between items-start mb-4">
                 <div class="flex items-center text-red-600 dark:text-red-400">
@@ -881,8 +868,8 @@
     <script src="js/renderer.js?v=5.00.10"></script>
     
     <!-- ADMIN TOOLS (Loaded before UI to ensure Admin object availability) -->
-    <!-- DEFERRED for better LCP Performance -->
-    <script src="js/admin.js?v=5.00.10" defer></script>
+    <!-- GUARDIAN FIX: Removed DEFER to resolve race condition -->
+    <script src="js/admin.js?v=5.00.10"></script>
 
     <script src="js/utils.js?v=5.00.10"></script>
     <script src="js/config.js?v=5.00.10"></script>

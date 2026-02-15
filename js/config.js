@@ -1,10 +1,10 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V5.00.10 - 15 FEB"; 
+const APP_VERSION = "V5.00.10 - 16 FEB"; 
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
-const FORCE_UPDATE_REQUIRED = false;
+const FORCE_UPDATE_REQUIRED = true;
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
