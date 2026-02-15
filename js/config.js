@@ -4,7 +4,7 @@
 const APP_VERSION = "V5.00.10 - 15 FEB"; 
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
-const FORCE_UPDATE_REQUIRED = true;
+const FORCE_UPDATE_REQUIRED = false;
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {

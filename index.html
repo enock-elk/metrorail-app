@@ -3,7 +3,8 @@
   Metrorail Next Train V5.00.10 (Guardian Edition)
   - CHANGE: Removed inline style on body to fix Light Mode toggle.
   - UPDATED: Script versions bumped to v5.00.10 for cache busting.
-  - REMOVED: style.css reference (Consolidated into custom.css).
+  - SEO FIX: Added WebSite Structured Data for Google Site Name.
+  - SEO FIX: Enhanced Meta Description for better search snippets.
 -->
 <html lang="en" class="dark">
 
@@ -17,9 +18,10 @@
     <!-- SEO: Canonical Tag -->
     <link rel="canonical" href="https://nexttrain.co.za/">
 
-    <meta name="description" content="Check live train schedules and fares for Metrorail Gauteng (Pretoria, JHB, Soweto). Works offline!">
+    <!-- SEO: Enhanced Meta Description -->
+    <meta name="description" content="The essential commuter tool for Metrorail Gauteng. Get 2026 train schedules, live updates, ticket prices, and trip planning for Pretoria, Johannesburg, and Soweto. Works offline.">
     
-    <!-- SEO: JSON-LD Structured Data -->
+    <!-- SEO: JSON-LD Structured Data (Software App) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -35,6 +37,17 @@
       "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
       "softwareVersion": "5.00.10",
       "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map",
+      "url": "https://nexttrain.co.za/"
+    }
+    </script>
+
+    <!-- SEO: JSON-LD Structured Data (WebSite - Google Site Name Fix) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Metrorail Next Train",
+      "alternateName": ["Next Train", "NextTrain", "Metrorail App"],
       "url": "https://nexttrain.co.za/"
     }
     </script>
