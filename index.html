@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V5.00.02 (Guardian Edition)
-  - CHANGE: Visual Layout Fixes for Samsung/Narrow Screens (Points 1 & 2).
-  - FIX: Route Header flexible height.
+  Metrorail Next Train V5.00.10 (Guardian Edition)
+  - CHANGE: Inline Styles added for Offline FOUC Prevention (Phase 2).
+  - REMOVED: style.css reference (Consolidated into custom.css).
+  - FIX: Removed 'hidden' class from main-content to prevent !important override.
 -->
 <html lang="en" class="dark">
 
@@ -32,7 +33,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
-      "softwareVersion": "5.00.02",
+      "softwareVersion": "5.00.10",
       "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map",
       "url": "https://nexttrain.co.za/"
     }
@@ -114,7 +115,7 @@
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="css/style.css">
+    <!-- GUARDIAN: Removed style.css (Consolidated) -->
     <link rel="stylesheet" href="css/custom.css">
 
     <style>
@@ -132,7 +133,8 @@
     </style>
 </head>
 
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4 transition-colors duration-300">
+<!-- GUARDIAN: Added inline style for immediate dark background (No White Flash) -->
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4 transition-colors duration-300" style="background-color: #111827;">
 
     <div id="sidenav-overlay"></div>
     <div id="sidenav">
@@ -174,13 +176,14 @@
             
             <!-- VERSION FOOTER -->
             <div class="mt-4 px-4 text-right">
-                <p id="app-version-footer" class="text-[10px] text-gray-500 dark:text-gray-600 font-mono">v5.00.02</p>
+                <p id="app-version-footer" class="text-[10px] text-blue-500 dark:text-blue-400 font-mono underline decoration-dotted cursor-pointer hover:text-white transition-colors" title="View Update History">v5.00.10</p>
             </div>
         </div>
     </div>
 
     <!-- MAIN APP CONTAINER -->
-    <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden relative min-h-[600px] flex flex-col border border-gray-200 dark:border-gray-700 hidden">
+    <!-- GUARDIAN FIX: Removed 'hidden' class. display:none is sufficient and avoids !important conflicts -->
+    <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden relative min-h-[600px] flex flex-col border border-gray-200 dark:border-gray-700" style="display: none;">
         
         <div id="offline-indicator">OFFLINE MODE - USING SAVED SCHEDULE</div>
         
@@ -708,7 +711,7 @@
             </div>
 
             <p class="mt-12 text-[10px] text-gray-400 font-mono">
-                Version 4.60.60 (Guardian Edition)
+                Version 5.00.10 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -861,38 +864,37 @@
 
     <!-- RENDERER ENGINE (Must be loaded BEFORE ui.js) -->
     <!-- CRITICAL: Grid Order must load before Renderer -->
-    <script src="js/grid-order.js?v=5.00.02"></script>
-    <script src="js/renderer.js?v=5.00.02"></script>
+    <script src="js/grid-order.js?v=5.00.04"></script>
+    <script src="js/renderer.js?v=5.00.04"></script>
     
     <!-- ADMIN TOOLS (Loaded before UI to ensure Admin object availability) -->
     <!-- DEFERRED for better LCP Performance -->
-    <script src="js/admin.js?v=5.00.02" defer></script>
+    <script src="js/admin.js?v=5.00.04" defer></script>
 
-    <script src="js/utils.js?v=5.00.02"></script>
-    <script src="js/config.js?v=5.00.02"></script>
-    <script src="js/logic.js?v=5.00.02"></script>
+    <script src="js/utils.js?v=5.00.04"></script>
+    <script src="js/config.js?v=5.00.04"></script>
+    <script src="js/logic.js?v=5.00.04"></script>
     
     <!-- PLANNER MODULARIZATION V4.60.2 -->
     <!-- CRITICAL: CORE MUST LOAD BEFORE UI -->
-    <script src="js/planner-core.js?v=5.00.02"></script>
-    <script src="js/planner-ui.js?v=5.00.02"></script>
+    <script src="js/planner-core.js?v=5.00.04"></script>
+    <script src="js/planner-ui.js?v=5.00.04"></script>
     
-    <script src="js/map-viewer.js?v=5.00.02"></script> 
+    <script src="js/map-viewer.js?v=5.00.04"></script> 
     
     <!-- MAIN UI CONTROLLER (Loads last) -->
-    <script src="js/ui.js?v=5.00.02"></script>
+    <script src="js/ui.js?v=5.00.04"></script>
 
     <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>
         setTimeout(() => {
-            // Check if content is still hidden after 10s
+            // Check if content is still hidden after 8s
             const content = document.getElementById('main-content');
             if (content && content.style.display === 'none') {
                 console.warn("App load timeout - Forcing display.");
+                // GUARDIAN FIX: Explicitly remove hidden class to bypass CSS override
+                content.classList.remove('hidden');
                 content.style.display = 'block';
-                // Remove legacy overlay if it exists
-                const overlay = document.getElementById('loading-overlay');
-                if(overlay) overlay.style.display = 'none';
             }
         }, 8000); 
     </script>

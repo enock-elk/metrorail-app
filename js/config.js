@@ -1,7 +1,10 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V5.00.02 13 FEB"; // Added Hercules Route
+const APP_VERSION = "V5.00.10 - 15 FEB"; 
+// GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
+// Set to 'false' for silent background updates (Stale-While-Revalidate).
+const FORCE_UPDATE_REQUIRED = false;
 
 // 1. Legal Text Definitions
 const LEGAL_TEXTS = {
@@ -318,17 +321,27 @@ const DEFAULT_EXCLUSIONS = {
     }
 };
 
-// 7. CHANGELOG (NEW V5.00.00)
+// 7. CHANGELOG (NEW V5.00.10)
 // This drives the "What's New" modal.
 const CHANGELOG_DATA = [
     {
-        version: "V5.01.00",
-        date: "13 Feb 2026",
+        version: "V5.00.10",
+        date: "15 Feb 2026",
+        features: [
+            "✨ <b>Adaptive Export:</b> 'Save Image' now respects your Light/Dark theme preference.",
+            "📸 <b>Export Polish:</b> Compact layouts, professional metadata, and clearer typography for sharing schedules.",
+            "👻 <b>Maintenance Mode:</b> Floating banner bug fixed; now correctly contained within the app card.",
+            "🐛 <b>Bug Fixes:</b> Resolved 'Blank Screen' issue on startup and improved data loading guardrails.",
+            "👆 <b>Smart Defaults:</b> Grid view now anticipates Monday planning when viewed on Sundays."
+        ]
+    },
+    {
+        version: "V5.00.04",
+        date: "14 Feb 2026",
         features: [
             "🛤 <b>New Route:</b> Hercules <-> Koedoespoort now available (Weekday Service).",
             "🚀 <b>Trip Planner:</b> Now supports Bridge Trips (2 Transfers) for long-distance travel.",
-            "🛠 <b>Maintenance Mode:</b> Added real-time status banner for service upgrades.",
-            "👻 <b>Ghost Train Protocol:</b> Smarter filtering of testing/inactive trains."
+            "🛠 <b>Maintenance Mode:</b> Added real-time status banner for service upgrades."
         ]
     },
     {
@@ -338,14 +351,6 @@ const CHANGELOG_DATA = [
             "🗺 <b>Network Map:</b> Added high-res zoomable map.",
             "💰 <b>Smart Fares:</b> Detailed pricing tables for Weekly/Monthly tickets.",
             "🔗 <b>Deep Linking:</b> Share specific routes or trip plans with one click."
-        ]
-    },
-    {
-        version: "V4.50.00",
-        date: "15 Jan 2026",
-        features: [
-            "⚡ <b>Performance:</b> Faster load times and reduced data usage.",
-            "📱 <b>Install Prompts:</b> Improved PWA installation guide for iOS users."
         ]
     }
 ];

@@ -13,9 +13,11 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=6">
     <link rel="apple-touch-icon" href="icons/icon-192.png?v=6">
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- GUARDIAN: Local Tailwind for Offline Support -->
+    <script src="js/tailwind.js"></script>
 
     <!-- STANDARD LOADING: Leaflet CSS -->
+    <!-- GUARDIAN NOTE: For full offline map support, you MUST download 'leaflet.css' and 'leaflet.js' to your project folder and reference them here instead of the CDN links below. -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" xintegrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSA8ZYferCkwBnJnMc569pG+xay39G5Je5F5w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
     <style>
@@ -328,6 +330,7 @@
                 pta_mab: ["PRETORIA", "PRETORIA-B", "PRETORIA WES", "HERCULES", "DASPOORT", "MOUNTAIN VIEW", "WONDERBOOM", "PRETORIA-N", "WOLMERTON", "WINTERSNEST", "AKASIABOOM", "KOPANONG", "SOSHANGUVE", "MABOPANE"],
                 mab_belle: ["MABOPANE", "SOSHANGUVE", "KOPANONG", "AKASIABOOM", "WINTERSNEST", "WOLMERTON", "PRETORIA-N", "WONDERBOOM", "MOUNTAIN VIEW", "DASPOORT", "HERCULES", "BELLE-OMBRE"],
                 pta_dewildt: ["WINTERSNEST", "ROSSLYN", "GA-RANKUWA", "TAILLARDSHOOP", "DE WILDT"],
+                herc_koed: ["HERCULES", "KOEDOESPOORT"], // Direct visual link, exact path may vary
                 pta_saul: ["PRETORIA", "PRETORIA WES", "MITCHELLSTRAAT", "SCHUTTESTRAAT", "KALAFONG", "ATTERIDGEVILLE", "SAULSVILLE"],
                 pta_kempton: ["PRETORIA", "FONTEINE", "KLOOFSIG", "SPORTPARK", "CENTURION", "IRENE", "PINEDENE", "OLIFANTSFONTEIN", "OAKMOOR", "KAALFONTEIN", "BIRCHLEIGH", "VAN RIEBEECKPARK", "KEMPTON PARK"],
                 germ_leralla: ["GERMISTON", "KNIGHTS", "RAVENSKLIP", "ELANDSFONTEIN", "ISANDO", "RHODESFIELD", "KEMPTON PARK", "VAN RIEBEECKPARK", "BIRCHLEIGH", "KAALFONTEIN", "TEMBISA", "LIMINDLELA", "LERALLA"],
@@ -362,6 +365,7 @@
             addRoute(routeDefinitions.pta_mab, '#f97316', 'Pretoria - Mabopane');
             addRoute(routeDefinitions.mab_belle, '#f97316', 'Mabopane - Belle Ombre');
             addRoute(routeDefinitions.pta_dewildt, '#a855f7', 'Pretoria - De Wildt');
+            addRoute(routeDefinitions.herc_koed, '#6366f1', 'Hercules - Koedoespoort');
             addRoute(routeDefinitions.pta_saul, '#22c55e', 'Pretoria - Saulsville');
             addRoute(routeDefinitions.pta_kempton, '#3b82f6', 'Pretoria - Kempton Park');
             addRoute(routeDefinitions.germ_leralla, '#3b82f6', 'Germiston - Leralla');
@@ -404,6 +408,7 @@
                 { color: '#f97316', text: 'Pretoria - Mabopane', bg: 'bg-green-500' },
                 { color: '#f97316', text: 'Mabopane - Belle Ombre', bg: 'bg-green-500' },
                 { color: '#a855f7', text: 'Pretoria - De Wildt', bg: 'bg-green-500' },
+                { color: '#6366f1', text: 'Hercules - Koedoespoort', bg: 'bg-green-500' },
                 { color: '#22c55e', text: 'Pretoria - Saulsville', bg: 'bg-green-500' },
                 { color: '#3b82f6', text: 'Pretoria - Kempton', bg: 'bg-green-500' },
                 { color: '#3b82f6', text: 'Germiston - Leralla', bg: 'bg-green-500' },

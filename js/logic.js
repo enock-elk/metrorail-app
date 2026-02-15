@@ -455,22 +455,38 @@ function getRouteFare(sheetKey, departureTimeStr) {
     const zoneKey = sheetKey + "_zone";
     let zoneCode = fullDatabase[zoneKey]; 
     
+    // GUARDIAN FIX V5.00.04: Smart Directional Fallback
+    // If the primary zone is missing (e.g. jhb_to_rand), try to find the reverse (rand_to_jhb)
+    // before giving up.
     if (!zoneCode) {
-        // Fallback Logic: Try to find the sibling sheet (opposite direction)
-        // If sheetKey is 'pta_to_pien_weekday', sibling is 'pien_to_pta_weekday'
-        // This handles cases where only one direction was tagged in DB
-        let siblingKey = null;
         if (sheetKey.includes('_to_')) {
             const parts = sheetKey.split('_to_');
             if (parts.length === 2) {
-                // simple swap heuristic
-                // e.g. pta_to_pien -> pien_to_pta
-                // This is a rough guess, but logic.js doesn't know route config perfectly here without reverse lookup
-                // Better approach: Check if it's missing and log it
-                console.warn(`[Fares] Zone missing for ${zoneKey}.`);
+                // Heuristic: swap "origin" and "dest_daytype"
+                // This logic assumes keys are roughly "origin_to_dest_daytype"
+                // Example: jhb_to_rand_weekday
+                const prefix = parts[0]; // jhb
+                const rest = parts[1]; // rand_weekday
+                
+                let dayTypeSuffix = "";
+                let destStationCode = "";
+                
+                if (rest.endsWith('_weekday')) { dayTypeSuffix = '_weekday'; destStationCode = rest.replace('_weekday', ''); }
+                else if (rest.endsWith('_saturday')) { dayTypeSuffix = '_saturday'; destStationCode = rest.replace('_saturday', ''); }
+                else if (rest.endsWith('_sunday')) { dayTypeSuffix = '_sunday'; destStationCode = rest.replace('_sunday', ''); }
+                
+                if (destStationCode && dayTypeSuffix) {
+                    const reverseSheetKey = `${destStationCode}_to_${prefix}${dayTypeSuffix}`;
+                    const reverseZoneKey = reverseSheetKey + "_zone";
+                    if (fullDatabase[reverseZoneKey]) {
+                        zoneCode = fullDatabase[reverseZoneKey];
+                        // console.log(`[Fares] Found zone via reverse lookup: ${zoneCode}`);
+                    }
+                }
             }
         }
-        zoneCode = "Z1"; // Ultimate fallback
+        
+        if (!zoneCode) zoneCode = "Z1"; // Ultimate fallback
     }
 
     if (!zoneCode || !FARE_CONFIG.zones[zoneCode]) {

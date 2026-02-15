@@ -413,9 +413,17 @@ window.openFareModal = function(fareDetails) {
 };
 
 // --- UTILS ---
-function showToast(message, type = 'info', duration = 3000) { 
+function showToast(message, type = 'info', duration = 3000, actionHTML = '') { 
     if (toastTimeout) clearTimeout(toastTimeout); 
-    toast.textContent = message; 
+    
+    // Allow robust HTML content for toasts
+    toast.innerHTML = actionHTML ? `
+        <div class="flex items-center justify-between gap-3">
+            <span>${message}</span>
+            ${actionHTML}
+        </div>
+    ` : message;
+    
     toast.className = `toast-info`; 
     if (type === 'success') toast.classList.add('toast-success'); 
     else if (type === 'error') toast.classList.add('toast-error'); 
@@ -675,6 +683,7 @@ function initializeApp() {
 }
 
 // GUARDIAN UPDATE V5.00.00: Maintenance Mode Checker
+// UPDATED V5.00.10: Fix positioning (inside main-content)
 async function checkMaintenanceStatus() {
     if (!navigator.onLine) return; // Only relevant for online users
     try {
@@ -682,17 +691,21 @@ async function checkMaintenanceStatus() {
         const isActive = await res.json();
         
         if (isActive === true) {
-            // Inject Banner if not present
+            // Check if banner already exists
             if (!document.getElementById('maintenance-banner')) {
-                const banner = document.createElement('div');
-                banner.id = 'maintenance-banner';
-                // Striped Yellow Background
-                banner.style.background = 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 10px, #d97706 10px, #d97706 20px)';
-                banner.className = "text-white text-xs font-bold text-center py-2 px-4 shadow-md sticky top-0 z-[100]";
-                banner.innerHTML = `⚠️ MAINTENANCE IN PROGRESS. Schedules may be intermittent.`;
-                
-                // Insert at TOP of body
-                document.body.prepend(banner);
+                const mainCard = document.getElementById('main-content');
+                if (mainCard) {
+                    const banner = document.createElement('div');
+                    banner.id = 'maintenance-banner';
+                    // Striped Yellow Background
+                    banner.style.background = 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 10px, #d97706 10px, #d97706 20px)';
+                    // Match offline-indicator positioning (Absolute top of card)
+                    banner.className = "absolute top-0 left-0 w-full z-50 text-white text-[10px] font-bold text-center py-1 shadow-sm";
+                    banner.innerHTML = `⚠️ MAINTENANCE IN PROGRESS`;
+                    
+                    // Insert into Main Card at top
+                    mainCard.prepend(banner);
+                }
             }
         }
     } catch(e) { /* silent fail */ }
@@ -1103,32 +1116,87 @@ window.openLegal = function(type) {
 
 function closeLegal() { if(location.hash === '#legal') history.back(); else legalModal.classList.add('hidden'); }
 
-// --- SERVICE WORKER ---
-// CLEANED UP V4.60.42: Removed duplicate "Grey Toast" logic to prevent echo effect.
+// --- SERVICE WORKER LOGIC V5.00.10 (DUAL STRATEGY) ---
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js')
-            .then(reg => {
-                // Registration successful.
-                // We do NOT listen for 'updatefound' here anymore because we rely on the controller change below.
-            })
-            .catch(err => console.error('SW reg failed:', err));
-        
-        let refreshing; 
-        // This is the ONE source of truth for updates. When the new SW takes over (via skipWaiting), this fires.
-        navigator.serviceWorker.addEventListener('controllerchange', () => { 
-            if (refreshing) return; 
-            refreshing = true;
-            
-            // GUARDIAN UPDATE V4.60.42: Streamlined Green Toast
-            if(toast) {
-                toast.textContent = "New app version, reloading...";
-                toast.className = "toast-success show";
+        navigator.serviceWorker.register('./service-worker.js').then(reg => {
+            // Listen for waiting service workers (updates found but waiting)
+            if (reg.waiting) {
+                // If there's already a waiting worker, notify user immediately
+                handleUpdateFound(reg);
             }
-            setTimeout(() => window.location.reload(), 1000);
+
+            reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        // New update installed and ready
+                        handleUpdateFound(reg);
+                    }
+                });
+            });
+        }).catch(err => console.error('SW reg failed:', err));
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (refreshing) return;
+            refreshing = true;
+            // Silent reload logic is handled by user action now, unless forced.
+            // But if we got here via skipWaiting(), we should reload to apply.
+            window.location.reload(); 
+        });
+        
+        // Listen for messages from SW (Future proofing)
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data && event.data.type === 'sw-update-available') {
+                // Handle broadcast update
+            }
         });
     });
 }
+
+// CENTRAL UPDATE HANDLER (V5.00.10)
+function handleUpdateFound(registration) {
+    // 1. Check Global Strategy (config.js)
+    const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
+
+    if (isForceUpdate) {
+        // STRATEGY A: NUCLEAR OPTION (Immediate forced update)
+        // Show blocking modal or toast that cannot be dismissed easily
+        console.log("GUARDIAN: Force Update Triggered.");
+        showToast("Crucial system update. Reloading...", "error", 5000);
+        
+        // Force the waiting worker to activate
+        if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+    } else {
+        // STRATEGY B: SILENT / POLITE OPTION
+        // Show polite toast. User can ignore.
+        console.log("GUARDIAN: Silent Update Available.");
+        
+        const actionHTML = `
+            <button onclick="triggerAppUpdate()" class="bg-white/20 hover:bg-white/40 text-white px-3 py-1 rounded text-xs font-bold transition-colors">
+                UPDATE
+            </button>
+        `;
+        // Show persistent toast
+        showToast("New version available.", "info", 10000, actionHTML);
+        
+        // Store registration for button click
+        window._pendingUpdateReg = registration;
+    }
+}
+
+// Called by the "UPDATE" button in the toast
+window.triggerAppUpdate = function() {
+    if (window._pendingUpdateReg && window._pendingUpdateReg.waiting) {
+        showToast("Updating...", "success");
+        window._pendingUpdateReg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    } else {
+        window.location.reload();
+    }
+};
 
 // --- PHASE 4: THE GRID ENGINE ---
 
@@ -1163,14 +1231,21 @@ function enforceAppVersion() {
     const currentVersion = typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown';
     const storedVersion = localStorage.getItem('app_installed_version');
 
+    // GUARDIAN V5.00.10: Check Force Flag
+    const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
+
     // If version mismatch (and not first run), Prompt User instead of Nuke
     if (storedVersion && storedVersion !== currentVersion) {
         console.log(`[Guardian] Version Upgrade Available: ${storedVersion} -> ${currentVersion}`);
         
+        if (isForceUpdate) {
+            // NUCLEAR OPTION if Config says so (e.g. Critical Bug Fix)
+            handleUpdateClick(currentVersion);
+            return;
+        }
+
         // 4. Polite Notification (No Auto-Reload)
         // We do NOT update the storage key yet. We wait for user action.
-        // localStorage.setItem('app_installed_version', currentVersion);
-
         // Show a persistent, non-dismissible update prompt
         const updateToastHTML = `
             <div id="update-toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center space-x-4 z-[100] cursor-pointer hover:scale-105 transition-transform w-[90%] max-w-sm" onclick="handleUpdateClick('${currentVersion}')">
@@ -1178,8 +1253,8 @@ function enforceAppVersion() {
                     <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                 </div>
                 <div class="flex flex-col">
-                    <span class="text-base font-bold">Update Complete</span>
-                    <span class="text-xs text-blue-100">Tap here to load the new schedule.</span>
+                    <span class="text-base font-bold">New Features Ready</span>
+                    <span class="text-xs text-blue-100">Tap here to finish updating to ${currentVersion}.</span>
                 </div>
             </div>`;
 

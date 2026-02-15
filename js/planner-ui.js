@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V5.00.02 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V5.00.10 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -695,9 +695,9 @@ function initPlanner() {
         const fromInput = document.getElementById('planner-from-search');
         const toInput = document.getElementById('planner-to-search');
         
-        // 1. Capture Visible Text (Source of Truth)
-        let txtFrom = fromInput.value;
-        let txtTo = toInput.value;
+        // 1. Capture Visible Text (Source of Truth) AND Clean it
+        let txtFrom = fromInput.value ? fromInput.value.trim() : "";
+        let txtTo = toInput.value ? toInput.value.trim() : "";
 
         // 2. Perform Swap
         fromInput.value = txtTo;
@@ -727,7 +727,9 @@ function initPlanner() {
             if (selectEl.value) return selectEl.value;
             if (!inputVal || typeof MASTER_STATION_LIST === 'undefined') return "";
 
+            // GUARDIAN V5.00: AGGRESSIVE CLEANING
             const cleanInput = inputVal.trim().toUpperCase();
+            
             const exact = MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === cleanInput);
             if (exact) return exact;
 
@@ -737,6 +739,10 @@ function initPlanner() {
 
         const fromInput = document.getElementById('planner-from-search');
         const toInput = document.getElementById('planner-to-search');
+
+        // Apply cleaning logic immediately before validation
+        if (fromInput) fromInput.value = fromInput.value.trim();
+        if (toInput) toInput.value = toInput.value.trim();
 
         if (!fromSelect.value && fromInput) fromSelect.value = resolveStation(fromInput.value, fromSelect);
         if (!toSelect.value && toInput) toSelect.value = resolveStation(toInput.value, toSelect);
@@ -801,8 +807,9 @@ window.swapPlannerResults = function() {
     // 2. Perform Robust Swap (Reading Inputs first)
     if (!fromInput || !toInput) return;
     
-    let txtFrom = fromInput.value;
-    let txtTo = toInput.value;
+    // GUARDIAN V5.00: AGGRESSIVE CLEANING
+    let txtFrom = fromInput.value ? fromInput.value.trim() : "";
+    let txtTo = toInput.value ? toInput.value.trim() : "";
     
     // Fallback: If inputs empty (glitch), read selects
     if (!txtFrom && fromSelect.value) txtFrom = fromSelect.value.replace(' STATION', '');
@@ -891,8 +898,9 @@ window.restorePlannerSearch = function(fullFrom, fullTo) {
     if (fromSelect && toSelect) {
         fromSelect.value = fullFrom;
         toSelect.value = fullTo;
-        if (fromInput) fromInput.value = fullFrom.replace(' STATION', '');
-        if (toInput) toInput.value = fullTo.replace(' STATION', '');
+        // GUARDIAN: Ensure clean display
+        if (fromInput) fromInput.value = fullFrom.replace(' STATION', '').trim();
+        if (toInput) toInput.value = fullTo.replace(' STATION', '').trim();
         
         const daySelect = document.getElementById('planner-day-select');
         if (daySelect) {
@@ -928,7 +936,8 @@ function setupAutocomplete(inputId, selectId) {
 
     const renderList = (filterText = '') => {
         list.innerHTML = '';
-        const val = filterText.toUpperCase();
+        // GUARDIAN: Trim input here too for better matching
+        const val = filterText.trim().toUpperCase();
         const matches = val.length === 0 ? MASTER_STATION_LIST : MASTER_STATION_LIST.filter(s => s.includes(val));
 
         if (matches.length === 0) {
@@ -1203,8 +1212,8 @@ function updatePlannerHeader(dayLabel, showShare = true) {
         }
         if (!selectedTime && currentTripOptions.length > 0) selectedTime = currentTripOptions[0].depTime;
         
-        const fromStation = (document.getElementById('planner-from-search').value || "").replace(' STATION','');
-        const toStation = (document.getElementById('planner-to-search').value || "").replace(' STATION','');
+        const fromStation = (document.getElementById('planner-from-search').value || "").replace(' STATION','').trim();
+        const toStation = (document.getElementById('planner-to-search').value || "").replace(' STATION','').trim();
         
         // CLEAN SHARE DATA
         const shareUrl = `https://nexttrain.co.za/?action=planner&from=${encodeURIComponent(fromStation)}&to=${encodeURIComponent(toStation)}&time=${selectedTime}&day=${selectedPlannerDay}`;

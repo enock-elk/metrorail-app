@@ -8,26 +8,31 @@
 
     <!-- Clarity tracking code for https://nexttrain.co.za/ -->
     <script>
-        (function(c,l,a,r,i,t,y){
-            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i+"?ref=bwt";
-            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-        })(window, document, "clarity", "script", "v1ahq4vqyx");
+        if (localStorage.getItem('analytics_ignore') !== 'true') {
+            (function(c,l,a,r,i,t,y){
+                c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i+"?ref=bwt";
+                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            })(window, document, "clarity", "script", "v1ahq4vqyx");
+        }
     </script>
 
-
     <title>Roadmap | Metrorail Next Train</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- GUARDIAN: Local Tailwind for Offline Support -->
+    <script src="js/tailwind.js"></script>
     <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        metro: {
-                            dark: '#1f2937',
-                            card: '#374151',
-                            blue: '#3b82f6',
+        if (typeof tailwind !== 'undefined') {
+            tailwind.config = {
+                darkMode: 'class',
+                theme: {
+                    extend: {
+                        colors: {
+                            metro: {
+                                dark: '#1f2937',
+                                card: '#374151',
+                                blue: '#3b82f6',
+                            }
                         }
                     }
                 }
@@ -42,10 +47,14 @@
     <link rel="apple-touch-icon" href="icons/icon-192.png">
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Inline Critical CSS for Status Page -->
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #f3f4f6; }
         .timeline-line { position: absolute; left: 15px; top: 30px; bottom: -20px; width: 2px; background: #4b5563; z-index: 0; }
         .timeline-dot { z-index: 10; }
+        /* Anti-FOUC hidden */
+        [hidden] { display: none !important; }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen p-6">
@@ -68,7 +77,7 @@
                 <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
                 <span class="text-sm font-bold uppercase tracking-wider">System Stable</span>
             </div>
-            <p class="text-xs text-gray-500 font-mono">V4.60.1 (Live)</p>
+            <p class="text-xs text-gray-500 font-mono">V5.00.04 (Live)</p>
         </div>
     </header>
 
@@ -84,32 +93,32 @@
 
             <div class="space-y-6 relative">
                 
-                <!-- V4.60.1 Card (Latest) -->
+                <!-- V5.00.04 Card (Latest) -->
                 <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 shadow-sm relative z-10">
-                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-blue-500 border-4 border-gray-900 flex items-center justify-center">
-                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-indigo-500 border-4 border-gray-900 flex items-center justify-center">
+                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                     </div>
-                    <h3 class="font-bold text-lg text-white mb-1">Service Alerts & Planner Hardening (V4.60.1)</h3>
-                    <p class="text-xs text-gray-400 mb-3 uppercase tracking-wide">Communication & Reliability Update</p>
+                    <h3 class="font-bold text-lg text-white mb-1">Network Expansion (V5.00.04)</h3>
+                    <p class="text-xs text-gray-400 mb-3 uppercase tracking-wide">Routes & Reliability</p>
                     <ul class="text-sm space-y-2 text-gray-300">
-                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Service Alerts System:</strong> Built-in notification bell for real-time delay updates (Read/Write architecture).</li>
-                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Logical Pathing:</strong> New algorithm to prevent "Boomerang" trips (A -> B -> A) and overshooting transfers.</li>
-                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Offline Maps:</strong> Interactive map coordinates now cached for full offline support.</li>
-                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Pricing Update:</strong> Adjusted 50% discount logic for Pensioners & Military.</li>
+                        <li class="flex items-start"><span class="text-indigo-500 mr-2">▸</span> <strong>New Route:</strong> Hercules <-> Koedoespoort now live (Weekday Service).</li>
+                        <li class="flex items-start"><span class="text-indigo-500 mr-2">▸</span> <strong>Bridge Trips:</strong> Planner now supports 2-stop transfers (e.g. crossing via Hercules).</li>
+                        <li class="flex items-start"><span class="text-indigo-500 mr-2">▸</span> <strong>Ghost Protocol:</strong> Advanced filtering for testing/inactive trains.</li>
+                        <li class="flex items-start"><span class="text-indigo-500 mr-2">▸</span> <strong>Maintenance Mode:</strong> Real-time banners for service upgrades.</li>
                     </ul>
                 </div>
 
-                <!-- V4.58.1 Card -->
+                <!-- V4.60.1 Card -->
                 <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 shadow-sm relative z-10 opacity-90">
-                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-green-600 border-4 border-gray-900 flex items-center justify-center">
-                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-blue-500 border-4 border-gray-900 flex items-center justify-center">
+                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
                     </div>
-                    <h3 class="font-bold text-lg text-white mb-1">Smart Routing & Core Stability (V4.58.1)</h3>
-                    <p class="text-xs text-gray-400 mb-3 uppercase tracking-wide">Planner Logic & UX Fixes</p>
+                    <h3 class="font-bold text-lg text-white mb-1">Service Alerts & Planner Hardening (V4.60.x)</h3>
+                    <p class="text-xs text-gray-400 mb-3 uppercase tracking-wide">Communication & Reliability</p>
                     <ul class="text-sm space-y-2 text-gray-300">
-                        <li class="flex items-start"><span class="text-green-600 mr-2">▸</span> <strong>Smart Pruning:</strong> Automatically removes redundant transfers if the direct train is faster.</li>
-                        <li class="flex items-start"><span class="text-green-600 mr-2">▸</span> <strong>Pretoria Unblocked:</strong> Fixed geometric constraints that blocked transfers via Pretoria Station.</li>
-                        <li class="flex items-start"><span class="text-green-600 mr-2">▸</span> <strong>Map Fix:</strong> Corrected pinch-to-zoom behavior on mobile devices.</li>
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Service Alerts System:</strong> Built-in notification bell for real-time updates.</li>
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Offline Maps:</strong> Interactive map coordinates now cached.</li>
+                        <li class="flex items-start"><span class="text-blue-500 mr-2">▸</span> <strong>Smart Pruning:</strong> Automatically removes redundant transfers.</li>
                     </ul>
                 </div>
 
@@ -123,17 +132,6 @@
                         <li class="flex items-start"><span class="text-gray-500 mr-2">▸</span> <strong>Contextual Destinations:</strong> Transfer instructions match platform signs.</li>
                         <li class="flex items-start"><span class="text-gray-500 mr-2">▸</span> <strong>Night Owl Logic:</strong> "Tomorrow Morning" status for late-night planning.</li>
                     </ul>
-                </div>
-
-                <!-- Technical Foundation (Summary) -->
-                <div class="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50 relative z-10 opacity-60">
-                    <div class="absolute -left-3 top-5 w-6 h-6 rounded-full bg-gray-700 border-4 border-gray-900"></div>
-                    <h3 class="font-bold text-base text-gray-300 mb-2">Technical Foundation</h3>
-                    <div class="flex flex-wrap gap-2">
-                        <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">Analytics Events</span>
-                        <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">Lazy Load Maps</span>
-                        <span class="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">Off-Peak Logic</span>
-                    </div>
                 </div>
                 
                 <!-- Vertical Line -->
@@ -168,7 +166,7 @@
                             <span class="bg-blue-500/20 text-blue-300 p-1 rounded mr-3 text-xs">📅</span>
                             <div>
                                 <strong class="block text-gray-200">Holiday Logic Automation</strong>
-                                <span class="text-gray-400 text-xs">Algorithmic calculation of Easter/Public Holidays to replace manual lists.</span>
+                                <span class="text-gray-400 text-xs">Algorithmic calculation of Easter/Public Holidays.</span>
                             </div>
                         </li>
                     </ul>
@@ -192,13 +190,6 @@
                                 <span class="text-gray-400 text-xs">Tooltip/Modal breaking down Zone/Off-peak pricing logic.</span>
                             </div>
                         </li>
-                        <li class="flex items-start">
-                            <span class="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full mr-3 text-xs">🚫</span>
-                            <div>
-                                <strong class="block text-gray-200">Visual "No Service" Cues</strong>
-                                <span class="text-gray-400 text-xs">Clearer UI state for Sundays/Holidays (Red banners).</span>
-                            </div>
-                        </li>
                     </ul>
                 </div>
 
@@ -213,10 +204,6 @@
                         <li class="flex items-center">
                             <span class="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full mr-3 text-xs">📢</span>
                             <span class="text-gray-300 ml-2"><strong>Crowdsource:</strong> "Report Delay" button.</span>
-                        </li>
-                        <li class="flex items-center">
-                            <span class="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full mr-3 text-xs">🗺️</span>
-                            <span class="text-gray-300 ml-2"><strong>Multi-Lingual:</strong> Support for Zulu/Sotho.</span>
                         </li>
                     </ul>
                 </div>

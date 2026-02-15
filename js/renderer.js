@@ -1,45 +1,37 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V5.00.02 - Stacked Layout)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V5.00.10 - Guardian Stability & Defaults)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
- * * PART OF PHASE 1: MODULARIZATION
+ * * PART OF PHASE 3 & 4: LOADING GUARDRAILS & SMART DEFAULTS
+ * * UPDATES: Sunday->Weekday Default, Loading State Protection
  */
 
 const Renderer = {
 
     // --- 1. DYNAMIC MENU GENERATION ---
 
-    /**
-     * Renders the Sidebar Route Menu dynamically from config.js
-     * Groups routes by Corridor ID mapped to display categories.
-     */
     renderRouteMenu: (containerId, routes, activeRouteId) => {
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        // Grouping Map (Maps Config Corridor IDs to Display Categories)
         const categoryMap = {
             "EAST_LINE": "Northern Corridor (Pretoria)",
             "NORTH_LINE": "Northern Corridor (Pretoria)",
             "SAUL_LINE": "Northern Corridor (Pretoria)",
-            
             "SOUTH_LINE": "Pretoria - JHB Line",
             "JHB_EAST": "Pretoria - JHB Line",
             "JHB_CORE": "Pretoria - JHB Line",
-            
             "JHB_WEST": "JHB West Line",
             "JHB_SOUTH": "JHB West Line"
         };
 
-        // Custom Order for Categories
         const categoryOrder = [
             "Northern Corridor (Pretoria)",
             "Pretoria - JHB Line",
             "JHB West Line"
         ];
 
-        // Group Routes
         const groups = {};
         Object.values(routes).forEach(route => {
             if (!route.isActive) return;
@@ -50,7 +42,6 @@ const Renderer = {
 
         let html = '';
 
-        // Render Pinned Section First
         const savedDefault = localStorage.getItem('defaultRoute');
         if (savedDefault && routes[savedDefault]) {
             const r = routes[savedDefault];
@@ -69,7 +60,6 @@ const Renderer = {
             `;
         }
 
-        // Render Categories
         categoryOrder.forEach(cat => {
             if (groups[cat]) {
                 html += `<li class="route-category">${cat}</li>`;
@@ -90,9 +80,6 @@ const Renderer = {
         container.innerHTML = html;
     },
 
-    /**
-     * Renders the Welcome Modal Route List dynamically
-     */
     renderWelcomeList: (containerId, routes, onSelectCallback) => {
         const container = document.getElementById(containerId);
         if (!container) return;
@@ -103,8 +90,6 @@ const Renderer = {
             if (!route.isActive) return;
 
             const btn = document.createElement('button');
-            
-            // Determine Border Color based on config colorClass
             let borderColor = 'border-gray-500';
             if (route.colorClass.includes('orange')) borderColor = 'border-orange-500';
             else if (route.colorClass.includes('purple')) borderColor = 'border-purple-500';
@@ -112,7 +97,7 @@ const Renderer = {
             else if (route.colorClass.includes('blue')) borderColor = 'border-blue-500';
             else if (route.colorClass.includes('red')) borderColor = 'border-red-500';
             else if (route.colorClass.includes('yellow')) borderColor = 'border-yellow-500';
-            else if (route.colorClass.includes('indigo')) borderColor = 'border-indigo-500'; // Added for Hercules
+            else if (route.colorClass.includes('indigo')) borderColor = 'border-indigo-500';
 
             btn.className = `w-full text-left p-4 rounded-xl shadow-md flex items-center justify-between group transition-all transform hover:scale-[1.02] active:scale-95 bg-white dark:bg-gray-800 border-l-4 ${borderColor}`;
             
@@ -347,12 +332,22 @@ const Renderer = {
         return 'dot-gray';
     },
 
-    // --- 4. CHANGELOG MODAL (NEW V5.00.00) ---
+    // --- 4. CHANGELOG MODAL ---
     renderChangelogModal: (changelogData) => {
+        // GUARDIAN UPDATE V5.00.10: Auto-close sidenav when opening modal
+        if (document.getElementById('sidenav')) {
+            const sidenav = document.getElementById('sidenav');
+            const overlay = document.getElementById('sidenav-overlay');
+            if (sidenav.classList.contains('open')) {
+                sidenav.classList.remove('open');
+                overlay.classList.remove('open');
+                document.body.classList.remove('sidenav-open');
+            }
+        }
+
         history.pushState({ modal: 'changelog' }, '', '#changelog');
         let modal = document.getElementById('changelog-modal');
         
-        // Build if missing
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'changelog-modal';
@@ -402,35 +397,184 @@ const Renderer = {
         }
 
         modal.classList.remove('hidden');
+    },
+
+    // --- 5. GRID GENERATION HELPER (NEW V5.00.09 - Visual Polish) ---
+    _buildGridHTML: (schedule, sheetName, routeId, dayIdx, highlightNextTrain = true, isExport = false) => {
+        // 1. Column Sorting Logic
+        const trainCols = schedule.headers.slice(1).filter(header => /^\d{4}[a-zA-Z]*$/.test(header.trim()));
+        let sortedCols = [];
+
+        if (typeof MANUAL_GRID_ORDER !== 'undefined' && MANUAL_GRID_ORDER[sheetName]) {
+            const manualOrder = MANUAL_GRID_ORDER[sheetName];
+            manualOrder.forEach(tNum => { if (trainCols.includes(tNum)) sortedCols.push(tNum); });
+            const manualSet = new Set(manualOrder);
+            const remainingCols = trainCols.filter(t => !manualSet.has(t));
+            remainingCols.sort((a, b) => a.localeCompare(b));
+            sortedCols = [...sortedCols, ...remainingCols];
+        } else {
+            const isValidTime = (val) => val && val !== '-' && /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim());
+            const colStats = trainCols.map(colId => {
+                let earliestTime = 86400 * 2;
+                let hasData = false;
+                for (const row of schedule.rows) {
+                    const val = row[colId];
+                    if (isValidTime(val)) {
+                        const t = timeToSeconds(val);
+                        if (t > 0) {
+                            if (t < earliestTime) earliestTime = t;
+                            hasData = true;
+                        }
+                    }
+                }
+                return { id: colId, time: earliestTime, hasData };
+            });
+            colStats.sort((a, b) => {
+                if (!a.hasData && !b.hasData) return a.id.localeCompare(b.id);
+                if (!a.hasData) return 1;
+                if (!b.hasData) return -1;
+                return a.time - b.time;
+            });
+            sortedCols = colStats.map(c => c.id);
+        }
+
+        // 2. Active Column Logic
+        let activeColIndex = -1;
+        
+        if (highlightNextTrain && !isExport && typeof currentTime !== 'undefined') {
+             const nowSec = timeToSeconds(currentTime);
+             for (let i = 0; i < sortedCols.length; i++) {
+                 let firstTimeSec = 0;
+                 for (const row of schedule.rows) {
+                     const val = row[sortedCols[i]];
+                     if (val && val !== "-" && /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim())) {
+                         firstTimeSec = timeToSeconds(val);
+                         break;
+                     }
+                 }
+                 if (firstTimeSec >= nowSec) { activeColIndex = i; break; }
+             }
+        }
+
+        // 3. HTML Generation (VISUAL POLISH)
+        const paddingClass = isExport ? 'p-2' : 'p-3'; 
+        const fontSizeClass = isExport ? 'text-sm' : 'text-xs'; // Bigger text for export
+        
+        // GUARDIAN FIX: Dynamic Dark Mode Classes + Explicit Light Mode Text
+        let tableClass = isExport ? '' : 'bg-white dark:bg-gray-900';
+        let theadClass = isExport ? '' : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-200'; // Explicit gray-900
+        let stickyHeaderClass = isExport ? '' : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700'; // Stronger border
+        let borderClass = isExport ? 'border-gray-300' : 'border-gray-300 dark:border-gray-700';
+        let tbodyClass = isExport ? '' : 'bg-white dark:bg-gray-900';
+        let stickyCellClass = isExport ? '' : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white';
+
+        let html = `
+            <table class="w-full ${fontSizeClass} text-left border-collapse ${tableClass}">
+                <thead class="text-[10px] uppercase ${theadClass} sticky top-0 z-20 shadow-sm">
+                    <tr>
+                        <th class="sticky left-0 z-30 ${stickyHeaderClass} ${paddingClass} border-b border-r font-bold min-w-[140px] shadow-lg text-left pl-3">Station</th>
+                        ${sortedCols.map((h, i) => {
+                            const isHighlight = i === activeColIndex;
+                            const isExcluded = (typeof isTrainExcluded === 'function') && isTrainExcluded(h, routeId, dayIdx);
+                            
+                            let bgClass = '';
+                            if (!isExport) {
+                                if (isHighlight) bgClass = 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 font-bold'; // Darker blue text
+                                if (isExcluded) bgClass = 'bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-300 opacity-90';
+                            }
+
+                            const headerContent = (isExcluded && !isExport) ? `<span class="block text-[8px] text-red-600 dark:text-red-400 font-black mb-0.5 tracking-tight">🚫 NO SVC</span>${h}` : h;
+
+                            return `<th class="${paddingClass} border-b border-r ${borderClass} whitespace-nowrap text-center ${bgClass} min-w-[70px]" ${isHighlight ? 'id="grid-active-col"' : ''}>${headerContent}</th>`;
+                        }).join('')}
+                    </tr>
+                </thead>
+                <tbody class="divide-y ${borderClass} ${tbodyClass}">
+        `;
+
+        schedule.rows.forEach(row => {
+            if (!row.STATION || row.STATION.toLowerCase().includes('updated')) return; 
+            const cleanStation = row.STATION.replace(' STATION', '');
+            let hasData = false;
+            sortedCols.forEach(col => { if (row[col] && row[col] !== "-" && row[col] !== "") hasData = true; });
+            if (!hasData) return;
+
+            html += `
+                <tr class="">
+                    <td class="sticky left-0 z-10 ${stickyCellClass} ${paddingClass} border-r font-bold truncate max-w-[140px] shadow-lg border-b text-left pl-3">${cleanStation}</td>
+                    ${sortedCols.map((col, i) => {
+                        let val = row[col] || "-";
+                        if (val !== "-") {
+                            const isValidTime = /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim());
+                            if (isValidTime) {
+                                val = formatTimeDisplay(val); 
+                            } else {
+                                val = "-";
+                            }
+                        }
+                        
+                        if (isExport && val === "-") val = "";
+
+                        const isHighlight = i === activeColIndex;
+                        const isExcluded = (typeof isTrainExcluded === 'function') && isTrainExcluded(col, routeId, dayIdx);
+
+                        let cellClass = `${paddingClass} text-center border-r ${borderClass} border-b`;
+                        
+                        if (val !== "" && val !== "-") {
+                            cellClass += " font-mono font-medium";
+                            if (!isExport) {
+                                cellClass += " text-gray-900 dark:text-gray-200"; // FIX: Explicit Black Text for Light Mode
+                                if (isHighlight) cellClass += " bg-blue-50 dark:bg-blue-900/20 font-bold text-blue-800 dark:text-blue-300";
+                                if (isExcluded) cellClass += " text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 opacity-80 font-normal decoration-slice";
+                            }
+                        } else { 
+                            if (!isExport) {
+                                cellClass += " text-gray-300 dark:text-gray-700"; 
+                                if (isExcluded) cellClass += " bg-red-50 dark:bg-red-900/10";
+                            }
+                        }
+                        return `<td class="${cellClass}">${val}</td>`;
+                    }).join('')}
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table>`;
+        return html;
     }
 };
 
-// --- GRID ENGINE (Moved from UI.js) ---
+// --- WINDOW FUNCTIONS (RESTORED & STABLE) ---
 
-// GUARDIAN UPDATE V4.60.87: Stacked Toolbar Layout (Optimized)
 window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
+    // GUARDIAN PHASE 3: Loading Guardrail
+    if (!schedules || Object.keys(schedules).length === 0) {
+        showToast("Loading latest schedules... please wait.", "info", 2000);
+        return;
+    }
+
     const route = ROUTES[currentRouteId];
     if (!route) return;
 
-    // 1. Determine Day Context (Fixed: Use currentDayIndex if available)
     const selectedDay = dayOverride || currentDayType;
     let sheetDayType = 'weekday';
     
-    if (selectedDay === 'saturday' || selectedDay === 'sunday') {
+    // GUARDIAN PHASE 4: Smart Defaults (Sunday -> Weekday)
+    if (selectedDay === 'saturday') {
         sheetDayType = 'saturday';
+    } else if (selectedDay === 'sunday') {
+        // Explicitly map Sunday to Weekday for next-day planning
+        sheetDayType = 'weekday';
+    } else {
+        sheetDayType = 'weekday';
     }
 
-    // GUARDIAN FIX: Respect Simulation Mode / Current State logic
     let dayIdx = (typeof currentDayIndex !== 'undefined') ? currentDayIndex : new Date().getDay();
     
     if (dayOverride) {
-        // Smart Context: If the requested view matches the current day's type,
-        // keep the specific day index (e.g. Keep "Thursday" instead of resetting to "Monday").
-        // This ensures "Ghost Trains" for today stay visible when toggling direction.
         const isSameType = (dayOverride === currentDayType);
-        
         if (!isSameType) {
-            if (dayOverride === 'weekday') dayIdx = 1; // Default to Mon
+            if (dayOverride === 'weekday') dayIdx = 1; 
             else if (dayOverride === 'saturday') dayIdx = 6;
             else if (dayOverride === 'sunday') dayIdx = 0;
         }
@@ -443,7 +587,6 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     });
 
     const destName = (direction === 'A' ? route.destA : route.destB).replace(' STATION', '');
-    const altDestName = (direction === 'A' ? route.destB : route.destA).replace(' STATION', '');
     
     const sheetKey = `${sheetDayType}_to_${direction.toLowerCase()}`;
     const schedule = schedules[sheetKey];
@@ -453,7 +596,6 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         return;
     }
 
-    // Auto-Inject Modal if Missing (Updated Structure for Stacked Toolbar)
     let modal = document.getElementById('full-schedule-modal');
     if (!modal) {
         modal = document.createElement('div');
@@ -461,23 +603,14 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         modal.className = 'fixed inset-0 bg-white dark:bg-gray-900 z-[95] hidden flex items-center justify-center p-0 full-screen transition-opacity duration-300';
         modal.innerHTML = `
             <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
-                <!-- ROW 1: HEADER (TITLE + CLOSE) -->
                 <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800 z-20 relative">
-                    <h3 class="flex-grow min-w-0 pr-2"><!-- Dynamic Title --></h3>
+                    <h3 class="flex-grow min-w-0 pr-2"></h3>
                     <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden')" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition flex-shrink-0" aria-label="Close Grid">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
-                
-                <!-- ROW 2: TOOLBAR (CONTROLS) -->
-                <div id="grid-controls" class="px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shadow-sm z-20 relative">
-                    <!-- Dynamic Controls -->
-                </div>
-
-                <!-- ROW 3: GRID -->
+                <div id="grid-controls" class="px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shadow-sm z-20 relative"></div>
                 <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative"></div>
-                
-                <!-- ROW 4: FOOTER -->
                 <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
                     <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors">Close Timetable</button>
                 </div>
@@ -499,7 +632,7 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     if (headerTitle) {
         headerTitle.innerHTML = `
             <div class="flex flex-col w-full">
-                <span class="text-sm font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider truncate">To ${destName}</span>
+                <span class="text-sm font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider truncate">Trains to ${destName}</span>
                 <span class="text-[10px] text-gray-400 font-mono mt-0.5 truncate">${effectiveDate}</span>
             </div>
         `;
@@ -526,12 +659,11 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
             } catch (e) {}
         };
 
-        // NEW LAYOUT: Grouped Controls
         controlsDiv.innerHTML = `
             <div class="flex items-center space-x-2">
                 <select onchange="renderFullScheduleGrid('${direction}', this.value)" class="text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm">
-                    <option value="weekday" ${isWk ? 'selected' : ''}>Mon-Fri</option>
-                    <option value="saturday" ${!isWk ? 'selected' : ''}>Sat/Sun</option>
+                    <option value="weekday" ${isWk ? 'selected' : ''}>Monday-Friday</option>
+                    <option value="saturday" ${!isWk ? 'selected' : ''}>Saturday</option>
                 </select>
                 <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">
                     ⇄ Return
@@ -539,8 +671,9 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
             </div>
             
             <div class="flex items-center space-x-2 border-l border-gray-200 dark:border-gray-700 pl-3 ml-1">
-                <button onclick="takeGridSnapshot()" class="p-2 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition shadow-sm" title="Save as Image">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <button onclick="takeGridSnapshot()" class="flex items-center space-x-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600" title="Save Image">
+                    <span class="text-[10px] font-bold text-gray-700 dark:text-gray-300">Save</span>
+                    <svg class="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 </button>
                 <button onclick="shareCurrentGrid()" class="p-2 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100 transition shadow-sm" title="Share Link">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
@@ -549,124 +682,11 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         `;
     }
 
-    const trainCols = schedule.headers.slice(1).filter(header => /^\d{4}[a-zA-Z]*$/.test(header.trim()));
-    let sortedCols = [];
-    const actualSheetName = route.sheetKeys[sheetKey];
-
-    if (typeof MANUAL_GRID_ORDER !== 'undefined' && MANUAL_GRID_ORDER[actualSheetName]) {
-        const manualOrder = MANUAL_GRID_ORDER[actualSheetName];
-        manualOrder.forEach(tNum => { if (trainCols.includes(tNum)) sortedCols.push(tNum); });
-        const manualSet = new Set(manualOrder);
-        const remainingCols = trainCols.filter(t => !manualSet.has(t));
-        remainingCols.sort((a, b) => a.localeCompare(b));
-        sortedCols = [...sortedCols, ...remainingCols];
-    } else {
-        const isValidTime = (val) => val && val !== '-' && /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim());
-        const colStats = trainCols.map(colId => {
-            let earliestTime = 86400 * 2;
-            let hasData = false;
-            for (const row of schedule.rows) {
-                const val = row[colId];
-                if (isValidTime(val)) {
-                    const t = timeToSeconds(val);
-                    if (t > 0) {
-                        if (t < earliestTime) earliestTime = t;
-                        hasData = true;
-                    }
-                }
-            }
-            return { id: colId, time: earliestTime, hasData };
-        });
-        colStats.sort((a, b) => {
-            if (!a.hasData && !b.hasData) return a.id.localeCompare(b.id);
-            if (!a.hasData) return 1;
-            if (!b.hasData) return -1;
-            return a.time - b.time;
-        });
-        sortedCols = colStats.map(c => c.id);
-    }
-
-    let activeColIndex = -1;
     const isTodayType = (currentDayType === 'weekday' && sheetDayType === 'weekday') || 
                         (currentDayType !== 'weekday' && sheetDayType === 'saturday');
+    
+    const html = Renderer._buildGridHTML(schedule, route.sheetKeys[sheetKey], currentRouteId, dayIdx, isTodayType, false);
 
-    if (currentTime && isTodayType) {
-        const nowSec = timeToSeconds(currentTime);
-        for (let i = 0; i < sortedCols.length; i++) {
-             let firstTimeSec = 0;
-             for (const row of schedule.rows) {
-                 const val = row[sortedCols[i]];
-                 if (val && val !== "-" && /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim())) {
-                     firstTimeSec = timeToSeconds(val);
-                     break;
-                 }
-             }
-             if (firstTimeSec >= nowSec) { activeColIndex = i; break; }
-        }
-    }
-
-    let html = `
-        <table class="w-full text-xs text-left border-collapse">
-            <thead class="text-[10px] uppercase bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 sticky top-0 z-20 shadow-sm">
-                <tr>
-                    <th class="sticky left-0 z-30 bg-gray-100 dark:bg-gray-800 p-3 border-b border-r border-gray-200 dark:border-gray-700 font-bold min-w-[120px] shadow-lg">Station</th>
-                    ${sortedCols.map((h, i) => {
-                        const isHighlight = i === activeColIndex;
-                        const isExcluded = (typeof isTrainExcluded === 'function') && isTrainExcluded(h, currentRouteId, dayIdx);
-                        
-                        let bgClass = isHighlight ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold' : '';
-                        if (isExcluded) bgClass = 'bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-300 opacity-90';
-
-                        const headerContent = isExcluded ? `<span class="block text-[8px] text-red-600 font-black mb-0.5 tracking-tight">🚫 NO SVC</span>${h}` : h;
-
-                        return `<th class="p-3 border-b border-r border-gray-200 dark:border-gray-700 whitespace-nowrap text-center ${bgClass} min-w-[60px]" ${isHighlight ? 'id="grid-active-col"' : ''}>${headerContent}</th>`;
-                    }).join('')}
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
-    `;
-
-    schedule.rows.forEach(row => {
-        if (!row.STATION || row.STATION.toLowerCase().includes('updated')) return; 
-        const cleanStation = row.STATION.replace(' STATION', '');
-        let hasData = false;
-        sortedCols.forEach(col => { if (row[col] && row[col] !== "-" && row[col] !== "") hasData = true; });
-        if (!hasData) return;
-
-        html += `
-            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer" onclick="highlightGridRow(this)">
-                <td class="sticky left-0 z-10 bg-white dark:bg-gray-900 p-2 border-r border-gray-200 dark:border-gray-700 font-bold text-gray-900 dark:text-gray-100 truncate max-w-[120px] shadow-lg border-b">${cleanStation}</td>
-                ${sortedCols.map((col, i) => {
-                    let val = row[col] || "-";
-                    if (val !== "-") {
-                        const isValidTime = /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim());
-                        if (isValidTime) {
-                            val = formatTimeDisplay(val); 
-                        } else {
-                            val = "-";
-                        }
-                    }
-                    const isHighlight = i === activeColIndex;
-                    const isExcluded = (typeof isTrainExcluded === 'function') && isTrainExcluded(col, currentRouteId, dayIdx);
-
-                    let cellClass = "p-2 text-center border-r border-gray-100 dark:border-gray-800 border-b";
-                    
-                    if (val !== "-") {
-                        cellClass += " font-mono text-gray-700 dark:text-gray-300";
-                        if (isHighlight) cellClass += " bg-blue-50 dark:bg-blue-900/20 font-bold text-blue-700 dark:text-blue-300";
-                        // GUARDIAN FIX V4.60.81: Improved Contrast for Ghost Trains
-                        if (isExcluded) cellClass += " text-red-400 dark:text-red-400 bg-red-50 dark:bg-red-900/20 opacity-80 font-normal decoration-slice";
-                    } else { 
-                        cellClass += " text-gray-200 dark:text-gray-700"; 
-                        if (isExcluded) cellClass += " bg-red-50 dark:bg-red-900/10";
-                    }
-                    return `<td class="${cellClass}">${val}</td>`;
-                }).join('')}
-            </tr>
-        `;
-    });
-
-    html += `</tbody></table>`;
     container.innerHTML = html;
     modal.classList.remove('hidden');
     history.pushState({ modal: 'grid' }, '', '#grid');
@@ -689,9 +709,8 @@ window.highlightGridRow = function(tr) {
     if (stickyCell) { stickyCell.classList.remove('bg-white', 'dark:bg-gray-900'); stickyCell.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40'); }
 };
 
-// GUARDIAN SNAPSHOT ENGINE (Phase 5.1 - Fixes)
+// --- SNAPSHOT ENGINE V2.2 (Header Swap & Light Mode Tweaks) ---
 window.takeGridSnapshot = async function() {
-    // 1. Load Engine
     if (typeof html2canvas === 'undefined') {
         showToast("Loading snapshot engine...", "info", 1500);
         try {
@@ -708,92 +727,170 @@ window.takeGridSnapshot = async function() {
         }
     }
 
-    const sourceTable = document.querySelector('#grid-container table');
-    if (!sourceTable) { showToast("Table not ready.", "error"); return; }
+    showToast("📄 Generating Commuter Notice...", "info", 4000);
 
-    showToast("📸 Processing image...", "info", 3000);
+    const route = ROUTES[currentRouteId];
+    if (!route) return;
 
-    // 2. Clone & Brand
+    const daySelect = document.querySelector('#grid-controls select');
+    const selectedDay = daySelect ? daySelect.value : 'weekday';
+    let sheetDayType = selectedDay;
+    if (selectedDay === 'sunday') sheetDayType = 'weekday'; 
+
+    const keyA = `${sheetDayType}_to_a`;
+    const keyB = `${sheetDayType}_to_b`;
+    const schedA = schedules[keyA];
+    const schedB = schedules[keyB];
+
+    // THEME & COLOR LOGIC (Updated for softer Dark Mode)
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    
+    // Guardian: Changed dark background from #111827 (very dark) to #1f2937 (gray-800) for better readability
+    const bgColor = isDarkMode ? '#1f2937' : '#ffffff'; 
+    const textColor = isDarkMode ? '#f3f4f6' : '#111827'; // Darker text for light mode
+    const borderColor = isDarkMode ? '#374151' : '#e5e7eb';
+    const accentColor = isDarkMode ? '#60a5fa' : '#2563eb';
+    const mutedColor = isDarkMode ? '#9ca3af' : '#6b7280';
+    const tableHeaderBg = isDarkMode ? '#374151' : '#f3f4f6'; // Lighter header for dark mode
+
     const exportContainer = document.createElement('div');
     exportContainer.style.position = 'fixed';
     exportContainer.style.left = '-9999px';
     exportContainer.style.top = '0';
-    // GUARDIAN FIX: Dynamic width based on scrollWidth + padding
-    exportContainer.style.width = (sourceTable.scrollWidth + 60) + 'px'; 
-    exportContainer.style.padding = '30px';
+    exportContainer.style.width = 'auto'; 
+    exportContainer.style.minWidth = '800px'; 
+    exportContainer.style.padding = '20px';
     exportContainer.style.fontFamily = 'system-ui, sans-serif';
+    exportContainer.style.backgroundColor = bgColor;
+    exportContainer.style.color = textColor;
     
-    // Theme Match
-    const isDark = document.documentElement.classList.contains('dark');
-    exportContainer.style.backgroundColor = isDark ? '#111827' : '#ffffff';
-    exportContainer.style.color = isDark ? '#f3f4f6' : '#111827';
-    if(isDark) exportContainer.classList.add('dark');
+    if (isDarkMode) exportContainer.classList.add('dark');
+    else exportContainer.classList.remove('dark');
 
-    // GUARDIAN FIX: Smart Directional Header (Origin -> Destination)
-    const routeConfig = ROUTES[currentRouteId];
-    // Scrape "To [Dest]" text from DOM header (reliable source of truth for current view)
-    const headerDestText = document.querySelector('#full-schedule-modal h3 span')?.innerText || "";
-    // Clean "To " prefix
-    const cleanDest = headerDestText.replace(/^To\s+/i, '').trim(); 
+    const destAName = route.destA.replace(' STATION', '');
+    const destBName = route.destB.replace(' STATION', '');
+    const dateText = new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
+    const scheduleTypeLabel = selectedDay === 'weekday' ? 'WEEKDAY' : 'WEEKEND';
     
-    // Infer Origin based on Route Config
-    let originName = "Origin";
-    if (routeConfig) {
-        // If viewing Dest A, Origin is B. If viewing B, Origin is A.
-        if (cleanDest.toUpperCase() === routeConfig.destA.replace(' STATION', '')) {
-            originName = routeConfig.destB.replace(' STATION', '');
-        } else {
-            originName = routeConfig.destA.replace(' STATION', '');
-        }
+    let effectiveDateText = "";
+    if (schedA && schedA.lastUpdated) {
+        effectiveDateText = schedA.lastUpdated.replace(/^last updated[:\s-]*/i, '').trim();
     }
+
+    let dummyDayIdx = selectedDay === 'weekday' ? 1 : 6;
     
-    const formattedTitle = `${originName} ➝ ${cleanDest}`;
-    const dateText = new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long' });
+    const htmlA = schedA 
+        ? Renderer._buildGridHTML(schedA, route.sheetKeys[keyA], currentRouteId, dummyDayIdx, false, true) 
+        : `<div class="p-8 text-center italic border rounded" style="color:${mutedColor}; border-color:${borderColor}">No service scheduled for this direction.</div>`;
+        
+    const htmlB = schedB 
+        ? Renderer._buildGridHTML(schedB, route.sheetKeys[keyB], currentRouteId, dummyDayIdx, false, true) 
+        : `<div class="p-8 text-center italic border rounded" style="color:${mutedColor}; border-color:${borderColor}">No service scheduled for this direction.</div>`;
 
     exportContainer.innerHTML = `
-        <div style="margin-bottom: 20px; text-align: center; border-bottom: 3px solid #3b82f6; padding-bottom: 15px;">
-            <h1 style="font-size: 28px; font-weight: 900; color: ${isDark ? '#60a5fa' : '#1e3a8a'}; margin: 0; text-transform: uppercase; letter-spacing: 1px;">${formattedTitle}</h1>
-            <h2 style="font-size: 14px; font-weight: bold; color: ${isDark ? '#9ca3af' : '#4b5563'}; margin: 8px 0;">${dateText} • Generated by NextTrain.co.za</h2>
+        <!-- HEADER BLOCK (SWAPPED LAYOUT) -->
+        <div class="mb-6 border-b-4 pb-4" style="border-color: ${accentColor}">
+            <div class="flex justify-between items-end">
+                <div>
+                    <h1 class="text-4xl font-black uppercase tracking-tight mb-1" style="color: ${accentColor}">Commuter Notice</h1>
+                    <h2 class="text-xl font-bold uppercase tracking-widest" style="color: ${mutedColor}">${route.name} Corridor</h2>
+                </div>
+                <div class="text-right">
+                    <div class="text-2xl font-bold" style="color: ${textColor}">${scheduleTypeLabel} TIMETABLE</div>
+                    ${effectiveDateText ? `<div class="text-sm font-bold uppercase mt-1" style="color: ${mutedColor}">EFFECTIVE: ${effectiveDateText}</div>` : ''}
+                </div>
+            </div>
         </div>
-        <div id="export-table-wrapper" style="font-size: 12px;"></div>
+
+        <!-- TABLE BLOCK A -->
+        <div class="mb-8">
+            <div class="p-2 mb-0 border-l-4" style="background-color: ${isDarkMode ? '#374151' : '#f3f4f6'}; border-color: ${accentColor}">
+                <h3 class="font-bold text-lg uppercase" style="color: ${textColor}">DIRECTION: ${destBName} ↔ ${destAName}</h3>
+            </div>
+            <div class="schedule-table-wrapper">
+                ${htmlA}
+            </div>
+        </div>
+
+        <!-- DIVIDER -->
+        <div class="flex items-center justify-center my-8 opacity-50">
+            <div class="h-px w-full" style="background-color: ${borderColor}"></div>
+            <span class="px-4 text-xs font-bold uppercase" style="color: ${mutedColor}">Return Service</span>
+            <div class="h-px w-full" style="background-color: ${borderColor}"></div>
+        </div>
+
+        <!-- TABLE BLOCK B -->
+        <div class="mb-8">
+            <div class="p-2 mb-0 border-l-4" style="background-color: ${isDarkMode ? '#374151' : '#f3f4f6'}; border-color: ${accentColor}">
+                <h3 class="font-bold text-lg uppercase" style="color: ${textColor}">DIRECTION: ${destAName} ↔ ${destBName}</h3>
+            </div>
+            <div class="schedule-table-wrapper">
+                ${htmlB}
+            </div>
+        </div>
+
+        <!-- ENHANCED FOOTER (GENERATED MOVED HERE) -->
+        <div class="mt-8 p-4 rounded-lg flex justify-between items-center" style="background-color: ${isDarkMode ? '#374151' : '#f3f4f6'}">
+            <div class="flex flex-col">
+                <span class="text-[10px] font-mono mb-1" style="color: ${mutedColor}">GENERATED: ${dateText}</span>
+                <span class="font-bold text-xs" style="color: ${mutedColor}">Data Source: PRASA / Metrorail Web</span>
+                <span class="text-[10px] uppercase tracking-wider opacity-75" style="color: ${mutedColor}">Unofficial Guide • Not affiliated with PRASA</span>
+            </div>
+            <span class="font-black text-xl" style="color: ${accentColor}">nexttrain.co.za</span>
+        </div>
     `;
 
-    document.body.appendChild(exportContainer);
-    
-    const tableClone = sourceTable.cloneNode(true);
-    
-    // GUARDIAN FIX: "De-Sticky" Logic (Flatten table for screenshot)
-    // Remove sticky classes that cause rendering artifacts in html2canvas
-    tableClone.querySelectorAll('.sticky').forEach(el => {
-        el.classList.remove('sticky', 'left-0', 'top-0', 'z-10', 'z-20', 'z-30', 'shadow-lg', 'shadow-sm');
-        el.style.position = 'static'; // Force static positioning
-        el.style.boxShadow = 'none';
-        if(isDark) el.style.backgroundColor = '#111827'; // Ensure bg matches container
+    // Force styling on injected tables
+    const tables = exportContainer.querySelectorAll('table');
+    tables.forEach(t => {
+        t.style.width = '100%';
+        t.style.borderCollapse = 'collapse';
+        t.querySelectorAll('th').forEach(th => {
+            th.style.backgroundColor = tableHeaderBg;
+            th.style.color = mutedColor;
+            th.style.border = `1px solid ${borderColor}`;
+            th.className = ''; 
+            th.style.padding = '6px'; // Increased padding
+            th.style.fontSize = '12px'; // Larger Text
+            th.style.fontWeight = 'bold';
+            th.style.textAlign = 'left'; // Left Align Stations
+        });
+        t.querySelectorAll('td').forEach(td => {
+            td.style.border = `1px solid ${borderColor}`;
+            td.style.padding = '6px'; // Increased padding
+            td.style.color = textColor;
+            td.style.fontSize = '14px'; // Larger Times
+            td.style.fontFamily = 'monospace';
+            td.style.textAlign = 'center'; // Center Times
+            td.style.fontWeight = '600'; // Bolder
+        });
+        // Sticky removal
+        t.querySelectorAll('.sticky').forEach(el => {
+            el.style.position = 'static';
+            el.classList.remove('sticky');
+        });
+        // Force station column alignment
+        t.querySelectorAll('td:first-child').forEach(td => {
+            td.style.textAlign = 'left';
+            td.style.paddingLeft = '10px';
+        });
     });
 
-    // Force border colors for visibility
-    if (isDark) {
-        tableClone.querySelectorAll('td, th').forEach(el => el.style.borderColor = '#374151');
-    }
-    
-    exportContainer.querySelector('#export-table-wrapper').appendChild(tableClone);
+    document.body.appendChild(exportContainer);
 
-    // 3. Render
     try {
+        await new Promise(r => setTimeout(r, 100));
+
         const canvas = await html2canvas(exportContainer, {
-            scale: 2, // Retina quality
-            backgroundColor: isDark ? '#111827' : '#ffffff',
+            scale: 1.5,
+            backgroundColor: bgColor,
             logging: false,
-            useCORS: true,
-            windowWidth: exportContainer.scrollWidth, // Capture full width
-            height: exportContainer.scrollHeight
+            useCORS: true
         });
 
         canvas.toBlob(async (blob) => {
-            const fileName = `Schedule_${cleanDest.replace(/\s/g,'_')}.png`;
+            const fileName = `Schedule_${route.name.replace(/\s/g,'_')}_${selectedDay}.png`;
             
-            // GUARDIAN FIX: Desktop Fallback Logic
-            // Windows 'navigator.share' often fails. Force download on non-mobile user agents.
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             
             if (isMobile && navigator.share && navigator.canShare) {
@@ -802,23 +899,19 @@ window.takeGridSnapshot = async function() {
                     if (navigator.canShare({ files: [file] })) {
                         await navigator.share({
                             files: [file],
-                            text: `Schedule: ${formattedTitle}` // Caption logic
+                            text: `Commuter Notice: ${route.name} (${selectedDay})` 
                         });
                         showToast("Shared!", "success");
                     } else {
                         throw new Error("File sharing not supported");
                     }
-                } catch (e) {
-                    // Fallback to download if share sheet cancelled or failed
-                    // console.warn(e); 
-                }
+                } catch (e) {}
             } else {
-                // Desktop / Windows Fallback
                 const link = document.createElement('a');
                 link.download = fileName;
                 link.href = canvas.toDataURL();
                 link.click();
-                showToast("Schedule downloaded.", "success");
+                showToast("Image saved.", "success");
             }
             
             document.body.removeChild(exportContainer);
