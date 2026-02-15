@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   Metrorail Next Train V5.00.10 (Guardian Edition)
-  - CHANGE: Inline Styles added for Offline FOUC Prevention (Phase 2).
+  - CHANGE: Removed inline style on body to fix Light Mode toggle.
+  - UPDATED: Script versions bumped to v5.00.10 for cache busting.
   - REMOVED: style.css reference (Consolidated into custom.css).
-  - FIX: Removed 'hidden' class from main-content to prevent !important override.
 -->
 <html lang="en" class="dark">
 
@@ -133,8 +133,8 @@
     </style>
 </head>
 
-<!-- GUARDIAN: Added inline style for immediate dark background (No White Flash) -->
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4 transition-colors duration-300" style="background-color: #111827;">
+<!-- GUARDIAN: Removed inline style to allow CSS class toggling -->
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4 transition-colors duration-300">
 
     <div id="sidenav-overlay"></div>
     <div id="sidenav">
@@ -864,26 +864,26 @@
 
     <!-- RENDERER ENGINE (Must be loaded BEFORE ui.js) -->
     <!-- CRITICAL: Grid Order must load before Renderer -->
-    <script src="js/grid-order.js?v=5.00.04"></script>
-    <script src="js/renderer.js?v=5.00.04"></script>
+    <script src="js/grid-order.js?v=5.00.10"></script>
+    <script src="js/renderer.js?v=5.00.10"></script>
     
     <!-- ADMIN TOOLS (Loaded before UI to ensure Admin object availability) -->
     <!-- DEFERRED for better LCP Performance -->
-    <script src="js/admin.js?v=5.00.04" defer></script>
+    <script src="js/admin.js?v=5.00.10" defer></script>
 
-    <script src="js/utils.js?v=5.00.04"></script>
-    <script src="js/config.js?v=5.00.04"></script>
-    <script src="js/logic.js?v=5.00.04"></script>
+    <script src="js/utils.js?v=5.00.10"></script>
+    <script src="js/config.js?v=5.00.10"></script>
+    <script src="js/logic.js?v=5.00.10"></script>
     
     <!-- PLANNER MODULARIZATION V4.60.2 -->
     <!-- CRITICAL: CORE MUST LOAD BEFORE UI -->
-    <script src="js/planner-core.js?v=5.00.04"></script>
-    <script src="js/planner-ui.js?v=5.00.04"></script>
+    <script src="js/planner-core.js?v=5.00.10"></script>
+    <script src="js/planner-ui.js?v=5.00.10"></script>
     
-    <script src="js/map-viewer.js?v=5.00.04"></script> 
+    <script src="js/map-viewer.js?v=5.00.10"></script> 
     
     <!-- MAIN UI CONTROLLER (Loads last) -->
-    <script src="js/ui.js?v=5.00.04"></script>
+    <script src="js/ui.js?v=5.00.10"></script>
 
     <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>

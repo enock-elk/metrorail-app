@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v5.00.10'; // BUMPED: V5.00.10
+const CACHE_NAME = 'metrorail-next-train-v5.00.10-light mode fixed'; // BUMPED: V5.00.10
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
