@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V5.00.10.1 (Guardian Edition)
+  Metrorail Next Train V5.00.20 (Guardian Edition)
   - CHANGE: Removed inline style on body to fix Light Mode toggle.
   - UPDATED: Script versions bumped to v5.00.10 for cache busting.
   - FIXED: Admin script load order (Removed defer) & Notice Modal Z-Index (110).
@@ -864,26 +864,26 @@
 
     <!-- RENDERER ENGINE (Must be loaded BEFORE ui.js) -->
     <!-- CRITICAL: Grid Order must load before Renderer -->
-    <script src="js/grid-order.js?v=5.00.10"></script>
-    <script src="js/renderer.js?v=5.00.10"></script>
+    <script src="js/grid-order.js?v=5.00.20"></script>
+    <script src="js/renderer.js?v=5.00.20"></script>
     
     <!-- ADMIN TOOLS (Loaded before UI to ensure Admin object availability) -->
     <!-- GUARDIAN FIX: Removed DEFER to resolve race condition -->
-    <script src="js/admin.js?v=5.00.10"></script>
+    <script src="js/admin.js?v=5.00.20"></script>
 
-    <script src="js/utils.js?v=5.00.10"></script>
-    <script src="js/config.js?v=5.00.10"></script>
-    <script src="js/logic.js?v=5.00.10"></script>
+    <script src="js/utils.js?v=5.00.20"></script>
+    <script src="js/config.js?v=5.00.20"></script>
+    <script src="js/logic.js?v=5.00.20"></script>
     
     <!-- PLANNER MODULARIZATION V4.60.2 -->
     <!-- CRITICAL: CORE MUST LOAD BEFORE UI -->
-    <script src="js/planner-core.js?v=5.00.10"></script>
-    <script src="js/planner-ui.js?v=5.00.10"></script>
+    <script src="js/planner-core.js?v=5.00.20"></script>
+    <script src="js/planner-ui.js?v=5.00.20"></script>
     
-    <script src="js/map-viewer.js?v=5.00.10"></script> 
+    <script src="js/map-viewer.js?v=5.00.20"></script> 
     
     <!-- MAIN UI CONTROLLER (Loads last) -->
-    <script src="js/ui.js?v=5.00.10"></script>
+    <script src="js/ui.js?v=5.00.20"></script>
 
     <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>

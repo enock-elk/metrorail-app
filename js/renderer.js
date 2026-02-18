@@ -1,10 +1,10 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V5.00.10 - Guardian Stability & Defaults)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V5.00.20 - Guardian Stability & Defaults)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
  * * PART OF PHASE 3 & 4: LOADING GUARDRAILS & SMART DEFAULTS
- * * UPDATES: Sunday->Weekday Default, Loading State Protection
+ * * UPDATES: High Contrast Mode & Centered Layouts (Guardian V5.01)
  */
 
 const Renderer = {
@@ -212,7 +212,7 @@ const Renderer = {
         `;
     },
 
-    // Main Journey Card Renderer
+    // Main Journey Card Renderer (STANDARDIZED & CENTERED V5.01)
     renderJourney: (element, journey, destination) => {
         element.innerHTML = "";
         
@@ -248,70 +248,120 @@ const Renderer = {
              }
         }
 
+        // --- NEW FORMATTING LOGIC (GUARDIAN REVISED V5.01) ---
+        // GUARDIAN: High Contrast & Centered Text Classes
+        // Primary Text: text-gray-900 (Light) / text-white (Dark)
+        // Secondary Text: text-gray-700 (Light) / text-gray-300 (Dark)
+        // Container: bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700
+        
         if (journey.type === 'direct') {
-            const actualDest = journey.actualDestination ? normalizeStationName(journey.actualDestination) : '';
-            const normDest = normalizeStationName(destination);
-            let destinationText = journey.arrivalTime ? `Arrives ${escapeHTML(formatTimeDisplay(journey.arrivalTime))}` : "Arrival time n/a.";
-            if (actualDest && normDest && actualDest !== normDest) {
-                destinationText = `Terminates at ${escapeHTML(journey.actualDestination.replace(/ STATION/g,''))}.`;
-            }
+            const actualDest = journey.actualDestination ? Renderer._toTitleCase(normalizeStationName(journey.actualDestination).replace(' STATION', '')) : '';
+            const normDest = Renderer._toTitleCase(normalizeStationName(destination).replace(' STATION', ''));
             
-            let trainTypeText = `<span class="font-bold text-yellow-600 dark:text-yellow-400">Direct (${safeTrainName})</span>`;
-            if (journey.isLastTrain) trainTypeText = `<span class="font-bold text-red-600 dark:text-red-400">Last Direct (${safeTrainName})</span>`;
+            let trainTitle = `Direct Train ${safeTrainName}`;
+            let titleColor = "text-gray-900 dark:text-white";
+            
+            if (journey.isLastTrain) {
+                trainTitle = `Direct Train ${safeTrainName}`;
+                titleColor = "text-red-600 dark:text-red-400";
+            }
+
+            let detailLine = journey.arrivalTime ? `Arrives ${escapeHTML(formatTimeDisplay(journey.arrivalTime))}` : "Arrival time n/a.";
+            let detailColor = "text-gray-700 dark:text-gray-300";
+
+            if (actualDest && normDest && actualDest !== normDest) {
+                detailLine = `Terminates at ${actualDest}`;
+                detailColor = "text-orange-700 dark:text-orange-400 font-bold";
+            }
 
             element.innerHTML = `
                 <div class="flex flex-row items-center w-full space-x-3">
+                    <!-- TIME BOX -->
                     <div class="relative w-1/2 h-24 flex flex-col justify-center items-center text-center p-1 pb-5 ${timeClass} rounded-lg shadow-sm flex-shrink-0">
-                        <div class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">${safeDepTime}</div>
-                        <div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
+                        <div class="text-2xl font-black text-gray-900 dark:text-white leading-tight">${safeDepTime}</div>
+                        <div class="text-xs text-gray-700 dark:text-gray-300 font-bold">${timeDiffStr}</div>
                         ${sharedTag}
                         ${buttonHtml}
                     </div>
-                    <div class="w-1/2 flex flex-col justify-center items-center text-center space-y-0.5">
-                        <div class="text-xs text-gray-800 dark:text-gray-200 font-medium leading-tight">${trainTypeText}</div>
-                        <div class="text-[10px] text-gray-500 dark:text-gray-400 leading-tight font-medium">${destinationText}</div>
+                    
+                    <!-- DESCRIPTION BOX (CENTERED) -->
+                    <div class="w-1/2 h-24 flex flex-col justify-center items-center text-center p-1 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                        <div class="text-[11px] font-bold ${titleColor} leading-tight mb-1 uppercase tracking-wide">
+                            ${trainTitle}
+                        </div>
+                        <div class="text-[10px] ${detailColor} font-medium leading-tight">
+                            ${detailLine}
+                        </div>
                     </div>
                 </div>
             `;
         } else if (journey.type === 'transfer') {
             const conn = journey.connection; 
             const nextFull = journey.nextFullJourney; 
-            const termStation = escapeHTML(journey.train1.terminationStation.replace(/ STATION/g, ''));
+            
+            // GUARDIAN V5.01: Headboard Logic (Corrects Destination Label)
+            const rawDest = journey.train1.headboardDestination || journey.train1.terminationStation;
+            const displayDest = Renderer._toTitleCase(escapeHTML(rawDest.replace(/ STATION/g, '')));
             const arrivalAtTransfer = escapeHTML(formatTimeDisplay(journey.train1.arrivalAtTransfer));
-            let train1Info = `Train ${safeTrainName} (Terminates at ${termStation} at ${arrivalAtTransfer})`;
-            if (journey.isLastTrain) train1Info = `<span class="text-red-600 dark:text-red-400 font-bold">Last Train (${safeTrainName})</span>`;
+            
+            const connTrain = escapeHTML(conn.train);
+            const connDest = Renderer._toTitleCase(escapeHTML(conn.actualDestination.replace(/ STATION/g, '')));
+            const connDep = escapeHTML(formatTimeDisplay(conn.departureTime));
 
-            let connectionInfoHTML = "";
+            let train1Label = `Train ${safeTrainName}`;
+            let titleColor = "text-gray-900 dark:text-white";
+            if (journey.isLastTrain) titleColor = "text-red-600 dark:text-red-400";
+            
+            // Standard Logic (2-Part) or Otherwise (3-Part)
+            let bottomBlock = "";
+            
             if (nextFull) {
-                const connTrain = escapeHTML(conn.train);
-                const connDest = escapeHTML(conn.actualDestination.replace(/ STATION/g, ''));
-                const connDep = escapeHTML(formatTimeDisplay(conn.departureTime));
+                // "Otherwise" Logic
                 const nextTrain = escapeHTML(nextFull.train);
-                const nextDest = escapeHTML(nextFull.actualDestination.replace(/ STATION/g, ''));
                 const nextDep = escapeHTML(formatTimeDisplay(nextFull.departureTime));
-                const connection1Text = `Connect: Train ${connTrain} (to ${connDest}) @ <b>${connDep}</b>`;
-                const connection2Text = `Next: Train ${nextTrain} (to ${nextDest}) @ <b>${nextDep}</b>`;
-                connectionInfoHTML = `<div class="space-y-0.5"><div class="text-yellow-600 dark:text-yellow-400 font-medium">${connection1Text}</div><div class="text-gray-500 dark:text-gray-400 text-[9px] font-medium">${connection2Text}</div></div>`;
+                
+                bottomBlock = `
+                    <div class="text-[9px] leading-tight w-full space-y-1">
+                        <div class="mb-1">
+                             <div class="text-[11px] font-black text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-0.5">Connect Train ${connTrain}</div>
+                             <div class="text-[9px] text-gray-600 dark:text-gray-400 font-bold">To ${connDest} <span class="font-normal opacity-80">(From ${connDep})</span></div>
+                        </div>
+                        <div class="italic text-gray-500 dark:text-gray-500 border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
+                            Otherwise: Train ${nextTrain} from ${nextDep}
+                        </div>
+                    </div>
+                `;
             } else {
-                const connTrain = escapeHTML(conn.train);
-                const connDep = escapeHTML(formatTimeDisplay(conn.departureTime));
-                const connArr = escapeHTML(formatTimeDisplay(conn.arrivalTime));
-                let connDestName = `(Arr ${connArr})`; 
-                const connectionText = `Connect: Train ${connTrain} @ <b>${connDep}</b> ${connDestName}`;
-                connectionInfoHTML = `<div class="text-yellow-600 dark:text-yellow-400 font-medium">${connectionText}</div>`;
+                // Standard Logic
+                // GUARDIAN FIX V5.01.03: Unified Typography for Transfer Info (Matched Top & Bottom)
+                bottomBlock = `
+                    <div class="text-[10px] leading-tight">
+                        <div class="text-[11px] font-black text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-0.5">Connect Train ${connTrain}</div>
+                        <div class="text-[9px] text-gray-600 dark:text-gray-400 font-bold">To ${connDest} <span class="font-normal opacity-80">(From ${connDep})</span></div>
+                    </div>
+                `;
             }
             
             element.innerHTML = `
                 <div class="flex flex-row items-center w-full space-x-3">
-                    <div class="relative w-1/2 h-24 flex flex-col justify-center items-center text-center p-1 pb-5 ${timeClass} rounded-lg shadow-sm flex-shrink-0">
-                        <div class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">${safeDepTime}</div>
-                        <div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
+                    <!-- TIME BOX -->
+                    <div class="relative w-1/2 h-auto min-h-[110px] flex flex-col justify-center items-center text-center p-1 pb-5 ${timeClass} rounded-lg shadow-sm flex-shrink-0 self-stretch">
+                        <div class="text-2xl font-black text-gray-900 dark:text-white leading-tight">${safeDepTime}</div>
+                        <div class="text-xs text-gray-700 dark:text-gray-300 font-bold">${timeDiffStr}</div>
                         ${sharedTag}
                         ${buttonHtml}
                     </div>
-                    <div class="w-1/2 flex flex-col justify-center items-center text-center space-y-0.5">
-                        <div class="text-[10px] text-yellow-600 dark:text-yellow-400 leading-tight font-medium mb-1">${train1Info}</div>
-                        <div class="text-[10px] leading-tight">${connectionInfoHTML}</div>
+                    
+                    <!-- DESCRIPTION BOX (CENTERED) -->
+                    <div class="w-1/2 flex flex-col justify-center items-center text-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg h-full min-h-[110px]">
+                        <!-- TOP HALF -->
+                        <div class="border-b border-gray-200 dark:border-gray-700 pb-2 mb-2 w-full">
+                            <div class="text-[11px] font-black ${titleColor} uppercase tracking-wide mb-0.5">Transfer ${train1Label}</div>
+                            <!-- GUARDIAN FIX V5.01.02: Removed 'Terminates Here' subtext as requested -->
+                            <div class="text-[9px] text-gray-600 dark:text-gray-400 font-bold">To ${displayDest} <span class="font-normal opacity-80">(Arr ${arrivalAtTransfer})</span></div>
+                        </div>
+                        <!-- BOTTOM HALF -->
+                        ${bottomBlock}
                     </div>
                 </div>
             `;
@@ -319,6 +369,13 @@ const Renderer = {
     },
 
     // --- 3. INTERNAL HELPERS ---
+    
+    _toTitleCase: (str) => {
+        if (!str) return '';
+        return str.replace(/\w\S*/g, (txt) => {
+            return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+        });
+    },
     
     _getDotColor: (colorClass) => {
         if (!colorClass) return 'dot-gray';

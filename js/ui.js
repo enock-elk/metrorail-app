@@ -1,3 +1,11 @@
+/**
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V5.00.20 - Guardian Edition)
+ * ----------------------------------------------------------------
+ * THE "WAITER" (Controller)
+ * * This module handles DOM interaction, Event Listeners, and UI Rendering.
+ * It calls the pure logic functions from logic.js and uses Renderer for HTML.
+ */
+
 // --- GLOBAL ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
     const IGNORED_ERRORS = [
@@ -966,9 +974,16 @@ window.openScheduleModal = function(destination, dayOverride = null) {
     }
     modalTitle.textContent = `${fromStationName} -> ${destination.replace(' STATION', '')}${titleSuffix}`; 
     
+    // GUARDIAN HELPER: Local Title Case
+    const toTitleCase = (str) => {
+        if (!str) return '';
+        return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+    };
+
     modalList.innerHTML = '';
     const nowSeconds = timeToSeconds(currentTime);
     let firstNextTrainFound = false;
+    
     journeys.forEach(j => {
         const dep = j.departureTime || j.train1.departureTime; 
         const trainName = j.train || j.train1.train; 
@@ -980,21 +995,87 @@ window.openScheduleModal = function(destination, dayOverride = null) {
         if (isPassed) divClass += " bg-gray-50 dark:bg-gray-800 opacity-50 grayscale"; else divClass += " bg-white dark:bg-gray-700"; 
         const div = document.createElement('div'); div.className = divClass;
         if (!isPassed && !firstNextTrainFound && !dayOverride) { div.id = "next-train-marker"; firstNextTrainFound = true; }
+        
         let modalTag = "";
         if (j.isShared && j.sourceRoute) {
              const routeName = j.sourceRoute.replace(/^(Pretoria|JHB|Germiston|Mabopane)\s+<->\s+/i, "").replace("Route", "").trim();
-             if (j.isDivergent) modalTag = `<span class="text-[9px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-1.5 py-0.5 rounded uppercase ml-2 border border-red-200 dark:border-red-800">⚠️ To ${j.actualDestName}</span>`;
+             if (j.isDivergent) modalTag = `<span class="text-[9px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-1.5 py-0.5 rounded uppercase ml-2 border border-red-200 dark:border-red-800">⚠️ To ${toTitleCase(j.actualDestName)}</span>`;
              else modalTag = `<span class="text-[9px] font-bold text-purple-600 bg-purple-100 dark:text-purple-300 dark:bg-purple-900 px-1.5 py-0.5 rounded uppercase ml-2">From ${routeName}</span>`;
         }
+        
         const formattedDep = formatTimeDisplay(dep);
         let rightPillHTML = "";
-        if (modalTag && modalTag !== "") { rightPillHTML = modalTag; modalTag = ""; } 
-        else {
-            if (type === 'Direct') rightPillHTML = '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>';
-            else rightPillHTML = `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase">Transfer @ ${j.train1.terminationStation.replace(' STATION','')}</span>`;
+        
+        // GUARDIAN UPDATE V5.01: "Direct" Label Logic Correction
+        // UPDATED V5.00.13: Integrated Orange Badge for Short Trains
+        let terminationBadge = ""; // Default empty
+        let isShortTrip = false;
+        let shortDestName = "";
+
+        if (j.type === 'direct' && j.actualDestination) {
+            const actual = normalizeStationName(j.actualDestination);
+            const target = normalizeStationName(destination);
+            if (actual !== target) {
+                isShortTrip = true;
+                shortDestName = toTitleCase(j.actualDestination.replace(' STATION', ''));
+                // REQ CHANGE: No text badge for short trips, we use the orange pill instead.
+                terminationBadge = ""; 
+            }
         }
-        if (j.isLastTrain) rightPillHTML += ' <span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800">LAST TRAIN</span>';
-        div.innerHTML = `<div><span class="text-lg font-bold text-gray-900 dark:text-white">${formattedDep}</span><div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName} ${modalTag}</div></div><div class="flex flex-col items-end gap-1">${rightPillHTML}</div>`;
+
+        if (modalTag && modalTag !== "") { 
+            // If it's a shared/divergent train, the tag already explains it
+            rightPillHTML = modalTag; 
+            modalTag = ""; 
+        } else {
+            if (type === 'Direct') {
+                if (isShortTrip) {
+                    // ORANGE BADGE for Short Trains
+                    rightPillHTML = `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase whitespace-nowrap">To ${shortDestName}</span>`;
+                } else {
+                    // GREEN BADGE for Full Route
+                    rightPillHTML = '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>';
+                }
+            } else {
+                // GUARDIAN UPDATE V5.01: Headboard Aware Labeling
+                let transferLabel = "";
+                let transferSubtext = "";
+                
+                // If the train has a specific headboard destination (from logic.js Horizon Scanner)
+                if (j.train1 && j.train1.headboardDestination) {
+                    const hbDest = toTitleCase(j.train1.headboardDestination.replace(/ STATION/g, ''));
+                    // We use "To [Dest]" prominently
+                    transferLabel = `To ${hbDest}`;
+                    transferSubtext = " ";
+                } else {
+                    // Fallback to standard Hub labeling
+                    const transferHub = toTitleCase(j.train1.terminationStation.replace(' STATION',''));
+                    transferLabel = `Transfer @ ${transferHub}`;
+                }
+
+                rightPillHTML = `
+                    <div class="flex flex-col items-end">
+                        <span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase text-right leading-tight mb-0.5">
+                            ${transferLabel}
+                        </span>
+                        ${transferSubtext ? `<span class="text-[8px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-tight">${transferSubtext}</span>` : ''}
+                    </div>
+                `;
+            }
+        }
+        
+        if (j.isLastTrain) rightPillHTML += ' <span class="text-[10px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-800 ml-1">LAST TRAIN</span>';
+        
+        div.innerHTML = `
+            <div>
+                <span class="text-lg font-bold text-gray-900 dark:text-white">${formattedDep}</span>
+                <div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName} ${modalTag}</div>
+                ${terminationBadge}
+            </div>
+            <div class="flex flex-col items-end gap-1 text-right">
+                ${rightPillHTML}
+            </div>
+        `;
         modalList.appendChild(div);
     });
     scheduleModal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; 

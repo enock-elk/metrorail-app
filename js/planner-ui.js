@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V5.00.10 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V5.00.20 - Guardian Hotfix)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -49,14 +49,14 @@ const PlannerRenderer = {
                 
                 const it = internalTransfer;
                 const iWaitMin = Math.floor(it.wait / 60);
-                const iWaitText = iWaitMin > 59 ? `${Math.floor(iWaitMin/60)}h ${iWaitMin%60}m` : `${iWaitMin} min`;
+                const iWaitText = iWaitMin > 59 ? `${Math.floor(iWaitMin/60)}h ${iWaitMin%60}m` : `${iWaitMin} Minutes`;
                 const sName = it.station.replace(' STATION', '');
 
                 const internalTransferHTML = `
                     <div class="relative pl-6 pb-6 pt-2">
                         <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
                         <div class="mt-1 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
-                            <div class="font-bold uppercase tracking-wide mb-1">Internal Transfer @ ${sName}</div>
+                            <div class="font-bold uppercase tracking-wide mb-1">INTERNAL TRANSFER @ ${sName}</div>
                             <div class="text-gray-600 dark:text-gray-400 leading-snug">
                                 <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${iWaitText}</b> Wait</span><br>
                                 &bull; Switch from Train ${it.train1} to ${it.train2}
@@ -90,19 +90,8 @@ const PlannerRenderer = {
     },
 
     buildCard: (step, isNextDay, allOptions, selectedIndex) => {
-        // GUARDIAN UPDATE V4.60.30: Visual Distinction Logic
-        let borderColor = "border-blue-200 dark:border-blue-800"; // Default (Direct)
-        
-        if (step.type === 'TRANSFER') {
-            borderColor = "border-yellow-300 dark:border-yellow-700";
-        } else if (step.type === 'DOUBLE_TRANSFER') {
-            borderColor = "border-purple-300 dark:border-purple-700";
-        } else if (isNextDay) {
-            borderColor = "border-orange-200 dark:border-orange-800";
-        }
-
         return `
-            <div class="bg-white dark:bg-gray-700 rounded-xl shadow-sm border-2 ${borderColor} overflow-hidden mb-4">
+            <div class="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 overflow-hidden mb-4">
                 ${PlannerRenderer.renderHeader(step, isNextDay)}
                 ${PlannerRenderer.renderOptionsSelector(allOptions, selectedIndex, isNextDay)}
                 ${step.type !== 'TRANSFER' && step.type !== 'DOUBLE_TRANSFER' ? PlannerRenderer.renderInstruction(step) : ''}
@@ -117,8 +106,6 @@ const PlannerRenderer = {
     renderHeader: (step, isNextDay) => {
         const isTransfer = step.type === 'TRANSFER';
         const isDoubleTransfer = step.type === 'DOUBLE_TRANSFER';
-        
-        // Color Coding for Header Text
         const colorClass = (isTransfer || isDoubleTransfer) ? 'text-yellow-600 dark:text-yellow-400' : (isNextDay ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400');
         
         let headerLabel = 'Direct Trip';
@@ -152,22 +139,13 @@ const PlannerRenderer = {
                             ${countdown}
                           </div>`;
         }
-        
-        // GUARDIAN UPDATE V4.60.30: New Layout for Small Devices
-        // Day Label is now injected HERE instead of the main header, ensuring context is attached to the card.
-        const dayLabel = getPlanningDayLabel();
-
-        // GUARDIAN UPDATE V5.00.12: Formal Text ("Direct Train 1150")
-        const safeTrainName = step.train || "Unknown"; // Fallback safety
 
         return `
             <div class="p-4 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                <!-- ROW 1: Trip Type -->
-                <div class="flex items-center justify-between mb-3">
-                    <span class="text-xs font-bold ${colorClass} uppercase tracking-wider bg-white dark:bg-gray-700 px-2 py-1 rounded border border-gray-200 dark:border-gray-600 shadow-sm">${headerLabel}</span>
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold ${colorClass} uppercase tracking-wider">${headerLabel}</span>
+                    <span class="text-xs font-bold text-gray-500 bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">Train ${step.train}</span>
                 </div>
-
-                <!-- ROW 2: Times & Stations -->
                 <div class="flex justify-between items-center mt-2">
                     <div class="text-left flex-1 w-0">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Depart</p>
@@ -175,7 +153,7 @@ const PlannerRenderer = {
                         <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.depTime)}</p>
                     </div>
                     
-                    <button onclick="swapPlannerResults()" class="flex-none p-2 bg-white dark:bg-gray-700 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 transition shadow-sm border border-gray-200 dark:border-gray-600 mx-2" title="Reverse Trip">
+                    <button onclick="swapPlannerResults()" class="flex-none p-1 bg-white dark:bg-gray-700 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 transition shadow-sm border border-gray-200 dark:border-gray-600 mx-1" title="Reverse Trip">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
                     </button>
 
@@ -185,13 +163,11 @@ const PlannerRenderer = {
                         <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.arrTime)}</p>
                     </div>
                 </div>
-
-                <!-- ROW 3: Status & Duration -->
-                <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                <div class="flex justify-between items-center mt-3 pt-2 border-t border-gray-200 dark:border-gray-600">
                      ${stateBadge}
                      <div class="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400">
                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                        ${duration}
+                        Duration: ${duration}
                      </div>
                 </div>
             </div>
@@ -228,7 +204,7 @@ const PlannerRenderer = {
         return `
             <div class="px-4 pb-2">
                 <label class="text-[10px] uppercase font-bold text-blue-500 dark:text-blue-400 mb-1 block animate-pulse">👇 Tap to Change Time:</label>
-                <select onchange="selectPlannerTrip(this.value)" class="w-full bg-blue-50 dark:bg-gray-800 border-2 border-blue-200 dark:border-blue-900 text-gray-900 dark:text-white text-sm rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 font-bold shadow-sm">
+                <select onchange="selectPlannerTrip(this.value)" class="w-full bg-blue-50 dark:bg-gray-800 border-2 border-blue-200 dark:border-blue-900 text-gray-900 dark:text-white text-sm rounded p-2 focus:ring-blue-500 focus:border-blue-500 font-bold shadow-sm">
                     ${optionsHtml}
                 </select>
             </div>
@@ -275,33 +251,20 @@ const PlannerRenderer = {
         const waitMins = Math.floor((hubDep - hubArr) / 60);
         const waitStr = waitMins > 59 ? `${Math.floor(waitMins/60)} hr ${waitMins%60} min` : `${waitMins} Minutes`;
         
-        const safeTrain1 = step.leg1.train;
-        const safeTrain2 = step.leg2.train;
-        const train1Term = step.leg1.terminationStation || step.transferStation; // Should exist if transfer trip
-        const train1ArrTransfer = step.leg1.arrivalAtTransfer || step.leg1.arrTime;
-        const train2ArrFinal = step.leg2.arrTime;
-        
-        const transferStationName = step.transferStation.replace(' STATION', '');
-        const train1TermName = train1Term.replace(' STATION', '');
+        let train1Dest = step.leg1.actualDestination || step.leg1.route.destB;
+        train1Dest = train1Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
 
-        // GUARDIAN UPDATE V5.00.12: Formal Description Logic
+        let train2Dest = step.leg2.actualDestination || step.leg2.route.destB;
+        train2Dest = train2Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+
         const standardTransferBlock = `
             <div class="relative pl-6 pb-6 pt-2">
                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900 z-10"></div>
                 <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500">
-                    <div class="font-bold uppercase tracking-wide mb-1">Transfer Required</div>
-                    <div class="text-gray-600 dark:text-gray-400 leading-snug space-y-1">
-                        <div>
-                            <span class="font-bold">Train ${safeTrain1}</span>
-                            <span class="opacity-90">(Arrives ${transferStationName} at ${formatTimeDisplay(train1ArrTransfer)})</span>
-                        </div>
-                        <div>
-                            <span class="font-bold">Connect:</span> Train ${safeTrain2} @ ${formatTimeDisplay(step.leg2.depTime)}
-                            <span class="opacity-90">(Arr ${formatTimeDisplay(train2ArrFinal)})</span>
-                        </div>
-                        <div class="pt-1 mt-1 border-t border-yellow-200 dark:border-yellow-800/50 text-[10px] uppercase font-bold text-yellow-700 dark:text-yellow-400">
-                            ⏱ ${waitStr} Layover
-                        </div>
+                    <div class="font-bold uppercase tracking-wide mb-1">TRANSFER REQUIRED</div>
+                    <div class="text-gray-600 dark:text-gray-400 leading-snug">
+                        <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Wait</span><br>
+                        &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${step.leg2.train}</span>
                     </div>
                 </div>
             </div>
@@ -321,13 +284,12 @@ const PlannerRenderer = {
                             <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.depTime)}</span>
                         </div>
                         <div class="text-xs text-blue-500 font-medium mb-1">
-                            Train ${safeTrain1}
+                            ${train1Dest} Train ${step.leg1.train}
                         </div>
                     </div>
                 </div>
                 
-                <!-- GUARDIAN FIX V5.00.02: Pass internal transfer for Leg 1 -->
-                ${PlannerRenderer.buildStopListHTML(step.leg1.stops, leg1StopsId, step.leg1.internalTransfer)}
+                ${PlannerRenderer.buildStopListHTML(step.leg1.stops, leg1StopsId, null)}
 
                 <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div>
@@ -350,7 +312,7 @@ const PlannerRenderer = {
                         </div>
                         
                         <div class="text-xs text-blue-500 font-medium mb-1">
-                            Train ${safeTrain2}
+                            ${train2Dest} Train ${step.leg2.train}
                         </div>
                     </div>
                 </div>
@@ -402,9 +364,9 @@ const PlannerRenderer = {
             <div class="relative pl-6 pb-6 pt-2">
                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900 z-10"></div>
                 <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500">
-                    <div class="font-bold uppercase tracking-wide mb-1">Transfer 1 @ ${hub1Name}</div>
+                    <div class="font-bold uppercase tracking-wide mb-1">TRANSFER 1 @ ${hub1Name}</div>
                     <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                        <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait1Str}</b> Layover</span><br>
+                        <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait1Str}</b> Wait</span><br>
                         &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${step.leg2.train}</span>
                     </div>
                 </div>
@@ -415,9 +377,9 @@ const PlannerRenderer = {
             <div class="relative pl-6 pb-6 pt-2">
                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
                 <div class="mt-1 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
-                    <div class="font-bold uppercase tracking-wide mb-1">Transfer 2 @ ${hub2Name}</div>
+                    <div class="font-bold uppercase tracking-wide mb-1">TRANSFER 2 @ ${hub2Name}</div>
                     <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                        <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait2Str}</b> Layover</span><br>
+                        <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait2Str}</b> Wait</span><br>
                         &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train3Dest} Train ${step.leg3.train}</span>
                     </div>
                 </div>
@@ -555,8 +517,8 @@ function initPlanner() {
             <label class="block text-xs font-bold text-gray-500 uppercase ml-1 mb-1">Travel Day</label>
             <select id="planner-day-select" class="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
                 <option value="weekday">Weekday (Mon-Fri)</option>
-                <option value="saturday">Saturday / Public Holiday</option>
-                <option value="sunday">Sunday</option>
+                <option value="saturday">Saturday</option>
+                <option value="sunday">Sunday / Public Holiday</option>
             </select>
         `;
         inputSection.insertBefore(daySelectDiv, searchBtn);
@@ -605,22 +567,6 @@ function initPlanner() {
 
     if (!fromSelect || !toSelect) return;
 
-    // UPDATE V4.60.41: Security Fix - Prevent Password Autocomplete
-    // 1. Force autocomplete="off" on DOM Elements
-    // 2. Set Random Name attribute to confuse password managers
-    const fromInput = document.getElementById('planner-from-search');
-    const toInput = document.getElementById('planner-to-search');
-    
-    if (fromInput) {
-        fromInput.setAttribute('autocomplete', 'off');
-        fromInput.setAttribute('name', 'station_search_origin_' + Math.random().toString(36).substring(7));
-    }
-    
-    if (toInput) {
-        toInput.setAttribute('autocomplete', 'off');
-        toInput.setAttribute('name', 'station_search_dest_' + Math.random().toString(36).substring(7));
-    }
-
     setupAutocomplete('planner-from-search', 'planner-from');
     setupAutocomplete('planner-to-search', 'planner-to');
 
@@ -657,6 +603,7 @@ function initPlanner() {
     };
     
     fromSelect.addEventListener('change', filterToOptions);
+    const fromInput = document.getElementById('planner-from-search');
     if(fromInput) fromInput.addEventListener('change', filterToOptions);
 
     if (locateBtn) {
@@ -711,11 +658,10 @@ function initPlanner() {
         const fromInput = document.getElementById('planner-from-search');
         const toInput = document.getElementById('planner-to-search');
         
-        // 1. Capture Visible Text (Source of Truth) AND Clean it
-        let txtFrom = fromInput.value ? fromInput.value.trim() : "";
-        let txtTo = toInput.value ? toInput.value.trim() : "";
+        // 1. Capture Visible Text (Source of Truth)
+        let txtFrom = fromInput.value;
+        let txtTo = toInput.value;
 
-        // GUARDIAN FIX V5.00.12: Allow swap even if one is empty
         // 2. Perform Swap
         fromInput.value = txtTo;
         toInput.value = txtFrom;
@@ -744,9 +690,7 @@ function initPlanner() {
             if (selectEl.value) return selectEl.value;
             if (!inputVal || typeof MASTER_STATION_LIST === 'undefined') return "";
 
-            // GUARDIAN V5.00: AGGRESSIVE CLEANING
             const cleanInput = inputVal.trim().toUpperCase();
-            
             const exact = MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === cleanInput);
             if (exact) return exact;
 
@@ -756,10 +700,6 @@ function initPlanner() {
 
         const fromInput = document.getElementById('planner-from-search');
         const toInput = document.getElementById('planner-to-search');
-
-        // Apply cleaning logic immediately before validation
-        if (fromInput) fromInput.value = fromInput.value.trim();
-        if (toInput) toInput.value = toInput.value.trim();
 
         if (!fromSelect.value && fromInput) fromSelect.value = resolveStation(fromInput.value, fromSelect);
         if (!toSelect.value && toInput) toSelect.value = resolveStation(toInput.value, toSelect);
@@ -783,8 +723,7 @@ function initPlanner() {
     });
 
     // --- RESET / BACK BUTTON LOGIC ---
-    // GUARDIAN UPDATE V5.00.01: Exposed Globally for Header Logic
-    window.resetPlannerUI = () => {
+    const resetAction = () => {
         if (plannerPulse) { clearInterval(plannerPulse); plannerPulse = null; }
         
         document.getElementById('planner-input-section').classList.remove('hidden');
@@ -800,8 +739,8 @@ function initPlanner() {
         }
     };
 
-    if (resetBtn) resetBtn.addEventListener('click', window.resetPlannerUI);
-    // Note: planner-back-btn is now dynamically replaced, so listener is inline onclick.
+    if (resetBtn) resetBtn.addEventListener('click', resetAction);
+    if (backBtn) backBtn.addEventListener('click', resetAction);
 }
 
 // --- UPDATED: SMART SWAP RESULTS FUNCTION ---
@@ -824,9 +763,8 @@ window.swapPlannerResults = function() {
     // 2. Perform Robust Swap (Reading Inputs first)
     if (!fromInput || !toInput) return;
     
-    // GUARDIAN V5.00: AGGRESSIVE CLEANING
-    let txtFrom = fromInput.value ? fromInput.value.trim() : "";
-    let txtTo = toInput.value ? toInput.value.trim() : "";
+    let txtFrom = fromInput.value;
+    let txtTo = toInput.value;
     
     // Fallback: If inputs empty (glitch), read selects
     if (!txtFrom && fromSelect.value) txtFrom = fromSelect.value.replace(' STATION', '');
@@ -915,9 +853,8 @@ window.restorePlannerSearch = function(fullFrom, fullTo) {
     if (fromSelect && toSelect) {
         fromSelect.value = fullFrom;
         toSelect.value = fullTo;
-        // GUARDIAN: Ensure clean display
-        if (fromInput) fromInput.value = fullFrom.replace(' STATION', '').trim();
-        if (toInput) toInput.value = fullTo.replace(' STATION', '').trim();
+        if (fromInput) fromInput.value = fullFrom.replace(' STATION', '');
+        if (toInput) toInput.value = fullTo.replace(' STATION', '');
         
         const daySelect = document.getElementById('planner-day-select');
         if (daySelect) {
@@ -953,8 +890,7 @@ function setupAutocomplete(inputId, selectId) {
 
     const renderList = (filterText = '') => {
         list.innerHTML = '';
-        // GUARDIAN: Trim input here too for better matching
-        const val = filterText.trim().toUpperCase();
+        const val = filterText.toUpperCase();
         const matches = val.length === 0 ? MASTER_STATION_LIST : MASTER_STATION_LIST.filter(s => s.includes(val));
 
         if (matches.length === 0) {
@@ -966,9 +902,9 @@ function setupAutocomplete(inputId, selectId) {
             matches.forEach(station => {
                 const li = document.createElement('li');
                 li.className = "p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors";
-                li.textContent = station.replace(' STATION', '').trim();
+                li.textContent = station.replace(' STATION', '');
                 li.onclick = () => {
-                    input.value = station.replace(' STATION', '').trim();
+                    input.value = station.replace(' STATION', '');
                     select.value = station;
                     const event = new Event('change');
                     select.dispatchEvent(event);
@@ -1080,51 +1016,29 @@ function executeTripPlan(origin, dest, preferredTime = null) {
             startPlannerPulse(nextTripIndex);
 
         } else {
-            // FAILURE HANDLING: Specific Feedback Logic (V4.60.41)
-            let errorTitle = "No Route Found";
-            let errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path.";
-            
-            // 1. Sunday Check
-            if (selectedPlannerDay === 'sunday') {
-                errorTitle = "No Sunday Service";
-                errorMsg = "Most Metrorail lines do not operate on Sundays or Public Holidays. Please check Monday schedules.";
-            } 
-            // 2. De Wildt / Rosslyn Specific (Shuttle)
-            else if (origin.includes('DE WILDT') || dest.includes('DE WILDT') || origin.includes('ROSSLYN') || dest.includes('ROSSLYN')) {
-                errorTitle = "Shuttle Connection Required";
-                errorMsg = "Trains on this line often require a shuttle transfer at <b>Rosslyn</b>. The planner could not auto-link these trips. Please check the 'Next Train' tab for the specific shuttle times.";
-            }
-            // 3. Cross-Corridor / Long Distance (Heuristic: > 50km apart or different regions)
-            else {
-                errorMsg += " You may need to plan this journey in segments (e.g., 'Home -> Pretoria', then 'Pretoria -> Work').";
-            }
-
-            // Analytics
+            // Error Handling (Map Fallback)
             if (typeof trackAnalyticsEvent === 'function') {
-                trackAnalyticsEvent('planner_no_result', { origin: origin, destination: dest, reason: errorTitle });
+                trackAnalyticsEvent('planner_no_result', { origin: origin, destination: dest });
             }
             
-            updatePlannerHeader("No Route", false);
+            // Update header to hide Share button (or show empty state header)
+            updatePlannerHeader("No Route Found", false);
 
+            const errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path. You may need to plan this journey in segments (e.g., 'Home to Pretoria', then 'Pretoria to Work').";
             const actionBtn = `
                 <button onclick="document.getElementById('map-modal').classList.remove('hidden')" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
                     Open Network Map
                 </button>
             `;
-            resultsContainer.innerHTML = renderErrorCard(errorTitle, errorMsg, actionBtn);
+            resultsContainer.innerHTML = renderErrorCard("No Route Found", errorMsg, actionBtn);
         }
     }, 100); 
 }
 
 function renderSelectedTrip(container, index) {
     const selectedTrip = currentTripOptions[index];
-    if (!selectedTrip) return; // Added safety check here too
-
-    const dayLabel = getPlanningDayLabel();
-    
-    // Update Header Badge OUTSIDE the card
-    updatePlannerHeader(dayLabel, true);
+    if (!selectedTrip) return; // FIX 2: Guard Clause added
 
     const isTomorrow = selectedTrip.dayLabel !== undefined;
     const nowSec = timeToSeconds(currentTime);
@@ -1207,83 +1121,78 @@ function getPlanningDayLabel() {
     return "Weekday Schedule";
 }
 
-// GUARDIAN UPDATE V5.00.01: UNIFIED HEADER REDESIGN & DOUBLE LINK FIX
-// 1. Replaces the fragmented header with a clean Flexbox bar injected dynamically.
-// 2. Fixes share bug by separating Text and URL params.
+// NEW: Helper to update the External Header with Share Button (REDESIGNED V4.60.17)
 function updatePlannerHeader(dayLabel, showShare = true) {
-    // Target the Header Container in HTML (The div containing Back button and Title)
-    // We replace its ENTIRE content to ensure clean layout.
-    const headerContainer = document.querySelector('#planner-results-section .flex.flex-wrap'); 
+    const headerTitle = document.querySelector('#planner-results-section h4');
+    const spacer = document.querySelector('#planner-results-section .w-8'); 
     
-    if (!headerContainer) return;
-
-    // --- SHARE LOGIC ---
-    let shareButtonHtml = "";
-    if (showShare) {
-        // Get Current Context
-        const dropdown = document.querySelector('#planner-results-list select');
-        let selectedTime = null;
-        if (dropdown && currentTripOptions.length > 0) {
-             const idx = parseInt(dropdown.value);
-             if (currentTripOptions[idx]) selectedTime = currentTripOptions[idx].depTime;
-        }
-        if (!selectedTime && currentTripOptions.length > 0) selectedTime = currentTripOptions[0].depTime;
+    if (headerTitle) {
+        headerTitle.innerHTML = "";
+        // GUARDIAN FIX: Added 'flex-1 w-0' to allow text truncation if needed
+        headerTitle.className = "flex-1 w-0 flex justify-center mx-2"; 
         
-        const fromStation = (document.getElementById('planner-from-search').value || "").replace(' STATION','').trim();
-        const toStation = (document.getElementById('planner-to-search').value || "").replace(' STATION','').trim();
-        
-        // CLEAN SHARE DATA
-        const shareUrl = `https://nexttrain.co.za/?action=planner&from=${encodeURIComponent(fromStation)}&to=${encodeURIComponent(toStation)}&time=${selectedTime}&day=${selectedPlannerDay}`;
-        const shareMessage = `Trip Plan: ${fromStation} to ${toStation}`; 
-        
-        // Escape for HTML attribute
-        const safeShareUrl = shareUrl.replace(/"/g, '&quot;');
-        const safeShareMsg = shareMessage.replace(/"/g, '&quot;');
-
-        // Define global handler if not exists (to avoid inline complexity)
-        window.triggerPlannerShare = async (msg, url) => {
-            const data = { title: 'Next Train Trip', text: msg, url: url };
-            try { 
-                if (navigator.share) await navigator.share(data); 
-                else {
-                    const fallbackText = `${msg}. Check details here: ${url}`;
-                    copyToClipboard(fallbackText);
-                }
-            } catch(e) { 
-                console.log(e);
-            }
-        };
-
-        // GUARDIAN UPDATE V5.00.12: Styled Share Button with Text
-        shareButtonHtml = `
-            <button onclick="triggerPlannerShare('${safeShareMsg}', '${safeShareUrl}')" class="flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group shadow-sm flex-shrink-0" title="Share Trip">
-                <svg class="w-4 h-4 mr-1 transform group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
-                Share
-            </button>
+        // Schedule Badge (with Truncation)
+        const badge = document.createElement("span");
+        badge.className = "bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200 shadow-sm flex items-center max-w-full truncate";
+        badge.innerHTML = `
+            <svg class="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <span class="truncate">${dayLabel}</span>
         `;
-    } else {
-        // Empty spacer to keep title centered if no share button
-        shareButtonHtml = `<div class="w-16"></div>`;
+        headerTitle.appendChild(badge);
+        headerTitle.classList.remove('hidden');
     }
 
-    // --- RENDER UNIFIED HEADER ---
-    // GUARDIAN FIX V5.00.12: Removed 'mb-2' to tighten spacing with card
-    headerContainer.className = "flex items-center justify-between px-1 mb-2 w-full border-b border-gray-100 dark:border-gray-700 pb-2";
-    
-    // GUARDIAN UPDATE V5.00.12: Styled Back Button (Matching Share)
-    headerContainer.innerHTML = `
-        <button onclick="window.resetPlannerUI()" class="flex items-center text-sm font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors group shadow-sm flex-shrink-0">
-            <svg class="w-4 h-4 mr-1 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-            Back
-        </button>
-        
-        <div class="text-center flex-grow mx-2 min-w-0">
-            <h4 class="text-base font-black text-gray-900 dark:text-white uppercase tracking-wide truncate">Trip Plan</h4>
-            <span class="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-widest block -mt-0.5 truncate">${dayLabel}</span>
-        </div>
-        
-        ${shareButtonHtml}
-    `;
+    // Handle Share Button Placement (Replacing the Spacer)
+    if (spacer) {
+        spacer.innerHTML = ""; // Clear existing
+        spacer.style.display = 'block'; 
+        // GUARDIAN FIX: Prevent shrinking
+        spacer.className = "flex-none"; 
+
+        if (showShare) {
+            // Get Current Context
+            const dropdown = document.querySelector('#planner-results-list select');
+            let selectedTime = null;
+            if (dropdown && currentTripOptions.length > 0) {
+                 const idx = parseInt(dropdown.value);
+                 if (currentTripOptions[idx]) selectedTime = currentTripOptions[idx].depTime;
+            }
+            if (!selectedTime && currentTripOptions.length > 0) selectedTime = currentTripOptions[0].depTime;
+            
+            const fromStation = document.getElementById('planner-from-search').value || "";
+            const toStation = document.getElementById('planner-to-search').value || "";
+            const shareLink = `https://nexttrain.co.za/?action=planner&from=${encodeURIComponent(fromStation)}&to=${encodeURIComponent(toStation)}&time=${selectedTime}&day=${selectedPlannerDay}`;
+            const shareText = `Trip Plan: ${fromStation} to ${toStation}. Check details here: ${shareLink}`;
+
+            const shareBtn = document.createElement("button");
+            // GUARDIAN FIX V4.60.17: Matching Back Button Style (bg-blue-50 text-blue-600) + No Shrink
+            shareBtn.className = "flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group flex-none whitespace-nowrap";
+            shareBtn.title = "Share Trip Plan";
+            shareBtn.onclick = async () => {
+                const data = { title: 'Next Train Trip Plan', text: shareText, url: shareLink };
+                try { 
+                    if (navigator.share) await navigator.share(data); 
+                    else {
+                        const textArea = document.createElement('textarea');
+                        textArea.value = shareText;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        alert('Link copied to clipboard!');
+                    }
+                } catch(e) {}
+            };
+            
+            // Replaced icon with text "Share Trip" and symmetrical icon
+            shareBtn.innerHTML = `
+                Share Trip
+                <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+            `;
+            
+            spacer.appendChild(shareBtn);
+        }
+    }
 }
 
 function renderTripResult(container, trips, selectedIndex = 0) {

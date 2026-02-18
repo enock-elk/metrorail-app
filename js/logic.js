@@ -442,7 +442,7 @@ function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
         let depTotalSeconds = (depH * 3600) + (depM * 60) + depS;
         let diffInSeconds = (depTotalSeconds - nowTotalSeconds) + (dayOffset * 86400);
         if (diffInSeconds < -30) return ""; 
-        if (diffInSeconds < 60) return "(Arriving now)";
+        if (diffInSeconds < 60) return "(Departing now)";
         let diffInMinutes = Math.ceil(diffInSeconds / 60);
         const hours = Math.floor(diffInMinutes / 60);
         const minutes = diffInMinutes % 60;
@@ -930,13 +930,25 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination)
         if (!destinationTime) {
             const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination, train1);
             if (connectionData && connectionData.earliest) {
+                
+                // GUARDIAN V5.01: HORIZON SCANNER
+                // Detect actual headboard destination (stops past transfer hub)
+                let realHeadboardDest = terminalStation;
+                for (let k = termIndex + 1; k < schedule.rows.length; k++) {
+                    const nextRow = schedule.rows[k];
+                    if (nextRow[train1] && nextRow[train1] !== '-' && nextRow[train1].trim() !== '') {
+                        realHeadboardDest = nextRow[stationCol];
+                    }
+                }
+
                 allJourneys.push({ 
                     type: 'transfer', 
                     train1: { 
                         train: train1, 
                         departureTime: departureTime, 
                         arrivalAtTransfer: terminationTime, 
-                        terminationStation: terminalStation 
+                        terminationStation: terminalStation,
+                        headboardDestination: realHeadboardDest
                     }, 
                     connection: connectionData.earliest, 
                     nextFullJourney: connectionData.fullJourney 
