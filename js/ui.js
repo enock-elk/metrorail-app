@@ -436,23 +436,50 @@ window.openFareModal = function(fareDetails) {
 };
 
 // --- UTILS ---
-// GUARDIAN V5.01: Reduced default toast duration to 2500ms
+
+// GUARDIAN V5.10.20: Enforced 5s Max Duration, Close Button, and Anti-Peeking CSS
 function showToast(message, type = 'info', duration = 2500, actionHTML = '') { 
     if (toastTimeout) clearTimeout(toastTimeout); 
     
-    // Allow robust HTML content for toasts
-    toast.innerHTML = actionHTML ? `
-        <div class="flex items-center justify-between gap-3">
-            <span>${message}</span>
-            ${actionHTML}
+    // 1. Cap duration at 5000ms (5 seconds) max to prevent lingering
+    const safeDuration = Math.min(duration, 5000);
+
+    // 2. Inject Guardian Anti-Peeking CSS (Failsafe for tall toasts)
+    // We append this dynamically so we don't have to touch index.html or custom.css
+    if (!document.getElementById('toast-guardian-style')) {
+        const style = document.createElement('style');
+        style.id = 'toast-guardian-style';
+        style.innerHTML = `
+            #toast { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease !important; }
+            #toast:not(.show) { transform: translateY(150%) !important; opacity: 0 !important; pointer-events: none !important; bottom: -20px !important; }
+            #toast.show { transform: translateY(0) !important; opacity: 1 !important; pointer-events: auto !important; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // 3. Standardized Layout with Explicit Close Button
+    toast.innerHTML = `
+        <div class="flex items-center justify-between w-full gap-3">
+            <div class="flex-grow text-left text-sm font-medium">
+                ${message}
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                ${actionHTML}
+                <button onclick="document.getElementById('toast').classList.remove('show')" class="text-white/70 hover:text-white bg-black/10 hover:bg-black/30 rounded-full p-1.5 transition-colors focus:outline-none" aria-label="Close Toast">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
         </div>
-    ` : message;
+    `;
     
     toast.className = `toast-info`; 
     if (type === 'success') toast.classList.add('toast-success'); 
     else if (type === 'error') toast.classList.add('toast-error'); 
+    
     toast.classList.add('show'); 
-    toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration); 
+    
+    // Apply safe duration cap
+    toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, safeDuration); 
 }
 
 function copyToClipboard(text) { const textArea = document.createElement('textarea'); textArea.value = text; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { const successful = document.execCommand('copy'); if (successful) showToast("Link copied to clipboard!", "success", 2000); } catch (err) {} document.body.removeChild(textArea); }
