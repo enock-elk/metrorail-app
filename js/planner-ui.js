@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V5.00.20 - Guardian Hotfix)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V5.01.00 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -23,6 +23,25 @@ const PlannerRenderer = {
         const suffix = hour >= 12 ? 'PM' : 'AM';
         hour = hour % 12 || 12;
         return `${hour}:${m} ${suffix}`;
+    },
+
+    // GUARDIAN V5.01: Standardized Duration Formatter
+    formatDuration: (totalMinutes) => {
+        if (totalMinutes < 60) return `${totalMinutes} min`;
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+        return m === 0 ? `${h} hr` : `${h} hr ${m} min`;
+    },
+
+    // GUARDIAN V5.01: Text Intercept for Kempton Park area
+    applyUIIntercepts: (stationName) => {
+        if (!stationName) return "";
+        let name = stationName.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+        const upper = name.toUpperCase();
+        if (upper === 'ELANDSFONTEIN' || upper === 'RHODESFIELD') {
+            return 'Kempton Park';
+        }
+        return name;
     },
 
     // REFACTORED: Shared Logic for Building Stop Lists
@@ -49,7 +68,7 @@ const PlannerRenderer = {
                 
                 const it = internalTransfer;
                 const iWaitMin = Math.floor(it.wait / 60);
-                const iWaitText = iWaitMin > 59 ? `${Math.floor(iWaitMin/60)}h ${iWaitMin%60}m` : `${iWaitMin} Minutes`;
+                const iWaitText = PlannerRenderer.formatDuration(iWaitMin);
                 const sName = it.station.replace(' STATION', '');
 
                 const internalTransferHTML = `
@@ -140,11 +159,11 @@ const PlannerRenderer = {
                           </div>`;
         }
 
+        // GUARDIAN V5.01: Centered Header Label & Removed Redundant Train Pill
         return `
             <div class="p-4 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-bold ${colorClass} uppercase tracking-wider">${headerLabel}</span>
-                    <span class="text-xs font-bold text-gray-500 bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">Train ${step.train}</span>
+                <div class="flex items-center justify-center mb-2">
+                    <span class="text-[11px] font-black ${colorClass} uppercase tracking-widest text-center">${headerLabel}</span>
                 </div>
                 <div class="flex justify-between items-center mt-2">
                     <div class="text-left flex-1 w-0">
@@ -216,7 +235,8 @@ const PlannerRenderer = {
             <div class="flex items-start">
                 <span class="text-xl mr-3">ℹ️</span>
                 <p class="text-sm text-gray-700 dark:text-gray-300 leading-snug">
-                    <b>Instruction:</b> Take train <b>${step.train}</b> on the <b>${step.route.name}</b> line.
+                    <b>Instruction:</b><br> 
+                    Take train <b>${step.train}</b> on the <b>${step.route.name}</b> line.
                 </p>
             </div>
         </div>
@@ -249,13 +269,11 @@ const PlannerRenderer = {
         const hubArr = timeToSeconds(step.leg1.arrTime);
         const hubDep = timeToSeconds(step.leg2.depTime);
         const waitMins = Math.floor((hubDep - hubArr) / 60);
-        const waitStr = waitMins > 59 ? `${Math.floor(waitMins/60)} hr ${waitMins%60} min` : `${waitMins} Minutes`;
+        const waitStr = PlannerRenderer.formatDuration(waitMins);
         
-        let train1Dest = step.leg1.actualDestination || step.leg1.route.destB;
-        train1Dest = train1Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-
-        let train2Dest = step.leg2.actualDestination || step.leg2.route.destB;
-        train2Dest = train2Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+        // Apply Kempton Intercept here
+        let train1Dest = PlannerRenderer.applyUIIntercepts(step.leg1.actualDestination || step.leg1.route.destB);
+        let train2Dest = PlannerRenderer.applyUIIntercepts(step.leg2.actualDestination || step.leg2.route.destB);
 
         const standardTransferBlock = `
             <div class="relative pl-6 pb-6 pt-2">
@@ -335,14 +353,14 @@ const PlannerRenderer = {
         const arr1 = timeToSeconds(step.leg1.arrTime);
         const dep2 = timeToSeconds(step.leg2.depTime);
         const wait1Mins = Math.floor((dep2 - arr1) / 60);
-        const wait1Str = wait1Mins > 59 ? `${Math.floor(wait1Mins/60)} hr ${wait1Mins%60} min` : `${wait1Mins} Minutes`;
+        const wait1Str = PlannerRenderer.formatDuration(wait1Mins);
 
         const arr2 = timeToSeconds(step.leg2.arrTime);
         const dep3 = timeToSeconds(step.leg3.depTime);
         const wait2Mins = Math.floor((dep3 - arr2) / 60);
-        const wait2Str = wait2Mins > 59 ? `${Math.floor(wait2Mins/60)} hr ${wait2Mins%60} min` : `${wait2Mins} Minutes`;
+        const wait2Str = PlannerRenderer.formatDuration(wait2Mins);
 
-        const formatStation = (s) => s.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+        const formatStation = (s) => PlannerRenderer.applyUIIntercepts(s);
         const hub1Name = formatStation(step.hub1);
         const hub2Name = formatStation(step.hub2);
         
@@ -350,15 +368,9 @@ const PlannerRenderer = {
         const leg2Id = `l2-${step.train}`;
         const leg3Id = `l3-${step.train}`;
 
-        // --- NEW: DESTINATION NAMES ---
-        let train1Dest = step.leg1.actualDestination || step.leg1.route.destB;
-        train1Dest = train1Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-
-        let train2Dest = step.leg2.actualDestination || step.leg2.route.destB;
-        train2Dest = train2Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-
-        let train3Dest = step.leg3.actualDestination || step.leg3.route.destB;
-        train3Dest = train3Dest.replace(' STATION', '').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+        let train1Dest = formatStation(step.leg1.actualDestination || step.leg1.route.destB);
+        let train2Dest = formatStation(step.leg2.actualDestination || step.leg2.route.destB);
+        let train3Dest = formatStation(step.leg3.actualDestination || step.leg3.route.destB);
 
         const transferBlock1 = `
             <div class="relative pl-6 pb-6 pt-2">
@@ -490,9 +502,29 @@ const PlannerRenderer = {
             } else { countdown = "Departed"; isDeparted = true; }
         }
         const durSec = arrSec - depSec;
-        const h = Math.floor(durSec / 3600);
-        const m = Math.floor((durSec % 3600) / 60);
-        return { countdown, duration: h > 0 ? `${h}h ${m}m` : `${m}m`, isDeparted };
+        const durMins = Math.floor(durSec / 60);
+        return { countdown, duration: PlannerRenderer.formatDuration(durMins), isDeparted };
+    }
+};
+
+// --- GLOBAL CYCLE HELPER ---
+window.cyclePlannerDay = function() {
+    if (!selectedPlannerDay) selectedPlannerDay = currentDayType || 'weekday';
+    
+    if (selectedPlannerDay === 'weekday') selectedPlannerDay = 'saturday';
+    else if (selectedPlannerDay === 'saturday') selectedPlannerDay = 'sunday';
+    else selectedPlannerDay = 'weekday';
+    
+    const daySelect = document.getElementById('planner-day-select');
+    if (daySelect) daySelect.value = selectedPlannerDay;
+    
+    showToast(`Switched to ${selectedPlannerDay} schedule`, "info", 1500);
+    
+    // Auto-recalculate if we have valid inputs
+    const fromSelect = document.getElementById('planner-from');
+    const toSelect = document.getElementById('planner-to');
+    if (fromSelect && toSelect && fromSelect.value && toSelect.value) {
+        executeTripPlan(fromSelect.value, toSelect.value);
     }
 };
 
@@ -677,9 +709,9 @@ function initPlanner() {
             return "";
         };
 
-        fromSelect.value = resolve(toInput.value); // Use 'toInput' because we just swapped it into there? No, fromInput has the NEW 'from' value.
-        fromSelect.value = resolve(fromInput.value);
-        toSelect.value = resolve(toInput.value);
+        // FIXED: Now we directly assign the resolved swapped texts rather than relying on stale input properties
+        fromSelect.value = resolve(txtTo);
+        toSelect.value = resolve(txtFrom);
 
         // 4. Trigger Filter to update disabled states
         filterToOptions();
@@ -833,7 +865,7 @@ function renderPlannerHistory() {
         <div class="flex flex-col gap-2">
             ${history.map(item => `
                 <button onclick="restorePlannerSearch('${item.fullFrom}', '${item.fullTo}')" 
-                    class="w-full flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 shadow-sm hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group text-left">
+                    class="w-full flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 shadow-sm hover:border-blue-50 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group text-left">
                     <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                         ${item.from} <span class="text-gray-400 mx-1">&rarr;</span> ${item.to}
                     </span>
@@ -1027,7 +1059,7 @@ function executeTripPlan(origin, dest, preferredTime = null) {
             const errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path. You may need to plan this journey in segments (e.g., 'Home to Pretoria', then 'Pretoria to Work').";
             const actionBtn = `
                 <button onclick="document.getElementById('map-modal').classList.remove('hidden')" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
                     Open Network Map
                 </button>
             `;
@@ -1121,60 +1153,84 @@ function getPlanningDayLabel() {
     return "Weekday Schedule";
 }
 
-// NEW: Helper to update the External Header with Share Button (REDESIGNED V4.60.17)
+// GUARDIAN V5.01: Redesigned Planner Header & Double URL Bug Fix
 function updatePlannerHeader(dayLabel, showShare = true) {
     const headerTitle = document.querySelector('#planner-results-section h4');
-    const spacer = document.querySelector('#planner-results-section .w-8'); 
+    // FIX: Stable DOM Targeting - Find original .w-8 OR the new persistent .planner-share-slot
+    const spacer = document.querySelector('#planner-results-section .w-8, #planner-results-section .planner-share-slot'); 
     
     if (headerTitle) {
         headerTitle.innerHTML = "";
-        // GUARDIAN FIX: Added 'flex-1 w-0' to allow text truncation if needed
         headerTitle.className = "flex-1 w-0 flex justify-center mx-2"; 
         
-        // Schedule Badge (with Truncation)
-        const badge = document.createElement("span");
-        badge.className = "bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200 shadow-sm flex items-center max-w-full truncate";
+        // Interactive Day Swap Button
+        const badge = document.createElement("button");
+        badge.className = "bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-3 py-1.5 rounded-full border border-blue-200 shadow-sm flex items-center transition-colors max-w-full cursor-pointer group";
+        badge.title = "Click to change day";
+        badge.onclick = window.cyclePlannerDay;
+        
         badge.innerHTML = `
-            <svg class="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <svg class="w-3 h-3 mr-1.5 flex-shrink-0 group-hover:rotate-180 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
             <span class="truncate">${dayLabel}</span>
         `;
         headerTitle.appendChild(badge);
         headerTitle.classList.remove('hidden');
     }
 
-    // Handle Share Button Placement (Replacing the Spacer)
     if (spacer) {
-        spacer.innerHTML = ""; // Clear existing
+        spacer.innerHTML = ""; 
         spacer.style.display = 'block'; 
-        // GUARDIAN FIX: Prevent shrinking
-        spacer.className = "flex-none"; 
+        // FIX: Re-apply a persistent identity class so it can be found during the next swap
+        spacer.className = "flex-none planner-share-slot"; 
 
         if (showShare) {
-            // Get Current Context
-            const dropdown = document.querySelector('#planner-results-list select');
-            let selectedTime = null;
-            if (dropdown && currentTripOptions.length > 0) {
-                 const idx = parseInt(dropdown.value);
-                 if (currentTripOptions[idx]) selectedTime = currentTripOptions[idx].depTime;
-            }
-            if (!selectedTime && currentTripOptions.length > 0) selectedTime = currentTripOptions[0].depTime;
-            
-            const fromStation = document.getElementById('planner-from-search').value || "";
-            const toStation = document.getElementById('planner-to-search').value || "";
-            const shareLink = `https://nexttrain.co.za/?action=planner&from=${encodeURIComponent(fromStation)}&to=${encodeURIComponent(toStation)}&time=${selectedTime}&day=${selectedPlannerDay}`;
-            const shareText = `Trip Plan: ${fromStation} to ${toStation}. Check details here: ${shareLink}`;
-
             const shareBtn = document.createElement("button");
-            // GUARDIAN FIX V4.60.17: Matching Back Button Style (bg-blue-50 text-blue-600) + No Shrink
-            shareBtn.className = "flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group flex-none whitespace-nowrap";
+            // GUARDIAN: Restored text for flexbox balance
+            shareBtn.className = "flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group flex-none whitespace-nowrap shadow-sm border border-blue-100 dark:border-blue-800";
             shareBtn.title = "Share Trip Plan";
+            
+            // FIX: Just-In-Time extraction inside the click event guarantees 100% fresh data
             shareBtn.onclick = async () => {
+                const dropdown = document.querySelector('#planner-results-list select');
+                let selectedTime = null;
+                let fromStation = "";
+                let toStation = "";
+                
+                // THE ULTIMATE SOURCE OF TRUTH at the exact moment of click
+                if (currentTripOptions.length > 0) {
+                     const idx = dropdown ? (parseInt(dropdown.value) || 0) : 0;
+                     const selectedTrip = currentTripOptions[idx] || currentTripOptions[0];
+                     selectedTime = selectedTrip.depTime;
+                     fromStation = (selectedTrip.from || "").replace(/ STATION/gi, '').trim();
+                     toStation = (selectedTrip.to || "").replace(/ STATION/gi, '').trim();
+                } else {
+                     // Fallback to DOM inputs only if there are no trips
+                     fromStation = (document.getElementById('planner-from-search').value || "").trim();
+                     toStation = (document.getElementById('planner-to-search').value || "").trim();
+                }
+                
+                const safeTime = (selectedTime || "").trim();
+                const safeDay = (selectedPlannerDay || "").trim();
+                
+                // USE URLSearchParams to ensure strict '+' encoding for spaces instead of '%20'
+                const params = new URLSearchParams({
+                    action: 'planner',
+                    from: fromStation,
+                    to: toStation,
+                    time: safeTime,
+                    day: safeDay
+                });
+                
+                const shareLink = `https://nexttrain.co.za/?${params.toString()}`;
+                const shareText = `Trip Plan: ${fromStation} to ${toStation}.`;
+
                 const data = { title: 'Next Train Trip Plan', text: shareText, url: shareLink };
                 try { 
                     if (navigator.share) await navigator.share(data); 
                     else {
                         const textArea = document.createElement('textarea');
-                        textArea.value = shareText;
+                        // Fallback includes the URL manually since there is no Share Sheet
+                        textArea.value = `${shareText} Check details here: ${shareLink}`;
                         document.body.appendChild(textArea);
                         textArea.select();
                         document.execCommand('copy');
@@ -1184,10 +1240,9 @@ function updatePlannerHeader(dayLabel, showShare = true) {
                 } catch(e) {}
             };
             
-            // Replaced icon with text "Share Trip" and symmetrical icon
             shareBtn.innerHTML = `
                 Share Trip
-                <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                <svg class="w-4 h-4 ml-1.5 transform transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
             `;
             
             spacer.appendChild(shareBtn);

@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V5.00.01 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V5.01.00 - Guardian Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (Tiered)
@@ -7,6 +7,7 @@
  * 3. PIN Unlock Logic & Signature Mgmt
  * 4. Simulation Controls
  * 5. Ghost Train Exclusion Manager
+ * 6. Special Event Route Manager (NEW)
  */
 
 const Admin = {
@@ -14,7 +15,18 @@ const Admin = {
     // --- 0. CONFIGURATION ---
     DIRECTORY: {
         "101101": { name: "Enock", role: "Lead Developer" },
+        "200205": { name: "Melmoth", role: "Developer" },
         "202626": { name: "Guest Admin", role: "Support" } // Scalable!
+    },
+
+    // --- 0.1 GLOBAL AUTH KEY HELPER (GUARDIAN TASK 7.1) ---
+    getAuthKey: () => {
+        let key = localStorage.getItem('admin_firebase_key');
+        if (!key) {
+            const domKey = document.getElementById('alert-key');
+            if (domKey && domKey.value) key = domKey.value.trim();
+        }
+        return key;
     },
 
     // --- 1. INITIALIZATION ---
@@ -195,6 +207,7 @@ const Admin = {
         Admin.setupServiceAlertsManager();
         Admin.setupExclusionManager();
         Admin.setupMaintenanceManager();
+        Admin.setupSpecialEventManager(); // NEW V5.01
     },
 
     // --- 4. SERVICE ALERTS MANAGER (GUARDIAN CARD STYLE) ---
@@ -384,7 +397,7 @@ const Admin = {
         // Actions
         sendBtn.onclick = async () => {
             let msg = alertMsg.value.trim();
-            const secret = localStorage.getItem('admin_firebase_key') || alertKey.value.trim();
+            const secret = Admin.getAuthKey(); // GUARDIAN REFACTOR
             const target = alertTarget.value;
             const severity = severitySelect.value;
             
@@ -426,7 +439,7 @@ const Admin = {
         };
 
         clearBtn.onclick = async () => {
-            const secret = localStorage.getItem('admin_firebase_key') || alertKey.value.trim();
+            const secret = Admin.getAuthKey(); // GUARDIAN REFACTOR
             const target = alertTarget.value;
             if (!secret) { showToast("Key required.", "error"); return; }
             if(!confirm(`Delete alert for: ${target}?`)) return;
@@ -684,7 +697,7 @@ const Admin = {
             const rId = routeSelect.value;
             const reason = document.getElementById('excl-reason').value.trim() || "Service Adjustment";
             const selectedDays = getSelectedDays();
-            const secret = localStorage.getItem('admin_firebase_key') || document.getElementById('alert-key').value.trim();
+            const secret = Admin.getAuthKey(); // GUARDIAN REFACTOR
             const selectedTrains = Array.from(trainGrid.querySelectorAll('input:checked')).map(cb => cb.value);
             const manualTrain = document.getElementById('excl-train-manual').value.trim();
             if (manualTrain) selectedTrains.push(manualTrain);
@@ -730,7 +743,7 @@ const Admin = {
 
         Admin.deleteExclusion = async (rId, trainNum) => {
             if(!confirm(`Unban Train #${trainNum}?`)) return;
-            const secret = localStorage.getItem('admin_firebase_key') || document.getElementById('alert-key').value.trim();
+            const secret = Admin.getAuthKey(); // GUARDIAN REFACTOR
             if (!secret) { showToast("Key required.", "error"); return; }
             const url = `https://metrorail-next-train-default-rtdb.firebaseio.com/exclusions/${rId}/${trainNum}.json?auth=${secret}`;
             try {
@@ -744,7 +757,142 @@ const Admin = {
         };
     },
 
-    // --- 6. MAINTENANCE MODE MANAGER (GUARDIAN CARD STYLE) ---
+    // --- 6. SPECIAL EVENT MANAGER (NEW TASK 7.2) ---
+    setupSpecialEventManager: () => {
+        const alertPanel = document.getElementById('alert-panel');
+        if (!alertPanel || !alertPanel.parentNode) return;
+        
+        let eventPanel = document.getElementById('event-panel');
+        if (!eventPanel) {
+            eventPanel = document.createElement('div');
+            eventPanel.id = 'event-panel';
+            alertPanel.parentNode.appendChild(eventPanel);
+        }
+
+        if (eventPanel.dataset.loaded === "true") return;
+        eventPanel.dataset.loaded = "true";
+
+        eventPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+
+        eventPanel.innerHTML = `
+            <button id="event-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
+                <span class="flex items-center"><span class="mr-2">⭐</span> Special Event Route</span>
+                <svg id="event-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+
+            <div id="event-body" class="hidden mt-4 space-y-4">
+                <div class="flex items-center justify-between bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                    <div>
+                        <span class="font-bold text-yellow-800 dark:text-yellow-200 text-sm">Enable Event Route</span>
+                    </div>
+                    <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" id="event-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
+                        <label for="event-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Event Name</label>
+                    <input type="text" id="event-name" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-xs text-gray-900 dark:text-white outline-none" placeholder="e.g., Loftus Rugby Special">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Destination A</label>
+                        <input type="text" id="event-dest-a" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-xs text-gray-900 dark:text-white outline-none" placeholder="e.g., PRETORIA STATION">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Destination B</label>
+                        <input type="text" id="event-dest-b" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-xs text-gray-900 dark:text-white outline-none" placeholder="e.g., LOFTUS STATION">
+                    </div>
+                </div>
+                
+                <div class="pt-2 border-t border-gray-100 dark:border-gray-700">
+                    <button id="event-save-btn" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-lg shadow-md transition-colors text-xs uppercase tracking-wide">
+                        Publish Event
+                    </button>
+                </div>
+            </div>
+            <style>
+                #event-toggle:checked { right: 0; border-color: #eab308; }
+                #event-toggle:checked + .toggle-label { background-color: #eab308; }
+                #event-toggle { right: 16px; transition: all 0.3s; }
+            </style>
+        `;
+
+        const header = document.getElementById('event-header-btn');
+        const body = document.getElementById('event-body');
+        const chevron = document.getElementById('event-chevron');
+        const toggle = document.getElementById('event-toggle');
+        const nameInput = document.getElementById('event-name');
+        const destAInput = document.getElementById('event-dest-a');
+        const destBInput = document.getElementById('event-dest-b');
+        const saveBtn = document.getElementById('event-save-btn');
+
+        header.onclick = () => {
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+                header.classList.remove('mb-4');
+            } else {
+                chevron.classList.remove('-rotate-90');
+                header.classList.add('mb-4');
+            }
+        };
+
+        // Populate with current state (from memory)
+        if (typeof ROUTES !== 'undefined' && ROUTES['special_event']) {
+            const ev = ROUTES['special_event'];
+            toggle.checked = ev.isActive;
+            nameInput.value = ev.name !== "Special Event Route" ? ev.name : "";
+            destAInput.value = ev.destA !== "EVENT A STATION" ? ev.destA : "";
+            destBInput.value = ev.destB !== "EVENT B STATION" ? ev.destB : "";
+        }
+
+        saveBtn.onclick = async () => {
+            const secret = Admin.getAuthKey();
+            if (!secret) { showToast("Admin Key required", "error"); return; }
+            
+            const payload = {
+                isActive: toggle.checked,
+                name: nameInput.value.trim() || "Special Event Route",
+                destA: destAInput.value.trim().toUpperCase() || "EVENT A STATION",
+                destB: destBInput.value.trim().toUpperCase() || "EVENT B STATION"
+            };
+
+            saveBtn.textContent = "Publishing...";
+            saveBtn.disabled = true;
+
+            try {
+                const res = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/config/special_event.json?auth=${secret}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    showToast("Special Event Updated!", "success");
+                    // Instantly sync local memory & UI without hard reload
+                    if (typeof ROUTES !== 'undefined' && ROUTES['special_event']) {
+                        ROUTES['special_event'].isActive = payload.isActive;
+                        ROUTES['special_event'].name = payload.name;
+                        ROUTES['special_event'].destA = payload.destA;
+                        ROUTES['special_event'].destB = payload.destB;
+                        if (typeof Renderer !== 'undefined') {
+                            Renderer.renderRouteMenu('route-list', ROUTES, typeof currentRouteId !== 'undefined' ? currentRouteId : null);
+                        }
+                    }
+                } else {
+                    showToast("Failed. Check Admin Key.", "error");
+                }
+            } catch(e) {
+                showToast("Network Error", "error");
+            } finally {
+                saveBtn.textContent = "Publish Event";
+                saveBtn.disabled = false;
+            }
+        };
+    },
+
+    // --- 7. MAINTENANCE MODE MANAGER (GUARDIAN CARD STYLE) ---
     setupMaintenanceManager: () => {
         const exclusionPanel = document.getElementById('exclusion-panel');
         if (!exclusionPanel || !exclusionPanel.parentNode) return;
@@ -817,7 +965,7 @@ const Admin = {
 
         // 2. Toggle Handler
         toggle.addEventListener('change', async () => {
-            const secret = localStorage.getItem('admin_firebase_key') || document.getElementById('alert-key').value.trim();
+            const secret = Admin.getAuthKey(); // GUARDIAN REFACTOR
             if (!secret) {
                 showToast("Admin Key required to change system status.", "error");
                 toggle.checked = !toggle.checked; // Revert UI

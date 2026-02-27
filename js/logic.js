@@ -14,6 +14,8 @@ let refreshTimer = null;
 let currentUserProfile = "Adult"; 
 // GUARDIAN V4.60.70: Ghost Train Exclusions
 let globalExclusions = {}; 
+// GUARDIAN V5.01.00: Analytics state for O-D Matrix
+let lastTrackedOD = null; 
 
 // --- SHARED UI REFERENCES (Declared here, Assigned in UI.js) ---
 let stationSelect, locateBtn, pretoriaTimeEl, pienaarspoortTimeEl, pretoriaHeader, pienaarspoortHeader;
@@ -148,9 +150,31 @@ function scheduleNextRefresh() {
     refreshTimer = setTimeout(async () => { await loadAllSchedules(); scheduleNextRefresh(); }, nextInterval);
 }
 
+// GUARDIAN PHASE 3: Task 7.2 Remote Config Fetch
+async function fetchSpecialEventConfig() {
+    try {
+        const eventResp = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/config/special_event.json?t=${Date.now()}`);
+        if (eventResp.ok) {
+            const eventData = await eventResp.json();
+            if (eventData && ROUTES['special_event']) {
+                ROUTES['special_event'].isActive = eventData.isActive === true;
+                if (eventData.name) ROUTES['special_event'].name = eventData.name;
+                if (eventData.destA) ROUTES['special_event'].destA = eventData.destA;
+                if (eventData.destB) ROUTES['special_event'].destB = eventData.destB;
+                
+                // Trigger sidebar re-render to inject/remove the Event Route seamlessly
+                if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', ROUTES, currentRouteId);
+            }
+        }
+    } catch(e) { console.warn("Failed to fetch special event config", e); }
+}
+
 // --- DATA FETCHING & PROCESSING ---
 async function loadAllSchedules(force = false) {
     try {
+        // GUARDIAN: Sync dynamic route states before parsing
+        await fetchSpecialEventConfig();
+
         if (!currentRouteId) return; 
         const currentRoute = ROUTES[currentRouteId];
         if (!currentRoute) return;
@@ -158,7 +182,8 @@ async function loadAllSchedules(force = false) {
         // UI Updates (handled here for flow, but using global refs)
         if(routeSubtitleText) {
             routeSubtitleText.textContent = currentRoute.name;
-            routeSubtitleText.className = `text-lg font-medium ${currentRoute.colorClass} group-hover:opacity-80 transition-colors`;
+            // GUARDIAN FIX: Added truncation flexbox properties to persist across updates
+            routeSubtitleText.className = `text-base sm:text-lg font-medium ${currentRoute.colorClass} group-hover:opacity-80 transition-colors truncate w-full px-1 min-w-0 text-center`;
         }
         
         if(pretoriaHeader) pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
@@ -373,7 +398,7 @@ function buildGlobalStationIndex() {
                           if (valUpper.includes('COORDINATES')) coordKey = key;
                       });
 
-                      if (!stationKey && row['STATION']) stationKey = 'STATION';
+                      if (!stationKey && row[stationKey]) stationKey = 'STATION';
                       if (!coordKey && row['COORDINATES']) coordKey = 'COORDINATES';
 
                       if (stationKey && row[stationKey]) {
@@ -446,7 +471,8 @@ function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
         let diffInMinutes = Math.ceil(diffInSeconds / 60);
         const hours = Math.floor(diffInMinutes / 60);
         const minutes = diffInMinutes % 60;
-        return (hours > 0) ? `(in ${hours}h ${minutes}m)` : `(in ${minutes}m)`;
+        // GUARDIAN TASK 6.2: Wait Time Standardization
+        return (hours > 0) ? `(in ${hours} hr ${minutes} min)` : `(in ${minutes} min)`;
     } catch (e) { return ""; }
 }
 
@@ -624,9 +650,27 @@ function findNextTrains() {
     
     if (!selectedStation) { if(typeof renderPlaceholder === 'function') renderPlaceholder(); return; }
     
-    if (stationSelect.options[stationSelect.selectedIndex] && stationSelect.options[stationSelect.selectedIndex].textContent.includes("(No Service)")) {
+    // GUARDIAN FIX V5.01.00: Strict selectedIndex guardrail to prevent null reference crash
+    if (!stationSelect.options[stationSelect.selectedIndex]) return;
+
+    if (stationSelect.options[stationSelect.selectedIndex].textContent.includes("(No Service)")) {
         const msg = `<div class="h-32 flex flex-col justify-center items-center text-xl font-bold text-gray-600 dark:text-gray-400">No trains stop here.</div>`;
         pretoriaTimeEl.innerHTML = msg; pienaarspoortTimeEl.innerHTML = msg; return;
+    }
+
+    // GUARDIAN V5.01.00: Data Monetization - Enriching analytics with O-D Matrix mapping
+    const currentODKey = `${currentRouteId}_${selectedStation}`;
+    if (lastTrackedOD !== currentODKey && typeof trackAnalyticsEvent === 'function') {
+        lastTrackedOD = currentODKey;
+        trackAnalyticsEvent('od_matrix_view', {
+            origin: selectedStation.replace(' STATION', ''),
+            dest_a: currentRoute.destA.replace(' STATION', ''),
+            dest_b: currentRoute.destB.replace(' STATION', ''),
+            route_id: currentRouteId,
+            time_of_search: currentTime,
+            day_type: currentDayType,
+            trip_type: 'live_board_view'
+        });
     }
     
     // GUARDIAN FIX V4.60.11: Specific "No Service" Logic

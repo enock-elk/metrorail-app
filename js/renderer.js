@@ -1,10 +1,10 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V5.00.20 - Guardian Stability & Defaults)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V5.10.20 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
  * * PART OF PHASE 3 & 4: LOADING GUARDRAILS & SMART DEFAULTS
- * * UPDATES: High Contrast Mode & Centered Layouts (Guardian V5.01)
+ * * UPDATES: High Contrast Mode, Centered Layouts, Event Styling & Kempton Intercept (Guardian V5.01)
  */
 
 const Renderer = {
@@ -34,7 +34,8 @@ const Renderer = {
 
         const groups = {};
         Object.values(routes).forEach(route => {
-            if (!route.isActive) return;
+            // GUARDIAN TASK 6.3: Exclude special_event from standard group loops
+            if (!route.isActive || route.id === 'special_event') return;
             const cat = categoryMap[route.corridorId] || "Other Routes";
             if (!groups[cat]) groups[cat] = [];
             groups[cat].push(route);
@@ -42,8 +43,25 @@ const Renderer = {
 
         let html = '';
 
+        // GUARDIAN TASK 6.3: SPECIAL EVENT ROUTE (Absolute Top, Unique Styling)
+        if (routes['special_event'] && routes['special_event'].isActive) {
+            const r = routes['special_event'];
+            const isActive = r.id === activeRouteId ? 'active' : '';
+            html += `
+                <div id="special-event-section" class="border-b border-yellow-200 dark:border-yellow-900/50 pb-2 mb-2 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg p-2">
+                    <li class="route-category mt-0 pt-0 text-yellow-600 dark:text-yellow-400 flex items-center animate-pulse tracking-widest"><span class="mr-1">⭐</span> SPECIAL EVENT</li>
+                    <li class="route-item mt-1">
+                        <a class="${isActive} font-black text-yellow-700 dark:text-yellow-400" data-route-id="${r.id}">
+                            <span class="mr-2">⭐</span>${r.name}
+                        </a>
+                    </li>
+                </div>
+            `;
+        }
+
         const savedDefault = localStorage.getItem('defaultRoute');
-        if (savedDefault && routes[savedDefault]) {
+        // Prevent duplicate if user somehow pinned the special event
+        if (savedDefault && routes[savedDefault] && savedDefault !== 'special_event') {
             const r = routes[savedDefault];
             const isActive = r.id === activeRouteId ? 'active' : '';
             const dotColor = Renderer._getDotColor(r.colorClass);
@@ -87,7 +105,8 @@ const Renderer = {
         container.innerHTML = "";
         
         Object.values(routes).forEach(route => {
-            if (!route.isActive) return;
+            // Hide special events from the welcome list
+            if (!route.isActive || route.id === 'special_event') return;
 
             const btn = document.createElement('button');
             let borderColor = 'border-gray-500';
@@ -165,9 +184,12 @@ const Renderer = {
         if (firstNextTrain) {
             const rawTime = firstNextTrain.departureTime || firstNextTrain.train1.departureTime;
             const departureTime = formatTimeDisplay(rawTime);
-            const timeDiffStr = (typeof calculateTimeDiffString === 'function') 
+            let timeDiffStr = (typeof calculateTimeDiffString === 'function') 
                 ? calculateTimeDiffString(rawTime, dayOffset) 
                 : ""; 
+            
+            // GUARDIAN TASK 6.2: Wait Time Standardization
+            if (timeDiffStr) timeDiffStr = timeDiffStr.replace(/(\d+)h\s(\d+)m/, '$1 hr $2 min').replace(/(\d+)m\)/, '$1 min)');
             
             timeHTML = `<div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
         } else {
@@ -192,9 +214,12 @@ const Renderer = {
     renderNextAvailableTrain: (element, destination, firstTrain, dayName, dayType, dayOffset) => {
         const rawTime = firstTrain.departureTime || firstTrain.train1.departureTime;
         const departureTime = formatTimeDisplay(rawTime);
-        const timeDiffStr = (typeof calculateTimeDiffString === 'function') 
+        let timeDiffStr = (typeof calculateTimeDiffString === 'function') 
             ? calculateTimeDiffString(rawTime, dayOffset) 
             : "";
+        
+        // GUARDIAN TASK 6.2: Wait Time Standardization
+        if (timeDiffStr) timeDiffStr = timeDiffStr.replace(/(\d+)h\s(\d+)m/, '$1 hr $2 min').replace(/(\d+)m\)/, '$1 min)');
         
         const safeDest = escapeHTML(destination);
         const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
@@ -227,9 +252,12 @@ const Renderer = {
         const safeDepTime = escapeHTML(formatTimeDisplay(rawTime));
         const safeTrainName = escapeHTML(journey.train || journey.train1.train);
         const safeDest = escapeHTML(destination);
-        const timeDiffStr = (typeof calculateTimeDiffString === 'function') 
+        let timeDiffStr = (typeof calculateTimeDiffString === 'function') 
             ? calculateTimeDiffString(rawTime) 
             : "";
+            
+        // GUARDIAN TASK 6.2: Wait Time Standardization
+        if (timeDiffStr) timeDiffStr = timeDiffStr.replace(/(\d+)h\s(\d+)m/, '$1 hr $2 min').replace(/(\d+)m\)/, '$1 min)');
         
         const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
         const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[9px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-lg transition-colors truncate">See Upcoming Trains</button>`;
@@ -242,21 +270,20 @@ const Renderer = {
                 .trim();
 
              if (journey.isDivergent) {
-                 sharedTag = `<span class="block text-[9px] uppercase font-bold text-red-600 dark:text-red-400 mt-0.5 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-200 dark:border-red-700">⚠️ To ${journey.actualDestName}</span>`;
+                 // GUARDIAN TASK 6.1: Intercept divergent actual destination
+                 const divDest = Renderer._applyUIIntercepts(journey.actualDestName);
+                 sharedTag = `<span class="block text-[9px] uppercase font-bold text-red-600 dark:text-red-400 mt-0.5 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-200 dark:border-red-700">⚠️ To ${divDest}</span>`;
              } else {
                  sharedTag = `<span class="block text-[9px] uppercase font-bold text-purple-600 dark:text-purple-400 mt-0.5 bg-purple-100 dark:bg-purple-900 px-1 rounded w-fit mx-auto">From ${routeName}</span>`;
              }
         }
 
         // --- NEW FORMATTING LOGIC (GUARDIAN REVISED V5.01) ---
-        // GUARDIAN: High Contrast & Centered Text Classes
-        // Primary Text: text-gray-900 (Light) / text-white (Dark)
-        // Secondary Text: text-gray-700 (Light) / text-gray-300 (Dark)
-        // Container: bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700
         
         if (journey.type === 'direct') {
-            const actualDest = journey.actualDestination ? Renderer._toTitleCase(normalizeStationName(journey.actualDestination).replace(' STATION', '')) : '';
-            const normDest = Renderer._toTitleCase(normalizeStationName(destination).replace(' STATION', ''));
+            // GUARDIAN TASK 6.1: Kempton Intercept applied here
+            const actualDest = journey.actualDestination ? Renderer._applyUIIntercepts(normalizeStationName(journey.actualDestination)) : '';
+            const normDest = Renderer._applyUIIntercepts(normalizeStationName(destination));
             
             let trainTitle = `Direct Train ${safeTrainName}`;
             let titleColor = "text-gray-900 dark:text-white";
@@ -284,12 +311,12 @@ const Renderer = {
                         ${buttonHtml}
                     </div>
                     
-                    <!-- DESCRIPTION BOX (CENTERED) -->
-                    <div class="w-1/2 h-24 flex flex-col justify-center items-center text-center p-1 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                        <div class="text-[11px] font-bold ${titleColor} leading-tight mb-1 uppercase tracking-wide">
+                    <!-- DESCRIPTION BOX (CENTERED WITH TRUNCATION) -->
+                    <div class="w-1/2 h-24 flex flex-col justify-center items-center text-center p-1 bg-gray-50 dark:bg-gray-800/50 rounded-lg overflow-hidden">
+                        <div class="text-[11px] font-bold ${titleColor} leading-tight mb-1 uppercase tracking-wide truncate w-full px-1 min-w-0" title="${trainTitle}">
                             ${trainTitle}
                         </div>
-                        <div class="text-[10px] ${detailColor} font-medium leading-tight">
+                        <div class="text-[10px] ${detailColor} font-medium leading-tight truncate w-full px-1 min-w-0" title="${detailLine}">
                             ${detailLine}
                         </div>
                     </div>
@@ -299,14 +326,15 @@ const Renderer = {
             const conn = journey.connection; 
             const nextFull = journey.nextFullJourney; 
             
-            // GUARDIAN V5.01: Headboard Logic (Corrects Destination Label)
+            // GUARDIAN V5.01: Headboard Logic & Task 6.1 Kempton Intercept
             const rawDest = journey.train1.headboardDestination || journey.train1.terminationStation;
-            const displayDest = Renderer._toTitleCase(escapeHTML(rawDest.replace(/ STATION/g, '')));
+            const displayDest = Renderer._applyUIIntercepts(escapeHTML(rawDest));
             const arrivalAtTransfer = escapeHTML(formatTimeDisplay(journey.train1.arrivalAtTransfer));
             
             const connTrain = escapeHTML(conn.train);
-            const connDest = Renderer._toTitleCase(escapeHTML(conn.actualDestination.replace(/ STATION/g, '')));
+            const connDest = Renderer._applyUIIntercepts(escapeHTML(conn.actualDestination));
             const connDep = escapeHTML(formatTimeDisplay(conn.departureTime));
+            const finalDestTitle = Renderer._applyUIIntercepts(escapeHTML(destination));
 
             let train1Label = `Train ${safeTrainName}`;
             let titleColor = "text-gray-900 dark:text-white";
@@ -316,28 +344,26 @@ const Renderer = {
             let bottomBlock = "";
             
             if (nextFull) {
-                // "Otherwise" Logic
                 const nextTrain = escapeHTML(nextFull.train);
                 const nextDep = escapeHTML(formatTimeDisplay(nextFull.departureTime));
                 
                 bottomBlock = `
-                    <div class="text-[9px] leading-tight w-full space-y-1">
+                    <div class="text-[9px] leading-tight w-full space-y-1 min-w-0">
                         <div class="mb-1">
-                             <div class="text-[11px] font-black text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-0.5">Connect Train ${connTrain}</div>
-                             <div class="text-[9px] text-gray-600 dark:text-gray-400 font-bold">To ${connDest} <span class="font-normal opacity-80">(From ${connDep})</span></div>
+                             <div class="text-[11px] font-black text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-0.5 truncate w-full">Connect Train ${connTrain}</div>
+                             <div class="text-[9px] text-gray-600 dark:text-gray-400 font-bold truncate w-full">To ${connDest} <span class="font-normal opacity-80">(From ${connDep})</span></div>
                         </div>
-                        <div class="italic text-gray-500 dark:text-gray-500 border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
-                            Otherwise: Train ${nextTrain} from ${nextDep}
+                        <div class="italic text-gray-500 dark:text-gray-500 border-t border-gray-200 dark:border-gray-700 pt-1 mt-1 truncate w-full" title="${finalDestTitle}: Train ${nextTrain} from ${nextDep}">
+                            ${finalDestTitle}: Train ${nextTrain} from ${nextDep}
                         </div>
                     </div>
                 `;
             } else {
                 // Standard Logic
-                // GUARDIAN FIX V5.01.03: Unified Typography for Transfer Info (Matched Top & Bottom)
                 bottomBlock = `
-                    <div class="text-[10px] leading-tight">
-                        <div class="text-[11px] font-black text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-0.5">Connect Train ${connTrain}</div>
-                        <div class="text-[9px] text-gray-600 dark:text-gray-400 font-bold">To ${connDest} <span class="font-normal opacity-80">(From ${connDep})</span></div>
+                    <div class="text-[10px] leading-tight w-full min-w-0">
+                        <div class="text-[11px] font-black text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-0.5 truncate w-full">Connect Train ${connTrain}</div>
+                        <div class="text-[9px] text-gray-600 dark:text-gray-400 font-bold truncate w-full">To ${connDest} <span class="font-normal opacity-80">(From ${connDep})</span></div>
                     </div>
                 `;
             }
@@ -352,13 +378,13 @@ const Renderer = {
                         ${buttonHtml}
                     </div>
                     
-                    <!-- DESCRIPTION BOX (CENTERED) -->
-                    <div class="w-1/2 flex flex-col justify-center items-center text-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg h-full min-h-[110px]">
+                    <!-- DESCRIPTION BOX (CENTERED WITH TRUNCATION) -->
+                    <div class="w-1/2 flex flex-col justify-center items-center text-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg h-full min-h-[110px] overflow-hidden">
                         <!-- TOP HALF -->
-                        <div class="border-b border-gray-200 dark:border-gray-700 pb-2 mb-2 w-full">
-                            <div class="text-[11px] font-black ${titleColor} uppercase tracking-wide mb-0.5">Transfer ${train1Label}</div>
+                        <div class="border-b border-gray-200 dark:border-gray-700 pb-2 mb-2 w-full min-w-0">
+                            <div class="text-[11px] font-black ${titleColor} uppercase tracking-wide mb-0.5 truncate w-full px-1" title="Shuttle ${train1Label}">Shuttle ${train1Label}</div>
                             <!-- GUARDIAN FIX V5.01.02: Removed 'Terminates Here' subtext as requested -->
-                            <div class="text-[9px] text-gray-600 dark:text-gray-400 font-bold">To ${displayDest} <span class="font-normal opacity-80">(Arr ${arrivalAtTransfer})</span></div>
+                            <div class="text-[9px] text-gray-600 dark:text-gray-400 font-bold truncate w-full px-1" title="To ${displayDest} (Arr ${arrivalAtTransfer})">To ${displayDest} <span class="font-normal opacity-80">(Arr ${arrivalAtTransfer})</span></div>
                         </div>
                         <!-- BOTTOM HALF -->
                         ${bottomBlock}
@@ -387,6 +413,16 @@ const Renderer = {
         if (colorClass.includes('yellow')) return 'dot-yellow';
         if (colorClass.includes('red')) return 'dot-red';
         return 'dot-gray';
+    },
+
+    // GUARDIAN TASK 6.1: Custom Text Intercepts (e.g. Kempton Park)
+    _applyUIIntercepts: (stationName) => {
+        if (!stationName) return '';
+        let name = stationName.replace(/ STATION/gi, '');
+        if (name.toUpperCase() === 'ELANDSFONTEIN' || name.toUpperCase() === 'RHODESFIELD') {
+            return 'Kempton Park';
+        }
+        return Renderer._toTitleCase(name);
     },
 
     // --- 4. CHANGELOG MODAL ---
@@ -513,6 +549,15 @@ const Renderer = {
              }
         }
 
+        // GUARDIAN FIX: Selected Departure Station Logic
+        let selectedStation = "";
+        if (!isExport && typeof document !== 'undefined') {
+            const selectEl = document.getElementById('station-select');
+            if (selectEl && selectEl.value) {
+                selectedStation = selectEl.value;
+            }
+        }
+
         // 3. HTML Generation (VISUAL POLISH)
         const paddingClass = isExport ? 'p-2' : 'p-3'; 
         const fontSizeClass = isExport ? 'text-sm' : 'text-xs'; // Bigger text for export
@@ -556,9 +601,16 @@ const Renderer = {
             sortedCols.forEach(col => { if (row[col] && row[col] !== "-" && row[col] !== "") hasData = true; });
             if (!hasData) return;
 
+            const isSelectedRow = (!isExport && row.STATION === selectedStation);
+            let currentStickyCellClass = stickyCellClass;
+            
+            if (isSelectedRow) {
+                currentStickyCellClass = isExport ? '' : 'bg-blue-50 dark:bg-blue-900/30 border-gray-300 dark:border-gray-700 text-blue-900 dark:text-blue-100';
+            }
+
             html += `
-                <tr class="">
-                    <td class="sticky left-0 z-10 ${stickyCellClass} ${paddingClass} border-r font-bold truncate max-w-[140px] shadow-lg border-b text-left pl-3">${cleanStation}</td>
+                <tr class="${isSelectedRow ? 'bg-blue-50 dark:bg-blue-900/20' : ''}">
+                    <td class="sticky left-0 z-10 ${currentStickyCellClass} ${paddingClass} border-r font-bold truncate max-w-[140px] shadow-lg border-b text-left pl-3">${cleanStation}</td>
                     ${sortedCols.map((col, i) => {
                         let val = row[col] || "-";
                         if (val !== "-") {
@@ -766,8 +818,7 @@ window.highlightGridRow = function(tr) {
     if (stickyCell) { stickyCell.classList.remove('bg-white', 'dark:bg-gray-900'); stickyCell.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40'); }
 };
 
-// --- SNAPSHOT ENGINE V2.2 (Header Swap & Light Mode Tweaks) ---
-// UPDATED V5.00.11: Added direction & day parameters for Analytics
+// --- SNAPSHOT ENGINE V3.0 (Forced Light Mode & Decoupled Save/Share) ---
 window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     if (typeof html2canvas === 'undefined') {
         showToast("Loading snapshot engine...", "info", 1500);
@@ -800,16 +851,13 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     const schedA = schedules[keyA];
     const schedB = schedules[keyB];
 
-    // THEME & COLOR LOGIC (Updated for softer Dark Mode)
-    const isDarkMode = document.documentElement.classList.contains('dark');
-    
-    // Guardian: Changed dark background from #111827 (very dark) to #1f2937 (gray-800) for better readability
-    const bgColor = isDarkMode ? '#1f2937' : '#ffffff'; 
-    const textColor = isDarkMode ? '#f3f4f6' : '#111827'; // Darker text for light mode
-    const borderColor = isDarkMode ? '#374151' : '#e5e7eb';
-    const accentColor = isDarkMode ? '#60a5fa' : '#2563eb';
-    const mutedColor = isDarkMode ? '#9ca3af' : '#6b7280';
-    const tableHeaderBg = isDarkMode ? '#374151' : '#f3f4f6'; // Lighter header for dark mode
+    // THEME & COLOR LOGIC (GUARDIAN: FORCED LIGHT MODE FOR ALL EXPORTS)
+    const bgColor = '#ffffff'; 
+    const textColor = '#111827'; 
+    const borderColor = '#e5e7eb';
+    const accentColor = '#2563eb';
+    const mutedColor = '#6b7280';
+    const tableHeaderBg = '#f3f4f6'; 
 
     const exportContainer = document.createElement('div');
     exportContainer.style.position = 'fixed';
@@ -822,8 +870,8 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     exportContainer.style.backgroundColor = bgColor;
     exportContainer.style.color = textColor;
     
-    if (isDarkMode) exportContainer.classList.add('dark');
-    else exportContainer.classList.remove('dark');
+    // Explicitly remove dark class to prevent Tailwind dark: cascade
+    exportContainer.classList.remove('dark');
 
     const destAName = route.destA.replace(' STATION', '');
     const destBName = route.destB.replace(' STATION', '');
@@ -862,7 +910,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
 
         <!-- TABLE BLOCK A -->
         <div class="mb-8">
-            <div class="p-2 mb-0 border-l-4" style="background-color: ${isDarkMode ? '#374151' : '#f3f4f6'}; border-color: ${accentColor}">
+            <div class="p-2 mb-0 border-l-4" style="background-color: ${tableHeaderBg}; border-color: ${accentColor}">
                 <h3 class="font-bold text-lg uppercase" style="color: ${textColor}">DIRECTION: ${destBName} ↔ ${destAName}</h3>
             </div>
             <div class="schedule-table-wrapper">
@@ -879,7 +927,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
 
         <!-- TABLE BLOCK B -->
         <div class="mb-8">
-            <div class="p-2 mb-0 border-l-4" style="background-color: ${isDarkMode ? '#374151' : '#f3f4f6'}; border-color: ${accentColor}">
+            <div class="p-2 mb-0 border-l-4" style="background-color: ${tableHeaderBg}; border-color: ${accentColor}">
                 <h3 class="font-bold text-lg uppercase" style="color: ${textColor}">DIRECTION: ${destAName} ↔ ${destBName}</h3>
             </div>
             <div class="schedule-table-wrapper">
@@ -887,8 +935,8 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             </div>
         </div>
 
-        <!-- ENHANCED FOOTER (GENERATED MOVED HERE) -->
-        <div class="mt-8 p-4 rounded-lg flex justify-between items-center" style="background-color: ${isDarkMode ? '#374151' : '#f3f4f6'}">
+        <!-- ENHANCED FOOTER -->
+        <div class="mt-8 p-4 rounded-lg flex justify-between items-center" style="background-color: ${tableHeaderBg}">
             <div class="flex flex-col">
                 <span class="text-[10px] font-mono mb-1" style="color: ${mutedColor}">GENERATED: ${dateText}</span>
                 <span class="font-bold text-xs" style="color: ${mutedColor}">Data Source: PRASA / Metrorail Web</span>
@@ -898,7 +946,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
         </div>
     `;
 
-    // Force styling on injected tables
+    // Force styling on injected tables (Strict Light Mode Override)
     const tables = exportContainer.querySelectorAll('table');
     tables.forEach(t => {
         t.style.width = '100%';
@@ -908,26 +956,24 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             th.style.color = mutedColor;
             th.style.border = `1px solid ${borderColor}`;
             th.className = ''; 
-            th.style.padding = '6px'; // Increased padding
-            th.style.fontSize = '12px'; // Larger Text
+            th.style.padding = '6px';
+            th.style.fontSize = '12px';
             th.style.fontWeight = 'bold';
-            th.style.textAlign = 'left'; // Left Align Stations
+            th.style.textAlign = 'left';
         });
         t.querySelectorAll('td').forEach(td => {
             td.style.border = `1px solid ${borderColor}`;
-            td.style.padding = '6px'; // Increased padding
+            td.style.padding = '6px'; 
             td.style.color = textColor;
-            td.style.fontSize = '14px'; // Larger Times
+            td.style.fontSize = '14px'; 
             td.style.fontFamily = 'monospace';
-            td.style.textAlign = 'center'; // Center Times
-            td.style.fontWeight = '600'; // Bolder
+            td.style.textAlign = 'center'; 
+            td.style.fontWeight = '600'; 
         });
-        // Sticky removal
         t.querySelectorAll('.sticky').forEach(el => {
             el.style.position = 'static';
             el.classList.remove('sticky');
         });
-        // Force station column alignment
         t.querySelectorAll('td:first-child').forEach(td => {
             td.style.textAlign = 'left';
             td.style.paddingLeft = '10px';
@@ -948,29 +994,26 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
 
         canvas.toBlob(async (blob) => {
             const fileName = `Schedule_${route.name.replace(/\s/g,'_')}_${selectedDay}.png`;
+            const file = new File([blob], fileName, { type: "image/png" });
+            const blobUrl = URL.createObjectURL(blob);
             
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            // 1. Force Download to Device (Decoupled Save)
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = blobUrl;
+            link.click();
             
-            if (isMobile && navigator.share && navigator.canShare) {
-                const file = new File([blob], fileName, { type: "image/png" });
-                try {
-                    if (navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            files: [file],
-                            text: `Commuter Notice: ${route.name} (${selectedDay})` 
-                        });
-                        showToast("Shared!", "success");
-                    } else {
-                        throw new Error("File sharing not supported");
-                    }
-                } catch (e) {}
-            } else {
-                const link = document.createElement('a');
-                link.download = fileName;
-                link.href = canvas.toDataURL();
-                link.click();
-                showToast("Image saved.", "success");
-            }
+            // 2. Prepare Share Action for Toast
+            window._pendingShareFile = file;
+            window._pendingShareText = `Commuter Notice: ${route.name} (${selectedDay})`;
+            
+            const canShare = navigator.canShare && navigator.canShare({ files: [file] });
+            const shareBtnHTML = canShare 
+                ? `<button onclick="triggerNoticeShare()" class="bg-white text-blue-600 px-3 py-1 rounded text-xs font-bold shadow-sm hover:bg-gray-100 transition-colors ml-3 whitespace-nowrap border border-gray-200">SHARE 📤</button>` 
+                : '';
+
+            // 3. Show Success Toast with Share hook
+            showToast("✅ Image saved to gallery!", "success", 8000, shareBtnHTML);
             
             // GUARDIAN ANALYTICS: Track Save Event
             if (typeof trackAnalyticsEvent === 'function') {
@@ -982,6 +1025,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             }
             
             document.body.removeChild(exportContainer);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000); // Cleanup memory
         });
     } catch (e) {
         console.error(e);
@@ -990,5 +1034,24 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     }
 };
 
-// Deprecated old Share
-window.shareGridDeepLink = function(direction) { console.warn("Use snapshot."); };
+// Global Share function for the Toast button
+window.triggerNoticeShare = async function() {
+    if (window._pendingShareFile && navigator.share) {
+        try {
+            await navigator.share({
+                files: [window._pendingShareFile],
+                text: window._pendingShareText
+            });
+            showToast("Shared successfully!", "success");
+            
+            // GUARDIAN ANALYTICS: Track Share Event
+            if (typeof trackAnalyticsEvent === 'function') {
+                trackAnalyticsEvent('grid_share_image', { 
+                    route_id: currentRouteId 
+                });
+            }
+        } catch(e) {
+            console.log("Share cancelled or failed", e);
+        }
+    }
+};

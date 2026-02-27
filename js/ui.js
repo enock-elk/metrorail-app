@@ -1,9 +1,9 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V5.00.20 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V5.10.20 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
- * It calls the pure logic functions from logic.js and uses Renderer for HTML.
+ * * V5.10.20: Reduced generic toast duration & Welcome Screen Theme Toggle sync.
  */
 
 // --- GLOBAL ERROR HANDLER ---
@@ -436,7 +436,8 @@ window.openFareModal = function(fareDetails) {
 };
 
 // --- UTILS ---
-function showToast(message, type = 'info', duration = 3000, actionHTML = '') { 
+// GUARDIAN V5.01: Reduced default toast duration to 2500ms
+function showToast(message, type = 'info', duration = 2500, actionHTML = '') { 
     if (toastTimeout) clearTimeout(toastTimeout); 
     
     // Allow robust HTML content for toasts
@@ -681,6 +682,67 @@ function handleShortcutActions() {
     }
 }
 
+// --- CACHE CLEAR LOGIC (PHASE 3) ---
+window.performHardCacheClear = function() {
+    showToast("Clearing offline data and syncing...", "info", 5000);
+    const modal = document.getElementById('cache-clear-modal');
+    if (modal) modal.classList.add('hidden');
+    
+    // 1. Unregister Service Workers
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (let registration of registrations) {
+                registration.unregister();
+            }
+        });
+    }
+
+    // 2. Clear caches API (HTML, CSS, JS, Images)
+    if ('caches' in window) {
+        caches.keys().then(names => {
+            for (let name of names) {
+                caches.delete(name);
+            }
+        });
+    }
+    
+    // 3. Clear App Data Storage (Force fresh pull from Firebase)
+    // We intentionally keep userProfile, defaultRoute, and plannerHistory
+    localStorage.removeItem('full_db');
+    localStorage.removeItem('app_installed_version');
+    
+    // 4. Force Reload
+    setTimeout(() => {
+        window.location.reload(true);
+    }, 800);
+};
+
+function showCacheClearWarning() {
+    let modal = document.getElementById('cache-clear-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'cache-clear-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-70 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95">
+                <div class="text-center">
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900 mb-4">
+                        <svg class="h-6 w-6 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Sync Latest Schedule?</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">This will clear your offline cache and download the absolute latest train times from the server. Use this if you suspect the times are outdated.</p>
+                    <div class="flex space-x-3">
+                        <button onclick="document.getElementById('cache-clear-modal').classList.add('hidden')" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg transition-colors">Cancel</button>
+                        <button onclick="performHardCacheClear()" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">Sync Now</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    modal.classList.remove('hidden');
+}
+
 function initializeApp() {
     if (window.location.pathname.endsWith('index.html')) {
         const newPath = window.location.pathname.replace('index.html', '');
@@ -696,7 +758,13 @@ function initializeApp() {
     checkServiceAlerts();
     checkMaintenanceStatus(); // NEW: V5.00.00
     handleShortcutActions();
-    if(mainContent) mainContent.style.display = 'block';
+    
+    // GUARDIAN FIX V5.01: "Double Screen" Nightmare Fix
+    // Only display mainContent if a route is actually selected. 
+    // If it's a first run, the Welcome Modal manages showing this later.
+    if(mainContent && currentRouteId) {
+        mainContent.style.display = 'block';
+    }
     
     // GUARDIAN UPDATE V4.60.18: Force Trigger Visible on Init
     updateNextTrainView();
@@ -1097,38 +1165,51 @@ function showRedirectModal(url, message) {
     redirectCancelBtn.addEventListener('click', cancelHandler);
 }
 
-// GUARDIAN UPDATE V4.60.60: System Theme Detection Logic
+// GUARDIAN UPDATE V5.01.00: Welcome Screen Theme Sync
 function setupFeatureButtons() {
     // 1. Determine Initial Theme (Respect System Preference if no override)
     const storedTheme = localStorage.theme;
     const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    // Global and Welcome Screen toggle elements
+    const welcomeThemeToggleBtn = document.getElementById('welcome-theme-toggle');
+    const welcomeDarkIcon = document.getElementById('welcome-theme-dark-icon');
+    const welcomeLightIcon = document.getElementById('welcome-theme-light-icon');
+    const welcomeThemeText = document.getElementById('welcome-theme-text'); // INJECTED VIA HTML
 
+    // Centralized Apply Theme Logic (Syncs both toggles)
+    const applyTheme = (isDark) => {
+        if (isDark) {
+            document.documentElement.classList.add('dark');
+            localStorage.theme = 'dark'; // Save it so we don't flip-flop
+            if(darkIcon) darkIcon.classList.remove('hidden');
+            if(lightIcon) lightIcon.classList.add('hidden');
+            if(welcomeDarkIcon) welcomeDarkIcon.classList.remove('hidden');
+            if(welcomeLightIcon) welcomeLightIcon.classList.add('hidden');
+            if(welcomeThemeText) welcomeThemeText.textContent = "Dark Mode";
+        } else {
+            document.documentElement.classList.remove('dark');
+            localStorage.theme = 'light';
+            if(darkIcon) darkIcon.classList.add('hidden');
+            if(lightIcon) lightIcon.classList.remove('hidden');
+            if(welcomeDarkIcon) welcomeDarkIcon.classList.add('hidden');
+            if(welcomeLightIcon) welcomeLightIcon.classList.remove('hidden');
+            if(welcomeThemeText) welcomeThemeText.textContent = "Light Mode";
+        }
+    };
+
+    // Apply initially
     if (storedTheme === 'dark' || (!storedTheme && systemDark)) {
-        document.documentElement.classList.add('dark');
-        localStorage.theme = 'dark'; // Save it so we don't flip-flop
-        darkIcon.classList.remove('hidden');
-        lightIcon.classList.add('hidden');
+        applyTheme(true);
     } else {
-        document.documentElement.classList.remove('dark');
-        localStorage.theme = 'light';
-        darkIcon.classList.add('hidden');
-        lightIcon.classList.remove('hidden');
+        applyTheme(false);
     }
 
-    // 2. Toggle Handler
-    themeToggleBtn.addEventListener('click', () => { 
-        if (localStorage.theme === 'dark') { 
-            localStorage.theme = 'light'; 
-            document.documentElement.classList.remove('dark'); 
-            darkIcon.classList.add('hidden'); 
-            lightIcon.classList.remove('hidden'); 
-        } else { 
-            localStorage.theme = 'dark'; 
-            document.documentElement.classList.add('dark'); 
-            darkIcon.classList.remove('hidden'); 
-            lightIcon.classList.add('hidden'); 
-        } 
-    });
+    // 2. Toggle Handler (Fired from either button)
+    const handleThemeToggle = () => applyTheme(localStorage.theme !== 'dark');
+
+    if(themeToggleBtn) themeToggleBtn.addEventListener('click', handleThemeToggle);
+    if(welcomeThemeToggleBtn) welcomeThemeToggleBtn.addEventListener('click', handleThemeToggle);
     
     // UPDATED V4.60.33: Share Button Always Shares Homepage (No Deep Links)
     shareBtn.addEventListener('click', async () => { 
@@ -1181,7 +1262,10 @@ function setupFeatureButtons() {
             updateSidebarActiveState(); closeNav(); loadAllSchedules(); checkServiceAlerts(); 
         } 
     });
-    forceReloadBtn.addEventListener('click', () => { showToast("Forcing schedule reload...", "info", 2000); loadAllSchedules(true); });
+    
+    // GUARDIAN: Updated to trigger cache clear warning instead of blind reload
+    forceReloadBtn.addEventListener('click', showCacheClearWarning);
+    
     pinRouteBtn.addEventListener('click', () => { const savedDefault = localStorage.getItem('defaultRoute'); if (savedDefault === currentRouteId) { localStorage.removeItem('defaultRoute'); showToast("Route unpinned from top.", "info", 2000); } else { localStorage.setItem('defaultRoute', currentRouteId); showToast("Route pinned to top of menu!", "success", 2000); } updatePinUI(); });
 }
 
@@ -1216,6 +1300,9 @@ function closeLegal() { if(location.hash === '#legal') history.back(); else lega
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./service-worker.js').then(reg => {
+            // 🔥 GUARDIAN V5.01: Force browser to check network for SW updates immediately
+            reg.update();
+
             // Listen for waiting service workers (updates found but waiting)
             if (reg.waiting) {
                 // If there's already a waiting worker, notify user immediately

@@ -1,30 +1,32 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V5.00.20 - 18 FEB"; 
+const APP_VERSION = "V5.10.20 - 27 FEB"; 
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 const FORCE_UPDATE_REQUIRED = true;
 
-// 1. Legal Text Definitions
+// 1. Legal Text Definitions (GUARDIAN V5.01: TWA Compliance & Opaque Infrastructure)
 const LEGAL_TEXTS = {
     terms: `
-        <h4 class="font-bold text-lg mb-2">1. Independent Service</h4>
-        <p><strong>Metrorail Next Train</strong> is an independent project by Kazembe CodeWorks. We are <strong>not affiliated</strong> with PRASA or Metrorail.</p>
-        <h4 class="font-bold text-lg mb-2 mt-4">2. Accuracy</h4>
-        <p>Schedules are estimated. We are not liable for missed trains or schedule changes.</p>
-        <h4 class="font-bold text-lg mb-2 mt-4">3. Usage</h4>
-        <p>By using this app, you agree not to misuse the service or scrape data maliciously.</p>
+        <h4 class="font-bold text-lg mb-2">1. Independent Service & Disclaimer</h4>
+        <p class="mb-3"><strong>Metrorail Next Train</strong> is an independent digital tool developed by Kazembe CodeWorks. This application is <strong>not affiliated with, endorsed by, or directly associated with PRASA or Metrorail</strong>. The service is provided "as is" without warranties of any kind.</p>
+        
+        <h4 class="font-bold text-lg mb-2 mt-4">2. Schedule Accuracy & Liability</h4>
+        <p class="mb-3">All transit schedules, fares, and routing information presented within this application are aggregated estimations based on publicly available data. We do not guarantee absolute real-time accuracy. Kazembe CodeWorks and its developers shall not be held liable for any missed transit connections, financial losses, disciplinary actions at places of employment, or personal damages arising from the use of this information.</p>
+        
+        <h4 class="font-bold text-lg mb-2 mt-4">3. Acceptable Use</h4>
+        <p class="mb-3">By accessing this application, you agree to use it strictly for personal, non-commercial transit planning. Automated data scraping, reverse-engineering of the application's secure endpoints, or malicious interference with our cloud infrastructure is strictly prohibited and will result in immediate service denial.</p>
     `,
     privacy: `
-        <h4 class="font-bold text-lg mb-2">1. Data Collection</h4>
-        <p>We use Google Analytics and Microsoft Clarity to understand how the app is used. This helps us fix bugs and improve the design.</p>
-        <p class="mt-2 text-xs text-gray-500">Note: All data is anonymous. We never see your personal details.</p>
+        <h4 class="font-bold text-lg mb-2">1. Data Collection & Analytics</h4>
+        <p class="mb-3">To continuously improve the commuter experience, we utilize industry-standard analytics tools (including Google Analytics and Microsoft Clarity) to monitor application performance and user engagement. This tracking measures generic usage patterns, origin-destination planning flows, and crash reports. <strong>All data collected is strictly anonymized.</strong> We do not request, process, or store personally identifiable information (PII) such as names or contact details.</p>
         
         <h4 class="font-bold text-lg mb-2 mt-4">2. Location Services</h4>
-        <p>We may request your Location permission to identify your nearest station. This data is processed on your device and is not stored on our servers for tracking.</p>
-        <h4 class="font-bold text-lg mb-2 mt-4">3. Third Parties</h4>
-        <p>We use Firebase and Google Sheets to store schedule data.</p>
+        <p class="mb-3">Our "Find Nearest Station" feature requires access to your device's GPS coordinates. This location data is processed locally on your device in real-time to calculate distances to nearby stations. <strong>Your exact GPS location is never transmitted to, or stored on, our backend servers for tracking.</strong></p>
+        
+        <h4 class="font-bold text-lg mb-2 mt-4">3. Third-Party Infrastructure</h4>
+        <p class="mb-3">Schedule data and application states are distributed via secure, globally recognized cloud infrastructure providers. While your device downloads data from these secure endpoints, your individual connection metrics are governed by the strict privacy frameworks of those enterprise cloud providers. We do not broker your individual device fingerprints to external marketing agencies.</p>
     `
 };
 
@@ -34,6 +36,19 @@ const MAX_RADIUS_KM = 6;
 
 // 3. Route Definitions
 const ROUTES = {
+    // NEW V5.01: Dynamic Special Event Scaffold (Hidden by Default)
+    'special_event': { 
+        id: 'special_event', 
+        name: "Special Event Route", 
+        corridorId: "SPECIAL",
+        colorClass: "text-yellow-500", // Will be styled uniquely in UI
+        isActive: false, // Activated via Admin Panel
+        destA: 'EVENT A STATION', 
+        destB: 'EVENT B STATION', 
+        transferStation: null, 
+        relayStation: null,
+        sheetKeys: { weekday_to_a: 'event_to_a_weekday', weekday_to_b: 'event_to_b_weekday', saturday_to_a: 'event_to_a_sat', saturday_to_b: 'event_to_b_sat' } 
+    },
     'pta-pien': { 
         id: 'pta-pien', 
         name: "Pretoria <-> Pienaarspoort", 
@@ -321,9 +336,20 @@ const DEFAULT_EXCLUSIONS = {
     }
 };
 
-// 7. CHANGELOG (NEW V5.00.10)
+// 7. CHANGELOG 
 // This drives the "What's New" modal.
 const CHANGELOG_DATA = [
+    {
+        version: "V5.10.20",
+        date: "27 Feb 2026",
+        features: [
+            "✨ <b>Light/Dark Mode on Start:</b> Toggle your preferred theme directly from the Welcome Screen.",
+            "🕒 <b>Smarter Time Formats:</b> Wait times are now easier to read at a glance (e.g., '1 hr 15 min').",
+            "📅 <b>Planner Upgrades:</b> Swap your travel days instantly with the new clickable badge in your search results.",
+            "🚉 <b>Station Name Polish:</b> Improved naming for hubs like Kempton Park to make searching faster.",
+            "🚀 <b>Smoother Sharing:</b> We've improved trip sharing so sending a route to friends or employers is now 100% accurate."
+        ]
+    },
     {
         version: "V5.00.10",
         date: "15 Feb 2026",
@@ -331,7 +357,6 @@ const CHANGELOG_DATA = [
             "✨ <b>Adaptive Export:</b> 'Save Image' now respects your Light/Dark theme preference.",
             "📸 <b>Export Polish:</b> Compact layouts, professional metadata, and clearer typography for sharing schedules.",
             "👻 <b>Maintenance Mode:</b> Floating banner bug fixed; now correctly contained within the app card.",
-            "🐛 <b>Bug Fixes:</b> Resolved 'Blank Screen' issue on startup and improved data loading guardrails.",
             "👆 <b>Smart Defaults:</b> Grid view now anticipates Monday planning when viewed on Sundays."
         ]
     },
@@ -340,17 +365,7 @@ const CHANGELOG_DATA = [
         date: "14 Feb 2026",
         features: [
             "🛤 <b>New Route:</b> Hercules <-> Koedoespoort now available (Weekday Service).",
-            "🚀 <b>Trip Planner:</b> Now supports Bridge Trips (2 Transfers) for long-distance travel.",
-            "🛠 <b>Maintenance Mode:</b> Added real-time status banner for service upgrades."
-        ]
-    },
-    {
-        version: "V4.60.40",
-        date: "01 Feb 2026",
-        features: [
-            "🗺 <b>Network Map:</b> Added high-res zoomable map.",
-            "💰 <b>Smart Fares:</b> Detailed pricing tables for Weekly/Monthly tickets.",
-            "🔗 <b>Deep Linking:</b> Share specific routes or trip plans with one click."
+            "🚀 <b>Trip Planner:</b> Now supports Bridge Trips (2 Transfers) for long-distance travel."
         ]
     }
 ];

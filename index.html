@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V5.00.20 (Guardian Edition)
-  - CHANGE: Removed inline style on body to fix Light Mode toggle.
-  - UPDATED: Script versions bumped to v5.00.10 for cache busting.
-  - FIXED: Admin script load order (Removed defer) & Notice Modal Z-Index (110).
+  Metrorail Next Train V5.10.20 (Guardian Edition - Growth Mode)
+  - NEW: Welcome Screen Theme Toggle injected.
+  - UPDATED: Hard Refresh icon swapped to Cloud Sync.
+  - FIXED: Admin script load order & Notice Modal Z-Index (110).
 -->
 <html lang="en" class="dark">
 
@@ -33,8 +33,8 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
-      "softwareVersion": "5.00.10",
-      "featureList": "Offline Access, Fare Calculator, Trip Planner, Network Map",
+      "softwareVersion": "5.10.20",
+      "featureList": "Offline Access, Full Timetable, Fare Calculator, Trip Planner, Network Map",
       "url": "https://nexttrain.co.za/"
     }
     </script>
@@ -42,8 +42,8 @@
     <!-- SOCIAL MEDIA META TAGS -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nexttrain.co.za/">
-    <meta property="og:title" content="Metrorail Next Train | Live Schedules">
-    <meta property="og:description" content="Stop guessing. Get live train times, ticket prices, and updates for Pretoria, JHB, and Soweto lines. Works offline!">
+    <meta property="og:title" content="Metrorail Next Train | Updated Schedules">
+    <meta property="og:description" content="Stop guessing. Get accurate train times, ticket prices, and updates for Pretoria, JHB, and Soweto lines. Works offline!">
     <meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png">
     <meta property="og:image:width" content="512">
     <meta property="og:image:height" content="512">
@@ -133,8 +133,8 @@
     </style>
 </head>
 
-<!-- GUARDIAN: Removed inline style to allow CSS class toggling -->
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-4 transition-colors duration-300">
+<!-- GUARDIAN: Reduced padding on mobile (p-2 sm:p-4) to maximize real estate -->
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center min-h-screen p-2 sm:p-4 transition-colors duration-300">
 
     <div id="sidenav-overlay"></div>
     <div id="sidenav">
@@ -176,19 +176,18 @@
             
             <!-- VERSION FOOTER -->
             <div class="mt-4 px-4 text-right">
-                <p id="app-version-footer" class="text-[10px] text-blue-500 dark:text-blue-400 font-mono underline decoration-dotted cursor-pointer hover:text-white transition-colors" title="View Update History">v5.00.10</p>
+                <p id="app-version-footer" class="text-[10px] text-blue-500 dark:text-blue-400 font-mono underline decoration-dotted cursor-pointer hover:text-white transition-colors" title="View Update History">v5.10.20</p>
             </div>
         </div>
     </div>
 
     <!-- MAIN APP CONTAINER -->
-    <!-- GUARDIAN FIX: Removed 'hidden' class. display:none is sufficient and avoids !important conflicts -->
     <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden relative min-h-[600px] flex flex-col border border-gray-200 dark:border-gray-700" style="display: none;">
         
         <div id="offline-indicator">OFFLINE MODE - USING SAVED SCHEDULE</div>
         
-        <!-- HEADER -->
-        <div class="pt-4 px-6 pb-2 bg-white dark:bg-gray-800 z-20 shadow-sm relative">
+        <!-- HEADER (Tightened pt-3 px-4 pb-2) -->
+        <div class="pt-3 px-4 pb-2 bg-white dark:bg-gray-800 z-20 shadow-sm relative">
              <div class="flex items-center justify-between relative mb-2">
                 <button id="open-nav-btn" class="p-2 -ml-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none" aria-label="Open Menu">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
@@ -202,10 +201,11 @@
 
                     <button id="pin-route-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none" title="Pin this route" aria-label="Pin Route">
                         <svg id="pin-outline" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
-                        <svg id="pin-filled" class="w-5 h-5 hidden text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+                        <svg id="pin-filled" class="w-5 h-5 hidden text-blue-500" fill="currentColor" viewBox="0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
                     </button>
+                    <!-- GUARDIAN: Updated Icon to Cloud Sync -->
                     <button id="force-reload-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none" aria-label="Refresh Schedule">
-                        <svg id="reload-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
+                        <svg id="reload-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path></svg>
                     </button>
                     <button id="theme-toggle-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none" aria-label="Toggle Dark Mode">
                         <svg id="theme-toggle-dark-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
@@ -219,7 +219,7 @@
                 
                 <div class="flex flex-col items-center mt-1">
                     <p id="current-time" class="text-base text-gray-700 dark:text-gray-300 font-medium">--:--:--</p>
-                    <p id="current-day" class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Loading...</p>
+                    <p id="current-day" class="textxs text-gray-500 dark:text-gray-400 mt-0.5">Loading...</p>
                     <p id="last-updated-date-hidden" class="hidden text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide mt-1"></p>
                 </div>
             </div>
@@ -236,13 +236,12 @@
         </div>
 
         <!-- VIEW 1: NEXT TRAIN -->
-        <div id="view-next-train" class="view-section active p-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
+        <div id="view-next-train" class="view-section active p-4 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
             
-            <div class="text-center mb-6 h-auto min-h-[50px] flex flex-col justify-center">
-                <!-- UPDATED V4.60.43: Responsive Route Header (Point 2) -->
-                <!-- Removed explicit h-[34px] to allow multiline wrap if needed, added min-h for stability -->
-                <div id="route-subtitle" class="inline-flex items-center justify-center space-x-2 cursor-pointer group bg-white dark:bg-gray-800 px-4 py-2 min-h-[34px] h-auto rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1 max-w-full">
-                    <h2 id="route-subtitle-text" class="text-sm font-bold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 transition-colors whitespace-normal leading-tight text-center">
+            <div class="text-center mb-5 h-auto min-h-[50px] flex flex-col justify-center">
+                <!-- GUARDIAN: Truncate and overflow-hidden added to enforce single line -->
+                <div id="route-subtitle" class="inline-flex items-center justify-center space-x-2 cursor-pointer group bg-white dark:bg-gray-800 px-4 py-2 min-h-[34px] h-auto rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1 max-w-[90vw] sm:max-w-full overflow-hidden">
+                    <h2 id="route-subtitle-text" class="text-sm font-bold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 transition-colors truncate w-full px-1 min-w-0 text-center">
                         Loading Route...
                     </h2>
                     <svg class="w-4 h-4 text-gray-400 group-hover:text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -251,9 +250,8 @@
             </div>
 
             <div class="mb-4">
-                <div class="mb-2 h-5">
-                    <label for="station-select" class="block text-xs font-bold text-gray-500 uppercase ml-1">From Station</label>
-                </div>
+                <!-- GUARDIAN: Label made sr-only, visual spacer removed -->
+                <label for="station-select" class="sr-only">From Station</label>
                 <div class="flex items-center gap-2">
                     <div class="relative flex-grow">
                         <select id="station-select" class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl shadow-sm p-3 text-lg font-medium focus:ring-blue-500 focus:border-blue-500 transition-colors h-[54px] appearance-none">
@@ -266,13 +264,13 @@
                 </div>
             </div>
 
-            <div class="space-y-6 mb-6">
-                <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <h2 id="pretoria-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">Next train to <span class="text-blue-500 dark:text-blue-400">Pretoria</span></h2>
+            <div class="space-y-4 mb-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <h2 id="pretoria-header" class="text-base font-semibold text-gray-900 dark:text-white mb-2 text-center">Next train to <span class="text-blue-500 dark:text-blue-400">Pretoria</span></h2>
                     <div id="pretoria-time" class="text-center flex items-center justify-center"></div>
                 </div>
-                <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <h2 id="pienaarspoort-header" class="text-lg font-semibold text-gray-900 dark:text-white mb-2 text-center">Next train to <span class="text-blue-500 dark:text-blue-400">Pienaarspoort</span></h2>
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <h2 id="pienaarspoort-header" class="text-base font-semibold text-gray-900 dark:text-white mb-2 text-center">Next train to <span class="text-blue-500 dark:text-blue-400">Pienaarspoort</span></h2>
                     <div id="pienaarspoort-time" class="text-center flex items-center justify-center"></div>
                 </div>
             </div>
@@ -289,26 +287,26 @@
                 </div>
             </div>
 
-            <div class="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
-                <div class="grid grid-cols-2 gap-4 mb-6">
-                    <button id="share-app-btn" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all">
-                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg> Share App
+            <!-- GUARDIAN: Tightened Footer -->
+            <div class="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <button id="share-app-btn" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-3 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all text-sm">
+                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg> Share App
                     </button>
-                    <a href="#" id="feedback-btn" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all">
-                         <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg> Feedback
+                    <a href="#" id="feedback-btn" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-3 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all text-sm">
+                         <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg> Feedback
                     </a>
                 </div>
-                <div class="mt-4 mb-4">
-                    <button id="install-app-btn" class="hidden flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">
-                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App on this Device
+                <div class="mt-3 mb-3">
+                    <button id="install-app-btn" class="hidden flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors text-sm">
+                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App on this Device
                     </button>
                 </div>
-                <div id="copied-message" class="hidden text-center text-green-500 font-medium mt-2">Link copied to clipboard!</div>
+                <div id="copied-message" class="hidden text-center text-green-500 font-medium mt-2 text-xs">Link copied to clipboard!</div>
                 
-                <p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">2026 &copy; Kazembe CodeWorks. All rights reserved.</p>
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 text-center mt-1">2026 &copy; Kazembe CodeWorks. All rights reserved.</p>
                 
-                <!-- NEW FOOTER LINKS -->
-                <div class="flex justify-center space-x-4 mt-3 pb-2">
+                <div class="flex justify-center space-x-4 mt-1 pb-1">
                     <button onclick="openLegal('terms')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Terms of Use</button>
                     <button onclick="openLegal('privacy')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Privacy Policy</button>
                 </div>
@@ -316,12 +314,11 @@
         </div>
 
         <!-- VIEW 2: TRIP PLANNER -->
-        <div id="view-trip-planner" class="view-section p-6 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
+        <div id="view-trip-planner" class="view-section p-4 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
             <!-- FIXED HEIGHT SPACER TO MATCH TAB 1 EXACTLY -->
-            <div class="text-center mb-6 h-auto min-h-[50px] flex flex-col justify-center">
-                <!-- UPDATED: Informative Button -->
-                <button id="planner-info-btn" class="inline-flex items-center justify-center space-x-2 bg-white dark:bg-gray-800 px-4 py-2 min-h-[34px] h-auto rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-normal leading-tight max-w-full">
-                    <h2 class="text-sm font-bold text-gray-700 dark:text-gray-200 text-center">
+            <div class="text-center mb-5 h-auto min-h-[50px] flex flex-col justify-center">
+                <button id="planner-info-btn" class="inline-flex items-center justify-center space-x-2 bg-white dark:bg-gray-800 px-4 py-2 min-h-[34px] h-auto rounded-full shadow-sm border border-gray-200 dark:border-gray-700 mb-1 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors max-w-[90vw] sm:max-w-full overflow-hidden">
+                    <h2 class="text-sm font-bold text-gray-700 dark:text-gray-200 text-center truncate w-full px-1 min-w-0">
                         Direct, Transfer & Bridge Trips
                     </h2>
                     <svg class="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -332,13 +329,10 @@
             <div id="planner-input-section" class="space-y-6">
                 <!-- FROM SECTION -->
                 <div class="mb-4">
-                    <div class="mb-2 h-5">
-                        <label class="block text-xs font-bold text-gray-500 uppercase ml-1">From Station</label>
-                    </div>
+                    <label for="planner-from-search" class="sr-only">From Station</label>
                     <div class="flex items-center gap-2">
                         <div class="relative flex-grow">
-                            <!-- UPDATE V4.60.43: Autocomplete=off and Random Name -->
-                            <input type="text" id="planner-from-search" name="station_search_origin_secure" placeholder="Search station..." autocomplete="off" autocorrect="off" spellcheck="false" class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl shadow-sm p-3 text-lg font-medium focus:ring-blue-500 focus:border-blue-500 transition-colors h-[54px] appearance-none">
+                            <input type="text" id="planner-from-search" name="station_search_origin_secure" placeholder="Search From Station..." autocomplete="off" autocorrect="off" spellcheck="false" class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl shadow-sm p-3 text-lg font-medium focus:ring-blue-500 focus:border-blue-500 transition-colors h-[54px] appearance-none">
                             <select id="planner-from" class="hidden w-full p-4 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-lg font-medium text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors">
                                 <option value="">Loading stations...</option>
                             </select>
@@ -356,10 +350,10 @@
                     </button>
                 </div>
 
-                <!-- TO SECTION (FIXED LABEL) -->
+                <!-- TO SECTION -->
                 <div class="relative">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">To Station</label>
-                    <input type="text" id="planner-to-search" name="station_search_dest_secure" placeholder="Search station..." autocomplete="off" autocorrect="off" spellcheck="false" class="w-full mb-2 p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-lg font-medium shadow-sm h-[54px]">
+                    <label for="planner-to-search" class="sr-only">To Station</label>
+                    <input type="text" id="planner-to-search" name="station_search_dest_secure" placeholder="Search To Station..." autocomplete="off" autocorrect="off" spellcheck="false" class="w-full mb-2 p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-lg font-medium shadow-sm h-[54px]">
                     <select id="planner-to" class="hidden w-full p-4 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-lg font-medium text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors">
                         <option value="">Loading stations...</option>
                     </select>
@@ -372,38 +366,30 @@
 
             <!-- Results Section -->
             <div id="planner-results-section" class="hidden mt-4 space-y-4">
-                <!-- REDESIGNED HEADER: Back Button & Swap Button -->
-                <!-- UPDATE V4.60.43: Improved Header Layout (Point 1) -->
-                <!-- Changed to flex-wrap to handle narrow screens -->
                 <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
                     <button id="planner-back-btn" class="flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group flex-shrink-0">
                         <svg class="w-4 h-4 mr-1 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                         Back
                     </button>
-                    
                     <h4 class="text-lg font-bold text-gray-900 dark:text-white flex-grow text-center min-w-[120px]">Your Journey</h4>
-                    
-                    <!-- Placeholder for potential top-right action, effectively hides if empty but keeps layout balanced if needed -->
                     <div class="w-8 flex-shrink-0"></div>
                 </div>
                 <div id="planner-results-list" class="space-y-4"></div>
             </div>
             
             <!-- FOOTER BLOCK (For Trip Planner) -->
-            <div class="mt-auto border-t border-gray-200 dark:border-gray-700 pt-6">
-                <div class="grid grid-cols-2 gap-4 mb-6">
-                    <button onclick="document.getElementById('share-app-btn').click()" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all">
-                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg> Share App
+            <div class="mt-auto border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <button onclick="document.getElementById('share-app-btn').click()" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-3 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all text-sm">
+                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 105.953-1.68l-4.94-2.47a3.027 3.027 0 000-.979l4.94-2.47A3 3 0 0015 8z"></path></svg> Share App
                     </button>
-                    <!-- Cloned Feedback Button -->
-                    <a href="#" onclick="document.getElementById('feedback-btn').click(); return false;" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all">
-                         <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg> Feedback
+                    <a href="#" onclick="document.getElementById('feedback-btn').click(); return false;" class="flex items-center justify-center w-full bg-transparent border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-medium py-2 px-3 rounded-lg shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all text-sm">
+                         <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg> Feedback
                     </a>
                 </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 text-center">2026 &copy; Kazembe CodeWorks. All rights reserved.</p>
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 text-center">2026 &copy; Kazembe CodeWorks. All rights reserved.</p>
                 
-                <!-- NEW FOOTER LINKS (Planner) -->
-                <div class="flex justify-center space-x-4 mt-3 pb-2">
+                <div class="flex justify-center space-x-4 mt-1 pb-1">
                     <button onclick="openLegal('terms')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Terms of Use</button>
                     <button onclick="openLegal('privacy')" class="text-[10px] text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 underline transition-colors">Privacy Policy</button>
                 </div>
@@ -415,12 +401,19 @@
     <div id="toast" class=""></div>
 
     <!-- WELCOME MODAL -->
-    <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-center p-6 transition-opacity duration-300">
-        <div class="w-full max-w-sm flex flex-col items-center animate-fade-in-up">
+    <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-center p-6 transition-opacity duration-300 relative">
+        
+        <!-- NEW V5.01: Welcome Screen Theme Toggle -->
+        <button id="welcome-theme-toggle" class="absolute top-6 right-6 px-3 py-2 rounded-full flex items-center space-x-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 shadow-md border border-gray-200 dark:border-gray-700 focus:outline-none transition-transform hover:scale-105" aria-label="Toggle Theme">
+            <span id="welcome-theme-text" class="text-xs font-bold">Theme</span>
+            <svg id="welcome-theme-dark-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+            <svg id="welcome-theme-light-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 13a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm6.293-8.707a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 15.586a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM15.586 4.414a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 5.828A1 1 0 003 4.414l-.707.707a1 1 0 001.414 1.414l.707-.707z"></path></svg>
+        </button>
+
+        <div class="w-full max-w-sm flex flex-col items-center animate-fade-in-up mt-8">
             <div class="relative w-24 h-24 mb-6 shrink-0">
                 <div class="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-ping"></div>
                 <div class="relative bg-white dark:bg-gray-800 p-4 rounded-full shadow-xl ring-4 ring-blue-50 dark:ring-gray-700">
-                    <!-- UX FIX: Hide on error -->
                     <img src="icons/loading-logo.png" class="w-full h-full object-contain" alt="Logo" onerror="this.style.display='none'">
                 </div>
             </div>
@@ -474,13 +467,12 @@
         </div>
     </div>
     
-    <!-- NETWORK MAP MODAL (Full Screen Update) -->
+    <!-- NETWORK MAP MODAL -->
     <div id="map-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[70] hidden flex items-center justify-center p-0 full-screen backdrop-blur-md transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative">
                 <div class="flex items-center space-x-3">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Network Map</h3>
-                    <!-- PULSATING COVERAGE MAP BUTTON -->
                     <a href="map.html" id="open-interactive-map-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm transition-colors flex items-center decoration-none animate-pulse">
                         <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         Coverage Map
@@ -662,7 +654,7 @@
         </div>
     </div>
 
-    <!-- NEW ABOUT MODAL (Full Screen) -->
+    <!-- NEW ABOUT MODAL -->
     <div id="about-modal" class="fixed inset-0 bg-white dark:bg-gray-900 z-[70] hidden flex flex-col items-center p-0 full-screen transition-opacity duration-300 overflow-y-auto">
         <!-- Close Button Area -->
         <div class="w-full max-w-2xl p-6 flex justify-end sticky top-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm z-20">
@@ -673,7 +665,6 @@
 
         <div class="w-full max-w-md px-6 pb-12 flex flex-col items-center text-center animate-fade-in-up">
             <!-- Brand -->
-            <!-- UX FIX: Hide on error -->
             <img src="icons/loading-logo.png" class="w-20 h-20 mb-6 shadow-lg rounded-full" alt="Next Train Logo" onerror="this.style.display='none'">
             <h2 class="text-3xl font-black text-gray-900 dark:text-white mb-2">Metrorail Next Train</h2>
             <div class="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-wider mb-8">
@@ -684,13 +675,10 @@
             <div class="text-left space-y-6 text-gray-600 dark:text-gray-300 leading-relaxed mb-10">
                 <p>
                     <span class="text-2xl float-left mr-2">🙋🏾‍♂️</span> 
-                    <strong>This project started in November of 2025, as a simple way to help my family</strong> check train times without the hassle of downloading blurry commuter notice images or squinting at notice boards.
+                    The idea for <strong>Next Train</strong> first sparked in 2023, but it was on November 15, 2025, that I finally began building the WebApp with a simple mission: to replace blurry notice photos and crowded station boards with clear, digital accuracy.
                 </p>
                 <p>
-                    It evolved from just collecting schedule photos to a full digital WebApp because I believe every Metrorail commuter deserves reliable, accessible information in their pocket.
-                </p>
-                <p>
-                    It remains an <strong>independent passion project</strong> - not a PRASA official tool - but it is built with the same care and accuracy I would want for my own family's travels.
+                    What began as a tool for my own family has rapidly grown to help thousands of commuters, facilitating nearly 20,000 Trip Planner searches in just a few months. While this remains an <strong>independent passion project</strong> (not an official PRASA tool), it is built with the reliability and care our growing community deserves.
                 </p>
             </div>
 
@@ -711,7 +699,7 @@
             </div>
 
             <p class="mt-12 text-[10px] text-gray-400 font-mono">
-                Version 5.00.10 (Guardian Edition)
+                Version 5.10.20 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -785,7 +773,6 @@
             <!-- SECTION 2: SERVICE ALERTS (Admin Only) -->
             <!-- This section is populated by admin.js logic -->
             <div id="alert-panel" class="border-t border-gray-200 dark:border-gray-700 pt-6">
-                <!-- Header (Accordion Trigger) -->
                 <!-- Dynamic Injection by admin.js -->
                 <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Service Alerts Manager</h4>
                 
@@ -794,7 +781,6 @@
                         <label class="block text-[10px] font-bold text-red-800 dark:text-red-300 uppercase mb-1">Target Route</label>
                         <select id="alert-target" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-red-500 outline-none">
                             <option value="all">Global Alert (All Routes)</option>
-                            <!-- Routes populated by JS -->
                         </select>
                     </div>
 
@@ -862,37 +848,39 @@
         </div>
     </div>
 
-    <!-- RENDERER ENGINE (Must be loaded BEFORE ui.js) -->
-    <!-- CRITICAL: Grid Order must load before Renderer -->
-    <script src="js/grid-order.js?v=5.00.20"></script>
-    <script src="js/renderer.js?v=5.00.20"></script>
+    <!-- RENDERER ENGINE -->
+    <script src="js/grid-order.js?v=5.10.20"></script>
+    <script src="js/renderer.js?v=5.10.20"></script>
     
-    <!-- ADMIN TOOLS (Loaded before UI to ensure Admin object availability) -->
-    <!-- GUARDIAN FIX: Removed DEFER to resolve race condition -->
-    <script src="js/admin.js?v=5.00.20"></script>
+    <!-- ADMIN TOOLS -->
+    <script src="js/admin.js?v=5.10.20"></script>
 
-    <script src="js/utils.js?v=5.00.20"></script>
-    <script src="js/config.js?v=5.00.20"></script>
-    <script src="js/logic.js?v=5.00.20"></script>
+    <script src="js/utils.js?v=5.10.20"></script>
+    <script src="js/config.js?v=5.10.20"></script>
+    <script src="js/logic.js?v=5.10.20"></script>
     
-    <!-- PLANNER MODULARIZATION V4.60.2 -->
-    <!-- CRITICAL: CORE MUST LOAD BEFORE UI -->
-    <script src="js/planner-core.js?v=5.00.20"></script>
-    <script src="js/planner-ui.js?v=5.00.20"></script>
+    <!-- PLANNER MODULARIZATION -->
+    <script src="js/planner-core.js?v=5.10.20"></script>
+    <script src="js/planner-ui.js?v=5.10.20"></script>
     
-    <script src="js/map-viewer.js?v=5.00.20"></script> 
+    <script src="js/map-viewer.js?v=5.10.20"></script> 
     
-    <!-- MAIN UI CONTROLLER (Loads last) -->
-    <script src="js/ui.js?v=5.00.20"></script>
+    <!-- MAIN UI CONTROLLER -->
+    <script src="js/ui.js?v=5.10.20"></script>
 
     <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>
         setTimeout(() => {
-            // Check if content is still hidden after 8s
             const content = document.getElementById('main-content');
+            const welcomeModal = document.getElementById('welcome-modal');
+            
+            // GUARDIAN FIX: Do not force display if the user is currently on the Welcome Screen
+            if (welcomeModal && !welcomeModal.classList.contains('hidden')) {
+                return;
+            }
+            
             if (content && content.style.display === 'none') {
                 console.warn("App load timeout - Forcing display.");
-                // GUARDIAN FIX: Explicitly remove hidden class to bypass CSS override
                 content.classList.remove('hidden');
                 content.style.display = 'block';
             }
