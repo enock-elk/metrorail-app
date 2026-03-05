@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V5.10.21 - 27 FEB"; 
+const APP_VERSION = "V5.10.22 - 05 MAR"; 
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 const FORCE_UPDATE_REQUIRED = true;
@@ -306,29 +306,7 @@ const FARE_CONFIG = {
 // Fallback rules if Firebase is unreachable.
 // Day Index: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
 const DEFAULT_EXCLUSIONS = {
-    'pta-dewildt': {
-        // High Speed Testing on Thu(4) / Fri(5) - Specific Trains Only
-        "4511": { days: [4, 5], reason: "Testing" },
-        "4409": { days: [4, 5], reason: "Testing" },
-        "4513": { days: [4, 5], reason: "Testing" },
-        "4411": { days: [4, 5], reason: "Testing" },
-        "4515": { days: [4, 5], reason: "Testing" },
-        "4413": { days: [4, 5], reason: "Testing" },
-        "4517": { days: [4, 5], reason: "Testing" },
-        "4415": { days: [4, 5], reason: "Testing" },
-        "4519": { days: [4, 5], reason: "Testing" },
-        "4417": { days: [4, 5], reason: "Testing" },
-        // Return trips
-        "4512": { days: [4, 5], reason: "Testing" },
-        "4412": { days: [4, 5], reason: "Testing" },
-        "4514": { days: [4, 5], reason: "Testing" },
-        "4414": { days: [4, 5], reason: "Testing" },
-        "4516": { days: [4, 5], reason: "Testing" },
-        "4416": { days: [4, 5], reason: "Testing" },
-        "4518": { days: [4, 5], reason: "Testing" },
-        "4418": { days: [4, 5], reason: "Testing" },
-        "4520": { days: [4, 5], reason: "Testing" }
-    },
+
     'pta-kempton': {
         // Runs Tue, Wed, Thu only. Exclude Mon (1) and Fri (5).
         "0618": { days: [1, 5], reason: "Runs Tue-Thu Only" },
