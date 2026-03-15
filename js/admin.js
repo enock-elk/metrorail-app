@@ -44,7 +44,6 @@ const Admin = {
         const pinSubmitBtn = document.getElementById('pin-submit-btn');
         const pinCancelBtn = document.getElementById('pin-cancel-btn');
         const devModal = document.getElementById('dev-modal');
-        const simTimeInput = document.getElementById('sim-time');
 
         if (!appTitle) return;
 
@@ -65,13 +64,6 @@ const Admin = {
             if (clickCount >= 5) {
                 clickCount = 0;
                 
-                // GUARDIAN FIX: Calculate and Set Time BEFORE Auth Check
-                const now = new Date();
-                const timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
-                
-                // Pre-fill time input immediately (even if already logged in)
-                if(simTimeInput) simTimeInput.value = timeString;
-
                 // Check if already authenticated via session
                 const sessionName = sessionStorage.getItem('admin_session_name');
 
@@ -79,6 +71,7 @@ const Admin = {
                     if (devModal) {
                         devModal.classList.remove('hidden');
                         Admin.renderAdminModules(); // Load all dynamic cards
+                        Admin.initAutoSim(); // 🛡️ GUARDIAN: Auto-Sandbox initialization
                     }
                     showToast("Developer Session Active", "info");
                 } else {
@@ -110,15 +103,10 @@ const Admin = {
                     localStorage.setItem('analytics_ignore', 'true');
                     console.log(`🛡️ Guardian: Analytics filter enabled for ${adminUser.name} (${adminUser.role}).`);
 
-                    const now = new Date();
-                    const timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
-                    
-                    // Also set here just in case pin was entered manually
-                    if(simTimeInput) simTimeInput.value = timeString;
-
                     if (devModal) {
                         devModal.classList.remove('hidden');
                         Admin.renderAdminModules();
+                        Admin.initAutoSim(); // 🛡️ GUARDIAN: Auto-Sandbox initialization
                     }
                     showToast(`Welcome back, ${adminUser.name}!`, "success");
                 } else {
@@ -127,6 +115,49 @@ const Admin = {
                 }
             });
         }
+    },
+
+    // --- 2.5 AUTO-SIM INITIALIZATION (GUARDIAN UPGRADE) ---
+    initAutoSim: () => {
+        const simEnabledCheckbox = document.getElementById('sim-enabled');
+        const simTimeInput = document.getElementById('sim-time');
+        const dayDropdown = document.getElementById('sim-day');
+        const dateContainer = document.getElementById('sim-date-container');
+        const dateInput = document.getElementById('sim-date');
+
+        const now = new Date();
+        
+        // 1. Enable Checkbox
+        if (simEnabledCheckbox) simEnabledCheckbox.checked = true;
+        
+        // 2. Set Exact Current Time
+        const h = String(now.getHours()).padStart(2, '0');
+        const m = String(now.getMinutes()).padStart(2, '0');
+        const s = String(now.getSeconds()).padStart(2, '0');
+        const timeString = `${h}:${m}:${s}`;
+        
+        if (simTimeInput) simTimeInput.value = timeString;
+        
+        // 3. Set Specific Date Dropdown & Inputs
+        if (dayDropdown) {
+            dayDropdown.value = 'specific';
+            if (dateContainer) dateContainer.classList.remove('hidden');
+        }
+        
+        if (dateInput) {
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            dateInput.value = `${yyyy}-${mm}-${dd}`;
+        }
+
+        // 4. Activate Simulation Globally Instantly
+        window.isSimMode = true;
+        window.simTimeStr = timeString;
+        window.simDayIndex = now.getDay();
+        
+        if (typeof updateTime === 'function') updateTime(); 
+        if (typeof findNextTrains === 'function') findNextTrains();
     },
 
     // --- 3. SIMULATION CONTROLS ---
@@ -212,7 +243,6 @@ const Admin = {
 
     // --- 4. SERVICE ALERTS MANAGER (GUARDIAN CARD STYLE) ---
     setupServiceAlertsManager: () => {
-        // We reuse the existing div from index.html if possible, or style it
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel) return;
         
@@ -324,10 +354,10 @@ const Admin = {
             });
         }
 
-        // Default Time (2 hours)
+        // 🛡️ GUARDIAN: Default Time -> Exact end of the current day (23:59:59)
         const now = new Date();
-        now.setHours(now.getHours() + 2);
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        now.setHours(23, 59, 59, 999);
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // GUARDIAN FIX: Correct capitalization to avoid Sentry crashes
         if(dateInput) dateInput.value = now.toISOString().slice(0, 16);
 
         // Key Persistence
@@ -376,7 +406,7 @@ const Admin = {
                     
                     if(data.expiresAt && dateInput) {
                         const expiryDate = new Date(data.expiresAt);
-                        expiryDate.setMinutes(expiryDate.getMinutes() - expiryDate.getTimezoneOffset());
+                        expiryDate.setMinutes(expiryDate.getMinutes() - expiryDate.getTimezoneOffset()); // GUARDIAN FIX: Prevent TypeError
                         dateInput.value = expiryDate.toISOString().slice(0, 16);
                     }
                     if (severitySelect && data.severity) severitySelect.value = data.severity;
@@ -397,7 +427,7 @@ const Admin = {
         // Actions
         sendBtn.onclick = async () => {
             let msg = alertMsg.value.trim();
-            const secret = Admin.getAuthKey(); // GUARDIAN REFACTOR
+            const secret = Admin.getAuthKey();
             const target = alertTarget.value;
             const severity = severitySelect.value;
             
@@ -439,7 +469,7 @@ const Admin = {
         };
 
         clearBtn.onclick = async () => {
-            const secret = Admin.getAuthKey(); // GUARDIAN REFACTOR
+            const secret = Admin.getAuthKey();
             const target = alertTarget.value;
             if (!secret) { showToast("Key required.", "error"); return; }
             if(!confirm(`Delete alert for: ${target}?`)) return;

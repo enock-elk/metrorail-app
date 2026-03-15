@@ -1,10 +1,12 @@
 /**
- * 🚅 METRORAIL NEXT TRAIN - GRID ORDER EXTRACTOR (GUARDIAN V2.5)
+ * 🚅 METRORAIL NEXT TRAIN - GRID ORDER EXTRACTOR (GUARDIAN V3.2 - AUTO-SEEKER)
  * --------------------------------------------------------------
  * USAGE: node extract-grid.js
- * * UPDATES (V2.5):
- * 1. Silenced warnings for missing Sunday tabs (as per user request).
- * 2. Retains auto-fix for Column A paste issues.
+ * * UPDATES (V3.2):
+ * 1. Auto-Seeker Logic: Scans the first 5 rows to automatically find the Train Numbers, ignoring the manual config row number.
+ * 2. Batch Processing: Scans for BOTH 'GP' and 'WC' schedule files simultaneously.
+ * 3. Smart Parsing: Automatically handles data pasted into Column A as comma-separated strings (no need for Text-to-Columns).
+ * 4. Merges extracted data from all regions into a single config.
  */
 
 const fs = require('fs');
@@ -23,171 +25,173 @@ const TARGET_DIRECTORIES = [
     './'                         // 4. Fallback (Current folder)
 ];
 
-// --- HELPER: Find latest Schedule File ---
-function findScheduleFile() {
+// --- HELPER: Find ALL latest Schedule Files (GP & WC) ---
+function findAllScheduleFiles() {
     const files = fs.readdirSync(process.cwd());
+    
+    // Match any variation of NextTrain Schedules (GP, WC, or generic)
     const scheduleFiles = files.filter(file => 
-        /^(Next)?Train\s*Schedules.*\.xlsx$/i.test(file) && !file.startsWith('~$')
+        /^(Next)?Train\s*(GP|WC)?-?Schedules.*\.xlsx$/i.test(file) && !file.startsWith('~$')
     );
 
-    if (scheduleFiles.length === 0) return null;
+    if (scheduleFiles.length === 0) return [];
 
-    // Sort by modification time (newest first)
-    const sorted = scheduleFiles.map(name => ({
-        name,
-        time: fs.statSync(name).mtime.getTime()
-    })).sort((a, b) => b.time - a.time);
+    const latestFiles = {};
+    
+    scheduleFiles.forEach(file => {
+        // Group by region prefix to ensure we get the NEWEST of EACH region
+        let region = 'GENERAL';
+        if (file.toLowerCase().includes('gp-')) region = 'GP';
+        if (file.toLowerCase().includes('wc-')) region = 'WC';
+        
+        const stats = fs.statSync(file);
+        
+        if (!latestFiles[region] || stats.mtimeMs > latestFiles[region].mtimeMs) {
+            latestFiles[region] = { file, mtimeMs: stats.mtimeMs };
+        }
+    });
 
-    console.log("📂 Found Excel file:", sorted[0].name);
-    return sorted[0].name;
+    return Object.values(latestFiles).map(item => item.file);
 }
 
-// --- HELPER: Column Letter to Index ---
-function getColIndex(letter) {
-    if (!letter) return 2; 
-    let column = 0;
-    let length = letter.length;
-    for (let i = 0; i < length; i++) {
-        column += (letter.charCodeAt(i) - 64) * Math.pow(26, length - i - 1);
+// --- HELPER: Excel Column to Index (e.g., 'C' -> 2) ---
+function colToIndex(colStr) {
+    let index = 0;
+    for (let i = 0; i < colStr.length; i++) {
+        index = index * 26 + (colStr.charCodeAt(i) - 64);
     }
-    return column - 1;
-}
-
-// --- HELPER: Pad Train Numbers ---
-function formatTrainNumber(val) {
-    if (val === undefined || val === null) return null;
-    let str = val.toString().trim();
-    if (str === "") return null;
-    if (/^\d+$/.test(str) && str.length < 4) {
-        return str.padStart(4, '0');
-    }
-    return str;
+    return index - 1;
 }
 
 // --- MAIN EXECUTION ---
 function run() {
-    console.log("\n🚀 STARTING GRID EXTRACTION (V2.5)...");
-    
-    const sourceFile = findScheduleFile();
-    if (!sourceFile) {
-        console.error("❌ ERROR: No Excel file found.");
-        return;
+    console.log("==============================================");
+    console.log(" 🚅 NEXT TRAIN GRID EXTRACTOR (AUTO-SEEKER V3.2)");
+    console.log("==============================================");
+
+    const sourceFiles = findAllScheduleFiles();
+
+    if (sourceFiles.length === 0) {
+        console.error("❌ ERROR: No schedule files found.");
+        console.error("   Please ensure files are named like 'NextTrain GP-Schedules - [Date].xlsx'");
+        process.exit(1);
     }
 
-    console.log(`📖 Reading data...`);
-    let workbook;
-    try {
-        workbook = XLSX.readFile(sourceFile);
-    } catch (e) {
-        console.error(`❌ ERROR: Could not open file. Close Excel and retry.`);
-        return;
-    }
+    console.log(`\n🔍 Found ${sourceFiles.length} latest regional file(s) to process:`);
+    sourceFiles.forEach(f => console.log(`   - ${f}`));
 
-    const configSheet = workbook.Sheets[CONFIG_SHEET_NAME];
-    if (!configSheet) {
-        console.error(`❌ ERROR: Sheet '${CONFIG_SHEET_NAME}' not found.`);
-        return;
-    }
+    let masterExtractedData = {};
+    let totalRouteCount = 0;
 
-    let mappings = XLSX.utils.sheet_to_json(configSheet);
-    
-    // --- V2.4 AUTO-CORRECTOR BLOCK ---
-    console.log(`   -> Config Sheet loaded. Found ${mappings.length} rows.`);
-    if (mappings.length > 0) {
-        const firstRow = mappings[0];
-        const keys = Object.keys(firstRow);
+    // Process each file sequentially
+    sourceFiles.forEach(sourceFile => {
+        console.log(`\n📂 Processing File: ${sourceFile}`);
         
-        // Detect if data is pasted into a single column (Key looks like "Key,SheetName...")
-        if (keys.length === 1 && keys[0].includes(',')) {
-            console.log("\n🛠️  AUTO-FIX: Detected 'Column A' CSV paste. Fixing structure in memory...");
-            
-            const headerStr = keys[0]; // e.g., "Key,SheetName,RowNumber,StartCol"
-            const headers = headerStr.split(',').map(h => h.trim());
-
-            // Re-map the malformed data into clean objects
-            mappings = mappings.map(row => {
-                const rawValue = row[headerStr]; // The long string value
-                if (!rawValue) return null;
-                
-                const parts = rawValue.toString().split(',');
-                const newObj = {};
-                headers.forEach((h, i) => {
-                    newObj[h] = parts[i] ? parts[i].trim() : undefined;
-                });
-                return newObj;
-            }).filter(item => item !== null);
-
-            console.log(`   -> ✅ Auto-fixed ${mappings.length} routes.`);
-        }
-    } else {
-        console.warn("   ⚠️ Config sheet appears empty.");
-    }
-    // ---------------------------------
-
-    const extractedData = {};
-    let routeCount = 0;
-
-    mappings.forEach((map, idx) => {
-        // Tolerant matching for headers
-        const key = map.Key || map.key || map.KEY;
-        const sheetName = map.SheetName || map.sheetname || map.Sheetname || map.SHEETNAME;
-        const rowNum = map.RowNumber || map.rownumber || map.Row || map.row;
-        const startColChar = map.StartCol || map.startcol || map.col || 'C';
-
-        if (!key || !sheetName) {
-            console.warn(`   ⚠️ Row ${idx + 2}: SKIPPING - Missing 'Key' or 'SheetName'. Saw:`, map);
-            return;
+        const workbook = XLSX.readFile(sourceFile);
+        
+        if (!workbook.Sheets[CONFIG_SHEET_NAME]) {
+            console.warn(`   ⚠️ WARNING: Sheet '${CONFIG_SHEET_NAME}' not found. Skipping file.`);
+            return; 
         }
 
-        const sheet = workbook.Sheets[sheetName];
-        if (!sheet) {
-            // SILENCE SUNDAY ERRORS: If key contains 'sun' and tab is missing, skip quietly.
-            if (key.toLowerCase().includes('sun')) {
-                return;
-            }
-            console.warn(`   ⚠️ Missing Tab: '${sheetName}' (Mapped for ${key})`);
-            return;
-        }
+        // Read as raw 2D array to bypass header mapping issues
+        const rawConfigData = XLSX.utils.sheet_to_json(workbook.Sheets[CONFIG_SHEET_NAME], { header: 1 });
+        let fileRouteCount = 0;
 
-        const rowIdx = (parseInt(rowNum) || 2) - 1; 
-        const startCol = getColIndex(startColChar); 
-        const trains = [];
-        let colIdx = startCol;
-        let consecutiveEmpty = 0;
+        for (let i = 0; i < rawConfigData.length; i++) {
+            const row = rawConfigData[i];
+            if (!row || row.length === 0) continue;
 
-        while (consecutiveEmpty < 5) { 
-            const cellAddr = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
-            const cell = sheet[cellAddr];
-            const cleanVal = cell ? formatTrainNumber(cell.v) : null;
+            let key, sheetName, startColStr;
 
-            if (cleanVal) {
-                trains.push(cleanVal);
-                consecutiveEmpty = 0;
+            // SMART PARSE: Check if data is clumped into Column A as a CSV string
+            if (row.length === 1 && typeof row[0] === 'string' && row[0].includes(',')) {
+                // Split by comma and strip any surrounding quotes Excel added
+                const parts = row[0].split(',').map(s => s.replace(/(^"|"$)/g, '').trim());
+                key = parts[0];
+                sheetName = parts[1];
+                // We ignore parts[2] (RowNumber) entirely now
+                startColStr = parts[3] || 'C';
             } else {
-                consecutiveEmpty++;
+                // STANDARD PARSE: Data is already in separate columns
+                key = String(row[0] || '').trim();
+                sheetName = String(row[1] || '').trim();
+                startColStr = String(row[3] || 'C').trim();
             }
-            colIdx++;
-        }
 
-        if (trains.length > 0) {
-            extractedData[key] = trains;
-            routeCount++;
-        } else {
-             // Verbose log for empty routes to help debug
-             console.log(`   ℹ️  ${key}: No trains found on tab '${sheetName}' row ${rowIdx+1}`);
+            // Skip invalid rows and header row
+            if (!key || key.toLowerCase() === 'key' || !sheetName) continue;
+
+            const sheet = workbook.Sheets[sheetName];
+            
+            if (!sheet) {
+                if (!sheetName.toLowerCase().includes('sun')) {
+                    console.log(`   ⚠️  Missing sheet: ${sheetName}`);
+                }
+                continue;
+            }
+
+            // Decode range
+            const range = XLSX.utils.decode_range(sheet['!ref']);
+            const startColIdx = colToIndex(startColStr);
+
+            let trainNumbers = [];
+            let foundRow = -1;
+
+            // GUARDIAN V3.2: AUTO-SEEKER LOGIC
+            // Scan the first 5 rows (0 to 4) to find the row containing train numbers
+            for (let r = 0; r <= Math.min(4, range.e.r); r++) {
+                let tempNumbers = [];
+                let matchCount = 0;
+
+                for (let C = startColIdx; C <= range.e.c; ++C) {
+                    const cellAddress = {c: C, r: r};
+                    const cellRef = XLSX.utils.encode_cell(cellAddress);
+                    const cell = sheet[cellRef];
+
+                    if (cell && cell.v) {
+                        const val = String(cell.v).trim();
+                        // Match train number format (e.g., "0604", "9121b")
+                        if (/^\d{4}[a-zA-Z]*$/.test(val)) {
+                            tempNumbers.push(val);
+                            matchCount++;
+                        }
+                    }
+                }
+
+                // If we found at least 2 train numbers in this row, we assume this is the header row
+                if (matchCount >= 2) {
+                    trainNumbers = tempNumbers;
+                    foundRow = r;
+                    break; // Stop searching once found
+                }
+            }
+
+            if (trainNumbers.length > 0) {
+                masterExtractedData[key] = trainNumbers;
+                fileRouteCount++;
+                totalRouteCount++;
+            } else {
+                 console.log(`   ℹ️  ${key}: No trains found on tab '${sheetName}' (Scanned rows 1-5)`);
+            }
         }
+        
+        console.log(`   ✅ Extracted ${fileRouteCount} grid configs from this file.`);
     });
 
+    // Generate output content
     const today = new Date().toISOString().split('T')[0];
+    const sourceNames = sourceFiles.join(', ');
+    
     const fileContent = `/**
  * METRORAIL NEXT TRAIN - GRID ORDER CONFIG
  * ---------------------------------------------------
  * This file defines the explicit column order for the Full Schedule Grid.
- * Generated from: "${sourceFile}"
+ * Generated from: ${sourceNames}
  * Date: ${today}
  */
 
-const MANUAL_GRID_ORDER = ${JSON.stringify(extractedData, null, 4)};
+const MANUAL_GRID_ORDER = ${JSON.stringify(masterExtractedData, null, 4)};
 `;
 
     // --- SMART PATH DETECTION ---
@@ -205,12 +209,11 @@ const MANUAL_GRID_ORDER = ${JSON.stringify(extractedData, null, 4)};
 
     if (savedPath) {
         fs.writeFileSync(savedPath, fileContent);
-        console.log(`\n🎉 SUCCESS! Processed ${routeCount} routes.`);
-        console.log(`💾 File Saved to: ${savedPath}`);
+        console.log(`\n🎉 SUCCESS! Processed ${totalRouteCount} total routes across all files.`);
+        console.log(`💾 Master File Saved to: ${savedPath}`);
     } else {
-        console.error("❌ ERROR: Could not find 'Source Code/js' or 'js' folder.");
-        console.log("   -> Saving to current folder as fallback.");
-        fs.writeFileSync(OUTPUT_FILENAME, fileContent);
+        console.error("\n❌ ERROR: Could not find target directory to save grid-order.js.");
+        console.error("   Searched in:", TARGET_DIRECTORIES);
     }
 }
 

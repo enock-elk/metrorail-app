@@ -1,5 +1,6 @@
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
+let currentRegion = localStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP)
 let globalStationIndex = {}; 
 let currentRouteId = null; 
 let fullDatabase = null; 
@@ -60,7 +61,22 @@ let simTimeStr = "";
 let simDayIndex = 1;
 let toastTimeout;
 
-// --- HELPERS (Removed: Moved to utils.js) ---
+// --- HELPERS ---
+
+// GUARDIAN V6.1: Date Formatter Helper (Converts "3/7/2026, 2:58:50 PM" to "7 March 2026")
+function formatEffectiveDate(rawDateStr) {
+    if (!rawDateStr || String(rawDateStr).toLowerCase().includes("undefined") || rawDateStr === "null") return "Unknown";
+    let cleanStr = String(rawDateStr).replace(/^last updated[:\s-]*/i, '').trim();
+    try {
+        if (cleanStr.includes(',')) cleanStr = cleanStr.split(',')[0].trim();
+        const d = new Date(cleanStr);
+        if (!isNaN(d.getTime())) {
+            const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+        }
+    } catch(e) {}
+    return cleanStr;
+}
 
 // NEW HELPER: Count shared stations between two routes
 function getSharedStationCount(routeAId, routeBId) {
@@ -110,19 +126,15 @@ function hasForwardOverlap(trainName, otherSchedule, fromStation, targetStations
 }
 
 // GUARDIAN HELPER V4.60.70: Ghost Train Logic
-// Checks if a train is banned on a specific day index (0=Sun, 1=Mon... 6=Sat)
 function isTrainExcluded(trainNumber, routeId, dayIdx) {
     if (!trainNumber) return false;
     
-    // 1. Resolve Rules (Firebase Priority, then Config Fallback)
     const rules = (globalExclusions && globalExclusions[routeId]) 
                   ? globalExclusions[routeId] 
                   : (typeof DEFAULT_EXCLUSIONS !== 'undefined' ? DEFAULT_EXCLUSIONS[routeId] : null);
     
-    // 2. Check Specific Rule
     if (rules && rules[trainNumber]) {
         const rule = rules[trainNumber];
-        // Ensure dayIdx is treated as integer
         if (rule.days && rule.days.includes(parseInt(dayIdx))) {
             return true; // BANNED
         }
@@ -130,8 +142,95 @@ function isTrainExcluded(trainNumber, routeId, dayIdx) {
     return false;
 }
 
-function saveToLocalCache(key, data) { try { const cacheEntry = { timestamp: Date.now(), data: data }; localStorage.setItem(key, JSON.stringify(cacheEntry)); } catch (e) {} }
-function loadFromLocalCache(key) { try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } catch (e) { return null; } }
+// --- DATABASE ENGINE (IndexedDB / Async Storage) ---
+// GUARDIAN V6.00.12: Migrated from synchronous localStorage to asynchronous IndexedDB to stop UI freezing on data loads.
+const DB_NAME = 'NextTrainDB';
+const STORE_NAME = 'SchedulesStore';
+const DB_VERSION = 1;
+
+function initDB() {
+    return new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+            reject(new Error("IndexedDB not supported"));
+            return;
+        }
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onerror = (e) => reject(e.target.error);
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
+            }
+        };
+    });
+}
+
+async function saveToLocalCache(key, data) {
+    const cacheEntry = { timestamp: Date.now(), data: data };
+    try {
+        const db = await initDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.put(cacheEntry, key);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) {
+        console.warn("IndexedDB Save Failed, falling back to localStorage", e);
+        try { localStorage.setItem(key, JSON.stringify(cacheEntry)); } catch(ex){}
+    }
+}
+
+async function loadFromLocalCache(key) {
+    try {
+        const db = await initDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const request = store.get(key);
+            request.onsuccess = () => {
+                if (request.result) {
+                    resolve(request.result);
+                } else {
+                    // GUARDIAN SILENT MIGRATION: If IDB is empty, check legacy localStorage, import it, and delete it.
+                    try {
+                        const lsItem = localStorage.getItem(key);
+                        if (lsItem) {
+                            const parsed = JSON.parse(lsItem);
+                            resolve(parsed);
+                            saveToLocalCache(key, parsed.data); // Migrate seamlessly in background
+                            localStorage.removeItem(key); // Free up quota limit
+                        } else {
+                            resolve(null);
+                        }
+                    } catch(ex) { resolve(null); }
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (e) {
+        console.warn("IndexedDB Load Failed, trying localStorage", e);
+        try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } catch (ex) { return null; }
+    }
+}
+
+// GUARDIAN: Global cleanup helper for Settings menu
+window.clearScheduleCache = async function() {
+    try {
+        const db = await initDB();
+        return new Promise((resolve) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).clear();
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => resolve();
+        });
+    } catch(e) {} finally {
+        localStorage.removeItem(`full_db_GP`);
+        localStorage.removeItem(`full_db_WC`);
+    }
+};
 
 // --- REFRESH LOGIC ---
 function startSmartRefresh() {
@@ -172,24 +271,30 @@ async function fetchSpecialEventConfig() {
 // --- DATA FETCHING & PROCESSING ---
 async function loadAllSchedules(force = false) {
     try {
-        // GUARDIAN: Sync dynamic route states before parsing
         await fetchSpecialEventConfig();
 
         if (!currentRouteId) return; 
         const currentRoute = ROUTES[currentRouteId];
         if (!currentRoute) return;
         
-        // UI Updates (handled here for flow, but using global refs)
         if(routeSubtitleText) {
             routeSubtitleText.textContent = currentRoute.name;
-            // GUARDIAN FIX: Added truncation flexbox properties to persist across updates
-            routeSubtitleText.className = `text-base sm:text-lg font-medium ${currentRoute.colorClass} group-hover:opacity-80 transition-colors truncate w-full px-1 min-w-0 text-center`;
+            const twColors = {
+                'route-orange': 'text-orange-500 dark:text-orange-400',
+                'route-purple': 'text-purple-600 dark:text-purple-400',
+                'route-green': 'text-green-600 dark:text-green-400',
+                'route-blue': 'text-blue-600 dark:text-blue-400',
+                'route-yellow': 'text-yellow-600 dark:text-yellow-400',
+                'route-red': 'text-red-600 dark:text-red-400',
+                'route-indigo': 'text-indigo-600 dark:text-indigo-400'
+            };
+            const mappedColor = twColors[currentRoute.colorClass] || currentRoute.colorClass;
+            routeSubtitleText.className = `text-base sm:text-lg font-medium ${mappedColor} group-hover:opacity-80 transition-colors truncate w-full px-1 min-w-0 text-center`;
         }
         
         if(pretoriaHeader) pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
         if(pienaarspoortHeader) pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
         
-        // --- SKELETON LOADER INJECTION ---
         if (typeof renderSkeletonLoader === 'function') {
             if(pretoriaTimeEl) renderSkeletonLoader(pretoriaTimeEl);
             if(pienaarspoortTimeEl) renderSkeletonLoader(pienaarspoortTimeEl);
@@ -198,13 +303,24 @@ async function loadAllSchedules(force = false) {
         if(offlineIndicator) offlineIndicator.style.display = 'none';
         if (typeof updatePinUI === 'function') updatePinUI(); 
 
+        // Initial UI wipe for inactive routes is handled primarily in findNextTrains now, 
+        // but we keep this here for the initial load sweep.
         if (!currentRoute.isActive) {
             if (typeof renderComingSoon === 'function') renderComingSoon(currentRoute.name);
             if(mainContent) mainContent.style.display = 'block';
             if(loadingOverlay) loadingOverlay.style.display = 'none';
+            
+            const fContainer = document.getElementById('fare-container');
+            if (fContainer) fContainer.classList.add('hidden');
+            const gContainer = document.getElementById('grid-trigger-container');
+            if (gContainer) gContainer.classList.add('hidden');
+            const sBtn = document.getElementById('share-app-btn');
+            if (sBtn && sBtn.closest('.border-t')) sBtn.closest('.border-t').classList.add('hidden');
+        } else {
+            const sBtn = document.getElementById('share-app-btn');
+            if (sBtn && sBtn.closest('.border-t')) sBtn.closest('.border-t').classList.remove('hidden');
         }
         
-        // 1. Fetch Dynamic Exclusions First (Lightweight)
         try {
             const exclResp = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/exclusions.json?t=${Date.now()}`);
             if (exclResp.ok) {
@@ -213,7 +329,8 @@ async function loadAllSchedules(force = false) {
             }
         } catch(e) { console.warn("Exclusions fetch failed, using defaults."); }
 
-        const cachedDB = loadFromLocalCache('full_db');
+        const cacheKey = `full_db_${currentRegion}`;
+        const cachedDB = await loadFromLocalCache(cacheKey); // GUARDIAN: Now fully asynchronous!
         let usedCache = false;
 
         if (cachedDB) {
@@ -223,7 +340,6 @@ async function loadAllSchedules(force = false) {
             buildGlobalStationIndex(); 
             buildMasterStationList(); 
             updateLastUpdatedText();
-            // Call UI init
             if (typeof initializeApp === 'function') initializeApp();
             usedCache = true;
         }
@@ -234,39 +350,68 @@ async function loadAllSchedules(force = false) {
             forceReloadBtn.disabled = true;
         }
 
-        const response = await fetch(DATABASE_URL);
-        if (!response.ok) throw new Error("Firebase fetch failed");
-        const newDatabase = await response.json();
-        if (!newDatabase) throw new Error("Empty database");
+        // --- GUARDIAN SMART SYNC PROTOCOL ---
+        let needsDownload = true;
+        const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
 
-        const newStr = JSON.stringify(newDatabase);
-        const oldStr = cachedDB ? JSON.stringify(cachedDB.data) : "";
-
-        if (newStr !== oldStr) {
-            console.log("New data! Updating...");
-            fullDatabase = newDatabase;
-            saveToLocalCache('full_db', fullDatabase);
-            
-            processRouteDataFromDB(currentRoute);
-            buildGlobalStationIndex(); 
-            buildMasterStationList(); 
-            updateLastUpdatedText();
-            
-            if (usedCache) { 
-                if(typeof showToast === 'function') showToast("Schedule updated!", "success", 3000); 
-                findNextTrains(); 
-            } else { 
-                if(typeof initializeApp === 'function') initializeApp(); 
-            }
-        } else {
-            console.log("Data is up to date.");
-            if (!usedCache) {
-                 if(typeof initializeApp === 'function') initializeApp();
+        if (usedCache && !force && !isForceUpdate && fullDatabase.lastUpdated) {
+            try {
+                // Map dbNode (e.g. "schedules.json" -> "schedules/lastUpdated.json")
+                const nodePath = REGIONS[currentRegion].dbNode.replace('.json', '');
+                const pingUrl = `${FIREBASE_BASE_URL}${nodePath}/lastUpdated.json?t=${Date.now()}`;
+                
+                const pingRes = await fetch(pingUrl);
+                if (pingRes.ok) {
+                    const remoteUpdated = await pingRes.json();
+                    if (remoteUpdated && remoteUpdated === fullDatabase.lastUpdated) {
+                        console.log("🛡️ Guardian Smart Sync: Schedule is up-to-date. Skipping heavy payload download.");
+                        needsDownload = false;
+                    }
+                }
+            } catch(e) {
+                console.warn("Smart Sync Ping failed, proceeding with full data fetch.", e);
             }
         }
+
+        if (needsDownload) {
+            const regionDbUrl = FIREBASE_BASE_URL + REGIONS[currentRegion].dbNode;
+            const response = await fetch(regionDbUrl);
+            
+            if (!response.ok) throw new Error("Firebase fetch failed");
+            const newDatabase = await response.json();
+            if (!newDatabase) throw new Error("Empty database");
+
+            const newStr = JSON.stringify(newDatabase);
+            const oldStr = cachedDB ? JSON.stringify(cachedDB.data) : "";
+
+            if (newStr !== oldStr) {
+                console.log("New data detected! Updating local storage...");
+                fullDatabase = newDatabase;
+                await saveToLocalCache(cacheKey, fullDatabase); // GUARDIAN: Saving securely via IndexedDB
+                
+                processRouteDataFromDB(currentRoute);
+                buildGlobalStationIndex(); 
+                buildMasterStationList(); 
+                updateLastUpdatedText();
+                
+                if (usedCache) { 
+                    if(typeof showToast === 'function') showToast("Schedule updated!", "success", 3000); 
+                    findNextTrains(); 
+                } else { 
+                    if(typeof initializeApp === 'function') initializeApp(); 
+                }
+            } else {
+                console.log("Data verified up to date after full fetch.");
+                if (!usedCache) {
+                     if(typeof initializeApp === 'function') initializeApp();
+                }
+            }
+        }
+
     } catch (error) {
         console.error("Fetch Error:", error);
-        if (loadFromLocalCache('full_db')) {
+        const fallbackCache = await loadFromLocalCache(`full_db_${currentRegion}`); // GUARDIAN: Fallback handles async DB
+        if (fallbackCache) {
             if(offlineIndicator) offlineIndicator.style.display = 'block';
         } else {
             if (typeof renderRouteError === 'function') renderRouteError(error);
@@ -319,12 +464,15 @@ function parseJSONSchedule(jsonRows, externalMetaDate = null) {
             if (dateValueIndex !== -1) {
                  let val = values[dateValueIndex];
                  if (val.length > 15) {
-                    extractedLastUpdated = val.replace(/last updated[:\s-]*/i, '').trim();
+                    extractedLastUpdated = val;
                 } else if (values[dateValueIndex+1]) {
                     extractedLastUpdated = values[dateValueIndex+1];
                 }
             }
         }
+        
+        // GUARDIAN V6.1: Clean the date string for the Grid display immediately
+        extractedLastUpdated = formatEffectiveDate(extractedLastUpdated);
 
         const cleanRows = jsonRows.filter(row => {
             const s = row['STATION'];
@@ -363,14 +511,13 @@ function buildGlobalStationIndex() {
     globalStationIndex = {}; 
     if (!fullDatabase) return;
 
-    // GUARDIAN HELPER: Filter out ghost stations (rows with no time data)
-    // Returns true if at least one column (other than metadata) has a value
     const hasActiveService = (row, sKey, cKey) => {
         const ignored = new Set([sKey, cKey, 'KM_MARK', 'row_index']);
         return Object.keys(row).some(k => !ignored.has(k) && row[k] && String(row[k]).trim() !== "");
     };
 
     Object.values(ROUTES).forEach(route => {
+        if (route.region !== currentRegion) return;
         if (!route.sheetKeys) return;
 
         Object.values(route.sheetKeys).forEach(dbKey => {
@@ -402,7 +549,6 @@ function buildGlobalStationIndex() {
                       if (!coordKey && row['COORDINATES']) coordKey = 'COORDINATES';
 
                       if (stationKey && row[stationKey]) {
-                           // GHOST FILTER: Skip if no active service at this station
                            if (!hasActiveService(row, stationKey, coordKey)) continue;
 
                            const stationName = normalizeStationName(row[stationKey]);
@@ -429,18 +575,24 @@ function buildGlobalStationIndex() {
                  }
             } else {
                  sheetData.forEach(row => {
-                    if (row.STATION && row.COORDINATES) {
-                        // GHOST FILTER: Fallback branch
-                        if (!hasActiveService(row, 'STATION', 'COORDINATES')) return; // forEach uses return to skip
+                    let stationKey = row['STATION'] !== undefined ? 'STATION' : null;
+                    let coordKey = row['COORDINATES'] !== undefined ? 'COORDINATES' : null;
 
-                        const stationName = normalizeStationName(row.STATION);
+                    if (stationKey && row[stationKey]) {
+                        if (!hasActiveService(row, stationKey, coordKey)) return;
+
+                        const stationName = normalizeStationName(row[stationKey]);
                         if (!globalStationIndex[stationName]) {
-                            try {
-                                const parts = String(row.COORDINATES).split(',').map(s => parseFloat(s.trim()));
-                                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                                    globalStationIndex[stationName] = { lat: parts[0], lon: parts[1], routes: new Set() };
-                                }
-                            } catch (e) { }
+                            let coords = { lat: null, lon: null };
+                            if (coordKey && row[coordKey]) {
+                                try {
+                                    const parts = String(row[coordKey]).split(',').map(s => parseFloat(s.trim()));
+                                    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                        coords = { lat: parts[0], lon: parts[1] };
+                                    }
+                                } catch (e) { }
+                            }
+                            globalStationIndex[stationName] = { lat: coords.lat, lon: coords.lon, routes: new Set() };
                         }
                         if (globalStationIndex[stationName]) globalStationIndex[stationName].routes.add(route.id);
                     }
@@ -448,12 +600,11 @@ function buildGlobalStationIndex() {
             }
         });
     });
-    console.log(`Global Index Built: ${Object.keys(globalStationIndex).length} stations mapped.`);
 }
 
 function buildMasterStationList() {
     MASTER_STATION_LIST = Object.keys(globalStationIndex).sort();
-    console.log(`Master Station List Built: ${MASTER_STATION_LIST.length} stations.`);
+    if (typeof renderPlannerHistory === 'function') renderPlannerHistory();
 }
 
 function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
@@ -471,41 +622,28 @@ function calculateTimeDiffString(departureTimeStr, dayOffset = 0) {
         let diffInMinutes = Math.ceil(diffInSeconds / 60);
         const hours = Math.floor(diffInMinutes / 60);
         const minutes = diffInMinutes % 60;
-        // GUARDIAN TASK 6.2: Wait Time Standardization
         return (hours > 0) ? `(in ${hours} hr ${minutes} min)` : `(in ${minutes} min)`;
     } catch (e) { return ""; }
 }
 
-// GUARDIAN FIX V5.00.10: Smart Zone Resolution
-// Looks through all sheets in a route to find a valid Zone Code.
 function resolveZoneForRoute(routeId) {
     if (!fullDatabase || !routeId || !ROUTES[routeId]) return null;
     const route = ROUTES[routeId];
-    
-    // Check all known keys for this route
     const keysToCheck = Object.values(route.sheetKeys);
-    
     for (const key of keysToCheck) {
         const zoneVal = fullDatabase[key + "_zone"];
-        if (zoneVal && FARE_CONFIG.zones[zoneVal]) {
-            return zoneVal; // Found a valid zone!
-        }
+        if (zoneVal && FARE_CONFIG.zones[zoneVal]) return zoneVal; 
     }
-    
-    // Try reverse lookup heuristic if standard keys fail
     for (const key of keysToCheck) {
         if (key.includes('_to_')) {
             const parts = key.split('_to_');
             if (parts.length === 2) {
-                // Construct potential reverse key
                 const prefix = parts[0]; 
                 const rest = parts[1];
                 let suffix = "";
                 let dest = "";
-                
                 if (rest.endsWith('_weekday')) { suffix = '_weekday'; dest = rest.replace('_weekday', ''); }
                 else if (rest.endsWith('_saturday')) { suffix = '_saturday'; dest = rest.replace('_saturday', ''); }
-                
                 if (dest && suffix) {
                     const reverseKey = `${dest}_to_${prefix}${suffix}_zone`;
                     const reverseZone = fullDatabase[reverseKey];
@@ -514,44 +652,30 @@ function resolveZoneForRoute(routeId) {
             }
         }
     }
-    
     return null;
 }
 
 function getRouteFare(sheetKey, departureTimeStr) {
     let zoneCode = null;
-    
-    // 1. Try Direct Lookup
     if (sheetKey) {
         const zoneKey = sheetKey + "_zone";
         zoneCode = fullDatabase[zoneKey];
     }
-    
-    // 2. Smart Fallback (Guardian Fix)
-    // GUARDIAN UPDATE V5.00.11: Removed Z1 default. Returns null if unknown.
     if (!zoneCode && currentRouteId) {
         zoneCode = resolveZoneForRoute(currentRouteId);
     }
-
-    if (!zoneCode || !FARE_CONFIG.zones[zoneCode]) {
-        // Return null to indicate "Unknown" to UI. 
-        // Do NOT default to Z1.
-        return null; 
-    }
+    if (!zoneCode || !FARE_CONFIG.zones[zoneCode]) return null; 
 
     let basePrice = FARE_CONFIG.zones[zoneCode];
     let discountLabel = null;
     let isPromo = false; 
-    let isOffPeak = false; // Legacy flag
+    let isOffPeak = false; 
 
     const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
-    
     let useOffPeakRate = false;
     
-    // GUARDIAN FIX V4.60.42: Off-Peak based on WALL CLOCK, not Train Time
     if (currentDayType === 'weekday') {
         const now = new Date();
-        // If in simulation mode, parse simTimeStr
         let checkH, checkM;
         if (typeof window.isSimMode !== 'undefined' && window.isSimMode && window.simTimeStr) {
             const parts = window.simTimeStr.split(':');
@@ -569,62 +693,40 @@ function getRouteFare(sheetKey, departureTimeStr) {
     }
 
     const multiplier = useOffPeakRate ? profile.offPeak : profile.base;
-
-    // Apply Multiplier
     let finalPrice = basePrice * multiplier;
-
-    // GUARDIAN FIX V4.58.3: Rounding to Nearest 50 cents
     finalPrice = Math.ceil(finalPrice * 2) / 2;
 
-    // Determine Label
     if (multiplier < 1.0) {
-        isPromo = true; // Trigger color change
-        if (currentUserProfile === "Pensioner") {
-            discountLabel = "50% Off-Peak";
-        } else if (currentUserProfile === "Military") {
-            discountLabel = "50% Off-Peak";
-        } else if (currentUserProfile === "Scholar") {
-            discountLabel = "50% Discount";
-        } else if (currentUserProfile === "Adult" && useOffPeakRate) {
-            discountLabel = "40% Off-Peak";
-        } else {
-            discountLabel = "Discounted"; // Fallback
-        }
+        isPromo = true; 
+        if (currentUserProfile === "Pensioner") discountLabel = "50% Off-Peak";
+        else if (currentUserProfile === "Military") discountLabel = "50% Off-Peak";
+        else if (currentUserProfile === "Scholar") discountLabel = "50% Discount";
+        else if (currentUserProfile === "Adult" && useOffPeakRate) discountLabel = "40% Off-Peak";
+        else discountLabel = "Discounted"; 
     }
 
     return {
         price: finalPrice.toFixed(2),
-        isOffPeak: useOffPeakRate, // Legacy
+        isOffPeak: useOffPeakRate, 
         isPromo: isPromo,
-        discountLabel: discountLabel // NEW: Specific Text
+        discountLabel: discountLabel 
     };
 }
 
-// NEW V4.60.42: Helper to fetch detailed pricing for a route
 function getDetailedFare(sheetKey) {
     if (!fullDatabase) return null;
-    
     let zoneCode = null;
-    
-    // 1. Try Direct Key
     if (sheetKey) {
         const zoneKey = sheetKey + "_zone";
         zoneCode = fullDatabase[zoneKey];
     }
-    
-    // 2. Smart Fallback (Guardian Fix)
     if (!zoneCode && currentRouteId) {
         zoneCode = resolveZoneForRoute(currentRouteId);
     }
-    
-    // GUARDIAN V5.00.11: If no zone found, return null (No default Z1)
     if (!zoneCode) return null; 
 
     if (FARE_CONFIG.zones_detailed && FARE_CONFIG.zones_detailed[zoneCode]) {
-        return {
-            code: zoneCode,
-            prices: FARE_CONFIG.zones_detailed[zoneCode]
-        };
+        return { code: zoneCode, prices: FARE_CONFIG.zones_detailed[zoneCode] };
     }
     return null;
 }
@@ -637,12 +739,32 @@ function findNextTrains() {
     const selectedStation = stationSelect.value;
     const currentRoute = ROUTES[currentRouteId];
     
-    // Helper must be defined BEFORE use
     const isAtStation = (s1, s2) => normalizeStationName(s1) === normalizeStationName(s2);
 
-    if (selectedStation === "FIND_NEAREST") { findNearestStation(false); return; }
     if (!currentRoute) return;
-    if (!currentRoute.isActive) { if(typeof renderComingSoon === 'function') renderComingSoon(currentRoute.name); return; }
+    
+    // GUARDIAN V6.1: The Hoist - Strict Inactive Route Nuke
+    // If the route is inactive, we destroy the UI and halt immediately.
+    // This stops the R9.50 state bleed and removes ghost buttons.
+    if (!currentRoute.isActive) { 
+        if(typeof renderComingSoon === 'function') renderComingSoon(currentRoute.name); 
+        
+        const fContainer = document.getElementById('fare-container');
+        if (fContainer) fContainer.classList.add('hidden');
+        
+        const gContainer = document.getElementById('grid-trigger-container');
+        if (gContainer) gContainer.classList.add('hidden');
+        
+        const sBtn = document.getElementById('share-app-btn');
+        if (sBtn && sBtn.closest('.border-t')) sBtn.closest('.border-t').classList.add('hidden');
+        
+        return; // HALT EXECUTION
+    } else {
+        const sBtn = document.getElementById('share-app-btn');
+        if (sBtn && sBtn.closest('.border-t')) sBtn.closest('.border-t').classList.remove('hidden');
+    }
+
+    if (selectedStation === "FIND_NEAREST") { findNearestStation(false); return; }
     
     pretoriaTimeEl.innerHTML = ""; pienaarspoortTimeEl.innerHTML = "";
     pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
@@ -650,7 +772,6 @@ function findNextTrains() {
     
     if (!selectedStation) { if(typeof renderPlaceholder === 'function') renderPlaceholder(); return; }
     
-    // GUARDIAN FIX V5.01.00: Strict selectedIndex guardrail to prevent null reference crash
     if (!stationSelect.options[stationSelect.selectedIndex]) return;
 
     if (stationSelect.options[stationSelect.selectedIndex].textContent.includes("(No Service)")) {
@@ -658,7 +779,6 @@ function findNextTrains() {
         pretoriaTimeEl.innerHTML = msg; pienaarspoortTimeEl.innerHTML = msg; return;
     }
 
-    // GUARDIAN V5.01.00: Data Monetization - Enriching analytics with O-D Matrix mapping
     const currentODKey = `${currentRouteId}_${selectedStation}`;
     if (lastTrackedOD !== currentODKey && typeof trackAnalyticsEvent === 'function') {
         lastTrackedOD = currentODKey;
@@ -669,23 +789,18 @@ function findNextTrains() {
             route_id: currentRouteId,
             time_of_search: currentTime,
             day_type: currentDayType,
-            trip_type: 'live_board_view'
+            trip_type: 'live_board_view',
+            region: currentRegion
         });
     }
     
-    // GUARDIAN FIX V4.60.11: Specific "No Service" Logic
-    // Must handle "You are here" case BEFORE "No Service" case.
     if (currentDayType === 'sunday') {
         if(typeof renderNoService === 'function') {
-            
-            // Check DEST A
             if (isAtStation(selectedStation, currentRoute.destA)) {
                 if(typeof renderAtDestination === 'function') renderAtDestination(pretoriaTimeEl);
             } else {
                 renderNoService(pretoriaTimeEl, currentRoute.destA); 
             }
-
-            // Check DEST B
             if (isAtStation(selectedStation, currentRoute.destB)) {
                 if(typeof renderAtDestination === 'function') renderAtDestination(pienaarspoortTimeEl);
             } else {
@@ -697,7 +812,7 @@ function findNextTrains() {
 
     let sharedRoutes = [];
     Object.values(ROUTES).forEach(r => {
-        if (r.id !== currentRouteId && r.isActive && r.corridorId === currentRoute.corridorId) {
+        if (r.region === currentRegion && r.id !== currentRouteId && r.isActive && r.corridorId === currentRoute.corridorId) {
             sharedRoutes.push(r.id);
         }
     });
@@ -724,8 +839,6 @@ function findNextTrains() {
         
         let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
         const seenTrainsA = new Set(mergedJourneys.map(j => j.train || j.train1.train));
-
-        // V4.39: Get target stations for direction A
         const targetStationsA = getTargetStations(schedule, selectedStation);
 
         sharedRoutes.forEach(rId => {
@@ -737,16 +850,10 @@ function findNextTrains() {
                 const otherSchedule = parseJSONSchedule(otherRows, otherMeta);
                 const { allJourneys: otherJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", otherSchedule, otherRoute);
                 
-                // FILTER: Only include if valid overlaps forward (V4.39)
                 const uniqueOther = otherJourneys.filter(j => {
                     const tNum = j.train || j.train1.train;
                     if (seenTrainsA.has(tNum)) return false;
-                    
-                    // FORWARD OVERLAP CHECK
-                    if (!hasForwardOverlap(tNum, otherSchedule, selectedStation, targetStationsA)) {
-                        return false; 
-                    }
-
+                    if (!hasForwardOverlap(tNum, otherSchedule, selectedStation, targetStationsA)) return false; 
                     seenTrainsA.add(tNum); 
                     return true;
                 });
@@ -765,8 +872,6 @@ function findNextTrains() {
         const nowInSeconds = timeToSeconds(currentTime);
         const upcoming = mergedJourneys.find(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
         if (upcoming) {
-             // GUARDIAN FIX V5.00.01: Enforce Route Context for Fares
-             // Forces the current route's sheet key to be used for pricing lookups, ignoring shared route keys.
              if(typeof updateFareDisplay === 'function') updateFareDisplay(currentSheetKey, upcoming.departureTime || upcoming.train1.departureTime);
         } else {
              if(typeof updateFareDisplay === 'function') updateFareDisplay(primarySheetKey, currentTime);
@@ -785,8 +890,6 @@ function findNextTrains() {
 
         let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
         const seenTrainsB = new Set(mergedJourneys.map(j => j.train || j.train1.train));
-
-        // V4.39: Get target stations for direction B
         const targetStationsB = getTargetStations(schedule, selectedStation);
 
         sharedRoutes.forEach(rId => {
@@ -801,13 +904,7 @@ function findNextTrains() {
                  const uniqueOther = otherJourneys.filter(j => {
                      const tNum = j.train || j.train1.train;
                      if (seenTrainsB.has(tNum)) return false; 
-                     
-                     // FORWARD OVERLAP CHECK (V4.39) - SAFETY CRITICAL
-                     // This ensures we only show trains that actually go to one of the target stations.
-                     if (!hasForwardOverlap(tNum, otherSchedule, selectedStation, targetStationsB)) {
-                         return false; 
-                     }
-
+                     if (!hasForwardOverlap(tNum, otherSchedule, selectedStation, targetStationsB)) return false; 
                      seenTrainsB.add(tNum); 
                      return true;
                  });
@@ -839,16 +936,12 @@ function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
     const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA);
     let allTransferJourneys = [];
     
-    // GUARDIAN UPDATE V4.60.30: Support Relay Station as Transfer Hub
     const transferHub = routeConfig.transferStation || routeConfig.relayStation;
     if (transferHub) {
         const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destA);
         allTransferJourneys = allTransfers;
     }
     
-    // FIX (V4.38.2): Reverted Deduplication Logic to V3 Standard.
-    // If a Transfer exists for a train, it means the Direct option is likely a "Short Train".
-    // We must HIDE the Direct option and SHOW the Transfer so the user isn't stranded.
     const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
     const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
     
@@ -869,14 +962,12 @@ function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
     const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destB);
     let allTransferJourneys = [];
     
-    // GUARDIAN UPDATE V4.60.30: Support Relay Station as Transfer Hub
     const transferHub = routeConfig.transferStation || routeConfig.relayStation;
     if (transferHub) {
         const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destB);
         allTransferJourneys = allTransfers;
     }
 
-    // FIX (V4.38.2): Reverted Deduplication Logic to V3 Standard.
     const transferTrainNames = new Set(allTransferJourneys.map(j => j.train1.train));
     const uniqueDirects = allDirectJourneys.filter(j => !transferTrainNames.has(j.train));
     
@@ -894,7 +985,6 @@ function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
 }
 
 function findNextDirectTrain(fromStation, schedule, destinationStation) {
-    // GUARDIAN FIX V4.60.32: Critical guard clause for undefined/null schedules
     if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
@@ -902,8 +992,6 @@ function findNextDirectTrain(fromStation, schedule, destinationStation) {
 
     for (const train of trainHeaders) {
         if (!train || train === "") continue;
-        
-        // GUARDIAN GHOST PROTOCOL (V4.60.70): Exclude Banned Trains
         if (isTrainExcluded(train, currentRouteId, currentDayIndex)) continue; 
 
         const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
@@ -943,7 +1031,6 @@ function findNextDirectTrain(fromStation, schedule, destinationStation) {
 }
 
 function findTransfers(fromStation, schedule, terminalStation, finalDestination) {
-    // GUARDIAN FIX V4.60.32: Critical guard clause
     if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
@@ -960,8 +1047,6 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination)
 
     for (const train1 of trainHeaders) {
         if (!train1 || train1 === "") continue;
-        
-        // GUARDIAN GHOST PROTOCOL (V4.60.70): Exclude Banned Trains
         if (isTrainExcluded(train1, currentRouteId, currentDayIndex)) continue; 
 
         const departureTime = fromRow[train1]; 
@@ -974,9 +1059,6 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination)
         if (!destinationTime) {
             const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination, train1);
             if (connectionData && connectionData.earliest) {
-                
-                // GUARDIAN V5.01: HORIZON SCANNER
-                // Detect actual headboard destination (stops past transfer hub)
                 let realHeadboardDest = terminalStation;
                 for (let k = termIndex + 1; k < schedule.rows.length; k++) {
                     const nextRow = schedule.rows[k];
@@ -1004,7 +1086,6 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination)
 }
 
 function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination, incomingTrainName) {
-    // GUARDIAN FIX V4.60.32: Guard clause
     if (!schedule || !schedule.rows) return null;
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
@@ -1019,8 +1100,6 @@ function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, fin
     for (const train of trainHeaders) {
         if (!train || train === "") continue;
         if (train === incomingTrainName) continue; 
-        
-        // GUARDIAN GHOST PROTOCOL (V4.60.70): Exclude Banned Connection Trains
         if (isTrainExcluded(train, currentRouteId, currentDayIndex)) continue; 
 
         const connectionTime = connRow[train];
@@ -1061,7 +1140,8 @@ function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, fin
     return { earliest: earliestConnection, fullJourney: earliestFullJourneyConnection };
 }
 
-// --- LOCATION LOGIC ---
+// --- GUARDIAN V6.21: THE GREAT DECOUPLING - STATION LOGIC MOVED HERE ---
+
 function findNearestStation(isAuto = false) {
     if (!navigator.geolocation) {
         if (!isAuto) showToast("Geolocation is not supported by your browser.", "error");
@@ -1114,10 +1194,17 @@ function findNearestStation(isAuto = false) {
                 }
 
                 if (matched) {
-                    // --- SYNC PLANNER INPUT ---
                     if (typeof syncPlannerFromMain === 'function') {
                         syncPlannerFromMain(stationSelect.value);
                     }
+                    
+                    // GUARDIAN V6.21: Unified Dataset Sync logic absorbed from UI
+                    const searchInput = document.getElementById('station-search-input');
+                    if (searchInput) {
+                        searchInput.value = stationSelect.value.replace(/ STATION/g, '');
+                        searchInput.dataset.resolvedValue = stationSelect.value;
+                    }
+                    
                     findNextTrains(); 
                     if (!isAuto) {
                         showToast(`Found: ${stationName.replace(' STATION', '')} (${distStr}km)`, "success");
@@ -1147,12 +1234,10 @@ function findNearestStation(isAuto = false) {
     );
 }
 
-// --- POPULATE STATION LIST ---
 function populateStationList() {
     const stationSet = new Set();
     const hasTimes = (row) => { const keys = Object.keys(row); return keys.some(key => key !== 'STATION' && key !== 'COORDINATES' && key !== 'KM_MARK' && row[key] && row[key].trim() !== ""); };
     
-    // GUARDIAN FIX V4.60.32: Added safety checks for undefined schedules
     if (schedules.weekday_to_a && schedules.weekday_to_a.rows) schedules.weekday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
     if (schedules.weekday_to_b && schedules.weekday_to_b.rows) schedules.weekday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
     if (schedules.saturday_to_a && schedules.saturday_to_a.rows) schedules.saturday_to_a.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
@@ -1167,6 +1252,7 @@ function populateStationList() {
     const currentSelectedStation = stationSelect.value;
     
     stationSelect.innerHTML = '<option value="">Select a station...</option>';
+    stationSelect.disabled = false; // GUARDIAN V6.1: Ensure enabled on populate
     
     allStations.forEach(station => {
         if (station && !station.toLowerCase().includes('last updated')) {
@@ -1176,5 +1262,50 @@ function populateStationList() {
             stationSelect.appendChild(option);
         }
     });
-    if (allStations.includes(currentSelectedStation)) stationSelect.value = currentSelectedStation; else stationSelect.value = ""; 
+
+    // GUARDIAN V6.21: Unified Dataset Sync logic absorbed from UI
+    const searchInput = document.getElementById('station-search-input');
+    if (allStations.includes(currentSelectedStation)) {
+        stationSelect.value = currentSelectedStation; 
+        if (searchInput) {
+            searchInput.value = currentSelectedStation.replace(/ STATION/g, '');
+            searchInput.dataset.resolvedValue = currentSelectedStation;
+        }
+    } else { 
+        stationSelect.value = ""; 
+        if (searchInput) {
+            searchInput.value = "";
+            delete searchInput.dataset.resolvedValue;
+        }
+    }
+}
+
+// GUARDIAN V6.1: Helper added to strictly handle Coming Soon visual state without bleeding into logic
+function renderComingSoon(routeName) {
+    if (typeof Renderer !== 'undefined') {
+        if(pretoriaTimeEl) Renderer.renderComingSoon(pretoriaTimeEl, routeName);
+    }
+    if(stationSelect) {
+        stationSelect.innerHTML = '<option>Coming Soon</option>';
+        stationSelect.disabled = true;
+    }
+}
+
+// GUARDIAN V6.1: Formatter applied here as final fallback
+function updateLastUpdatedText() {
+    if (!fullDatabase) return;
+    let displayDate = fullDatabase.lastUpdated || "Unknown";
+    const isValidDate = (d) => d && d !== "undefined" && d !== "null" && String(d).length > 5;
+    
+    if (currentDayType === 'weekday' || currentDayType === 'monday') { 
+        if (schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) displayDate = schedules.weekday_to_a.lastUpdated;
+    } else if (currentDayType === 'saturday') {
+        if (schedules.saturday_to_a && isValidDate(schedules.saturday_to_a.lastUpdated)) displayDate = schedules.saturday_to_a.lastUpdated;
+    } else if (currentDayType === 'sunday') {
+         if (schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) displayDate = schedules.weekday_to_a.lastUpdated;
+    }
+    
+    displayDate = formatEffectiveDate(displayDate);
+    
+    if (displayDate && lastUpdatedEl) lastUpdatedEl.textContent = `Effective: ${displayDate}`;
 }

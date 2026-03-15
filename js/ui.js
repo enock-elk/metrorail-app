@@ -1,13 +1,55 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V5.10.20 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.00.22 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
- * * V5.10.20: Reduced generic toast duration & Welcome Screen Theme Toggle sync.
+ * * V6.00.22: The Great Purge - Migrated monolithic overrides, silenced error toasts.
+ * * PHASE 9: App Router injected. Unified History API and Exit Trap Protocol.
  */
 
+// --- GLOBAL HAPTIC ENGINE ---
+function triggerHaptic() {
+    // GUARDIAN: Check if haptics are enabled by user preference (defaults to true)
+    const isEnabled = localStorage.getItem('hapticsEnabled') !== 'false';
+    if (isEnabled && navigator.vibrate) {
+        try { navigator.vibrate(50); } catch(e) {}
+    }
+}
+
+// --- GUARDIAN V6.18: GLOBAL SCROLL-LOCK PROTOCOL ---
+function lockBackgroundScroll() {
+    document.body.classList.add('modal-active');
+}
+function unlockBackgroundScroll() {
+    document.body.classList.remove('modal-active');
+}
+
+// --- GLOBAL APP HUB CLOSER (GUARDIAN UX FIX) ---
+window.closeAppHub = function(fromPopState = false) {
+    const sn = document.getElementById('sidenav');
+    const overlay = document.getElementById('sidenav-overlay');
+    if (sn) {
+        sn.classList.remove('translate-x-0');
+        sn.classList.add('-translate-x-full');
+        sn.classList.remove('open'); // GUARDIAN: CSS JIT bypass sync
+    }
+    if (overlay) overlay.classList.remove('open');
+    document.body.classList.remove('sidenav-open');
+    unlockBackgroundScroll(); // GUARDIAN: Release scroll when sidenav closes
+    
+    // GUARDIAN Phase 9: Sync with History API to keep Router clean
+    if (!fromPopState && location.hash === '#sidenav') {
+        history.back();
+    }
+};
+
 // --- GLOBAL ERROR HANDLER ---
-window.onerror = function(msg, url, line) {
+window.onerror = function(msg, url, line, col, error) {
+    // GUARDIAN V6.20: Sentry ErrorEvent Unwrap
+    if (typeof msg === 'object') {
+        msg = (msg.message) ? msg.message : ((error && error.message) ? error.message : "Unknown Error Object");
+    }
+
     const IGNORED_ERRORS = [
         "Script error.",
         "_AutofillCallbackHandler",
@@ -21,7 +63,6 @@ window.onerror = function(msg, url, line) {
 
     console.error("Global Error Caught:", msg);
     
-    // FIX 2: Use getElementById directly
     const overlay = document.getElementById('loading-overlay');
     const content = document.getElementById('main-content');
     
@@ -41,7 +82,6 @@ window.onerror = function(msg, url, line) {
         return false;
     }
 
-    // GUARDIAN UPDATE V4.60.33: Versioned Error & Auto-Dismiss
     const toastEl = document.getElementById('toast');
     const versionStr = typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'Unknown Ver';
     
@@ -54,7 +94,6 @@ window.onerror = function(msg, url, line) {
         `;
         toastEl.className = "toast-error show";
         
-        // Auto-dismiss after 5 seconds to prevent obstruction
         setTimeout(() => {
             if (toastEl.classList.contains('show')) {
                 toastEl.classList.remove('show');
@@ -90,21 +129,29 @@ const OfflineTracker = {
     }
 };
 
-window.addEventListener('online', () => { console.log("Network restored. Flushing analytics queue."); OfflineTracker.flush(); });
-
 // --- ANALYTICS HELPER ---
 function trackAnalyticsEvent(eventName, params = {}) {
+    params.region = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
+
     if (!navigator.onLine) { OfflineTracker.enqueue(eventName, params); return; }
+    
     try {
-        if (typeof gtag === 'function') { gtag('event', eventName, params); }
+        if (typeof gtag === 'function') { 
+            gtag('set', 'user_properties', { crm_region: params.region });
+            gtag('event', eventName, params); 
+        }
     } catch (e) { console.warn("[Analytics] GA4 Error:", e); }
+    
     try {
         if (typeof clarity === 'function') {
+            clarity("set", "crm_region", params.region);
             clarity("event", eventName);
             if (params) { Object.keys(params).forEach(key => { clarity("set", key, String(params[key])); }); }
         }
     } catch (e) { console.warn("[Analytics] Clarity Error:", e); }
 }
+
+window.addEventListener('online', () => { console.log("Network restored. Flushing analytics queue."); OfflineTracker.flush(); });
 
 const HOLIDAY_NAMES = {
     "01-01": "New Year's Day", "03-21": "Human Rights Day", "04-03": "Good Friday",
@@ -113,24 +160,136 @@ const HOLIDAY_NAMES = {
     "12-16": "Day of Reconciliation", "12-25": "Christmas Day", "12-26": "Day of Goodwill"
 };
 
+// --- NEXT TRAIN AUTOCOMPLETE ENGINE (GUARDIAN V6.16) ---
+window._renderNextTrainList = function() {
+    const input = document.getElementById('station-search-input');
+    const select = document.getElementById('station-select');
+    const list = document.getElementById('next-train-autocomplete-list');
+    if (!input || !select || !list) return;
+
+    list.innerHTML = '';
+    const matches = allStations;
+
+    if (matches.length === 0) {
+        const li = document.createElement('li');
+        li.className = "p-3 text-sm text-gray-400 italic";
+        li.textContent = "No stations on this route";
+        list.appendChild(li);
+    } else {
+        matches.forEach(station => {
+            const li = document.createElement('li');
+            li.className = "p-3.5 border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-base sm:text-lg font-medium text-gray-700 dark:text-gray-200 transition-colors";
+            li.textContent = station.replace(' STATION', '');
+            li.onclick = () => {
+                input.value = station.replace(' STATION', '');
+                select.value = station;
+                const event = new Event('change');
+                select.dispatchEvent(event);
+                list.classList.add('hidden');
+                unlockBackgroundScroll(); // GUARDIAN: Release scroll when selection made
+            };
+            list.appendChild(li);
+        });
+    }
+    list.classList.remove('hidden');
+    lockBackgroundScroll(); // GUARDIAN: Lock scroll while dropdown is open
+};
+
+function setupNextTrainAutocomplete() {
+    const input = document.getElementById('station-search-input');
+    const select = document.getElementById('station-select');
+    if (!input || !select) return;
+
+    select.classList.add('hidden');
+    input.classList.remove('hidden');
+
+    if (input.parentNode && getComputedStyle(input.parentNode).position === 'static') {
+        input.parentNode.style.position = 'relative';
+    }
+
+    let chevron = document.getElementById('next-train-chevron');
+    if (!chevron) {
+        chevron = document.createElement('div');
+        chevron.id = 'next-train-chevron';
+        chevron.className = "absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer p-2 hover:text-blue-500 z-10 transition-colors";
+        chevron.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+        input.parentNode.appendChild(chevron);
+    }
+
+    let list = document.getElementById('next-train-autocomplete-list');
+    if (!list) {
+        list = document.createElement('ul');
+        list.id = 'next-train-autocomplete-list';
+        list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0 custom-scrollbar";
+        input.parentNode.appendChild(list);
+        
+        input.addEventListener('click', (e) => { 
+            e.stopPropagation();
+            if (list.classList.contains('hidden')) {
+                window._renderNextTrainList(); 
+            } else {
+                list.classList.add('hidden');
+                unlockBackgroundScroll();
+            }
+        });
+        
+        chevron.addEventListener('click', (e) => { 
+            e.stopPropagation(); 
+            if (list.classList.contains('hidden')) {
+                window._renderNextTrainList();
+            } else {
+                list.classList.add('hidden');
+                unlockBackgroundScroll(); 
+            }
+        });
+        
+        document.addEventListener('click', (e) => { 
+            if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) {
+                if (!list.classList.contains('hidden')) {
+                    list.classList.add('hidden');
+                    unlockBackgroundScroll(); 
+                }
+            } 
+        });
+    }
+}
+
 // --- RENDERER BRIDGES ---
+
+function getRoutesForCurrentRegion() {
+    const regionalRoutes = {};
+    if (typeof ROUTES === 'undefined') return regionalRoutes;
+    for (const key in ROUTES) {
+        if (ROUTES[key].region === currentRegion) {
+            regionalRoutes[key] = ROUTES[key];
+        }
+    }
+    return regionalRoutes;
+}
+
 function renderSkeletonLoader(element) { if (element && typeof Renderer !== 'undefined') Renderer.renderSkeletonLoader(element); }
 
-// GUARDIAN UPDATE V4.60.19: Custom Placeholder Logic (Full Click Area, No Border)
 function renderPlaceholder() {
-    const triggerShake = "document.getElementById('station-select').classList.add('animate-shake', 'ring-4', 'ring-blue-300'); setTimeout(() => document.getElementById('station-select').classList.remove('animate-shake', 'ring-4', 'ring-blue-300'), 500); document.getElementById('station-select').focus();";
+    const triggerShake = `
+        const inp = document.getElementById('station-search-input');
+        const sel = document.getElementById('station-select');
+        const target = (inp && !inp.classList.contains('hidden')) ? inp : sel;
+        if(target) {
+            target.classList.add('animate-shake', 'ring-4', 'ring-blue-300'); 
+            setTimeout(() => target.classList.remove('animate-shake', 'ring-4', 'ring-blue-300'), 500); 
+            target.focus();
+        }
+    `;
     
     const placeholderHTML = `
-        <div onclick="${triggerShake}" class="h-24 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors group w-full">
-            <svg class="w-6 h-6 mb-1 opacity-50 group-hover:scale-110 transition-transform text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        <div onclick="${triggerShake.replace(/\n/g, ' ')}" class="h-24 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors group w-full">
+            <svg class="w-6 h-6 mb-1 opacity-50 group-hover:scale-110 transition-transform text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             <span class="text-xs font-bold group-hover:text-blue-500 transition-colors">Tap to select station</span>
         </div>`;
 
     if(pretoriaTimeEl) pretoriaTimeEl.innerHTML = placeholderHTML;
     if(pienaarspoortTimeEl) pienaarspoortTimeEl.innerHTML = placeholderHTML;
 
-    // GUARDIAN FIX V5.00.11: Force Fare Update even in placeholder state
-    // This allows the "Default Zone" logic to run and show general pricing
     if (typeof updateFareDisplay === 'function') {
         updateFareDisplay(null, null);
     }
@@ -154,7 +313,6 @@ function renderComingSoon(routeName) {
 }
 function renderAtDestination(element) { if (element && typeof Renderer !== 'undefined') Renderer.renderAtDestination(element); }
 
-// --- LOGIC BRIDGES ---
 function renderNoService(element, destination) {
     if (!element) return;
     const currentRoute = ROUTES[currentRouteId];
@@ -198,32 +356,29 @@ function processAndRenderJourney(allJourneys, element, header, destination) {
     }
 }
 
-// GUARDIAN FIX V5.01.00: Weekend Gap Protocol
-// Automatically fast-forwards to Monday if looking at Friday night/Weekend and no trains exist.
 function renderNextAvailableTrain(element, destination) {
     if (!element) return;
     const currentRoute = ROUTES[currentRouteId];
     if (!currentRoute) return;
 
-    // 1. Determine "Standard" Next Day
     let nextDayName = "", nextDaySheetKey = "", dayOffset = 1, nextDayType = 'weekday'; 
     let checkMondayFallback = false;
 
     switch (currentDayIndex) {
-        case 6: // Saturday -> Next is Monday
+        case 6: 
             nextDayName = "Monday"; 
             dayOffset = 2; 
             nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; 
             nextDayType = 'weekday'; 
             break;
-        case 5: // Friday -> Next is Saturday
+        case 5: 
             nextDayName = "Saturday"; 
             dayOffset = 1; 
             nextDaySheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b'; 
             nextDayType = 'saturday'; 
-            checkMondayFallback = true; // Enable fallback if Sat empty
+            checkMondayFallback = true; 
             break;
-        default: // Weekday -> Next is Tomorrow
+        default: 
             nextDayName = "tomorrow"; 
             dayOffset = 1; 
             nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; 
@@ -231,7 +386,6 @@ function renderNextAvailableTrain(element, destination) {
             break;
     }
 
-    // 2. Fetch Schedule
     let nextSchedule = schedules[nextDaySheetKey];
     let res = { allJourneys: [] };
     
@@ -243,11 +397,9 @@ function renderNextAvailableTrain(element, destination) {
 
     let firstTrainOfNextDay = res.allJourneys.find(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
 
-    // 3. Fallback Logic: If Friday night (looking at Sat) and no trains, check Monday
     if (!firstTrainOfNextDay && checkMondayFallback) {
-        // Switch context to Monday
         nextDayName = "Monday";
-        dayOffset = 3; // Fri -> Mon is 3 days
+        dayOffset = 3; 
         nextDayType = 'weekday';
         nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
         nextSchedule = schedules[nextDaySheetKey];
@@ -260,7 +412,6 @@ function renderNextAvailableTrain(element, destination) {
         }
     }
 
-    // 4. Final Render
     if (!firstTrainOfNextDay) { 
         element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400">No upcoming trains.</div>`; 
         return; 
@@ -269,7 +420,6 @@ function renderNextAvailableTrain(element, destination) {
     if (typeof Renderer !== 'undefined') Renderer.renderNextAvailableTrain(element, destination, firstTrainOfNextDay, nextDayName, nextDayType, dayOffset);
 }
 
-// GUARDIAN UPDATE V5.00.11: Smart Fare Handling
 function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     fareContainer = document.getElementById('fare-container');
     fareAmount = document.getElementById('fare-amount');
@@ -278,7 +428,6 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     if (!fareContainer) return;
     if (passengerTypeLabel) passengerTypeLabel.textContent = currentUserProfile;
 
-    // Reset Click Listener (Avoid duplication)
     const newFareContainer = fareContainer.cloneNode(true);
     fareContainer.parentNode.replaceChild(newFareContainer, fareContainer);
     fareContainer = newFareContainer;
@@ -286,17 +435,11 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     fareType = document.getElementById('fare-type');
     passengerTypeLabel = document.getElementById('passenger-type-label');
 
-    // Make it look interactive
     fareContainer.classList.add('cursor-pointer', 'hover:bg-blue-100', 'dark:hover:bg-gray-700', 'transition-colors', 'group', 'relative');
 
-    // 1. Attempt to Get Fare Data
     const fareData = getRouteFare(sheetKey, nextTrainTimeStr);
-    
-    // 2. Setup Detailed Modal Interaction
-    // If we have a fare (or at least a valid zone from fallback), enable the modal
     const detailed = typeof getDetailedFare === 'function' ? getDetailedFare(sheetKey) : null;
     
-    // Add chevron if interaction is possible
     if (detailed && detailed.prices) {
         fareContainer.onclick = () => openFareModal(detailed);
         
@@ -308,18 +451,14 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
             fareContainer.appendChild(chevron);
         }
     } else {
-        // No valid zone data at all
         const existingChevron = document.getElementById('fare-chevron');
         if(existingChevron) existingChevron.remove();
         fareContainer.classList.remove('cursor-pointer', 'hover:bg-blue-100', 'dark:hover:bg-gray-700');
     }
 
-    // 3. Render State
     if (fareData) {
-        // VALID FARE FOUND (Either via train or route default)
         fareAmount.textContent = `R${fareData.price}`;
         
-        // Case A: Specific Train (Time provided)
         if (nextTrainTimeStr) {
             if (fareData.isPromo) {
                 fareType.textContent = fareData.discountLabel || "Discounted";
@@ -335,8 +474,6 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
                 fareAmount.className = "text-xl font-black text-gray-900 dark:text-white";
             }
         } 
-        // Case B: General Route Pricing (No specific train yet)
-        // This is the "Zone 3 Pricing" Fix
         else {
             fareType.textContent = "General Pricing";
             fareType.className = "text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mb-2";
@@ -344,10 +481,7 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
         }
         
     } else {
-        // UNKNOWN ZONE (Graceful Degrade)
         fareAmount.textContent = "R --.--";
-        
-        // Check if we are loading vs actually missing data
         if (stationSelect && stationSelect.value) {
              fareType.textContent = "Rate Unavailable";
              fareType.className = "text-[10px] font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full mb-2";
@@ -361,124 +495,132 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     fareContainer.classList.remove('hidden');
 }
 
-// --- NEW V4.60.43: FARE TABLE MODAL (Updated) ---
 window.openFareModal = function(fareDetails) {
     if (!fareDetails) return;
-    
-    // TRACK ANALYTICS
     trackAnalyticsEvent('view_fare_modal', { zone: fareDetails.code });
 
-    // Lazy Load Modal HTML
     let modal = document.getElementById('fare-modal');
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'fare-modal';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-70 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+        modal.className = 'fixed inset-0 bg-black/80 z-[140] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
         modal.innerHTML = `
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-0 overflow-hidden transform transition-all scale-95">
-                <div class="p-4 bg-blue-600 dark:bg-blue-800 text-white flex justify-between items-center">
-                    <h3 class="font-bold text-lg">Ticket Prices</h3>
-                    <button onclick="document.getElementById('fare-modal').classList.add('hidden')" class="text-white hover:bg-white/20 rounded-full p-1">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-transform duration-300 scale-95 max-h-[85vh]">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-2xl shrink-0">
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center" id="fare-zone-badge">Ticket Prices</h3>
+                    <button onclick="closeSmoothModal('fare-modal')" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition focus:outline-none">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
-                <div class="p-6">
-                    <div id="fare-zone-badge" class="inline-block px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs font-bold text-gray-600 dark:text-gray-300 mb-4">
-                        Zone -- Pricing:
-                    </div>
-                    <div id="fare-table-content" class="space-y-3"></div>
+                <div class="p-6 overflow-y-auto flex-grow text-gray-700 dark:text-gray-300">
+                    <div id="fare-table-content" class="space-y-0"></div>
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400 text-center mt-6">Prices are subject to change. Confirm at station.</p>
                 </div>
-                <div class="p-3 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 text-center">
-                    <button onclick="document.getElementById('fare-modal').classList.add('hidden')" class="w-full text-sm font-bold text-blue-600 py-2">Close</button>
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-2xl shrink-0">
+                    <button onclick="closeSmoothModal('fare-modal')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors focus:outline-none">
+                        Close
+                    </button>
                 </div>
             </div>
         `;
         document.body.appendChild(modal);
     }
 
-    // Populate Data
     const zoneEl = document.getElementById('fare-zone-badge');
     const tableEl = document.getElementById('fare-table-content');
     
-    zoneEl.textContent = `Zone ${fareDetails.code} Pricing:`;
+    zoneEl.innerHTML = `Ticket Prices <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 ml-2 px-2 py-0.5 rounded-full uppercase tracking-widest">Zone ${fareDetails.code}</span>`;
 
-    // Calculate Prices based on Profile
     const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
     const prices = fareDetails.prices;
     
     const calc = (basePrice) => (Math.ceil((basePrice * profile.base) * 2) / 2).toFixed(2);
     
-    // Generate Rows (Updated V4.60.42: Includes split weekly tickets)
     tableEl.innerHTML = `
-        <div class="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
-            <span class="text-gray-600 dark:text-gray-400 text-sm">Single Trip</span>
-            <span class="font-bold text-gray-900 dark:text-white">R${calc(prices.single)}</span>
+        <div class="flex justify-between items-center py-3 border-b border-dashed border-gray-300 dark:border-gray-600">
+            <span class="text-gray-600 dark:text-gray-400 text-sm font-bold">Single Trip</span>
+            <span class="font-black text-gray-900 dark:text-white text-lg">R${calc(prices.single)}</span>
         </div>
-        <div class="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
-            <span class="text-gray-600 dark:text-gray-400 text-sm">Return Trip</span>
-            <span class="font-bold text-gray-900 dark:text-white">R${calc(prices.return)}</span>
+        <div class="flex justify-between items-center py-3 border-b border-dashed border-gray-300 dark:border-gray-600">
+            <span class="text-gray-600 dark:text-gray-400 text-sm font-bold">Return Trip</span>
+            <span class="font-black text-gray-900 dark:text-white text-lg">R${calc(prices.return)}</span>
         </div>
-        <div class="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700 bg-green-50 dark:bg-green-900/10 -mx-2 px-2 rounded">
-            <span class="text-green-700 dark:text-green-400 text-sm font-bold">Weekly (Mon-Fri)</span>
-            <span class="font-bold text-green-700 dark:text-green-400">R${calc(prices.weekly_mon_fri)}</span>
+        <div class="flex justify-between items-center py-3 border-b border-dashed border-gray-300 dark:border-gray-600">
+            <span class="text-gray-600 dark:text-gray-400 text-sm font-bold">Weekly <span class="opacity-70 font-normal">(Mon-Fri)</span></span>
+            <span class="font-black text-gray-900 dark:text-white text-lg">R${calc(prices.weekly_mon_fri)}</span>
         </div>
-        <div class="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700 bg-green-50 dark:bg-green-900/10 -mx-2 px-2 rounded">
-            <span class="text-green-700 dark:text-green-400 text-sm font-bold">Weekly (Mon-Sat)</span>
-            <span class="font-bold text-green-700 dark:text-green-400">R${calc(prices.weekly_mon_sat)}</span>
+        <div class="flex justify-between items-center py-3 border-b border-dashed border-gray-300 dark:border-gray-600">
+            <span class="text-gray-600 dark:text-gray-400 text-sm font-bold">Weekly <span class="opacity-70 font-normal">(Mon-Sat)</span></span>
+            <span class="font-black text-gray-900 dark:text-white text-lg">R${calc(prices.weekly_mon_sat)}</span>
         </div>
-        <div class="flex justify-between items-center py-2 bg-blue-50 dark:bg-blue-900/10 -mx-2 px-2 rounded">
-            <span class="text-blue-700 dark:text-blue-400 text-sm font-bold">Monthly</span>
-            <span class="font-bold text-blue-700 dark:text-blue-400">R${calc(prices.monthly)}</span>
+        <div class="flex justify-between items-center py-3">
+            <span class="text-gray-600 dark:text-gray-400 text-sm font-bold">Monthly Pass</span>
+            <span class="font-black text-gray-900 dark:text-white text-lg">R${calc(prices.monthly)}</span>
         </div>
     `;
 
-    modal.classList.remove('hidden');
+    openSmoothModal('fare-modal');
 };
 
 // --- UTILS ---
 
-// GUARDIAN V5.10.20: Enforced 5s Max Duration, Close Button, and Anti-Peeking CSS
 function showToast(message, type = 'info', duration = 2500, actionHTML = '') { 
     if (toastTimeout) clearTimeout(toastTimeout); 
     
-    // 1. Cap duration at 5000ms (5 seconds) max to prevent lingering
     const safeDuration = Math.min(duration, 5000);
 
-    // 2. Inject Guardian Anti-Peeking CSS (Failsafe for tall toasts)
-    // We append this dynamically so we don't have to touch index.html or custom.css
     if (!document.getElementById('toast-guardian-style')) {
         const style = document.createElement('style');
         style.id = 'toast-guardian-style';
         style.innerHTML = `
-            #toast { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease !important; }
-            #toast:not(.show) { transform: translateY(150%) !important; opacity: 0 !important; pointer-events: none !important; bottom: -20px !important; }
-            #toast.show { transform: translateY(0) !important; opacity: 1 !important; pointer-events: auto !important; }
+            #toast { 
+                position: fixed; 
+                bottom: 24px; 
+                left: 50%; 
+                transform: translateX(-50%) translateY(150%); 
+                opacity: 0; 
+                transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease; 
+                pointer-events: none; 
+                z-index: 9999;
+                width: max-content;
+                max-width: 90vw;
+            }
+            #toast.show { 
+                transform: translateX(-50%) translateY(0); 
+                opacity: 1; 
+                pointer-events: auto; 
+            }
         `;
         document.head.appendChild(style);
     }
 
-    // 3. Standardized Layout with Explicit Close Button
+    let bgClass = "bg-gray-900/90 dark:bg-gray-800/95";
+    let textClass = "text-white";
+    let borderClass = "border-gray-700 dark:border-gray-600";
+    let iconHTML = '';
+
+    if (type === 'success') {
+        bgClass = "bg-green-900/95 dark:bg-green-800/95";
+        borderClass = "border-green-700 dark:border-green-600";
+        iconHTML = `<svg class="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
+    } else if (type === 'error') {
+        bgClass = "bg-red-900/95 dark:bg-red-800/95";
+        borderClass = "border-red-700 dark:border-red-600";
+        iconHTML = `<svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+    }
+
+    toast.className = `flex items-center justify-between px-4 py-3 rounded-full shadow-2xl backdrop-blur-md border ${bgClass} ${borderClass} ${textClass}`; 
+
     toast.innerHTML = `
-        <div class="flex items-center justify-between w-full gap-3">
-            <div class="flex-grow text-left text-sm font-medium">
-                ${message}
-            </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-                ${actionHTML}
-                <button onclick="document.getElementById('toast').classList.remove('show')" class="text-white/70 hover:text-white bg-black/10 hover:bg-black/30 rounded-full p-1.5 transition-colors focus:outline-none" aria-label="Close Toast">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
+        <div class="flex items-center gap-2">
+            ${iconHTML}
+            <span class="text-sm font-medium tracking-wide whitespace-nowrap">${message}</span>
         </div>
+        ${actionHTML ? `<div class="ml-3 pl-3 border-l border-white/20">${actionHTML}</div>` : ''}
     `;
-    
-    toast.className = `toast-info`; 
-    if (type === 'success') toast.classList.add('toast-success'); 
-    else if (type === 'error') toast.classList.add('toast-error'); 
     
     toast.classList.add('show'); 
     
-    // Apply safe duration cap
     toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, safeDuration); 
 }
 
@@ -486,53 +628,53 @@ function copyToClipboard(text) { const textArea = document.createElement('textar
 
 function loadUserProfile() {
     profileModal = document.getElementById('profile-modal');
-    navProfileDisplay = document.getElementById('nav-profile-display');
+    const settingsProfileDisplay = document.getElementById('settings-profile-display');
     const savedProfile = localStorage.getItem('userProfile');
     
-    // UPDATE V4.60.41: Auto-Select Adult if New User
     if (savedProfile) {
         currentUserProfile = savedProfile;
     } else {
-        // Silent default for new users (UX improvement)
         currentUserProfile = "Adult";
         localStorage.setItem('userProfile', "Adult");
     }
     
-    // Ensure UI is synced
-    if(navProfileDisplay) navProfileDisplay.textContent = currentUserProfile;
-    
-    // Check URL params for edge case overrides (optional but safe to keep)
-    const urlParams = new URLSearchParams(window.location.search);
-    if (!savedProfile && !urlParams.has('action') && !urlParams.has('route')) {
-        // We used to show modal here. Now we skip it.
-        // If you ever want to force the modal back for marketing, uncomment below:
-        // if(profileModal) profileModal.classList.remove('hidden');
-    }
+    if(settingsProfileDisplay) settingsProfileDisplay.textContent = currentUserProfile;
 }
 
 window.selectProfile = function(profileType) {
     currentUserProfile = profileType;
     localStorage.setItem('userProfile', profileType);
-    if(navProfileDisplay) navProfileDisplay.textContent = profileType;
-    if(profileModal) profileModal.classList.add('hidden');
+    
+    const settingsProfileDisplay = document.getElementById('settings-profile-display');
+    if(settingsProfileDisplay) settingsProfileDisplay.textContent = profileType;
+    
+    if(profileModal) {
+        closeSmoothModal('profile-modal');
+    }
     showToast(`Profile set to: ${profileType}`, "success");
     findNextTrains(); 
 };
 
 window.resetProfile = function() {
-    if(profileModal) profileModal.classList.remove('hidden');
-    if(sidenav) { sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open'); }
+    if(profileModal) {
+        history.pushState({ modal: 'profile' }, '', '#profile');
+        openSmoothModal('profile-modal');
+        window.closeAppHub(); 
+    }
 };
 
 function updatePinUI() {
-    const savedDefault = localStorage.getItem('defaultRoute'); 
+    const savedDefault = localStorage.getItem('defaultRoute_' + currentRegion); 
     const isPinned = savedDefault === currentRouteId;
-    if (isPinned) { pinOutline.classList.add('hidden'); pinFilled.classList.remove('hidden'); pinRouteBtn.title = "Unpin this route"; } else { pinOutline.classList.remove('hidden'); pinFilled.classList.add('hidden'); pinRouteBtn.title = "Pin this route as default"; }
-    if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', ROUTES, currentRouteId);
+    if (pinOutline && pinFilled && pinRouteBtn) {
+        if (isPinned) { pinOutline.classList.add('hidden'); pinFilled.classList.remove('hidden'); pinRouteBtn.title = "Unpin this route"; } 
+        else { pinOutline.classList.remove('hidden'); pinFilled.classList.add('hidden'); pinRouteBtn.title = "Pin this route as default"; }
+    }
+    if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), currentRouteId);
 }
 
 function updateSidebarActiveState() {
-    if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', ROUTES, currentRouteId);
+    if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), currentRouteId);
 }
 
 function updateLastUpdatedText() {
@@ -602,16 +744,20 @@ function updateTime() {
     } catch(e) { console.error("Error in updateTime", e); }
 }
 
-// --- DEEP LINK HANDLER (UPDATED V5.00.01 - LOOP FIX) ---
-// Now supports Grid Deep Links via 'view=grid', 'dir', and 'day' parameters
 function handleShortcutActions() {
     const urlParams = new URLSearchParams(window.location.search);
     const action = urlParams.get('action');
     const route = urlParams.get('route');
     const view = urlParams.get('view'); 
+    const linkRegion = urlParams.get('region'); 
 
-    // GUARDIAN FIX V5.00.01: Clean URL IMMEDIATELY to prevent reload loops
-    // If the renderer crashes or user refreshes, we want a clean state so it doesn't loop.
+    if (linkRegion && typeof currentRegion !== 'undefined' && linkRegion !== currentRegion) {
+        console.log(`[DeepLink] Region mismatch. Switching from ${currentRegion} to ${linkRegion} and reloading...`);
+        localStorage.setItem('userRegion', linkRegion);
+        window.location.href = window.location.href; 
+        return; 
+    }
+
     if (action || route) {
         const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
         window.history.replaceState({path: newUrl}, '', newUrl);
@@ -620,20 +766,24 @@ function handleShortcutActions() {
 
     if (route && ROUTES[route]) {
         console.log(`[DeepLink] Auto-loading route: ${route}`);
+        
+        if (ROUTES[route].region && ROUTES[route].region !== currentRegion) {
+            localStorage.setItem('userRegion', ROUTES[route].region);
+            window.location.href = window.location.href; 
+            return;
+        }
+
         if (ROUTES[route].isActive) {
             currentRouteId = route;
             if (welcomeModal) welcomeModal.classList.add('hidden');
             loadAllSchedules().then(() => {
                 trackAnalyticsEvent('deep_link_open', { type: 'route', route_id: route });
-                // GUARDIAN UPDATE V4.60.30: Reduced Toast Duration (2s)
                 showToast(`Opened shared route: ${ROUTES[route].name}`, "success", 2000);
                 
-                // GUARDIAN UPDATE V4.60.60: Grid View Deep Link
                 if (view === 'grid') {
                     const direction = urlParams.get('dir') || 'A';
                     const dayOverride = urlParams.get('day') || null;
                     if (typeof renderFullScheduleGrid === 'function') {
-                        // Delay slightly to ensure UI is ready
                         setTimeout(() => {
                             renderFullScheduleGrid(direction, dayOverride);
                         }, 500);
@@ -651,9 +801,8 @@ function handleShortcutActions() {
         const timeParam = urlParams.get('time');
         switchTab('trip-planner');
         
-        // GUARDIAN UPDATE V4.60.33: Timeout Logic for Planner Deep Link
         let attempts = 0;
-        const maxAttempts = 20; // 10 seconds max
+        const maxAttempts = 20; 
 
         const checkReady = setInterval(() => {
             attempts++;
@@ -677,8 +826,14 @@ function handleShortcutActions() {
                     const daySelect = document.getElementById('planner-day-select');
                     if (fromSelect) fromSelect.value = fromId;
                     if (toSelect) toSelect.value = toId;
-                    if (fromInput) fromInput.value = fromId.replace(' STATION', '');
-                    if (toInput) toInput.value = toId.replace(' STATION', '');
+                    if (fromInput) {
+                        fromInput.value = fromId.replace(' STATION', '');
+                        fromInput.dataset.resolvedValue = fromId;
+                    }
+                    if (toInput) {
+                        toInput.value = toId.replace(' STATION', '');
+                        toInput.dataset.resolvedValue = toId;
+                    }
                     if (daySelect && dayParam) { daySelect.value = dayParam; selectedPlannerDay = dayParam; }
                     if (typeof executeTripPlan === 'function') {
                         executeTripPlan(fromId, toId, timeParam);
@@ -694,28 +849,27 @@ function handleShortcutActions() {
                 showToast("Connection timeout: Could not load trip data.", "error");
             }
         }, 500);
-        // Note: Clean up logic is now handled at top of function
     } else if (action === 'map') {
         if (typeof setupMapLogic === 'function') {
             const mapModal = document.getElementById('map-modal');
             if (mapModal) {
-                mapModal.classList.remove('hidden');
+                openSmoothModal('map-modal');
                 history.pushState({ modal: 'map' }, '', '#map');
                 const mapImage = document.getElementById('map-image');
                 if(mapImage) mapImage.style.transform = `translate(0px, 0px) scale(1)`;
             }
         }
-        // Note: Clean up logic is now handled at top of function
     }
 }
 
-// --- CACHE CLEAR LOGIC (PHASE 3) ---
 window.performHardCacheClear = function() {
+    window.closeAppHub(true); // GUARDIAN: Bypass automatic history.back() to prevent race condition
     showToast("Clearing offline data and syncing...", "info", 5000);
     const modal = document.getElementById('cache-clear-modal');
-    if (modal) modal.classList.add('hidden');
+    if (modal) {
+        closeSmoothModal('cache-clear-modal');
+    }
     
-    // 1. Unregister Service Workers
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(registrations => {
             for (let registration of registrations) {
@@ -724,7 +878,6 @@ window.performHardCacheClear = function() {
         });
     }
 
-    // 2. Clear caches API (HTML, CSS, JS, Images)
     if ('caches' in window) {
         caches.keys().then(names => {
             for (let name of names) {
@@ -733,41 +886,42 @@ window.performHardCacheClear = function() {
         });
     }
     
-    // 3. Clear App Data Storage (Force fresh pull from Firebase)
-    // We intentionally keep userProfile, defaultRoute, and plannerHistory
-    localStorage.removeItem('full_db');
+    localStorage.removeItem(`full_db_${currentRegion}`); 
     localStorage.removeItem('app_installed_version');
     
-    // 4. Force Reload
     setTimeout(() => {
         window.location.reload(true);
     }, 800);
 };
 
-function showCacheClearWarning() {
+window.showCacheClearWarning = function() {
+    window.closeAppHub(true); // GUARDIAN: Bypass automatic history.back() to prevent race condition
     let modal = document.getElementById('cache-clear-modal');
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'cache-clear-modal';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-70 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+        modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-md z-[140] hidden flex items-center justify-center p-4 transition-opacity duration-300';
         modal.innerHTML = `
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
                 <div class="text-center">
-                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900 mb-4">
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900 mb-4 shadow-inner">
                         <svg class="h-6 w-6 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                     </div>
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Sync Latest Schedule?</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">This will clear your offline cache and download the absolute latest train times from the server. Use this if you suspect the times are outdated.</p>
+                    <h3 class="text-xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Sync Latest Schedule?</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">This will clear your offline cache and download the absolute latest train times from the server.</p>
                     <div class="flex space-x-3">
-                        <button onclick="document.getElementById('cache-clear-modal').classList.add('hidden')" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg transition-colors">Cancel</button>
-                        <button onclick="performHardCacheClear()" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">Sync Now</button>
+                        <button onclick="closeSmoothModal('cache-clear-modal')" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors focus:outline-none">Cancel</button>
+                        <button onclick="performHardCacheClear()" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none">Sync Now</button>
                     </div>
                 </div>
             </div>
         `;
         document.body.appendChild(modal);
     }
-    modal.classList.remove('hidden');
+    
+    // GUARDIAN: Keep state router pure
+    history.replaceState({ modal: 'cache-clear-modal' }, '', '#cacheclear');
+    openSmoothModal('cache-clear-modal');
 }
 
 function initializeApp() {
@@ -775,53 +929,50 @@ function initializeApp() {
         const newPath = window.location.pathname.replace('index.html', '');
         window.history.replaceState({}, '', newPath + window.location.search + window.location.hash);
     }
+    
+    // GUARDIAN Phase 9: Exit Trap Initialization
+    if (!sessionStorage.getItem('exitTrapSet')) {
+        history.replaceState({ view: 'exit-trap' }, '', '#exit');
+        history.pushState({ view: 'home' }, '', '#home');
+        sessionStorage.setItem('exitTrapSet', 'true');
+    }
+
     loadUserProfile(); 
     populateStationList();
     if (typeof initPlanner === 'function') initPlanner();
-    if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', ROUTES, currentRouteId);
+    if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), currentRouteId);
     startClock();
     const urlParams = new URLSearchParams(window.location.search);
     if (!urlParams.has('action') && !urlParams.has('route')) { findNextTrains(); }
     checkServiceAlerts();
-    checkMaintenanceStatus(); // NEW: V5.00.00
+    checkMaintenanceStatus(); 
     handleShortcutActions();
     
-    // GUARDIAN FIX V5.01: "Double Screen" Nightmare Fix
-    // Only display mainContent if a route is actually selected. 
-    // If it's a first run, the Welcome Modal manages showing this later.
     if(mainContent && currentRouteId) {
         mainContent.style.display = 'block';
     }
     
-    // GUARDIAN UPDATE V4.60.18: Force Trigger Visible on Init
     updateNextTrainView();
     if(!stationSelect.value) renderPlaceholder();
 
     if (navigator.onLine) { setTimeout(OfflineTracker.flush, 5000); }
 }
 
-// GUARDIAN UPDATE V5.00.00: Maintenance Mode Checker
-// UPDATED V5.00.10: Fix positioning (inside main-content)
 async function checkMaintenanceStatus() {
-    if (!navigator.onLine) return; // Only relevant for online users
+    if (!navigator.onLine) return; 
     try {
         const res = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/config/maintenance.json`);
         const isActive = await res.json();
         
         if (isActive === true) {
-            // Check if banner already exists
             if (!document.getElementById('maintenance-banner')) {
                 const mainCard = document.getElementById('main-content');
                 if (mainCard) {
                     const banner = document.createElement('div');
                     banner.id = 'maintenance-banner';
-                    // Striped Yellow Background
                     banner.style.background = 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 10px, #d97706 10px, #d97706 20px)';
-                    // Match offline-indicator positioning (Absolute top of card)
                     banner.className = "absolute top-0 left-0 w-full z-50 text-white text-[10px] font-bold text-center py-1 shadow-sm";
                     banner.innerHTML = `⚠️ MAINTENANCE IN PROGRESS`;
-                    
-                    // Insert into Main Card at top
                     mainCard.prepend(banner);
                 }
             }
@@ -829,7 +980,6 @@ async function checkMaintenanceStatus() {
     } catch(e) { /* silent fail */ }
 }
 
-// GUARDIAN UPDATE V5.00.00: Tiered Service Alerts
 async function checkServiceAlerts() {
     const bellBtn = document.getElementById('notice-bell');
     const dot = document.getElementById('notice-dot');
@@ -843,7 +993,6 @@ async function checkServiceAlerts() {
         const notices = await response.json();
         if (!notices) { bellBtn.classList.add('hidden'); return; }
         
-        // Priority: Route Specific > Global
         let activeNotice = notices[currentRouteId] || notices['all'];
         
         if (activeNotice) {
@@ -853,23 +1002,19 @@ async function checkServiceAlerts() {
             const seenKey = `seen_notice_${activeNotice.id}`;
             const hasSeen = localStorage.getItem(seenKey) === 'true';
             
-            // TIERED ALERT LOGIC
             const severity = activeNotice.severity || 'info';
             
-            // Reset Classes
-            bellBtn.className = "relative p-2 rounded-full focus:outline-none mr-1 transition-all duration-300";
-            dot.className = "absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white transform translate-x-1/4 -translate-y-1/4 hidden";
+            bellBtn.className = "absolute top-4 right-4 z-50 p-1.5 rounded-full bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 shadow-md focus:outline-none hover:scale-105 transition-transform";
+            dot.className = "absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white dark:ring-gray-800 bg-red-600 transform translate-x-1/4 -translate-y-1/4 hidden";
             
-            // Apply Severity Styles
             if (severity === 'critical') {
                 bellBtn.classList.add('bg-red-100', 'dark:bg-red-900', 'text-red-600', 'dark:text-red-300');
                 dot.classList.add('bg-red-600');
-                if (!hasSeen) bellBtn.classList.add('animate-shake'); // Only critical shakes
+                if (!hasSeen) bellBtn.classList.add('animate-shake'); 
             } else if (severity === 'warning') {
                 bellBtn.classList.add('bg-yellow-100', 'dark:bg-yellow-900', 'text-yellow-600', 'dark:text-yellow-300');
                 dot.classList.add('bg-yellow-500');
             } else {
-                // Info (Blue)
                 bellBtn.classList.add('bg-blue-100', 'dark:bg-blue-900', 'text-blue-600', 'dark:text-blue-300');
                 dot.classList.add('bg-blue-500');
             }
@@ -878,14 +1023,13 @@ async function checkServiceAlerts() {
             if (!hasSeen) dot.classList.remove('hidden');
 
             bellBtn.onclick = () => {
+                triggerHaptic();
                 localStorage.setItem(seenKey, 'true');
                 bellBtn.classList.remove('animate-shake');
                 dot.classList.add('hidden');
                 
-                // Content Rendering
                 content.innerHTML = activeNotice.message;
                 
-                // Inject "Verified" Badge if Critical
                 if (severity === 'critical') {
                     content.innerHTML += `<div class="mt-3 text-xs text-red-600 font-bold border border-red-200 bg-red-50 p-2 rounded text-center">🔴 CRITICAL SERVICE DISRUPTION</div>`;
                 }
@@ -893,30 +1037,50 @@ async function checkServiceAlerts() {
                 const date = new Date(activeNotice.postedAt);
                 timestamp.textContent = `Posted: ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, ${date.toLocaleDateString()}`;
                 
-                // NEW: Boss Note Button Injection (Hook for Step 3)
-                // We will add a container div here for the button to be injected by Renderer later if needed
-                // For now, we keep it simple.
-                
-                modal.classList.remove('hidden');
+                history.pushState({ modal: 'notice' }, '', '#notice');
+                openSmoothModal('notice-modal');
             };
+            
+            const closeBtn = modal.querySelector('button.bg-red-600');
+            const topCloseBtn = modal.querySelector('button.text-gray-400');
+            
+            const closeNotice = () => {
+                if(location.hash === '#notice') history.back();
+                else closeSmoothModal('notice-modal');
+            };
+            
+            if (closeBtn) closeBtn.onclick = closeNotice;
+            if (topCloseBtn) topCloseBtn.onclick = closeNotice;
+
         } else { bellBtn.classList.add('hidden'); }
     } catch (e) { console.warn("Alert check failed:", e); }
 }
 
+// GUARDIAN V6.19: Decoupled Planner State Sync
 function syncPlannerFromMain(stationName) {
     if (!stationName) return;
     const plannerInput = document.getElementById('planner-from-search');
     const plannerSelect = document.getElementById('planner-from');
     if (plannerInput && plannerSelect) {
+        if (!plannerSelect.querySelector(`option[value="${stationName}"]`)) {
+            const opt = document.createElement('option');
+            opt.value = stationName;
+            opt.textContent = stationName;
+            plannerSelect.appendChild(opt);
+        }
         plannerSelect.value = stationName;
         plannerInput.value = stationName.replace(' STATION', '');
+        plannerInput.dataset.resolvedValue = stationName;
     }
 }
 
 function setupModalButtons() { 
+    // GUARDIAN V6.18: Removed brittle inline overflow styles and injected global unlock
     const closeAction = () => { 
         if (location.hash === '#schedule') history.back();
-        else { scheduleModal.classList.add('hidden'); document.body.style.overflow = ''; }
+        else { 
+            closeSmoothModal('schedule-modal'); 
+        }
     }; 
     closeModalBtn.addEventListener('click', closeAction); 
     closeModalBtn2.addEventListener('click', closeAction); 
@@ -924,13 +1088,17 @@ function setupModalButtons() {
 }
 
 function switchTab(tab) {
+    triggerHaptic();
+    // GUARDIAN FIX: Tabs strictly replaceState to prevent infinite history loops
     if (tab === 'trip-planner') {
-        if (location.hash !== '#planner') history.pushState({ tab: 'planner' }, '', '#planner');
+        if (location.hash !== '#planner') history.replaceState({ tab: 'planner' }, '', '#planner');
     } else {
-        if (location.hash === '#planner') history.replaceState({ tab: 'next-train' }, '', ' '); 
+        if (location.hash !== '#home') history.replaceState({ tab: 'next-train' }, '', '#home'); 
     }
+    
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+    
     let targetBtn;
     if (tab === 'next-train') {
         targetBtn = document.getElementById('tab-next-train');
@@ -939,35 +1107,84 @@ function switchTab(tab) {
         targetBtn = document.getElementById('tab-trip-planner');
         document.getElementById('view-trip-planner').classList.add('active');
     }
+    
     if(targetBtn) { 
         targetBtn.classList.add('active'); 
-        // GUARDIAN FIX V4.60.42: Delay tab indicator update to ensure layout stability
         setTimeout(() => moveTabIndicator(targetBtn), 50); 
     }
     localStorage.setItem('activeTab', tab);
 }
 
+// GUARDIAN Phase 9: Unified App Router Stack & Exit Trap
 window.addEventListener('popstate', (event) => {
-    const modals = [
-        { id: 'schedule-modal', hash: '#schedule' },
-        { id: 'map-modal', hash: '#map' },
-        { id: 'legal-modal', hash: '#legal' },
-        { id: 'help-modal', hash: '#help' },
-        { id: 'about-modal', hash: '#about' },
-        { id: 'full-schedule-modal', hash: '#grid' },
-        { id: 'changelog-modal', hash: '#changelog' } // NEW: Changelog support
+    const hash = location.hash;
+
+    // EXIT TRAP PROTOCOL
+    if (hash === '#exit') {
+        const activeTab = localStorage.getItem('activeTab');
+        
+        if (activeTab === 'trip-planner') {
+            // Smart Intercept: Route from Planner back to Home Tab instead of exiting
+            history.pushState({ view: 'home' }, '', '#home');
+            switchTab('next-train');
+            return;
+        } else {
+            // Root Level: Trigger Exit Confirmation
+            openSmoothModal('exit-modal');
+            // Bounce state forward so they don't exit the app yet
+            history.pushState({ view: 'home' }, '', '#home');
+            return;
+        }
+    }
+
+    if (document.body.classList.contains('sidenav-open')) {
+        window.closeAppHub(true);
+        return; 
+    }
+
+    const activeModals = [];
+    const modalIds = [
+        'pin-modal', 'dev-modal', 'about-modal', 'help-modal', 'legal-modal', 
+        'profile-modal', 'notice-modal', 'cache-clear-modal', 'fare-modal', 
+        'schedule-modal', 'full-schedule-modal', 'map-modal', 'redirect-modal', 'welcome-modal', 'changelog-modal', 'region-confirm-modal',
+        'route-modal', 'install-modal'
     ];
-    let modalClosed = false;
-    modals.forEach(m => {
-        const el = document.getElementById(m.id);
+    
+    modalIds.forEach(id => {
+        const el = document.getElementById(id);
         if (el && !el.classList.contains('hidden')) {
-            el.classList.add('hidden');
-            document.body.style.overflow = ''; 
-            modalClosed = true;
+            activeModals.push(id);
         }
     });
-    if (modalClosed) return;
-    if (!location.hash) {
+
+    if (activeModals.length > 0) {
+        const topTier = ['pin-modal', 'dev-modal', 'notice-modal', 'cache-clear-modal', 'fare-modal', 'about-modal', 'help-modal', 'legal-modal', 'profile-modal', 'changelog-modal', 'region-confirm-modal', 'route-modal', 'install-modal'];
+        const midTier = ['schedule-modal', 'full-schedule-modal', 'redirect-modal', 'welcome-modal'];
+        const baseTier = ['map-modal'];
+
+        let modalToClose = null;
+        for (const id of topTier) { if (activeModals.includes(id)) { modalToClose = id; break; } }
+        if (!modalToClose) { for (const id of midTier) { if (activeModals.includes(id)) { modalToClose = id; break; } } }
+        if (!modalToClose) { for (const id of baseTier) { if (activeModals.includes(id)) { modalToClose = id; break; } } }
+
+        if (modalToClose) {
+            closeSmoothModal(modalToClose);
+            
+            // GHOST STATE HEALER: If back-press landed on a closed sidenav, pop again
+            if (location.hash === '#sidenav' && !document.body.classList.contains('sidenav-open')) {
+                setTimeout(() => history.back(), 10);
+            }
+            return; 
+        }
+    }
+
+    // GHOST STATE HEALER: Standalone check
+    if (location.hash === '#sidenav' && !document.body.classList.contains('sidenav-open')) {
+         history.back();
+         return;
+    }
+
+    if (!location.hash || location.hash === '#home') {
         const activeTab = localStorage.getItem('activeTab');
         if (activeTab === 'trip-planner') switchTab('next-train');
     }
@@ -989,25 +1206,26 @@ function initTabIndicator() {
         style.innerHTML = `.tab-btn { border-bottom-color: transparent !important; } .tab-btn.active { border-bottom-color: transparent !important; }`;
         document.head.appendChild(style);
     }
-    const activeBtn = document.querySelector('.tab-btn.active') || tabNext;
     
-    // GUARDIAN FIX V5.00.02: Lazy Selector to fix Race Condition (Ghost Revert)
-    // We re-query the DOM inside the timeout to ensure we capture the state *after* Deep Links have processed.
-    requestAnimationFrame(() => {
-        setTimeout(() => {
-            const currentActive = document.querySelector('.tab-btn.active') || document.getElementById('tab-next-train');
-            if (currentActive) moveTabIndicator(currentActive);
-        }, 150); // Slight bump to 150ms to be safe
-    });
+    const updateIndicator = () => {
+        const currentActive = document.querySelector('.tab-btn.active') || document.getElementById('tab-next-train');
+        if (currentActive) moveTabIndicator(currentActive);
+    };
+
+    if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => requestAnimationFrame(updateIndicator));
+        ro.observe(container);
+    } else {
+        requestAnimationFrame(() => setTimeout(updateIndicator, 150)); 
+    }
     
-    window.addEventListener('resize', () => { const current = document.querySelector('.tab-btn.active'); if (current) moveTabIndicator(current); });
+    window.addEventListener('resize', updateIndicator);
 }
 
 function moveTabIndicator(element) {
     const indicator = document.getElementById('tab-sliding-indicator');
     if (!indicator || !element) return;
     
-    // GUARDIAN FIX V4.60.31: Use requestAnimationFrame for layout accuracy
     requestAnimationFrame(() => {
         indicator.style.width = `${element.offsetWidth}px`;
         indicator.style.transform = `translateX(${element.offsetLeft}px)`;
@@ -1040,7 +1258,6 @@ function setupSwipeNavigation() {
     }, {passive: true});
 }
 
-// --- UPDATED MODAL LOGIC (Supports dayOverride) ---
 window.openScheduleModal = function(destination, dayOverride = null) {
     history.pushState({ modal: 'schedule' }, '', '#schedule');
     let journeys = [];
@@ -1062,14 +1279,12 @@ window.openScheduleModal = function(destination, dayOverride = null) {
     }
     if (!journeys || journeys.length === 0) { showToast("No trains found for this schedule.", "error"); return; }
     
-    // UPDATED V4.60.20: Use "From [Current] towards [Dest]" format
     let fromStationName = "Upcoming Trains";
     if (stationSelect && stationSelect.value) {
         fromStationName = stationSelect.value.replace(' STATION', '');
     }
     modalTitle.textContent = `${fromStationName} -> ${destination.replace(' STATION', '')}${titleSuffix}`; 
     
-    // GUARDIAN HELPER: Local Title Case
     const toTitleCase = (str) => {
         if (!str) return '';
         return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
@@ -1101,9 +1316,7 @@ window.openScheduleModal = function(destination, dayOverride = null) {
         const formattedDep = formatTimeDisplay(dep);
         let rightPillHTML = "";
         
-        // GUARDIAN UPDATE V5.01: "Direct" Label Logic Correction
-        // UPDATED V5.00.13: Integrated Orange Badge for Short Trains
-        let terminationBadge = ""; // Default empty
+        let terminationBadge = ""; 
         let isShortTrip = false;
         let shortDestName = "";
 
@@ -1113,37 +1326,29 @@ window.openScheduleModal = function(destination, dayOverride = null) {
             if (actual !== target) {
                 isShortTrip = true;
                 shortDestName = toTitleCase(j.actualDestination.replace(' STATION', ''));
-                // REQ CHANGE: No text badge for short trips, we use the orange pill instead.
                 terminationBadge = ""; 
             }
         }
 
         if (modalTag && modalTag !== "") { 
-            // If it's a shared/divergent train, the tag already explains it
             rightPillHTML = modalTag; 
             modalTag = ""; 
         } else {
             if (type === 'Direct') {
                 if (isShortTrip) {
-                    // ORANGE BADGE for Short Trains
                     rightPillHTML = `<span class="text-[10px] font-bold text-orange-700 bg-orange-100 dark:text-orange-300 dark:bg-orange-900 px-2 py-0.5 rounded-full uppercase whitespace-nowrap">To ${shortDestName}</span>`;
                 } else {
-                    // GREEN BADGE for Full Route
                     rightPillHTML = '<span class="text-[10px] font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900 px-2 py-0.5 rounded-full uppercase">Direct</span>';
                 }
             } else {
-                // GUARDIAN UPDATE V5.01: Headboard Aware Labeling
                 let transferLabel = "";
                 let transferSubtext = "";
                 
-                // If the train has a specific headboard destination (from logic.js Horizon Scanner)
                 if (j.train1 && j.train1.headboardDestination) {
                     const hbDest = toTitleCase(j.train1.headboardDestination.replace(/ STATION/g, ''));
-                    // We use "To [Dest]" prominently
                     transferLabel = `To ${hbDest}`;
                     transferSubtext = " ";
                 } else {
-                    // Fallback to standard Hub labeling
                     const transferHub = toTitleCase(j.train1.terminationStation.replace(' STATION',''));
                     transferLabel = `Transfer @ ${transferHub}`;
                 }
@@ -1173,7 +1378,8 @@ window.openScheduleModal = function(destination, dayOverride = null) {
         `;
         modalList.appendChild(div);
     });
-    scheduleModal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; 
+    openSmoothModal('schedule-modal');
+    
     if (!dayOverride) { setTimeout(() => { const target = document.getElementById('next-train-marker'); if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' }); }, 10); } 
     else { const container = document.getElementById('modal-list'); if(container) container.scrollTop = 0; }
 };
@@ -1184,155 +1390,373 @@ function setupRedirectLogic() {
 
 function showRedirectModal(url, message) {
     redirectMessage.textContent = message;
-    redirectModal.classList.remove('hidden');
-    const confirmHandler = () => { window.open(url, '_blank'); redirectModal.classList.add('hidden'); cleanup(); };
-    const cancelHandler = () => { redirectModal.classList.add('hidden'); cleanup(); };
+    history.pushState({ modal: 'redirect' }, '', '#redirect');
+    openSmoothModal('redirect-modal');
+    
+    const confirmHandler = () => { triggerHaptic(); window.open(url, '_blank'); closeSmoothModal('redirect-modal'); cleanup(); };
+    const cancelHandler = () => { if (location.hash === '#redirect') history.back(); else closeSmoothModal('redirect-modal'); cleanup(); };
     const cleanup = () => { redirectConfirmBtn.removeEventListener('click', confirmHandler); redirectCancelBtn.removeEventListener('click', cancelHandler); };
     redirectConfirmBtn.addEventListener('click', confirmHandler);
     redirectCancelBtn.addEventListener('click', cancelHandler);
 }
 
-// GUARDIAN UPDATE V5.01.00: Welcome Screen Theme Sync
 function setupFeatureButtons() {
-    // 1. Determine Initial Theme (Respect System Preference if no override)
     const storedTheme = localStorage.theme;
     const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    // Global and Welcome Screen toggle elements
     const welcomeThemeToggleBtn = document.getElementById('welcome-theme-toggle');
     const welcomeDarkIcon = document.getElementById('welcome-theme-dark-icon');
     const welcomeLightIcon = document.getElementById('welcome-theme-light-icon');
-    const welcomeThemeText = document.getElementById('welcome-theme-text'); // INJECTED VIA HTML
+    const welcomeThemeText = document.getElementById('welcome-theme-text');
+    
+    const settingsThemeCheckbox = document.getElementById('settings-theme-checkbox');
+    const settingsThemeEmoji = document.getElementById('settings-theme-emoji');
+    const settingsThemeTextEl = document.getElementById('settings-theme-text');
 
-    // Centralized Apply Theme Logic (Syncs both toggles)
     const applyTheme = (isDark) => {
         if (isDark) {
             document.documentElement.classList.add('dark');
-            localStorage.theme = 'dark'; // Save it so we don't flip-flop
-            if(darkIcon) darkIcon.classList.remove('hidden');
-            if(lightIcon) lightIcon.classList.add('hidden');
+            localStorage.theme = 'dark'; 
             if(welcomeDarkIcon) welcomeDarkIcon.classList.remove('hidden');
             if(welcomeLightIcon) welcomeLightIcon.classList.add('hidden');
             if(welcomeThemeText) welcomeThemeText.textContent = "Dark Mode";
+
+            if(settingsThemeCheckbox) settingsThemeCheckbox.checked = true;
+            if(settingsThemeEmoji) settingsThemeEmoji.textContent = "🌙";
+            if(settingsThemeTextEl) settingsThemeTextEl.textContent = "Currently On";
         } else {
             document.documentElement.classList.remove('dark');
             localStorage.theme = 'light';
-            if(darkIcon) darkIcon.classList.add('hidden');
-            if(lightIcon) lightIcon.classList.remove('hidden');
             if(welcomeDarkIcon) welcomeDarkIcon.classList.add('hidden');
             if(welcomeLightIcon) welcomeLightIcon.classList.remove('hidden');
             if(welcomeThemeText) welcomeThemeText.textContent = "Light Mode";
+
+            if(settingsThemeCheckbox) settingsThemeCheckbox.checked = false;
+            if(settingsThemeEmoji) settingsThemeEmoji.textContent = "☀️";
+            if(settingsThemeTextEl) settingsThemeTextEl.textContent = "Currently Off";
         }
     };
 
-    // Apply initially
     if (storedTheme === 'dark' || (!storedTheme && systemDark)) {
         applyTheme(true);
     } else {
         applyTheme(false);
     }
 
-    // 2. Toggle Handler (Fired from either button)
-    const handleThemeToggle = () => applyTheme(localStorage.theme !== 'dark');
-
-    if(themeToggleBtn) themeToggleBtn.addEventListener('click', handleThemeToggle);
+    const handleThemeToggle = () => { triggerHaptic(); applyTheme(localStorage.theme !== 'dark'); };
     if(welcomeThemeToggleBtn) welcomeThemeToggleBtn.addEventListener('click', handleThemeToggle);
     
-    // UPDATED V4.60.33: Share Button Always Shares Homepage (No Deep Links)
-    shareBtn.addEventListener('click', async () => { 
-        trackAnalyticsEvent('click_share', { location: 'main_view' });
-        
-        // GUARDIAN FIX V4.60.34: Remove URL from text body to prevent duplication
-        const shareText = 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive.';
-        const shareUrl = 'https://nexttrain.co.za/';
+    const settingsThemeToggleBtn = document.getElementById('settings-theme-toggle');
+    if (settingsThemeToggleBtn) {
+        settingsThemeToggleBtn.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'LABEL') {
+                if (settingsThemeCheckbox) {
+                    triggerHaptic();
+                    settingsThemeCheckbox.checked = !settingsThemeCheckbox.checked;
+                    applyTheme(settingsThemeCheckbox.checked);
+                }
+            }
+        });
+    }
+    if (settingsThemeCheckbox) {
+        settingsThemeCheckbox.addEventListener('change', (e) => { triggerHaptic(); applyTheme(e.target.checked); });
+    }
 
-        const shareData = { title: "Metrorail Next Train", text: shareText, url: shareUrl }; 
-        try { 
-            if (navigator.share) {
-                await navigator.share(shareData); 
-            } else { 
+    const hapticsCheckbox = document.getElementById('settings-haptics-checkbox');
+    const hapticsToggleBtn = document.getElementById('settings-haptics-toggle');
+    const hapticsTextEl = document.getElementById('settings-haptics-text');
+
+    const applyHaptics = (isEnabled) => {
+        localStorage.setItem('hapticsEnabled', isEnabled ? 'true' : 'false');
+        if (hapticsCheckbox) hapticsCheckbox.checked = isEnabled;
+        if (hapticsTextEl) hapticsTextEl.textContent = isEnabled ? "Currently On" : "Currently Off";
+    };
+
+    applyHaptics(localStorage.getItem('hapticsEnabled') !== 'false');
+
+    if (hapticsToggleBtn) {
+        hapticsToggleBtn.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'LABEL') {
+                if (hapticsCheckbox) {
+                    const newState = !hapticsCheckbox.checked;
+                    applyHaptics(newState);
+                    if (newState) triggerHaptic(); 
+                }
+            }
+        });
+    }
+    if (hapticsCheckbox) {
+        hapticsCheckbox.addEventListener('change', (e) => { 
+            applyHaptics(e.target.checked); 
+            if (e.target.checked) triggerHaptic();
+        });
+    }
+    
+    shareBtn = document.getElementById('share-app-btn');
+    if(shareBtn) {
+        shareBtn.addEventListener('click', async () => { 
+            triggerHaptic();
+            trackAnalyticsEvent('click_share', { location: 'main_view' });
+            const shareText = 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive.';
+            const shareUrl = 'https://nexttrain.co.za/';
+
+            const shareData = { title: "Metrorail Next Train", text: shareText, url: shareUrl }; 
+            try { 
+                if (navigator.share) { await navigator.share(shareData); } 
+                else { copyToClipboard(`${shareText} ${shareUrl}`); } 
+            } catch (err) { 
                 copyToClipboard(`${shareText} ${shareUrl}`); 
             } 
-        } catch (err) { 
-            copyToClipboard(`${shareText} ${shareUrl}`); 
-        } 
-    });
+        });
+    }
 
     installBtn = document.getElementById('install-app-btn');
-    const showInstallButton = () => { if (installBtn) installBtn.classList.remove('hidden'); };
+    const installBtnPlanner = document.getElementById('install-app-btn-planner');
+    
+    const showInstallButton = () => { 
+        if (installBtn) installBtn.classList.remove('hidden'); 
+        if (installBtnPlanner) installBtnPlanner.classList.remove('hidden'); 
+    };
+    
     if (window.deferredInstallPrompt) { showInstallButton(); } else { window.addEventListener('pwa-install-ready', () => { showInstallButton(); }); }
-    if (installBtn) {
-        installBtn.addEventListener('click', () => { 
-            trackAnalyticsEvent('install_app_click', { location: 'main_view' });
-            installBtn.classList.add('hidden'); 
-            const promptEvent = window.deferredInstallPrompt;
-            if (promptEvent) {
-                promptEvent.prompt(); 
-                promptEvent.userChoice.then((choiceResult) => {
-                    if (choiceResult.outcome === 'accepted') { trackAnalyticsEvent('install_app_accepted'); } else { trackAnalyticsEvent('install_app_dismissed'); }
-                    window.deferredInstallPrompt = null;
-                });
-            }
-        }); 
+    
+    const handleInstallClick = () => { 
+        triggerHaptic();
+        trackAnalyticsEvent('install_app_click', { location: 'main_view' });
+        if (installBtn) installBtn.classList.add('hidden'); 
+        if (installBtnPlanner) installBtnPlanner.classList.add('hidden');
+        
+        const promptEvent = window.deferredInstallPrompt;
+        if (promptEvent) {
+            promptEvent.prompt(); 
+            promptEvent.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') { trackAnalyticsEvent('install_app_accepted'); } else { trackAnalyticsEvent('install_app_dismissed'); }
+                window.deferredInstallPrompt = null;
+            });
+        }
+    };
+    
+    if (installBtn) installBtn.addEventListener('click', handleInstallClick);
+    if (installBtnPlanner) installBtnPlanner.addEventListener('click', handleInstallClick);
+    
+    const openNav = () => { 
+        triggerHaptic(); 
+        sidenav.classList.remove('-translate-x-full');
+        sidenav.classList.add('translate-x-0'); 
+        sidenav.classList.add('open'); // GUARDIAN: Force CSS transform rule
+        sidenavOverlay.classList.add('open'); 
+        document.body.classList.add('sidenav-open'); 
+        lockBackgroundScroll(); // GUARDIAN: Lock scroll
+        
+        history.pushState({ view: 'sidenav' }, '', '#sidenav');
+    };
+    if(openNavBtn) openNavBtn.addEventListener('click', openNav); 
+    
+    const closeNav = () => { 
+        window.closeAppHub();
+    };
+    if(closeNavBtn) closeNavBtn.addEventListener('click', closeNav); 
+    if(sidenavOverlay) sidenavOverlay.addEventListener('click', closeNav);
+    
+    if(routeList) {
+        routeList.addEventListener('click', (e) => { 
+            const routeLink = e.target.closest('a'); 
+            if (routeLink && routeLink.dataset.routeId) { 
+                triggerHaptic();
+                const routeId = routeLink.dataset.routeId; 
+                
+                if (routeId === currentRouteId) { 
+                    showToast("You are already viewing this route.", "info", 1500); 
+                    closeSmoothModal('route-modal');
+                    return; 
+                } 
+                
+                if (ROUTES[routeId] && !ROUTES[routeId].isActive) {
+                    closeSmoothModal('route-modal');
+                    trackAnalyticsEvent('select_inactive_route', { route_name: ROUTES[routeId].name, route_id: routeId });
+                } else {
+                    trackAnalyticsEvent('select_route', { route_name: ROUTES[routeId].name, route_id: routeId });
+                }
+                
+                currentRouteId = routeId;
+                updateSidebarActiveState(); 
+                updatePinUI(); 
+                closeSmoothModal('route-modal');
+                loadAllSchedules(); 
+                checkServiceAlerts(); 
+            } 
+        });
     }
-    const openNav = () => { sidenav.classList.add('open'); sidenavOverlay.classList.add('open'); document.body.classList.add('sidenav-open'); };
-    openNavBtn.addEventListener('click', openNav); routeSubtitle.addEventListener('click', openNav);
-    const closeNav = () => { sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open'); };
-    closeNavBtn.addEventListener('click', closeNav); sidenavOverlay.addEventListener('click', closeNav);
-    routeList.addEventListener('click', (e) => { 
-        const routeLink = e.target.closest('a'); 
-        if (routeLink && routeLink.dataset.routeId) { 
-            const routeId = routeLink.dataset.routeId; 
-            if (routeId === currentRouteId) { showToast("You are already viewing this route.", "info", 1500); closeNav(); return; } 
-            if (ROUTES[routeId]) { trackAnalyticsEvent('select_route', { route_name: ROUTES[routeId].name, route_id: routeId }); }
-            currentRouteId = routeId;
-            updateSidebarActiveState(); closeNav(); loadAllSchedules(); checkServiceAlerts(); 
-        } 
+}
+
+function setupSettingsHub() {
+    const regionGP = document.getElementById('settings-region-gp');
+    const regionWC = document.getElementById('settings-region-wc');
+    
+    const updateRegionUI = () => {
+        if (!regionGP || !regionWC) return;
+        if (currentRegion === 'GP') {
+            regionGP.classList.add('bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-600', 'dark:text-blue-400');
+            regionWC.classList.remove('bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-600', 'dark:text-blue-400');
+        } else {
+            regionWC.classList.add('bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-600', 'dark:text-blue-400');
+            regionGP.classList.remove('bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-600', 'dark:text-blue-400');
+        }
+    };
+    
+    updateRegionUI();
+
+    const handleRegionSwitchClick = (newRegion, name) => {
+        triggerHaptic();
+        if (currentRegion === newRegion) return;
+
+        if (!navigator.onLine) {
+            const cacheKey = `full_db_${newRegion}`;
+            const cachedData = localStorage.getItem(cacheKey);
+            if (!cachedData) {
+                showToast(`Internet required to download ${name} schedules for the first time.`, "error", 4000);
+                return;
+            }
+        }
+
+        const confirmModal = document.getElementById('region-confirm-modal');
+        const title = document.getElementById('region-confirm-title');
+        const desc = document.getElementById('region-confirm-desc');
+        const actionBtn = document.getElementById('region-confirm-action-btn');
+        const cancelBtn = document.getElementById('region-cancel-btn');
+
+        if (confirmModal) {
+            // Replace sidenav state with region confirm
+            history.replaceState({ modal: 'region-confirm' }, '', '#regionconfirm');
+            title.textContent = `Switch Region?`;
+            desc.textContent = `Are you sure you want to switch to ${name}?`;
+            openSmoothModal('region-confirm-modal');
+            window.closeAppHub(true);
+
+            const cleanup = () => {
+                actionBtn.removeEventListener('click', confirmAction);
+                cancelBtn.removeEventListener('click', cancelAction);
+            };
+
+            const confirmAction = () => {
+                triggerHaptic();
+                localStorage.setItem('userRegion', newRegion);
+                window.location.reload();
+            };
+
+            const cancelAction = () => {
+                if (location.hash === '#regionconfirm') history.back();
+                else closeSmoothModal('region-confirm-modal');
+                cleanup();
+            };
+
+            actionBtn.addEventListener('click', confirmAction);
+            cancelBtn.addEventListener('click', cancelAction);
+        }
+    };
+
+    if (regionGP) regionGP.addEventListener('click', () => handleRegionSwitchClick('GP', 'Gauteng'));
+    if (regionWC) regionWC.addEventListener('click', () => handleRegionSwitchClick('WC', 'Western Cape'));
+    
+    const helpBtn = document.getElementById('settings-help-btn');
+    const aboutBtn = document.getElementById('settings-about-btn');
+    const helpModal = document.getElementById('help-modal');
+    const aboutModal = document.getElementById('about-modal');
+    
+    if (helpBtn) helpBtn.addEventListener('click', () => { 
+        triggerHaptic();
+        trackAnalyticsEvent('view_user_guide', { location: 'settings' }); 
+        history.replaceState({ modal: 'help' }, '', '#help'); 
+        if(helpModal) { openSmoothModal('help-modal'); }
+        window.closeAppHub(true);
     });
     
-    // GUARDIAN: Updated to trigger cache clear warning instead of blind reload
-    forceReloadBtn.addEventListener('click', showCacheClearWarning);
-    
-    pinRouteBtn.addEventListener('click', () => { const savedDefault = localStorage.getItem('defaultRoute'); if (savedDefault === currentRouteId) { localStorage.removeItem('defaultRoute'); showToast("Route unpinned from top.", "info", 2000); } else { localStorage.setItem('defaultRoute', currentRouteId); showToast("Route pinned to top of menu!", "success", 2000); } updatePinUI(); });
+    if (aboutBtn) aboutBtn.addEventListener('click', () => { 
+        triggerHaptic();
+        trackAnalyticsEvent('view_about_page', { location: 'settings' }); 
+        history.replaceState({ modal: 'about' }, '', '#about'); 
+        if(aboutModal) { openSmoothModal('about-modal'); }
+        window.closeAppHub(true);
+    });
+
+    const verEl = document.getElementById('settings-app-version');
+    if (verEl && typeof APP_VERSION !== 'undefined') {
+        const versionSpan = verEl.querySelector('span.font-mono');
+        if (versionSpan) {
+            versionSpan.textContent = APP_VERSION.split(' - ')[0]; 
+        } else {
+            verEl.textContent = APP_VERSION;
+        }
+        
+        verEl.onclick = () => {
+            triggerHaptic();
+            if (typeof Renderer !== 'undefined' && Renderer.renderChangelogModal) {
+                history.replaceState({ modal: 'changelog' }, '', '#changelog');
+                Renderer.renderChangelogModal(typeof CHANGELOG_DATA !== 'undefined' ? CHANGELOG_DATA : []);
+                // Renderer does not open it automatically in the new modular structure, or it does. We just push state and let it handle UI
+            }
+            window.closeAppHub(true); 
+        };
+    }
 }
 
 function showWelcomeScreen() {
     if (!welcomeModal || !welcomeRouteList) return;
-    if (typeof Renderer !== 'undefined') Renderer.renderWelcomeList('welcome-route-list', ROUTES, selectWelcomeRoute);
-    welcomeModal.classList.remove('hidden');
+
+    if (!document.getElementById('welcome-region-selector')) {
+        const regionDiv = document.createElement('div');
+        regionDiv.id = 'welcome-region-selector';
+        regionDiv.className = 'w-full mb-4 flex justify-center space-x-2 shrink-0';
+        
+        const btnGP = document.createElement('button');
+        btnGP.className = `px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors ${currentRegion === 'GP' ? 'bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300'}`;
+        btnGP.textContent = 'Gauteng';
+        btnGP.onclick = () => { localStorage.setItem('userRegion', 'GP'); window.location.reload(); };
+        
+        const btnWC = document.createElement('button');
+        btnWC.className = `px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors ${currentRegion === 'WC' ? 'bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300'}`;
+        btnWC.textContent = 'Western Cape';
+        btnWC.onclick = () => { localStorage.setItem('userRegion', 'WC'); window.location.reload(); };
+        
+        regionDiv.appendChild(btnGP);
+        regionDiv.appendChild(btnWC);
+        
+        welcomeRouteList.parentNode.insertBefore(regionDiv, welcomeRouteList);
+    }
+
+    if (typeof Renderer !== 'undefined') Renderer.renderWelcomeList('welcome-route-list', getRoutesForCurrentRegion(), selectWelcomeRoute);
+    openSmoothModal('welcome-modal');
 }
 
 function selectWelcomeRoute(routeId) {
     currentRouteId = routeId;
-    localStorage.setItem('defaultRoute', routeId);
-    welcomeModal.classList.add('opacity-0'); 
+    localStorage.setItem('defaultRoute_' + currentRegion, routeId);
+    closeSmoothModal('welcome-modal'); 
     setTimeout(() => {
-        welcomeModal.classList.add('hidden'); welcomeModal.classList.remove('opacity-0');
         updateSidebarActiveState(); updatePinUI(); loadAllSchedules(); checkServiceAlerts(); 
     }, 300);
 }
 
 window.openLegal = function(type) {
     trackAnalyticsEvent('view_legal_doc', { type: type });
-    history.pushState({ modal: 'legal' }, '', '#legal');
+    history.replaceState({ modal: 'legal' }, '', '#legal');
     legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
     legalContent.innerHTML = LEGAL_TEXTS[type];
-    legalModal.classList.remove('hidden');
-    sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open');
+    openSmoothModal('legal-modal');
+    window.closeAppHub(true);
 };
 
-function closeLegal() { if(location.hash === '#legal') history.back(); else legalModal.classList.add('hidden'); }
+function closeLegal() { 
+    if(location.hash === '#legal') history.back(); 
+    else { closeSmoothModal('legal-modal'); }
+}
 
-// --- SERVICE WORKER LOGIC V5.00.10 (DUAL STRATEGY) ---
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./service-worker.js').then(reg => {
-            // 🔥 GUARDIAN V5.01: Force browser to check network for SW updates immediately
             reg.update();
 
-            // Listen for waiting service workers (updates found but waiting)
             if (reg.waiting) {
-                // If there's already a waiting worker, notify user immediately
                 handleUpdateFound(reg);
             }
 
@@ -1340,7 +1764,6 @@ if ('serviceWorker' in navigator) {
                 const newWorker = reg.installing;
                 newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        // New update installed and ready
                         handleUpdateFound(reg);
                     }
                 });
@@ -1351,12 +1774,9 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (refreshing) return;
             refreshing = true;
-            // Silent reload logic is handled by user action now, unless forced.
-            // But if we got here via skipWaiting(), we should reload to apply.
             window.location.reload(); 
         });
         
-        // Listen for messages from SW (Future proofing)
         navigator.serviceWorker.addEventListener('message', event => {
             if (event.data && event.data.type === 'sw-update-available') {
                 // Handle broadcast update
@@ -1365,24 +1785,17 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// CENTRAL UPDATE HANDLER (V5.00.10)
 function handleUpdateFound(registration) {
-    // 1. Check Global Strategy (config.js)
     const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
 
     if (isForceUpdate) {
-        // STRATEGY A: NUCLEAR OPTION (Immediate forced update)
-        // Show blocking modal or toast that cannot be dismissed easily
         console.log("GUARDIAN: Force Update Triggered.");
         showToast("Crucial system update. Reloading...", "error", 5000);
         
-        // Force the waiting worker to activate
         if (registration.waiting) {
             registration.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
     } else {
-        // STRATEGY B: SILENT / POLITE OPTION
-        // Show polite toast. User can ignore.
         console.log("GUARDIAN: Silent Update Available.");
         
         const actionHTML = `
@@ -1390,15 +1803,12 @@ function handleUpdateFound(registration) {
                 UPDATE
             </button>
         `;
-        // Show persistent toast
         showToast("New version available.", "info", 10000, actionHTML);
         
-        // Store registration for button click
         window._pendingUpdateReg = registration;
     }
 }
 
-// Called by the "UPDATE" button in the toast
 window.triggerAppUpdate = function() {
     if (window._pendingUpdateReg && window._pendingUpdateReg.waiting) {
         showToast("Updating...", "success");
@@ -1408,55 +1818,41 @@ window.triggerAppUpdate = function() {
     }
 };
 
-// --- PHASE 4: THE GRID ENGINE ---
-
-// 1. DYNAMIC TRIGGER INJECTION
 function updateNextTrainView() {
     const fareBox = document.getElementById('fare-container');
     const container = fareBox ? fareBox.parentNode : null;
     if (!container) return;
 
-    // Check if button already exists
     if (!document.getElementById('grid-trigger-container')) {
         const triggerDiv = document.createElement('div');
         triggerDiv.id = 'grid-trigger-container';
-        triggerDiv.className = "mb-4 mt-2 px-1"; // Minimal vertical spacing
+        triggerDiv.className = "mb-5 mt-2 px-1"; 
         triggerDiv.innerHTML = `
-            <button onclick="renderFullScheduleGrid('A')" class="w-full flex items-center justify-center space-x-2 bg-white dark:bg-gray-800 border-2 border-blue-100 dark:border-blue-900 rounded-xl py-3 shadow-sm hover:border-blue-500 transition-all group">
+            <button onclick="triggerHaptic(); renderFullScheduleGrid('A')" class="w-full flex items-center justify-center space-x-3 bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-xl shadow-lg ring-4 ring-blue-100 dark:ring-blue-900 transition-all transform active:scale-95 group">
                 <span class="text-xl">📅</span>
-                <span class="font-bold text-gray-700 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">View Full Timetable</span>
-                <svg class="w-4 h-4 text-gray-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                <span class="tracking-wide">VIEW FULL TIMETABLE</span>
             </button>
         `;
-        // Insert BEFORE the Fare Box
         container.insertBefore(triggerDiv, fareBox);
     } else {
         document.getElementById('grid-trigger-container').classList.remove('hidden');
     }
 }
 
-// --- VERSION ENFORCER: POLITE NOTIFICATION (Guardian V4.60.40) ---
 function enforceAppVersion() {
-    // Get version from config.js (which must be loaded first)
     const currentVersion = typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown';
     const storedVersion = localStorage.getItem('app_installed_version');
 
-    // GUARDIAN V5.00.10: Check Force Flag
     const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
 
-    // If version mismatch (and not first run), Prompt User instead of Nuke
     if (storedVersion && storedVersion !== currentVersion) {
         console.log(`[Guardian] Version Upgrade Available: ${storedVersion} -> ${currentVersion}`);
         
         if (isForceUpdate) {
-            // NUCLEAR OPTION if Config says so (e.g. Critical Bug Fix)
             handleUpdateClick(currentVersion);
             return;
         }
 
-        // 4. Polite Notification (No Auto-Reload)
-        // We do NOT update the storage key yet. We wait for user action.
-        // Show a persistent, non-dismissible update prompt
         const updateToastHTML = `
             <div id="update-toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center space-x-4 z-[100] cursor-pointer hover:scale-105 transition-transform w-[90%] max-w-sm" onclick="handleUpdateClick('${currentVersion}')">
                 <div class="bg-white/20 rounded-full p-2 animate-pulse">
@@ -1474,13 +1870,10 @@ function enforceAppVersion() {
         return; 
     }
     
-    // First run or same version: just update storage
     if (!storedVersion) localStorage.setItem('app_installed_version', currentVersion);
 }
 
-// Helper for the toast click
 window.handleUpdateClick = function(newVersion) {
-    // 1. Unregister All Service Workers
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(registrations => {
             for (let registration of registrations) {
@@ -1488,7 +1881,6 @@ window.handleUpdateClick = function(newVersion) {
             }
         });
     }
-    // 2. Clear Caches
     if ('caches' in window) {
         caches.keys().then(names => {
             for (let name of names) {
@@ -1496,16 +1888,11 @@ window.handleUpdateClick = function(newVersion) {
             }
         });
     }
-    // 3. Update Storage
     localStorage.setItem('app_installed_version', newVersion);
-    
-    // 4. Reload
     window.location.reload(true);
 };
 
-// --- INITIALIZATION HOOK ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Run Version Enforcer FIRST
     enforceAppVersion();
 
     stationSelect = document.getElementById('station-select');
@@ -1527,15 +1914,13 @@ document.addEventListener('DOMContentLoaded', () => {
     redirectMessage = document.getElementById('redirect-message');
     redirectConfirmBtn = document.getElementById('redirect-confirm-btn');
     redirectCancelBtn = document.getElementById('redirect-cancel-btn');
-    themeToggleBtn = document.getElementById('theme-toggle-btn');
-    darkIcon = document.getElementById('theme-toggle-dark-icon');
-    lightIcon = document.getElementById('theme-toggle-light-icon');
     shareBtn = document.getElementById('share-app-btn');
     installBtn = document.getElementById('install-app-btn');
-    forceReloadBtn = document.getElementById('force-reload-btn');
+    
     pinRouteBtn = document.getElementById('pin-route-btn');
     pinOutline = document.getElementById('pin-outline');
     pinFilled = document.getElementById('pin-filled');
+
     openNavBtn = document.getElementById('open-nav-btn');
     closeNavBtn = document.getElementById('close-nav-btn');
     sidenav = document.getElementById('sidenav');
@@ -1556,25 +1941,6 @@ document.addEventListener('DOMContentLoaded', () => {
     welcomeModal = document.getElementById('welcome-modal');
     welcomeRouteList = document.getElementById('welcome-route-list');
 
-    if(closeLegalBtn) closeLegalBtn.addEventListener('click', closeLegal);
-    if(closeLegalBtn2) closeLegalBtn2.addEventListener('click', closeLegal);
-    if(legalModal) legalModal.addEventListener('click', (e) => { if (e.target === legalModal) closeLegal(); });
-    
-    document.getElementById('tab-next-train').addEventListener('click', () => switchTab('next-train'));
-    document.getElementById('tab-trip-planner').addEventListener('click', () => switchTab('trip-planner'));
-
-    // GUARDIAN UPDATE V5.00.00: Clickable Changelog
-    const versionFooter = document.getElementById('app-version-footer');
-    if (versionFooter && typeof APP_VERSION !== 'undefined') {
-        versionFooter.textContent = APP_VERSION;
-        versionFooter.classList.add('cursor-pointer', 'underline', 'hover:text-blue-500', 'transition-colors');
-        versionFooter.onclick = () => {
-            if (typeof Renderer !== 'undefined' && Renderer.renderChangelogModal) {
-                Renderer.renderChangelogModal(typeof CHANGELOG_DATA !== 'undefined' ? CHANGELOG_DATA : []);
-            }
-        };
-    }
-
     const helpModal = document.getElementById('help-modal');
     const openHelpBtn = document.getElementById('open-help-btn');
     const closeHelpBtn = document.getElementById('close-help-btn');
@@ -1582,55 +1948,156 @@ document.addEventListener('DOMContentLoaded', () => {
     const aboutModal = document.getElementById('about-modal');
     const openAboutBtn = document.getElementById('open-about-btn');
     const closeAboutBtn = document.getElementById('close-about-btn');
-    const facebookBtn = document.getElementById('facebook-connect-link');
-    if (facebookBtn) facebookBtn.addEventListener('click', () => trackAnalyticsEvent('click_social_facebook', { location: 'about_modal' }));
-
-    const closeSideNav = () => { if(sidenav) { sidenav.classList.remove('open'); sidenavOverlay.classList.remove('open'); document.body.classList.remove('sidenav-open'); } };
-    const openHelp = () => { trackAnalyticsEvent('view_user_guide', { location: 'sidebar' }); history.pushState({ modal: 'help' }, '', '#help'); if(helpModal) helpModal.classList.remove('hidden'); closeSideNav(); };
-    const closeHelp = () => { if(location.hash === '#help') history.back(); else if(helpModal) helpModal.classList.add('hidden'); };
-    const openAbout = () => { trackAnalyticsEvent('view_about_page', { location: 'sidebar' }); history.pushState({ modal: 'about' }, '', '#about'); if(aboutModal) aboutModal.classList.remove('hidden'); closeSideNav(); };
-    const closeAbout = () => { if(location.hash === '#about') history.back(); else if(aboutModal) aboutModal.classList.add('hidden'); };
     
-    if(openHelpBtn) openHelpBtn.addEventListener('click', openHelp);
+    const closeHelp = () => { if(location.hash === '#help') history.back(); else { closeSmoothModal('help-modal'); } };
+    const closeAbout = () => { if(location.hash === '#about') history.back(); else { closeSmoothModal('about-modal'); } };
+    const closeSideNav = () => { window.closeAppHub(); };
+
     if(closeHelpBtn) closeHelpBtn.addEventListener('click', closeHelp);
     if(closeHelpBtn2) closeHelpBtn2.addEventListener('click', closeHelp);
     if(helpModal) helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp(); });
-    if(openAboutBtn) openAboutBtn.addEventListener('click', openAbout);
+
     if(closeAboutBtn) closeAboutBtn.addEventListener('click', closeAbout);
     if(aboutModal) aboutModal.addEventListener('click', (e) => { if (e.target === aboutModal) closeAbout(); });
 
-    // FIX 3: Safety check for locateBtn before adding listener
+    // GUARDIAN Phase 9: Replaced blind state pushes with history-replacements and true sync bypasses
+    if(openHelpBtn) openHelpBtn.addEventListener('click', () => { 
+        triggerHaptic(); trackAnalyticsEvent('view_user_guide', { location: 'sidebar' }); 
+        history.replaceState({ modal: 'help' }, '', '#help'); 
+        if(helpModal) { openSmoothModal('help-modal'); } window.closeAppHub(true); 
+    });
+    
+    if(openAboutBtn) openAboutBtn.addEventListener('click', () => { 
+        triggerHaptic(); trackAnalyticsEvent('view_about_page', { location: 'sidebar' }); 
+        history.replaceState({ modal: 'about' }, '', '#about'); 
+        if(aboutModal) { openSmoothModal('about-modal'); } window.closeAppHub(true); 
+    });
+
+    const sidenavAboutBtn = document.getElementById('sidenav-about-btn');
+    if(sidenavAboutBtn) sidenavAboutBtn.addEventListener('click', () => {
+        triggerHaptic(); trackAnalyticsEvent('view_about_page', { location: 'sidebar' }); 
+        history.replaceState({ modal: 'about' }, '', '#about'); 
+        if(aboutModal) { openSmoothModal('about-modal'); } window.closeAppHub(true); 
+    });
+
+    if(closeLegalBtn) closeLegalBtn.addEventListener('click', closeLegal);
+    if(closeLegalBtn2) closeLegalBtn2.addEventListener('click', closeLegal);
+    if(legalModal) legalModal.addEventListener('click', (e) => { if (e.target === legalModal) closeLegal(); });
+    
+    // GUARDIAN Phase 9: Exit Modal Listeners
+    const exitConfirmBtn = document.getElementById('exit-confirm-btn');
+    const exitCancelBtn = document.getElementById('exit-cancel-btn');
+    
+    if (exitConfirmBtn) {
+        exitConfirmBtn.addEventListener('click', () => {
+            if (navigator.app && navigator.app.exitApp) {
+                navigator.app.exitApp();
+            } else {
+                closeSmoothModal('exit-modal');
+                setTimeout(() => { history.go(-2); }, 300);
+            }
+        });
+    }
+    if (exitCancelBtn) {
+        exitCancelBtn.addEventListener('click', () => {
+            closeSmoothModal('exit-modal');
+        });
+    }
+    
+    document.getElementById('tab-next-train').addEventListener('click', () => switchTab('next-train'));
+    document.getElementById('tab-trip-planner').addEventListener('click', () => switchTab('trip-planner'));
+
+    const facebookBtn = document.getElementById('facebook-connect-link');
+    if (facebookBtn) facebookBtn.addEventListener('click', () => trackAnalyticsEvent('click_social_facebook', { location: 'about_modal' }));
+
+    setupNextTrainAutocomplete();
+
+    stationSelect.addEventListener('change', () => { 
+        triggerHaptic();
+        trackAnalyticsEvent('select_station', { station: stationSelect.value, route_id: currentRouteId });
+        syncPlannerFromMain(stationSelect.value); 
+        
+        const searchInput = document.getElementById('station-search-input');
+        if (searchInput && stationSelect.value) {
+            searchInput.value = stationSelect.value.replace(' STATION', '');
+        } else if (searchInput) {
+            searchInput.value = '';
+        }
+        
+        findNextTrains(); 
+    });
+
     if (locateBtn) {
         locateBtn.addEventListener('click', () => { 
+            triggerHaptic();
             trackAnalyticsEvent('click_auto_locate', { location: 'home_header' }); 
             findNearestStation(false); 
         });
     }
     
-    const viewMapBtn = document.getElementById('view-map-btn');
-    if (viewMapBtn) viewMapBtn.addEventListener('click', () => trackAnalyticsEvent('click_network_map', { location: 'sidebar' }));
-    const openInteractiveMapBtn = document.getElementById('open-interactive-map-btn');
-    if (openInteractiveMapBtn) openInteractiveMapBtn.addEventListener('click', () => trackAnalyticsEvent('open_interactive_map', { source: 'modal' }));
-    
-    if (appTitle && typeof Admin !== 'undefined' && Admin.setupPinAccess) { Admin.setupPinAccess(); }
+    if (pinRouteBtn) {
+        pinRouteBtn.addEventListener('click', () => { 
+            triggerHaptic();
+            const regionKey = 'defaultRoute_' + currentRegion;
+            const savedDefault = localStorage.getItem(regionKey); 
+            
+            if (savedDefault === currentRouteId) { 
+                localStorage.removeItem(regionKey); showToast("Route unpinned.", "info", 2000); 
+            } else { 
+                localStorage.setItem(regionKey, currentRouteId); showToast("Route pinned!", "success", 2000); 
+            } 
+            updatePinUI(); 
+        });
+    }
 
-    // GUARDIAN FIX V5.01.00: Added Analytics Tracking for Station Selection
-    stationSelect.addEventListener('change', () => { 
-        trackAnalyticsEvent('select_station', { station: stationSelect.value, route_id: currentRouteId });
-        syncPlannerFromMain(stationSelect.value); 
-        findNextTrains(); 
+    const viewMapBtn = document.getElementById('view-map-btn');
+    if (viewMapBtn) viewMapBtn.addEventListener('click', () => { 
+        triggerHaptic(); trackAnalyticsEvent('click_network_map', { location: 'sidebar' }); 
+        history.replaceState({ modal: 'map' }, '', '#map'); 
+        openSmoothModal('map-modal');
+        window.closeAppHub(true); 
     });
     
-    setupFeatureButtons(); updatePinUI(); setupModalButtons(); setupRedirectLogic(); startSmartRefresh();
-    setupSwipeNavigation(); initTabIndicator(); 
+    const openInteractiveMapBtn = document.getElementById('open-interactive-map-btn');
+    if (openInteractiveMapBtn) openInteractiveMapBtn.addEventListener('click', () => { triggerHaptic(); trackAnalyticsEvent('open_interactive_map', { source: 'modal' }); });
+    
+    // GUARDIAN V6.18: Added Scroll Lock and History State to Route Selector open button
+    const routeSelectorBtn = document.getElementById('route-selector-btn');
+    if (routeSelectorBtn) {
+        routeSelectorBtn.addEventListener('click', () => {
+            history.pushState({ modal: 'route' }, '', '#route');
+        });
+    }
+    
+    setupFeatureButtons(); 
+    setupSettingsHub();
+    updatePinUI(); 
+    setupModalButtons(); 
+    setupRedirectLogic(); 
+    startSmartRefresh();
+    setupSwipeNavigation(); 
+    initTabIndicator(); 
     
     if (typeof setupMapLogic === 'function') {
         setupMapLogic(); 
     }
 
-    const savedDefault = localStorage.getItem('defaultRoute');
+    const mapImageEl = document.getElementById('map-image');
+    if (mapImageEl) {
+        mapImageEl.src = currentRegion === 'WC' ? 'images/network-map_wc.png' : 'images/network-map.png';
+    }
+
+    let savedDefault = localStorage.getItem('defaultRoute_' + currentRegion);
     
-    if (savedDefault && ROUTES[savedDefault]) {
+    if (!savedDefault) {
+        const legacyDefault = localStorage.getItem('defaultRoute');
+        if (legacyDefault && ROUTES[legacyDefault] && ROUTES[legacyDefault].region === currentRegion) {
+            savedDefault = legacyDefault;
+            localStorage.setItem('defaultRoute_' + currentRegion, legacyDefault);
+        }
+    }
+    
+    if (savedDefault && ROUTES[savedDefault] && ROUTES[savedDefault].region === currentRegion) {
         currentRouteId = savedDefault;
         loadAllSchedules().then(() => {
             if (navigator.permissions && navigator.permissions.query) {
@@ -1643,16 +2110,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     } else {
-        console.log("First time user (or no pinned route). Showing Welcome Screen.");
-        // GUARD CLAUSE ADDED HERE (V4.60.17)
+        console.log("First time user (or switched regions). Showing Welcome Screen.");
         if (typeof loadingOverlay !== 'undefined' && loadingOverlay) {
             loadingOverlay.style.display = 'none';
         }
         showWelcomeScreen();
     }
 
-    // --- RESTORE ACTIVE TAB (Updated for URL Shortcuts) ---
-    // If URL has action, do not restore previous tab, respect the action.
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('action')) {
         console.log("Shortcut action detected, ignoring saved tab preference.");

@@ -1,9 +1,10 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V5.10.22 - 05 MAR"; 
+const APP_VERSION = "V6.00.00 - Guardian Edition"; 
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
+// V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
 const FORCE_UPDATE_REQUIRED = true;
 
 // 1. Legal Text Definitions (GUARDIAN V5.01: TWA Compliance & Opaque Infrastructure)
@@ -30,8 +31,12 @@ const LEGAL_TEXTS = {
     `
 };
 
-// 2. API Endpoints
-const DATABASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/schedules.json";
+// 2. API Endpoints & Regions (Bridged for V6 Logic)
+const FIREBASE_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";
+const REGIONS = {
+    'GP': { dbNode: 'schedules.json', name: 'Gauteng' },
+    'WC': { dbNode: 'schedules/westerncape.json', name: 'Western Cape' } // GUARDIAN: Fixed Firebase endpoint path
+};
 const MAX_RADIUS_KM = 6; 
 
 // 3. Route Definitions
@@ -41,6 +46,7 @@ const ROUTES = {
         id: 'special_event', 
         name: "Special Event Route", 
         corridorId: "SPECIAL",
+        region: "GP",
         colorClass: "text-yellow-500", // Will be styled uniquely in UI
         isActive: false, // Activated via Admin Panel
         destA: 'EVENT A STATION', 
@@ -53,6 +59,7 @@ const ROUTES = {
         id: 'pta-pien', 
         name: "Pretoria <-> Pienaarspoort", 
         corridorId: "EAST_LINE",
+        region: "GP",
         colorClass: "text-green-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -65,6 +72,7 @@ const ROUTES = {
         id: 'pta-mabopane', 
         name: "Pretoria <-> Mabopane", 
         corridorId: "NORTH_LINE", 
+        region: "GP",
         colorClass: "text-orange-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -76,6 +84,7 @@ const ROUTES = {
         id: 'mab-belle', 
         name: "Mabopane <-> Belle Ombre", 
         corridorId: "NORTH_LINE",
+        region: "GP",
         colorClass: "text-orange-500", 
         isActive: true, 
         destA: 'MABOPANE STATION', 
@@ -92,6 +101,7 @@ const ROUTES = {
         id: 'pta-dewildt', 
         name: "Pretoria <-> De Wildt", 
         corridorId: "NORTH_LINE", 
+        region: "GP",
         colorClass: "text-purple-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -109,6 +119,7 @@ const ROUTES = {
         id: 'herc-koed', 
         name: "Hercules <-> Koedoespoort", 
         corridorId: "NORTH_LINE", 
+        region: "GP",
         colorClass: "text-indigo-500", 
         isActive: true, 
         destA: 'HERCULES STATION', 
@@ -125,6 +136,7 @@ const ROUTES = {
         id: 'pta-saul', 
         name: "Pretoria <-> Saulsville", 
         corridorId: "SAUL_LINE", 
+        region: "GP",
         colorClass: "text-green-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -141,6 +153,7 @@ const ROUTES = {
         id: 'germ-leralla', 
         name: "Germiston <-> Leralla", 
         corridorId: "JHB_EAST",
+        region: "GP",
         colorClass: "text-blue-500", 
         isActive: true, 
         destA: 'GERMISTON STATION', 
@@ -157,6 +170,7 @@ const ROUTES = {
         id: 'germ-kwesine', 
         name: "Germiston <-> Kwesine", 
         corridorId: "JHB_EAST",
+        region: "GP",
         colorClass: "text-yellow-500", 
         isActive: true, 
         destA: 'GERMISTON STATION', 
@@ -173,6 +187,7 @@ const ROUTES = {
         id: 'pta-irene', 
         name: "Pretoria <-> Irene", 
         corridorId: "SOUTH_LINE", 
+        region: "GP",
         colorClass: "text-blue-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -189,6 +204,7 @@ const ROUTES = {
         id: 'jhb-germiston', 
         name: "JHB <-> Germiston", 
         corridorId: "JHB_CORE", 
+        region: "GP",
         colorClass: "text-red-500", 
         isActive: true, 
         destA: 'JOHANNESBURG STATION', 
@@ -205,6 +221,7 @@ const ROUTES = {
         id: 'pta-kempton', 
         name: "Pretoria <-> Kempton Park", 
         corridorId: "SOUTH_LINE", 
+        region: "GP",
         colorClass: "text-blue-500", 
         isActive: true, 
         destA: 'PRETORIA STATION', 
@@ -212,15 +229,16 @@ const ROUTES = {
         transferStation: null, 
         sheetKeys: {
             weekday_to_a: 'kemp_to_pta_weekday', 
-            weekday_to_b: 'pta_to_kemp_weekday',
+            weekday_to_b: 'pta_to_kempton_weekday',
             saturday_to_a: 'kemp_to_pta_sat', 
-            saturday_to_b: 'pta_to_kemp_sat'
+            saturday_to_b: 'pta_to_kempton_sat'
         } 
     },
     'jhb-rand': { 
         id: 'jhb-rand', 
         name: "JHB <-> Randfontein", 
         corridorId: "JHB_WEST", 
+        region: "GP",
         colorClass: "text-yellow-500", 
         isActive: true, 
         destA: 'JOHANNESBURG STATION', 
@@ -236,8 +254,9 @@ const ROUTES = {
     },
     'jhb-soweto': { 
         id: 'jhb-soweto', 
-        name: "JHB <-> Naledi (Soweto)", 
+        name: "JHB <-> Naledi", 
         corridorId: "JHB_WEST", 
+        region: "GP",
         colorClass: "text-yellow-500", 
         isActive: true, 
         destA: 'JOHANNESBURG STATION', 
@@ -254,6 +273,7 @@ const ROUTES = {
         id: 'jhb-midway', 
         name: "JHB <-> Midway", 
         corridorId: "JHB_SOUTH", 
+        region: "GP",
         colorClass: "text-yellow-500", 
         isActive: true, 
         destA: 'JOHANNESBURG STATION', 
@@ -266,14 +286,50 @@ const ROUTES = {
             saturday_to_b: 'jhb_to_midwy_sat'
         } 
     },
-    'jhb-vereeniging': { id: 'jhb-vereeniging', name: "JHB <-> Vereeniging", corridorId: "JHB_SOUTH", colorClass: "text-purple-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'VEREENIGING STATION', transferStation: null, sheetKeys: {} },
-    'jhb-springs': { id: 'jhb-springs', name: "JHB <-> Springs", corridorId: "JHB_EAST", colorClass: "text-red-500", isActive: false, destA: 'JOHANNESBURG STATION', destB: 'SPRINGS STATION', transferStation: null, sheetKeys: {} }
+
+    // WESTERN CAPE REGION
+    'ct-chrishani': { 
+        id: 'ct-chrishani', 
+        name: "Cape Town <-> Chris Hani", 
+        corridorId: "WC_CENTRAL",
+        region: "WC",
+        colorClass: "text-orange-500", 
+        isActive: true, 
+        destA: 'CAPE TOWN STATION', 
+        destB: 'CHRIS HANI STATION', 
+        transferStation: null, 
+        sheetKeys: { weekday_to_a: 'hani_to_ct_weekday', weekday_to_b: 'ct_to_hani_weekday', saturday_to_a: 'hani_to_ct_sat', saturday_to_b: 'ct_to_hani_sat' } 
+    },
+    'ct-kapteinsklip': { 
+        id: 'ct-kapteinsklip', 
+        name: "Cape Town <-> Kapteinsklip", 
+        corridorId: "WC_CENTRAL",
+        region: "WC",
+        colorClass: "text-purple-500", 
+        isActive: true, 
+        destA: 'CAPE TOWN STATION', 
+        destB: 'KAPTEINSKLIP STATION', 
+        transferStation: null, 
+        sheetKeys: { weekday_to_a: 'kap_to_ct_weekday', weekday_to_b: 'ct_to_kap_weekday', saturday_to_a: 'kap_to_ct_sat', saturday_to_b: 'ct_to_kap_sat' } 
+    },
+    'bellville-mutual': { 
+        id: 'bellville-mutual', 
+        name: "Bellville <-> Mutual", 
+        corridorId: "WC_NORTHERN",
+        region: "WC",
+        colorClass: "text-green-500", 
+        isActive: true, 
+        destA: 'BELLVILLE STATION', 
+        destB: 'MUTUAL STATION', 
+        transferStation: null, 
+        sheetKeys: { weekday_to_a: 'bellv_to_mutul_weekday', weekday_to_b: 'mutul_to_bellv_weekday', saturday_to_a: 'bellv_to_mutul_sat', saturday_to_b: 'mutul_to_bellv_sat' } 
+    }
 };
 
 // 4. Refresh Settings
 const REFRESH_CONFIG = { standardInterval: 5 * 60 * 1000, activeInterval: 60 * 1000, nightModeStart: 21, nightModeEnd: 4 };
 
-// 5. Smart Pricing Configuration
+// 5. Smart Pricing Configuration (RESTORED TO AUTHENTIC V5 LOGIC)
 const FARE_CONFIG = {
     offPeakStart: 9.5,  // 09:30
     offPeakEnd: 14.5,   // 14:30
@@ -318,32 +374,29 @@ const DEFAULT_EXCLUSIONS = {
 // This drives the "What's New" modal.
 const CHANGELOG_DATA = [
     {
-        version: "V5.10.20",
-        date: "27 Feb 2026",
+        version: "Version 6.0 — Regional Expansion & Fluid UX",
+        date: "",
         features: [
-            "✨ <b>Light/Dark Mode on Start:</b> Toggle your preferred theme directly from the Welcome Screen.",
-            "🕒 <b>Smarter Time Formats:</b> Wait times are now easier to read at a glance (e.g., '1 hr 15 min').",
-            "📅 <b>Planner Upgrades:</b> Swap your travel days instantly with the new clickable badge in your search results.",
-            "🚉 <b>Station Name Polish:</b> Improved naming for hubs like Kempton Park to make searching faster.",
-            "🚀 <b>Smoother Sharing:</b> We've improved trip sharing so sending a route to friends or employers is now 100% accurate."
+            "<b>Western Cape Integration:</b> The Next Train network now officially supports the Western Cape, bringing offline-first schedules to Cape Town corridors.",
+            "<b>The App Hub:</b> Settings, preferences, and offline syncing have been consolidated into a unified, swipeable navigation drawer for a premium native feel.",
+            "<b>State Preservation:</b> Modals and routing now respect native Android/iOS back-button gestures, eliminating accidental app exits."
         ]
     },
     {
-        version: "V5.00.10",
-        date: "15 Feb 2026",
+        version: "Version 5.0 — The Resilience Engine",
+        date: "",
         features: [
-            "✨ <b>Adaptive Export:</b> 'Save Image' now respects your Light/Dark theme preference.",
-            "📸 <b>Export Polish:</b> Compact layouts, professional metadata, and clearer typography for sharing schedules.",
-            "👻 <b>Maintenance Mode:</b> Floating banner bug fixed; now correctly contained within the app card.",
-            "👆 <b>Smart Defaults:</b> Grid view now anticipates Monday planning when viewed on Sundays."
+            "<b>Full Timetable Grid:</b> Introduced the comprehensive schedule matrix, allowing commuters to visualize the entire day's train flow at a glance.",
+            "<b>Deep Linking:</b> Trip Planner routes and schedules can now be shared seamlessly via WhatsApp or SMS, opening directly in-app for the recipient.",
+            "<b>Offline Telemetry:</b> The app now intelligently caches your session history while underground, ensuring your recent searches are always available."
         ]
     },
     {
-        version: "V5.00.04",
-        date: "14 Feb 2026",
+        version: "Version 4.0 — Intelligent Routing",
+        date: "",
         features: [
-            "🛤 <b>New Route:</b> Hercules <-> Koedoespoort now available (Weekday Service).",
-            "🚀 <b>Trip Planner:</b> Now supports Bridge Trips (2 Transfers) for long-distance travel."
+            "<b>The Trip Planner:</b> Launched the core routing engine, automatically calculating direct trips, hub transfers, and complex bridge connections.",
+            "<b>Smart Fares:</b> Integrated a dynamic fare calculator that adapts to off-peak hours and selected passenger profiles."
         ]
     }
 ];

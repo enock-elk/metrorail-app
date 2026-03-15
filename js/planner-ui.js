@@ -1,9 +1,11 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V5.01.00 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.00.22 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
  * It calls the pure logic functions from planner-core.js.
+ * * V6.00.21: The Great Decoupling - Absorbed robust UI overrides from monolithic ui.js.
+ * * PHASE 10: App Router Parity - Integrated deep history stack for Planner Results.
  */
 
 // State (UI Specific)
@@ -14,8 +16,45 @@ let selectedPlannerDay = null;
 let plannerPulse = null; 
 let plannerExpandedState = new Set(); 
 
+// GUARDIAN Phase 10: App Router Parity
+window.hidePlannerResults = function() {
+    if (typeof plannerPulse !== 'undefined' && plannerPulse) { clearInterval(plannerPulse); plannerPulse = null; }
+    const inputSection = document.getElementById('planner-input-section');
+    const resultsSection = document.getElementById('planner-results-section');
+    if (inputSection) inputSection.classList.remove('hidden');
+    if (resultsSection) resultsSection.classList.add('hidden');
+    if (typeof plannerExpandedState !== 'undefined') plannerExpandedState.clear(); 
+};
+
+window.addEventListener('popstate', (event) => {
+    const hash = location.hash;
+    // If user navigates back to root planner, home, or exit trap, hide results
+    if (hash === '#planner' || hash === '#home' || hash === '#exit' || !hash) {
+        const resultsSection = document.getElementById('planner-results-section');
+        if (resultsSection && !resultsSection.classList.contains('hidden')) {
+            window.hidePlannerResults();
+        }
+    }
+});
+
 // --- MOVED TO TOP TO PREVENT TDZ ERRORS (Fix 1) ---
 const PlannerRenderer = {
+    // GUARDIAN V6.12: Strict Midnight Protocol Evaluator
+    isMidnightRollover: () => {
+        const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
+        if (!isToday || currentTripOptions.length === 0) return false;
+        
+        const nowSec = timeToSeconds(currentTime);
+        let latestDep = 0;
+        currentTripOptions.forEach(t => {
+            const sec = timeToSeconds(t.depTime);
+            if (sec > latestDep) latestDep = sec;
+        });
+        
+        // If current time is strictly past the absolute last train available on this route
+        return nowSec > latestDep;
+    },
+
     format12h: (timeStr) => {
         if (!timeStr) return "--:--";
         const [h, m] = timeStr.split(':');
@@ -100,7 +139,7 @@ const PlannerRenderer = {
 
         return `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full transition-colors mb-2 w-fit ml-6 -mt-1 relative top-[-5px]">
+                <button id="btn-${id}" onclick="togglePlannerStops('${id}')" class="text-[10px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full transition-colors mb-2 w-fit ml-6 -mt-1 relative top-[-5px] focus:outline-none">
                     ${isExpanded ? "Hide Stops" : "Show All Stops"}
                 </button>
                 ${contentHTML}
@@ -147,7 +186,7 @@ const PlannerRenderer = {
                     <div class="text-sm font-bold text-gray-500 dark:text-gray-400 mb-1">
                         ${countdown}
                     </div>
-                    <button onclick="document.querySelector('#planner-results-list select').selectedIndex += 1; document.querySelector('#planner-results-list select').dispatchEvent(new Event('change'));" class="text-xs text-blue-500 font-bold underline hover:text-blue-600 transition-colors">
+                    <button onclick="document.querySelector('#planner-results-list select').selectedIndex += 1; document.querySelector('#planner-results-list select').dispatchEvent(new Event('change'));" class="text-xs text-blue-500 font-bold underline hover:text-blue-600 transition-colors focus:outline-none">
                         Missed it? Show Next Train &rarr;
                     </button>
                 </div>
@@ -159,7 +198,6 @@ const PlannerRenderer = {
                           </div>`;
         }
 
-        // GUARDIAN V5.01: Centered Header Label & Removed Redundant Train Pill
         return `
             <div class="p-4 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
                 <div class="flex items-center justify-center mb-2">
@@ -168,17 +206,17 @@ const PlannerRenderer = {
                 <div class="flex justify-between items-center mt-2">
                     <div class="text-left flex-1 w-0">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Depart</p>
-                        <p class="text-lg font-black text-gray-900 dark:text-white leading-tight truncate" title="${step.from}">${step.from.replace(' STATION', '')}</p>
+                        <p class="text-base sm:text-lg font-black text-gray-900 dark:text-white leading-tight tracking-tight truncate" title="${step.from}">${step.from.replace(' STATION', '')}</p>
                         <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.depTime)}</p>
                     </div>
                     
-                    <button onclick="swapPlannerResults()" class="flex-none p-1 bg-white dark:bg-gray-700 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 transition shadow-sm border border-gray-200 dark:border-gray-600 mx-1" title="Reverse Trip">
+                    <button onclick="swapPlannerResults()" class="flex-none p-1.5 bg-white dark:bg-gray-700 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 transition shadow-sm border border-gray-200 dark:border-gray-600 mx-0.5 focus:outline-none" title="Reverse Trip">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
                     </button>
 
                     <div class="text-right flex-1 w-0">
                         <p class="text-[10px] text-gray-400 uppercase font-bold">Arrive</p>
-                        <p class="text-lg font-black text-gray-900 dark:text-white leading-tight truncate" title="${step.to}">${step.to.replace(' STATION', '')}</p>
+                        <p class="text-base sm:text-lg font-black text-gray-900 dark:text-white leading-tight tracking-tight truncate" title="${step.to}">${step.to.replace(' STATION', '')}</p>
                         <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.arrTime)}</p>
                     </div>
                 </div>
@@ -198,18 +236,20 @@ const PlannerRenderer = {
         const nowSec = timeToSeconds(currentTime);
         const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
         
-        const isLateNight = nowSec > (20 * 3600); 
+        // GUARDIAN V6.12: Utilize the robust Midnight Protocol flag
+        const midnightRollover = PlannerRenderer.isMidnightRollover();
 
         const optionsHtml = allOptions.map((opt, idx) => {
             const depSec = timeToSeconds(opt.depTime);
-            let isPast = isToday && depSec < nowSec;
+            // If in rollover mode, nothing is "past"
+            let isPast = isToday && !midnightRollover && depSec < nowSec;
+            
             let label = "";
             let typeLabel = "Direct";
             if (opt.type === 'TRANSFER') typeLabel = "1 Transfer";
             if (opt.type === 'DOUBLE_TRANSFER') typeLabel = "2 Transfers";
             
-            if (isToday && isLateNight && depSec < (14 * 3600)) {
-                isPast = false;
+            if (midnightRollover) {
                 label = " (Tomorrow)";
             } else if (isPast) {
                 label = " (Departed)";
@@ -248,8 +288,6 @@ const PlannerRenderer = {
         
         // DIRECT TRIP
         let html = '<div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-4">';
-        // Use inline generation for simple direct list to avoid overhead of expandable logic if not needed, 
-        // OR we can unify everything. For now, keeping the simple look for Direct.
         step.stops.forEach((stop, i) => {
             const isEnd = (i === 0 || i === step.stops.length - 1);
             html += `
@@ -489,10 +527,17 @@ const PlannerRenderer = {
         const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
         let countdown = "Scheduled";
         let isDeparted = false;
-        const isLateNight = nowSec > (20 * 3600);
+        
+        const midnightRollover = PlannerRenderer.isMidnightRollover();
+        
         let effectiveDepSec = depSec;
         let isTomorrowOverride = false;
-        if (isToday && isLateNight && depSec < (14 * 3600)) { effectiveDepSec += 86400; isTomorrowOverride = true; }
+        
+        if (midnightRollover) { 
+            effectiveDepSec += 86400; 
+            isTomorrowOverride = true; 
+        }
+
         if (isToday || isTomorrowOverride) {
             if (effectiveDepSec > nowSec) {
                 const diff = effectiveDepSec - nowSec;
@@ -501,30 +546,10 @@ const PlannerRenderer = {
                 countdown = h > 0 ? `Departs in ${h}h ${m}m` : (m === 0 ? "Departs in < 1 min" : `Departs in ${m} min`);
             } else { countdown = "Departed"; isDeparted = true; }
         }
+        
         const durSec = arrSec - depSec;
         const durMins = Math.floor(durSec / 60);
         return { countdown, duration: PlannerRenderer.formatDuration(durMins), isDeparted };
-    }
-};
-
-// --- GLOBAL CYCLE HELPER ---
-window.cyclePlannerDay = function() {
-    if (!selectedPlannerDay) selectedPlannerDay = currentDayType || 'weekday';
-    
-    if (selectedPlannerDay === 'weekday') selectedPlannerDay = 'saturday';
-    else if (selectedPlannerDay === 'saturday') selectedPlannerDay = 'sunday';
-    else selectedPlannerDay = 'weekday';
-    
-    const daySelect = document.getElementById('planner-day-select');
-    if (daySelect) daySelect.value = selectedPlannerDay;
-    
-    showToast(`Switched to ${selectedPlannerDay} schedule`, "info", 1500);
-    
-    // Auto-recalculate if we have valid inputs
-    const fromSelect = document.getElementById('planner-from');
-    const toSelect = document.getElementById('planner-to');
-    if (fromSelect && toSelect && fromSelect.value && toSelect.value) {
-        executeTripPlan(fromSelect.value, toSelect.value);
     }
 };
 
@@ -536,8 +561,6 @@ function initPlanner() {
     const searchBtn = document.getElementById('planner-search-btn');
     const resetBtn = document.getElementById('planner-reset-btn');
     const locateBtn = document.getElementById('planner-locate-btn');
-    
-    // NEW: Action Buttons in Results Header
     const backBtn = document.getElementById('planner-back-btn');
 
     // Inject Day Selector if missing
@@ -566,19 +589,24 @@ function initPlanner() {
         historyContainer.id = 'planner-history-container';
         historyContainer.className = "mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 hidden";
         inputSection.appendChild(historyContainer);
-        renderPlannerHistory();
+        if (typeof renderPlannerHistory === 'function') renderPlannerHistory();
     }
 
     // Wiring Info Button
     const infoBtn = document.getElementById('planner-info-btn');
     if (infoBtn) {
         infoBtn.addEventListener('click', () => {
-            const helpModal = document.getElementById('help-modal');
-            if (helpModal) helpModal.classList.remove('hidden');
+            if (typeof triggerHaptic === 'function') triggerHaptic();
+            if (typeof openSmoothModal === 'function') {
+                openSmoothModal('help-modal');
+            } else {
+                const helpModal = document.getElementById('help-modal');
+                if (helpModal) helpModal.classList.remove('hidden');
+            }
         });
     }
 
-    // Developer Access (5-Tap)
+    // GUARDIAN RESTORE: Developer Access (5-Tap) on Planner Tab
     const plannerTab = document.getElementById('tab-trip-planner');
     if (plannerTab) {
         let pClickCount = 0;
@@ -590,9 +618,8 @@ function initPlanner() {
             
             if (pClickCount >= 5) {
                 pClickCount = 0;
-                // Delegate to Global Admin Trigger
                 const appTitle = document.getElementById('app-title');
-                if (appTitle) appTitle.click(); // Hack to trigger main logic
+                if (appTitle) appTitle.click(); 
             }
         });
     }
@@ -602,42 +629,7 @@ function initPlanner() {
     setupAutocomplete('planner-from-search', 'planner-from');
     setupAutocomplete('planner-to-search', 'planner-to');
 
-    const populate = (select) => {
-        select.innerHTML = '<option value="">Select...</option>';
-        if (typeof MASTER_STATION_LIST !== 'undefined') {
-            MASTER_STATION_LIST.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s;
-                opt.textContent = s.replace(' STATION', '').trim();
-                select.appendChild(opt);
-            });
-        }
-    };
-    populate(fromSelect);
-    populate(toSelect);
-
-    const filterToOptions = () => {
-        const selectedFrom = fromSelect.value;
-        Array.from(toSelect.options).forEach(opt => {
-            if (opt.value === selectedFrom && opt.value !== "") {
-                opt.disabled = true;
-                opt.hidden = true; 
-            } else {
-                opt.disabled = false;
-                opt.hidden = false;
-            }
-        });
-        if (toSelect.value === selectedFrom) {
-            toSelect.value = "";
-            const toInput = document.getElementById('planner-to-search');
-            if(toInput) toInput.value = "";
-        }
-    };
-    
-    fromSelect.addEventListener('change', filterToOptions);
-    const fromInput = document.getElementById('planner-from-search');
-    if(fromInput) fromInput.addEventListener('change', filterToOptions);
-
+    // GUARDIAN RESTORE: Locate Button Logic
     if (locateBtn) {
         locateBtn.addEventListener('click', () => {
             const icon = locateBtn.querySelector('svg');
@@ -653,7 +645,6 @@ function initPlanner() {
                 (position) => {
                     const { latitude: userLat, longitude: userLon } = position.coords;
                     let candidates = [];
-                    // Using globalStationIndex from logic.js
                     for (const [stationName, coords] of Object.entries(globalStationIndex)) {
                         const dist = getDistanceFromLatLonInKm(userLat, userLon, coords.lat, coords.lon);
                         candidates.push({ stationName, dist });
@@ -661,16 +652,19 @@ function initPlanner() {
                     candidates.sort((a, b) => a.dist - b.dist);
 
                     if (candidates.length > 0 && candidates[0].dist <= 6) { 
-                        const nearest = candidates[0].stationName;
-                        fromSelect.value = nearest;
-                        const fromInput = document.getElementById('planner-from-search');
-                        if(fromInput) fromInput.value = nearest.replace(' STATION', '');
+                        const nearest = candidates[0];
+                        fromSelect.value = nearest.stationName;
+                        const fromInputSearch = document.getElementById('planner-from-search');
+                        if(fromInputSearch) {
+                            fromInputSearch.value = nearest.stationName.replace(' STATION', '');
+                            fromInputSearch.dataset.resolvedValue = nearest.stationName;
+                        }
                         
                         filterToOptions();
-                        showToast(`Located: ${nearest.replace(' STATION', '')}`, "success");
+                        showToast(`Located: ${nearest.stationName.replace(' STATION', '')} (${nearest.dist.toFixed(1)}km)`, "success");
                         
                         if (typeof trackAnalyticsEvent === 'function') {
-                            trackAnalyticsEvent('planner_auto_locate', { station: nearest });
+                            trackAnalyticsEvent('planner_auto_locate', { station: nearest.stationName });
                         }
                     } else {
                         showToast("No stations found nearby.", "error");
@@ -685,149 +679,229 @@ function initPlanner() {
         });
     }
 
-    // --- ROBUST SWAP LOGIC (Fixes Empty Swap Bug) ---
-    swapBtn.addEventListener('click', () => {
-        const fromInput = document.getElementById('planner-from-search');
-        const toInput = document.getElementById('planner-to-search');
+    // GUARDIAN V6.20: The Ghost Filter Patch (Absorbed from ui.js)
+    const filterToOptions = () => {
+        const fromInputEl = document.getElementById('planner-from-search');
+        const toInputEl = document.getElementById('planner-to-search');
         
-        // 1. Capture Visible Text (Source of Truth)
-        let txtFrom = fromInput.value;
-        let txtTo = toInput.value;
+        const selectedFrom = (fromInputEl && fromInputEl.dataset.resolvedValue) ? fromInputEl.dataset.resolvedValue : fromSelect.value;
+        const selectedTo = (toInputEl && toInputEl.dataset.resolvedValue) ? toInputEl.dataset.resolvedValue : toSelect.value;
 
-        // 2. Perform Swap
-        fromInput.value = txtTo;
-        toInput.value = txtFrom;
-
-        // 3. Resolve to Select Options
-        // We use the helper logic to find the exact station ID for the hidden select
-        const resolve = (txt) => {
-            if (!txt) return "";
-            const clean = txt.trim().toUpperCase();
-            if (typeof MASTER_STATION_LIST !== 'undefined') {
-                return MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === clean) || "";
+        Array.from(toSelect.options).forEach(opt => {
+            if (opt.value === selectedFrom && opt.value !== "") {
+                opt.disabled = true;
+                opt.hidden = true; 
+            } else {
+                opt.disabled = false;
+                opt.hidden = false;
             }
-            return "";
-        };
-
-        // FIXED: Now we directly assign the resolved swapped texts rather than relying on stale input properties
-        fromSelect.value = resolve(txtTo);
-        toSelect.value = resolve(txtFrom);
-
-        // 4. Trigger Filter to update disabled states
-        filterToOptions();
-    });
-
-    searchBtn.addEventListener('click', () => {
-        const resolveStation = (inputVal, selectEl) => {
-            if (selectEl.value) return selectEl.value;
-            if (!inputVal || typeof MASTER_STATION_LIST === 'undefined') return "";
-
-            const cleanInput = inputVal.trim().toUpperCase();
-            const exact = MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === cleanInput);
-            if (exact) return exact;
-
-            const matches = MASTER_STATION_LIST.filter(s => s.replace(' STATION', '').toUpperCase().includes(cleanInput));
-            return matches.length === 1 ? matches[0] : "";
-        };
-
-        const fromInput = document.getElementById('planner-from-search');
-        const toInput = document.getElementById('planner-to-search');
-
-        if (!fromSelect.value && fromInput) fromSelect.value = resolveStation(fromInput.value, fromSelect);
-        if (!toSelect.value && toInput) toSelect.value = resolveStation(toInput.value, toSelect);
-
-        const from = fromSelect.value;
-        const to = toSelect.value;
+        });
         
-        if (!from || !to) return showToast("Please select valid stations from the list.", "error");
-        if (from === to) return showToast("Origin and Destination cannot be the same.", "error");
-
-        if (typeof trackAnalyticsEvent === 'function') {
-            trackAnalyticsEvent('planner_search', {
-                origin: from,
-                destination: to,
-                day: selectedPlannerDay || currentDayType || 'unknown'
-            });
+        if (selectedFrom && selectedFrom !== "" && selectedTo === selectedFrom) {
+            toSelect.value = "";
+            if(toInputEl) {
+                toInputEl.value = "";
+                delete toInputEl.dataset.resolvedValue;
+            }
         }
+    };
+    
+    fromSelect.addEventListener('change', filterToOptions);
+    const fromInput = document.getElementById('planner-from-search');
+    if(fromInput) fromInput.addEventListener('change', filterToOptions);
 
-        savePlannerHistory(from, to);
-        executeTripPlan(from, to);
-    });
+    if (swapBtn) {
+        swapBtn.addEventListener('click', () => {
+            if (typeof window.swapPlannerResults === 'function') {
+                window.swapPlannerResults();
+            }
+        });
+    }
 
-    // --- RESET / BACK BUTTON LOGIC ---
+    if (searchBtn) {
+        searchBtn.addEventListener('click', () => {
+            if (typeof triggerHaptic === 'function') triggerHaptic(); 
+
+            const fromInputSearch = document.getElementById('planner-from-search');
+            const toInputSearch = document.getElementById('planner-to-search');
+
+            const resolveStation = (inputEl) => {
+                if (!inputEl) return "";
+                if (inputEl.dataset.resolvedValue) return inputEl.dataset.resolvedValue;
+                
+                const inputVal = inputEl.value;
+                if (!inputVal || typeof MASTER_STATION_LIST === 'undefined') return "";
+
+                const cleanInput = inputVal.trim().replace(/\s+/g, ' ').toUpperCase();
+                const exact = MASTER_STATION_LIST.find(s => s.replace(' STATION', '').trim().toUpperCase() === cleanInput);
+                if (exact) {
+                    inputEl.dataset.resolvedValue = exact;
+                    return exact;
+                }
+
+                const matches = MASTER_STATION_LIST.filter(s => s.replace(' STATION', '').trim().toUpperCase().includes(cleanInput));
+                if (matches.length === 1) {
+                    inputEl.dataset.resolvedValue = matches[0];
+                    return matches[0];
+                }
+                return "";
+            };
+
+            const from = resolveStation(fromInputSearch);
+            const to = resolveStation(toInputSearch);
+
+            if (from && fromInputSearch) fromInputSearch.value = from.replace(' STATION', '');
+            if (to && toInputSearch) toInputSearch.value = to.replace(' STATION', '');
+
+            const fromSelect = document.getElementById('planner-from');
+            const toSelect = document.getElementById('planner-to');
+            if (fromSelect && from) {
+                if (!fromSelect.querySelector(`option[value="${from}"]`)) {
+                    fromSelect.appendChild(new Option(from, from));
+                }
+                fromSelect.value = from;
+            }
+            if (toSelect && to) {
+                if (!toSelect.querySelector(`option[value="${to}"]`)) {
+                    toSelect.appendChild(new Option(to, to));
+                }
+                toSelect.value = to;
+            }
+
+            if (!from || !to) return showToast("Please select valid stations from the list.", "error");
+            if (from === to) return showToast("Origin and Destination cannot be the same.", "error");
+
+            if (typeof trackAnalyticsEvent === 'function') {
+                trackAnalyticsEvent('planner_search', {
+                    origin: from,
+                    destination: to,
+                    day: typeof selectedPlannerDay !== 'undefined' ? selectedPlannerDay : 'unknown'
+                });
+            }
+
+            if (typeof savePlannerHistory === 'function') savePlannerHistory(from, to);
+            if (typeof executeTripPlan === 'function') executeTripPlan(from, to);
+        });
+    }
+
+    // GUARDIAN Phase 10 & 11: Router-Aware Reset with Double-Tap Protection
     const resetAction = () => {
-        if (plannerPulse) { clearInterval(plannerPulse); plannerPulse = null; }
+        if (typeof triggerHaptic === 'function') triggerHaptic();
         
-        document.getElementById('planner-input-section').classList.remove('hidden');
-        document.getElementById('planner-results-section').classList.add('hidden');
+        // INSTANT DOM WIPE: Kills the button instantly so it can't be double-tapped
+        window.hidePlannerResults();
         
-        // Don't clear inputs if just going back, allows refinement
-        // But reset expanded state
-        plannerExpandedState.clear(); 
-        
-        const daySelect = document.getElementById('planner-day-select');
-        if (daySelect && typeof currentDayType !== 'undefined') {
-            // Keep user selected day
+        if (location.hash === '#planner-results') {
+            setTimeout(() => history.back(), 10);
         }
     };
 
     if (resetBtn) resetBtn.addEventListener('click', resetAction);
     if (backBtn) backBtn.addEventListener('click', resetAction);
+
+    // GUARDIAN Phase 10: Clean up state if user switches tabs while deep in planner results
+    const tabNextTrain = document.getElementById('tab-next-train');
+    if (tabNextTrain) {
+        tabNextTrain.addEventListener('click', () => {
+            if (location.hash === '#planner-results') {
+                history.replaceState({ view: 'home' }, '', '#home');
+                window.hidePlannerResults();
+            }
+        });
+    }
 }
 
-// --- UPDATED: SMART SWAP RESULTS FUNCTION ---
+// --- GUARDIAN V6.15: BULLETPROOF RESULTS SWAP (Absorbed from ui.js) ---
 window.swapPlannerResults = function() {
-    const fromSelect = document.getElementById('planner-from');
-    const toSelect = document.getElementById('planner-to');
+    if (typeof triggerHaptic === 'function') triggerHaptic();
+
     const fromInput = document.getElementById('planner-from-search');
     const toInput = document.getElementById('planner-to-search');
+    const fromSelect = document.getElementById('planner-from');
+    const toSelect = document.getElementById('planner-to');
 
-    // 1. Capture Smart Time Context
+    if (!fromInput || !toInput) return;
+
     let preferredTime = null;
     const dropdown = document.querySelector('#planner-results-list select');
-    if (dropdown && currentTripOptions.length > 0) {
+    if (dropdown && typeof currentTripOptions !== 'undefined' && currentTripOptions.length > 0) {
         const selectedIdx = parseInt(dropdown.value);
         if (currentTripOptions[selectedIdx]) {
             preferredTime = currentTripOptions[selectedIdx].depTime;
         }
     }
 
-    // 2. Perform Robust Swap (Reading Inputs first)
-    if (!fromInput || !toInput) return;
-    
-    let txtFrom = fromInput.value;
-    let txtTo = toInput.value;
-    
-    // Fallback: If inputs empty (glitch), read selects
-    if (!txtFrom && fromSelect.value) txtFrom = fromSelect.value.replace(' STATION', '');
-    if (!txtTo && toSelect.value) txtTo = toSelect.value.replace(' STATION', '');
+    // 1. Capture current visual & semantic states
+    let tempFromVal = fromInput.value;
+    let tempFromResolved = fromInput.dataset.resolvedValue;
 
-    if (!txtFrom || !txtTo) return; // Cannot swap empty
+    let tempToVal = toInput.value;
+    let tempToResolved = toInput.dataset.resolvedValue;
 
-    // Update Inputs
-    fromInput.value = txtTo;
-    toInput.value = txtFrom;
+    // 2. Swap visual text
+    fromInput.value = tempToVal;
+    toInput.value = tempFromVal;
 
-    // Resolve IDs
-    const resolve = (txt) => {
-        if (!txt) return "";
-        const clean = txt.trim().toUpperCase();
-        if (typeof MASTER_STATION_LIST !== 'undefined') {
-            return MASTER_STATION_LIST.find(s => s.replace(' STATION', '').toUpperCase() === clean) || "";
+    // 3. Swap datasets
+    if (tempToResolved) fromInput.dataset.resolvedValue = tempToResolved;
+    else delete fromInput.dataset.resolvedValue;
+
+    if (tempFromResolved) toInput.dataset.resolvedValue = tempFromResolved;
+    else delete toInput.dataset.resolvedValue;
+
+    // 4. Ensure datasets are fully resolved before executing search
+    const resolveStation = (inputEl) => {
+        if (!inputEl) return "";
+        if (inputEl.dataset.resolvedValue) return inputEl.dataset.resolvedValue;
+        
+        const inputVal = inputEl.value;
+        if (!inputVal || typeof MASTER_STATION_LIST === 'undefined') return "";
+
+        const cleanInput = inputVal.trim().replace(/\s+/g, ' ').toUpperCase();
+        const exact = MASTER_STATION_LIST.find(s => s.replace(' STATION', '').trim().toUpperCase() === cleanInput);
+        if (exact) {
+            inputEl.dataset.resolvedValue = exact;
+            return exact;
+        }
+
+        const matches = MASTER_STATION_LIST.filter(s => s.replace(' STATION', '').trim().toUpperCase().includes(cleanInput));
+        if (matches.length === 1) {
+            inputEl.dataset.resolvedValue = matches[0];
+            return matches[0];
         }
         return "";
     };
 
-    const newFromId = resolve(txtTo);
-    const newToId = resolve(txtFrom);
+    const resolvedFrom = resolveStation(fromInput);
+    const resolvedTo = resolveStation(toInput);
 
-    if (fromSelect) fromSelect.value = newFromId;
-    if (toSelect) toSelect.value = newToId;
+    // 5. Sync legacy selects safely
+    if (fromSelect && resolvedFrom) {
+        if (!fromSelect.querySelector(`option[value="${resolvedFrom}"]`)) fromSelect.appendChild(new Option(resolvedFrom, resolvedFrom));
+        fromSelect.value = resolvedFrom;
+    }
+    if (toSelect && resolvedTo) {
+        if (!toSelect.querySelector(`option[value="${resolvedTo}"]`)) toSelect.appendChild(new Option(resolvedTo, resolvedTo));
+        toSelect.value = resolvedTo;
+    }
 
-    showToast("Reversing Direction...", "info", 1000);
-    
-    // 3. Trigger Search with Context
-    executeTripPlan(newFromId, newToId, preferredTime);
+    if (!resolvedFrom || !resolvedTo) {
+        showToast("Cannot resolve stations for swap. Please select from list.", "error");
+        return; 
+    }
+
+    // GUARDIAN FIX: Visibility Guard
+    const resultsSection = document.getElementById('planner-results-section');
+    if (resultsSection && !resultsSection.classList.contains('hidden')) {
+        showToast("Reversing Direction...", "info", 1000);
+        if (typeof executeTripPlan === 'function') {
+            executeTripPlan(resolvedFrom, resolvedTo, preferredTime);
+        }
+    } else {
+        // Just trigger ghost filter update silently
+        if (fromSelect) fromSelect.dispatchEvent(new Event('change'));
+        if (fromInput) fromInput.dispatchEvent(new Event('change'));
+    }
 };
 
 // --- HISTORY & AUTOCOMPLETE ---
@@ -837,12 +911,14 @@ function savePlannerHistory(from, to) {
     const cleanTo = to.replace(' STATION', '');
     const routeKey = `${cleanFrom}|${cleanTo}`;
     
-    let history = JSON.parse(localStorage.getItem('plannerHistory') || "[]");
+    const historyKey = 'plannerHistory_' + (typeof currentRegion !== 'undefined' ? currentRegion : 'GP');
+    
+    let history = JSON.parse(localStorage.getItem(historyKey) || "[]");
     history = history.filter(item => `${item.from}|${item.to}` !== routeKey);
     history.unshift({ from: cleanFrom, to: cleanTo, fullFrom: from, fullTo: to });
     if (history.length > 4) history = history.slice(0, 4);
     
-    localStorage.setItem('plannerHistory', JSON.stringify(history));
+    localStorage.setItem(historyKey, JSON.stringify(history));
     renderPlannerHistory();
 }
 
@@ -850,8 +926,21 @@ function renderPlannerHistory() {
     const container = document.getElementById('planner-history-container');
     if (!container) return;
     
-    const history = JSON.parse(localStorage.getItem('plannerHistory') || "[]");
-    if (history.length === 0) {
+    const historyKey = 'plannerHistory_' + (typeof currentRegion !== 'undefined' ? currentRegion : 'GP');
+    let rawHistory = JSON.parse(localStorage.getItem(historyKey) || "[]");
+
+    let validHistory = rawHistory;
+    if (typeof MASTER_STATION_LIST !== 'undefined' && MASTER_STATION_LIST.length > 0) {
+        validHistory = rawHistory.filter(item =>
+            MASTER_STATION_LIST.includes(item.fullFrom) &&
+            MASTER_STATION_LIST.includes(item.fullTo)
+        );
+    } else if (typeof MASTER_STATION_LIST !== 'undefined' && MASTER_STATION_LIST.length === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+    
+    if (validHistory.length === 0) {
         container.classList.add('hidden');
         return;
     }
@@ -860,12 +949,12 @@ function renderPlannerHistory() {
     container.innerHTML = `
         <div class="flex items-center justify-between mb-2 px-1">
              <p class="text-xs font-bold text-gray-400 uppercase">Recent Trips</p>
-             <button onclick="localStorage.removeItem('plannerHistory'); renderPlannerHistory()" class="text-[10px] text-gray-400 hover:text-red-500">Clear</button>
+             <button onclick="localStorage.removeItem('${historyKey}'); renderPlannerHistory()" class="text-[10px] text-gray-400 hover:text-red-500 focus:outline-none">Clear</button>
         </div>
         <div class="flex flex-col gap-2">
-            ${history.map(item => `
+            ${validHistory.map(item => `
                 <button onclick="restorePlannerSearch('${item.fullFrom}', '${item.fullTo}')" 
-                    class="w-full flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 shadow-sm hover:border-blue-50 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group text-left">
+                    class="w-full flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 shadow-sm hover:border-blue-50 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group text-left focus:outline-none">
                     <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                         ${item.from} <span class="text-gray-400 mx-1">&rarr;</span> ${item.to}
                     </span>
@@ -885,8 +974,14 @@ window.restorePlannerSearch = function(fullFrom, fullTo) {
     if (fromSelect && toSelect) {
         fromSelect.value = fullFrom;
         toSelect.value = fullTo;
-        if (fromInput) fromInput.value = fullFrom.replace(' STATION', '');
-        if (toInput) toInput.value = fullTo.replace(' STATION', '');
+        if (fromInput) {
+            fromInput.value = fullFrom.replace(' STATION', '');
+            fromInput.dataset.resolvedValue = fullFrom;
+        }
+        if (toInput) {
+            toInput.value = fullTo.replace(' STATION', '');
+            toInput.dataset.resolvedValue = fullTo;
+        }
         
         const daySelect = document.getElementById('planner-day-select');
         if (daySelect) {
@@ -903,6 +998,7 @@ window.restorePlannerSearch = function(fullFrom, fullTo) {
     }
 };
 
+// GUARDIAN V6.20: Absorbed from ui.js - Prevents trailing space bugs
 function setupAutocomplete(inputId, selectId) {
     const input = document.getElementById(inputId);
     const select = document.getElementById(selectId);
@@ -917,12 +1013,12 @@ function setupAutocomplete(inputId, selectId) {
     input.parentNode.appendChild(chevron);
 
     const list = document.createElement('ul');
-    list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0";
+    list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0 custom-scrollbar";
     input.parentNode.appendChild(list);
 
     const renderList = (filterText = '') => {
         list.innerHTML = '';
-        const val = filterText.toUpperCase();
+        const val = filterText.trim().toUpperCase();
         const matches = val.length === 0 ? MASTER_STATION_LIST : MASTER_STATION_LIST.filter(s => s.includes(val));
 
         if (matches.length === 0) {
@@ -937,10 +1033,18 @@ function setupAutocomplete(inputId, selectId) {
                 li.textContent = station.replace(' STATION', '');
                 li.onclick = () => {
                     input.value = station.replace(' STATION', '');
-                    select.value = station;
-                    const event = new Event('change');
-                    select.dispatchEvent(event);
-                    
+                    input.dataset.resolvedValue = station;
+                    if (select) {
+                        if (!select.querySelector(`option[value="${station}"]`)) {
+                            const opt = document.createElement('option');
+                            opt.value = station;
+                            opt.textContent = station;
+                            select.appendChild(opt);
+                        }
+                        select.value = station;
+                        const event = new Event('change');
+                        select.dispatchEvent(event);
+                    }
                     list.classList.add('hidden');
                 };
                 list.appendChild(li);
@@ -949,7 +1053,11 @@ function setupAutocomplete(inputId, selectId) {
         list.classList.remove('hidden');
     };
 
-    input.addEventListener('input', () => { select.value = ""; renderList(input.value); });
+    input.addEventListener('input', () => { 
+        delete input.dataset.resolvedValue;
+        if(select) select.value = ""; 
+        renderList(input.value); 
+    });
     input.addEventListener('focus', () => renderList(input.value));
     chevron.addEventListener('click', (e) => { e.stopPropagation(); list.classList.contains('hidden') ? (renderList(input.value), input.focus()) : list.classList.add('hidden'); });
     document.addEventListener('click', (e) => { if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) list.classList.add('hidden'); });
@@ -964,12 +1072,15 @@ function executeTripPlan(origin, dest, preferredTime = null) {
     document.getElementById('planner-results-section').classList.remove('hidden');
     plannerExpandedState.clear();
 
+    // GUARDIAN Phase 10: Push Results State
+    if (location.hash !== '#planner-results') {
+        history.pushState({ view: 'planner-results' }, '', '#planner-results');
+    }
+
     if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
 
     // Run Asynchronously to prevent UI freeze
     setTimeout(() => {
-        // --- CALL TO PLANNER CORE ---
-        // We pass 'selectedPlannerDay' to all functions to ensure they are stateless
         const directPlan = planDirectTrip(origin, dest, selectedPlannerDay);
         const transferPlan = planHubTransferTrip(origin, dest, selectedPlannerDay);
         const relayPlan = planRelayTransferTrip(origin, dest, selectedPlannerDay);
@@ -979,7 +1090,6 @@ function executeTripPlan(origin, dest, preferredTime = null) {
         if (transferPlan.trips) mergedTrips = [...mergedTrips, ...transferPlan.trips];
         if (relayPlan.trips) mergedTrips = [...mergedTrips, ...relayPlan.trips];
 
-        // 4. Try Double Transfer (Bridge) if results are thin
         if (mergedTrips.length === 0) {
             console.log("No simple route found. Attempting 2-Transfer Bridge...");
             const doubleTransferPlan = planDoubleTransferTrip(origin, dest, selectedPlannerDay);
@@ -988,7 +1098,6 @@ function executeTripPlan(origin, dest, preferredTime = null) {
             }
         }
 
-        // 5. Best-In-Slot Deduplication (UI Logic)
         const bestTripsMap = new Map();
         mergedTrips.forEach(trip => {
             const key = trip.depTime;
@@ -1018,9 +1127,7 @@ function executeTripPlan(origin, dest, preferredTime = null) {
         if (currentTripOptions.length > 0) {
             let nextTripIndex = 0;
             
-            // --- SMART SELECTION LOGIC ---
             if (preferredTime) {
-                // Find trip closest to preferred time (e.g. user just swapped)
                 const targetSec = timeToSeconds(preferredTime);
                 let closestDist = Infinity;
                 
@@ -1032,34 +1139,39 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                         nextTripIndex = index;
                     }
                 });
-                console.log(`Smart Swap: Preserved context near ${preferredTime} -> Selected ${currentTripOptions[nextTripIndex].depTime}`);
-                
             } else {
-                // Default: Next Train from Now
                 const nowSec = timeToSeconds(currentTime);
-                const isLateNight = nowSec > (20 * 3600);
+                const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
                 
-                const idx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
-                if (idx !== -1) nextTripIndex = idx;
-                else nextTripIndex = currentTripOptions.length - 1;
+                let isMidnightRollover = false;
+                if (isToday && currentTripOptions.length > 0) {
+                    const latestDep = Math.max(...currentTripOptions.map(t => timeToSeconds(t.depTime)));
+                    if (nowSec > latestDep) isMidnightRollover = true;
+                }
+                
+                if (isMidnightRollover) {
+                    nextTripIndex = 0;
+                } else {
+                    const idx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
+                    if (idx !== -1) nextTripIndex = idx;
+                    else nextTripIndex = currentTripOptions.length - 1;
+                }
             }
 
             renderSelectedTrip(resultsContainer, nextTripIndex);
             startPlannerPulse(nextTripIndex);
 
         } else {
-            // Error Handling (Map Fallback)
             if (typeof trackAnalyticsEvent === 'function') {
                 trackAnalyticsEvent('planner_no_result', { origin: origin, destination: dest });
             }
             
-            // Update header to hide Share button (or show empty state header)
             updatePlannerHeader("No Route Found", false);
 
             const errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path. You may need to plan this journey in segments (e.g., 'Home to Pretoria', then 'Pretoria to Work').";
             const actionBtn = `
-                <button onclick="document.getElementById('map-modal').classList.remove('hidden')" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                <button onclick="document.getElementById('map-modal').classList.remove('hidden')" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center focus:outline-none">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
                     Open Network Map
                 </button>
             `;
@@ -1070,12 +1182,12 @@ function executeTripPlan(origin, dest, preferredTime = null) {
 
 function renderSelectedTrip(container, index) {
     const selectedTrip = currentTripOptions[index];
-    if (!selectedTrip) return; // FIX 2: Guard Clause added
+    if (!selectedTrip) return; 
 
     const isTomorrow = selectedTrip.dayLabel !== undefined;
-    const nowSec = timeToSeconds(currentTime);
-    const isLateNight = nowSec > (20 * 3600);
-    const effectivelyTomorrow = isTomorrow || (isLateNight && timeToSeconds(selectedTrip.depTime) < (12 * 3600));
+    const midnightRollover = PlannerRenderer.isMidnightRollover();
+
+    const effectivelyTomorrow = isTomorrow || midnightRollover;
 
     if (effectivelyTomorrow) {
         renderNoMoreTrainsResult(container, currentTripOptions, index, "No more trains today");
@@ -1144,6 +1256,7 @@ window.togglePlannerStops = function(id) {
     if(btn) btn.textContent = isHidden ? "Show All Stops" : "Hide Stops";
 };
 
+
 // --- VIEW COMPONENTS ---
 
 function getPlanningDayLabel() {
@@ -1153,26 +1266,48 @@ function getPlanningDayLabel() {
     return "Weekday Schedule";
 }
 
-// GUARDIAN V5.01: Redesigned Planner Header & Double URL Bug Fix
 function updatePlannerHeader(dayLabel, showShare = true) {
     const headerTitle = document.querySelector('#planner-results-section h4');
-    // FIX: Stable DOM Targeting - Find original .w-8 OR the new persistent .planner-share-slot
     const spacer = document.querySelector('#planner-results-section .w-8, #planner-results-section .planner-share-slot'); 
     
     if (headerTitle) {
         headerTitle.innerHTML = "";
-        headerTitle.className = "flex-1 w-0 flex justify-center mx-2"; 
+        headerTitle.className = "flex-1 w-0 flex justify-center mx-1"; 
         
-        // Interactive Day Swap Button
-        const badge = document.createElement("button");
-        badge.className = "bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-3 py-1.5 rounded-full border border-blue-200 shadow-sm flex items-center transition-colors max-w-full cursor-pointer group";
-        badge.title = "Click to change day";
-        badge.onclick = window.cyclePlannerDay;
+        const badge = document.createElement("div");
+        badge.className = "relative bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-800 dark:text-blue-300 text-xs font-bold rounded-lg border border-blue-100 dark:border-blue-800 shadow-sm flex items-center transition-colors w-full max-w-[150px] cursor-pointer group h-[38px]"; 
+        
+        let selDay = selectedPlannerDay || (typeof currentDayType !== 'undefined' ? currentDayType : 'weekday');
         
         badge.innerHTML = `
-            <svg class="w-3 h-3 mr-1.5 flex-shrink-0 group-hover:rotate-180 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
-            <span class="truncate">${dayLabel}</span>
+            <select id="planner-header-day-select" class="appearance-none bg-transparent pl-3 pr-7 py-2 outline-none font-bold text-blue-600 dark:text-blue-400 cursor-pointer z-10 relative w-full text-center truncate text-[12px] h-full focus:ring-0">
+                <option value="weekday" ${selDay === 'weekday' ? 'selected' : ''}>Mon - Fri</option>
+                <option value="saturday" ${selDay === 'saturday' ? 'selected' : ''}>Saturday</option>
+                <option value="sunday" ${selDay === 'sunday' ? 'selected' : ''}>Sun / Hol</option>
+            </select>
+            <div class="absolute right-2.5 top-1/2 transform -translate-y-1/2 pointer-events-none text-blue-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
         `;
+        
+        const selEl = badge.querySelector('select');
+        selEl.addEventListener('change', (e) => {
+            if (typeof triggerHaptic === 'function') triggerHaptic();
+            selectedPlannerDay = e.target.value;
+            const daySelect = document.getElementById('planner-day-select');
+            if (daySelect) daySelect.value = selectedPlannerDay;
+            
+            if (typeof showToast === 'function') {
+                showToast("Switched to " + e.target.options[e.target.selectedIndex].text, "info", 1500);
+            }
+            
+            const fromSelect = document.getElementById('planner-from');
+            const toSelect = document.getElementById('planner-to');
+            if (fromSelect && toSelect && fromSelect.value && toSelect.value) {
+                executeTripPlan(fromSelect.value, toSelect.value);
+            }
+        });
+        
         headerTitle.appendChild(badge);
         headerTitle.classList.remove('hidden');
     }
@@ -1180,23 +1315,21 @@ function updatePlannerHeader(dayLabel, showShare = true) {
     if (spacer) {
         spacer.innerHTML = ""; 
         spacer.style.display = 'block'; 
-        // FIX: Re-apply a persistent identity class so it can be found during the next swap
         spacer.className = "flex-none planner-share-slot"; 
 
         if (showShare) {
             const shareBtn = document.createElement("button");
-            // GUARDIAN: Restored text for flexbox balance
-            shareBtn.className = "flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group flex-none whitespace-nowrap shadow-sm border border-blue-100 dark:border-blue-800";
+            shareBtn.className = "flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group flex-none whitespace-nowrap shadow-sm border border-blue-100 dark:border-blue-800 focus:outline-none";
             shareBtn.title = "Share Trip Plan";
             
-            // FIX: Just-In-Time extraction inside the click event guarantees 100% fresh data
             shareBtn.onclick = async () => {
+                if (typeof triggerHaptic === 'function') triggerHaptic(); 
+                
                 const dropdown = document.querySelector('#planner-results-list select');
                 let selectedTime = null;
                 let fromStation = "";
                 let toStation = "";
                 
-                // THE ULTIMATE SOURCE OF TRUTH at the exact moment of click
                 if (currentTripOptions.length > 0) {
                      const idx = dropdown ? (parseInt(dropdown.value) || 0) : 0;
                      const selectedTrip = currentTripOptions[idx] || currentTripOptions[0];
@@ -1204,21 +1337,21 @@ function updatePlannerHeader(dayLabel, showShare = true) {
                      fromStation = (selectedTrip.from || "").replace(/ STATION/gi, '').trim();
                      toStation = (selectedTrip.to || "").replace(/ STATION/gi, '').trim();
                 } else {
-                     // Fallback to DOM inputs only if there are no trips
                      fromStation = (document.getElementById('planner-from-search').value || "").trim();
                      toStation = (document.getElementById('planner-to-search').value || "").trim();
                 }
                 
                 const safeTime = (selectedTime || "").trim();
                 const safeDay = (selectedPlannerDay || "").trim();
+                const safeRegion = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
                 
-                // USE URLSearchParams to ensure strict '+' encoding for spaces instead of '%20'
                 const params = new URLSearchParams({
                     action: 'planner',
                     from: fromStation,
                     to: toStation,
                     time: safeTime,
-                    day: safeDay
+                    day: safeDay,
+                    region: safeRegion 
                 });
                 
                 const shareLink = `https://nexttrain.co.za/?${params.toString()}`;
@@ -1229,7 +1362,6 @@ function updatePlannerHeader(dayLabel, showShare = true) {
                     if (navigator.share) await navigator.share(data); 
                     else {
                         const textArea = document.createElement('textarea');
-                        // Fallback includes the URL manually since there is no Share Sheet
                         textArea.value = `${shareText} Check details here: ${shareLink}`;
                         document.body.appendChild(textArea);
                         textArea.select();
@@ -1252,11 +1384,10 @@ function updatePlannerHeader(dayLabel, showShare = true) {
 
 function renderTripResult(container, trips, selectedIndex = 0) {
     const selectedTrip = trips[selectedIndex];
-    if (!selectedTrip) return; // Added safety check here too
+    if (!selectedTrip) return; 
 
     const dayLabel = getPlanningDayLabel();
     
-    // Update Header Badge OUTSIDE the card
     updatePlannerHeader(dayLabel, true);
 
     container.innerHTML = PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
@@ -1264,11 +1395,10 @@ function renderTripResult(container, trips, selectedIndex = 0) {
 
 function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "No more trains today") {
     const selectedTrip = trips[selectedIndex];
-    if (!selectedTrip) return; // Added safety check here too
+    if (!selectedTrip) return; 
 
     const dayLabel = getPlanningDayLabel();
     
-    // Update Header Badge OUTSIDE the card
     updatePlannerHeader(dayLabel, true);
 
     container.innerHTML = `
@@ -1287,7 +1417,7 @@ function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "
 
 function renderErrorCard(title, message, actionHtml = "") {
     return `
-        <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4 text-center">
+        <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:yellow-700 rounded-lg p-4 text-center">
             <h3 class="font-bold text-yellow-800 dark:text-yellow-200 mb-1">${title}</h3>
             <p class="text-sm text-gray-600 dark:text-gray-400">${message}</p>
             ${actionHtml}

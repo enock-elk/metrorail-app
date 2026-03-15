@@ -1,10 +1,9 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V5.10.20 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.00.13 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
- * * PART OF PHASE 3 & 4: LOADING GUARDRAILS & SMART DEFAULTS
- * * UPDATES: High Contrast Mode, Centered Layouts, Event Styling & Kempton Intercept (Guardian V5.01)
+ * * PART OF PHASE 5: NATIVE EXPERIENCE (Targeted Haptics & Grid UI)
  */
 
 const Renderer = {
@@ -23,19 +22,25 @@ const Renderer = {
             "JHB_EAST": "Pretoria - JHB Line",
             "JHB_CORE": "Pretoria - JHB Line",
             "JHB_WEST": "JHB West Line",
-            "JHB_SOUTH": "JHB West Line"
+            "JHB_SOUTH": "JHB West Line",
+            "WC_CENTRAL": "Cape Town Central Line",
+            "WC_SOUTHERN": "Cape Town Southern Line",
+            "WC_FLATS": "Cape Flats Line",
+            "WC_NORTHERN": "Cape Town Northern Line"
         };
 
         const categoryOrder = [
             "Northern Corridor (Pretoria)",
             "Pretoria - JHB Line",
-            "JHB West Line"
+            "JHB West Line",
+            "Cape Town Central Line",
+            "Cape Town Southern Line",
+            "Cape Flats Line",
+            "Cape Town Northern Line"
         ];
-
         const groups = {};
         Object.values(routes).forEach(route => {
-            // GUARDIAN TASK 6.3: Exclude special_event from standard group loops
-            if (!route.isActive || route.id === 'special_event') return;
+            if (route.id === 'special_event') return;
             const cat = categoryMap[route.corridorId] || "Other Routes";
             if (!groups[cat]) groups[cat] = [];
             groups[cat].push(route);
@@ -43,35 +48,44 @@ const Renderer = {
 
         let html = '';
 
-        // GUARDIAN TASK 6.3: SPECIAL EVENT ROUTE (Absolute Top, Unique Styling)
         if (routes['special_event'] && routes['special_event'].isActive) {
             const r = routes['special_event'];
-            const isActive = r.id === activeRouteId ? 'active' : '';
+            const isActive = r.id === activeRouteId;
+            const activeBg = isActive ? 'bg-yellow-100 dark:bg-yellow-900/40' : 'hover:bg-yellow-50 dark:hover:bg-yellow-900/20';
             html += `
-                <div id="special-event-section" class="border-b border-yellow-200 dark:border-yellow-900/50 pb-2 mb-2 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg p-2">
-                    <li class="route-category mt-0 pt-0 text-yellow-600 dark:text-yellow-400 flex items-center animate-pulse tracking-widest"><span class="mr-1">⭐</span> SPECIAL EVENT</li>
-                    <li class="route-item mt-1">
-                        <a class="${isActive} font-black text-yellow-700 dark:text-yellow-400" data-route-id="${r.id}">
-                            <span class="mr-2">⭐</span>${r.name}
+                <div id="special-event-section" class="mb-3 rounded-xl overflow-hidden border border-yellow-200 dark:border-yellow-800 shadow-sm">
+                    <li class="text-[10px] font-black text-yellow-600 dark:text-yellow-400 uppercase tracking-widest px-4 py-2 bg-yellow-50 dark:bg-yellow-900/30 flex items-center animate-pulse"><span class="mr-1">⭐</span> SPECIAL EVENT</li>
+                    <li class="list-none">
+                        <a class="block px-4 py-3 ${activeBg} transition-colors cursor-pointer flex items-center justify-between text-sm font-black text-yellow-700 dark:text-yellow-400" data-route-id="${r.id}">
+                            <div class="flex items-center min-w-0 pr-2">
+                                <span class="mr-2 flex-shrink-0">⭐</span>
+                                <span class="truncate">${r.name}</span>
+                            </div>
+                            ${isActive ? '<svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' : ''}
                         </a>
                     </li>
                 </div>
             `;
         }
 
-        const savedDefault = localStorage.getItem('defaultRoute');
-        // Prevent duplicate if user somehow pinned the special event
+        const savedDefault = localStorage.getItem('defaultRoute_' + (typeof currentRegion !== 'undefined' ? currentRegion : 'GP'));
         if (savedDefault && routes[savedDefault] && savedDefault !== 'special_event') {
             const r = routes[savedDefault];
-            const isActive = r.id === activeRouteId ? 'active' : '';
+            const isActive = r.id === activeRouteId;
+            const activeBg = isActive ? 'bg-blue-50 dark:bg-blue-900/20 font-black text-blue-700 dark:text-blue-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold';
             const dotColor = Renderer._getDotColor(r.colorClass);
             
+            // GUARDIAN Phase 3: Compressed Pinned Route into a single line
             html += `
-                <div id="pinned-section" class="border-b border-gray-700 dark:border-gray-600 pb-2 mb-2">
-                    <li class="route-category mt-0 pt-0 text-blue-500 dark:text-blue-400">Pinned Route</li>
-                    <li class="route-item">
-                        <a class="${isActive}" data-route-id="${r.id}">
-                            <span class="route-dot ${dotColor}"></span>${r.name}
+                <div id="pinned-section" class="mb-3 rounded-xl overflow-hidden border border-blue-200 dark:border-blue-900/50 shadow-sm">
+                    <li class="list-none">
+                        <a class="block px-4 py-3 ${activeBg} transition-colors cursor-pointer flex items-center justify-between text-sm" data-route-id="${r.id}">
+                            <div class="flex items-center min-w-0 pr-2">
+                                <span class="w-3 h-3 rounded-full mr-3 flex-shrink-0 ${dotColor} ${isActive ? 'ring-2 ring-blue-300 dark:ring-blue-700' : ''}"></span>
+                                <span class="text-[10px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest mr-2 flex-shrink-0">Pinned:</span>
+                                <span class="truncate">${r.name.replace('<->', '↔')}</span>
+                            </div>
+                            ${isActive ? '<svg class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' : ''}
                         </a>
                     </li>
                 </div>
@@ -80,18 +94,45 @@ const Renderer = {
 
         categoryOrder.forEach(cat => {
             if (groups[cat]) {
-                html += `<li class="route-category">${cat}</li>`;
+                // GUARDIAN Phase 3: Stripped background/shadows, centered text, making them pure clean dividers
+                html += `<li class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center pb-2 pt-4 list-none select-none">${cat}</li>`;
+                
+                // Made the container fully rounded since the header no longer serves as a visual flat cap
+                html += `<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-4 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">`;
+                
                 groups[cat].forEach(r => {
-                    const isActive = r.id === activeRouteId ? 'active' : '';
+                    const isActive = r.id === activeRouteId;
+                    const activeBg = isActive ? 'bg-blue-50 dark:bg-blue-900/20 font-black text-blue-700 dark:text-blue-300' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-200 font-medium';
                     const dotColor = Renderer._getDotColor(r.colorClass);
-                    html += `
-                        <li class="route-item">
-                            <a class="${isActive}" data-route-id="${r.id}">
-                                <span class="route-dot ${dotColor}"></span>${r.name}
-                            </a>
-                        </li>
-                    `;
+                    const displayName = r.name.replace('<->', '↔');
+                    
+                    if (!r.isActive) {
+                        html += `
+                            <li class="list-none opacity-60 bg-gray-50 dark:bg-gray-800/30">
+                                <a class="block px-4 py-3 cursor-not-allowed flex items-center justify-between text-sm text-gray-500 dark:text-gray-400" data-route-id="${r.id}">
+                                    <div class="flex items-center min-w-0 pr-2">
+                                        <span class="w-2.5 h-2.5 rounded-full mr-3 flex-shrink-0 bg-gray-300 dark:bg-gray-600"></span>
+                                        <span class="truncate">${displayName}</span>
+                                    </div>
+                                    <span class="ml-2 text-[8px] bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded uppercase font-black tracking-widest flex-shrink-0">Soon</span>
+                                </a>
+                            </li>
+                        `;
+                    } else {
+                        html += `
+                            <li class="list-none">
+                                <a class="block px-4 py-3 ${activeBg} transition-colors cursor-pointer flex items-center justify-between text-sm group" data-route-id="${r.id}">
+                                    <div class="flex items-center min-w-0 pr-2">
+                                        <span class="w-3 h-3 rounded-full mr-3 flex-shrink-0 ${dotColor} ${isActive ? 'ring-2 ring-blue-300 dark:ring-blue-700' : ''}"></span>
+                                        <span class="truncate">${displayName}</span>
+                                    </div>
+                                    ${isActive ? '<svg class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' : ''}
+                                </a>
+                            </li>
+                        `;
+                    }
                 });
+                html += `</div>`;
             }
         });
 
@@ -105,31 +146,50 @@ const Renderer = {
         container.innerHTML = "";
         
         Object.values(routes).forEach(route => {
-            // Hide special events from the welcome list
-            if (!route.isActive || route.id === 'special_event') return;
+            if (route.id === 'special_event') return;
 
             const btn = document.createElement('button');
-            let borderColor = 'border-gray-500';
-            if (route.colorClass.includes('orange')) borderColor = 'border-orange-500';
-            else if (route.colorClass.includes('purple')) borderColor = 'border-purple-500';
-            else if (route.colorClass.includes('green')) borderColor = 'border-green-500';
-            else if (route.colorClass.includes('blue')) borderColor = 'border-blue-500';
-            else if (route.colorClass.includes('red')) borderColor = 'border-red-500';
-            else if (route.colorClass.includes('yellow')) borderColor = 'border-yellow-500';
-            else if (route.colorClass.includes('indigo')) borderColor = 'border-indigo-500';
-
-            btn.className = `w-full text-left p-4 rounded-xl shadow-md flex items-center justify-between group transition-all transform hover:scale-[1.02] active:scale-95 bg-white dark:bg-gray-800 border-l-4 ${borderColor}`;
+            const displayName = route.name.replace('<->', '↔');
             
-            btn.innerHTML = `
-                <div>
-                    <span class="block text-sm font-bold text-gray-900 dark:text-white">${route.name}</span>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">View schedules</span>
-                </div>
-                <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-            `;
+            if (route.isActive) {
+                let borderColor = 'border-gray-500';
+                if (route.colorClass.includes('orange')) borderColor = 'border-orange-500';
+                else if (route.colorClass.includes('purple')) borderColor = 'border-purple-500';
+                else if (route.colorClass.includes('green')) borderColor = 'border-green-500';
+                else if (route.colorClass.includes('blue')) borderColor = 'border-blue-500';
+                else if (route.colorClass.includes('red')) borderColor = 'border-red-500';
+                else if (route.colorClass.includes('yellow')) borderColor = 'border-yellow-500';
+                else if (route.colorClass.includes('indigo')) borderColor = 'border-indigo-500';
 
-            if (typeof onSelectCallback === 'function') {
-                btn.onclick = () => onSelectCallback(route.id);
+                btn.className = `w-full text-left p-4 rounded-xl shadow-md flex items-center justify-between group transition-all transform hover:scale-[1.02] active:scale-95 bg-white dark:bg-gray-800 border-l-4 ${borderColor}`;
+                
+                btn.innerHTML = `
+                    <div class="min-w-0 pr-2">
+                        <span class="block text-sm font-bold text-gray-900 dark:text-white truncate">${displayName}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">View schedules</span>
+                    </div>
+                    <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                `;
+
+                if (typeof onSelectCallback === 'function') {
+                    btn.onclick = () => onSelectCallback(route.id);
+                }
+            } else {
+                btn.className = `w-full text-left p-4 rounded-xl shadow-md flex items-center justify-between bg-gray-50 dark:bg-gray-800/40 border-l-4 border-gray-300 dark:border-gray-700 opacity-80 cursor-not-allowed transition-all`;
+                
+                btn.innerHTML = `
+                    <div class="min-w-0 pr-2">
+                        <span class="block text-sm font-bold text-gray-500 dark:text-gray-400 truncate">${displayName}</span>
+                        <span class="text-[10px] font-black text-yellow-600 dark:text-yellow-500 uppercase tracking-widest mt-0.5 inline-block">🚧 Coming Soon</span>
+                    </div>
+                    <svg class="w-5 h-5 text-gray-300 dark:text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                `;
+
+                btn.onclick = () => {
+                    if (typeof showToast === 'function') {
+                        showToast(`The ${displayName} schedule is launching soon!`, 'info', 2500);
+                    }
+                };
             }
 
             container.appendChild(btn);
@@ -156,7 +216,7 @@ const Renderer = {
         
         const placeholderHTML = `
             <div onclick="${triggerShake}" class="h-24 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors group w-full">
-                <svg class="w-6 h-6 mb-1 opacity-50 group-hover:scale-110 transition-transform text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                <svg class="w-6 h-6 mb-1 opacity-50 group-hover:scale-110 transition-transform text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 <span class="text-xs font-bold group-hover:text-blue-500 transition-colors">Tap to select station</span>
             </div>`;
             
@@ -170,8 +230,42 @@ const Renderer = {
     },
 
     renderComingSoon: (element, routeName) => {
-        const msg = `<div class="h-24 flex flex-col justify-center items-center text-center p-4 bg-yellow-100 dark:bg-yellow-900 rounded-lg"><h3 class="text-lg font-bold text-yellow-700 dark:text-yellow-300 mb-1">🚧 Coming Soon</h3><p class="text-xs text-gray-700 dark:text-gray-300">We are working on the <strong>${routeName}</strong> schedule.</p></div>`;
-        if (element) element.innerHTML = msg;
+        const msg = `
+            <div class="flex flex-col items-center justify-center p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-center w-full">
+                <div class="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4 shadow-inner">
+                    <span class="text-3xl">🚧</span>
+                </div>
+                <h3 class="text-xl font-black text-gray-900 dark:text-white mb-2">Route Under Construction</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
+                    We are currently building the digital timetable for the <strong class="text-blue-600 dark:text-blue-400">${routeName.replace('<->', '↔')}</strong> corridor.
+                </p>
+                
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800 w-full text-left">
+                    <p class="text-xs font-bold text-blue-800 dark:text-blue-300 mb-1 uppercase tracking-wider">Do you commute on this line?</p>
+                    <p class="text-xs text-gray-700 dark:text-gray-300 mb-4">
+                        If you have recent photos of the official station timetables, you can help us launch this route faster!
+                    </p>
+                    <a href="https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform" target="_blank" class="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow transition-colors text-sm group">
+                        <svg class="w-4 h-4 mr-2 group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0L8 8m4-4v12"></path></svg>
+                        Share Schedules
+                    </a>
+                </div>
+            </div>
+        `;
+        if (element) {
+            const pHeader = document.getElementById('pretoria-header');
+            const pienHeader = document.getElementById('pienaarspoort-header');
+            
+            if (pHeader) pHeader.parentElement.style.display = 'none';
+            if (pienHeader) pienHeader.parentElement.style.display = 'none';
+            
+            const parent = element.closest('.space-y-6') || element.closest('.space-y-4');
+            if (parent) {
+                parent.innerHTML = msg;
+            } else {
+                element.innerHTML = msg;
+            }
+        }
     },
 
     renderAtDestination: (element) => {
@@ -188,7 +282,6 @@ const Renderer = {
                 ? calculateTimeDiffString(rawTime, dayOffset) 
                 : ""; 
             
-            // GUARDIAN TASK 6.2: Wait Time Standardization
             if (timeDiffStr) timeDiffStr = timeDiffStr.replace(/(\d+)h\s(\d+)m/, '$1 hr $2 min').replace(/(\d+)m\)/, '$1 min)');
             
             timeHTML = `<div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div><div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>`;
@@ -200,7 +293,7 @@ const Renderer = {
         const buttonHTML = `<button onclick="openScheduleModal('${safeDestForClick}', 'weekday')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">Check Monday's Schedule</button>`;
 
         element.innerHTML = `
-            <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+            <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 animate-fade-in-up">
                 <div class="text-sm font-bold text-gray-600 dark:text-gray-400">No service today</div>
                 <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train next weekday is at:</p>
                 <div class="text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md transition-all mt-1 w-3/4 shadow-sm border border-gray-100 dark:border-gray-800">
@@ -218,14 +311,13 @@ const Renderer = {
             ? calculateTimeDiffString(rawTime, dayOffset) 
             : "";
         
-        // GUARDIAN TASK 6.2: Wait Time Standardization
         if (timeDiffStr) timeDiffStr = timeDiffStr.replace(/(\d+)h\s(\d+)m/, '$1 hr $2 min').replace(/(\d+)m\)/, '$1 min)');
         
         const safeDest = escapeHTML(destination);
         const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
 
         element.innerHTML = `
-            <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+            <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 animate-fade-in-up">
                 <div class="text-sm font-bold text-gray-600 dark:text-gray-400">No more trains today</div>
                 <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${dayName} is at:</p>
                 <div class="text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md transition-all mt-1 w-3/4 shadow-sm border border-gray-100 dark:border-gray-800">
@@ -237,7 +329,6 @@ const Renderer = {
         `;
     },
 
-    // Main Journey Card Renderer (STANDARDIZED & CENTERED V5.01)
     renderJourney: (element, journey, destination) => {
         element.innerHTML = "";
         
@@ -256,7 +347,6 @@ const Renderer = {
             ? calculateTimeDiffString(rawTime) 
             : "";
             
-        // GUARDIAN TASK 6.2: Wait Time Standardization
         if (timeDiffStr) timeDiffStr = timeDiffStr.replace(/(\d+)h\s(\d+)m/, '$1 hr $2 min').replace(/(\d+)m\)/, '$1 min)');
         
         const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
@@ -270,18 +360,14 @@ const Renderer = {
                 .trim();
 
              if (journey.isDivergent) {
-                 // GUARDIAN TASK 6.1: Intercept divergent actual destination
                  const divDest = Renderer._applyUIIntercepts(journey.actualDestName);
                  sharedTag = `<span class="block text-[9px] uppercase font-bold text-red-600 dark:text-red-400 mt-0.5 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-200 dark:border-red-700">⚠️ To ${divDest}</span>`;
              } else {
-                 sharedTag = `<span class="block text-[9px] uppercase font-bold text-purple-600 dark:text-purple-400 mt-0.5 bg-purple-100 dark:bg-purple-900 px-1 rounded w-fit mx-auto">From ${routeName}</span>`;
+                 sharedTag = `<span class="block text-[9px] uppercase font-bold text-purple-600 dark:text-purple-400 mt-0.5 bg-purple-100 dark:bg-purple-900 px-1 rounded w-fit mx-auto">From ${routeName.replace('<->', '↔')}</span>`;
              }
         }
 
-        // --- NEW FORMATTING LOGIC (GUARDIAN REVISED V5.01) ---
-        
         if (journey.type === 'direct') {
-            // GUARDIAN TASK 6.1: Kempton Intercept applied here
             const actualDest = journey.actualDestination ? Renderer._applyUIIntercepts(normalizeStationName(journey.actualDestination)) : '';
             const normDest = Renderer._applyUIIntercepts(normalizeStationName(destination));
             
@@ -311,7 +397,7 @@ const Renderer = {
                         ${buttonHtml}
                     </div>
                     
-                    <!-- DESCRIPTION BOX (CENTERED WITH TRUNCATION) -->
+                    <!-- DESCRIPTION BOX -->
                     <div class="w-1/2 h-24 flex flex-col justify-center items-center text-center p-1 bg-gray-50 dark:bg-gray-800/50 rounded-lg overflow-hidden">
                         <div class="text-[11px] font-bold ${titleColor} leading-tight mb-1 uppercase tracking-wide truncate w-full px-1 min-w-0" title="${trainTitle}">
                             ${trainTitle}
@@ -326,7 +412,6 @@ const Renderer = {
             const conn = journey.connection; 
             const nextFull = journey.nextFullJourney; 
             
-            // GUARDIAN V5.01: Headboard Logic & Task 6.1 Kempton Intercept
             const rawDest = journey.train1.headboardDestination || journey.train1.terminationStation;
             const displayDest = Renderer._applyUIIntercepts(escapeHTML(rawDest));
             const arrivalAtTransfer = escapeHTML(formatTimeDisplay(journey.train1.arrivalAtTransfer));
@@ -340,7 +425,6 @@ const Renderer = {
             let titleColor = "text-gray-900 dark:text-white";
             if (journey.isLastTrain) titleColor = "text-red-600 dark:text-red-400";
             
-            // Standard Logic (2-Part) or Otherwise (3-Part)
             let bottomBlock = "";
             
             if (nextFull) {
@@ -359,7 +443,6 @@ const Renderer = {
                     </div>
                 `;
             } else {
-                // Standard Logic
                 bottomBlock = `
                     <div class="text-[10px] leading-tight w-full min-w-0">
                         <div class="text-[11px] font-black text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-0.5 truncate w-full">Connect Train ${connTrain}</div>
@@ -378,15 +461,12 @@ const Renderer = {
                         ${buttonHtml}
                     </div>
                     
-                    <!-- DESCRIPTION BOX (CENTERED WITH TRUNCATION) -->
+                    <!-- DESCRIPTION BOX -->
                     <div class="w-1/2 flex flex-col justify-center items-center text-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg h-full min-h-[110px] overflow-hidden">
-                        <!-- TOP HALF -->
                         <div class="border-b border-gray-200 dark:border-gray-700 pb-2 mb-2 w-full min-w-0">
                             <div class="text-[11px] font-black ${titleColor} uppercase tracking-wide mb-0.5 truncate w-full px-1" title="Shuttle ${train1Label}">Shuttle ${train1Label}</div>
-                            <!-- GUARDIAN FIX V5.01.02: Removed 'Terminates Here' subtext as requested -->
                             <div class="text-[9px] text-gray-600 dark:text-gray-400 font-bold truncate w-full px-1" title="To ${displayDest} (Arr ${arrivalAtTransfer})">To ${displayDest} <span class="font-normal opacity-80">(Arr ${arrivalAtTransfer})</span></div>
                         </div>
-                        <!-- BOTTOM HALF -->
                         ${bottomBlock}
                     </div>
                 </div>
@@ -403,19 +483,19 @@ const Renderer = {
         });
     },
     
+    // GUARDIAN V6.05 FIX: Completely rebuilt to return strict Tailwind utilities instead of brittle CSS classes
     _getDotColor: (colorClass) => {
-        if (!colorClass) return 'dot-gray';
-        if (colorClass.includes('green')) return 'dot-green';
-        if (colorClass.includes('orange')) return 'dot-orange';
-        if (colorClass.includes('purple')) return 'dot-purple';
-        if (colorClass.includes('indigo')) return 'dot-purple'; // GUARDIAN FIX: Maps Indigo to Purple for visual fallback
-        if (colorClass.includes('blue')) return 'dot-blue';
-        if (colorClass.includes('yellow')) return 'dot-yellow';
-        if (colorClass.includes('red')) return 'dot-red';
-        return 'dot-gray';
+        if (!colorClass) return 'bg-gray-400';
+        if (colorClass.includes('green')) return 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]';
+        if (colorClass.includes('orange')) return 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]';
+        if (colorClass.includes('purple')) return 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]';
+        if (colorClass.includes('indigo')) return 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]'; 
+        if (colorClass.includes('blue')) return 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]';
+        if (colorClass.includes('yellow')) return 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]';
+        if (colorClass.includes('red')) return 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]';
+        return 'bg-gray-400';
     },
 
-    // GUARDIAN TASK 6.1: Custom Text Intercepts (e.g. Kempton Park)
     _applyUIIntercepts: (stationName) => {
         if (!stationName) return '';
         let name = stationName.replace(/ STATION/gi, '');
@@ -427,7 +507,6 @@ const Renderer = {
 
     // --- 4. CHANGELOG MODAL ---
     renderChangelogModal: (changelogData) => {
-        // GUARDIAN UPDATE V5.00.10: Auto-close sidenav when opening modal
         if (document.getElementById('sidenav')) {
             const sidenav = document.getElementById('sidenav');
             const overlay = document.getElementById('sidenav-overlay');
@@ -444,12 +523,12 @@ const Renderer = {
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'changelog-modal';
-            modal.className = 'fixed inset-0 bg-black bg-opacity-70 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-70 z-[140] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
             modal.innerHTML = `
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-0 overflow-hidden transform transition-all scale-95 flex flex-col max-h-[85vh]">
                     <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
                         <h3 class="font-bold text-lg text-gray-900 dark:text-white flex items-center">
-                            <span class="mr-2">🚀</span> What's New
+                            <span class="mr-2">🚅</span> What's New
                         </h3>
                         <button onclick="history.back()" class="text-gray-500 hover:text-gray-900 dark:hover:text-white p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -492,9 +571,8 @@ const Renderer = {
         modal.classList.remove('hidden');
     },
 
-    // --- 5. GRID GENERATION HELPER (NEW V5.00.09 - Visual Polish) ---
+    // --- 5. GRID GENERATION HELPER ---
     _buildGridHTML: (schedule, sheetName, routeId, dayIdx, highlightNextTrain = true, isExport = false) => {
-        // 1. Column Sorting Logic
         const trainCols = schedule.headers.slice(1).filter(header => /^\d{4}[a-zA-Z]*$/.test(header.trim()));
         let sortedCols = [];
 
@@ -531,7 +609,6 @@ const Renderer = {
             sortedCols = colStats.map(c => c.id);
         }
 
-        // 2. Active Column Logic
         let activeColIndex = -1;
         
         if (highlightNextTrain && !isExport && typeof currentTime !== 'undefined') {
@@ -549,7 +626,6 @@ const Renderer = {
              }
         }
 
-        // GUARDIAN FIX: Selected Departure Station Logic
         let selectedStation = "";
         if (!isExport && typeof document !== 'undefined') {
             const selectEl = document.getElementById('station-select');
@@ -558,14 +634,12 @@ const Renderer = {
             }
         }
 
-        // 3. HTML Generation (VISUAL POLISH)
         const paddingClass = isExport ? 'p-2' : 'p-3'; 
-        const fontSizeClass = isExport ? 'text-sm' : 'text-xs'; // Bigger text for export
+        const fontSizeClass = isExport ? 'text-sm' : 'text-xs'; 
         
-        // GUARDIAN FIX: Dynamic Dark Mode Classes + Explicit Light Mode Text
         let tableClass = isExport ? '' : 'bg-white dark:bg-gray-900';
-        let theadClass = isExport ? '' : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-200'; // Explicit gray-900
-        let stickyHeaderClass = isExport ? '' : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700'; // Stronger border
+        let theadClass = isExport ? '' : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-200'; 
+        let stickyHeaderClass = isExport ? '' : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700'; 
         let borderClass = isExport ? 'border-gray-300' : 'border-gray-300 dark:border-gray-700';
         let tbodyClass = isExport ? '' : 'bg-white dark:bg-gray-900';
         let stickyCellClass = isExport ? '' : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white';
@@ -581,7 +655,7 @@ const Renderer = {
                             
                             let bgClass = '';
                             if (!isExport) {
-                                if (isHighlight) bgClass = 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 font-bold'; // Darker blue text
+                                if (isHighlight) bgClass = 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 font-bold';
                                 if (isExcluded) bgClass = 'bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-300 opacity-90';
                             }
 
@@ -632,7 +706,7 @@ const Renderer = {
                         if (val !== "" && val !== "-") {
                             cellClass += " font-mono font-medium";
                             if (!isExport) {
-                                cellClass += " text-gray-900 dark:text-gray-200"; // FIX: Explicit Black Text for Light Mode
+                                cellClass += " text-gray-900 dark:text-gray-200";
                                 if (isHighlight) cellClass += " bg-blue-50 dark:bg-blue-900/20 font-bold text-blue-800 dark:text-blue-300";
                                 if (isExcluded) cellClass += " text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 opacity-80 font-normal decoration-slice";
                             }
@@ -653,10 +727,7 @@ const Renderer = {
     }
 };
 
-// --- WINDOW FUNCTIONS (RESTORED & STABLE) ---
-
 window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
-    // GUARDIAN PHASE 3: Loading Guardrail
     if (!schedules || Object.keys(schedules).length === 0) {
         showToast("Loading latest schedules... please wait.", "info", 2000);
         return;
@@ -668,11 +739,9 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     const selectedDay = dayOverride || currentDayType;
     let sheetDayType = 'weekday';
     
-    // GUARDIAN PHASE 4: Smart Defaults (Sunday -> Weekday)
     if (selectedDay === 'saturday') {
         sheetDayType = 'saturday';
     } else if (selectedDay === 'sunday') {
-        // Explicitly map Sunday to Weekday for next-day planning
         sheetDayType = 'weekday';
     } else {
         sheetDayType = 'weekday';
@@ -710,18 +779,20 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         modal = document.createElement('div');
         modal.id = 'full-schedule-modal';
         modal.className = 'fixed inset-0 bg-white dark:bg-gray-900 z-[95] hidden flex items-center justify-center p-0 full-screen transition-opacity duration-300';
+        // GUARDIAN V6.13: Native Back Button integration via history.back() for Close Buttons
         modal.innerHTML = `
             <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
                 <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800 z-20 relative">
                     <h3 class="flex-grow min-w-0 pr-2"></h3>
-                    <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden')" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition flex-shrink-0" aria-label="Close Grid">
+                    <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden'); if(location.hash === '#grid') history.back();" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition flex-shrink-0" aria-label="Close Grid">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
                 <div id="grid-controls" class="px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shadow-sm z-20 relative"></div>
                 <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative"></div>
-                <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
-                    <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors">Close Timetable</button>
+                <!-- GUARDIAN V6.13: Restored Bottom Close Button, Shorter & Lighter -->
+                <div class="p-2.5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
+                    <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden'); if(location.hash === '#grid') history.back();" class="w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded-lg shadow-sm transition-colors text-sm">Close Timetable</button>
                 </div>
             </div>
         `;
@@ -753,6 +824,7 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         const shareText = `Check out the ${sheetDayType} schedule to ${destName}`;
         
         window.shareCurrentGrid = async () => {
+            if (typeof triggerHaptic === 'function') triggerHaptic(); // GUARDIAN: Targeted Haptic
             const data = { title: 'Next Train Schedule', text: shareText, url: shareUrl };
             try {
                 if (navigator.share) await navigator.share(data);
@@ -818,8 +890,9 @@ window.highlightGridRow = function(tr) {
     if (stickyCell) { stickyCell.classList.remove('bg-white', 'dark:bg-gray-900'); stickyCell.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40'); }
 };
 
-// --- SNAPSHOT ENGINE V3.0 (Forced Light Mode & Decoupled Save/Share) ---
 window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
+    if (typeof triggerHaptic === 'function') triggerHaptic(); // GUARDIAN: Targeted Haptic
+
     if (typeof html2canvas === 'undefined') {
         showToast("Loading snapshot engine...", "info", 1500);
         try {
@@ -841,7 +914,6 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     const route = ROUTES[currentRouteId];
     if (!route) return;
 
-    // Use passed params or fallback
     const selectedDay = dayType || 'weekday';
     let sheetDayType = selectedDay;
     if (selectedDay === 'sunday') sheetDayType = 'weekday'; 
@@ -851,7 +923,6 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     const schedA = schedules[keyA];
     const schedB = schedules[keyB];
 
-    // THEME & COLOR LOGIC (GUARDIAN: FORCED LIGHT MODE FOR ALL EXPORTS)
     const bgColor = '#ffffff'; 
     const textColor = '#111827'; 
     const borderColor = '#e5e7eb';
@@ -870,13 +941,14 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     exportContainer.style.backgroundColor = bgColor;
     exportContainer.style.color = textColor;
     
-    // Explicitly remove dark class to prevent Tailwind dark: cascade
     exportContainer.classList.remove('dark');
 
     const destAName = route.destA.replace(' STATION', '');
     const destBName = route.destB.replace(' STATION', '');
     const dateText = new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
     const scheduleTypeLabel = selectedDay === 'weekday' ? 'WEEKDAY' : 'WEEKEND';
+    
+    const displayRouteName = route.name.replace('<->', '↔');
     
     let effectiveDateText = "";
     if (schedA && schedA.lastUpdated) {
@@ -894,59 +966,53 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
         : `<div class="p-8 text-center italic border rounded" style="color:${mutedColor}; border-color:${borderColor}">No service scheduled for this direction.</div>`;
 
     exportContainer.innerHTML = `
-        <!-- HEADER BLOCK (SWAPPED LAYOUT) -->
         <div class="mb-6 border-b-4 pb-4" style="border-color: ${accentColor}">
             <div class="flex justify-between items-end">
                 <div>
                     <h1 class="text-4xl font-black uppercase tracking-tight mb-1" style="color: ${accentColor}">Commuter Notice</h1>
-                    <h2 class="text-xl font-bold uppercase tracking-widest" style="color: ${mutedColor}">${route.name} Corridor</h2>
+                    <h2 class="text-xl font-bold uppercase tracking-widest" style="color: ${mutedColor}">${displayRouteName} Corridor</h2>
                 </div>
                 <div class="text-right">
                     <div class="text-2xl font-bold" style="color: ${textColor}">${scheduleTypeLabel} TIMETABLE</div>
-                    ${effectiveDateText ? `<div class="text-sm font-bold uppercase mt-1" style="color: ${mutedColor}">EFFECTIVE: ${effectiveDateText}</div>` : ''}
+                    ${effectiveDateText ? `<div class="text-sm font-bold uppercase mt-1" style="color: ${mutedColor}">EFFECTIVE FROM: ${effectiveDateText}</div>` : ''}
                 </div>
             </div>
         </div>
 
-        <!-- TABLE BLOCK A -->
         <div class="mb-8">
             <div class="p-2 mb-0 border-l-4" style="background-color: ${tableHeaderBg}; border-color: ${accentColor}">
-                <h3 class="font-bold text-lg uppercase" style="color: ${textColor}">DIRECTION: ${destBName} ↔ ${destAName}</h3>
+                <h3 class="font-bold text-lg uppercase" style="color: ${textColor}"> ${destBName} ➔ ${destAName}</h3>
             </div>
             <div class="schedule-table-wrapper">
                 ${htmlA}
             </div>
         </div>
 
-        <!-- DIVIDER -->
         <div class="flex items-center justify-center my-8 opacity-50">
             <div class="h-px w-full" style="background-color: ${borderColor}"></div>
             <span class="px-4 text-xs font-bold uppercase" style="color: ${mutedColor}">Return Service</span>
             <div class="h-px w-full" style="background-color: ${borderColor}"></div>
         </div>
 
-        <!-- TABLE BLOCK B -->
         <div class="mb-8">
             <div class="p-2 mb-0 border-l-4" style="background-color: ${tableHeaderBg}; border-color: ${accentColor}">
-                <h3 class="font-bold text-lg uppercase" style="color: ${textColor}">DIRECTION: ${destAName} ↔ ${destBName}</h3>
+                <h3 class="font-bold text-lg uppercase" style="color: ${textColor}"> ${destAName} ➔ ${destBName}</h3>
             </div>
             <div class="schedule-table-wrapper">
                 ${htmlB}
             </div>
         </div>
 
-        <!-- ENHANCED FOOTER -->
-        <div class="mt-8 p-4 rounded-lg flex justify-between items-center" style="background-color: ${tableHeaderBg}">
-            <div class="flex flex-col">
-                <span class="text-[10px] font-mono mb-1" style="color: ${mutedColor}">GENERATED: ${dateText}</span>
-                <span class="font-bold text-xs" style="color: ${mutedColor}">Data Source: PRASA / Metrorail Web</span>
-                <span class="text-[10px] uppercase tracking-wider opacity-75" style="color: ${mutedColor}">Unofficial Guide • Not affiliated with PRASA</span>
+        <div class="mt-8 p-5 rounded-lg flex justify-between items-center" style="background-color: ${tableHeaderBg}; border: 1px solid ${borderColor}">
+            <div class="flex flex-col space-y-1.5">
+                <span class="text-xs font-mono font-bold" style="color: #4b5563">GENERATED: ${dateText}</span>
+                <span class="font-black text-sm" style="color: #374151">Data Source: PRASA / Metrorail Facebook</span>
+                <span class="text-xs font-bold uppercase tracking-wider" style="color: #6b7280">Unofficial Guide • Not affiliated with PRASA</span>
             </div>
-            <span class="font-black text-xl" style="color: ${accentColor}">nexttrain.co.za</span>
+            <span class="font-black text-2xl tracking-tight" style="color: ${accentColor}">NextTrain.co.za</span>
         </div>
     `;
 
-    // Force styling on injected tables (Strict Light Mode Override)
     const tables = exportContainer.querySelectorAll('table');
     tables.forEach(t => {
         t.style.width = '100%';
@@ -993,29 +1059,26 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
         });
 
         canvas.toBlob(async (blob) => {
-            const fileName = `Schedule_${route.name.replace(/\s/g,'_')}_${selectedDay}.png`;
+            const timestampStr = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 12); 
+            const fileName = `Schedule_${route.name.replace(/\s|<->/g,'_').replace(/_+/g, '_')}_${selectedDay}_${timestampStr}.png`;
             const file = new File([blob], fileName, { type: "image/png" });
             const blobUrl = URL.createObjectURL(blob);
             
-            // 1. Force Download to Device (Decoupled Save)
             const link = document.createElement('a');
             link.download = fileName;
             link.href = blobUrl;
             link.click();
             
-            // 2. Prepare Share Action for Toast
             window._pendingShareFile = file;
-            window._pendingShareText = `Commuter Notice: ${route.name} (${selectedDay})`;
+            window._pendingShareText = `Commuter Notice: ${route.name.replace('<->', '↔')} (${selectedDay})`;
             
             const canShare = navigator.canShare && navigator.canShare({ files: [file] });
             const shareBtnHTML = canShare 
                 ? `<button onclick="triggerNoticeShare()" class="bg-white text-blue-600 px-3 py-1 rounded text-xs font-bold shadow-sm hover:bg-gray-100 transition-colors ml-3 whitespace-nowrap border border-gray-200">SHARE 📤</button>` 
                 : '';
 
-            // 3. Show Success Toast with Share hook
             showToast("✅ Image saved to gallery!", "success", 8000, shareBtnHTML);
             
-            // GUARDIAN ANALYTICS: Track Save Event
             if (typeof trackAnalyticsEvent === 'function') {
                 trackAnalyticsEvent('grid_save_image', { 
                     route_id: currentRouteId,
@@ -1025,7 +1088,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             }
             
             document.body.removeChild(exportContainer);
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000); // Cleanup memory
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000); 
         });
     } catch (e) {
         console.error(e);
@@ -1034,7 +1097,6 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     }
 };
 
-// Global Share function for the Toast button
 window.triggerNoticeShare = async function() {
     if (window._pendingShareFile && navigator.share) {
         try {
@@ -1044,7 +1106,6 @@ window.triggerNoticeShare = async function() {
             });
             showToast("Shared successfully!", "success");
             
-            // GUARDIAN ANALYTICS: Track Share Event
             if (typeof trackAnalyticsEvent === 'function') {
                 trackAnalyticsEvent('grid_share_image', { 
                     route_id: currentRouteId 

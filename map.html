@@ -27,11 +27,11 @@
         /* Legend Styles */
         .legend-container {
             position: absolute;
-            top: 60px; /* Moved down to avoid back button overlap on mobile */
-            right: 10px;
+            top: 16px; /* GUARDIAN: Moved up to match 'top-4' (16px) of the Back Button */
+            right: 16px; /* GUARDIAN: Pushed slightly away from edge for symmetry */
             z-index: 1000;
-            max-width: 250px;
-            width: 90%;
+            max-width: calc(100vw - 120px); /* GUARDIAN SHIELD: Prevents overlap with Back Button on very narrow phones */
+            width: 250px;
             display: none; /* Hidden until map loads */
         }
         
@@ -114,6 +114,37 @@
         .tooltip-dynamic {
             transition: font-size 0.2s ease;
         }
+
+        /* GUARDIAN: GPS Pulsing Dot CSS */
+        .gps-pulse {
+            width: 14px;
+            height: 14px;
+            background: #3b82f6;
+            border-radius: 50%;
+            box-shadow: 0 0 0 rgba(59, 130, 246, 0.4);
+            animation: pulse 2s infinite;
+            border: 2px solid white;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .custom-div-icon {
+            background: transparent;
+            border: none;
+        }
+
+        /* GUARDIAN: Align Zoom Control with Locate Me button (bottom-6 / 24px) */
+        .leaflet-control-zoom {
+            position: fixed !important;
+            bottom: 24px !important;
+            right: 16px !important;
+            margin: 0 !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+            border: 1px solid #d1d5db !important;
+            z-index: 1000 !important;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -121,10 +152,15 @@
     <!-- Back Button Overlay (Highest Z-Index) -->
     <div class="fixed top-4 left-4 z-[60]">
         <a href="index.html" class="bg-white hover:bg-gray-100 text-gray-800 font-bold py-2 px-4 border border-gray-300 rounded-lg shadow-lg flex items-center transition-transform transform active:scale-95 text-sm">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7-7h18"></path></svg>
             Back
         </a>
     </div>
+
+    <!-- Locate Me Button (GUARDIAN INJECTED) -->
+    <button id="locate-me-btn" class="fixed bottom-6 left-4 z-[1000] bg-white hover:bg-gray-100 text-blue-600 p-3.5 rounded-full shadow-2xl border border-gray-300 transition-transform transform active:scale-95 focus:outline-none" title="Find my location" aria-label="Find my location">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+    </button>
 
     <!-- Simple Spinner Placeholder -->
     <div id="map-placeholder">
@@ -460,6 +496,51 @@
 
             map.on('zoomend', updateTooltipSize);
             updateTooltipSize(); // Initial call
+            
+            // --- GUARDIAN PHASE 1: LEAFLET GEOLOCATION ---
+            let userMarker = null;
+            let userRadius = null;
+            const pulsingIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: '<div class="gps-pulse"></div>',
+                iconSize: [14, 14],
+                iconAnchor: [7, 7]
+            });
+
+            map.on('locationfound', function(e) {
+                const radius = e.accuracy / 2;
+                if (!userMarker) {
+                    userMarker = L.marker(e.latlng, {icon: pulsingIcon}).addTo(map)
+                        .bindPopup("<div class='text-xs font-bold text-center text-gray-900'>You are here<br><span class='text-[10px] text-gray-500 font-normal'>Within " + Math.round(radius) + " meters</span></div>");
+                    userRadius = L.circle(e.latlng, radius, {
+                        color: '#3b82f6',
+                        fillColor: '#3b82f6',
+                        fillOpacity: 0.15,
+                        weight: 1
+                    }).addTo(map);
+                } else {
+                    userMarker.setLatLng(e.latlng);
+                    userRadius.setLatLng(e.latlng);
+                    userRadius.setRadius(radius);
+                }
+                map.flyTo(e.latlng, Math.max(map.getZoom(), 12));
+                
+                const locateBtnIcon = document.querySelector('#locate-me-btn svg');
+                if(locateBtnIcon) locateBtnIcon.classList.remove('animate-spin');
+            });
+
+            map.on('locationerror', function(e) {
+                alert("Could not find your location. Please check your GPS permissions in your browser settings.");
+                const locateBtnIcon = document.querySelector('#locate-me-btn svg');
+                if(locateBtnIcon) locateBtnIcon.classList.remove('animate-spin');
+            });
+
+            document.getElementById('locate-me-btn').addEventListener('click', function() {
+                const icon = this.querySelector('svg');
+                if(icon) icon.classList.add('animate-spin');
+                map.locate({setView: false, enableHighAccuracy: true, maxZoom: 16});
+            });
+            // --- END GUARDIAN GEOLOCATION ---
         }
 
         // Toggle Function
