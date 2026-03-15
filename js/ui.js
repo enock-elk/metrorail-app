@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.00.22 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.00.29 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -492,7 +492,7 @@ window.openFareModal = function(fareDetails) {
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-transform duration-300 scale-95 max-h-[85vh]">
                 <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-2xl shrink-0">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center" id="fare-zone-badge">Ticket Prices</h3>
-                    <button onclick="closeSmoothModal('fare-modal')" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition focus:outline-none">
+                    <button onclick="closeSmoothModal('fare-modal')" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition focus:outline-none">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
@@ -904,7 +904,7 @@ window.showCacheClearWarning = function() {
     }
     
     // GUARDIAN: Keep state router pure
-    history.replaceState({ modal: 'cache-clear-modal' }, '', '#cacheclear');
+    history.pushState({ modal: 'cache-clear-modal' }, '', '#cacheclear');
     openSmoothModal('cache-clear-modal');
 }
 
@@ -916,8 +916,14 @@ function initializeApp() {
     
     // GUARDIAN Phase 9: Exit Trap Initialization
     if (!sessionStorage.getItem('exitTrapSet')) {
-        history.replaceState({ view: 'exit-trap' }, '', '#exit');
-        history.pushState({ view: 'home' }, '', '#home');
+        // GUARDIAN FIX: Only inject exit trap for installed PWAs
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        if (isStandalone) {
+            history.replaceState({ view: 'exit-trap' }, '', '#exit');
+            history.pushState({ view: 'home' }, '', '#home');
+        } else {
+            history.replaceState({ view: 'home' }, '', '#home');
+        }
         sessionStorage.setItem('exitTrapSet', 'true');
     }
 
@@ -1073,11 +1079,11 @@ function setupModalButtons() {
 
 function switchTab(tab) {
     triggerHaptic();
-    // GUARDIAN FIX: Tabs strictly replaceState to prevent infinite history loops
+    // GUARDIAN FIX: Push state for Planner to allow natural back-button routing without exiting
     if (tab === 'trip-planner') {
-        if (location.hash !== '#planner') history.replaceState({ tab: 'planner' }, '', '#planner');
+        if (location.hash !== '#planner') history.pushState({ tab: 'planner' }, '', '#planner');
     } else {
-        if (location.hash !== '#home') history.replaceState({ tab: 'next-train' }, '', '#home'); 
+        if (location.hash !== '#home' && location.hash !== '') history.replaceState({ tab: 'next-train' }, '', '#home'); 
     }
     
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1105,6 +1111,12 @@ window.addEventListener('popstate', (event) => {
 
     // EXIT TRAP PROTOCOL
     if (hash === '#exit') {
+        // GUARDIAN FIX: Only trap exits on installed PWAs. Browsers handle naturally.
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        if (!isStandalone) {
+            return; // Let standard browser behaviors take over.
+        }
+
         const activeTab = localStorage.getItem('activeTab');
         
         if (activeTab === 'trip-planner') {
@@ -1611,7 +1623,7 @@ function setupSettingsHub() {
 
         if (confirmModal) {
             // Replace sidenav state with region confirm
-            history.replaceState({ modal: 'region-confirm' }, '', '#regionconfirm');
+            history.pushState({ modal: 'region-confirm' }, '', '#regionconfirm');
             title.textContent = `Switch Region?`;
             desc.textContent = `Are you sure you want to switch to ${name}?`;
             openSmoothModal('region-confirm-modal');
@@ -1650,7 +1662,7 @@ function setupSettingsHub() {
     if (helpBtn) helpBtn.addEventListener('click', () => { 
         triggerHaptic();
         trackAnalyticsEvent('view_user_guide', { location: 'settings' }); 
-        history.replaceState({ modal: 'help' }, '', '#help'); 
+        history.pushState({ modal: 'help' }, '', '#help'); 
         if(helpModal) { openSmoothModal('help-modal'); }
         window.closeAppHub(true);
     });
@@ -1658,7 +1670,7 @@ function setupSettingsHub() {
     if (aboutBtn) aboutBtn.addEventListener('click', () => { 
         triggerHaptic();
         trackAnalyticsEvent('view_about_page', { location: 'settings' }); 
-        history.replaceState({ modal: 'about' }, '', '#about'); 
+        history.pushState({ modal: 'about' }, '', '#about'); 
         if(aboutModal) { openSmoothModal('about-modal'); }
         window.closeAppHub(true);
     });
@@ -1675,7 +1687,7 @@ function setupSettingsHub() {
         verEl.onclick = () => {
             triggerHaptic();
             if (typeof Renderer !== 'undefined' && Renderer.renderChangelogModal) {
-                history.replaceState({ modal: 'changelog' }, '', '#changelog');
+                history.pushState({ modal: 'changelog' }, '', '#changelog');
                 Renderer.renderChangelogModal(typeof CHANGELOG_DATA !== 'undefined' ? CHANGELOG_DATA : []);
                 // Renderer does not open it automatically in the new modular structure, or it does. We just push state and let it handle UI
             }
@@ -1723,7 +1735,7 @@ function selectWelcomeRoute(routeId) {
 
 window.openLegal = function(type) {
     trackAnalyticsEvent('view_legal_doc', { type: type });
-    history.replaceState({ modal: 'legal' }, '', '#legal');
+    history.pushState({ modal: 'legal' }, '', '#legal');
     legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
     legalContent.innerHTML = LEGAL_TEXTS[type];
     openSmoothModal('legal-modal');
@@ -1947,20 +1959,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // GUARDIAN Phase 9: Replaced blind state pushes with history-replacements and true sync bypasses
     if(openHelpBtn) openHelpBtn.addEventListener('click', () => { 
         triggerHaptic(); trackAnalyticsEvent('view_user_guide', { location: 'sidebar' }); 
-        history.replaceState({ modal: 'help' }, '', '#help'); 
+        history.pushState({ modal: 'help' }, '', '#help'); 
         if(helpModal) { openSmoothModal('help-modal'); } window.closeAppHub(true); 
     });
     
     if(openAboutBtn) openAboutBtn.addEventListener('click', () => { 
         triggerHaptic(); trackAnalyticsEvent('view_about_page', { location: 'sidebar' }); 
-        history.replaceState({ modal: 'about' }, '', '#about'); 
+        history.pushState({ modal: 'about' }, '', '#about'); 
         if(aboutModal) { openSmoothModal('about-modal'); } window.closeAppHub(true); 
     });
 
     const sidenavAboutBtn = document.getElementById('sidenav-about-btn');
     if(sidenavAboutBtn) sidenavAboutBtn.addEventListener('click', () => {
         triggerHaptic(); trackAnalyticsEvent('view_about_page', { location: 'sidebar' }); 
-        history.replaceState({ modal: 'about' }, '', '#about'); 
+        history.pushState({ modal: 'about' }, '', '#about'); 
         if(aboutModal) { openSmoothModal('about-modal'); } window.closeAppHub(true); 
     });
 
@@ -2037,7 +2049,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewMapBtn = document.getElementById('view-map-btn');
     if (viewMapBtn) viewMapBtn.addEventListener('click', () => { 
         triggerHaptic(); trackAnalyticsEvent('click_network_map', { location: 'sidebar' }); 
-        history.replaceState({ modal: 'map' }, '', '#map'); 
+        history.pushState({ modal: 'map' }, '', '#map'); 
         openSmoothModal('map-modal');
         window.closeAppHub(true); 
     });

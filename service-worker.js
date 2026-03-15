@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v6.00.00'; // BUMPED: V6.00.00 - Guardian Edition
+const CACHE_NAME = 'metrorail-next-train-v6.00.29'; // BUMPED: V6.00.29 - Guardian Cache Fix
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -18,8 +18,8 @@ const ASSETS_TO_CACHE = [
   './js/ui.js',
   './js/tailwind.js', 
   './manifest.json',
-  './sitemap.xml',
-  './robots.txt',
+  // GUARDIAN: Purged high-risk/non-essential files causing atomic install failures
+  // Removed: sitemap.xml, robots.txt, icons/old/icon-192.png
   './icons/icon-192.png',
   './icons/old/icon-192.png',
   './icons/loading-logo.png',
@@ -69,8 +69,8 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   // STRATEGY A: App Shell (HTML) - Stale-While-Revalidate + Fast Fail
-  // This ensures INSTANT load if cached, while updating in background.
-  if (url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
+  // GUARDIAN: Upgraded to use request.mode === 'navigate' for bulletproof HTML detection
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
     event.respondWith(
       caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
         
