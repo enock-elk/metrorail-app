@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v6.00.02'; // BUMPED: V6.00.02 - Guardian Edition
+const CACHE_NAME = 'metrorail-next-train-v6.00.00'; // BUMPED: V6.00.00 - Guardian Edition
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

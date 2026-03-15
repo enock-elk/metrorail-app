@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.00.22 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.00.00 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -572,8 +572,8 @@ function initPlanner() {
             <label class="block text-xs font-bold text-gray-500 uppercase ml-1 mb-1">Travel Day</label>
             <select id="planner-day-select" class="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-blue-500 focus:border-blue-500">
                 <option value="weekday">Weekday (Mon-Fri)</option>
-                <option value="saturday">Saturday</option>
-                <option value="sunday">Sunday / Public Holiday</option>
+                <option value="saturday">Saturday / Public Holiday</option>
+                <option value="sunday">Sunday</option>
             </select>
         `;
         inputSection.insertBefore(daySelectDiv, searchBtn);
@@ -1261,8 +1261,8 @@ window.togglePlannerStops = function(id) {
 
 function getPlanningDayLabel() {
     const day = selectedPlannerDay || currentDayType;
-    if (day === 'sunday') return "Sunday / Public Holiday";
-    if (day === 'saturday') return "Saturday Schedule";
+    if (day === 'sunday') return "Sunday";
+    if (day === 'saturday') return "Saturday / Public Holiday Schedule";
     return "Weekday Schedule";
 }
 
@@ -1282,8 +1282,8 @@ function updatePlannerHeader(dayLabel, showShare = true) {
         badge.innerHTML = `
             <select id="planner-header-day-select" class="appearance-none bg-transparent pl-3 pr-7 py-2 outline-none font-bold text-blue-600 dark:text-blue-400 cursor-pointer z-10 relative w-full text-center truncate text-[12px] h-full focus:ring-0">
                 <option value="weekday" ${selDay === 'weekday' ? 'selected' : ''}>Mon - Fri</option>
-                <option value="saturday" ${selDay === 'saturday' ? 'selected' : ''}>Saturday</option>
-                <option value="sunday" ${selDay === 'sunday' ? 'selected' : ''}>Sun / Hol</option>
+                <option value="saturday" ${selDay === 'saturday' ? 'selected' : ''}>Saturday / Hol</option>
+                <option value="sunday" ${selDay === 'sunday' ? 'selected' : ''}>Sunday</option>
             </select>
             <div class="absolute right-2.5 top-1/2 transform -translate-y-1/2 pointer-events-none text-blue-500">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>

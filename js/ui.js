@@ -1,9 +1,9 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.00.22 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.00.00 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
- * * V6.00.22: The Great Purge - Migrated monolithic overrides, silenced error toasts.
+ * * V6.00.00: The Great Purge - Migrated monolithic overrides, silenced error toasts.
  * * PHASE 9: App Router injected. Unified History API and Exit Trap Protocol.
  */
 

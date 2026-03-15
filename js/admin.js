@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V5.01.00 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.00.00 - Guardian Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (Tiered)
@@ -51,7 +51,7 @@ const Admin = {
         let clickTimer = null;
 
         appTitle.style.cursor = 'pointer'; 
-        appTitle.title = "Developer Access (Tap 5 times)";
+        appTitle.title = "Developer Access";
 
         // 5-Tap Trigger
         appTitle.addEventListener('click', (e) => {
