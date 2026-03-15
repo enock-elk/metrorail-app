@@ -1,9 +1,9 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.00.00 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.00.22 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
- * * V6.00.00: The Great Purge - Migrated monolithic overrides, silenced error toasts.
+ * * V6.00.22: The Great Purge - Migrated monolithic overrides, silenced error toasts.
  * * PHASE 9: App Router injected. Unified History API and Exit Trap Protocol.
  */
 
@@ -43,7 +43,7 @@ window.closeAppHub = function(fromPopState = false) {
     }
 };
 
-// --- GLOBAL ERROR HANDLER ---
+// --- GLOBAL ERROR HANDLER (SILENT NINJA PROTOCOL) ---
 window.onerror = function(msg, url, line, col, error) {
     // GUARDIAN V6.20: Sentry ErrorEvent Unwrap
     if (typeof msg === 'object') {
@@ -73,33 +73,17 @@ window.onerror = function(msg, url, line, col, error) {
 
     if (!hasReloaded) {
         sessionStorage.setItem('error_reloaded', 'true');
-        const t = document.getElementById('toast');
-        if(t) {
-            t.textContent = "Error detected. Recovering...";
-            t.className = "toast-error show";
-        }
+        // GUARDIAN (Option B): Silent Ninja Protocol (Strike 1)
+        // Silently attempt a recovery reload without jarring the user with a toast.
         setTimeout(() => window.location.reload(), 1000);
         return false;
     }
 
-    const toastEl = document.getElementById('toast');
-    const versionStr = typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'Unknown Ver';
+    // GUARDIAN (Option B): Silent Ninja Protocol (Strike 2)
+    // We do absolutely nothing to the UI. The red toast has been purged.
+    // Sentry will automatically capture this exception in the background.
+    console.log("🛡️ Guardian: Strike 2 Error intercepted. UI alert suppressed. Forwarding to Sentry.");
     
-    if(toastEl) {
-        toastEl.innerHTML = `
-            <div class="flex justify-between items-start">
-                <span class="mr-2 text-xs">Error: ${msg} <br><span class="opacity-50">[${versionStr}]</span></span>
-                <button onclick="this.closest('#toast').classList.remove('show')" class="text-white bg-white/20 hover:bg-white/40 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold transition-colors flex-shrink-0" aria-label="Dismiss Error">✕</button>
-            </div>
-        `;
-        toastEl.className = "toast-error show";
-        
-        setTimeout(() => {
-            if (toastEl.classList.contains('show')) {
-                toastEl.classList.remove('show');
-            }
-        }, 5000);
-    }
     return false;
 };
 
