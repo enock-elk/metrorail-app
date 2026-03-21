@@ -943,6 +943,7 @@ function initializeApp() {
     }
     
     updateNextTrainView();
+    if(!stationSelect) return;
     if(!stationSelect.value) renderPlaceholder();
 
     if (navigator.onLine) { setTimeout(OfflineTracker.flush, 5000); }
@@ -1014,6 +1015,9 @@ async function checkServiceAlerts() {
 
             bellBtn.onclick = () => {
                 triggerHaptic();
+                // GUARDIAN Phase 3: Analytics for Alert Bell
+                trackAnalyticsEvent('view_service_alert', { severity: severity, route_id: currentRouteId || 'all' });
+                
                 localStorage.setItem(seenKey, 'true');
                 bellBtn.classList.remove('animate-shake');
                 dot.classList.add('hidden');
@@ -1072,9 +1076,19 @@ function setupModalButtons() {
             closeSmoothModal('schedule-modal'); 
         }
     }; 
-    closeModalBtn.addEventListener('click', closeAction); 
-    closeModalBtn2.addEventListener('click', closeAction); 
-    scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
+    if (closeModalBtn) closeModalBtn.addEventListener('click', closeAction); 
+    if (closeModalBtn2) closeModalBtn2.addEventListener('click', closeAction); 
+    if (scheduleModal) scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
+
+    // GUARDIAN PHASE 3: Wire up Map close buttons here
+    const closeMapAction = () => {
+        if (location.hash === '#map') history.back();
+        else closeSmoothModal('map-modal');
+    };
+    const closeMapBtn = document.getElementById('close-map-btn');
+    const closeMapBtn2 = document.getElementById('close-map-btn-2');
+    if (closeMapBtn) closeMapBtn.addEventListener('click', closeMapAction);
+    if (closeMapBtn2) closeMapBtn2.addEventListener('click', closeMapAction);
 }
 
 function switchTab(tab) {
@@ -1381,19 +1395,22 @@ window.openScheduleModal = function(destination, dayOverride = null) {
 };
 
 function setupRedirectLogic() {
-    feedbackBtn.addEventListener('click', (e) => { e.preventDefault(); showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?"); }); 
+    if (feedbackBtn) feedbackBtn.addEventListener('click', (e) => { e.preventDefault(); showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?"); }); 
 }
 
 function showRedirectModal(url, message) {
-    redirectMessage.textContent = message;
+    if (redirectMessage) redirectMessage.textContent = message;
     history.pushState({ modal: 'redirect' }, '', '#redirect');
     openSmoothModal('redirect-modal');
     
     const confirmHandler = () => { triggerHaptic(); window.open(url, '_blank'); closeSmoothModal('redirect-modal'); cleanup(); };
     const cancelHandler = () => { if (location.hash === '#redirect') history.back(); else closeSmoothModal('redirect-modal'); cleanup(); };
-    const cleanup = () => { redirectConfirmBtn.removeEventListener('click', confirmHandler); redirectCancelBtn.removeEventListener('click', cancelHandler); };
-    redirectConfirmBtn.addEventListener('click', confirmHandler);
-    redirectCancelBtn.addEventListener('click', cancelHandler);
+    const cleanup = () => { 
+        if (redirectConfirmBtn) redirectConfirmBtn.removeEventListener('click', confirmHandler); 
+        if (redirectCancelBtn) redirectCancelBtn.removeEventListener('click', cancelHandler); 
+    };
+    if (redirectConfirmBtn) redirectConfirmBtn.addEventListener('click', confirmHandler);
+    if (redirectCancelBtn) redirectCancelBtn.addEventListener('click', cancelHandler);
 }
 
 function setupFeatureButtons() {
@@ -2000,28 +2017,33 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    document.getElementById('tab-next-train').addEventListener('click', () => switchTab('next-train'));
-    document.getElementById('tab-trip-planner').addEventListener('click', () => switchTab('trip-planner'));
+    const tabNextTrainBtn = document.getElementById('tab-next-train');
+    if (tabNextTrainBtn) tabNextTrainBtn.addEventListener('click', () => switchTab('next-train'));
+
+    const tabTripPlannerBtn = document.getElementById('tab-trip-planner');
+    if (tabTripPlannerBtn) tabTripPlannerBtn.addEventListener('click', () => switchTab('trip-planner'));
 
     const facebookBtn = document.getElementById('facebook-connect-link');
     if (facebookBtn) facebookBtn.addEventListener('click', () => trackAnalyticsEvent('click_social_facebook', { location: 'about_modal' }));
 
     setupNextTrainAutocomplete();
 
-    stationSelect.addEventListener('change', () => { 
-        triggerHaptic();
-        trackAnalyticsEvent('select_station', { station: stationSelect.value, route_id: currentRouteId });
-        syncPlannerFromMain(stationSelect.value); 
-        
-        const searchInput = document.getElementById('station-search-input');
-        if (searchInput && stationSelect.value) {
-            searchInput.value = stationSelect.value.replace(' STATION', '');
-        } else if (searchInput) {
-            searchInput.value = '';
-        }
-        
-        findNextTrains(); 
-    });
+    if (stationSelect) {
+        stationSelect.addEventListener('change', () => { 
+            triggerHaptic();
+            trackAnalyticsEvent('select_station', { station: stationSelect.value, route_id: currentRouteId });
+            syncPlannerFromMain(stationSelect.value); 
+            
+            const searchInput = document.getElementById('station-search-input');
+            if (searchInput && stationSelect.value) {
+                searchInput.value = stationSelect.value.replace(' STATION', '');
+            } else if (searchInput) {
+                searchInput.value = '';
+            }
+            
+            findNextTrains(); 
+        });
+    }
 
     if (locateBtn) {
         locateBtn.addEventListener('click', () => { 

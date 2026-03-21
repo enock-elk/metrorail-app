@@ -765,6 +765,7 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     });
 
     const destName = (direction === 'A' ? route.destA : route.destB).replace(' STATION', '');
+    const oppositeDestName = (direction === 'A' ? route.destB : route.destA).replace(' STATION', ''); // GUARDIAN ADDITION
     
     const sheetKey = `${sheetDayType}_to_${direction.toLowerCase()}`;
     const schedule = schedules[sheetKey];
@@ -784,7 +785,7 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
             <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
                 <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800 z-20 relative">
                     <h3 class="flex-grow min-w-0 pr-2"></h3>
-                    <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden'); if(location.hash === '#grid') history.back();" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition flex-shrink-0" aria-label="Close Grid">
+                    <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition flex-shrink-0" aria-label="Close Grid">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </div>
@@ -792,7 +793,7 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
                 <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative"></div>
                 <!-- GUARDIAN V6.13: Restored Bottom Close Button, Shorter & Lighter -->
                 <div class="p-2.5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
-                    <button onclick="document.getElementById('full-schedule-modal').classList.add('hidden'); if(location.hash === '#grid') history.back();" class="w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded-lg shadow-sm transition-colors text-sm">Close Timetable</button>
+                    <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded-lg shadow-sm transition-colors text-sm">Close Timetable</button>
                 </div>
             </div>
         `;
@@ -847,7 +848,7 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
                     <option value="saturday" ${!isWk ? 'selected' : ''}>Saturday</option>
                 </select>
                 <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">
-                    ⇄ Return
+                    ⇄ To ${Renderer._applyUIIntercepts(oppositeDestName)}
                 </button>
             </div>
             
@@ -879,15 +880,24 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
 };
 
 window.highlightGridRow = function(tr) {
+    if (!tr || !tr.classList) return; // GUARDIAN SAFETY CHECK
     const allRows = document.querySelectorAll('#grid-container tr');
     allRows.forEach(r => {
-        r.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40');
-        const sticky = r.querySelector('td.sticky');
-        if(sticky) { sticky.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40'); sticky.classList.add('bg-white', 'dark:bg-gray-900'); }
+        if(r && r.classList) {
+            r.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40');
+            const sticky = r.querySelector('td.sticky');
+            if(sticky && sticky.classList) { 
+                sticky.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40'); 
+                sticky.classList.add('bg-white', 'dark:bg-gray-900'); 
+            }
+        }
     });
     tr.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40');
     const stickyCell = tr.querySelector('td.sticky');
-    if (stickyCell) { stickyCell.classList.remove('bg-white', 'dark:bg-gray-900'); stickyCell.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40'); }
+    if (stickyCell && stickyCell.classList) { 
+        stickyCell.classList.remove('bg-white', 'dark:bg-gray-900'); 
+        stickyCell.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40'); 
+    }
 };
 
 window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
