@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.00.29 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.00.30 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -784,15 +784,18 @@ function initPlanner() {
         });
     }
 
-    // GUARDIAN Phase 10 & 11: Router-Aware Reset with Double-Tap Protection
+    // GUARDIAN Phase 10 & 11 (Fixed in Phase 2 Polish): Router-Aware Reset
     const resetAction = () => {
         if (typeof triggerHaptic === 'function') triggerHaptic();
         
-        // INSTANT DOM WIPE: Kills the button instantly so it can't be double-tapped
-        window.hidePlannerResults();
-        
+        // GUARDIAN FIX: DO NOT manually wipe the DOM here!
+        // Doing so desyncs the visual state from the history stack and causes the popstate event to jump to the Home tab.
+        // We simply call history.back() and let the global popstate listener handle the hiding.
         if (location.hash === '#planner-results') {
-            setTimeout(() => history.back(), 10);
+            history.back();
+        } else {
+            // Fallback if hash was somehow lost
+            window.hidePlannerResults();
         }
     };
 

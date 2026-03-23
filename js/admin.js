@@ -1,48 +1,98 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.00.29 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.1.5 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
- * 1. Service Alerts Manager (Tiered)
+ * 1. Service Alerts Manager (Tiered & Regional - Restored)
  * 2. Maintenance Mode Toggle
- * 3. PIN Unlock Logic & Signature Mgmt
+ * 3. Enterprise Login Logic & Token Mgmt (Phase 9)
  * 4. Simulation Controls
- * 5. Ghost Train Exclusion Manager
- * 6. Special Event Route Manager (NEW)
+ * 5. Ghost Train Exclusion Manager (Deep Scan - Restored)
+ * 6. Special Event Route Manager
+ * 7. Nuclear Cache Wipe (Killswitch - New)
+ * 8. Live Telemetry Bridge (Cloudflare Path B - New)
  */
 
 const Admin = {
     
-    // --- 0. CONFIGURATION ---
-    DIRECTORY: {
-        "101101": { name: "Enock", role: "Lead Developer" },
-        "200205": { name: "Melmoth", role: "Developer" },
-        "202626": { name: "Guest Admin", role: "Support" } // Scalable!
+    // --- 0.1 GLOBAL AUTH KEY HELPER (GUARDIAN PHASE 9) ---
+    getAuthKey: async () => {
+        if (window.firebaseAuth && window.firebaseAuth.currentUser) {
+            try {
+                // Force token refresh to ensure it's valid for database rules
+                return await window.firebaseGetIdToken(window.firebaseAuth.currentUser, true);
+            } catch(e) {
+                console.warn("🛡️ Guardian: Failed to securely fetch ID Token", e);
+                return null;
+            }
+        }
+        return null;
     },
 
-    // --- 0.1 GLOBAL AUTH KEY HELPER (GUARDIAN TASK 7.1) ---
-    getAuthKey: () => {
-        let key = localStorage.getItem('admin_firebase_key');
-        if (!key) {
-            const domKey = document.getElementById('alert-key');
-            if (domKey && domKey.value) key = domKey.value.trim();
-        }
-        return key;
-    },
+    currentUser: null,
+    telemetryInterval: null, // GUARDIAN: Polling tracker for analytics
 
     // --- 1. INITIALIZATION ---
     init: () => {
-        Admin.setupPinAccess();
-        Admin.setupSimulationControls();
-        // Dynamic modules are lazy-loaded when the modal opens
+        // Listen for Firebase initialization from index.html
+        window.addEventListener('firebase-auth-ready', () => {
+            Admin.setupAuthListener();
+            Admin.setupLoginAccess();
+            Admin.setupSimulationControls();
+        });
+        
+        // Fallback in case the event fired before this script parsed
+        if (window.firebaseAuth) {
+            Admin.setupAuthListener();
+            Admin.setupLoginAccess();
+            Admin.setupSimulationControls();
+        }
     },
 
-    // --- 2. PIN ACCESS LOGIC ---
-    setupPinAccess: () => {
+    // --- 2. AUTH LISTENER (PHASE 9) ---
+    setupAuthListener: () => {
+        window.firebaseOnAuthStateChanged(window.firebaseAuth, (user) => {
+            const signoutContainer = document.getElementById('admin-signout-container');
+            
+            if (user) {
+                console.log("🛡️ Guardian: Admin Authenticated. Analytics blocked.");
+                localStorage.setItem('analytics_ignore', 'true');
+                Admin.currentUser = user;
+                
+                // Inject Sign Out button into the Dev Modal
+                if (signoutContainer) {
+                    signoutContainer.innerHTML = `
+                        <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            <p class="text-xs text-gray-500 mb-2 text-center">Logged in as: ${user.email}</p>
+                            <button id="admin-signout-btn" class="w-full bg-gray-200 dark:bg-gray-700 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 font-bold py-3 rounded-lg shadow-sm transition-colors text-sm focus:outline-none">
+                                Secure Sign Out
+                            </button>
+                        </div>
+                    `;
+                    document.getElementById('admin-signout-btn').addEventListener('click', () => {
+                        window.firebaseSignOut(window.firebaseAuth).then(() => {
+                            showToast("Signed out successfully.", "success");
+                            closeSmoothModal('dev-modal');
+                        });
+                    });
+                }
+            } else {
+                console.log("🛡️ Guardian: Admin Logged Out. Analytics restored.");
+                localStorage.removeItem('analytics_ignore');
+                Admin.currentUser = null;
+                if (signoutContainer) signoutContainer.innerHTML = '';
+            }
+        });
+    },
+
+    // --- 2.5 ENTERPRISE LOGIN ACCESS ---
+    setupLoginAccess: () => {
         const appTitle = document.getElementById('app-title');
-        const pinModal = document.getElementById('pin-modal');
-        const pinInput = document.getElementById('pin-input');
-        const pinSubmitBtn = document.getElementById('pin-submit-btn');
-        const pinCancelBtn = document.getElementById('pin-cancel-btn');
+        const loginModal = document.getElementById('login-modal');
+        const emailInput = document.getElementById('admin-email');
+        const passInput = document.getElementById('admin-password');
+        const loginBtn = document.getElementById('admin-login-btn');
+        const cancelBtn = document.getElementById('admin-cancel-btn');
+        const spinner = document.getElementById('admin-login-spinner');
         const devModal = document.getElementById('dev-modal');
 
         if (!appTitle) return;
@@ -64,60 +114,69 @@ const Admin = {
             if (clickCount >= 5) {
                 clickCount = 0;
                 
-                // Check if already authenticated via session
-                const sessionName = sessionStorage.getItem('admin_session_name');
-
-                if (sessionName || window.isSimMode) {
+                // If already logged in via Firebase Auth, bypass modal directly to hub
+                if (Admin.currentUser || window.isSimMode) {
                     if (devModal) {
                         devModal.classList.remove('hidden');
-                        Admin.renderAdminModules(); // Load all dynamic cards
-                        Admin.initAutoSim(); // 🛡️ GUARDIAN: Auto-Sandbox initialization
+                        Admin.renderAdminModules(); 
+                        Admin.initAutoSim(); 
                     }
                     showToast("Developer Session Active", "info");
                 } else {
-                    if (pinModal) {
-                        pinModal.classList.remove('hidden');
-                        if(pinInput) { pinInput.value = ''; pinInput.focus(); }
+                    if (loginModal) {
+                        loginModal.classList.remove('hidden');
+                        if(emailInput) emailInput.focus();
                     }
                 }
             }
         });
 
-        // PIN Form Logic
-        if (pinCancelBtn) pinCancelBtn.addEventListener('click', () => { pinModal.classList.add('hidden'); });
+        // Form Logic
+        if (cancelBtn) cancelBtn.addEventListener('click', () => { loginModal.classList.add('hidden'); });
         
-        if (pinInput) {
-            pinInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && pinSubmitBtn) pinSubmitBtn.click();
+        if (passInput) {
+            passInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && loginBtn) loginBtn.click();
             });
         }
 
-        if (pinSubmitBtn) {
-            pinSubmitBtn.addEventListener('click', () => {
-                const enteredPin = pinInput.value;
-                const adminUser = Admin.DIRECTORY[enteredPin];
+        if (loginBtn) {
+            loginBtn.addEventListener('click', () => {
+                const email = emailInput.value.trim();
+                const password = passInput.value;
 
-                if (adminUser) {
-                    pinModal.classList.add('hidden');
-                    sessionStorage.setItem('admin_session_name', adminUser.name);
-                    localStorage.setItem('analytics_ignore', 'true');
-                    console.log(`🛡️ Guardian: Analytics filter enabled for ${adminUser.name} (${adminUser.role}).`);
-
-                    if (devModal) {
-                        devModal.classList.remove('hidden');
-                        Admin.renderAdminModules();
-                        Admin.initAutoSim(); // 🛡️ GUARDIAN: Auto-Sandbox initialization
-                    }
-                    showToast(`Welcome back, ${adminUser.name}!`, "success");
-                } else {
-                    showToast("Invalid PIN", "error");
-                    pinInput.value = '';
+                if (!email || !password) {
+                    showToast("Enter email and password", "error");
+                    return;
                 }
+
+                if (spinner) spinner.classList.remove('hidden');
+                loginBtn.disabled = true;
+
+                window.firebaseSignIn(window.firebaseAuth, email, password)
+                    .then((userCredential) => {
+                        loginModal.classList.add('hidden');
+                        passInput.value = ''; // Clean up password field
+                        if (devModal) {
+                            devModal.classList.remove('hidden');
+                            Admin.renderAdminModules();
+                            Admin.initAutoSim(); 
+                        }
+                        showToast(`Welcome back!`, "success");
+                    })
+                    .catch((error) => {
+                        showToast("Authentication Failed", "error");
+                        console.error("🛡️ Guardian Login Error:", error);
+                    })
+                    .finally(() => {
+                        if (spinner) spinner.classList.add('hidden');
+                        loginBtn.disabled = false;
+                    });
             });
         }
     },
 
-    // --- 2.5 AUTO-SIM INITIALIZATION (GUARDIAN UPGRADE) ---
+    // --- 2.8 AUTO-SIM INITIALIZATION (GUARDIAN UPGRADE) ---
     initAutoSim: () => {
         const simEnabledCheckbox = document.getElementById('sim-enabled');
         const simTimeInput = document.getElementById('sim-time');
@@ -158,6 +217,67 @@ const Admin = {
         
         if (typeof updateTime === 'function') updateTime(); 
         if (typeof findNextTrains === 'function') findNextTrains();
+    },
+
+    // --- 2.9 LIVE TELEMETRY (CLOUD WORKER BRIDGE - NEW) ---
+    setupTelemetry: () => {
+        const stat5m = document.getElementById('stat-5m');
+        const stat30m = document.getElementById('stat-30m');
+        const statToday = document.getElementById('stat-today');
+        const statAllTime = document.getElementById('stat-alltime');
+        const statErrors = document.getElementById('stat-errors');
+        
+        // GUARDIAN: Updated to the live production worker URL
+        const CLOUDFLARE_WORKER_URL = 'https://nexttrain-telemetry.enock.workers.dev/';
+        
+        async function fetchTelemetry() {
+            // Guard: Only fetch if the modal is currently open to save bandwidth
+            const devModal = document.getElementById('dev-modal');
+            if (devModal && devModal.classList.contains('hidden')) return;
+
+            // Secure validation: Worker will reject queries without a valid Admin Auth token
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+
+            try {
+                const res = await fetch(CLOUDFLARE_WORKER_URL, {
+                    headers: { 'Authorization': `Bearer ${secret}` }
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    if(stat5m) stat5m.textContent = data.active5m !== undefined ? data.active5m : '--';
+                    if(stat30m) stat30m.textContent = data.active30m !== undefined ? data.active30m : '--';
+                    if(statToday) statToday.textContent = data.todayUsers !== undefined ? data.todayUsers : '--';
+                    if(statAllTime) statAllTime.textContent = data.allTimeUsers !== undefined ? data.allTimeUsers : '--';
+                    if(statErrors) statErrors.textContent = data.todayErrors !== undefined ? data.todayErrors : '--';
+                    
+                    // Kill pulse animations once data streams successfully
+                    [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
+                        if(el) el.classList.remove('animate-pulse');
+                    });
+                } else {
+                    throw new Error("Worker returned status: " + res.status);
+                }
+            } catch(e) {
+                // Expected to fail until Step 3 is completed. Gracefully fallback to "Wait".
+                console.warn("🛡️ Telemetry Fetch Failed (Expected until Backend Worker is deployed):", e.message);
+                
+                if(stat5m && stat5m.textContent === '--') stat5m.textContent = "Wait";
+                if(stat30m && stat30m.textContent === '--') stat30m.textContent = "Wait";
+                if(statToday && statToday.textContent === '--') statToday.textContent = "Wait";
+                if(statAllTime && statAllTime.textContent === '--') statAllTime.textContent = "Wait";
+                if(statErrors && statErrors.textContent === '--') statErrors.textContent = "Wait";
+            }
+        }
+
+        // Fire instantly upon setup
+        fetchTelemetry();
+
+        // Auto-refresh every 30 seconds
+        if (Admin.telemetryInterval) clearInterval(Admin.telemetryInterval);
+        Admin.telemetryInterval = setInterval(fetchTelemetry, 30000);
     },
 
     // --- 3. SIMULATION CONTROLS ---
@@ -235,13 +355,15 @@ const Admin = {
 
     // --- HELPER: RENDER ALL DYNAMIC MODULES ---
     renderAdminModules: () => {
+        Admin.setupTelemetry();
         Admin.setupServiceAlertsManager();
         Admin.setupExclusionManager();
         Admin.setupMaintenanceManager();
-        Admin.setupSpecialEventManager(); // NEW V5.01
+        Admin.setupSpecialEventManager(); 
+        Admin.setupNuclearManager(); 
     },
 
-    // --- 4. SERVICE ALERTS MANAGER (GUARDIAN CARD STYLE) ---
+    // --- 4. SERVICE ALERTS MANAGER (GUARDIAN CARD STYLE + REGION SYNC) ---
     setupServiceAlertsManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel) return;
@@ -253,7 +375,7 @@ const Admin = {
         // Apply Guardian Card Classes to the container
         alertPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
-        // Inject Content
+        // GUARDIAN Phase 10: Injected Privacy Sign-off & Force Popup controls
         alertPanel.innerHTML = `
             <button id="alert-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
                 <span class="flex items-center"><span class="mr-2">📢</span> Service Alerts Manager</span>
@@ -262,16 +384,21 @@ const Admin = {
             
             <div id="alert-body" class="hidden mt-4 space-y-4">
                 
-                <!-- Target Route -->
                 <div>
-                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Route</label>
-                    <select id="alert-target" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
-                        <option value="all">Global Alert (All Routes)</option>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Region</label>
+                    <select id="alert-region" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="GP">Gauteng</option>
+                        <option value="WC">Western Cape</option>
                     </select>
                 </div>
 
-                <!-- Severity & Message -->
-                <div class="grid grid-cols-1 gap-3">
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Route</label>
+                    <select id="alert-target" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                        </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Severity</label>
                         <select id="alert-severity" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
@@ -281,31 +408,32 @@ const Admin = {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Message</label>
-                        <textarea id="alert-msg" rows="3" class="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="e.g. Delays of 45min due to cable theft..."></textarea>
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Sign-off Name</label>
+                        <input type="text" id="alert-signoff" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="e.g. Next Train Ops" value="Next Train Ops">
                     </div>
                 </div>
 
-                <!-- Duration & Key -->
-                <div class="grid grid-cols-2 gap-3">
+                <div class="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-200 dark:border-blue-800">
                     <div>
-                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Expiry Time</label>
-                        <input type="datetime-local" id="alert-duration-custom" class="w-full h-10 px-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                        <span class="font-bold text-blue-800 dark:text-blue-200 text-sm">Force Popup Alert</span>
+                        <p class="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5">Auto-opens modal on user screen</p>
                     </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Admin Key</label>
-                        <input type="password" id="alert-key" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="******">
-                        <!-- Saved Key UI Injection Target -->
-                        <div id="key-status-wrapper"></div> 
+                    <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" id="alert-force-popup" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
+                        <label for="alert-force-popup" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
                     </div>
                 </div>
 
-                <div class="flex items-center">
-                    <input type="checkbox" id="alert-remember" class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
-                    <label for="alert-remember" class="ml-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">Remember Key</label>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Message</label>
+                    <textarea id="alert-msg" rows="3" class="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="e.g. Delays of 45min due to cable theft..."></textarea>
                 </div>
 
-                <!-- Actions -->
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Expiry Time</label>
+                    <input type="datetime-local" id="alert-duration-custom" class="w-full h-10 px-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+
                 <div class="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
                      <button id="alert-send-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors text-xs uppercase tracking-wide">
                         Post Alert
@@ -321,14 +449,17 @@ const Admin = {
         const header = document.getElementById('alert-header-btn');
         const body = document.getElementById('alert-body');
         const chevron = document.getElementById('alert-chevron');
+        const regionSelect = document.getElementById('alert-region');
         const alertTarget = document.getElementById('alert-target');
         const dateInput = document.getElementById('alert-duration-custom');
-        const alertKey = document.getElementById('alert-key');
-        const alertRemember = document.getElementById('alert-remember');
         const alertMsg = document.getElementById('alert-msg');
         const sendBtn = document.getElementById('alert-send-btn');
         const clearBtn = document.getElementById('alert-clear-btn');
         const severitySelect = document.getElementById('alert-severity');
+        
+        // NEW: Privacy Controls
+        const signoffInput = document.getElementById('alert-signoff');
+        const forcePopupToggle = document.getElementById('alert-force-popup');
 
         // Toggle
         header.onclick = () => {
@@ -342,117 +473,120 @@ const Admin = {
             }
         };
 
-        // Populate Targets
-        if (typeof ROUTES !== 'undefined') {
-            Object.values(ROUTES).forEach(r => {
-                if (r.isActive) {
-                    const opt = document.createElement('option');
-                    opt.value = r.id;
-                    opt.textContent = r.name;
-                    alertTarget.appendChild(opt);
-                }
-            });
-        }
-
-        // 🛡️ GUARDIAN: Default Time -> Exact end of the current day (23:59:59)
-        const now = new Date();
-        now.setHours(23, 59, 59, 999);
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // GUARDIAN FIX: Correct capitalization to avoid Sentry crashes
-        if(dateInput) dateInput.value = now.toISOString().slice(0, 16);
-
-        // Key Persistence
-        const savedKey = localStorage.getItem('admin_firebase_key');
-        const keyWrapper = document.getElementById('key-status-wrapper');
-        
-        const showSavedMode = () => {
-            if(!keyWrapper) return;
-            keyWrapper.innerHTML = `
-                <div class="flex items-center justify-between bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg border border-green-200 dark:border-green-800 h-10 mt-0">
-                    <span class="text-[10px] font-bold text-green-700 dark:text-green-400 flex items-center">
-                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                        Key Saved
-                    </span>
-                    <button id="alert-key-reset-btn" class="text-[10px] text-red-500 hover:text-red-700 dark:hover:text-red-300 font-bold underline">Reset</button>
-                </div>
-            `;
-            alertKey.classList.add('hidden');
-            
-            document.getElementById('alert-key-reset-btn').onclick = (e) => {
-                e.preventDefault();
-                localStorage.removeItem('admin_firebase_key');
-                alertKey.value = '';
-                if(alertRemember) alertRemember.checked = false;
-                keyWrapper.innerHTML = '';
-                alertKey.classList.remove('hidden');
-                showToast("Key cleared.", "info");
-            };
-        };
-
-        if (savedKey) {
-            alertKey.value = savedKey;
-            if(alertRemember) alertRemember.checked = true;
-            showSavedMode();
-        }
-
         // Fetch Current Alert
-        const fetchCurrentAlert = async (target) => {
+        async function fetchCurrentAlert(target) {
             try {
-                const res = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/notices/${target}.json?t=${Date.now()}`);
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await fetch(`${dynamicEndpoint}notices/${target}.json?t=${Date.now()}`);
                 const data = await res.json();
                 
                 if (data && data.message) {
-                    const rawMsg = data.message.replace(/<br>/g, "\n").replace(/<b>/g, "*").replace(/<\/b>/g, "*").split("<br><br><span")[0]; 
-                    alertMsg.value = rawMsg;
+                    // GUARDIAN PHASE 1: Aggressive Regex Cleanup
+                    let cleanedMsg = data.message;
+                    // Strip out the appended signature (e.g., <br><br><span class="opacity-75...">— Ops</span>) from the absolute end
+                    cleanedMsg = cleanedMsg.replace(/(<br\s*\/?>\s*){1,2}<span[^>]*>.*?<\/span>\s*$/i, '');
+                    // Fallback catch if there are no line breaks before the span
+                    cleanedMsg = cleanedMsg.replace(/<span[^>]*>.*?<\/span>\s*$/i, '');
+                    
+                    // Convert remaining HTML back to editing text
+                    cleanedMsg = cleanedMsg.replace(/<br\s*\/?>/gi, "\n").replace(/<b>/gi, "*").replace(/<\/b>/gi, "*");
+                    alertMsg.value = cleanedMsg.trim();
                     
                     if(data.expiresAt && dateInput) {
                         const expiryDate = new Date(data.expiresAt);
-                        expiryDate.setMinutes(expiryDate.getMinutes() - expiryDate.getTimezoneOffset()); // GUARDIAN FIX: Prevent TypeError
+                        expiryDate.setMinutes(expiryDate.getMinutes() - expiryDate.getTimezoneOffset()); 
                         dateInput.value = expiryDate.toISOString().slice(0, 16);
                     }
                     if (severitySelect && data.severity) severitySelect.value = data.severity;
                     else if (severitySelect) severitySelect.value = 'info';
 
+                    // Parse saved preferences
+                    if (data.authorName) signoffInput.value = data.authorName;
+                    else signoffInput.value = "Next Train Ops";
+
+                    if (data.forcePopup !== undefined) forcePopupToggle.checked = data.forcePopup;
+                    else forcePopupToggle.checked = (data.severity === 'critical'); // Backwards compatibility for old alerts
+
                     sendBtn.textContent = "Update Alert"; 
                 } else {
                     alertMsg.value = "";
                     if(severitySelect) severitySelect.value = 'info';
+                    signoffInput.value = "Next Train Ops";
+                    forcePopupToggle.checked = false;
                     sendBtn.textContent = "Post Alert";
                 }
             } catch (e) { console.log("No active alert."); }
-        };
+        }
 
+        // Populate Targets Based on Region
+        if (typeof currentRegion !== 'undefined') regionSelect.value = currentRegion;
+
+        function populateTargets() {
+            alertTarget.innerHTML = '';
+            const reg = regionSelect.value;
+            const globalOpt = document.createElement('option');
+            globalOpt.value = `all_${reg}`;
+            globalOpt.textContent = `🌐 Global Alert (${reg === 'GP' ? 'Gauteng' : 'Western Cape'})`;
+            globalOpt.style.fontWeight = 'bold';
+            alertTarget.appendChild(globalOpt);
+
+            if (typeof ROUTES !== 'undefined') {
+                Object.values(ROUTES).forEach(r => {
+                    if (r.isActive && r.region === reg) {
+                        const opt = document.createElement('option');
+                        opt.value = r.id;
+                        opt.textContent = `📍 ${r.name}`;
+                        alertTarget.appendChild(opt);
+                    }
+                });
+            }
+            fetchCurrentAlert(alertTarget.value);
+        }
+
+        regionSelect.addEventListener('change', populateTargets);
         alertTarget.addEventListener('change', () => fetchCurrentAlert(alertTarget.value));
-        fetchCurrentAlert('all'); // Default load
+        
+        // Initial Population
+        populateTargets();
+
+        const now = new Date();
+        now.setHours(23, 59, 59, 999);
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); 
+        if(dateInput) dateInput.value = now.toISOString().slice(0, 16);
 
         // Actions
         sendBtn.onclick = async () => {
             let msg = alertMsg.value.trim();
-            const secret = Admin.getAuthKey();
             const target = alertTarget.value;
             const severity = severitySelect.value;
             
-            if (!msg || !secret) { showToast("Message and Key required!", "error"); return; }
+            const signoff = signoffInput.value.trim() || "Next Train Ops";
+            const isForcePopup = forcePopupToggle.checked;
+            
+            const secret = await Admin.getAuthKey();
+            
+            if (!msg) { showToast("Message required!", "error"); return; }
+            if (!secret) { showToast("Authentication required! Sign in again.", "error"); return; }
 
             msg = msg.replace(/\n/g, "<br>").replace(/\*(.*?)\*/g, "<b>$1</b>");
-            const author = sessionStorage.getItem('admin_session_name') || "Admin";
-            msg += `<br><br><span class="opacity-75 text-xs">— ${author}</span>`;
+            
+            // GUARDIAN: Injecting the generic/safe sign-off
+            msg += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">— ${signoff}</span>`;
 
             let expiresAtVal = dateInput && dateInput.value ? new Date(dateInput.value).getTime() : Date.now() + (2 * 3600 * 1000);
-
-            if (alertRemember && alertRemember.checked) {
-                localStorage.setItem('admin_firebase_key', secret);
-                showSavedMode();
-            }
 
             const payload = {
                 id: Date.now().toString(), 
                 message: msg,
+                authorName: signoff,       // Save to database
+                forcePopup: isForcePopup,  // Save to database
                 postedAt: Date.now(),
                 expiresAt: expiresAtVal,
                 severity: severity
             };
 
-            const url = `https://metrorail-next-train-default-rtdb.firebaseio.com/notices/${target}.json?auth=${secret}`;
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const url = `${dynamicEndpoint}notices/${target}.json?auth=${secret}`;
 
             try {
                 sendBtn.textContent = "Posting...";
@@ -462,32 +596,51 @@ const Admin = {
                     showToast("Alert Posted!", "success");
                     if (typeof checkServiceAlerts === 'function') checkServiceAlerts(); 
                 } else {
-                    showToast("Failed. Check Key.", "error");
+                    showToast("Failed. Check Session.", "error");
                 }
             } catch (e) { showToast("Error: " + e.message, "error"); } 
             finally { sendBtn.textContent = "Update Alert"; sendBtn.disabled = false; }
         };
 
+        // GUARDIAN PHASE 1: Archive Protocol Injection
         clearBtn.onclick = async () => {
-            const secret = Admin.getAuthKey();
             const target = alertTarget.value;
-            if (!secret) { showToast("Key required.", "error"); return; }
+            const secret = await Admin.getAuthKey();
+            if (!secret) { showToast("Authentication required.", "error"); return; }
             if(!confirm(`Delete alert for: ${target}?`)) return;
 
-            const url = `https://metrorail-next-train-default-rtdb.firebaseio.com/notices/${target}.json?auth=${secret}`;
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const url = `${dynamicEndpoint}notices/${target}.json?auth=${secret}`;
+            
             try {
+                // 1. Fetch exact payload before deletion for the Archive
+                const fetchRes = await fetch(`${dynamicEndpoint}notices/${target}.json`);
+                if (fetchRes.ok) {
+                    const alertData = await fetchRes.json();
+                    if (alertData && alertData.id) {
+                        alertData.archivedAt = Date.now();
+                        alertData.clearedFrom = target;
+                        // 2. Save it to notices_archive node safely
+                        const archiveUrl = `${dynamicEndpoint}notices_archive/${alertData.id}_${Date.now()}.json?auth=${secret}`;
+                        await fetch(archiveUrl, { method: 'PUT', body: JSON.stringify(alertData) });
+                    }
+                }
+
+                // 3. Proceed with deletion from active node
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
-                    showToast("Cleared!", "info");
+                    showToast("Cleared & Archived!", "info");
                     alertMsg.value = "";
+                    signoffInput.value = "Next Train Ops";
+                    forcePopupToggle.checked = false;
                     sendBtn.textContent = "Post Alert";
                     if (typeof checkServiceAlerts === 'function') setTimeout(checkServiceAlerts, 500); 
-                } else { showToast("Failed.", "error"); }
+                } else { showToast("Failed to clear alert.", "error"); }
             } catch (e) { showToast(e.message, "error"); }
         };
     },
 
-    // --- 5. EXCLUSION MANAGER (GUARDIAN CARD + DIRECTION SUPPORT) ---
+    // --- 5. EXCLUSION MANAGER (GUARDIAN CARD + DEEP ROW SCANNER) ---
     setupExclusionManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
@@ -516,7 +669,6 @@ const Admin = {
                     <select id="excl-route" class="w-2/3 h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
                         <option value="">Select Route...</option>
                     </select>
-                    <!-- NEW: Direction Switcher -->
                     <select id="excl-direction" class="w-1/3 h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
                         <option value="A">To Dest A</option>
                         <option value="B">To Dest B</option>
@@ -585,7 +737,7 @@ const Admin = {
         // Populate Route Select
         if (typeof ROUTES !== 'undefined') {
             Object.values(ROUTES).forEach(r => {
-                if (r.isActive) {
+                if (r.isActive && r.region === currentRegion) {
                     const opt = document.createElement('option');
                     opt.value = r.id;
                     opt.textContent = r.name;
@@ -620,9 +772,10 @@ const Admin = {
             `;
             daysContainer.appendChild(label);
         });
-        const getSelectedDays = () => Array.from(daysContainer.querySelectorAll('input:checked')).map(cb => parseInt(cb.value));
+        
+        function getSelectedDays() { return Array.from(daysContainer.querySelectorAll('input:checked')).map(cb => parseInt(cb.value)); }
 
-        // Load Trains Logic (With Direction Support)
+        // 🛡️ GUARDIAN V6.1 FIX: Deep Row Scanner for mid-line originating trains
         loadTrainsBtn.onclick = () => {
             const rId = routeSelect.value;
             const type = schedTypeSelect.value;
@@ -638,7 +791,6 @@ const Admin = {
             } else if (type === 'saturday') {
                 sheetKey = (dir === 'A') ? route.sheetKeys.saturday_to_a : route.sheetKeys.saturday_to_b;
             } else if (type === 'sunday') {
-                // Sunday usually uses Saturday key or separate, currently aliased to Saturday in logic but let's check
                 sheetKey = (dir === 'A') ? route.sheetKeys.saturday_to_a : route.sheetKeys.saturday_to_b;
             }
             
@@ -653,21 +805,18 @@ const Admin = {
                 return;
             }
 
-            let trainNumbers = [];
+            let trainNumbersSet = new Set();
             try {
-                let headerRow = rawData.find(r => Object.values(r).some(v => String(v).includes('STATION')));
-                if(!headerRow) headerRow = rawData[0]; 
-                Object.keys(headerRow).forEach(k => {
-                    if (k.match(/^\d{4}/)) trainNumbers.push(k);
+                // Scan EVERY row to find all train columns
+                rawData.forEach(row => {
+                    Object.keys(row).forEach(k => {
+                        if (k.match(/^\d{4}[a-zA-Z]*$/)) trainNumbersSet.add(k);
+                    });
                 });
-                // Fallback for messy data
-                if (trainNumbers.length === 0 && rawData.length > 1) {
-                    const sample = rawData[1];
-                    Object.keys(sample).forEach(k => { if (k.match(/^\d{4}[a-zA-Z]*/)) trainNumbers.push(k); });
-                }
             } catch(e) { console.log(e); }
+            
+            let trainNumbers = Array.from(trainNumbersSet).sort();
 
-            trainNumbers.sort();
             trainGrid.innerHTML = '';
             if (trainNumbers.length === 0) {
                 trainGrid.innerHTML = '<div class="col-span-4 text-gray-400">No trains found.</div>';
@@ -691,11 +840,12 @@ const Admin = {
             pickerContainer.classList.remove('hidden');
         };
 
-        const fetchExclusions = async () => {
+        async function fetchExclusions() {
             const rId = routeSelect.value;
             listDiv.innerHTML = '<div class="text-xs text-gray-400 italic">Loading...</div>';
             try {
-                const res = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/exclusions/${rId}.json?t=${Date.now()}`);
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await fetch(`${dynamicEndpoint}exclusions/${rId}.json?t=${Date.now()}`);
                 const data = await res.json();
                 listDiv.innerHTML = '';
                 if (!data) {
@@ -706,7 +856,7 @@ const Admin = {
                     const item = data[trainNum];
                     const dayLabels = item.days.map(d => days[d]).join('');
                     const row = document.createElement('div');
-                    row.className = "flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs border border-gray-100 dark:border-gray-700";
+                    row.className = "flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs border border-gray-100 dark:border-gray-700 mt-1";
                     row.innerHTML = `
                         <div>
                             <span class="font-bold text-red-600">#${trainNum}</span>
@@ -721,13 +871,16 @@ const Admin = {
             } catch(e) {
                 listDiv.innerHTML = `<div class="text-xs text-red-500">Error loading list.</div>`;
             }
-        };
+        }
 
         saveBtn.onclick = async () => {
             const rId = routeSelect.value;
             const reason = document.getElementById('excl-reason').value.trim() || "Service Adjustment";
             const selectedDays = getSelectedDays();
-            const secret = Admin.getAuthKey(); // GUARDIAN REFACTOR
+            
+            // GUARDIAN: Secure Token Fetch
+            const secret = await Admin.getAuthKey(); 
+            
             const selectedTrains = Array.from(trainGrid.querySelectorAll('input:checked')).map(cb => cb.value);
             const manualTrain = document.getElementById('excl-train-manual').value.trim();
             if (manualTrain) selectedTrains.push(manualTrain);
@@ -737,7 +890,7 @@ const Admin = {
                 return;
             }
             if (!secret) {
-                showToast("Admin Key required.", "error");
+                showToast("Authentication required.", "error");
                 return;
             }
 
@@ -753,8 +906,10 @@ const Admin = {
             try {
                 saveBtn.textContent = `Banning ${selectedTrains.length} trains...`;
                 saveBtn.disabled = true;
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                
                 const promises = selectedTrains.map(tNum => {
-                    const url = `https://metrorail-next-train-default-rtdb.firebaseio.com/exclusions/${rId}/${tNum}.json?auth=${secret}`;
+                    const url = `${dynamicEndpoint}exclusions/${rId}/${tNum}.json?auth=${secret}`;
                     return fetch(url, { method: 'PUT', body: JSON.stringify(updates[tNum]) });
                 });
                 await Promise.all(promises);
@@ -771,11 +926,13 @@ const Admin = {
             }
         };
 
-        Admin.deleteExclusion = async (rId, trainNum) => {
+        Admin.deleteExclusion = async function(rId, trainNum) {
             if(!confirm(`Unban Train #${trainNum}?`)) return;
-            const secret = Admin.getAuthKey(); // GUARDIAN REFACTOR
-            if (!secret) { showToast("Key required.", "error"); return; }
-            const url = `https://metrorail-next-train-default-rtdb.firebaseio.com/exclusions/${rId}/${trainNum}.json?auth=${secret}`;
+            // GUARDIAN: Secure Token Fetch
+            const secret = await Admin.getAuthKey(); 
+            if (!secret) { showToast("Authentication required.", "error"); return; }
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const url = `${dynamicEndpoint}exclusions/${rId}/${trainNum}.json?auth=${secret}`;
             try {
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
@@ -787,7 +944,7 @@ const Admin = {
         };
     },
 
-    // --- 6. SPECIAL EVENT MANAGER (NEW TASK 7.2) ---
+    // --- 6. SPECIAL EVENT MANAGER ---
     setupSpecialEventManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
@@ -842,11 +999,6 @@ const Admin = {
                     </button>
                 </div>
             </div>
-            <style>
-                #event-toggle:checked { right: 0; border-color: #eab308; }
-                #event-toggle:checked + .toggle-label { background-color: #eab308; }
-                #event-toggle { right: 16px; transition: all 0.3s; }
-            </style>
         `;
 
         const header = document.getElementById('event-header-btn');
@@ -879,8 +1031,9 @@ const Admin = {
         }
 
         saveBtn.onclick = async () => {
-            const secret = Admin.getAuthKey();
-            if (!secret) { showToast("Admin Key required", "error"); return; }
+            // GUARDIAN: Secure Token Fetch
+            const secret = await Admin.getAuthKey();
+            if (!secret) { showToast("Authentication required", "error"); return; }
             
             const payload = {
                 isActive: toggle.checked,
@@ -893,7 +1046,8 @@ const Admin = {
             saveBtn.disabled = true;
 
             try {
-                const res = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/config/special_event.json?auth=${secret}`, {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await fetch(`${dynamicEndpoint}config/special_event.json?auth=${secret}`, {
                     method: 'PUT',
                     body: JSON.stringify(payload)
                 });
@@ -960,11 +1114,6 @@ const Admin = {
                     </div>
                 </div>
             </div>
-            <style>
-                .toggle-checkbox:checked { right: 0; border-color: #f97316; }
-                .toggle-checkbox:checked + .toggle-label { background-color: #f97316; }
-                .toggle-checkbox { right: 16px; transition: all 0.3s; }
-            </style>
         `;
 
         const header = document.getElementById('maint-header-btn');
@@ -984,27 +1133,30 @@ const Admin = {
         };
         
         // 1. Check Current Status
-        const checkStatus = async () => {
+        async function checkStatus() {
             try {
-                const res = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/config/maintenance.json`);
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await fetch(`${dynamicEndpoint}config/maintenance.json`);
                 const isActive = await res.json();
                 toggle.checked = !!isActive;
             } catch(e) { console.warn("Failed to check maintenance status"); }
-        };
+        }
         checkStatus();
 
         // 2. Toggle Handler
         toggle.addEventListener('change', async () => {
-            const secret = Admin.getAuthKey(); // GUARDIAN REFACTOR
+            // GUARDIAN: Secure Token Fetch
+            const secret = await Admin.getAuthKey(); 
             if (!secret) {
-                showToast("Admin Key required to change system status.", "error");
+                showToast("Authentication required to change system status.", "error");
                 toggle.checked = !toggle.checked; // Revert UI
                 return;
             }
 
             const newState = toggle.checked;
             try {
-                const res = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/config/maintenance.json?auth=${secret}`, {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await fetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
                     method: 'PUT',
                     body: JSON.stringify(newState)
                 });
@@ -1018,6 +1170,84 @@ const Admin = {
                 toggle.checked = !toggle.checked; // Revert
             }
         });
+    },
+
+    // --- 8. NUCLEAR CACHE WIPE (GUARDIAN KILLSWITCH RESTORE) ---
+    setupNuclearManager: () => {
+        const alertPanel = document.getElementById('alert-panel');
+        if (!alertPanel || !alertPanel.parentNode) return;
+
+        let nukePanel = document.getElementById('nuke-panel');
+        if (!nukePanel) {
+            nukePanel = document.createElement('div');
+            nukePanel.id = 'nuke-panel';
+            alertPanel.parentNode.appendChild(nukePanel);
+        }
+
+        if (nukePanel.dataset.loaded === "true") return;
+        nukePanel.dataset.loaded = "true";
+
+        nukePanel.className = "bg-red-50 dark:bg-red-900/20 rounded-xl shadow-md border border-red-200 dark:border-red-800 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+
+        nukePanel.innerHTML = `
+            <button id="nuke-header-btn" class="w-full text-left text-xs font-bold text-red-500 dark:text-red-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
+                <span class="flex items-center"><span class="mr-2">☢️</span> Nuclear Cache Wipe</span>
+                <svg id="nuke-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <div id="nuke-body" class="hidden mt-4 space-y-3">
+                <p class="text-[11px] text-red-600 dark:text-red-300 font-bold leading-snug">WARNING: This will instantly force ALL users globally to wipe their caches and hard-reload the app on their next boot.</p>
+                <p class="text-[10px] text-red-500 dark:text-red-400 mb-2">Use only for catastrophic data corruption to force an update immediately without waiting for Service Worker lifecycles.</p>
+                <button id="nuke-fire-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors text-xs uppercase tracking-wide focus:outline-none">
+                    Fire Killswitch
+                </button>
+            </div>
+        `;
+
+        const header = document.getElementById('nuke-header-btn');
+        const body = document.getElementById('nuke-body');
+        const chevron = document.getElementById('nuke-chevron');
+        const fireBtn = document.getElementById('nuke-fire-btn');
+
+        header.onclick = () => {
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+                header.classList.remove('mb-4');
+            } else {
+                chevron.classList.remove('-rotate-90');
+                header.classList.add('mb-4');
+            }
+        };
+
+        fireBtn.onclick = async () => {
+            // GUARDIAN: Secure Token Fetch
+            const secret = await Admin.getAuthKey(); 
+            if (!secret) { showToast("Authentication required.", "error"); return; }
+            
+            const p1 = prompt("Type 'NUKE' to confirm mass cache wipe:");
+            if (p1 !== 'NUKE') return;
+            
+            fireBtn.textContent = "Firing...";
+            fireBtn.disabled = true;
+
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const url = `${dynamicEndpoint}config/killswitch.json?auth=${secret}`;
+                const payload = { timestamp: Date.now(), triggeredBy: Admin.currentUser ? Admin.currentUser.email : 'Admin' };
+                
+                const res = await fetch(url, { method: 'PUT', body: JSON.stringify(payload) });
+                if (res.ok) {
+                    showToast("Nuclear Wipe Triggered Globally!", "success", 5000);
+                } else {
+                    showToast("Auth failed.", "error");
+                }
+            } catch(e) {
+                showToast("Network Error", "error");
+            } finally {
+                fireBtn.textContent = "Fire Killswitch";
+                fireBtn.disabled = false;
+            }
+        };
     }
 };
 

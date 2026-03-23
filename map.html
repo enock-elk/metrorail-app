@@ -13,6 +13,36 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=6">
     <link rel="apple-touch-icon" href="icons/icon-192.png?v=6">
 
+    <!-- CRITICAL: Google Analytics 4 (Measurement ID: G-JM5DH6ERVX) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        // GUARDIAN: Check for Developer Flag to filter internal traffic
+        var gaConfig = {};
+        if (localStorage.getItem('analytics_ignore') === 'true') {
+            gaConfig['traffic_type'] = 'internal'; 
+            console.log("🛡️ Analytics: Internal Traffic Flag Set");
+        }
+        gtag('config', 'G-JM5DH6ERVX', gaConfig);
+    </script>
+
+    <!-- MICROSOFT CLARITY TRACKING CODE (With Dev Filter) -->
+    <script type="text/javascript">
+        // GUARDIAN: Only load Clarity if NOT in dev mode
+        if (localStorage.getItem('analytics_ignore') !== 'true') {
+            (function(c,l,a,r,i,t,y){
+                c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            })(window, document, "clarity", "script", "v1aj19921i");
+        } else {
+            console.log("🛡️ Clarity: Tracking blocked for Developer Session.");
+        }
+    </script>
+
     <!-- GUARDIAN: Local Tailwind for Offline Support -->
     <script src="js/tailwind.js"></script>
 
@@ -135,11 +165,11 @@
             border: none;
         }
 
-        /* GUARDIAN: Align Zoom Control with Locate Me button (bottom-6 / 24px) */
+        /* GUARDIAN: Align Zoom Control to the Bottom-Left */
         .leaflet-control-zoom {
             position: fixed !important;
             bottom: 24px !important;
-            right: 16px !important;
+            left: 16px !important;
             margin: 0 !important;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
             border: 1px solid #d1d5db !important;
@@ -158,7 +188,7 @@
     </div>
 
     <!-- Locate Me Button (GUARDIAN INJECTED) -->
-    <button id="locate-me-btn" class="fixed bottom-6 left-4 z-[1000] bg-white hover:bg-gray-100 text-blue-600 p-3.5 rounded-full shadow-2xl border border-gray-300 transition-transform transform active:scale-95 focus:outline-none" title="Find my location" aria-label="Find my location">
+    <button id="locate-me-btn" class="fixed bottom-6 right-4 z-[1000] bg-white hover:bg-gray-100 text-blue-600 p-3.5 rounded-full shadow-2xl border border-gray-300 transition-transform transform active:scale-95 focus:outline-none" title="Find my location" aria-label="Find my location">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
     </button>
 
@@ -352,7 +382,7 @@
 
             // Adjusted center to balance Pretoria and JHB/West Rand
             const map = L.map('map', { zoomControl: false }).setView([-26.00, 28.10], 10); 
-            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                 attribution: '&copy; OpenStreetMap &copy; CARTO',
@@ -478,11 +508,11 @@
                 let fontSize = '10px';
                 let display = 'block';
 
-                if (zoom < 11) {
+                if (zoom < 10) {
                     display = 'none'; // Hide text when zoomed out too far
-                } else if (zoom < 13) {
+                } else if (zoom < 12) {
                     fontSize = '8px'; // Small text
-                } else if (zoom < 15) {
+                } else if (zoom < 14) {
                     fontSize = '10px'; // Medium text
                 } else {
                     fontSize = '12px'; // Large text
@@ -541,6 +571,13 @@
                 map.locate({setView: false, enableHighAccuracy: true, maxZoom: 16});
             });
             // --- END GUARDIAN GEOLOCATION ---
+
+            // Auto-locate user immediately on load
+            setTimeout(() => {
+                const locateBtnIcon = document.querySelector('#locate-me-btn svg');
+                if(locateBtnIcon) locateBtnIcon.classList.add('animate-spin');
+                map.locate({setView: false, enableHighAccuracy: true, maxZoom: 16});
+            }, 500); // Slight delay to ensure map visual is ready
         }
 
         // Toggle Function

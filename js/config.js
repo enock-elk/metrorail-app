@@ -1,11 +1,38 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.00.29 - 15 MAR"; 
+const APP_VERSION = "V6.00.30 - 23 MAR"; 
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
 const FORCE_UPDATE_REQUIRED = true;
+
+// --- 🛡️ GUARDIAN PHASE 5: INFRASTRUCTURE PIVOT & DATA ROUTING ---
+// Toggle this to instantly switch where the heavy schedule data comes from.
+const DATA_SOURCE_MODE = 'GITHUB'; // 'GITHUB' or 'FIREBASE'
+
+// 🛡️ GUARDIAN: GitHub via jsDelivr CDN (100% Free, Unlimited Bandwidth)
+// Connected securely to enock-elk/metrorail-app
+const GITHUB_BASE_URL = "https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/data/";
+const FIREBASE_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";
+
+// Heavy Data (Schedules) respects the toggle.
+const SCHEDULE_BASE_URL = DATA_SOURCE_MODE === 'GITHUB' ? GITHUB_BASE_URL : FIREBASE_BASE_URL;
+
+// Dynamic Data (Admin Bans, Alerts, Maintenance) ALWAYS uses Firebase for real-time capability.
+const DYNAMIC_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";
+
+const REGIONS = {
+    'GP': { 
+        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'metrorail-next-train-default-rtdb-gauteng-export.json' : 'schedules.json', 
+        name: 'Gauteng' 
+    },
+    'WC': { 
+        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'metrorail-next-train-default-rtdb-westerncape-export.json' : 'schedules/westerncape.json', 
+        name: 'Western Cape' 
+    }
+};
+const MAX_RADIUS_KM = 6; 
 
 // 1. Legal Text Definitions (GUARDIAN V5.01: TWA Compliance & Opaque Infrastructure)
 const LEGAL_TEXTS = {
@@ -30,14 +57,6 @@ const LEGAL_TEXTS = {
         <p class="mb-3">Schedule data and application states are distributed via secure, globally recognized cloud infrastructure providers. While your device downloads data from these secure endpoints, your individual connection metrics are governed by the strict privacy frameworks of those enterprise cloud providers. We do not broker your individual device fingerprints to external marketing agencies.</p>
     `
 };
-
-// 2. API Endpoints & Regions (Bridged for V6 Logic)
-const FIREBASE_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";
-const REGIONS = {
-    'GP': { dbNode: 'schedules.json', name: 'Gauteng' },
-    'WC': { dbNode: 'schedules/westerncape.json', name: 'Western Cape' } // GUARDIAN: Fixed Firebase endpoint path
-};
-const MAX_RADIUS_KM = 6; 
 
 // 3. Route Definitions
 const ROUTES = {
@@ -373,6 +392,15 @@ const DEFAULT_EXCLUSIONS = {
 // 7. CHANGELOG 
 // This drives the "What's New" modal.
 const CHANGELOG_DATA = [
+    {
+        version: "Version 6.1 — The Commuter Update",
+        date: "",
+        features: [
+            "<b>Live GPS Maps:</b> View your real-time location on the interactive network map.",
+            "<b>Smart Fares:</b> Prices now dynamically calculate your 40% Off-Peak and Pensioner discounts.",
+            "<b>Fluid Navigation:</b> Eliminated accidental exits and smoothed out the App Router."
+        ]
+    },
     {
         version: "Version 6.0 — Regional Expansion & Fluid UX",
         date: "",

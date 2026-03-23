@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V6.00.29 (Growth Edition - UI/UX Polish)
+  Metrorail Next Train V6.00.30 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
   - PHASE 6: Swapped Next Train selector to use the pure Native Autocomplete input.
   - PHASE 7: Restructured Route Modal to centered popup, slimmed header, and segregated Region block.
   - PHASE 8: Injected Global Scroll-Lock CSS (Anti-Bleed Protocol). Title Clearance & Sidenav JIT Fix.
-  - PHASE 9: Sidenav space optimization: Inline top Region Selector, edge-to-edge menu cards, and Title margin.
+  - PHASE 9: Enterprise Admin Authentication. Injected Firebase SDKs and modern Login Modal.
+  - PHASE 9 (Step 3): Dev Hub Accordion Restructure. Live Telemetry injected. Sign-out relocated. Pristine Layout Fix.
   - PHASE 10: Smooth Two-Step Modal Animation Engine Injected.
+  - GUARDIAN PHASE 7: Sidenav Spacing normalized, iOS Region Toggle added, Fare box restructured.
 -->
 <html lang="en" class="dark">
 
@@ -38,7 +40,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
-      "softwareVersion": "6.00.29",
+      "softwareVersion": "6.1.0",
       "featureList": "Offline Access, Full Timetable, Fare Calculator, Trip Planner, Network Map",
       "url": "https://nexttrain.co.za/"
     }
@@ -96,8 +98,10 @@
         // Set up the custom configuration BEFORE the loader script runs
         window.sentryOnLoad = function () {
             Sentry.init({
-                // 10% sample rate to protect the 5000/month free tier
-                sampleRate: 0.1, 
+                // GUARDIAN Phase 3: Sentry DSN (Required to route errors to your dashboard)
+                dsn: "https://ae241b469e4c06ae7644f55c2a796782@o4511038845222912.ingest.us.sentry.io/4511039214518272", 
+                // GUARDIAN Phase 3: Bumped to 100% for testing (Catch every error). Revert to 0.1 for production!
+                sampleRate: 1.0, 
                 // Enable offline caching (saves to IndexedDB while in tunnels)
                 transport: Sentry.makeBrowserOfflineTransport(Sentry.makeFetchTransport),
                 // Filter out non-actionable browser noise
@@ -252,29 +256,32 @@
     <!-- APP HUB SIDENAV (Super Compact Vertical Edition) -->
     <div id="sidenav" class="fixed inset-y-0 left-0 w-[90vw] sm:w-96 shadow-2xl bg-gray-100 dark:bg-gray-900 flex flex-col h-full z-[100]">
         
-        <!-- GUARDIAN PHASE 9: Absolute Top Header (Region Only) - Segmented Control Upgraded -->
+        <!-- GUARDIAN PHASE 7: Absolute Top Header (iOS Region Toggle) -->
         <div class="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 shrink-0">
-            <div class="grid grid-cols-2 gap-1 bg-gray-200/70 dark:bg-gray-800/70 p-1 rounded-lg flex-grow">
-                <button id="settings-region-gp" class="py-1.5 px-2 text-center rounded-md focus:outline-none transition-all shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                    <span class="text-xs font-bold">Gauteng</span>
+            <div class="relative flex w-full bg-gray-100 dark:bg-gray-700/80 p-1 rounded-lg">
+                <!-- Sliding Background Pill (JS will translate-x-full this in Phase 8) -->
+                <div id="region-slider" class="absolute top-1 left-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-gray-600 rounded-md shadow transition-transform duration-300 ease-in-out transform translate-x-0 z-0"></div>
+                
+                <button id="settings-region-gp" class="relative z-10 flex-1 py-1.5 text-center text-xs font-bold text-gray-900 dark:text-white transition-colors focus:outline-none">
+                    Gauteng
                 </button>
-                <button id="settings-region-wc" class="py-1.5 px-2 text-center rounded-md focus:outline-none transition-all text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-                    <span class="text-xs font-bold">Western Cape</span>
+                <button id="settings-region-wc" class="relative z-10 flex-1 py-1.5 text-center text-xs font-bold text-gray-500 dark:text-gray-400 transition-colors focus:outline-none">
+                    Western Cape
                 </button>
             </div>
         </div>
         
-        <!-- Content Area (GUARDIAN Phase 9: Expanded Width & Removed top dead zone, Space optimized) -->
-        <div class="flex-grow overflow-y-auto px-3 pt-3 pb-8 w-full custom-scrollbar space-y-3 bg-gray-50 dark:bg-gray-900/50">
+        <!-- Content Area (GUARDIAN Phase 7: Margins & Padding normalized) -->
+        <div class="flex-grow overflow-y-auto px-2 pt-3 pb-8 w-full custom-scrollbar space-y-3 bg-gray-50 dark:bg-gray-900/50">
 
             <!-- PREFERENCES GROUP -->
             <div>
-                <h3 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 pl-2">Preferences</h3>
+                <h3 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 pl-2.5">Preferences</h3>
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
                     
                     <!-- Profile -->
-                    <button class="w-full flex justify-between items-center py-3 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="resetProfile()">
-                        <div class="flex items-center space-x-3">
+                    <button class="w-full flex justify-between items-center py-3 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="resetProfile()">
+                        <div class="flex items-center space-x-2.5">
                             <div class="bg-blue-100 dark:bg-blue-900/50 p-1.5 rounded-lg text-blue-600 dark:text-blue-400 flex items-center justify-center w-7 h-7"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg></div>
                             <div class="text-left">
                                 <p class="text-sm font-bold text-gray-900 dark:text-white leading-tight">Passenger Type</p>
@@ -285,8 +292,8 @@
                     </button>
 
                     <!-- Theme -->
-                    <button id="settings-theme-toggle" class="w-full flex justify-between items-center py-3 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none">
-                        <div class="flex items-center space-x-3">
+                    <button id="settings-theme-toggle" class="w-full flex justify-between items-center py-3 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none">
+                        <div class="flex items-center space-x-2.5">
                             <div class="bg-indigo-100 dark:bg-indigo-900/50 p-1.5 rounded-lg text-indigo-600 dark:text-indigo-400 flex items-center justify-center w-7 h-7" id="settings-theme-emoji">🌙</div>
                             <div class="text-left">
                                 <p class="text-sm font-bold text-gray-900 dark:text-white leading-tight">Dark Mode</p>
@@ -300,8 +307,8 @@
                     </button>
 
                     <!-- Haptics -->
-                    <button id="settings-haptics-toggle" class="w-full flex justify-between items-center py-3 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none">
-                        <div class="flex items-center space-x-3">
+                    <button id="settings-haptics-toggle" class="w-full flex justify-between items-center py-3 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none">
+                        <div class="flex items-center space-x-2.5">
                             <div class="bg-pink-100 dark:bg-pink-900/50 p-1.5 rounded-lg text-pink-600 dark:text-pink-400 flex items-center justify-center w-7 h-7">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                             </div>
@@ -318,18 +325,29 @@
                 </div>
             </div>
 
-            <!-- TRANSIT TOOLS GROUP -->
+            <!-- NETWORK MAPS GROUP -->
             <div>
-                <h3 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 pl-2">Transit Tools</h3>
-                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <button id="view-map-btn" class="w-full flex justify-between items-center py-3 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none">
-                        <div class="flex items-center space-x-3">
-                            <div class="bg-green-100 dark:bg-green-900/50 p-1.5 rounded-lg text-green-600 dark:text-green-400 text-xl flex items-center justify-center w-7 h-7">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                <h3 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 pl-2.5">Network Maps</h3>
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
+                    <button id="sidenav-interactive-map-btn" class="w-full flex justify-between items-center py-3 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="bg-blue-100 dark:bg-blue-900/50 p-1.5 rounded-lg text-blue-600 dark:text-blue-400 text-xl flex items-center justify-center w-7 h-7">
+                                📍
                             </div>
                             <div class="text-left">
-                                <p class="text-sm font-bold text-gray-900 dark:text-white leading-tight">Network Map</p>
-                                <p class="text-[10px] text-gray-500 dark:text-gray-400">View all train lines & stops</p>
+                                <p class="text-sm font-bold text-gray-900 dark:text-white leading-tight">GPS Network Map</p>
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400">Interactive & GPS Tracking</p>
+                            </div>
+                        </div>
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                    <button id="view-map-btn" class="w-full flex justify-between items-center py-3 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="bg-gray-100 dark:bg-gray-700 p-1.5 rounded-lg text-gray-600 dark:text-gray-400 text-xl flex items-center justify-center w-7 h-7">
+                                🖼️
+                            </div>
+                            <div class="text-left">
+                                <p class="text-sm font-bold text-gray-900 dark:text-white leading-tight">Static Route Map</p>
                             </div>
                         </div>
                         <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
@@ -339,10 +357,10 @@
 
             <!-- DATA & SYNC GROUP -->
             <div>
-                <h3 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 pl-2">Data & Sync</h3>
+                <h3 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 pl-2.5">Data & Sync</h3>
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    <button onclick="showCacheClearWarning()" class="w-full flex justify-between items-center py-3 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none overflow-hidden">
-                        <div class="flex items-center space-x-3 flex-1 min-w-0 pr-2">
+                    <button onclick="showCacheClearWarning()" class="w-full flex justify-between items-center py-3 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none overflow-hidden">
+                        <div class="flex items-center space-x-2.5 flex-1 min-w-0 pr-1">
                             <div class="bg-orange-100 dark:bg-orange-900/30 p-1.5 rounded-lg text-orange-600 dark:text-orange-400 flex items-center justify-center w-7 h-7 flex-shrink-0">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                             </div>
@@ -356,22 +374,21 @@
                 </div>
             </div>
 
-            <!-- ABOUT & UPDATES GROUP (Reordered) -->
+            <!-- ABOUT & UPDATES GROUP -->
             <div>
-                <h3 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 pl-2">About & Updates</h3>
+                <h3 class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 pl-2.5">About & Updates</h3>
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
-                    <button id="settings-about-btn" class="w-full flex justify-between items-center py-3.5 px-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none">
+                    <button id="settings-about-btn" class="w-full flex justify-between items-center py-3.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none">
                         <span class="text-sm font-bold text-gray-900 dark:text-white">About Next Train</span>
                         <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                     </button>
-                    <button id="settings-help-btn" class="w-full flex justify-between items-center py-3.5 px-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none">
+                    <button id="settings-help-btn" class="w-full flex justify-between items-center py-3.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none">
                         <span class="text-sm font-bold text-gray-900 dark:text-white">User Guide & Tips</span>
                         <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                     </button>
-                    <!-- Version Badge to Clickable Row -->
-                    <button id="settings-app-version" class="w-full flex justify-between items-center py-3.5 px-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none group">
+                    <button id="settings-app-version" class="w-full flex justify-between items-center py-3.5 px-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none group">
                         <span class="text-sm font-bold text-gray-900 dark:text-white">What's New</span>
-                        <span class="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-800 group-hover:bg-blue-100 dark:group-hover:bg-blue-800 transition-colors">v6.00.29</span>
+                        <span class="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-800 group-hover:bg-blue-100 dark:group-hover:bg-blue-800 transition-colors">v6.1.0</span>
                     </button>
                 </div>
             </div>
@@ -386,13 +403,12 @@
         <!-- THE CLEAN HEADER -->
         <div class="pt-2 px-3 pb-1 bg-white dark:bg-gray-800 z-20 shadow-sm relative flex flex-col justify-center min-h-[85px]">
             
-            <!-- Absolute Hamburger Menu (larger click area + higher z-index) -->
+            <!-- Absolute Hamburger Menu -->
             <button id="open-nav-btn" class="absolute top-2 left-4 p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors z-30" aria-label="Open App Hub">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                 </svg>
             </button>
-
             
             <!-- Absolute Service Alert Bell -->
             <button id="notice-bell" class="hidden absolute top-4 right-4 z-50 p-1.5 rounded-full bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 shadow-md focus:outline-none hover:scale-105 transition-transform" aria-label="Service Alert">
@@ -400,7 +416,7 @@
                 <span id="notice-dot" class="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white dark:ring-gray-800 bg-red-600 transform translate-x-1/4 -translate-y-1/4 hidden"></span>
             </button>
 
-            <!-- Centered Title (Pushed below absolute buttons) -->
+            <!-- Centered Title -->
             <div class="text-center w-full mt-7 pt-2 relative z-10">
                 <h1 id="app-title" class="text-2xl font-black text-gray-900 dark:text-white select-none cursor-pointer tracking-tight leading-none mb-3">Metrorail Next Train</h1>
                 
@@ -428,22 +444,18 @@
             <div class="text-center mb-5 flex flex-col justify-center items-center w-full">
                 <div class="w-full grid grid-cols-[3rem_1fr_3rem] items-stretch bg-white dark:bg-gray-800 h-[46px] rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-1 overflow-hidden transition-colors">
                     
-                    <!-- LEFT: Pin Button (Distinct & Separated) -->
                     <button id="pin-route-btn" class="relative flex items-center justify-center w-full h-full text-gray-400 dark:text-gray-500 hover:text-blue-500 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none group cursor-pointer" title="Pin this route" aria-label="Pin Route">
                         <svg id="pin-outline" class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
                         <svg id="pin-filled" class="w-5 h-5 hidden text-blue-500 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
-                        <!-- Vertical Separator -->
                         <div class="absolute right-0 top-1/4 bottom-1/4 w-px bg-gray-200 dark:bg-gray-700"></div>
                     </button>
 
-                    <!-- MIDDLE: Route Name (Absolutely Centered) -->
                     <button id="route-selector-btn" onclick="openSmoothModal('route-modal')" class="flex flex-col items-center justify-center w-full h-full px-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none group">
                         <h2 id="route-subtitle-text" class="text-base sm:text-lg font-medium text-gray-700 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate w-full text-center">
                             Loading Route...
                         </h2>
                     </button>
 
-                    <!-- RIGHT: Chevron (Mirrors Pin Width for perfect centering) -->
                     <button onclick="document.getElementById('route-selector-btn').click();" class="flex items-center justify-center w-full h-full text-blue-500 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus:outline-none group cursor-pointer" tabindex="-1">
                         <svg class="w-5 h-5 group-hover:translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
@@ -451,20 +463,14 @@
                 <p id="last-updated-date" class="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide mt-1">Schedule Effective from: --</p>
             </div>
 
-            <!-- GUARDIAN V6.15: Upgraded Station Input Bar (Readonly to prevent Keyboard) -->
             <div class="mb-5 relative z-20">
                 <label for="station-select" class="sr-only">From Station</label>
                 <div class="flex items-center gap-2">
                     <div class="relative flex-grow shadow-sm rounded-xl cursor-pointer">
-                        <!-- The hidden select acts as the rigid state manager -->
                         <select id="station-select" class="hidden w-full p-4 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-lg font-medium text-gray-900 dark:text-white shadow-sm focus:border-blue-50 focus:ring-blue-500 transition-colors">
                             <option value="">Loading stations...</option>
                         </select>
-                        
-                        <!-- Readonly input acts as a perfect button but preserves value logic -->
                         <input type="text" readonly id="station-search-input" placeholder="Select Station..." class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl shadow-sm p-3 text-base sm:text-lg font-medium focus:ring-blue-500 focus:border-blue-500 transition-colors h-[54px] appearance-none pr-12 cursor-pointer select-none truncate">
-                        
-                        <!-- Interactive Chevron for Dropdown Toggle -->
                         <div id="next-train-chevron" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer p-2 hover:text-blue-500 z-10 transition-colors">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </div>
@@ -486,15 +492,23 @@
                 </div>
             </div>
 
-            <div id="fare-container" class="mb-6 p-3 bg-blue-50 dark:bg-gray-800 rounded-lg flex items-center justify-between shadow-sm border border-blue-100 dark:border-gray-700 hidden">
-                <div class="flex flex-col">
-                    <span class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Estimated Fare</span>
-                    <span id="fare-amount" class="text-xl font-black text-gray-900 dark:text-white">R--.--</span>
-                    <span class="text-[9px] text-gray-400 dark:text-gray-500 italic">Prices may vary</span>
+            <div id="grid-trigger-container" class="hidden mb-4 mt-2 px-1">
+                <button onclick="triggerHaptic(); renderFullScheduleGrid('A')" class="w-full flex items-center justify-center space-x-3 bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-xl shadow-lg ring-4 ring-blue-100 dark:ring-blue-900 transition-all transform active:scale-95 group focus:outline-none">
+                    <span class="text-xl">📅</span>
+                    <span class="tracking-wide">VIEW FULL TIMETABLE</span>
+                </button>
+            </div>
+
+            <!-- GUARDIAN PHASE 7: Re-styled Fare Box (pr-14 fixes overlap, adult label clean text, matching heights) -->
+            <div id="fare-container" class="mb-6 p-3.5 bg-blue-50 dark:bg-gray-800 rounded-xl flex items-center justify-between shadow-sm border border-blue-100 dark:border-gray-700 hidden min-h-[58px] pr-14 relative">
+                <div class="flex flex-col items-start justify-center">
+                    <span class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider mb-0.5">Estimated Fare</span>
+                    <span id="passenger-type-label" class="text-[11px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Adult</span>
                 </div>
-                <div class="text-right flex flex-col items-end">
-                    <span id="fare-type" class="text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full mb-1">Standard</span>
-                    <span id="passenger-type-label" class="text-[10px] text-gray-400 dark:text-gray-500 font-medium">Adult</span>
+                <div class="text-right flex flex-col items-end justify-center">
+                    <span id="fare-type" class="hidden text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full mb-1"></span>
+                    <span id="fare-amount" class="text-2xl font-black text-gray-900 dark:text-white leading-none">R--.--</span>
+                    <span class="text-[9px] text-gray-400 dark:text-gray-500 italic mt-1">Prices may vary</span>
                 </div>
             </div>
 
@@ -509,7 +523,7 @@
                 </div>
                 <div class="mt-3 mb-3">
                     <button id="install-app-btn" class="hidden flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors text-sm">
-                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App on this Device
+                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App In The Background (&lt; 1 MB)
                     </button>
                 </div>
                 <div id="copied-message" class="hidden text-center text-green-500 font-medium mt-2 text-xs">Link copied to clipboard!</div>
@@ -602,7 +616,7 @@
                 
                 <div class="mt-3 mb-3">
                     <button id="install-app-btn-planner" class="hidden flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors text-sm">
-                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App on this Device
+                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App In The Background (&lt; 1 MB)
                     </button>
                 </div>
 
@@ -723,7 +737,7 @@
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col transform transition-transform duration-300 scale-95" id="modal-content">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
                 <h3 id="modal-title" class="text-lg font-bold text-gray-900 dark:text-white">Full Schedule</h3>
-                <button id="close-modal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Schedule">
+                <button id="close-modal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:bg-gray-700 text-gray-50 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Schedule">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
@@ -740,10 +754,6 @@
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative">
                 <div class="flex items-center space-x-3">
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Network Map</h3>
-                    <a href="map.html" id="open-interactive-map-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm transition-colors flex items-center decoration-none animate-pulse">
-                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        Coverage Map
-                    </a>
                 </div>
                 <button id="close-map-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Map">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -1001,24 +1011,52 @@
             </div>
 
             <p class="mt-8 text-[10px] text-gray-400 font-mono">
-                Version 6.00.29 (Growth Edition)
+                Version 6.1.0 (Guardian Edition)
             </p>
         </div>
     </div>
 
-    <!-- PIN ENTRY MODAL -->
-    <div id="pin-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[120] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-95">
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 text-center">Developer Access</h3>
-            <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*" class="w-full p-3 rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-center text-lg tracking-widest mb-4 focus:outline-none" placeholder="Enter PIN" maxlength="6">
-            <div class="flex space-x-2">
-                <button id="pin-cancel-btn" class="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white py-2 rounded font-bold focus:outline-none">Cancel</button>
-                <button id="pin-submit-btn" class="flex-1 bg-blue-600 text-white py-2 rounded font-bold focus:outline-none">Unlock</button>
+    <!-- AUTHENTICATION MODAL (GUARDIAN Phase 9 - Eye Button Injected) -->
+    <div id="login-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[120] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-8 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
+            <div class="flex justify-center mb-4">
+                <div class="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full text-blue-600 dark:text-blue-400">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"></path></svg>
+                </div>
+            </div>
+            <h3 class="text-xl font-black text-gray-900 dark:text-white mb-1 text-center tracking-tight">Admin Gateway</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 text-center mb-6">Restricted access protocol.</p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Email</label>
+                    <input type="email" id="admin-email" class="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all" placeholder="admin@nexttrain.co.za">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Password</label>
+                    <div class="relative">
+                        <input type="password" id="admin-password" class="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all pr-12" placeholder="••••••••">
+                        <button type="button" id="toggle-password-btn" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-blue-500 transition-colors focus:outline-none h-full w-10 justify-center">
+                            <!-- Eye Open -->
+                            <svg id="eye-open-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                            <!-- Eye Closed -->
+                            <svg id="eye-closed-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.978 9.978 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex space-x-3 mt-8">
+                <button id="admin-cancel-btn" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 py-3 rounded-xl font-bold transition-colors focus:outline-none text-sm">Cancel</button>
+                <button id="admin-login-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-md transition-colors focus:outline-none text-sm flex items-center justify-center">
+                    <span>Sign In</span>
+                    <svg id="admin-login-spinner" class="w-4 h-4 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- GLOBAL DEVELOPER MODAL (Combined Simulation & Admin) -->
+    <!-- GLOBAL DEVELOPER MODAL (Upgraded Accordion Hub & Telemetry) -->
     <div id="dev-modal" class="fixed inset-0 bg-black bg-opacity-90 z-[120] hidden flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300 overflow-y-auto">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-100 my-auto">
             <div class="flex justify-between items-center mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
@@ -1030,53 +1068,98 @@
                 </button>
             </div>
             
-            <!-- SECTION 1: SIMULATION CONTROLS -->
-            <div class="mb-6">
-                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Time Simulation</h4>
-                <div class="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4">
-                    <div class="flex items-center justify-between">
-                        <label class="text-sm font-bold text-gray-700 dark:text-gray-300">Enable Sim Mode</label>
-                        <input type="checkbox" id="sim-enabled" class="h-5 w-5 text-blue-600 rounded focus:ring-blue-500 bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500">
-                    </div>
-                    
+            <!-- SECTION 1: LIVE TELEMETRY (Expanded Default) -->
+            <div id="telemetry-panel" class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300">
+                <button id="telemetry-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none mb-4">
+                    <span class="flex items-center"><span class="mr-2">📊</span> Live Telemetry</span>
+                    <svg id="telemetry-chevron" class="w-4 h-4 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                
+                <div id="telemetry-body" class="space-y-3">
                     <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Time (HH:MM)</label>
-                            <input type="time" id="sim-time" step="1" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        <div class="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-100 dark:border-green-800 flex flex-col items-center justify-center">
+                            <span class="text-[10px] text-green-600 dark:text-green-400 font-bold uppercase tracking-wider mb-1">Last 5 Mins</span>
+                            <span id="stat-5m" class="text-2xl font-black text-green-700 dark:text-green-300 animate-pulse">--</span>
                         </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Day Type</label>
-                            <select id="sim-day" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                                <option value="1">Weekday (Mon)</option>
-                                <option value="6">Saturday</option>
-                                <option value="0">Sunday</option>
-                                <option value="specific">Specific Date...</option>
-                            </select>
+                        <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800 flex flex-col items-center justify-center">
+                            <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">Last 30 Mins</span>
+                            <span id="stat-30m" class="text-2xl font-black text-blue-700 dark:text-blue-300 animate-pulse">--</span>
+                        </div>
+                        <div class="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800 flex flex-col items-center justify-center">
+                            <span class="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-wider mb-1">Today</span>
+                            <span id="stat-today" class="text-2xl font-black text-indigo-700 dark:text-indigo-300 animate-pulse">--</span>
+                        </div>
+                        <div class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-100 dark:border-purple-800 flex flex-col items-center justify-center">
+                            <span class="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-wider mb-1">All-Time</span>
+                            <span id="stat-alltime" class="text-2xl font-black text-purple-700 dark:text-purple-300 animate-pulse">--</span>
                         </div>
                     </div>
-
-                    <!-- Hidden by default, shown via JS if 'specific' selected -->
-                    <div id="sim-date-container" class="hidden">
-                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Select Date (2026)</label>
-                        <input type="date" id="sim-date" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-
-                    <div class="flex gap-2 pt-2">
-                        <button id="sim-apply-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm focus:outline-none">
-                            Apply
-                        </button>
-                        <button id="sim-exit-btn" class="flex-1 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm focus:outline-none">
-                            Exit
-                        </button>
+                    <div class="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-800 flex items-center justify-between">
+                        <span class="text-[10px] text-red-600 dark:text-red-400 font-bold uppercase tracking-wider flex items-center"><span class="mr-1">🚨</span> System Errors (Today)</span>
+                        <span id="stat-errors" class="text-lg font-black text-red-700 dark:text-red-300 animate-pulse">--</span>
                     </div>
                 </div>
             </div>
 
-            <!-- SECTION 2: SERVICE ALERTS (Admin Only) -->
-            <!-- This section is populated by admin.js logic -->
-            <div id="alert-panel" class="border-t border-gray-200 dark:border-gray-700 pt-6">
-                <!-- Dynamic Injection by admin.js -->
+            <!-- ADMIN MODULES WRAPPER (Injections by admin.js load here) -->
+            <div id="admin-modules-container">
+                
+                <!-- SECTION 2: TIME SIMULATION (Converted to Accordion Card) -->
+                <div id="simulation-panel" class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300">
+                    <button id="sim-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
+                        <span class="flex items-center"><span class="mr-2">⏳</span> Time Simulation</span>
+                        <svg id="sim-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    
+                    <div id="sim-body" class="hidden mt-4 space-y-4">
+                        <div class="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <label class="text-sm font-bold text-gray-700 dark:text-gray-300">Enable Sim Mode</label>
+                                <input type="checkbox" id="sim-enabled" class="h-5 w-5 text-blue-600 rounded focus:ring-blue-500 bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500">
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Time (HH:MM)</label>
+                                    <input type="time" id="sim-time" step="1" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Day Type</label>
+                                    <select id="sim-day" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                        <option value="1">Weekday (Mon)</option>
+                                        <option value="6">Saturday</option>
+                                        <option value="0">Sunday</option>
+                                        <option value="specific">Specific Date...</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div id="sim-date-container" class="hidden">
+                                <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Select Date (2026)</label>
+                                <input type="date" id="sim-date" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+
+                            <div class="flex gap-2 pt-2">
+                                <button id="sim-apply-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm focus:outline-none">
+                                    Apply
+                                </button>
+                                <button id="sim-exit-btn" class="flex-1 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm focus:outline-none">
+                                    Exit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 3: SERVICE ALERTS (Admin Only) -->
+                <!-- Re-injected dynamically by admin.js into admin-modules-container -->
+                <div id="alert-panel" data-admin-loaded="false"></div>
+
             </div>
+
+            <!-- GUARDIAN PHASE 9: SECURE SIGN OUT (Safely Isolated at Absolute Bottom) -->
+            <div id="admin-signout-container"></div>
+            
         </div>
     </div>
 
@@ -1103,25 +1186,122 @@
         </div>
     </div>
 
+    <!-- FIREBASE SDK & AUTHENTICATION BOOTSTRAP (GUARDIAN Phase 9 Offline Fallback) -->
+    <script type="module">
+        (async () => {
+            try {
+                // Top-level dynamic imports. If offline, this immediately catches instead of freezing the script block.
+                const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+                const { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, getIdToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+
+                // Your specific Firebase configuration
+                const firebaseConfig = {
+                    apiKey: "AIzaSyAU303BRMrH3A5n5zbJH4MVwWdkfznqxMY",
+                    authDomain: "metrorail-next-train.firebaseapp.com",
+                    databaseURL: "https://metrorail-next-train-default-rtdb.firebaseio.com",
+                    projectId: "metrorail-next-train",
+                    storageBucket: "metrorail-next-train.firebasestorage.app",
+                    messagingSenderId: "449872137774",
+                    appId: "1:449872137774:web:4a23055a6f6a9bfd14d9bf",
+                    measurementId: "G-JM5DH6ERVX"
+                };
+
+                const app = initializeApp(firebaseConfig);
+                window.firebaseAuth = getAuth(app);
+                window.firebaseSignIn = signInWithEmailAndPassword;
+                window.firebaseSignOut = signOut;
+                window.firebaseOnAuthStateChanged = onAuthStateChanged;
+                window.firebaseGetIdToken = getIdToken;
+
+            } catch (e) {
+                console.warn("🛡️ Guardian: Firebase failed to load (Offline Mode). Admin tools restricted.", e);
+            } finally {
+                // This fires whether online or offline, allowing admin.js to unlock the local Time Simulator!
+                window.dispatchEvent(new Event('firebase-auth-ready'));
+            }
+        })();
+    </script>
+    
+    <!-- GUARDIAN PHASE 9 (STEP 3): INLINE UI TOGGLES FOR DEV HUB -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Password Eye Toggle
+            const togglePassBtn = document.getElementById('toggle-password-btn');
+            const passInput = document.getElementById('admin-password');
+            const eyeOpen = document.getElementById('eye-open-icon');
+            const eyeClosed = document.getElementById('eye-closed-icon');
+
+            if (togglePassBtn && passInput) {
+                togglePassBtn.addEventListener('click', () => {
+                    if (passInput.type === 'password') {
+                        passInput.type = 'text';
+                        eyeOpen.classList.add('hidden');
+                        eyeClosed.classList.remove('hidden');
+                    } else {
+                        passInput.type = 'password';
+                        eyeOpen.classList.remove('hidden');
+                        eyeClosed.classList.add('hidden');
+                    }
+                });
+            }
+
+            // Sim Accordion Toggle
+            const simHeader = document.getElementById('sim-header-btn');
+            const simBody = document.getElementById('sim-body');
+            const simChevron = document.getElementById('sim-chevron');
+            
+            if (simHeader && simBody) {
+                simHeader.addEventListener('click', () => {
+                    simBody.classList.toggle('hidden');
+                    if (simBody.classList.contains('hidden')) {
+                        simChevron.classList.add('-rotate-90');
+                        simHeader.classList.remove('mb-4');
+                    } else {
+                        simChevron.classList.remove('-rotate-90');
+                        simHeader.classList.add('mb-4');
+                    }
+                });
+            }
+
+            // Telemetry Accordion Toggle
+            const telHeader = document.getElementById('telemetry-header-btn');
+            const telBody = document.getElementById('telemetry-body');
+            const telChevron = document.getElementById('telemetry-chevron');
+            
+            if (telHeader && telBody) {
+                telHeader.addEventListener('click', () => {
+                    telBody.classList.toggle('hidden');
+                    if (telBody.classList.contains('hidden')) {
+                        telChevron.classList.add('-rotate-90');
+                        telHeader.classList.remove('mb-4');
+                    } else {
+                        telChevron.classList.remove('-rotate-90');
+                        telHeader.classList.add('mb-4');
+                    }
+                });
+            }
+        });
+    </script>
+
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=6.00.29"></script>
-    <script src="js/renderer.js?v=6.00.29"></script>
+    <script src="js/grid-order.js?v=6.00.30"></script>
+    <script src="js/renderer.js?v=6.00.30"></script>
     
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=6.00.29"></script>
+    <script src="js/admin.js?v=6.00.30"></script>
 
-    <script src="js/utils.js?v=6.00.29"></script>
-    <script src="js/config.js?v=6.00.29"></script>
-    <script src="js/logic.js?v=6.00.29"></script>
+    <script src="js/utils.js?v=6.00.30"></script>
+    <script src="js/config.js?v=6.00.30"></script>
+    <script src="js/logic.js?v=6.00.30"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=6.00.29"></script>
-    <script src="js/planner-ui.js?v=6.00.29"></script>
+    <script src="js/planner-core.js?v=6.00.30"></script>
+    <script src="js/planner-ui.js?v=6.00.30"></script>
     
-    <script src="js/map-viewer.js?v=6.00.29"></script> 
+    <script src="js/map-viewer.js?v=6.00.30"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=6.00.29"></script>
+    <script src="js/ui.js?v=6.00.30"></script>
 
     <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>

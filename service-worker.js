@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v6.00.29'; // BUMPED: V6.00.29 - Guardian Cache Fix
+const CACHE_NAME = 'metrorail-next-train-v6.00.30'; // BUMPED: V6.00.30 - Guardian Cache Fix
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -21,7 +21,6 @@ const ASSETS_TO_CACHE = [
   // GUARDIAN: Purged high-risk/non-essential files causing atomic install failures
   // Removed: sitemap.xml, robots.txt, icons/old/icon-192.png
   './icons/icon-192.png',
-  './icons/old/icon-192.png',
   './icons/loading-logo.png',
   './images/network-map.png',
   './images/network-map_wc.png',

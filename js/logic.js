@@ -249,10 +249,53 @@ function scheduleNextRefresh() {
     refreshTimer = setTimeout(async () => { await loadAllSchedules(); scheduleNextRefresh(); }, nextInterval);
 }
 
+// GUARDIAN PHASE 8: Nuclear Killswitch Listener
+async function checkKillswitch() {
+    if (!navigator.onLine) return false;
+    try {
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const res = await fetch(`${dynamicEndpoint}config/killswitch.json?t=${Date.now()}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.timestamp) {
+                const localTimestamp = localStorage.getItem('last_killswitch_timestamp');
+                if (!localTimestamp || data.timestamp > parseInt(localTimestamp)) {
+                    console.log("☢️ GUARDIAN KILLSWITCH ACTIVATED. Wiping all local data...");
+                    localStorage.setItem('last_killswitch_timestamp', data.timestamp);
+                    
+                    // Trigger global wipe if ui.js is bound, otherwise fallback to raw local logic
+                    if (typeof window.performHardCacheClear === 'function') {
+                        window.performHardCacheClear();
+                    } else {
+                        if ('serviceWorker' in navigator) {
+                            navigator.serviceWorker.getRegistrations().then(regs => {
+                                for (let reg of regs) reg.unregister();
+                            });
+                        }
+                        if ('caches' in window) {
+                            caches.keys().then(names => {
+                                for (let name of names) caches.delete(name);
+                            });
+                        }
+                        localStorage.removeItem(`full_db_${currentRegion}`); 
+                        localStorage.removeItem('app_installed_version');
+                        setTimeout(() => { window.location.reload(true); }, 500);
+                    }
+                    return true; 
+                }
+            }
+        }
+    } catch(e) { console.warn("Killswitch check failed:", e); }
+    return false;
+}
+
 // GUARDIAN PHASE 3: Task 7.2 Remote Config Fetch
 async function fetchSpecialEventConfig() {
     try {
-        const eventResp = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/config/special_event.json?t=${Date.now()}`);
+        // GUARDIAN PHASE 5: Dynamic Routing Update
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const eventResp = await fetch(`${dynamicEndpoint}config/special_event.json?t=${Date.now()}`);
+        
         if (eventResp.ok) {
             const eventData = await eventResp.json();
             if (eventData && ROUTES['special_event']) {
@@ -271,6 +314,10 @@ async function fetchSpecialEventConfig() {
 // --- DATA FETCHING & PROCESSING ---
 async function loadAllSchedules(force = false) {
     try {
+        // GUARDIAN PHASE 8: Execute Killswitch Check FIRST
+        const wasKilled = await checkKillswitch();
+        if (wasKilled) return; // Halt execution if we are wiping and reloading
+
         await fetchSpecialEventConfig();
 
         if (!currentRouteId) return; 
@@ -322,7 +369,9 @@ async function loadAllSchedules(force = false) {
         }
         
         try {
-            const exclResp = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/exclusions.json?t=${Date.now()}`);
+            // GUARDIAN PHASE 5: Dynamic Routing Update for the lightweight exclusions payload
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const exclResp = await fetch(`${dynamicEndpoint}exclusions.json?t=${Date.now()}`);
             if (exclResp.ok) {
                 const exclData = await exclResp.json();
                 if (exclData) globalExclusions = exclData;
@@ -355,29 +404,39 @@ async function loadAllSchedules(force = false) {
         const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
 
         if (usedCache && !force && !isForceUpdate && fullDatabase.lastUpdated) {
-            try {
-                // Map dbNode (e.g. "schedules.json" -> "schedules/lastUpdated.json")
-                const nodePath = REGIONS[currentRegion].dbNode.replace('.json', '');
-                const pingUrl = `${FIREBASE_BASE_URL}${nodePath}/lastUpdated.json?t=${Date.now()}`;
-                
-                const pingRes = await fetch(pingUrl);
-                if (pingRes.ok) {
-                    const remoteUpdated = await pingRes.json();
-                    if (remoteUpdated && remoteUpdated === fullDatabase.lastUpdated) {
-                        console.log("🛡️ Guardian Smart Sync: Schedule is up-to-date. Skipping heavy payload download.");
-                        needsDownload = false;
+            // GUARDIAN PHASE 5: The Infrastructure Pivot Smart Bypass
+            if (typeof DATA_SOURCE_MODE !== 'undefined' && DATA_SOURCE_MODE === 'GITHUB') {
+                console.log("🛡️ Guardian Smart Sync: GITHUB CDN Mode Active. Relying on browser/edge cache policies.");
+                // needsDownload remains true to fetch the schedule, but the browser will use the 200 (disk cache) or 304 response,
+                // saving 100% of the Firebase bandwidth cost.
+            } else {
+                try {
+                    const nodePath = REGIONS[currentRegion].dbNode.replace('.json', '');
+                    const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : FIREBASE_BASE_URL;
+                    const pingUrl = `${dynamicEndpoint}${nodePath}/lastUpdated.json?t=${Date.now()}`;
+                    
+                    const pingRes = await fetch(pingUrl);
+                    if (pingRes.ok) {
+                        const remoteUpdated = await pingRes.json();
+                        if (remoteUpdated && remoteUpdated === fullDatabase.lastUpdated) {
+                            console.log("🛡️ Guardian Smart Sync: Schedule is up-to-date. Skipping heavy payload download.");
+                            needsDownload = false;
+                        }
                     }
+                } catch(e) {
+                    console.warn("Smart Sync Ping failed, proceeding with full data fetch.", e);
                 }
-            } catch(e) {
-                console.warn("Smart Sync Ping failed, proceeding with full data fetch.", e);
             }
         }
 
         if (needsDownload) {
-            const regionDbUrl = FIREBASE_BASE_URL + REGIONS[currentRegion].dbNode;
+            // GUARDIAN PHASE 5: The Elephant Route (Uses GitHub/jsDelivr safely)
+            const activeScheduleUrl = typeof SCHEDULE_BASE_URL !== 'undefined' ? SCHEDULE_BASE_URL : FIREBASE_BASE_URL;
+            const regionDbUrl = activeScheduleUrl + REGIONS[currentRegion].dbNode;
+            
             const response = await fetch(regionDbUrl);
             
-            if (!response.ok) throw new Error("Firebase fetch failed");
+            if (!response.ok) throw new Error("Schedule Data fetch failed");
             const newDatabase = await response.json();
             if (!newDatabase) throw new Error("Empty database");
 
@@ -401,7 +460,7 @@ async function loadAllSchedules(force = false) {
                     if(typeof initializeApp === 'function') initializeApp(); 
                 }
             } else {
-                console.log("Data verified up to date after full fetch.");
+                console.log("Data verified up to date after full fetch (Hit Edge Cache).");
                 if (!usedCache) {
                      if(typeof initializeApp === 'function') initializeApp();
                 }

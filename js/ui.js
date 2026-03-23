@@ -1,10 +1,11 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.00.29 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.00.30 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
  * * V6.00.22: The Great Purge - Migrated monolithic overrides, silenced error toasts.
  * * PHASE 9: App Router injected. Unified History API and Exit Trap Protocol.
+ * * PHASE 7: Priority Alert Queue, Regional Global Sync, and CSS Marquee Ticker.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -128,9 +129,11 @@ function trackAnalyticsEvent(eventName, params = {}) {
     
     try {
         if (typeof clarity === 'function') {
+            // GUARDIAN PHASE 10: Stop session clobbering. Only set region as a session tag.
             clarity("set", "crm_region", params.region);
+            // Send the transient event name.
             clarity("event", eventName);
-            if (params) { Object.keys(params).forEach(key => { clarity("set", key, String(params[key])); }); }
+            // Removed the params loop that was overwriting global session variables
         }
     } catch (e) { console.warn("[Analytics] Clarity Error:", e); }
 }
@@ -419,61 +422,79 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     fareType = document.getElementById('fare-type');
     passengerTypeLabel = document.getElementById('passenger-type-label');
 
-    fareContainer.classList.add('cursor-pointer', 'hover:bg-blue-100', 'dark:hover:bg-gray-700', 'transition-colors', 'group', 'relative');
+    // GUARDIAN PHASE 12: Implement "Option B" Inline Badge Layout
+    // Surgically relocate the fare-type badge from the right column to sit beside the passenger label
+    if (fareType && passengerTypeLabel && fareType.parentNode !== passengerTypeLabel.parentNode) {
+        let passWrapper = document.getElementById('passenger-type-wrapper');
+        if (!passWrapper) {
+            passWrapper = document.createElement('div');
+            passWrapper.id = 'passenger-type-wrapper';
+            passWrapper.className = 'flex items-center space-x-2';
+            passengerTypeLabel.parentNode.insertBefore(passWrapper, passengerTypeLabel);
+            passWrapper.appendChild(passengerTypeLabel);
+        }
+        passWrapper.appendChild(fareType);
+    }
+
+    // GUARDIAN PHASE 8: Clean base reset
+    fareContainer.className = "mb-6 p-3.5 rounded-xl flex items-center justify-between shadow-sm min-h-[58px] pr-10 relative transition-colors group";
 
     const fareData = getRouteFare(sheetKey, nextTrainTimeStr);
     const detailed = typeof getDetailedFare === 'function' ? getDetailedFare(sheetKey) : null;
     
     if (detailed && detailed.prices) {
         fareContainer.onclick = () => openFareModal(detailed);
+        fareContainer.classList.add('cursor-pointer');
         
         if (!document.getElementById('fare-chevron')) {
             const chevron = document.createElement('div');
             chevron.id = 'fare-chevron';
             chevron.className = "absolute right-3 top-1/2 transform -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity";
-            chevron.innerHTML = `<svg class="w-5 h-5 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>`;
+            chevron.innerHTML = `<svg class="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7-7"></path></svg>`;
             fareContainer.appendChild(chevron);
         }
     } else {
         const existingChevron = document.getElementById('fare-chevron');
         if(existingChevron) existingChevron.remove();
-        fareContainer.classList.remove('cursor-pointer', 'hover:bg-blue-100', 'dark:hover:bg-gray-700');
     }
 
+    // GUARDIAN PHASE 12: Revert entire button to Standard Color (Blue/Gray), retaining only the pill colors
     if (fareData) {
         fareAmount.textContent = `R${fareData.price}`;
         
+        // Standard Button Background
+        fareContainer.classList.add('bg-blue-50', 'dark:bg-gray-800', 'border', 'border-blue-100', 'dark:border-gray-700');
+        if (detailed && detailed.prices) fareContainer.classList.add('hover:bg-blue-100', 'dark:hover:bg-gray-700');
+        
+        // Standard Chevron & Amount Colors
+        if (document.getElementById('fare-chevron')) document.getElementById('fare-chevron').querySelector('svg').className = "w-5 h-5 text-blue-500 dark:text-blue-400";
+        fareAmount.className = "text-2xl font-black text-gray-900 dark:text-white leading-none";
+
         if (nextTrainTimeStr) {
             if (fareData.isPromo) {
                 fareType.textContent = fareData.discountLabel || "Discounted";
-                fareType.className = "text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-0.5 rounded-full mb-2";
-                fareAmount.className = "text-xl font-black text-blue-600 dark:text-blue-400";
+                fareType.className = "text-[9px] font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap inline-block";
             } else if (fareData.isOffPeak) {
-                fareType.textContent = "40% Off-Peak";
-                fareType.className = "text-[10px] font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded-full mb-2";
-                fareAmount.className = "text-xl font-black text-green-600 dark:text-green-400";
+                fareType.textContent = "40% Off"; 
+                fareType.className = "text-[9px] font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap inline-block";
             } else {
-                fareType.textContent = "Standard";
-                fareType.className = "text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full mb-2";
-                fareAmount.className = "text-xl font-black text-gray-900 dark:text-white";
+                fareType.className = "hidden"; // Completely destroy Standard node
             }
         } 
         else {
-            fareType.textContent = "General Pricing";
-            fareType.className = "text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mb-2";
-            fareAmount.className = "text-xl font-black text-gray-900 dark:text-white";
+            fareType.className = "hidden";
         }
         
     } else {
+        fareContainer.classList.add('bg-blue-50', 'dark:bg-gray-800', 'border', 'border-blue-100', 'dark:border-gray-700');
         fareAmount.textContent = "R --.--";
         if (stationSelect && stationSelect.value) {
              fareType.textContent = "Rate Unavailable";
-             fareType.className = "text-[10px] font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full mb-2";
+             fareType.className = "text-[9px] font-bold text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap inline-block";
         } else {
-             fareType.textContent = "Select Station";
-             fareType.className = "text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mb-2";
+             fareType.className = "hidden";
         }
-        fareAmount.className = "text-xl font-black text-gray-300 dark:text-gray-600";
+        fareAmount.className = "text-2xl font-black text-gray-300 dark:text-gray-600 leading-none";
     }
     
     fareContainer.classList.remove('hidden');
@@ -491,7 +512,7 @@ window.openFareModal = function(fareDetails) {
         modal.innerHTML = `
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-transform duration-300 scale-95 max-h-[85vh]">
                 <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-2xl shrink-0">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center" id="fare-zone-badge">Ticket Prices</h3>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white flex flex-col items-start justify-center" id="fare-zone-badge">Ticket Prices</h3>
                     <button onclick="closeSmoothModal('fare-modal')" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition focus:outline-none">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
@@ -513,7 +534,14 @@ window.openFareModal = function(fareDetails) {
     const zoneEl = document.getElementById('fare-zone-badge');
     const tableEl = document.getElementById('fare-table-content');
     
-    zoneEl.innerHTML = `Ticket Prices <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 ml-2 px-2 py-0.5 rounded-full uppercase tracking-widest">Zone ${fareDetails.code}</span>`;
+    // GUARDIAN PHASE 5: Professional Route Subtitle in Modal Header
+    const routeName = currentRouteId && ROUTES[currentRouteId] ? ROUTES[currentRouteId].name.replace('<->', '↔') : '';
+    zoneEl.innerHTML = `
+        <div class="flex items-center">
+            Ticket Prices <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 ml-2 px-2 py-0.5 rounded-full uppercase tracking-widest">Zone ${fareDetails.code}</span>
+        </div>
+        ${routeName ? `<span class="text-xs text-gray-500 dark:text-gray-400 font-medium mt-0.5">${routeName}</span>` : ''}
+    `;
 
     const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
     const prices = fareDetails.prices;
@@ -591,6 +619,10 @@ function showToast(message, type = 'info', duration = 2500, actionHTML = '') {
         bgClass = "bg-red-900/95 dark:bg-red-800/95";
         borderClass = "border-red-700 dark:border-red-600";
         iconHTML = `<svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+    } else if (type === 'warning') {
+        bgClass = "bg-yellow-900/95 dark:bg-yellow-800/95";
+        borderClass = "border-yellow-700 dark:border-yellow-600";
+        iconHTML = `<svg class="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
     }
 
     toast.className = `flex items-center justify-between px-4 py-3 rounded-full shadow-2xl backdrop-blur-md border ${bgClass} ${borderClass} ${textClass}`; 
@@ -847,7 +879,7 @@ function handleShortcutActions() {
 }
 
 window.performHardCacheClear = function() {
-    window.closeAppHub(true); // GUARDIAN: Bypass automatic history.back() to prevent race condition
+    window.closeAppHub(true); 
     showToast("Clearing offline data and syncing...", "info", 5000);
     const modal = document.getElementById('cache-clear-modal');
     if (modal) {
@@ -879,7 +911,7 @@ window.performHardCacheClear = function() {
 };
 
 window.showCacheClearWarning = function() {
-    window.closeAppHub(true); // GUARDIAN: Bypass automatic history.back() to prevent race condition
+    window.closeAppHub(true); 
     let modal = document.getElementById('cache-clear-modal');
     if (!modal) {
         modal = document.createElement('div');
@@ -902,8 +934,6 @@ window.showCacheClearWarning = function() {
         `;
         document.body.appendChild(modal);
     }
-    
-    // GUARDIAN: Keep state router pure
     history.pushState({ modal: 'cache-clear-modal' }, '', '#cacheclear');
     openSmoothModal('cache-clear-modal');
 }
@@ -914,9 +944,7 @@ function initializeApp() {
         window.history.replaceState({}, '', newPath + window.location.search + window.location.hash);
     }
     
-    // GUARDIAN Phase 9: Exit Trap Initialization
     if (!sessionStorage.getItem('exitTrapSet')) {
-        // GUARDIAN FIX: Only inject exit trap for installed PWAs
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
         if (isStandalone) {
             history.replaceState({ view: 'exit-trap' }, '', '#exit');
@@ -943,16 +971,17 @@ function initializeApp() {
     }
     
     updateNextTrainView();
-    if(!stationSelect) return;
     if(!stationSelect.value) renderPlaceholder();
 
     if (navigator.onLine) { setTimeout(OfflineTracker.flush, 5000); }
 }
 
+// 🛡️ GUARDIAN PHASE 7: Dynamic Endpoint & Cache Busting Update
 async function checkMaintenanceStatus() {
     if (!navigator.onLine) return; 
     try {
-        const res = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/config/maintenance.json`);
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const res = await fetch(`${dynamicEndpoint}config/maintenance.json?t=${Date.now()}`);
         const isActive = await res.json();
         
         if (isActive === true) {
@@ -971,6 +1000,7 @@ async function checkMaintenanceStatus() {
     } catch(e) { /* silent fail */ }
 }
 
+// 🛡️ GUARDIAN PHASE 7: Priority Queue & Marquee Ticker Upgrade
 async function checkServiceAlerts() {
     const bellBtn = document.getElementById('notice-bell');
     const dot = document.getElementById('notice-dot');
@@ -978,75 +1008,132 @@ async function checkServiceAlerts() {
     const content = document.getElementById('notice-content');
     const timestamp = document.getElementById('notice-timestamp');
     if (!bellBtn) return;
+
     try {
-        const response = await fetch(`https://metrorail-next-train-default-rtdb.firebaseio.com/notices.json?t=${Date.now()}`);
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const response = await fetch(`${dynamicEndpoint}notices.json?t=${Date.now()}`);
         if (!response.ok) return; 
         const notices = await response.json();
-        if (!notices) { bellBtn.classList.add('hidden'); return; }
         
-        let activeNotice = notices[currentRouteId] || notices['all'];
+        // Remove existing ticker if running (GUARDIAN Phase 2: Killing Marquee)
+        const existingTicker = document.getElementById('service-ticker');
+        if (existingTicker) existingTicker.remove();
         
-        if (activeNotice) {
-            const now = Date.now();
-            if (activeNotice.expiresAt && now > activeNotice.expiresAt) { bellBtn.classList.add('hidden'); return; }
-            
-            const seenKey = `seen_notice_${activeNotice.id}`;
-            const hasSeen = localStorage.getItem(seenKey) === 'true';
-            
-            const severity = activeNotice.severity || 'info';
-            
-            bellBtn.className = "absolute top-4 right-4 z-50 p-1.5 rounded-full bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 shadow-md focus:outline-none hover:scale-105 transition-transform";
-            dot.className = "absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white dark:ring-gray-800 bg-red-600 transform translate-x-1/4 -translate-y-1/4 hidden";
-            
+        if (!notices) { 
+            bellBtn.classList.add('hidden'); 
+            return; 
+        }
+        
+        const now = Date.now();
+        let validNotices = [];
+        
+        // Target explicit Regional variables from logic.js (all_GP or all_WC) + local routes
+        const activeRegionString = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
+        const targetKeys = [currentRouteId, `all_${activeRegionString}`, 'all'];
+        
+        targetKeys.forEach(key => {
+            if (notices[key] && notices[key].expiresAt && notices[key].expiresAt > now) {
+                validNotices.push(notices[key]);
+            }
+        });
+
+        if (validNotices.length === 0) {
+            bellBtn.classList.add('hidden');
+            return;
+        }
+
+        // Priority Sorting: Critical (3) > Warning (2) > Info (1)
+        const severityScore = { 'critical': 3, 'warning': 2, 'info': 1 };
+        validNotices.sort((a, b) => (severityScore[b.severity] || 1) - (severityScore[a.severity] || 1));
+        
+        const activeNotice = validNotices[0];
+        const severity = activeNotice.severity || 'info';
+        const seenKey = `seen_notice_${activeNotice.id}`;
+        const hasSeen = localStorage.getItem(seenKey) === 'true';
+        const forcePopup = activeNotice.forcePopup === true; // GUARDIAN Phase 2: Read new flag
+        
+        // Standard Content Binder
+        const bindModalContent = () => {
+            content.innerHTML = activeNotice.message;
             if (severity === 'critical') {
-                bellBtn.classList.add('bg-red-100', 'dark:bg-red-900', 'text-red-600', 'dark:text-red-300');
-                dot.classList.add('bg-red-600');
-                if (!hasSeen) bellBtn.classList.add('animate-shake'); 
+                content.innerHTML += `<div class="mt-3 text-xs text-red-600 font-bold border border-red-200 bg-red-50 dark:bg-red-900/30 dark:border-red-800 p-2 rounded text-center">🔴 CRITICAL SERVICE DISRUPTION</div>`;
             } else if (severity === 'warning') {
-                bellBtn.classList.add('bg-yellow-100', 'dark:bg-yellow-900', 'text-yellow-600', 'dark:text-yellow-300');
-                dot.classList.add('bg-yellow-500');
+                content.innerHTML += `<div class="mt-3 text-xs text-yellow-700 font-bold border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-400 p-2 rounded text-center">🟡 SERVICE WARNING</div>`;
+            }
+            const date = new Date(activeNotice.postedAt);
+            timestamp.textContent = `Posted: ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, ${date.toLocaleDateString()}`;
+        };
+        
+        // GUARDIAN Phase 2: Unified Bell UI (Kill Marquee)
+        bellBtn.classList.remove('hidden');
+        
+        let bellClass = "absolute top-4 right-4 z-50 p-1.5 rounded-full shadow-md focus:outline-none hover:scale-105 transition-transform ";
+        let dotClass = "absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white dark:ring-gray-800 transform translate-x-1/4 -translate-y-1/4 ";
+
+        if (severity === 'critical') {
+            bellClass += "bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300";
+            dotClass += "bg-red-600";
+        } else if (severity === 'warning') {
+            bellClass += "bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300";
+            dotClass += "bg-yellow-500";
+        } else {
+            bellClass += "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300";
+            dotClass += "bg-blue-600";
+        }
+
+        bellBtn.className = bellClass;
+        dot.className = dotClass;
+
+        if (!hasSeen) {
+            dot.classList.remove('hidden');
+            if (severity === 'critical') {
+                bellBtn.classList.add('animate-shake');
             } else {
-                bellBtn.classList.add('bg-blue-100', 'dark:bg-blue-900', 'text-blue-600', 'dark:text-blue-300');
-                dot.classList.add('bg-blue-500');
+                bellBtn.classList.remove('animate-shake');
             }
 
-            bellBtn.classList.remove('hidden');
-            if (!hasSeen) dot.classList.remove('hidden');
+            // Nuclear Auto-Open if forcePopup is true
+            if (forcePopup && !window._criticalModalShown) {
+                window._criticalModalShown = true;
+                setTimeout(() => {
+                    triggerHaptic();
+                    trackAnalyticsEvent('auto_open_alert', { severity: severity, route_id: currentRouteId || 'all' });
+                    localStorage.setItem(seenKey, 'true');
+                    bellBtn.classList.remove('animate-shake');
+                    dot.classList.add('hidden');
+                    bindModalContent();
+                    history.pushState({ modal: 'notice' }, '', '#notice');
+                    openSmoothModal('notice-modal');
+                }, 1200);
+            }
+        } else {
+            bellBtn.classList.remove('animate-shake');
+            dot.classList.add('hidden');
+        }
 
-            bellBtn.onclick = () => {
-                triggerHaptic();
-                // GUARDIAN Phase 3: Analytics for Alert Bell
-                trackAnalyticsEvent('view_service_alert', { severity: severity, route_id: currentRouteId || 'all' });
-                
-                localStorage.setItem(seenKey, 'true');
-                bellBtn.classList.remove('animate-shake');
-                dot.classList.add('hidden');
-                
-                content.innerHTML = activeNotice.message;
-                
-                if (severity === 'critical') {
-                    content.innerHTML += `<div class="mt-3 text-xs text-red-600 font-bold border border-red-200 bg-red-50 p-2 rounded text-center">🔴 CRITICAL SERVICE DISRUPTION</div>`;
-                }
-                
-                const date = new Date(activeNotice.postedAt);
-                timestamp.textContent = `Posted: ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, ${date.toLocaleDateString()}`;
-                
-                history.pushState({ modal: 'notice' }, '', '#notice');
-                openSmoothModal('notice-modal');
-            };
-            
-            const closeBtn = modal.querySelector('button.bg-red-600');
-            const topCloseBtn = modal.querySelector('button.text-gray-400');
-            
-            const closeNotice = () => {
-                if(location.hash === '#notice') history.back();
-                else closeSmoothModal('notice-modal');
-            };
-            
-            if (closeBtn) closeBtn.onclick = closeNotice;
-            if (topCloseBtn) topCloseBtn.onclick = closeNotice;
+        bellBtn.onclick = () => {
+            triggerHaptic();
+            trackAnalyticsEvent('view_service_alert', { severity: severity, route_id: currentRouteId || 'all' });
+            localStorage.setItem(seenKey, 'true');
+            bellBtn.classList.remove('animate-shake');
+            dot.classList.add('hidden');
+            bindModalContent();
+            history.pushState({ modal: 'notice' }, '', '#notice');
+            openSmoothModal('notice-modal');
+        };
 
-        } else { bellBtn.classList.add('hidden'); }
+        // Setup Close logic for notice modal
+        const closeBtn = modal.querySelector('button.bg-red-600') || modal.querySelector('button.bg-blue-600') || modal.querySelector('button.bg-yellow-600');
+        const topCloseBtn = modal.querySelector('button.text-gray-400');
+        
+        const closeNotice = () => {
+            if(location.hash === '#notice') history.back();
+            else closeSmoothModal('notice-modal');
+        };
+        
+        if (closeBtn) closeBtn.onclick = closeNotice;
+        if (topCloseBtn) topCloseBtn.onclick = closeNotice;
+
     } catch (e) { console.warn("Alert check failed:", e); }
 }
 
@@ -1069,7 +1156,6 @@ function syncPlannerFromMain(stationName) {
 }
 
 function setupModalButtons() { 
-    // GUARDIAN V6.18: Removed brittle inline overflow styles and injected global unlock
     const closeAction = () => { 
         if (location.hash === '#schedule') history.back();
         else { 
@@ -1079,21 +1165,10 @@ function setupModalButtons() {
     if (closeModalBtn) closeModalBtn.addEventListener('click', closeAction); 
     if (closeModalBtn2) closeModalBtn2.addEventListener('click', closeAction); 
     if (scheduleModal) scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeAction(); }); 
-
-    // GUARDIAN PHASE 3: Wire up Map close buttons here
-    const closeMapAction = () => {
-        if (location.hash === '#map') history.back();
-        else closeSmoothModal('map-modal');
-    };
-    const closeMapBtn = document.getElementById('close-map-btn');
-    const closeMapBtn2 = document.getElementById('close-map-btn-2');
-    if (closeMapBtn) closeMapBtn.addEventListener('click', closeMapAction);
-    if (closeMapBtn2) closeMapBtn2.addEventListener('click', closeMapAction);
 }
 
 function switchTab(tab) {
     triggerHaptic();
-    // GUARDIAN FIX: Push state for Planner to allow natural back-button routing without exiting
     if (tab === 'trip-planner') {
         if (location.hash !== '#planner') history.pushState({ tab: 'planner' }, '', '#planner');
     } else {
@@ -1106,10 +1181,12 @@ function switchTab(tab) {
     let targetBtn;
     if (tab === 'next-train') {
         targetBtn = document.getElementById('tab-next-train');
-        document.getElementById('view-next-train').classList.add('active');
+        const view = document.getElementById('view-next-train');
+        if (view) view.classList.add('active');
     } else {
         targetBtn = document.getElementById('tab-trip-planner');
-        document.getElementById('view-trip-planner').classList.add('active');
+        const view = document.getElementById('view-trip-planner');
+        if (view) view.classList.add('active');
     }
     
     if(targetBtn) { 
@@ -1119,29 +1196,23 @@ function switchTab(tab) {
     localStorage.setItem('activeTab', tab);
 }
 
-// GUARDIAN Phase 9: Unified App Router Stack & Exit Trap
 window.addEventListener('popstate', (event) => {
     const hash = location.hash;
 
-    // EXIT TRAP PROTOCOL
     if (hash === '#exit') {
-        // GUARDIAN FIX: Only trap exits on installed PWAs. Browsers handle naturally.
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
         if (!isStandalone) {
-            return; // Let standard browser behaviors take over.
+            return; 
         }
 
         const activeTab = localStorage.getItem('activeTab');
         
         if (activeTab === 'trip-planner') {
-            // Smart Intercept: Route from Planner back to Home Tab instead of exiting
             history.pushState({ view: 'home' }, '', '#home');
             switchTab('next-train');
             return;
         } else {
-            // Root Level: Trigger Exit Confirmation
             openSmoothModal('exit-modal');
-            // Bounce state forward so they don't exit the app yet
             history.pushState({ view: 'home' }, '', '#home');
             return;
         }
@@ -1179,8 +1250,6 @@ window.addEventListener('popstate', (event) => {
 
         if (modalToClose) {
             closeSmoothModal(modalToClose);
-            
-            // GHOST STATE HEALER: If back-press landed on a closed sidenav, pop again
             if (location.hash === '#sidenav' && !document.body.classList.contains('sidenav-open')) {
                 setTimeout(() => history.back(), 10);
             }
@@ -1188,7 +1257,6 @@ window.addEventListener('popstate', (event) => {
         }
     }
 
-    // GHOST STATE HEALER: Standalone check
     if (location.hash === '#sidenav' && !document.body.classList.contains('sidenav-open')) {
          history.back();
          return;
@@ -1256,12 +1324,29 @@ function setupSwipeNavigation() {
     const contentArea = document.getElementById('main-content');
     if (!contentArea) return;
     contentArea.addEventListener('touchstart', (e) => {
-        if (document.body.classList.contains('sidenav-open') || !document.getElementById('map-modal').classList.contains('hidden') || !document.getElementById('schedule-modal').classList.contains('hidden') || !document.getElementById('about-modal').classList.contains('hidden')) return;
+        const mapModal = document.getElementById('map-modal');
+        const scheduleModal = document.getElementById('schedule-modal');
+        const aboutModal = document.getElementById('about-modal');
+        
+        if (document.body.classList.contains('sidenav-open') || 
+            (mapModal && !mapModal.classList.contains('hidden')) || 
+            (scheduleModal && !scheduleModal.classList.contains('hidden')) || 
+            (aboutModal && !aboutModal.classList.contains('hidden'))) return;
+            
         touchStartX = e.changedTouches[0].screenX;
         touchStartY = e.changedTouches[0].screenY;
     }, {passive: true});
+    
     contentArea.addEventListener('touchend', (e) => {
-        if (document.body.classList.contains('sidenav-open') || !document.getElementById('map-modal').classList.contains('hidden') || !document.getElementById('schedule-modal').classList.contains('hidden') || !document.getElementById('about-modal').classList.contains('hidden')) return;
+        const mapModal = document.getElementById('map-modal');
+        const scheduleModal = document.getElementById('schedule-modal');
+        const aboutModal = document.getElementById('about-modal');
+        
+        if (document.body.classList.contains('sidenav-open') || 
+            (mapModal && !mapModal.classList.contains('hidden')) || 
+            (scheduleModal && !scheduleModal.classList.contains('hidden')) || 
+            (aboutModal && !aboutModal.classList.contains('hidden'))) return;
+            
         const touchEndX = e.changedTouches[0].screenX;
         const touchEndY = e.changedTouches[0].screenY;
         handleSwipe(touchStartX, touchEndX, touchStartY, touchEndY);
@@ -1554,10 +1639,12 @@ function setupFeatureButtons() {
     
     const openNav = () => { 
         triggerHaptic(); 
-        sidenav.classList.remove('-translate-x-full');
-        sidenav.classList.add('translate-x-0'); 
-        sidenav.classList.add('open'); // GUARDIAN: Force CSS transform rule
-        sidenavOverlay.classList.add('open'); 
+        if (sidenav) {
+            sidenav.classList.remove('-translate-x-full');
+            sidenav.classList.add('translate-x-0'); 
+            sidenav.classList.add('open'); // GUARDIAN: Force CSS transform rule
+        }
+        if (sidenavOverlay) sidenavOverlay.classList.add('open'); 
         document.body.classList.add('sidenav-open'); 
         lockBackgroundScroll(); // GUARDIAN: Lock scroll
         
@@ -1588,7 +1675,9 @@ function setupFeatureButtons() {
                     closeSmoothModal('route-modal');
                     trackAnalyticsEvent('select_inactive_route', { route_name: ROUTES[routeId].name, route_id: routeId });
                 } else {
-                    trackAnalyticsEvent('select_route', { route_name: ROUTES[routeId].name, route_id: routeId });
+                    // GUARDIAN PHASE 10: 'select_route' tracking purged to prevent GA4 double-counting.
+                    // The selection is now exclusively tracked by 'od_matrix_view' inside logic.js 
+                    // when the actual schedule board renders, giving us richer data without duplicate hits.
                 }
                 
                 currentRouteId = routeId;
@@ -1605,15 +1694,18 @@ function setupFeatureButtons() {
 function setupSettingsHub() {
     const regionGP = document.getElementById('settings-region-gp');
     const regionWC = document.getElementById('settings-region-wc');
+    const regionSlider = document.getElementById('region-slider'); // GUARDIAN Phase 8: Grab slider
     
     const updateRegionUI = () => {
         if (!regionGP || !regionWC) return;
         if (currentRegion === 'GP') {
-            regionGP.classList.add('bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-600', 'dark:text-blue-400');
-            regionWC.classList.remove('bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-600', 'dark:text-blue-400');
+            regionGP.className = 'relative z-10 flex-1 py-1.5 text-center text-xs font-bold text-gray-900 dark:text-white transition-colors focus:outline-none';
+            regionWC.className = 'relative z-10 flex-1 py-1.5 text-center text-xs font-bold text-gray-500 dark:text-gray-400 transition-colors focus:outline-none cursor-pointer';
+            if (regionSlider) regionSlider.classList.remove('translate-x-full');
         } else {
-            regionWC.classList.add('bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-600', 'dark:text-blue-400');
-            regionGP.classList.remove('bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-600', 'dark:text-blue-400');
+            regionWC.className = 'relative z-10 flex-1 py-1.5 text-center text-xs font-bold text-gray-900 dark:text-white transition-colors focus:outline-none';
+            regionGP.className = 'relative z-10 flex-1 py-1.5 text-center text-xs font-bold text-gray-500 dark:text-gray-400 transition-colors focus:outline-none cursor-pointer';
+            if (regionSlider) regionSlider.classList.add('translate-x-full');
         }
     };
     
@@ -1641,14 +1733,14 @@ function setupSettingsHub() {
         if (confirmModal) {
             // Replace sidenav state with region confirm
             history.pushState({ modal: 'region-confirm' }, '', '#regionconfirm');
-            title.textContent = `Switch Region?`;
-            desc.textContent = `Are you sure you want to switch to ${name}?`;
+            if (title) title.textContent = `Switch Region?`;
+            if (desc) desc.textContent = `Are you sure you want to switch to ${name}?`;
             openSmoothModal('region-confirm-modal');
             window.closeAppHub(true);
 
             const cleanup = () => {
-                actionBtn.removeEventListener('click', confirmAction);
-                cancelBtn.removeEventListener('click', cancelAction);
+                if (actionBtn) actionBtn.removeEventListener('click', confirmAction);
+                if (cancelBtn) cancelBtn.removeEventListener('click', cancelAction);
             };
 
             const confirmAction = () => {
@@ -1663,8 +1755,8 @@ function setupSettingsHub() {
                 cleanup();
             };
 
-            actionBtn.addEventListener('click', confirmAction);
-            cancelBtn.addEventListener('click', cancelAction);
+            if (actionBtn) actionBtn.addEventListener('click', confirmAction);
+            if (cancelBtn) cancelBtn.addEventListener('click', cancelAction);
         }
     };
 
@@ -1753,8 +1845,8 @@ function selectWelcomeRoute(routeId) {
 window.openLegal = function(type) {
     trackAnalyticsEvent('view_legal_doc', { type: type });
     history.pushState({ modal: 'legal' }, '', '#legal');
-    legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
-    legalContent.innerHTML = LEGAL_TEXTS[type];
+    if (legalTitle) legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
+    if (legalContent) legalContent.innerHTML = LEGAL_TEXTS[type];
     openSmoothModal('legal-modal');
     window.closeAppHub(true);
 };
@@ -1786,6 +1878,16 @@ if ('serviceWorker' in navigator) {
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (refreshing) return;
+            
+            // GUARDIAN Phase 3: Live Server Immunity (Debounce rapid SW reloads)
+            const lastReload = sessionStorage.getItem('sw_last_reload');
+            const now = Date.now();
+            if (lastReload && (now - parseInt(lastReload, 10)) < 10000) {
+                console.warn("🛡️ Guardian: Suppressed rapid infinite reload (Live Server loop blocked).");
+                return;
+            }
+            sessionStorage.setItem('sw_last_reload', now.toString());
+
             refreshing = true;
             window.location.reload(); 
         });
@@ -1848,7 +1950,8 @@ function updateNextTrainView() {
         `;
         container.insertBefore(triggerDiv, fareBox);
     } else {
-        document.getElementById('grid-trigger-container').classList.remove('hidden');
+        const gridTrigger = document.getElementById('grid-trigger-container');
+        if (gridTrigger) gridTrigger.classList.remove('hidden');
     }
 }
 
@@ -1964,7 +2067,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const closeHelp = () => { if(location.hash === '#help') history.back(); else { closeSmoothModal('help-modal'); } };
     const closeAbout = () => { if(location.hash === '#about') history.back(); else { closeSmoothModal('about-modal'); } };
-    const closeSideNav = () => { window.closeAppHub(); };
 
     if(closeHelpBtn) closeHelpBtn.addEventListener('click', closeHelp);
     if(closeHelpBtn2) closeHelpBtn2.addEventListener('click', closeHelp);
@@ -1973,7 +2075,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if(closeAboutBtn) closeAboutBtn.addEventListener('click', closeAbout);
     if(aboutModal) aboutModal.addEventListener('click', (e) => { if (e.target === aboutModal) closeAbout(); });
 
-    // GUARDIAN Phase 9: Replaced blind state pushes with history-replacements and true sync bypasses
     if(openHelpBtn) openHelpBtn.addEventListener('click', () => { 
         triggerHaptic(); trackAnalyticsEvent('view_user_guide', { location: 'sidebar' }); 
         history.pushState({ modal: 'help' }, '', '#help'); 
@@ -1997,7 +2098,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if(closeLegalBtn2) closeLegalBtn2.addEventListener('click', closeLegal);
     if(legalModal) legalModal.addEventListener('click', (e) => { if (e.target === legalModal) closeLegal(); });
     
-    // GUARDIAN Phase 9: Exit Modal Listeners
     const exitConfirmBtn = document.getElementById('exit-confirm-btn');
     const exitCancelBtn = document.getElementById('exit-cancel-btn');
     
@@ -2007,7 +2107,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 navigator.app.exitApp();
             } else {
                 closeSmoothModal('exit-modal');
-                setTimeout(() => { history.go(-2); }, 300);
+                setTimeout(() => { 
+                    // GUARDIAN Phase 3: Exit Trap Protocol (Safe Swipe-Away Screen)
+                    document.body.innerHTML = `
+                        <div class="fixed inset-0 bg-gray-900 flex flex-col items-center justify-center p-6 text-center z-[9999]">
+                            <div class="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                                <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            </div>
+                            <h2 class="text-2xl font-black text-white mb-2 tracking-tight">Session Closed</h2>
+                            <p class="text-gray-400 text-sm">It is now safe to swipe this app away or close the tab.</p>
+                        </div>
+                    `;
+                    try { window.close(); } catch(e) {}
+                }, 300);
             }
         });
     }
@@ -2019,7 +2131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const tabNextTrainBtn = document.getElementById('tab-next-train');
     if (tabNextTrainBtn) tabNextTrainBtn.addEventListener('click', () => switchTab('next-train'));
-
+    
     const tabTripPlannerBtn = document.getElementById('tab-trip-planner');
     if (tabTripPlannerBtn) tabTripPlannerBtn.addEventListener('click', () => switchTab('trip-planner'));
 
@@ -2068,18 +2180,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // GUARDIAN PHASE 5: Map Buttons Hookup (Sidenav implementation)
     const viewMapBtn = document.getElementById('view-map-btn');
     if (viewMapBtn) viewMapBtn.addEventListener('click', () => { 
-        triggerHaptic(); trackAnalyticsEvent('click_network_map', { location: 'sidebar' }); 
+        triggerHaptic(); 
+        trackAnalyticsEvent('click_static_map', { location: 'sidebar' }); 
         history.pushState({ modal: 'map' }, '', '#map'); 
         openSmoothModal('map-modal');
         window.closeAppHub(true); 
+    });
+
+    const interactiveMapBtn = document.getElementById('sidenav-interactive-map-btn');
+    if (interactiveMapBtn) interactiveMapBtn.addEventListener('click', () => {
+        triggerHaptic(); 
+        trackAnalyticsEvent('click_interactive_map', { location: 'sidebar' }); 
+        window.closeAppHub(true); 
+        
+        if (navigator.onLine) {
+            window.location.href = 'map.html';
+        } else {
+            showToast("Interactive map unavailable offline. Showing static map.", "info", 3500);
+            setTimeout(() => {
+                history.pushState({ modal: 'map' }, '', '#map'); 
+                openSmoothModal('map-modal');
+            }, 400); // Slight delay so the app hub closing animation finishes before modal opens
+        }
     });
     
     const openInteractiveMapBtn = document.getElementById('open-interactive-map-btn');
     if (openInteractiveMapBtn) openInteractiveMapBtn.addEventListener('click', () => { triggerHaptic(); trackAnalyticsEvent('open_interactive_map', { source: 'modal' }); });
     
-    // GUARDIAN V6.18: Added Scroll Lock and History State to Route Selector open button
     const routeSelectorBtn = document.getElementById('route-selector-btn');
     if (routeSelectorBtn) {
         routeSelectorBtn.addEventListener('click', () => {
