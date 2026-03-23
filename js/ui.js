@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.00.30 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.00.33 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.

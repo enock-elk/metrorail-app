@@ -844,7 +844,7 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         controlsDiv.innerHTML = `
             <div class="flex items-center space-x-2">
                 <select onchange="renderFullScheduleGrid('${direction}', this.value)" class="text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm">
-                    <option value="weekday" ${isWk ? 'selected' : ''}>Monday-Friday</option>
+                    <option value="weekday" ${isWk ? 'selected' : ''}>Mon-Fri</option>
                     <option value="saturday" ${!isWk ? 'selected' : ''}>Saturday</option>
                 </select>
                 <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">

@@ -382,9 +382,35 @@ async function loadAllSchedules(force = false) {
         const cachedDB = await loadFromLocalCache(cacheKey); // GUARDIAN: Now fully asynchronous!
         let usedCache = false;
 
+        // 🛡️ GUARDIAN PHASE 2: Unwrap Unified Database Export safely with Smart Merge
+        const unwrapDatabase = (db, region) => {
+            if (!db) return null;
+            
+            // GUARDIAN SMART MERGE PROTOCOL
+            // Combines explicit regional nodes with any orphaned root-level schedules.
+            let regionalData = {};
+            if (region === 'GP' && db.gauteng) {
+                regionalData = db.gauteng;
+            } else if (region === 'WC' && db.westerncape) {
+                regionalData = db.westerncape;
+            } else if (region === 'GP' && db.schedules && !db.gauteng) {
+                regionalData = db.schedules;
+            }
+            
+            // Merge root objects (orphans) with the regional specifics
+            const mergedDb = { ...db, ...regionalData };
+            
+            // Clean up to prevent recursive bloat or memory leaks
+            delete mergedDb.gauteng;
+            delete mergedDb.westerncape;
+            delete mergedDb.schedules;
+            
+            return mergedDb;
+        };
+
         if (cachedDB) {
             console.log("Restoring from cache...");
-            fullDatabase = cachedDB.data;
+            fullDatabase = unwrapDatabase(cachedDB.data, currentRegion);
             processRouteDataFromDB(currentRoute);
             buildGlobalStationIndex(); 
             buildMasterStationList(); 
@@ -445,12 +471,12 @@ async function loadAllSchedules(force = false) {
 
             if (newStr !== oldStr) {
                 console.log("New data detected! Updating local storage...");
-                fullDatabase = newDatabase;
-                await saveToLocalCache(cacheKey, fullDatabase); // GUARDIAN: Saving securely via IndexedDB
+                fullDatabase = unwrapDatabase(newDatabase, currentRegion);
+                await saveToLocalCache(cacheKey, newDatabase); // GUARDIAN: Saving securely via IndexedDB
                 
                 processRouteDataFromDB(currentRoute);
                 buildGlobalStationIndex(); 
-                buildMasterStationList(); 
+                buildMasterStationList();
                 updateLastUpdatedText();
                 
                 if (usedCache) { 

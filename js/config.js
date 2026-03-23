@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.00.30 - 23 MAR"; 
+const APP_VERSION = "V6.00.33 - 23 MAR"; // BUMPED: To force cache clear on clients
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -9,7 +9,7 @@ const FORCE_UPDATE_REQUIRED = true;
 
 // --- 🛡️ GUARDIAN PHASE 5: INFRASTRUCTURE PIVOT & DATA ROUTING ---
 // Toggle this to instantly switch where the heavy schedule data comes from.
-const DATA_SOURCE_MODE = 'GITHUB'; // 'GITHUB' or 'FIREBASE'
+const DATA_SOURCE_MODE = 'FIREBASE'; // 'GITHUB' or 'FIREBASE'
 
 // 🛡️ GUARDIAN: GitHub via jsDelivr CDN (100% Free, Unlimited Bandwidth)
 // Connected securely to enock-elk/metrorail-app
@@ -24,11 +24,11 @@ const DYNAMIC_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.c
 
 const REGIONS = {
     'GP': { 
-        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'metrorail-next-train-default-rtdb-gauteng-export.json' : 'schedules.json', 
+        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'full-database.json' : 'schedules.json', 
         name: 'Gauteng' 
     },
     'WC': { 
-        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'metrorail-next-train-default-rtdb-westerncape-export.json' : 'schedules/westerncape.json', 
+        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'full-database.json' : 'schedules/westerncape.json', 
         name: 'Western Cape' 
     }
 };
@@ -248,9 +248,9 @@ const ROUTES = {
         transferStation: null, 
         sheetKeys: {
             weekday_to_a: 'kemp_to_pta_weekday', 
-            weekday_to_b: 'pta_to_kempton_weekday',
+            weekday_to_b: 'pta_to_kemp_weekday', // GUARDIAN: FIXED KEY
             saturday_to_a: 'kemp_to_pta_sat', 
-            saturday_to_b: 'pta_to_kempton_sat'
+            saturday_to_b: 'pta_to_kemp_sat'     // GUARDIAN: FIXED KEY
         } 
     },
     'jhb-rand': { 
