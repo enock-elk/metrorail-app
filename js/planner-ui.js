@@ -1,11 +1,14 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.00.33 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.03.27 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
  * It calls the pure logic functions from planner-core.js.
  * * V6.00.21: The Great Decoupling - Absorbed robust UI overrides from monolithic ui.js.
  * * PHASE 10: App Router Parity - Integrated deep history stack for Planner Results.
+ * * STRIKE 2: Dynamic Leg Renderer Injection - Unhides 'isRelayComposite' internal transfers.
+ * * PHASE B: Elegant Dropdown Formatting (08:00 ➔ 09:00 [2 Transfers]) & Dynamic Transfer Counter.
+ * * PHASE 2 (GUARDIAN): Banish "---" Ghost Stations from UI, prepare map Waypoints & Valid Stops arrays.
  */
 
 // State (UI Specific)
@@ -37,7 +40,75 @@ window.addEventListener('popstate', (event) => {
     }
 });
 
-// --- MOVED TO TOP TO PREVENT TDZ ERRORS (Fix 1) ---
+// --- GUARDIAN PHASE 6.1 & 2: DATA EXTRACTION ENGINE ---
+window.extractTripCoordinates = function(tripIndex) {
+    if (typeof triggerHaptic === 'function') triggerHaptic();
+    if (!currentTripOptions || !currentTripOptions[tripIndex]) return;
+    
+    const trip = currentTripOptions[tripIndex];
+    const coordinates = [];
+    const stationNames = [];
+    const validStops = []; // GUARDIAN: New array specifically for clean map markers
+
+    // Helper to safely append stops without duplicating transfer hubs
+    const addStops = (stopsArray) => {
+        if (!stopsArray) return;
+        stopsArray.forEach(stop => {
+            const name = normalizeStationName(stop.station);
+            // Prevent consecutive duplicates (e.g., Hub Arrival followed instantly by Hub Departure)
+            if (stationNames.length > 0 && stationNames[stationNames.length - 1] === name) return;
+            
+            stationNames.push(name);
+            
+            if (globalStationIndex && globalStationIndex[name] && globalStationIndex[name].lat) {
+                const coord = [globalStationIndex[name].lat, globalStationIndex[name].lon];
+                coordinates.push(coord);
+                
+                // GUARDIAN: Only push valid stops (no "---") for future marker rendering
+                if (stop.time !== "---") {
+                    validStops.push({
+                        name: name,
+                        lat: coord[0],
+                        lon: coord[1]
+                    });
+                }
+            }
+        });
+    };
+
+    // Flatten the nested trip arrays chronologically
+    if (trip.type === 'DIRECT') {
+        addStops(trip.stops);
+    } else if (trip.type === 'TRANSFER') {
+        addStops(trip.leg1.stops);
+        addStops(trip.leg2.stops);
+    } else if (trip.type === 'DOUBLE_TRANSFER') {
+        addStops(trip.leg1.stops);
+        addStops(trip.leg2.stops);
+        addStops(trip.leg3.stops);
+    }
+
+    if (coordinates.length === 0) {
+        showToast("Coordinate data unavailable for this route.", "error");
+        return;
+    }
+
+    // Package the payload for the Lazy-Loaded Rendering Engine
+    const routeData = {
+        origin: normalizeStationName(trip.from),
+        destination: normalizeStationName(trip.to),
+        path: coordinates,        // GUARDIAN: Full curved waypoint path
+        stationNames: stationNames, // Legacy array (will be phased out)
+        validStops: validStops    // GUARDIAN: Clean stops for precise markers
+    };
+
+    if (typeof window.openTripMapRenderer === 'function') {
+        window.openTripMapRenderer(routeData);
+    } else {
+        showToast("Initializing Map Engine...", "info");
+    }
+};
+
 const PlannerRenderer = {
     // GUARDIAN V6.12: Strict Midnight Protocol Evaluator
     isMidnightRollover: () => {
@@ -83,59 +154,28 @@ const PlannerRenderer = {
         return name;
     },
 
-    // REFACTORED: Shared Logic for Building Stop Lists
-    buildStopListHTML: (stops, id, internalTransfer) => {
+    // REFACTORED: Shared Logic for Building Stop Lists (GUARDIAN Phase 2: Ghost Buster)
+    buildStopListHTML: (stops, id) => {
         if (!stops || stops.length === 0) return '';
         const isExpanded = plannerExpandedState.has(id);
 
-        const renderStops = (list) => list.map(s => `
-            <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1 relative pl-6">
-                <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800"></div>
-                <span>${s.station.replace(' STATION', '')}</span>
-                <span class="font-mono">${formatTimeDisplay(s.time)}</span>
-            </div>
-        `).join('');
+        // Strips origin and destination mathematically, AND completely purges "---" ghost stations
+        const intermediateStops = stops.slice(1, -1).filter(s => s.time !== "---");
 
-        let contentHTML = '';
+        // If a direct express skips all intermediate stops, don't even show the toggle button!
+        if (intermediateStops.length === 0) return '';
 
-        if (internalTransfer) {
-            // Split list for internal transfers (Complex Case)
-            const transferIndex = stops.findIndex(s => normalizeStationName(s.station) === normalizeStationName(internalTransfer.station));
-            if (transferIndex !== -1) {
-                const stopsBefore = stops.slice(0, transferIndex + 1);
-                const stopsAfter = stops.slice(transferIndex + 1);
-                
-                const it = internalTransfer;
-                const iWaitMin = Math.floor(it.wait / 60);
-                const iWaitText = PlannerRenderer.formatDuration(iWaitMin);
-                const sName = it.station.replace(' STATION', '');
+        const renderStops = intermediateStops.map((s) => {
+            return `
+                <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 py-1 relative pl-6">
+                    <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800"></div>
+                    <span>${s.station.replace(' STATION', '')}</span>
+                    <span class="font-mono">${formatTimeDisplay(s.time)}</span>
+                </div>
+            `;
+        }).join('');
 
-                const internalTransferHTML = `
-                    <div class="relative pl-6 pb-6 pt-2">
-                        <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
-                        <div class="mt-1 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
-                            <div class="font-bold uppercase tracking-wide mb-1">INTERNAL TRANSFER @ ${sName}</div>
-                            <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                                <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${iWaitText}</b> Wait</span><br>
-                                &bull; Switch from Train ${it.train1} to ${it.train2}
-                            </div>
-                        </div>
-                    </div>
-                `;
-
-                contentHTML = `
-                    <div id="${id}-before" class="${isExpanded ? "" : "hidden"} space-y-1 mb-0">${renderStops(stopsBefore)}</div>
-                    <div>${internalTransferHTML}</div>
-                    <div id="${id}-after" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2">${renderStops(stopsAfter)}</div>
-                `;
-            } else {
-                // Fallback to standard if transfer station not found in stops
-                contentHTML = `<div id="${id}" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2">${renderStops(stops)}</div>`;
-            }
-        } else {
-            // Standard Simple List
-            contentHTML = `<div id="${id}" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2">${renderStops(stops)}</div>`;
-        }
+        const contentHTML = `<div id="${id}" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2">${renderStops}</div>`;
 
         return `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
@@ -147,29 +187,155 @@ const PlannerRenderer = {
         `;
     },
 
+    // GUARDIAN STRIKE 2: Universal Leg Renderer Engine
+    renderLegTimeline: (leg, fromStation, toStation, legId, isFinalDest = false) => {
+        const formatStation = (s) => PlannerRenderer.applyUIIntercepts(s);
+        let trainDest = formatStation(leg.actualDestination || leg.route.destB);
+        
+        const arriveDotClass = isFinalDest 
+            ? "absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-green-600 ring-4 ring-green-100 dark:ring-green-900" 
+            : "absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-gray-400";
+        
+        if (leg.isRelayComposite && leg.internalTransfer) {
+            const it = leg.internalTransfer;
+            const sName = formatStation(it.station.replace(' STATION', ''));
+            const waitStr = PlannerRenderer.formatDuration(Math.floor(it.wait / 60));
+            
+            // Mathematically slice the stops array at the internal transfer hub
+            const transferIndex = leg.stops.findIndex(s => normalizeStationName(s.station) === normalizeStationName(it.station));
+            const stopsBefore = transferIndex !== -1 ? leg.stops.slice(0, transferIndex + 1) : [];
+            const stopsAfter = transferIndex !== -1 ? leg.stops.slice(transferIndex + 1) : leg.stops;
+
+            const arrRelay = stopsBefore.length > 0 ? stopsBefore[stopsBefore.length-1].time : leg.depTime;
+            const depRelay = stopsAfter.length > 0 ? stopsAfter[0].time : leg.depTime;
+
+            let train1Dest = formatStation(it.station);
+            let train2Dest = trainDest;
+
+            return `
+                <!-- SUB-LEG 1 START -->
+                <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
+                    <div class="flex flex-col">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${fromStation.replace(' STATION', '')}</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(leg.depTime)}</span>
+                        </div>
+                        <div class="text-xs text-blue-500 font-medium mb-1">
+                            To ${train1Dest} Train ${it.train1}
+                        </div>
+                    </div>
+                </div>
+                
+                ${PlannerRenderer.buildStopListHTML(stopsBefore, `${legId}-A`)}
+
+                <!-- SUB-LEG 1 END (ARRIVE RELAY HUB) -->
+                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive ${sName}</span>
+                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(arrRelay)}</span>
+                    </div>
+                </div>
+
+                <!-- INTERNAL RELAY BADGE (Injected onto Main Timeline) -->
+                <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="relative pl-6 pb-6 pt-2">
+                        <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
+                        <div class="mt-1 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
+                            <div class="font-bold uppercase tracking-wide mb-1">INTERNAL TRANSFER @ ${sName}</div>
+                            <div class="text-gray-600 dark:text-gray-400 leading-snug">
+                                <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Wait</span><br>
+                                &bull; Switch to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${it.train2}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUB-LEG 2 START (DEPART RELAY HUB) -->
+                <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
+                    <div class="flex flex-col">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${sName}</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(depRelay)}</span>
+                        </div>
+                        <div class="text-xs text-blue-500 font-medium mb-1">
+                            ${train2Dest} Train ${it.train2}
+                        </div>
+                    </div>
+                </div>
+
+                ${PlannerRenderer.buildStopListHTML(stopsAfter, `${legId}-B`)}
+
+                <!-- FINAL DESTINATION FOR THIS LEG -->
+                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="${arriveDotClass}"></div>
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-gray-900 dark:text-white text-sm">${isFinalDest ? toStation.replace(' STATION', '') : 'Arrive ' + toStation.replace(' STATION', '')}</span>
+                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(leg.arrTime)}</span>
+                    </div>
+                </div>
+            `;
+        } else {
+            // STANDARD SINGLE TRAIN LEG RENDERER
+            return `
+                <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
+                    <div class="flex flex-col">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${fromStation.replace(' STATION', '')}</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(leg.depTime)}</span>
+                        </div>
+                        <div class="text-xs text-blue-500 font-medium mb-1">
+                            ${trainDest} Train ${leg.train}
+                        </div>
+                    </div>
+                </div>
+                
+                ${PlannerRenderer.buildStopListHTML(leg.stops, legId)}
+
+                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                    <div class="${arriveDotClass}"></div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold text-gray-900 dark:text-white text-sm">${isFinalDest ? toStation.replace(' STATION', '') : 'Arrive ' + toStation.replace(' STATION', '')}</span>
+                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(leg.arrTime)}</span>
+                    </div>
+                </div>
+            `;
+        }
+    },
+
     buildCard: (step, isNextDay, allOptions, selectedIndex) => {
         return `
-            <div class="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 overflow-hidden mb-4">
+            <div class="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 overflow-hidden mb-4 flex flex-col">
                 ${PlannerRenderer.renderHeader(step, isNextDay)}
                 ${PlannerRenderer.renderOptionsSelector(allOptions, selectedIndex, isNextDay)}
                 ${step.type !== 'TRANSFER' && step.type !== 'DOUBLE_TRANSFER' ? PlannerRenderer.renderInstruction(step) : ''}
-                <div class="p-4 bg-white dark:bg-gray-800">
+                <div class="p-4 bg-white dark:bg-gray-800 flex-grow">
                     <p class="text-xs font-bold text-gray-400 uppercase mb-2">Journey Timeline</p>
                     ${PlannerRenderer.renderTimeline(step)}
                 </div>
+                <button onclick="extractTripCoordinates(${selectedIndex})" class="w-full bg-gray-50 dark:bg-gray-900/50 hover:bg-blue-50 dark:hover:bg-gray-800 text-blue-600 dark:text-blue-400 font-bold py-3.5 text-sm border-t border-gray-200 dark:border-gray-700 transition-colors flex items-center justify-center focus:outline-none mt-auto">
+                    <span class="mr-2 text-lg">🗺️</span> View Live Route on Map
+                </button>
             </div>
         `;
     },
 
     renderHeader: (step, isNextDay) => {
-        const isTransfer = step.type === 'TRANSFER';
-        const isDoubleTransfer = step.type === 'DOUBLE_TRANSFER';
-        const colorClass = (isTransfer || isDoubleTransfer) ? 'text-yellow-600 dark:text-yellow-400' : (isNextDay ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400');
+        // GUARDIAN PHASE B: True Transfer Counting
+        let transferCount = step.type === 'DOUBLE_TRANSFER' ? 2 : (step.type === 'TRANSFER' ? 1 : 0);
+        if (step.leg1 && step.leg1.isRelayComposite) transferCount += 1;
+        if (step.leg2 && step.leg2.isRelayComposite) transferCount += 1;
+        if (step.leg3 && step.leg3.isRelayComposite) transferCount += 1;
+
+        const colorClass = transferCount > 0 ? 'text-yellow-600 dark:text-yellow-400' : (isNextDay ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400');
         
         let headerLabel = 'Direct Trip';
-        if (isDoubleTransfer) headerLabel = 'Bridge Trip (2 Transfers)';
-        else if (isTransfer) headerLabel = 'Transfer Trip';
-        else if (isNextDay) headerLabel = 'Future Trip';
+        if (transferCount === 1) headerLabel = 'Transfer Trip';
+        else if (transferCount >= 2) headerLabel = `Bridge Trip (${transferCount} Transfers)`;
+        if (isNextDay) headerLabel = 'Future Trip';
 
         const { countdown, duration, isDeparted } = PlannerRenderer.calculateTimes(step, isNextDay);
 
@@ -236,7 +402,6 @@ const PlannerRenderer = {
         const nowSec = timeToSeconds(currentTime);
         const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
         
-        // GUARDIAN V6.12: Utilize the robust Midnight Protocol flag
         const midnightRollover = PlannerRenderer.isMidnightRollover();
 
         const optionsHtml = allOptions.map((opt, idx) => {
@@ -245,18 +410,23 @@ const PlannerRenderer = {
             let isPast = isToday && !midnightRollover && depSec < nowSec;
             
             let label = "";
-            let typeLabel = "Direct";
-            if (opt.type === 'TRANSFER') typeLabel = "1 Transfer";
-            if (opt.type === 'DOUBLE_TRANSFER') typeLabel = "2 Transfers";
+            
+            // GUARDIAN PHASE B: Accurately count composite relays
+            let transferCount = opt.type === 'DOUBLE_TRANSFER' ? 2 : (opt.type === 'TRANSFER' ? 1 : 0);
+            if (opt.leg1 && opt.leg1.isRelayComposite) transferCount += 1;
+            if (opt.leg2 && opt.leg2.isRelayComposite) transferCount += 1;
+            if (opt.leg3 && opt.leg3.isRelayComposite) transferCount += 1;
+
+            let typeLabel = transferCount === 0 ? "Direct" : `${transferCount} Transfer${transferCount > 1 ? 's' : ''}`;
             
             if (midnightRollover) {
                 label = " (Tomorrow)";
-            } else if (isPast) {
-                label = " (Departed)";
             }
             
+            // GUARDIAN PHASE B: Formatted explicitly as "08:59 ➔ 10:30 [1 Transfer]"
+            // Removed the "(Departed)" string entirely. Fading is managed strictly by the CSS class injection.
             return `<option value="${idx}" ${idx === selectedIndex ? 'selected' : ''} ${isPast ? 'class="text-gray-400 dark:text-gray-500"' : ''}>
-                ${formatTimeDisplay(opt.depTime)} - ${typeLabel}${label}
+                ${formatTimeDisplay(opt.depTime)} ➔ ${formatTimeDisplay(opt.arrTime)} [${typeLabel}]${label}
             </option>`;
         }).join('');
 
@@ -286,10 +456,23 @@ const PlannerRenderer = {
         if (step.type === 'TRANSFER') return PlannerRenderer.renderTransferTimeline(step);
         if (step.type === 'DOUBLE_TRANSFER') return PlannerRenderer.renderDoubleTransferTimeline(step);
         
-        // DIRECT TRIP
+        // DIRECT TRIP (Has no transfer hubs, but might be a relay)
+        if (step.isRelayComposite) {
+            return `
+                <div class="mt-4 ml-0 space-y-0">
+                    ${PlannerRenderer.renderLegTimeline(step, step.from, step.to, `stops-direct-${step.train}`, true)}
+                </div>
+            `;
+        }
+
+        // STANDARD PURE DIRECT TRIP (GUARDIAN Phase 2: Ghost Buster)
         let html = '<div class="mt-4 border-l-2 border-gray-300 dark:border-gray-600 ml-2 space-y-4">';
-        step.stops.forEach((stop, i) => {
-            const isEnd = (i === 0 || i === step.stops.length - 1);
+        
+        // Purge "---" ghost stations before rendering the physical stops
+        const validStops = step.stops.filter(s => s.time !== "---");
+        
+        validStops.forEach((stop, i) => {
+            const isEnd = (i === 0 || i === validStops.length - 1);
             html += `
                 <div class="relative pl-6">
                     <div class="absolute -left-[5px] top-1.5 w-3 h-3 rounded-full ${isEnd ? "bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900" : "bg-gray-400"}"></div>
@@ -310,7 +493,6 @@ const PlannerRenderer = {
         const waitStr = PlannerRenderer.formatDuration(waitMins);
         
         // Apply Kempton Intercept here
-        let train1Dest = PlannerRenderer.applyUIIntercepts(step.leg1.actualDestination || step.leg1.route.destB);
         let train2Dest = PlannerRenderer.applyUIIntercepts(step.leg2.actualDestination || step.leg2.route.destB);
 
         const standardTransferBlock = `
@@ -326,62 +508,13 @@ const PlannerRenderer = {
             </div>
         `;
 
-        const leg1StopsId = `stops-leg1-${step.train}`;
-        const leg2StopsId = `stops-leg2-${step.train}`;
-
         return `
             <div class="mt-4 ml-0 space-y-0">
-                <!-- LEG 1 START -->
-                <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
-                    <div class="flex flex-col">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.from.replace(' STATION', '')}</span>
-                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.depTime)}</span>
-                        </div>
-                        <div class="text-xs text-blue-500 font-medium mb-1">
-                            ${train1Dest} Train ${step.leg1.train}
-                        </div>
-                    </div>
-                </div>
-                
-                ${PlannerRenderer.buildStopListHTML(step.leg1.stops, leg1StopsId, null)}
-
-                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div>
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive ${step.transferStation.replace(' STATION', '')}</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.arrTime)}</span>
-                    </div>
-                </div>
-
+                ${PlannerRenderer.renderLegTimeline(step.leg1, step.from, step.transferStation, `stops-leg1-${step.train}`, false)}
                 <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     ${standardTransferBlock}
                 </div>
-
-                <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
-                    <div class="flex flex-col">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.transferStation.replace(' STATION', '')}</span>
-                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg2.depTime)}</span>
-                        </div>
-                        
-                        <div class="text-xs text-blue-500 font-medium mb-1">
-                            ${train2Dest} Train ${step.leg2.train}
-                        </div>
-                    </div>
-                </div>
-
-                ${PlannerRenderer.buildStopListHTML(step.leg2.stops, leg2StopsId, step.leg2.internalTransfer)}
-
-                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-green-600 ring-4 ring-green-100 dark:ring-green-900"></div>
-                    <div class="flex justify-between items-center">
-                        <span class="font-bold text-gray-900 dark:text-white text-sm">${step.to.replace(' STATION', '')}</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg2.arrTime)}</span>
-                    </div>
-                </div>
+                ${PlannerRenderer.renderLegTimeline(step.leg2, step.transferStation, step.to, `stops-leg2-${step.train}`, true)}
             </div>
         `;
     },
@@ -406,7 +539,6 @@ const PlannerRenderer = {
         const leg2Id = `l2-${step.train}`;
         const leg3Id = `l3-${step.train}`;
 
-        let train1Dest = formatStation(step.leg1.actualDestination || step.leg1.route.destB);
         let train2Dest = formatStation(step.leg2.actualDestination || step.leg2.route.destB);
         let train3Dest = formatStation(step.leg3.actualDestination || step.leg3.route.destB);
 
@@ -439,83 +571,13 @@ const PlannerRenderer = {
         return `
             <div class="mt-4 ml-0 space-y-0">
                 <!-- LEG 1 -->
-                <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
-                    <div class="flex flex-col">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${step.from.replace(' STATION', '')}</span>
-                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.depTime)}</span>
-                        </div>
-                        <div class="text-xs text-blue-500 font-medium">
-                            ${train1Dest} Train ${step.leg1.train}
-                        </div>
-                    </div>
-                </div>
-                
-                ${PlannerRenderer.buildStopListHTML(step.leg1.stops, leg1Id, null)}
-
-                <!-- HUB 1 -->
-                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div>
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive ${hub1Name}</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg1.arrTime)}</span>
-                    </div>
-                </div>
-
+                ${PlannerRenderer.renderLegTimeline(step.leg1, step.from, step.hub1, leg1Id, false)}
                 <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">${transferBlock1}</div>
-
                 <!-- LEG 2 -->
-                <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
-                    <div class="flex flex-col">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${hub1Name}</span>
-                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg2.depTime)}</span>
-                        </div>
-                        <div class="text-xs text-blue-500 font-medium">
-                            ${train2Dest} Train ${step.leg2.train}
-                        </div>
-                    </div>
-                </div>
-
-                ${PlannerRenderer.buildStopListHTML(step.leg2.stops, leg2Id, null)}
-
-                <!-- HUB 2 -->
-                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div>
-                    <div class="flex justify-between items-center mb-1">
-                        <span class="font-bold text-gray-900 dark:text-white text-sm">Arrive ${hub2Name}</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg2.arrTime)}</span>
-                    </div>
-                </div>
-
+                ${PlannerRenderer.renderLegTimeline(step.leg2, step.hub1, step.hub2, leg2Id, false)}
                 <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">${transferBlock2}</div>
-
                 <!-- LEG 3 -->
-                <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
-                    <div class="flex flex-col">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="font-bold text-gray-900 dark:text-white text-sm">Depart ${hub2Name}</span>
-                            <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg3.depTime)}</span>
-                        </div>
-                        <div class="text-xs text-blue-500 font-medium">
-                            ${train3Dest} Train ${step.leg3.train}
-                        </div>
-                    </div>
-                </div>
-
-                ${PlannerRenderer.buildStopListHTML(step.leg3.stops, leg3Id, null)}
-
-                <!-- FINAL DEST -->
-                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-green-600 ring-4 ring-green-100 dark:ring-green-900"></div>
-                    <div class="flex justify-between items-center">
-                        <span class="font-bold text-gray-900 dark:text-white text-sm">${step.to.replace(' STATION', '')}</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white text-sm">${formatTimeDisplay(step.leg3.arrTime)}</span>
-                    </div>
-                </div>
+                ${PlannerRenderer.renderLegTimeline(step.leg3, step.hub2, step.to, leg3Id, true)}
             </div>
         `;
     },
@@ -679,7 +741,7 @@ function initPlanner() {
         });
     }
 
-    // GUARDIAN V6.20: The Ghost Filter Patch (Absorbed from ui.js)
+    // GUARDIAN V6.20: The Ghost Filter Patch
     const filterToOptions = () => {
         const fromInputEl = document.getElementById('planner-from-search');
         const toInputEl = document.getElementById('planner-to-search');
@@ -784,17 +846,12 @@ function initPlanner() {
         });
     }
 
-    // GUARDIAN Phase 10 & 11 (Fixed in Phase 2 Polish): Router-Aware Reset
+    // GUARDIAN Phase 10 & 11: Router-Aware Reset
     const resetAction = () => {
         if (typeof triggerHaptic === 'function') triggerHaptic();
-        
-        // GUARDIAN FIX: DO NOT manually wipe the DOM here!
-        // Doing so desyncs the visual state from the history stack and causes the popstate event to jump to the Home tab.
-        // We simply call history.back() and let the global popstate listener handle the hiding.
         if (location.hash === '#planner-results') {
             history.back();
         } else {
-            // Fallback if hash was somehow lost
             window.hidePlannerResults();
         }
     };
@@ -814,7 +871,7 @@ function initPlanner() {
     }
 }
 
-// --- GUARDIAN V6.15: BULLETPROOF RESULTS SWAP (Absorbed from ui.js) ---
+// --- GUARDIAN V6.15: BULLETPROOF RESULTS SWAP ---
 window.swapPlannerResults = function() {
     if (typeof triggerHaptic === 'function') triggerHaptic();
 
@@ -1001,7 +1058,7 @@ window.restorePlannerSearch = function(fullFrom, fullTo) {
     }
 };
 
-// GUARDIAN V6.20: Absorbed from ui.js - Prevents trailing space bugs
+// GUARDIAN V6.20: Prevents trailing space bugs
 function setupAutocomplete(inputId, selectId) {
     const input = document.getElementById(inputId);
     const select = document.getElementById(selectId);
@@ -1075,57 +1132,22 @@ function executeTripPlan(origin, dest, preferredTime = null) {
     document.getElementById('planner-results-section').classList.remove('hidden');
     plannerExpandedState.clear();
 
-    // GUARDIAN Phase 10: Push Results State
+    // Push Results State
     if (location.hash !== '#planner-results') {
         history.pushState({ view: 'planner-results' }, '', '#planner-results');
     }
 
     if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
 
-    // Run Asynchronously to prevent UI freeze
     setTimeout(() => {
-        const directPlan = planDirectTrip(origin, dest, selectedPlannerDay);
-        const transferPlan = planHubTransferTrip(origin, dest, selectedPlannerDay);
-        const relayPlan = planRelayTransferTrip(origin, dest, selectedPlannerDay);
-
-        let mergedTrips = [];
-        if (directPlan.trips) mergedTrips = [...mergedTrips, ...directPlan.trips];
-        if (transferPlan.trips) mergedTrips = [...mergedTrips, ...transferPlan.trips];
-        if (relayPlan.trips) mergedTrips = [...mergedTrips, ...relayPlan.trips];
-
-        if (mergedTrips.length === 0) {
-            console.log("No simple route found. Attempting 2-Transfer Bridge...");
-            const doubleTransferPlan = planDoubleTransferTrip(origin, dest, selectedPlannerDay);
-            if (doubleTransferPlan.trips) {
-                mergedTrips = [...mergedTrips, ...doubleTransferPlan.trips];
-            }
+        let plannerResponse = { status: 'NO_PATH', trips: [] };
+        if (typeof planUnifiedTrip === 'function') {
+            plannerResponse = planUnifiedTrip(origin, dest, selectedPlannerDay);
+        } else {
+            console.error("Critical Error: planUnifiedTrip is undefined.");
         }
 
-        const bestTripsMap = new Map();
-        mergedTrips.forEach(trip => {
-            const key = trip.depTime;
-            if (!bestTripsMap.has(key)) {
-                bestTripsMap.set(key, trip);
-            } else {
-                const existing = bestTripsMap.get(key);
-                if (trip.type === 'DIRECT' && existing.type !== 'DIRECT') {
-                    bestTripsMap.set(key, trip); 
-                } else if (trip.type === existing.type || (trip.type !== 'DIRECT' && existing.type !== 'DIRECT')) {
-                    const existingArr = timeToSeconds(existing.arrTime);
-                    const newArr = timeToSeconds(trip.arrTime);
-                    if (newArr < existingArr) bestTripsMap.set(key, trip); 
-                }
-            }
-        });
-
-        const uniqueTrips = Array.from(bestTripsMap.values());
-        uniqueTrips.sort((a, b) => {
-            const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
-            if (depDiff !== 0) return depDiff;
-            return timeToSeconds(a.arrTime) - timeToSeconds(b.arrTime);
-        });
-        
-        currentTripOptions = uniqueTrips;
+        currentTripOptions = plannerResponse.trips || [];
         
         if (currentTripOptions.length > 0) {
             let nextTripIndex = 0;
@@ -1171,14 +1193,24 @@ function executeTripPlan(origin, dest, preferredTime = null) {
             
             updatePlannerHeader("No Route Found", false);
 
-            const errorMsg = "We couldn't find a route within 3 legs. Try checking the <b>Network Map</b> to visualize your path. You may need to plan this journey in segments (e.g., 'Home to Pretoria', then 'Pretoria to Work').";
+            const errorTitle = "No Route Found";
+            const errorMsg = `
+                <div class="text-left space-y-2 mt-2">
+                    <p>We couldn't find a route connecting these stations within 3 train changes.</p>
+                    <ul class="list-disc pl-5 space-y-1 text-xs">
+                        <li>Try checking the <strong>Network Map</strong> to visualize available lines.</li>
+                        <li>You may need to plan this journey in segments (e.g., 'Home to Hub', then 'Hub to Work').</li>
+                        <li>Ensure both stations have active train service today.</li>
+                    </ul>
+                </div>
+            `;
             const actionBtn = `
-                <button onclick="document.getElementById('map-modal').classList.remove('hidden')" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center focus:outline-none">
+                <button onclick="document.getElementById('map-modal').classList.remove('hidden')" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center focus:outline-none">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
                     Open Network Map
                 </button>
             `;
-            resultsContainer.innerHTML = renderErrorCard("No Route Found", errorMsg, actionBtn);
+            resultsContainer.innerHTML = renderErrorCard(errorTitle, errorMsg, actionBtn);
         }
     }, 100); 
 }
@@ -1232,33 +1264,18 @@ window.selectPlannerTrip = function(index) {
 };
 
 window.togglePlannerStops = function(id) {
-    // Try finding the standard ID first
     const el = document.getElementById(id);
     const btn = document.getElementById(`btn-${id}`);
-    
-    // Try finding split IDs (for internal transfers)
-    const elBefore = document.getElementById(`${id}-before`);
-    const elAfter = document.getElementById(`${id}-after`);
+    if (!el) return;
 
-    let isHidden = true;
-
-    if (elBefore && elAfter) {
-        // Toggle both
-        elBefore.classList.toggle('hidden');
-        elAfter.classList.toggle('hidden');
-        isHidden = elBefore.classList.contains('hidden');
-    } else if (el) {
-        // Toggle standard
-        el.classList.toggle('hidden');
-        isHidden = el.classList.contains('hidden');
-    }
+    el.classList.toggle('hidden');
+    const isHidden = el.classList.contains('hidden');
 
     if (isHidden) plannerExpandedState.delete(id);
     else plannerExpandedState.add(id);
 
     if(btn) btn.textContent = isHidden ? "Show All Stops" : "Hide Stops";
 };
-
 
 // --- VIEW COMPONENTS ---
 
@@ -1318,9 +1335,9 @@ function updatePlannerHeader(dayLabel, showShare = true) {
     if (spacer) {
         spacer.innerHTML = ""; 
         spacer.style.display = 'block'; 
-        spacer.className = "flex-none planner-share-slot"; 
-
+        
         if (showShare) {
+            spacer.className = "flex-none planner-share-slot"; 
             const shareBtn = document.createElement("button");
             shareBtn.className = "flex items-center text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-2 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors group flex-none whitespace-nowrap shadow-sm border border-blue-100 dark:border-blue-800 focus:outline-none";
             shareBtn.title = "Share Trip Plan";
@@ -1381,6 +1398,9 @@ function updatePlannerHeader(dayLabel, showShare = true) {
             `;
             
             spacer.appendChild(shareBtn);
+        } else {
+            spacer.className = "flex-none planner-share-slot invisible w-24";
+            spacer.innerHTML = `<div></div>`;
         }
     }
 }
@@ -1420,9 +1440,14 @@ function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "
 
 function renderErrorCard(title, message, actionHtml = "") {
     return `
-        <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:yellow-700 rounded-lg p-4 text-center">
-            <h3 class="font-bold text-yellow-800 dark:text-yellow-200 mb-1">${title}</h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400">${message}</p>
+        <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800/50 rounded-lg p-5 text-center shadow-sm">
+            <div class="flex items-center justify-center mb-2">
+                <span class="text-3xl mr-2">⚠️</span>
+                <h3 class="font-black text-yellow-800 dark:text-yellow-400 text-lg">${title}</h3>
+            </div>
+            <div class="text-sm text-gray-700 dark:text-gray-300 border-t border-yellow-200 dark:border-yellow-800/50 pt-3">
+                ${message}
+            </div>
             ${actionHtml}
         </div>
     `;

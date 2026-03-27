@@ -1,12 +1,14 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V6.00.33 - Guardian Unified Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V6.03.27 - Guardian Unified Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
  * It does NOT access the DOM (HTML). 
  * It relies on data provided by config.js and logic.js (fullDatabase, ROUTES).
- * * Inputs: Origin, Destination, DayType
- * Outputs: Array of Trip Objects
+ * * PHASE 5: Layover Buffers relaxed to 0 mins to catch internal platform transfers.
+ * * STRIKE 1: Macro Corridor Engine extracted from CPU short-circuit block.
+ * * STRIKE 3: Un-boomeranged Composite Relays & Curved Leaflet Map Vectors.
+ * * PHASE 1 (GUARDIAN): Path-Diversity Signature Engine injected. Trips on different physical paths no longer delete each other.
  */
 
 // GUARDIAN V6.2: Midnight Rollover State Tracker
@@ -134,7 +136,7 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false) {
         const leg2Options = findAllLegsWithRelayExpansion(hub, dest, destRoutes, dayType); 
         if (leg2Options.length === 0) continue;
 
-        const TRANSFER_BUFFER_SEC = 2 * 60; // 2 min minimum (sprint)
+        const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
         const MAX_HUB_WAIT_SEC = 180 * 60; // 3 hours (Metrorail reality)
 
         leg1Options.forEach(leg1 => {
@@ -228,7 +230,7 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false) {
     if (commonRoutes.length > 0) {
         commonRoutes.forEach(routeId => {
             const routeConfig = ROUTES[routeId];
-            // 1. Check if this route has a configured Relay Station
+            // 1. Check if this route has a configured Relay Station (e.g. Koedoespoort, Roodepoort, Rosslyn)
             if (!routeConfig.relayStation) return;
 
             const relayStationName = normalizeStationName(routeConfig.relayStation);
@@ -241,7 +243,7 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false) {
             const legs2 = findAllLegsBetween(relayStationName, dest, new Set([routeId]), dayType);
             if (legs2.length === 0) return;
 
-            const TRANSFER_BUFFER_SEC = 2 * 60; 
+            const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
             const MAX_WAIT_SEC = 180 * 60; // 3 hours
 
             legs1.forEach(l1 => {
@@ -251,7 +253,6 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false) {
                     const dep2 = timeToSeconds(l2.depTime);
                     const wait = dep2 - arr1;
 
-                    // GUARDIAN FIX V5.00.02: Corrected variable name from TRANSFER_BUFFER to TRANSFER_BUFFER_SEC
                     if (wait >= TRANSFER_BUFFER_SEC && wait <= MAX_WAIT_SEC) {
                         allRelayTrips.push({
                             type: 'TRANSFER', // Reuse existing UI type
@@ -299,6 +300,95 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false) {
     }
 
     return { trips: allRelayTrips };
+}
+
+// GUARDIAN PHASE 2 & 5: The Hardcoded Multi-Corridor Engine
+function planMacroCorridorTrip(origin, dest, dayType, isRollover = false) {
+    const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
+    const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
+    
+    // Line categorizations based on the Network Map
+    const jhbLines = ['JHB_CORE', 'JHB_EAST', 'JHB_WEST', 'JHB_SOUTH'];
+    const ptaLines = ['SOUTH_LINE', 'NORTH_LINE', 'EAST_LINE', 'SAUL_LINE', 'SPECIAL'];
+    const eastLines = ['EAST_LINE'];
+    const northLines = ['NORTH_LINE'];
+
+    const hasLine = (routes, linesArray) => {
+        for (const rId of routes) {
+            if (ROUTES[rId] && linesArray.includes(ROUTES[rId].corridorId)) return true;
+        }
+        return false;
+    };
+
+    let trips = [];
+
+    // GUARDIAN Phase 2: Array of explicitly defined heavy-bridge corridors
+    const macros = [
+        { // JHB to PTA
+            condition: hasLine(originRoutes, jhbLines) && hasLine(destRoutes, ptaLines),
+            h1: 'GERMISTON', h2: 'KEMPTON PARK', bridgeId: 'germ-leralla'
+        },
+        { // PTA to JHB
+            condition: hasLine(originRoutes, ptaLines) && hasLine(destRoutes, jhbLines),
+            h1: 'KEMPTON PARK', h2: 'GERMISTON', bridgeId: 'germ-leralla'
+        },
+        { // EAST to NORTH (e.g., Waltoo -> Koedoespoort -> Hercules -> Mabopane)
+            condition: hasLine(originRoutes, eastLines) && hasLine(destRoutes, northLines) && !originRoutes.has('herc-koed') && !destRoutes.has('herc-koed'),
+            h1: 'KOEDOESPOORT', h2: 'HERCULES', bridgeId: 'herc-koed'
+        },
+        { // NORTH to EAST (e.g., Mabopane -> Hercules -> Koedoespoort -> Waltoo)
+            condition: hasLine(originRoutes, northLines) && hasLine(destRoutes, eastLines) && !originRoutes.has('herc-koed') && !destRoutes.has('herc-koed'),
+            h1: 'HERCULES', h2: 'KOEDOESPOORT', bridgeId: 'herc-koed'
+        }
+    ];
+
+    let matchedAny = false;
+
+    // Evaluate targeted origin/dest route combinations that hit these hubs perfectly
+    for (const macro of macros) {
+        if (macro.condition) {
+            matchedAny = true;
+            const bridgeRoute = ROUTES[macro.bridgeId];
+            if (!bridgeRoute || !bridgeRoute.isActive) continue;
+
+            for (const r1 of originRoutes) {
+                if (!globalStationIndex[macro.h1]?.routes.has(r1)) continue;
+                for (const r3 of destRoutes) {
+                    if (!globalStationIndex[macro.h2]?.routes.has(r3)) continue;
+                    
+                    const newTrips = calculateThreeLegTrip(
+                        origin, macro.h1, macro.h2, dest,
+                        ROUTES[r1], bridgeRoute, ROUTES[r3],
+                        dayType
+                    );
+                    trips = [...trips, ...newTrips];
+                }
+            }
+        }
+    }
+    
+    if (!matchedAny || trips.length === 0) return { trips: [] };
+    
+    // GUARDIAN: Handle Universal Midnight Rollover Protocol for Macro Corridor
+    if (!isRollover && dayType === currentDayType) {
+        const nowSec = timeToSeconds(currentTime);
+        if (trips.length > 0) {
+            const latestDep = Math.max(...trips.map(t => timeToSeconds(t.depTime)));
+            if (nowSec > latestDep) {
+                const nextTransit = getNextTransitDay(dayType, currentDayIndex);
+                _rolloverDayIdx = nextTransit.idx;
+                const rolloverResult = planMacroCorridorTrip(origin, dest, nextTransit.type, true);
+                _rolloverDayIdx = null;
+                if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
+                    rolloverResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                    return rolloverResult;
+                }
+            }
+        }
+    }
+
+    if (trips.length > 0) trips.sort((a,b) => timeToSeconds(a.arrTime) - timeToSeconds(b.arrTime));
+    return { trips };
 }
 
 function planDoubleTransferTrip(origin, dest, dayType, isRollover = false) {
@@ -477,7 +567,7 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType) {
                 const legsFromRelay = findAllLegsBetween(relay, stationB, new Set([rId]), dayType);
                 
                 if (legsFromRelay.length > 0) {
-                    const TRANSFER_BUFFER_SEC = 2 * 60;
+                    const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
                     const MAX_RELAY_WAIT = 180 * 60; // 3 hours
 
                     legsToRelay.forEach(l1 => {
@@ -491,6 +581,7 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType) {
                                 // Create Composite Leg
                                 allLegs.push({
                                     ...l1, // Inherit basic props from first leg
+                                    to: stationB, // GUARDIAN STRIKE 3: Un-boomerang! Overwrite the relay destination with the true leg destination.
                                     arrTime: l2.arrTime, // Arrival is final dest
                                     actualDestination: l2.actualDestination,
                                     isRelayComposite: true,
@@ -523,7 +614,7 @@ function findIntersections(routeAId, routeBId) {
 }
 
 function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3, dayType) {
-    const TRANSFER_BUFFER_SEC = 5 * 60; // 5 minutes safe buffer
+    const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 minutes
 
     // 1. Get All Leg Options ONCE
     const legs1 = findAllLegsBetween(origin, hub1, new Set([route1.id]), dayType);
@@ -715,7 +806,12 @@ function getIntermediateStops(schedule, startIndex, endIndex, trainName) {
     let stops = [];
     for (let i = startIndex; i <= endIndex; i++) {
         const row = schedule.rows[i];
-        if (row[trainName]) stops.push({ station: row.STATION, time: row[trainName] });
+        let t = row[trainName];
+        // GUARDIAN STRIKE 3: Force inclusion of empty stations so Leaflet maps draw the curved tracks correctly!
+        if (!t || String(t).trim() === "" || String(t).trim() === "-") {
+            t = "---";
+        }
+        stops.push({ station: row.STATION, time: t });
     }
     return stops;
 }
@@ -745,9 +841,10 @@ function ensureScheduleLoaded(routeId, dayType) {
 
 /**
  * Evaluates an array of trips and mercilessly deletes "Dominated" trips.
- * A trip is dominated if another trip gets you there at the same time (or earlier),
- * leaves at the same time (or later), and requires the same (or fewer) transfers.
- * GUARDIAN PATCH: Explicitly uses leg1, leg2, leg3 data contracts.
+ * GUARDIAN PHASE 1 PATCH: Path-Diversity Signature Engine.
+ * We now ONLY allow trips to dominate each other if they share the exact same physical path.
+ * A Direct Train will no longer delete a Transfer backup shuttle, ensuring Commuters 
+ * always see every physical corridor available to them as a fallback option.
  */
 function filterDominatedTrips(trips) {
     if (!trips || trips.length === 0) return [];
@@ -756,7 +853,26 @@ function filterDominatedTrips(trips) {
     
     const getDep = t => timeToSeconds(t.depTime || (t.leg1 ? t.leg1.depTime : "00:00"));
     const getArr = t => timeToSeconds(t.arrTime || (t.leg3 ? t.leg3.arrTime : (t.leg2 ? t.leg2.arrTime : "00:00")));
-    const getTrans = t => t.type === 'DOUBLE_TRANSFER' ? 2 : (t.type === 'TRANSFER' ? 1 : 0);
+    
+    const getTrans = t => {
+        let base = t.type === 'DOUBLE_TRANSFER' ? 2 : (t.type === 'TRANSFER' ? 1 : 0);
+        if (t.leg1 && t.leg1.isRelayComposite) base += 1;
+        if (t.leg2 && t.leg2.isRelayComposite) base += 1;
+        if (t.leg3 && t.leg3.isRelayComposite) base += 1;
+        return base;
+    };
+
+    // GUARDIAN PHASE 1: PATH-DIVERSITY SIGNATURE GENERATOR
+    // Generates a unique string fingerprint for the physical path taken
+    const getPathSig = t => {
+        let sig = t.type;
+        if (t.type === 'TRANSFER') sig += `_${t.transferStation}`;
+        if (t.type === 'DOUBLE_TRANSFER') sig += `_${t.hub1}_${t.hub2}`;
+        // Append routes traversed for extreme precision
+        if (t.routePath) sig += `_[${t.routePath.join(',')}]`;
+        else if (t.route) sig += `_[${t.route.id}]`;
+        return sig;
+    };
     
     for (let i = 0; i < trips.length; i++) {
         const tripX = trips[i];
@@ -765,6 +881,7 @@ function filterDominatedTrips(trips) {
         const xDep = getDep(tripX);
         const xArr = getArr(tripX);
         const xTransfers = getTrans(tripX);
+        const xSig = getPathSig(tripX);
         
         for (let j = 0; j < trips.length; j++) {
             if (i === j) continue;
@@ -773,22 +890,41 @@ function filterDominatedTrips(trips) {
             const yDep = getDep(tripY);
             const yArr = getArr(tripY);
             const yTransfers = getTrans(tripY);
+            const ySig = getPathSig(tripY);
             
-            // DOMINANCE RULE:
-            // Trip Y dominates Trip X if Y departs same/later, arrives same/earlier, and has same/fewer transfers.
-            if (yDep >= xDep && yArr <= xArr && yTransfers <= xTransfers) {
+            const samePath = (xSig === ySig);
+
+            // CONDITION 1: EXACT SAME PHYSICAL PATH
+            if (samePath) {
+                // Y strictly dominates X if Y departs later (or same time) AND arrives strictly earlier (or same time).
+                // e.g. Why take a 09:30 train if a 10:00 train overtakes it and gets there at the same time?
+                const isStrictlyBetterTime = (yDep > xDep && yArr <= xArr) || (yDep >= xDep && yArr < xArr);
                 
-                // Tie-breaker for mathematically identical trips
-                if (yDep === xDep && yArr === xArr && yTransfers === xTransfers) {
-                    // Keep the one that appears first in the array to prevent mutual deletion
-                    if (j < i) {
+                // Prevent mutual deletion of mathematically identical duplicate arrays
+                const isDuplicate = (yDep === xDep && yArr === xArr && yTransfers === xTransfers && j < i);
+                
+                if (isStrictlyBetterTime || isDuplicate) {
+                    isDominated = true;
+                    break;
+                }
+            } 
+            // CONDITION 2: DIFFERENT PHYSICAL PATH (Cross-Path Dominance)
+            else {
+                // We NEVER dominate if Y leaves later. X's early departure is saved as a "Plan B Backup Shuttle".
+                // We ONLY dominate across paths if Y leaves at the EXACT SAME TIME, and gets there faster or easier.
+                const sameDep = (yDep === xDep);
+                const betterOrSameArr = (yArr <= xArr);
+                const strictlyBetterArr = (yArr < xArr);
+                const fewerTransfers = (yTransfers < xTransfers);
+                const sameOrFewerTransfers = (yTransfers <= xTransfers);
+
+                if (sameDep) {
+                    // Y wins if it gets there at the same time (or earlier) but with strictly fewer transfers.
+                    // Y wins if it gets there strictly earlier, with the same (or fewer) transfers.
+                    if ((betterOrSameArr && fewerTransfers) || (strictlyBetterArr && sameOrFewerTransfers)) {
                         isDominated = true;
                         break;
                     }
-                } else {
-                    // Trip Y is strictly better. Trip X is mathematically useless.
-                    isDominated = true;
-                    break;
                 }
             }
         }
@@ -820,10 +956,18 @@ function planUnifiedTrip(origin, dest, dayType) {
         ...(hubResult.trips || [])
     ];
     
+    // GUARDIAN STRIKE 1: Execute Macro Corridors outside the CPU short-circuit block!
+    // This ensures heavy internal bridges (like Herc-Koed) are evaluated unconditionally.
+    const macroResult = typeof planMacroCorridorTrip === 'function' ? planMacroCorridorTrip(origin, dest, dayType) : { trips: [] };
+    if (macroResult.trips && macroResult.trips.length > 0) {
+        allRawTrips = [...allRawTrips, ...macroResult.trips];
+    }
+
     // SMART SHORT-CIRCUIT: CPU Protection
     // If we found ample direct/single-transfer routes for TODAY, skip massive double-transfer calculations.
     const todayCount = allRawTrips.filter(t => !t.dayLabel).length;
-    if (todayCount < 3) {
+    // Fallback to exhaustive double-transfer pathfinding ONLY if few trips are found AND macro didn't catch it
+    if (todayCount < 3 && macroResult.trips.length === 0) {
         const doubleResult = typeof planDoubleTransferTrip === 'function' ? planDoubleTransferTrip(origin, dest, dayType) : { trips: [] };
         allRawTrips = [...allRawTrips, ...(doubleResult.trips || [])];
     }
@@ -836,7 +980,7 @@ function planUnifiedTrip(origin, dest, dayType) {
         else rawTrips.push(t);
     });
 
-    // 3. Enforce strict layover guardrails (5 mins to 3 hours)
+    // 3. Enforce strict layover guardrails (0 mins to 3 hours)
     const hasValidLayovers = (trip) => {
         if (trip.type === 'DIRECT') return true;
         
@@ -845,7 +989,8 @@ function planUnifiedTrip(origin, dest, dayType) {
             const depSec = timeToSeconds(depTime);
             let layover = depSec - arrSec;
             if (layover < 0) layover += 86400; // Handle midnight crossover
-            return layover >= 300 && layover <= 10800;
+            // GUARDIAN PHASE 5: Dropped to 0 seconds to allow immediate platform relays
+            return layover >= 0 && layover <= 10800;
         };
 
         if (trip.type === 'TRANSFER') {

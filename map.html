@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <!-- SEO: Canonical Tag -->
     <link rel="canonical" href="https://nexttrain.co.za/map.html">
     
@@ -38,8 +38,6 @@
                 t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
                 y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
             })(window, document, "clarity", "script", "v1aj19921i");
-        } else {
-            console.log("🛡️ Clarity: Tracking blocked for Developer Session.");
         }
     </script>
 
@@ -47,22 +45,21 @@
     <script src="js/tailwind.js"></script>
 
     <!-- STANDARD LOADING: Leaflet CSS -->
-    <!-- GUARDIAN NOTE: For full offline map support, you MUST download 'leaflet.css' and 'leaflet.js' to your project folder and reference them here instead of the CDN links below. -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" xintegrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSA8ZYferCkwBnJnMc569pG+xay39G5Je5F5w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
     <style>
-        body, html { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        body, html { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #f3f4f6; }
         #map { height: 100vh; width: 100%; z-index: 1; position: absolute; top: 0; left: 0; }
         
         /* Legend Styles */
         .legend-container {
             position: absolute;
-            top: 16px; /* GUARDIAN: Moved up to match 'top-4' (16px) of the Back Button */
-            right: 16px; /* GUARDIAN: Pushed slightly away from edge for symmetry */
+            top: 16px; 
+            right: 16px; 
             z-index: 1000;
-            max-width: calc(100vw - 120px); /* GUARDIAN SHIELD: Prevents overlap with Back Button on very narrow phones */
+            max-width: calc(100vw - 120px); 
             width: 250px;
-            display: none; /* Hidden until map loads */
+            display: none; 
         }
         
         .legend-box {
@@ -143,17 +140,18 @@
         /* Dynamic Tooltip Sizing */
         .tooltip-dynamic {
             transition: font-size 0.2s ease;
+            font-family: 'Inter', sans-serif;
         }
 
         /* GUARDIAN: GPS Pulsing Dot CSS */
         .gps-pulse {
-            width: 14px;
-            height: 14px;
+            width: 16px;
+            height: 16px;
             background: #3b82f6;
             border-radius: 50%;
             box-shadow: 0 0 0 rgba(59, 130, 246, 0.4);
             animation: pulse 2s infinite;
-            border: 2px solid white;
+            border: 3px solid white;
         }
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
@@ -165,40 +163,53 @@
             border: none;
         }
 
-        /* GUARDIAN: Align Zoom Control to the Bottom-Left */
+        /* GUARDIAN: Native UI Control Alignments */
         .leaflet-control-zoom {
             position: fixed !important;
             bottom: 24px !important;
             left: 16px !important;
             margin: 0 !important;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
             border: 1px solid #d1d5db !important;
             z-index: 1000 !important;
+            border-radius: 0.5rem !important;
+            overflow: hidden;
         }
+        .leaflet-control-zoom-in, .leaflet-control-zoom-out {
+            color: #3b82f6 !important;
+            background-color: white !important;
+            width: 44px !important;
+            height: 44px !important;
+            line-height: 44px !important;
+            font-size: 20px !important;
+            font-weight: bold !important;
+        }
+        .leaflet-control-zoom-in:hover, .leaflet-control-zoom-out:hover {
+            background-color: #f3f4f6 !important;
+        }
+        
+        .leaflet-bottom { padding-bottom: 10px; }
+        .leaflet-left { padding-left: 10px; }
+        .leaflet-right { padding-right: 10px; }
     </style>
 </head>
 <body class="bg-gray-100">
 
     <!-- Back Button Overlay (Highest Z-Index) -->
-    <div class="fixed top-4 left-4 z-[60]">
-        <a href="index.html" class="bg-white hover:bg-gray-100 text-gray-800 font-bold py-2 px-4 border border-gray-300 rounded-lg shadow-lg flex items-center transition-transform transform active:scale-95 text-sm">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7-7h18"></path></svg>
+    <div class="fixed top-4 left-4 z-[1001]">
+        <a href="index.html" class="bg-white hover:bg-gray-50 text-gray-800 font-bold py-2.5 px-4 border border-gray-300 rounded-xl shadow-lg flex items-center transition-transform transform active:scale-95 text-sm">
+            <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7-7h18"></path></svg>
             Back
         </a>
     </div>
 
-    <!-- Locate Me Button (GUARDIAN INJECTED) -->
-    <button id="locate-me-btn" class="fixed bottom-6 right-4 z-[1000] bg-white hover:bg-gray-100 text-blue-600 p-3.5 rounded-full shadow-2xl border border-gray-300 transition-transform transform active:scale-95 focus:outline-none" title="Find my location" aria-label="Find my location">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
-    </button>
-
     <!-- Simple Spinner Placeholder -->
     <div id="map-placeholder">
         <div class="text-center p-6">
-            <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
                 <svg class="w-8 h-8 text-blue-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 01-1.447-.894L15 7m0 13V7"></path></svg>
             </div>
-            <h3 class="text-xl font-bold text-gray-900 mb-2">Loading Network...</h3>
+            <h3 class="text-xl font-black text-gray-900 mb-2 tracking-tight">Loading Network...</h3>
             <svg class="animate-spin h-6 w-6 text-blue-600 mx-auto mt-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -210,8 +221,8 @@
     <div class="legend-container" id="legend-container">
         <div class="legend-box">
             <div class="legend-header" onclick="toggleLegend()">
-                <h4 class="font-black text-xs uppercase tracking-wider text-gray-800">Network Status</h4>
-                <svg id="legend-icon" class="w-4 h-4 text-gray-500 toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                <h4 class="font-black text-[11px] uppercase tracking-widest text-gray-500">Network Lines</h4>
+                <svg id="legend-icon" class="w-4 h-4 text-gray-400 toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
             </div>
             <div id="legend-content" class="legend-content mt-3">
                 <!-- Legend Items Injected Here -->
@@ -223,7 +234,7 @@
 
     <!-- STANDARD SCRIPT LOADING (Sequence Matters) -->
     <!-- 2. Library (CDN) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" xintegrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdwv/PGkVgiIyGWCo8qaty4sV+uO4qBvsDSVIVaXk8k3v8k+t+a+iQ5N+a5sO+r6g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <script>
         // --- DATA EMBEDDED (Fallback for Missing File) ---
@@ -235,9 +246,9 @@
             "LOFTUS VERSFELD PARK": [-25.754940155678536, 28.22535667426071],
             "RISSIK": [-25.749263370927064, 28.232274866782785],
             "HARTBEESSPRUIT": [-25.746016335334863, 28.24495952932333],
-            "KOEDOESPOORT": [-25.733004332997367, 28.26698889945203],
-            "SILVERTON": [-25.729988266205932, 28.309990282121762],
-            "WALTLOO": [-25.736009669074716, 28.32800735162468],
+            "KOEDOESPOORT": [-25.72608149772232, 28.27872645216183], 
+            "SILVERTON": [-25.727388634278455, 28.29699912151972],
+            "WALTLOO": [-25.716964535181983, 28.32134413848142],
             "DENNEBOOM": [-25.719077472725353, 28.336637070658863],
             "EERSTE FABRIEKE": [-25.7221815801619, 28.359894081240192],
             "MAMELODI GARDENS": [-25.727137148700365, 28.38522516947939],
@@ -283,8 +294,8 @@
             "RAVENSKLIP": [-26.180916686844835, 28.19981212632109],
             "KNIGHTS": [-26.19566598383361, 28.196166697507],
             "GERMISTON": [-26.209629310943757, 28.16775038029468],
-            "TEMBISA": [-26.016420349488346, 28.211708595220923],
-            "LIMINDLELA": [-26.01099489302983, 28.214712053300357],
+            "TEMBISA": [-26.009687133196852, 28.231477162611803],
+            "LIMINDLELA": [-26.011188907434516, 28.214689000778122],
             "LERALLA": [-26.02917658612082, 28.196411826993103],
             "ELSBURG": [-26.242074536681013, 28.193485066234086],
             "KATLEHONG": [-26.307539143135436, 28.161448064536795],
@@ -292,7 +303,7 @@
             "PILOT": [-26.340713981819974, 28.152496274644147],
             "KWESINE": [-26.365394305815887, 28.152781379926747],
             "PRESIDENT": [-26.211589161672503, 28.159915894140354],
-            "DRIEHOEK": [-26.215102245088552, 28.163530080294848],
+            "DRIEHOEK": [-26.21349039399697, 28.14960493666655],
             "GELDENHUIS": [-26.20778570409101, 28.132917922623346],
             "CLEVELAND": [-26.20833436358959, 28.11835882447283],
             "TOORONGA": [-26.203940084237757, 28.110387300000003],
@@ -326,7 +337,7 @@
             "LONGDALE": [-26.198503123750555, 27.962929509129903],
             "MZIMHLOPE": [-26.223861505533936, 27.921532143394266],
             "PHOMOLONG": [-26.226703184419414, 27.90867427408623],
-            "PHEFENI": [-26.22295627889571, 27.89695642447285],
+            "PHEFENI": [-26.235333111848036, 27.90499985809428],
             "DUBE": [-26.232994816765324, 27.89235589471589],
             "IKWEZI": [-26.23066586388434, 27.87708944718947],
             "INHLAZANE": [-26.249713244610206, 27.863467738215245],
@@ -341,7 +352,15 @@
             "NANCEFIELD": [-26.25168123666912, 27.906423465881122],
             "KLIPTOWN": [-26.272809958189928, 27.887633494308975],
             "TSHIAWELO": [-26.288947777153577, 27.87068768853021],
-            "MIDWAY": [-26.292695060119772, 27.851230923913732]
+            "MIDWAY": [-26.292695060119772, 27.851230923913732],
+
+            // --- HERCULES-KOEDOESPOORT EXPANSION (V5.01) ---
+            "CAPITAL PARK": [-25.71861021137544, 28.199638809110184],
+            "GEZINA": [-25.72149393871516, 28.205461660683653],
+            "DEERNESS": [-25.720427758066748, 28.215590710959766],
+            "VILLIERIA": [-25.71978884760139, 28.228856837877064],
+            "PIERNEEFSRUS": [-25.719666309748767, 28.239301131411885],
+            "QUEENSWOOD": [-25.721853760563217, 28.25178790666072]
         };
 
         // --- MAP LOGIC (Auto-Init) ---
@@ -366,7 +385,7 @@
                         <div class="text-center p-6 text-red-600">
                             <p class="font-bold">Failed to load map.</p>
                             <p class="text-xs mt-1">Check your connection.</p>
-                            <button onclick="window.location.reload()" class="mt-4 bg-white border border-red-200 px-4 py-2 rounded shadow-sm text-sm">Retry</button>
+                            <button onclick="window.location.reload()" class="mt-4 bg-white border border-red-200 px-4 py-2 rounded shadow-sm text-sm font-bold text-gray-700">Retry</button>
                         </div>
                     `;
                 }
@@ -382,21 +401,24 @@
 
             // Adjusted center to balance Pretoria and JHB/West Rand
             const map = L.map('map', { zoomControl: false }).setView([-26.00, 28.10], 10); 
+            
+            // GUARDIAN: Locked Zoom to Bottom Left matching Native UI
             L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            // GUARDIAN: Modern Voyager Tiles
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
                 attribution: '&copy; OpenStreetMap &copy; CARTO',
                 subdomains: 'abcd',
                 maxZoom: 19
             }).addTo(map);
 
-            // --- ROUTES DEFINED BY STATION NAMES ---
+            // --- ROUTES DEFINED BY STATION NAMES (Full Curves) ---
             const routeDefinitions = {
                 pta_pien: ["PRETORIA", "MEARS STREET", "DEVENISH STREET", "WALKER STREET", "LOFTUS VERSFELD PARK", "RISSIK", "HARTBEESSPRUIT", "KOEDOESPOORT", "SILVERTON", "WALTLOO", "DENNEBOOM", "EERSTE FABRIEKE", "MAMELODI GARDENS", "GREENVIEW", "PIENAARSPOORT"],
                 pta_mab: ["PRETORIA", "PRETORIA-B", "PRETORIA WES", "HERCULES", "DASPOORT", "MOUNTAIN VIEW", "WONDERBOOM", "PRETORIA-N", "WOLMERTON", "WINTERSNEST", "AKASIABOOM", "KOPANONG", "SOSHANGUVE", "MABOPANE"],
                 mab_belle: ["MABOPANE", "SOSHANGUVE", "KOPANONG", "AKASIABOOM", "WINTERSNEST", "WOLMERTON", "PRETORIA-N", "WONDERBOOM", "MOUNTAIN VIEW", "DASPOORT", "HERCULES", "BELLE-OMBRE"],
                 pta_dewildt: ["WINTERSNEST", "ROSSLYN", "GA-RANKUWA", "TAILLARDSHOOP", "DE WILDT"],
-                herc_koed: ["HERCULES", "KOEDOESPOORT"], // Direct visual link, exact path may vary
+                herc_koed: ["HERCULES", "DASPOORT", "CAPITAL PARK", "GEZINA", "DEERNESS", "VILLIERIA", "PIERNEEFSRUS", "QUEENSWOOD", "KOEDOESPOORT"], 
                 pta_saul: ["PRETORIA", "PRETORIA WES", "MITCHELLSTRAAT", "SCHUTTESTRAAT", "KALAFONG", "ATTERIDGEVILLE", "SAULSVILLE"],
                 pta_kempton: ["PRETORIA", "FONTEINE", "KLOOFSIG", "SPORTPARK", "CENTURION", "IRENE", "PINEDENE", "OLIFANTSFONTEIN", "OAKMOOR", "KAALFONTEIN", "BIRCHLEIGH", "VAN RIEBEECKPARK", "KEMPTON PARK"],
                 germ_leralla: ["GERMISTON", "KNIGHTS", "RAVENSKLIP", "ELANDSFONTEIN", "ISANDO", "RHODESFIELD", "KEMPTON PARK", "VAN RIEBEECKPARK", "BIRCHLEIGH", "KAALFONTEIN", "TEMBISA", "LIMINDLELA", "LERALLA"],
@@ -422,6 +444,8 @@
                     weight: weight,
                     opacity: opacity,
                     dashArray: dashArray,
+                    lineCap: 'round',
+                    lineJoin: 'round',
                     smoothFactor: 1
                 }).addTo(map).bindPopup(`<b class="uppercase text-sm">${name}</b><br>${isActive ? '<span class="text-green-600 font-bold text-xs">Active Service</span>' : '<span class="text-red-500 font-bold text-xs">Suspended</span>'}`);
             }
@@ -441,6 +465,23 @@
             addRoute(routeDefinitions.jhb_naledi, '#eab308', 'JHB - Naledi');
             addRoute(routeDefinitions.jhb_midway, '#eab308', 'JHB - Midway');
 
+            // --- CUSTOM CONTROLS (GUARDIAN) ---
+            const LocateControl = L.Control.extend({
+                options: { position: 'bottomright' },
+                onAdd: function () {
+                    const btn = L.DomUtil.create('button', 'bg-white text-blue-600 p-3 rounded-full shadow-2xl border border-gray-300 transition-transform transform active:scale-95 focus:outline-none flex items-center justify-center w-12 h-12 mb-4 mr-2');
+                    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>';
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        const icon = btn.querySelector('svg');
+                        if(icon) icon.classList.add('animate-spin');
+                        map.locate({setView: true, maxZoom: 16});
+                    };
+                    return btn;
+                }
+            });
+            map.addControl(new LocateControl());
+
             // --- MARKERS FOR ALL STATIONS ---
             const hubs = new Set(["PRETORIA", "JOHANNESBURG", "GERMISTON", "KEMPTON PARK", "HERCULES", "KOEDOESPOORT", "PRETORIA-N", "LANGLAAGTE", "NEW CANADA", "BELLE-OMBRE"]);
             const ends = new Set(["PIENAARSPOORT", "MABOPANE", "DE WILDT", "SAULSVILLE", "LERALLA", "KWESINE", "RANDFONTEIN", "NALEDI", "MIDWAY"]);
@@ -450,11 +491,11 @@
                 const isEnd = ends.has(name);
                 const isMajor = isHub || isEnd;
 
-                // Create a persistent tooltip for each station marker
+                // GUARDIAN: Intermediate stations drawn as tiny track joints, hubs are larger
                 const marker = L.circleMarker(coord, {
-                    radius: isMajor ? 6 : 3,
+                    radius: isMajor ? 5 : 2.5,
                     fillColor: "#ffffff",
-                    color: isMajor ? "#1f2937" : "#6b7280",
+                    color: isMajor ? "#1f2937" : "#3b82f6",
                     weight: isMajor ? 2 : 1,
                     opacity: 1,
                     fillOpacity: 1
@@ -464,7 +505,7 @@
                       permanent: true, // Always show, but visibility controlled by CSS
                       direction: 'top',
                       offset: [0, -5],
-                      className: isMajor ? 'font-bold text-xs bg-white border border-gray-300 px-1 rounded shadow-sm z-50 tooltip-dynamic' : 'text-xs bg-white px-1 border border-gray-200 rounded shadow-sm tooltip-dynamic'
+                      className: isMajor ? 'font-bold text-[11px] text-gray-800 bg-white/90 border border-gray-300 px-1 rounded shadow-sm z-50 tooltip-dynamic backdrop-blur-sm' : 'text-[9px] text-gray-600 bg-white/80 px-1 border border-gray-200 rounded shadow-sm tooltip-dynamic backdrop-blur-sm'
                   });
             });
 
@@ -505,21 +546,13 @@
                 const tooltips = document.querySelectorAll('.tooltip-dynamic');
                 
                 // Base size logic
-                let fontSize = '10px';
                 let display = 'block';
 
-                if (zoom < 10) {
+                if (zoom < 11) {
                     display = 'none'; // Hide text when zoomed out too far
-                } else if (zoom < 12) {
-                    fontSize = '8px'; // Small text
-                } else if (zoom < 14) {
-                    fontSize = '10px'; // Medium text
-                } else {
-                    fontSize = '12px'; // Large text
-                }
+                } 
 
                 tooltips.forEach(t => {
-                    t.style.fontSize = fontSize;
                     t.style.display = display;
                 });
             }
@@ -527,14 +560,14 @@
             map.on('zoomend', updateTooltipSize);
             updateTooltipSize(); // Initial call
             
-            // --- GUARDIAN PHASE 1: LEAFLET GEOLOCATION ---
+            // --- GUARDIAN PHASE C: LEAFLET GEOLOCATION (Pulsing Dot) ---
             let userMarker = null;
             let userRadius = null;
             const pulsingIcon = L.divIcon({
                 className: 'custom-div-icon',
                 html: '<div class="gps-pulse"></div>',
-                iconSize: [14, 14],
-                iconAnchor: [7, 7]
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
             });
 
             map.on('locationfound', function(e) {
@@ -553,31 +586,22 @@
                     userRadius.setLatLng(e.latlng);
                     userRadius.setRadius(radius);
                 }
-                map.flyTo(e.latlng, Math.max(map.getZoom(), 12));
                 
-                const locateBtnIcon = document.querySelector('#locate-me-btn svg');
-                if(locateBtnIcon) locateBtnIcon.classList.remove('animate-spin');
+                // Automatically stop spin animation on button
+                const btnIcons = document.querySelectorAll('.animate-spin');
+                btnIcons.forEach(i => i.classList.remove('animate-spin'));
             });
 
             map.on('locationerror', function(e) {
-                alert("Could not find your location. Please check your GPS permissions in your browser settings.");
-                const locateBtnIcon = document.querySelector('#locate-me-btn svg');
-                if(locateBtnIcon) locateBtnIcon.classList.remove('animate-spin');
+                const btnIcons = document.querySelectorAll('.animate-spin');
+                btnIcons.forEach(i => i.classList.remove('animate-spin'));
+                if (e.code !== 1) { // Ignore permission denied spam
+                    console.warn("Location error:", e.message);
+                }
             });
 
-            document.getElementById('locate-me-btn').addEventListener('click', function() {
-                const icon = this.querySelector('svg');
-                if(icon) icon.classList.add('animate-spin');
-                map.locate({setView: false, enableHighAccuracy: true, maxZoom: 16});
-            });
-            // --- END GUARDIAN GEOLOCATION ---
-
-            // Auto-locate user immediately on load
-            setTimeout(() => {
-                const locateBtnIcon = document.querySelector('#locate-me-btn svg');
-                if(locateBtnIcon) locateBtnIcon.classList.add('animate-spin');
-                map.locate({setView: false, enableHighAccuracy: true, maxZoom: 16});
-            }, 500); // Slight delay to ensure map visual is ready
+            // Start passive tracking in background
+            map.locate({setView: false, watch: true, enableHighAccuracy: true});
         }
 
         // Toggle Function

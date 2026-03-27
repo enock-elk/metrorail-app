@@ -8,8 +8,9 @@
  * 4. Simulation Controls
  * 5. Ghost Train Exclusion Manager (Deep Scan - Restored)
  * 6. Special Event Route Manager
- * 7. Nuclear Cache Wipe (Killswitch - New)
- * 8. Live Telemetry Bridge (Cloudflare Path B - New)
+ * 7. System Health / Diagnostics Scanner (Phase 2 - New)
+ * 8. Nuclear Cache Wipe (Killswitch - New)
+ * 9. Live Telemetry Bridge (Cloudflare Path B - New)
  */
 
 const Admin = {
@@ -31,6 +32,75 @@ const Admin = {
     currentUser: null,
     telemetryInterval: null, // GUARDIAN: Polling tracker for analytics
 
+    // --- 0.2 TELEMETRY REFRESH ENGINE ---
+    refreshTelemetry: async () => {
+        const stat5m = document.getElementById('stat-5m');
+        const stat30m = document.getElementById('stat-30m');
+        const statToday = document.getElementById('stat-today');
+        const statAllTime = document.getElementById('stat-alltime');
+        const statErrors = document.getElementById('stat-errors');
+        
+        // Guard: Only fetch if the modal is currently open to save bandwidth
+        const devModal = document.getElementById('dev-modal');
+        if (devModal && devModal.classList.contains('hidden')) {
+            // GUARDIAN FIX: Kill the interval entirely to prevent background data drain
+            if (Admin.telemetryInterval) {
+                clearInterval(Admin.telemetryInterval);
+                Admin.telemetryInterval = null;
+                console.log("🛡️ Guardian: Dev Modal closed. Telemetry polling suspended.");
+            }
+            return;
+        }
+
+        // Secure validation: Worker will reject queries without a valid Admin Auth token
+        const secret = await Admin.getAuthKey();
+        if (!secret) return;
+
+        // Visual feedback that a fresh pull is happening (Instantly on 5-tap)
+        [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
+            if (el && !el.classList.contains('animate-pulse')) el.classList.add('animate-pulse');
+        });
+
+        // GUARDIAN: Updated to the live production worker URL
+        const CLOUDFLARE_WORKER_URL = 'https://nexttrain-telemetry.enock.workers.dev/';
+        
+        try {
+            const res = await fetch(CLOUDFLARE_WORKER_URL, {
+                headers: { 'Authorization': `Bearer ${secret}` }
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                
+                if(stat5m) stat5m.textContent = data.active5m !== undefined ? data.active5m : '--';
+                if(stat30m) stat30m.textContent = data.active30m !== undefined ? data.active30m : '--';
+                if(statToday) statToday.textContent = data.todayUsers !== undefined ? data.todayUsers : '--';
+                if(statAllTime) statAllTime.textContent = data.allTimeUsers !== undefined ? data.allTimeUsers : '--';
+                if(statErrors) statErrors.textContent = data.todayErrors !== undefined ? data.todayErrors : '--';
+                
+                // Kill pulse animations once data streams successfully
+                [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
+                    if(el) el.classList.remove('animate-pulse');
+                });
+            } else {
+                throw new Error("Worker returned status: " + res.status);
+            }
+        } catch(e) {
+            console.warn("🛡️ Telemetry Fetch Failed (Expected until Backend Worker is deployed):", e.message);
+            
+            if(stat5m && stat5m.textContent === '--') stat5m.textContent = "Wait";
+            if(stat30m && stat30m.textContent === '--') stat30m.textContent = "Wait";
+            if(statToday && statToday.textContent === '--') statToday.textContent = "Wait";
+            if(statAllTime && statAllTime.textContent === '--') statAllTime.textContent = "Wait";
+            if(statErrors && statErrors.textContent === '--') statErrors.textContent = "Wait";
+
+            // Cleanup animations on fail
+            [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
+                if(el) el.classList.remove('animate-pulse');
+            });
+        }
+    },
+
     // --- 1. INITIALIZATION ---
     init: () => {
         // Listen for Firebase initialization from index.html
@@ -50,6 +120,12 @@ const Admin = {
 
     // --- 2. AUTH LISTENER (PHASE 9) ---
     setupAuthListener: () => {
+        // 🛡️ GUARDIAN FIX: Crash Immunity. Stop execution immediately if Firebase failed to initialize
+        if (typeof window.firebaseOnAuthStateChanged !== 'function') {
+            console.warn("🛡️ Guardian: Firebase Auth not loaded. Skipping auth listener to prevent crash.");
+            return;
+        }
+
         window.firebaseOnAuthStateChanged(window.firebaseAuth, (user) => {
             const signoutContainer = document.getElementById('admin-signout-container');
             
@@ -221,63 +297,27 @@ const Admin = {
 
     // --- 2.9 LIVE TELEMETRY (CLOUD WORKER BRIDGE - NEW) ---
     setupTelemetry: () => {
-        const stat5m = document.getElementById('stat-5m');
-        const stat30m = document.getElementById('stat-30m');
-        const statToday = document.getElementById('stat-today');
-        const statAllTime = document.getElementById('stat-alltime');
-        const statErrors = document.getElementById('stat-errors');
-        
-        // GUARDIAN: Updated to the live production worker URL
-        const CLOUDFLARE_WORKER_URL = 'https://nexttrain-telemetry.enock.workers.dev/';
-        
-        async function fetchTelemetry() {
-            // Guard: Only fetch if the modal is currently open to save bandwidth
-            const devModal = document.getElementById('dev-modal');
-            if (devModal && devModal.classList.contains('hidden')) return;
+        const telPanel = document.getElementById('telemetry-panel');
+        if (!telPanel) return;
 
-            // Secure validation: Worker will reject queries without a valid Admin Auth token
-            const secret = await Admin.getAuthKey();
-            if (!secret) return;
-
-            try {
-                const res = await fetch(CLOUDFLARE_WORKER_URL, {
-                    headers: { 'Authorization': `Bearer ${secret}` }
-                });
-                
-                if (res.ok) {
-                    const data = await res.json();
-                    
-                    if(stat5m) stat5m.textContent = data.active5m !== undefined ? data.active5m : '--';
-                    if(stat30m) stat30m.textContent = data.active30m !== undefined ? data.active30m : '--';
-                    if(statToday) statToday.textContent = data.todayUsers !== undefined ? data.todayUsers : '--';
-                    if(statAllTime) statAllTime.textContent = data.allTimeUsers !== undefined ? data.allTimeUsers : '--';
-                    if(statErrors) statErrors.textContent = data.todayErrors !== undefined ? data.todayErrors : '--';
-                    
-                    // Kill pulse animations once data streams successfully
-                    [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
-                        if(el) el.classList.remove('animate-pulse');
-                    });
-                } else {
-                    throw new Error("Worker returned status: " + res.status);
-                }
-            } catch(e) {
-                // Expected to fail until Step 3 is completed. Gracefully fallback to "Wait".
-                console.warn("🛡️ Telemetry Fetch Failed (Expected until Backend Worker is deployed):", e.message);
-                
-                if(stat5m && stat5m.textContent === '--') stat5m.textContent = "Wait";
-                if(stat30m && stat30m.textContent === '--') stat30m.textContent = "Wait";
-                if(statToday && statToday.textContent === '--') statToday.textContent = "Wait";
-                if(statAllTime && statAllTime.textContent === '--') statAllTime.textContent = "Wait";
-                if(statErrors && statErrors.textContent === '--') statErrors.textContent = "Wait";
+        // If the Dev modal is opened again during the same session, bypass complete re-initialization
+        // and instantly force a visual data refresh.
+        if (telPanel.dataset.adminLoaded === "true") {
+            // GUARDIAN FIX: Ensure the interval restarts if it was previously killed by closing the modal
+            if (!Admin.telemetryInterval) {
+                Admin.telemetryInterval = setInterval(Admin.refreshTelemetry, 10000);
             }
+            Admin.refreshTelemetry();
+            return;
         }
+        telPanel.dataset.adminLoaded = "true";
 
-        // Fire instantly upon setup
-        fetchTelemetry();
+        // Fire instantly upon absolute first setup
+        Admin.refreshTelemetry();
 
-        // Auto-refresh every 30 seconds
+        // Auto-refresh every 10 seconds (Down from 30s)
         if (Admin.telemetryInterval) clearInterval(Admin.telemetryInterval);
-        Admin.telemetryInterval = setInterval(fetchTelemetry, 30000);
+        Admin.telemetryInterval = setInterval(Admin.refreshTelemetry, 10000);
     },
 
     // --- 3. SIMULATION CONTROLS ---
@@ -360,6 +400,7 @@ const Admin = {
         Admin.setupExclusionManager();
         Admin.setupMaintenanceManager();
         Admin.setupSpecialEventManager(); 
+        Admin.setupDiagnosticsManager(); // NEW: Injected directly above Nuclear Wipe
         Admin.setupNuclearManager(); 
     },
 
@@ -1076,7 +1117,128 @@ const Admin = {
         };
     },
 
-    // --- 7. MAINTENANCE MODE MANAGER (GUARDIAN CARD STYLE) ---
+    // --- 7. SYSTEM HEALTH / DIAGNOSTICS SCANNER (GUARDIAN Phase 2) ---
+    setupDiagnosticsManager: () => {
+        const alertPanel = document.getElementById('alert-panel');
+        if (!alertPanel || !alertPanel.parentNode) return;
+
+        let diagPanel = document.getElementById('diag-panel');
+        if (!diagPanel) {
+            diagPanel = document.createElement('div');
+            diagPanel.id = 'diag-panel';
+            alertPanel.parentNode.appendChild(diagPanel);
+        }
+
+        if (diagPanel.dataset.loaded === "true") return;
+        diagPanel.dataset.loaded = "true";
+
+        diagPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+
+        diagPanel.innerHTML = `
+            <button id="diag-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
+                <span class="flex items-center"><span class="mr-2">🩺</span> System Health Diagnostics</span>
+                <svg id="diag-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+
+            <div id="diag-body" class="hidden mt-4 space-y-4">
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p class="text-[10px] text-blue-800 dark:text-blue-300 font-medium leading-snug">Scans the active local database to verify if all configured routes have successfully downloaded their train schedules.</p>
+                </div>
+                <button id="diag-run-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors text-xs uppercase tracking-wide focus:outline-none">
+                    Run Network Scan
+                </button>
+                <div id="diag-results" class="space-y-1 max-h-60 overflow-y-auto custom-scrollbar"></div>
+            </div>
+        `;
+
+        const header = document.getElementById('diag-header-btn');
+        const body = document.getElementById('diag-body');
+        const chevron = document.getElementById('diag-chevron');
+        const runBtn = document.getElementById('diag-run-btn');
+        const resultsDiv = document.getElementById('diag-results');
+
+        header.onclick = () => {
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+                header.classList.remove('mb-4');
+            } else {
+                chevron.classList.remove('-rotate-90');
+                header.classList.add('mb-4');
+            }
+        };
+
+        runBtn.onclick = () => {
+            resultsDiv.innerHTML = '<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Scanning database...</div>';
+            
+            setTimeout(() => {
+                if (typeof fullDatabase === 'undefined' || !fullDatabase) {
+                    resultsDiv.innerHTML = '<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Offline Cache is missing or not fully loaded.</div>';
+                    return;
+                }
+
+                let html = '';
+                let healthyCount = 0;
+                let brokenCount = 0;
+                let totalRoutes = 0;
+
+                if (typeof ROUTES !== 'undefined') {
+                    Object.values(ROUTES).forEach(route => {
+                        if (!route.isActive || route.id === 'special_event') return;
+                        
+                        totalRoutes++;
+                        let routeHealthy = true;
+                        let missingSheets = [];
+
+                        if (route.sheetKeys) {
+                            Object.entries(route.sheetKeys).forEach(([dayDir, key]) => {
+                                if (!fullDatabase[key] || !Array.isArray(fullDatabase[key]) || fullDatabase[key].length === 0) {
+                                    routeHealthy = false;
+                                    missingSheets.push(dayDir);
+                                }
+                            });
+                        } else {
+                            routeHealthy = false;
+                            missingSheets.push("Configuration Error");
+                        }
+
+                        if (routeHealthy) {
+                            healthyCount++;
+                            html += `
+                                <div class="flex justify-between items-center bg-green-50 dark:bg-green-900/20 p-2.5 rounded-lg text-xs border border-green-100 dark:border-green-800/50 mt-1.5">
+                                    <span class="font-bold text-green-800 dark:text-green-300">${route.name}</span>
+                                    <span class="bg-green-500 text-white px-2 py-0.5 rounded shadow-sm text-[9px] uppercase tracking-wider font-bold">Online</span>
+                                </div>
+                            `;
+                        } else {
+                            brokenCount++;
+                            html += `
+                                <div class="flex flex-col bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg text-xs border border-red-100 dark:border-red-800/50 mt-1.5">
+                                    <div class="flex justify-between items-center mb-1.5">
+                                        <span class="font-bold text-red-800 dark:text-red-300">${route.name}</span>
+                                        <span class="bg-red-500 text-white px-2 py-0.5 rounded shadow-sm text-[9px] uppercase tracking-wider font-bold">Missing Data</span>
+                                    </div>
+                                    <div class="text-[10px] text-red-600 dark:text-red-400 font-mono bg-red-100/50 dark:bg-red-900/40 p-1.5 rounded">Failed: ${missingSheets.join(', ')}</div>
+                                </div>
+                            `;
+                        }
+                    });
+                }
+
+                const summary = `
+                    <div class="flex justify-between bg-gray-50 dark:bg-gray-700/50 p-3 rounded-xl mb-4 border border-gray-100 dark:border-gray-600">
+                        <div class="text-center flex-1 border-r border-gray-200 dark:border-gray-600"><span class="block text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-0.5">Active</span><span class="text-lg font-black text-gray-800 dark:text-gray-200 leading-none">${totalRoutes}</span></div>
+                        <div class="text-center flex-1 border-r border-gray-200 dark:border-gray-600"><span class="block text-[9px] text-green-600 uppercase font-bold tracking-widest mb-0.5">Healthy</span><span class="text-lg font-black text-green-600 leading-none">${healthyCount}</span></div>
+                        <div class="text-center flex-1"><span class="block text-[9px] text-red-600 uppercase font-bold tracking-widest mb-0.5">Errors</span><span class="text-lg font-black text-red-600 leading-none">${brokenCount}</span></div>
+                    </div>
+                `;
+
+                resultsDiv.innerHTML = summary + html;
+            }, 400); // Artificial slight delay for UX feedback
+        };
+    },
+
+    // --- 8. MAINTENANCE MODE MANAGER (GUARDIAN CARD STYLE) ---
     setupMaintenanceManager: () => {
         const exclusionPanel = document.getElementById('exclusion-panel');
         if (!exclusionPanel || !exclusionPanel.parentNode) return;
@@ -1172,7 +1334,7 @@ const Admin = {
         });
     },
 
-    // --- 8. NUCLEAR CACHE WIPE (GUARDIAN KILLSWITCH RESTORE) ---
+    // --- 9. NUCLEAR CACHE WIPE (GUARDIAN KILLSWITCH RESTORE) ---
     setupNuclearManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;

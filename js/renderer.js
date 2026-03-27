@@ -791,9 +791,9 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
                 </div>
                 <div id="grid-controls" class="px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shadow-sm z-20 relative"></div>
                 <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative"></div>
-                <!-- GUARDIAN V6.13: Restored Bottom Close Button, Shorter & Lighter -->
+                <!-- GUARDIAN Phase 4: Standardized Primary Blue Close Button -->
                 <div class="p-2.5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
-                    <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="w-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded-lg shadow-sm transition-colors text-sm">Close Timetable</button>
+                    <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-md transition-colors text-sm">Close Timetable</button>
                 </div>
             </div>
         `;

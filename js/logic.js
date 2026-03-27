@@ -17,6 +17,8 @@ let currentUserProfile = "Adult";
 let globalExclusions = {}; 
 // GUARDIAN V5.01.00: Analytics state for O-D Matrix
 let lastTrackedOD = null; 
+// GUARDIAN V6.00.33 Phase 3: RAM Fallback Engine for devices with 100% full storage
+let memoryFallbackCache = {}; 
 
 // --- SHARED UI REFERENCES (Declared here, Assigned in UI.js) ---
 let stationSelect, locateBtn, pretoriaTimeEl, pienaarspoortTimeEl, pretoriaHeader, pienaarspoortHeader;
@@ -144,6 +146,7 @@ function isTrainExcluded(trainNumber, routeId, dayIdx) {
 
 // --- DATABASE ENGINE (IndexedDB / Async Storage) ---
 // GUARDIAN V6.00.12: Migrated from synchronous localStorage to asynchronous IndexedDB to stop UI freezing on data loads.
+// GUARDIAN Phase 3: Injected memoryFallbackCache to prevent Sentry IO errors when device disk is at 100% capacity.
 const DB_NAME = 'NextTrainDB';
 const STORE_NAME = 'SchedulesStore';
 const DB_VERSION = 1;
@@ -154,20 +157,30 @@ function initDB() {
             reject(new Error("IndexedDB not supported"));
             return;
         }
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        request.onerror = (e) => reject(e.target.error);
-        request.onsuccess = (e) => resolve(e.target.result);
-        request.onupgradeneeded = (e) => {
-            const db = e.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME);
-            }
-        };
+        
+        try {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onerror = (e) => reject(e.target.error || new Error("IDB Open Error"));
+            request.onsuccess = (e) => resolve(e.target.result);
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME);
+                }
+            };
+        } catch(err) {
+            // Catches synchronous QuotaExceeded or IO Exceptions from Chrome if disk is critically full
+            reject(err);
+        }
     });
 }
 
 async function saveToLocalCache(key, data) {
     const cacheEntry = { timestamp: Date.now(), data: data };
+    
+    // GUARDIAN Phase 3: Always mirror to RAM first for this active session (bulletproof reads if disk IO fails later)
+    memoryFallbackCache[key] = cacheEntry;
+
     try {
         const db = await initDB();
         return new Promise((resolve, reject) => {
@@ -178,12 +191,23 @@ async function saveToLocalCache(key, data) {
             tx.onerror = () => reject(tx.error);
         });
     } catch (e) {
-        console.warn("IndexedDB Save Failed, falling back to localStorage", e);
-        try { localStorage.setItem(key, JSON.stringify(cacheEntry)); } catch(ex){}
+        console.warn("🛡️ Guardian: IndexedDB Save Failed (Possible Disk Full). Falling back...", e);
+        try { 
+            localStorage.setItem(key, JSON.stringify(cacheEntry)); 
+        } catch(ex) {
+            console.warn("🛡️ Guardian: LocalStorage also failed (Disk critically full). Operating strictly in RAM mode.");
+            // We already saved to memoryFallbackCache[key] above, so the app will still work this session.
+        }
     }
 }
 
 async function loadFromLocalCache(key) {
+    // GUARDIAN Phase 3: 1. Check RAM First (Fastest, bypasses disk IO errors entirely if already loaded this session)
+    if (memoryFallbackCache[key]) {
+        console.log("🛡️ Guardian: Serving schedule from RAM cache.");
+        return memoryFallbackCache[key];
+    }
+
     try {
         const db = await initDB();
         return new Promise((resolve, reject) => {
@@ -192,6 +216,7 @@ async function loadFromLocalCache(key) {
             const request = store.get(key);
             request.onsuccess = () => {
                 if (request.result) {
+                    memoryFallbackCache[key] = request.result; // Mirror to RAM for future fast access
                     resolve(request.result);
                 } else {
                     // GUARDIAN SILENT MIGRATION: If IDB is empty, check legacy localStorage, import it, and delete it.
@@ -199,6 +224,7 @@ async function loadFromLocalCache(key) {
                         const lsItem = localStorage.getItem(key);
                         if (lsItem) {
                             const parsed = JSON.parse(lsItem);
+                            memoryFallbackCache[key] = parsed; // Mirror to RAM
                             resolve(parsed);
                             saveToLocalCache(key, parsed.data); // Migrate seamlessly in background
                             localStorage.removeItem(key); // Free up quota limit
@@ -211,13 +237,25 @@ async function loadFromLocalCache(key) {
             request.onerror = () => reject(request.error);
         });
     } catch (e) {
-        console.warn("IndexedDB Load Failed, trying localStorage", e);
-        try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } catch (ex) { return null; }
+        console.warn("🛡️ Guardian: IndexedDB Load Failed (Disk IO Error). Checking LocalStorage...", e);
+        try { 
+            const item = localStorage.getItem(key); 
+            if (item) {
+                const parsed = JSON.parse(item);
+                memoryFallbackCache[key] = parsed; // Mirror to RAM
+                return parsed;
+            }
+            return null;
+        } catch (ex) { 
+            console.warn("🛡️ Guardian: LocalStorage Load Failed too. App must rely on network.");
+            return null; 
+        }
     }
 }
 
 // GUARDIAN: Global cleanup helper for Settings menu
 window.clearScheduleCache = async function() {
+    memoryFallbackCache = {}; // GUARDIAN Phase 3: Clear RAM Cache
     try {
         const db = await initDB();
         return new Promise((resolve) => {
@@ -638,22 +676,28 @@ function buildGlobalStationIndex() {
 
                            const stationName = normalizeStationName(row[stationKey]);
                            const coordVal = coordKey ? row[coordKey] : null;
+                           let coords = { lat: null, lon: null };
                            
-                           if (!globalStationIndex[stationName]) {
-                               try {
-                                   let coords = { lat: null, lon: null };
-                                   if (coordVal) {
-                                       const parts = String(coordVal).split(',').map(s => parseFloat(s.trim()));
-                                       if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                                            coords = { lat: parts[0], lon: parts[1] };
-                                       }
+                           try {
+                               if (coordVal) {
+                                   const parts = String(coordVal).split(',').map(s => parseFloat(s.trim()));
+                                   if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                        coords = { lat: parts[0], lon: parts[1] };
                                    }
-                                   globalStationIndex[stationName] = { 
-                                       lat: coords.lat, 
-                                       lon: coords.lon, 
-                                       routes: new Set()
-                                    };
-                               } catch (e) { }
+                               }
+                           } catch (e) { }
+
+                           if (!globalStationIndex[stationName]) {
+                               globalStationIndex[stationName] = { 
+                                   lat: coords.lat, 
+                                   lon: coords.lon, 
+                                   routes: new Set()
+                                };
+                           } else if (globalStationIndex[stationName].lat === null && coords.lat !== null) {
+                               // GUARDIAN Phase 5: Coordinate Resurrector
+                               // Overwrites null coordinates if a subsequent sheet contains valid GPS data.
+                               globalStationIndex[stationName].lat = coords.lat;
+                               globalStationIndex[stationName].lon = coords.lon;
                            }
                            if (globalStationIndex[stationName]) globalStationIndex[stationName].routes.add(route.id);
                       }
@@ -667,17 +711,23 @@ function buildGlobalStationIndex() {
                         if (!hasActiveService(row, stationKey, coordKey)) return;
 
                         const stationName = normalizeStationName(row[stationKey]);
-                        if (!globalStationIndex[stationName]) {
-                            let coords = { lat: null, lon: null };
+                        let coords = { lat: null, lon: null };
+                        
+                        try {
                             if (coordKey && row[coordKey]) {
-                                try {
-                                    const parts = String(row[coordKey]).split(',').map(s => parseFloat(s.trim()));
-                                    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                                        coords = { lat: parts[0], lon: parts[1] };
-                                    }
-                                } catch (e) { }
+                                const parts = String(row[coordKey]).split(',').map(s => parseFloat(s.trim()));
+                                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                    coords = { lat: parts[0], lon: parts[1] };
+                                }
                             }
+                        } catch (e) { }
+
+                        if (!globalStationIndex[stationName]) {
                             globalStationIndex[stationName] = { lat: coords.lat, lon: coords.lon, routes: new Set() };
+                        } else if (globalStationIndex[stationName].lat === null && coords.lat !== null) {
+                            // GUARDIAN Phase 5: Coordinate Resurrector
+                            globalStationIndex[stationName].lat = coords.lat;
+                            globalStationIndex[stationName].lon = coords.lon;
                         }
                         if (globalStationIndex[stationName]) globalStationIndex[stationName].routes.add(route.id);
                     }

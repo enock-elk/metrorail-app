@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V6.00.33 (Guardian Edition - UI/UX Polish)
+  Metrorail Next Train V6.03.27 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -102,14 +102,15 @@
                 dsn: "https://ae241b469e4c06ae7644f55c2a796782@o4511038845222912.ingest.us.sentry.io/4511039214518272", 
                 // GUARDIAN Phase 3: Bumped to 100% for testing (Catch every error). Revert to 0.1 for production!
                 sampleRate: 1.0, 
-                // Enable offline caching (saves to IndexedDB while in tunnels)
-                transport: Sentry.makeBrowserOfflineTransport(Sentry.makeFetchTransport),
                 // Filter out non-actionable browser noise
                 ignoreErrors: [
                     "ResizeObserver loop limit exceeded",
                     "Network request failed",
                     "Failed to fetch",
-                    "Load failed"
+                    "Load failed",
+                    "QuotaExceededError", // GUARDIAN: Drop physical disk full exceptions
+                    "UnknownError: Connection is closing because of: IO error", // GUARDIAN: Drop SQLite corruption events
+                    "Internal error opening backing store" // GUARDIAN: Drop IndexedDB IO startup failures
                 ]
             });
         };
@@ -1284,24 +1285,24 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=6.00.33"></script>
-    <script src="js/renderer.js?v=6.00.33"></script>
+    <script src="js/grid-order.js?v=6.03.27"></script>
+    <script src="js/renderer.js?v=6.03.27"></script>
     
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=6.00.33"></script>
+    <script src="js/admin.js?v=6.03.27"></script>
 
-    <script src="js/utils.js?v=6.00.33"></script>
-    <script src="js/config.js?v=6.00.33"></script>
-    <script src="js/logic.js?v=6.00.33"></script>
+    <script src="js/utils.js?v=6.03.27"></script>
+    <script src="js/config.js?v=6.03.27"></script>
+    <script src="js/logic.js?v=6.03.27"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=6.00.33"></script>
-    <script src="js/planner-ui.js?v=6.00.33"></script>
+    <script src="js/planner-core.js?v=6.03.27"></script>
+    <script src="js/planner-ui.js?v=6.03.27"></script>
     
-    <script src="js/map-viewer.js?v=6.00.33"></script> 
+    <script src="js/map-viewer.js?v=6.03.27"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=6.00.33"></script>
+    <script src="js/ui.js?v=6.03.27"></script>
 
     <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>
