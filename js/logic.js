@@ -467,7 +467,9 @@ async function loadAllSchedules(force = false) {
         let needsDownload = true;
         const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
 
-        if (usedCache && !force && !isForceUpdate && fullDatabase.lastUpdated) {
+        // GUARDIAN FIX: Removed `!isForceUpdate` constraint so logic.js always checks the edge cache
+        // to prevent unnecessary 15MB bandwidth re-downloads when the UI invokes a forced version bump.
+        if (usedCache && !force && fullDatabase.lastUpdated) {
             // GUARDIAN PHASE 5: The Infrastructure Pivot Smart Bypass
             if (typeof DATA_SOURCE_MODE !== 'undefined' && DATA_SOURCE_MODE === 'GITHUB') {
                 console.log("🛡️ Guardian Smart Sync: GITHUB CDN Mode Active. Relying on browser/edge cache policies.");

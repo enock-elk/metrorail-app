@@ -41,8 +41,9 @@
         }
     </script>
 
-    <!-- GUARDIAN: Local Tailwind for Offline Support -->
+    <!-- GUARDIAN: Local Tailwind & Config for Offline Support -->
     <script src="js/tailwind.js"></script>
+    <script src="js/config.js"></script>
 
     <!-- STANDARD LOADING: Leaflet CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -214,7 +215,16 @@
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
+            <p class="text-xs text-gray-500 mt-4 font-mono">Syncing Regional Data...</p>
         </div>
+    </div>
+
+    <!-- Empty Map Warning (GUARDIAN UX FIX) -->
+    <div id="empty-map-warning" class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[1000] bg-white p-6 rounded-xl shadow-2xl text-center border border-gray-200 max-w-[80%]">
+        <span class="text-4xl mb-3 block">🗺️</span>
+        <h3 class="font-black text-gray-900 text-lg leading-tight mb-2">Interactive Map in Progress</h3>
+        <p class="text-gray-500 text-sm font-medium mb-4">GPS coordinates for this region are currently being mapped. Please use the Static Map view in the meantime.</p>
+        <a href="index.html" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg shadow hover:bg-blue-700 transition">Go Back</a>
     </div>
 
     <!-- Collapsible Legend -->
@@ -225,7 +235,7 @@
                 <svg id="legend-icon" class="w-4 h-4 text-gray-400 toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
             </div>
             <div id="legend-content" class="legend-content mt-3">
-                <!-- Legend Items Injected Here -->
+                <!-- Legend Items Injected Here Dynamically -->
             </div>
         </div>
     </div>
@@ -233,11 +243,11 @@
     <div id="map"></div>
 
     <!-- STANDARD SCRIPT LOADING (Sequence Matters) -->
-    <!-- 2. Library (CDN) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <script>
-        // --- DATA EMBEDDED (Fallback for Missing File) ---
+        // 🛡️ GUARDIAN PHASE 3: RESTORED STATION COORDINATES DICTIONARY
+        // Serves as the primary anchor for mapping until database columns are populated.
         const STATION_COORDINATES = {
             "PRETORIA": [-25.75864361043285, 28.189866445989118],
             "MEARS STREET": [-25.759836388884576, 28.201559350093763],
@@ -344,8 +354,6 @@
             "MERAFE": [-26.26213048623854, 27.84657941488496],
             "NALEDI": [-26.257998333942396, 27.822761926970013],
             "BELLE-OMBRE": [-25.73740468957095, 28.178914335051033],
-            
-            // --- MIDWAY EXPANSION ---
             "CROESUS": [-26.201595050664512, 27.97172133796557],
             "MLAMLANKUNZI": [-26.22594835366509, 27.928217035582186],
             "ORLANDO": [-26.237577526260885, 27.91727947272508],
@@ -353,8 +361,6 @@
             "KLIPTOWN": [-26.272809958189928, 27.887633494308975],
             "TSHIAWELO": [-26.288947777153577, 27.87068768853021],
             "MIDWAY": [-26.292695060119772, 27.851230923913732],
-
-            // --- HERCULES-KOEDOESPOORT EXPANSION (V5.01) ---
             "CAPITAL PARK": [-25.71861021137544, 28.199638809110184],
             "GEZINA": [-25.72149393871516, 28.205461660683653],
             "DEERNESS": [-25.720427758066748, 28.215590710959766],
@@ -363,10 +369,10 @@
             "QUEENSWOOD": [-25.721853760563217, 28.25178790666072]
         };
 
-        // --- MAP LOGIC (Auto-Init) ---
-        window.addEventListener('load', () => {
+        // --- MAP LOGIC (Dynamic Region & DB Sync) ---
+        window.addEventListener('load', async () => {
             try {
-                initMap();
+                await initDynamicMap();
                 
                 // Remove placeholder on success
                 const placeholder = document.getElementById('map-placeholder');
@@ -382,88 +388,255 @@
                 const placeholder = document.getElementById('map-placeholder');
                 if(placeholder) {
                     placeholder.innerHTML = `
-                        <div class="text-center p-6 text-red-600">
-                            <p class="font-bold">Failed to load map.</p>
-                            <p class="text-xs mt-1">Check your connection.</p>
-                            <button onclick="window.location.reload()" class="mt-4 bg-white border border-red-200 px-4 py-2 rounded shadow-sm text-sm font-bold text-gray-700">Retry</button>
+                        <div class="text-center p-6 text-red-600 bg-red-50 rounded-xl shadow-lg border border-red-100 max-w-[80%] mx-auto mt-20">
+                            <span class="text-3xl mb-2 block">⚠️</span>
+                            <p class="font-black text-lg">Failed to load map data.</p>
+                            <p class="text-xs mt-2 font-medium">Please open the main app Trip Planner to sync the latest schedule data for your region.</p>
+                            <a href="index.html" class="mt-4 inline-block bg-white border border-red-200 px-4 py-2 rounded-lg shadow-sm text-sm font-bold text-gray-800 transition hover:bg-gray-50">Return to App</a>
                         </div>
                     `;
                 }
             }
         });
 
-        function initMap() {
-            // Safety Check
-            if (typeof L === 'undefined') throw new Error("Leaflet Missing");
-            if (typeof STATION_COORDINATES === 'undefined') throw new Error("Data Missing");
-
-            const stations = STATION_COORDINATES;
-
-            // Adjusted center to balance Pretoria and JHB/West Rand
-            const map = L.map('map', { zoomControl: false }).setView([-26.00, 28.10], 10); 
+        // 🛡️ GUARDIAN PHASE 2: Asynchronous Local DB Extractor
+        async function fetchLocalDB(region) {
+            const cacheKey = `full_db_${region}`;
             
-            // GUARDIAN: Locked Zoom to Bottom Left matching Native UI
+            // 1. Try IndexedDB (V6.00.12+ Standard)
+            try {
+                const db = await new Promise((resolve, reject) => {
+                    if (!window.indexedDB) reject();
+                    const req = indexedDB.open('NextTrainDB', 1);
+                    req.onerror = () => reject();
+                    req.onsuccess = (e) => resolve(e.target.result);
+                });
+                if (db && db.objectStoreNames.contains('SchedulesStore')) {
+                    const data = await new Promise((resolve) => {
+                        const tx = db.transaction('SchedulesStore', 'readonly');
+                        const store = tx.objectStore('SchedulesStore');
+                        const req = store.get(cacheKey);
+                        req.onsuccess = () => resolve(req.result);
+                        req.onerror = () => resolve(null);
+                    });
+                    if (data && data.data) return data.data;
+                }
+            } catch(e) { console.warn("IDB fetch failed, falling back to LocalStorage."); }
+            
+            // 2. Fallback to LocalStorage (Legacy Standard)
+            try {
+                const ls = localStorage.getItem(cacheKey);
+                if (ls) {
+                    const parsed = JSON.parse(ls);
+                    return parsed.data ? parsed.data : parsed;
+                }
+            } catch(e) { console.warn("LS fetch failed."); }
+            
+            return null;
+        }
+
+        // Unwraps the database payload securely
+        const unwrapDatabase = (db, region) => {
+            if (!db) return null;
+            let regionalData = {};
+            if (region === 'GP' && db.gauteng) regionalData = db.gauteng;
+            else if (region === 'WC' && db.westerncape) regionalData = db.westerncape;
+            else if (region === 'GP' && db.schedules && !db.gauteng) regionalData = db.schedules;
+            return { ...db, ...regionalData };
+        };
+
+        async function initDynamicMap() {
+            if (typeof L === 'undefined') throw new Error("Leaflet Missing");
+            if (typeof ROUTES === 'undefined') throw new Error("Config Missing");
+
+            const currentRegion = localStorage.getItem('userRegion') || 'GP';
+            
+            // Center map dynamically based on region
+            let initLat = -26.00, initLon = 28.10, initZoom = 10;
+            if (currentRegion === 'WC') {
+                initLat = -33.95; initLon = 18.50; initZoom = 11;
+            }
+
+            const map = L.map('map', { zoomControl: false }).setView([initLat, initLon], initZoom); 
+            
             L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-            // GUARDIAN: Modern Voyager Tiles
             L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
                 attribution: '&copy; OpenStreetMap &copy; CARTO',
                 subdomains: 'abcd',
                 maxZoom: 19
             }).addTo(map);
 
-            // --- ROUTES DEFINED BY STATION NAMES (Full Curves) ---
-            const routeDefinitions = {
-                pta_pien: ["PRETORIA", "MEARS STREET", "DEVENISH STREET", "WALKER STREET", "LOFTUS VERSFELD PARK", "RISSIK", "HARTBEESSPRUIT", "KOEDOESPOORT", "SILVERTON", "WALTLOO", "DENNEBOOM", "EERSTE FABRIEKE", "MAMELODI GARDENS", "GREENVIEW", "PIENAARSPOORT"],
-                pta_mab: ["PRETORIA", "PRETORIA-B", "PRETORIA WES", "HERCULES", "DASPOORT", "MOUNTAIN VIEW", "WONDERBOOM", "PRETORIA-N", "WOLMERTON", "WINTERSNEST", "AKASIABOOM", "KOPANONG", "SOSHANGUVE", "MABOPANE"],
-                mab_belle: ["MABOPANE", "SOSHANGUVE", "KOPANONG", "AKASIABOOM", "WINTERSNEST", "WOLMERTON", "PRETORIA-N", "WONDERBOOM", "MOUNTAIN VIEW", "DASPOORT", "HERCULES", "BELLE-OMBRE"],
-                pta_dewildt: ["WINTERSNEST", "ROSSLYN", "GA-RANKUWA", "TAILLARDSHOOP", "DE WILDT"],
-                herc_koed: ["HERCULES", "DASPOORT", "CAPITAL PARK", "GEZINA", "DEERNESS", "VILLIERIA", "PIERNEEFSRUS", "QUEENSWOOD", "KOEDOESPOORT"], 
-                pta_saul: ["PRETORIA", "PRETORIA WES", "MITCHELLSTRAAT", "SCHUTTESTRAAT", "KALAFONG", "ATTERIDGEVILLE", "SAULSVILLE"],
-                pta_kempton: ["PRETORIA", "FONTEINE", "KLOOFSIG", "SPORTPARK", "CENTURION", "IRENE", "PINEDENE", "OLIFANTSFONTEIN", "OAKMOOR", "KAALFONTEIN", "BIRCHLEIGH", "VAN RIEBEECKPARK", "KEMPTON PARK"],
-                germ_leralla: ["GERMISTON", "KNIGHTS", "RAVENSKLIP", "ELANDSFONTEIN", "ISANDO", "RHODESFIELD", "KEMPTON PARK", "VAN RIEBEECKPARK", "BIRCHLEIGH", "KAALFONTEIN", "TEMBISA", "LIMINDLELA", "LERALLA"],
-                germ_kwesine: ["GERMISTON", "ELSBURG", "KATLEHONG", "LINDELA", "PILOT", "KWESINE"],
-                jhb_germ: ["JOHANNESBURG", "DOORNFONTEIN", "ELLIS PARK", "JEPPE", "GEORGE GOCH", "DENVER", "TOORONGA", "CLEVELAND", "GELDENHUIS", "DRIEHOEK", "PRESIDENT", "GERMISTON"],
-                jhb_rand: ["JOHANNESBURG", "BRAAMFONTEIN", "MAYFAIR", "GROSVENOR", "LANGLAAGTE", "MARAISBURG", "UNIFIED", "FLORIDA", "HAMBERG", "GEORGINIA", "ROODEPOORT", "HORISON", "PRINCESS", "WITPOORTJIE", "LUIPAARDSVLEI", "KRUGERSDORP", "WESRAND", "MILLSITE", "ROBINSON", "HOMELAKE", "RANDFONTEIN"],
-                jhb_naledi: ["LANGLAAGTE", "LONGDALE", "NEW CANADA", "MZIMHLOPE", "PHOMOLONG", "PHEFENI", "DUBE", "IKWEZI", "INHLAZANE", "MERAFE", "NALEDI"],
-                jhb_midway: ["JOHANNESBURG", "BRAAMFONTEIN", "MAYFAIR", "GROSVENOR", "LANGLAAGTE", "CROESUS", "LONGDALE", "NEW CANADA", "MLAMLANKUNZI", "ORLANDO", "NANCEFIELD", "KLIPTOWN", "TSHIAWELO", "MIDWAY"]
+            // Fetch Database
+            const rawDb = await fetchLocalDB(currentRegion);
+            if (!rawDb) throw new Error("No Local Database Cached");
+            const mergedDb = unwrapDatabase(rawDb, currentRegion);
+
+            // --- DYNAMIC ROUTE & STATION EXTRACTOR ---
+            const colorMap = {
+                'text-green-500': '#22c55e',
+                'text-orange-500': '#f97316',
+                'text-purple-500': '#a855f7',
+                'text-indigo-500': '#6366f1',
+                'text-blue-500': '#3b82f6',
+                'text-yellow-500': '#eab308',
+                'text-red-500': '#ef4444'
             };
 
-            // --- DRAW LOGIC ---
-            function addRoute(stationNames, color, name, isActive = true) {
-                const latlngs = stationNames.map(n => stations[n]).filter(c => c !== undefined);
-                if (latlngs.length < 2) return;
+            const globalStations = {}; // { name: {lat, lon, origName, routes: Set()} }
+            const drawnRoutes = []; // { name, color, isActive, coords: [] }
+            const hubs = new Set();
+            const ends = new Set();
 
-                const opacity = isActive ? 0.9 : 0.4;
-                const weight = isActive ? 4 : 2;
-                const dashArray = isActive ? null : '5, 10';
-                const finalColor = isActive ? color : '#9ca3af';
+            Object.values(ROUTES).forEach(route => {
+                if (route.region !== currentRegion || route.id === 'special_event') return;
 
-                L.polyline(latlngs, {
-                    color: finalColor,
-                    weight: weight,
-                    opacity: opacity,
-                    dashArray: dashArray,
+                // Track Hubs and Terminals to size markers properly later
+                if (route.destA) ends.add(route.destA.replace(' STATION', '').trim().toUpperCase());
+                if (route.destB) ends.add(route.destB.replace(' STATION', '').trim().toUpperCase());
+                if (route.transferStation) hubs.add(route.transferStation.replace(' STATION', '').trim().toUpperCase());
+                if (route.relayStation) hubs.add(route.relayStation.replace(' STATION', '').trim().toUpperCase());
+
+                // Attempt to grab coordinate sequence from weekday_to_a, fallback to weekday_to_b
+                let sheetKey = route.sheetKeys.weekday_to_a;
+                let sheetData = mergedDb[sheetKey];
+                
+                if (!sheetData) {
+                    sheetKey = route.sheetKeys.weekday_to_b;
+                    sheetData = mergedDb[sheetKey];
+                }
+
+                if (!sheetData || !Array.isArray(sheetData)) return;
+
+                // Dynamically find Header Row
+                let headerIndex = -1;
+                for (let i = 0; i < Math.min(sheetData.length, 5); i++) {
+                    if (Object.values(sheetData[i]).some(val => val && String(val).toUpperCase().includes('STATION'))) {
+                        headerIndex = i;
+                        break;
+                    }
+                }
+
+                if (headerIndex === -1) return;
+
+                // Identify Keys
+                let stationKey = null, coordKey = null;
+                Object.keys(sheetData[headerIndex]).forEach(k => {
+                    const v = String(sheetData[headerIndex][k]).toUpperCase();
+                    if (v.includes('STATION')) stationKey = k;
+                    if (v.includes('COORDINATES')) coordKey = k;
+                });
+                if (!stationKey) stationKey = 'STATION';
+                if (!coordKey) coordKey = 'COORDINATES';
+
+                let routeCoords = [];
+
+                for(let i = headerIndex + 1; i < sheetData.length; i++) {
+                    const row = sheetData[i];
+                    if (!row[stationKey]) continue;
+                    
+                    const sNameOrig = String(row[stationKey]).trim();
+                    if (sNameOrig.toLowerCase().includes('last updated') || sNameOrig.toLowerCase().includes('inter-station')) continue;
+
+                    const sName = sNameOrig.replace(' STATION', '').toUpperCase();
+
+                    let lat = null, lon = null;
+                    const cVal = row[coordKey];
+                    if (cVal) {
+                        const parts = String(cVal).split(',').map(s => parseFloat(s.trim()));
+                        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) { 
+                            lat = parts[0]; lon = parts[1]; 
+                        }
+                    }
+
+                    // 🛡️ GUARDIAN FIX: Rescue missing coordinates using hardcoded dictionary
+                    if (lat === null && STATION_COORDINATES[sName]) {
+                        lat = STATION_COORDINATES[sName][0];
+                        lon = STATION_COORDINATES[sName][1];
+                    }
+
+                    // Rescue missing coordinates from previously mapped sheets
+                    if (lat === null && globalStations[sName]) {
+                        lat = globalStations[sName].lat;
+                        lon = globalStations[sName].lon;
+                    }
+
+                    if (lat !== null && lon !== null) {
+                        routeCoords.push([lat, lon]);
+                        if (!globalStations[sName]) {
+                            globalStations[sName] = { lat, lon, origName: sNameOrig, routes: new Set() };
+                        }
+                        globalStations[sName].routes.add(route.id);
+                    }
+                }
+
+                if (routeCoords.length > 1) {
+                     drawnRoutes.push({
+                         name: route.name.replace('<->', '↔'),
+                         color: colorMap[route.colorClass] || '#9ca3af',
+                         isActive: route.isActive,
+                         coords: routeCoords
+                     });
+                }
+            });
+
+            // 🛡️ GUARDIAN UX FIX: Empty Map Warning for Western Cape
+            if (drawnRoutes.length === 0) {
+                const warningBox = document.getElementById('empty-map-warning');
+                if (warningBox) warningBox.classList.remove('hidden');
+                return; // Stop drawing Leaflet elements
+            }
+
+            // --- DRAW ROUTES ---
+            drawnRoutes.forEach(r => {
+                L.polyline(r.coords, {
+                    color: r.isActive ? r.color : '#9ca3af',
+                    weight: r.isActive ? 4 : 2,
+                    opacity: r.isActive ? 0.9 : 0.4,
+                    dashArray: r.isActive ? null : '5, 10',
                     lineCap: 'round',
                     lineJoin: 'round',
                     smoothFactor: 1
-                }).addTo(map).bindPopup(`<b class="uppercase text-sm">${name}</b><br>${isActive ? '<span class="text-green-600 font-bold text-xs">Active Service</span>' : '<span class="text-red-500 font-bold text-xs">Suspended</span>'}`);
-            }
+                }).addTo(map).bindPopup(`<b class="uppercase text-sm">${r.name}</b><br>${r.isActive ? '<span class="text-green-600 font-bold text-xs">Active Service</span>' : '<span class="text-red-500 font-bold text-xs">Suspended</span>'}`);
+            });
 
-            // Draw Routes
-            addRoute(routeDefinitions.pta_pien, '#22c55e', 'Pretoria - Pienaarspoort');
-            addRoute(routeDefinitions.pta_mab, '#f97316', 'Pretoria - Mabopane');
-            addRoute(routeDefinitions.mab_belle, '#f97316', 'Mabopane - Belle Ombre');
-            addRoute(routeDefinitions.pta_dewildt, '#a855f7', 'Pretoria - De Wildt');
-            addRoute(routeDefinitions.herc_koed, '#6366f1', 'Hercules - Koedoespoort');
-            addRoute(routeDefinitions.pta_saul, '#22c55e', 'Pretoria - Saulsville');
-            addRoute(routeDefinitions.pta_kempton, '#3b82f6', 'Pretoria - Kempton Park');
-            addRoute(routeDefinitions.germ_leralla, '#3b82f6', 'Germiston - Leralla');
-            addRoute(routeDefinitions.germ_kwesine, '#eab308', 'Germiston - Kwesine');
-            addRoute(routeDefinitions.jhb_germ, '#ef4444', 'JHB - Germiston');
-            addRoute(routeDefinitions.jhb_rand, '#eab308', 'JHB - Randfontein');
-            addRoute(routeDefinitions.jhb_naledi, '#eab308', 'JHB - Naledi');
-            addRoute(routeDefinitions.jhb_midway, '#eab308', 'JHB - Midway');
+            // --- DRAW MARKERS ---
+            Object.entries(globalStations).forEach(([name, data]) => {
+                const isHub = hubs.has(name) || data.routes.size > 1;
+                const isEnd = ends.has(name);
+                const isMajor = isHub || isEnd;
+
+                L.circleMarker([data.lat, data.lon], {
+                    radius: isMajor ? 5 : 2.5,
+                    fillColor: "#ffffff",
+                    color: isMajor ? "#1f2937" : "#3b82f6",
+                    weight: isMajor ? 2 : 1,
+                    opacity: 1,
+                    fillOpacity: 1
+                }).addTo(map)
+                  .bindPopup(`<b class="text-sm">${data.origName.replace(' STATION', '')}</b>`) 
+                  .bindTooltip(data.origName.replace(' STATION', ''), { 
+                      permanent: true, 
+                      direction: 'top',
+                      offset: [0, -5],
+                      className: isMajor ? 'font-bold text-[11px] text-gray-800 bg-white/90 border border-gray-300 px-1 rounded shadow-sm z-50 tooltip-dynamic backdrop-blur-sm' : 'text-[9px] text-gray-600 bg-white/80 px-1 border border-gray-200 rounded shadow-sm tooltip-dynamic backdrop-blur-sm'
+                  });
+            });
+
+            // --- BUILD LEGEND ---
+            const legendContent = document.getElementById('legend-content');
+            if (legendContent) {
+                legendContent.innerHTML = ''; 
+                drawnRoutes.forEach(item => {
+                    legendContent.innerHTML += `
+                        <div class="legend-item">
+                            <span class="color-dot" style="background-color: ${item.color}"></span>
+                            <span class="text-gray-700">${item.name}</span>
+                            <span class="status-badge ${item.isActive ? 'bg-green-500' : 'bg-red-500'}">${item.isActive ? 'LIVE' : 'DOWN'}</span>
+                        </div>
+                    `;
+                });
+            }
 
             // --- CUSTOM CONTROLS (GUARDIAN) ---
             const LocateControl = L.Control.extend({
@@ -482,83 +655,17 @@
             });
             map.addControl(new LocateControl());
 
-            // --- MARKERS FOR ALL STATIONS ---
-            const hubs = new Set(["PRETORIA", "JOHANNESBURG", "GERMISTON", "KEMPTON PARK", "HERCULES", "KOEDOESPOORT", "PRETORIA-N", "LANGLAAGTE", "NEW CANADA", "BELLE-OMBRE"]);
-            const ends = new Set(["PIENAARSPOORT", "MABOPANE", "DE WILDT", "SAULSVILLE", "LERALLA", "KWESINE", "RANDFONTEIN", "NALEDI", "MIDWAY"]);
-
-            Object.entries(stations).forEach(([name, coord]) => {
-                const isHub = hubs.has(name);
-                const isEnd = ends.has(name);
-                const isMajor = isHub || isEnd;
-
-                // GUARDIAN: Intermediate stations drawn as tiny track joints, hubs are larger
-                const marker = L.circleMarker(coord, {
-                    radius: isMajor ? 5 : 2.5,
-                    fillColor: "#ffffff",
-                    color: isMajor ? "#1f2937" : "#3b82f6",
-                    weight: isMajor ? 2 : 1,
-                    opacity: 1,
-                    fillOpacity: 1
-                }).addTo(map)
-                  .bindPopup(`<b class="text-sm">${name}</b>`) // Click
-                  .bindTooltip(name, { 
-                      permanent: true, // Always show, but visibility controlled by CSS
-                      direction: 'top',
-                      offset: [0, -5],
-                      className: isMajor ? 'font-bold text-[11px] text-gray-800 bg-white/90 border border-gray-300 px-1 rounded shadow-sm z-50 tooltip-dynamic backdrop-blur-sm' : 'text-[9px] text-gray-600 bg-white/80 px-1 border border-gray-200 rounded shadow-sm tooltip-dynamic backdrop-blur-sm'
-                  });
-            });
-
-            // --- LEGEND LOGIC ---
-            const legendItems = [
-                { color: '#22c55e', text: 'Pretoria - Pienaarspoort', bg: 'bg-green-500' },
-                { color: '#f97316', text: 'Pretoria - Mabopane', bg: 'bg-green-500' },
-                { color: '#f97316', text: 'Mabopane - Belle Ombre', bg: 'bg-green-500' },
-                { color: '#a855f7', text: 'Pretoria - De Wildt', bg: 'bg-green-500' },
-                { color: '#6366f1', text: 'Hercules - Koedoespoort', bg: 'bg-green-500' },
-                { color: '#22c55e', text: 'Pretoria - Saulsville', bg: 'bg-green-500' },
-                { color: '#3b82f6', text: 'Pretoria - Kempton', bg: 'bg-green-500' },
-                { color: '#3b82f6', text: 'Germiston - Leralla', bg: 'bg-green-500' },
-                { color: '#ef4444', text: 'JHB - Germiston', bg: 'bg-green-500' },
-                { color: '#eab308', text: 'Germiston - Kwesine', bg: 'bg-green-500' },
-                { color: '#eab308', text: 'JHB - Randfontein', bg: 'bg-green-500' },
-                { color: '#eab308', text: 'JHB - Naledi (Soweto)', bg: 'bg-green-500' },
-                { color: '#eab308', text: 'JHB - Midway', bg: 'bg-green-500' }
-            ];
-
-            const legendContent = document.getElementById('legend-content');
-            if (legendContent) {
-                legendContent.innerHTML = ''; 
-                legendItems.forEach(item => {
-                    legendContent.innerHTML += `
-                        <div class="legend-item">
-                            <span class="color-dot" style="background-color: ${item.color}"></span>
-                            <span class="text-gray-700">${item.text}</span>
-                            <span class="status-badge ${item.bg}">LIVE</span>
-                        </div>
-                    `;
-                });
-            }
-
             // --- DYNAMIC TEXT RESIZING & VISIBILITY ---
             function updateTooltipSize() {
                 const zoom = map.getZoom();
                 const tooltips = document.querySelectorAll('.tooltip-dynamic');
-                
-                // Base size logic
                 let display = 'block';
-
-                if (zoom < 11) {
-                    display = 'none'; // Hide text when zoomed out too far
-                } 
-
-                tooltips.forEach(t => {
-                    t.style.display = display;
-                });
+                if (zoom < 11) display = 'none'; 
+                tooltips.forEach(t => { t.style.display = display; });
             }
 
             map.on('zoomend', updateTooltipSize);
-            updateTooltipSize(); // Initial call
+            updateTooltipSize(); 
             
             // --- GUARDIAN PHASE C: LEAFLET GEOLOCATION (Pulsing Dot) ---
             let userMarker = null;
@@ -576,10 +683,7 @@
                     userMarker = L.marker(e.latlng, {icon: pulsingIcon}).addTo(map)
                         .bindPopup("<div class='text-xs font-bold text-center text-gray-900'>You are here<br><span class='text-[10px] text-gray-500 font-normal'>Within " + Math.round(radius) + " meters</span></div>");
                     userRadius = L.circle(e.latlng, radius, {
-                        color: '#3b82f6',
-                        fillColor: '#3b82f6',
-                        fillOpacity: 0.15,
-                        weight: 1
+                        color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.15, weight: 1
                     }).addTo(map);
                 } else {
                     userMarker.setLatLng(e.latlng);
@@ -587,7 +691,6 @@
                     userRadius.setRadius(radius);
                 }
                 
-                // Automatically stop spin animation on button
                 const btnIcons = document.querySelectorAll('.animate-spin');
                 btnIcons.forEach(i => i.classList.remove('animate-spin'));
             });
@@ -595,16 +698,12 @@
             map.on('locationerror', function(e) {
                 const btnIcons = document.querySelectorAll('.animate-spin');
                 btnIcons.forEach(i => i.classList.remove('animate-spin'));
-                if (e.code !== 1) { // Ignore permission denied spam
-                    console.warn("Location error:", e.message);
-                }
+                if (e.code !== 1) console.warn("Location error:", e.message);
             });
 
-            // Start passive tracking in background
             map.locate({setView: false, watch: true, enableHighAccuracy: true});
         }
 
-        // Toggle Function
         function toggleLegend() {
             const content = document.getElementById('legend-content');
             const icon = document.getElementById('legend-icon');
@@ -612,7 +711,6 @@
             if(icon) icon.classList.toggle('rotated');
         }
 
-        // Auto-collapse on small screens
         if (window.innerWidth < 640) {
             toggleLegend();
         }

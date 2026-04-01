@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.03.27 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.01 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -101,6 +101,15 @@ window.extractTripCoordinates = function(tripIndex) {
         stationNames: stationNames, // Legacy array (will be phased out)
         validStops: validStops    // GUARDIAN: Clean stops for precise markers
     };
+
+    // GUARDIAN PHASE C: Telemetry Integration
+    if (typeof trackAnalyticsEvent === 'function') {
+        trackAnalyticsEvent('open_live_map', {
+            origin: trip.from.replace(' STATION', ''),
+            destination: trip.to.replace(' STATION', ''),
+            trip_type: trip.type
+        });
+    }
 
     if (typeof window.openTripMapRenderer === 'function') {
         window.openTripMapRenderer(routeData);

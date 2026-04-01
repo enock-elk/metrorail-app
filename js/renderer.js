@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.00.30 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.01 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -758,11 +758,18 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         }
     }
 
-    trackAnalyticsEvent('view_full_grid', { 
-        route: route.name, 
-        direction: direction,
-        day: selectedDay 
-    });
+    // --- PATCH STARTS HERE ---
+    const existingModal = document.getElementById('full-schedule-modal');
+    const isFirstOpen = !existingModal || existingModal.classList.contains('hidden');
+
+    if (isFirstOpen) {
+        trackAnalyticsEvent('view_full_grid', { 
+            route: route.name, 
+            direction: direction,
+            day: selectedDay 
+        });
+    }
+    // --- PATCH ENDS HERE ---
 
     const destName = (direction === 'A' ? route.destA : route.destB).replace(' STATION', '');
     const oppositeDestName = (direction === 'A' ? route.destB : route.destA).replace(' STATION', ''); // GUARDIAN ADDITION

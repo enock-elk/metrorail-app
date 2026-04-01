@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V6.03.27 (Guardian Edition - UI/UX Polish)
+  Metrorail Next Train V6.04.01 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -64,7 +64,8 @@
     <link rel="manifest" href="manifest.json">
     
     <!-- CRITICAL: Google Analytics 4 (Measurement ID: G-JM5DH6ERVX) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script>
+    <!-- GUARDIAN: crossorigin injected to unmask WebView errors -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX" crossorigin="anonymous"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
@@ -85,7 +86,10 @@
         if (localStorage.getItem('analytics_ignore') !== 'true') {
             (function(c,l,a,r,i,t,y){
                 c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+                t=l.createElement(r);
+                t.async=1;
+                t.src="https://www.clarity.ms/tag/"+i;
+                t.crossOrigin="anonymous"; // GUARDIAN: Unmasks "Script error." in Facebook WebView
                 y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
             })(window, document, "clarity", "script", "v1aj19921i");
         } else {
@@ -883,9 +887,10 @@
                             <p class="font-bold text-blue-800 dark:text-blue-300 mb-1">Sorting Priority</p>
                             <p class="text-blue-700 dark:text-blue-200 opacity-90">Results are prioritized by <strong>departure time</strong>. We encourage you to review the later options on the list—a direct train departing slightly later is often faster than taking an immediate multi-transfer route.</p>
                         </div>
+                        <!-- GUARDIAN PHASE 1: Help Modal Truth Update -->
                         <div class="p-3 bg-gray-50 dark:bg-gray-800/80 border-l-4 border-gray-400 dark:border-gray-600 rounded-r-lg text-xs leading-relaxed">
                             <p class="font-bold text-gray-700 dark:text-gray-300 mb-1">Smart Connections</p>
-                            <p class="text-gray-600 dark:text-gray-400">To ensure you have enough time to safely switch platforms, the engine automatically ignores connecting trains that depart within a minute of your arrival.</p>
+                            <p class="text-gray-600 dark:text-gray-400">The engine is optimized for Metrorail's physical infrastructure. It includes 0-minute platform relays, as trains are often held at hubs (like Koedoespoort or Germiston) for immediate cross-platform connections.</p>
                         </div>
                     </div>
                 </div>
@@ -984,10 +989,10 @@
                 Unofficial & Independent
             </div>
 
-            <!-- Origin Story -->
-            <div class="text-left space-y-4 text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-8">
+            <!-- GUARDIAN PHASE 1: Origin Story Centered Alignment -->
+            <div class="text-center space-y-4 text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-8">
                 <p>
-                    <span class="text-2xl float-left mr-2">🙋🏾‍♂️</span> 
+                    <span class="text-2xl block mb-2">🙋🏾‍♂️</span> 
                     The idea for <strong>Next Train</strong> first sparked in 2023, but it was on November 15, 2025, that I finally began building the WebApp with a simple mission: to replace blurry notice photos and crowded station boards with clear, digital accuracy.
                 </p>
                 <p>
@@ -1285,24 +1290,24 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=6.03.27"></script>
-    <script src="js/renderer.js?v=6.03.27"></script>
+    <script src="js/grid-order.js?v=6.04.01"></script>
+    <script src="js/renderer.js?v=6.04.01"></script>
     
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=6.03.27"></script>
+    <script src="js/admin.js?v=6.04.01"></script>
 
-    <script src="js/utils.js?v=6.03.27"></script>
-    <script src="js/config.js?v=6.03.27"></script>
-    <script src="js/logic.js?v=6.03.27"></script>
+    <script src="js/utils.js?v=6.04.01"></script>
+    <script src="js/config.js?v=6.04.01"></script>
+    <script src="js/logic.js?v=6.04.01"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=6.03.27"></script>
-    <script src="js/planner-ui.js?v=6.03.27"></script>
+    <script src="js/planner-core.js?v=6.04.01"></script>
+    <script src="js/planner-ui.js?v=6.04.01"></script>
     
-    <script src="js/map-viewer.js?v=6.03.27"></script> 
+    <script src="js/map-viewer.js?v=6.04.01"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=6.03.27"></script>
+    <script src="js/ui.js?v=6.04.01"></script>
 
     <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>

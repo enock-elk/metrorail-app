@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.03.27 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.01 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -1033,8 +1033,10 @@ async function checkMaintenanceStatus() {
         const res = await fetch(`${dynamicEndpoint}config/maintenance.json?t=${Date.now()}`);
         const isActive = await res.json();
         
+        const existingBanner = document.getElementById('maintenance-banner');
+
         if (isActive === true) {
-            if (!document.getElementById('maintenance-banner')) {
+            if (!existingBanner) {
                 const mainCard = document.getElementById('main-content');
                 if (mainCard) {
                     const banner = document.createElement('div');
@@ -1044,6 +1046,11 @@ async function checkMaintenanceStatus() {
                     banner.innerHTML = `⚠️ MAINTENANCE IN PROGRESS`;
                     mainCard.prepend(banner);
                 }
+            }
+        } else {
+            // GUARDIAN FIX: Actively remove the banner if maintenance is over
+            if (existingBanner) {
+                existingBanner.remove();
             }
         }
     } catch(e) { /* silent fail */ }
@@ -2128,7 +2135,10 @@ window.openTripMapRenderer = async function(routeData) {
                     <div class="flex items-center space-x-3 min-w-0 pr-2">
                         <span class="text-2xl shrink-0">🗺️</span>
                         <div class="flex flex-col min-w-0">
-                            <h3 class="text-base font-black text-gray-900 dark:text-white truncate uppercase tracking-tight" id="trip-map-title">Route Map</h3>
+                            <div class="flex items-center">
+                                <h3 class="text-base font-black text-gray-900 dark:text-white truncate uppercase tracking-tight" id="trip-map-title">Route Map</h3>
+                                <span class="ml-2 text-[8px] font-bold text-yellow-800 bg-yellow-100 dark:text-yellow-300 dark:bg-yellow-900/50 px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 border border-yellow-200 dark:border-yellow-800">🧪 In Development</span>
+                            </div>
                             <p class="text-xs text-blue-600 dark:text-blue-400 font-bold truncate" id="trip-map-subtitle">Loading...</p>
                         </div>
                     </div>
