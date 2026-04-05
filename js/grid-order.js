@@ -2,8 +2,8 @@
  * METRORAIL NEXT TRAIN - GRID ORDER CONFIG
  * ---------------------------------------------------
  * This file defines the explicit column order for the Full Schedule Grid.
- * Generated from: NextTrain GP-Schedules - 07 Mar.xlsx, NextTrain WC-Schedules - 07 Mar.xlsx
- * Date: 2026-03-07
+ * Generated from: NextTrain GP-Schedules - 05 Apr.xlsx, NextTrain WC-Schedules - 07 Mar.xlsx
+ * Date: 2026-04-05
  */
 
 const MANUAL_GRID_ORDER = {
@@ -560,12 +560,14 @@ const MANUAL_GRID_ORDER = {
         "9302",
         "9304",
         "9312",
+        "2208",
         "9314",
         "9316"
     ],
     "nald_to_jhb_sat": [
         "9301",
         "9303",
+        "2205",
         "9305",
         "9313",
         "9315"
@@ -608,10 +610,8 @@ const MANUAL_GRID_ORDER = {
     "jhb_to_rand_sat": [
         "0200",
         "0202",
-        "0206",
-        "0208",
         "0216",
-        "0218",
+        "2260",
         "0220",
         "0224"
     ],
@@ -619,9 +619,7 @@ const MANUAL_GRID_ORDER = {
         "0203",
         "0205",
         "0207",
-        "0209",
-        "0217",
-        "0219",
+        "2255",
         "0221",
         "0223"
     ],
