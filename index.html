@@ -11,6 +11,7 @@
   - PHASE 9 (Step 3): Dev Hub Accordion Restructure. Live Telemetry injected. Sign-out relocated. Pristine Layout Fix.
   - PHASE 10: Smooth Two-Step Modal Animation Engine Injected.
   - GUARDIAN PHASE 7: Sidenav Spacing normalized, iOS Region Toggle added, Fare box restructured.
+  - GUARDIAN V7: Planner UI copy updated. Offline pill repositioned for cross-viewport centering.
 -->
 <html lang="en" class="dark">
 
@@ -222,7 +223,7 @@
         .toggle-checkbox:checked + .toggle-label { background-color: #3b82f6; }
         .toggle-checkbox { right: 20px; transition: all 0.3s; }
 
-        /* GUARDIAN UI PROPORTIONS FIX: Shifts 50/50 card split to 38/62 to prevent Pienaarspoort truncation */
+        /* GUARDIAN UI PROPORTIONS FIX: Shifts 50/50 card split to 38/62 to prevent Pienaarspoort text truncation */
         #pretoria-time .w-1\/2, #pienaarspoort-time .w-1\/2 {
             width: auto !important;
         }
@@ -403,11 +404,14 @@
     <!-- MAIN APP CONTAINER -->
     <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden relative min-h-[600px] flex flex-col border border-gray-200 dark:border-gray-700" style="display: none;">
         
-        <div id="offline-indicator">OFFLINE MODE - USING SAVED SCHEDULE</div>
-        
         <!-- THE CLEAN HEADER -->
         <div class="pt-2 px-3 pb-1 bg-white dark:bg-gray-800 z-20 shadow-sm relative flex flex-col justify-center min-h-[85px]">
             
+            <!-- GUARDIAN PHASE 11: Sleek Offline Pill (Relocated & High Contrast) -->
+            <div id="offline-indicator" style="display: none;" class="absolute top-2 left-0 right-0 mx-auto w-max max-w-[50vw] z-[60] bg-amber-400 text-gray-900 dark:bg-amber-500 dark:text-gray-900 text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-md border border-amber-500 dark:border-amber-600 flex items-center justify-center tracking-widest whitespace-nowrap">
+                <span class="mr-1.5 animate-pulse text-sm leading-none"></span> WORKING OFFLINE
+            </div>
+
             <!-- Absolute Hamburger Menu -->
             <button id="open-nav-btn" class="absolute top-2 left-4 p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors z-30" aria-label="Open App Hub">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -549,7 +553,7 @@
                 <button id="planner-info-btn" class="w-full grid grid-cols-[3rem_1fr_3rem] items-center bg-white dark:bg-gray-800 h-[46px] rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-1 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors overflow-hidden group focus:outline-none">
                     <div class="w-full h-full"></div> <!-- Spacer to match pin width mathematically -->
                     <h2 class="text-sm sm:text-base font-medium text-gray-700 dark:text-gray-200 group-hover:opacity-80 transition-colors truncate w-full px-1 text-center">
-                        Direct, Transfer & Bridge Trips
+                        Advanced Multi-Transfer Routing
                     </h2>
                     <div class="w-full h-full flex items-center justify-center">
                         <svg class="w-5 h-5 text-blue-500 group-hover:translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -865,7 +869,7 @@
                     <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
                     User Guide & Tips
                 </h3>
-                <button id="close-help-btn" class="p-2 rounded-full hover:bg-gray-200 dark:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition focus:outline-none" aria-label="Close Help">
+                <button id="close-help-btn" class="p-2 rounded-full hover:bg-gray-200 dark:bg-gray-700 text-gray-50 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition focus:outline-none" aria-label="Close Help">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
@@ -877,10 +881,10 @@
                         <span class="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded-full w-7 h-7 flex items-center justify-center text-sm mr-2 shadow-sm">🧭</span>
                         Trip Planner
                     </h4>
-                    <p class="pl-9 mb-2 text-gray-600 dark:text-gray-300 leading-relaxed">Our routing engine maps out available connections between your origin and destination. It supports multi-leg journeys of up to 3 trains or 2 transfers: <br> (e.g., from A &rarr; B, B &rarr; C, C &rarr; D).</p>
+                    <p class="pl-9 mb-2 text-gray-600 dark:text-gray-300 leading-relaxed">Our new Dijkstra routing engine maps out unlimited available connections between your origin and destination, calculating the absolute fastest paths across the entire Metrorail network.</p>
                     <ul class="pl-9 list-disc space-y-1 text-gray-600 dark:text-gray-400 marker:text-blue-400">
                         <li><strong>Direct Trips:</strong> Uninterrupted service to your destination.</li>
-                        <li><strong>Transfers:</strong> Complex routes bridging up to three different lines.</li>
+                        <li><strong>Multi-Transfers:</strong> Dynamic routing bridging multiple lines automatically.</li>
                     </ul>
                     <div class="mt-4 pl-9 space-y-3">
                         <div class="p-3 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 rounded-r-lg text-xs leading-relaxed">
@@ -1077,7 +1081,10 @@
             <!-- SECTION 1: LIVE TELEMETRY (Expanded Default) -->
             <div id="telemetry-panel" class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300">
                 <button id="telemetry-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none mb-4">
-                    <span class="flex items-center"><span class="mr-2">📊</span> Live Telemetry</span>
+                    <span class="flex items-center">
+                        <span class="mr-2">📊</span> Live Telemetry
+                        <span id="telemetry-last-sync" class="hidden ml-2 text-[9px] font-mono text-gray-400 dark:text-gray-500 lowercase opacity-60 tracking-normal">synced: --:--:--</span>
+                    </span>
                     <svg id="telemetry-chevron" class="w-4 h-4 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
                 
@@ -1204,7 +1211,7 @@
                 const firebaseConfig = {
                     apiKey: "AIzaSyAU303BRMrH3A5n5zbJH4MVwWdkfznqxMY",
                     authDomain: "metrorail-next-train.firebaseapp.com",
-                    databaseURL: "https://metrorail-next-train-default-rtdb.firebaseio.com",
+                    databaseURL: "https://metrorail-next-train-default-rtdb.firebaseio.com/",
                     projectId: "metrorail-next-train",
                     storageBucket: "metrorail-next-train.firebasestorage.app",
                     messagingSenderId: "449872137774",

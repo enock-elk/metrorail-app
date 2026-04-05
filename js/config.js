@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.04.01 - 01 APR"; // BUMPED: To force cache clear on clients
+const APP_VERSION = "V6.04.05 - 05 APR"; // BUMPED: To force cache clear on clients
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -392,6 +392,15 @@ const DEFAULT_EXCLUSIONS = {
 // 7. CHANGELOG 
 // This drives the "What's New" modal.
 const CHANGELOG_DATA = [
+    {
+        version: "Version 6.2 — Advanced Routing & Stability",
+        date: "",
+        features: [
+            "<b>Smart Routing:</b> The Trip Planner now maps the absolute fastest connections across the network with boundless multi-transfer capabilities.",
+            "<b>Optimized Connections:</b> Eliminated unnecessary early-departure transfers if a more convenient direct train arrives at the same time.",
+            "<b>Seamless Navigation:</b> Resolved visual glitches on the Live Route Map and improved the accuracy of next-day schedule rollovers."
+        ]
+    },
     {
         version: "Version 6.1 — The Commuter Update",
         date: "",

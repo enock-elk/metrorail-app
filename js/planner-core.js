@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V6.03.27 - Guardian Unified Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7.00.03 - Guardian Hybrid Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -9,12 +9,26 @@
  * * STRIKE 1: Macro Corridor Engine extracted from CPU short-circuit block.
  * * STRIKE 3: Un-boomeranged Composite Relays & Curved Leaflet Map Vectors.
  * * PHASE 1 (GUARDIAN): Path-Diversity Signature Engine injected. Trips on different physical paths no longer delete each other.
+ * * V7.00.02 (GUARDIAN HYBRID): True Time-Dependent Dijkstra Engine Injected with Train-Bound State Tracking, Penalty Buffers, and Hub-Banning Template Diversity.
+ * * PHASE 2 (GUARDIAN BUGFIX): Easter Holiday Midnight Rollover patched via Calendar Sync. Dominance Filter upgraded to purge useless early-transfers.
  */
 
 // GUARDIAN V6.2: Midnight Rollover State Tracker
 let _rolloverDayIdx = null;
 
 function getNextTransitDay(baseDayType, dayIdx) {
+    // GUARDIAN PHASE 2: Smart Calendar Sync
+    // Look ahead using the physical calendar to bypass public holidays seamlessly.
+    let daysAhead = 1;
+    if (dayIdx === 6) daysAhead = 2; // Saturday -> skip Sunday -> Monday
+    // Note: Sunday (0) natively steps 1 day ahead to Monday.
+
+    if (typeof window.getLookaheadDayInfo === 'function') {
+        const info = window.getLookaheadDayInfo(daysAhead);
+        return { type: info.type, name: info.name, idx: info.idx };
+    }
+    
+    // Legacy Fallback (If logic.js somehow failed to load)
     if (baseDayType === 'weekday') {
         // If today is Friday (5), tomorrow is Saturday (6). Otherwise, it's just the next weekday.
         if (dayIdx === 5) return { type: 'saturday', name: 'Saturday', idx: 6 };
@@ -28,7 +42,7 @@ function getNextTransitDay(baseDayType, dayIdx) {
     return { type: 'weekday', name: 'Tomorrow', idx: 1 };
 }
 
-// --- 1. CORE ALGORITHMS ---
+// --- 1. LEGACY CORE ALGORITHMS (Preserved for Safety & Exhaustive Fallbacks) ---
 
 function planDirectTrip(origin, dest, dayType, isRollover = false) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
@@ -182,9 +196,13 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false) {
             const depDiff = timeToSeconds(a.depTime) - timeToSeconds(b.depTime);
             return depDiff !== 0 ? depDiff : a.totalDuration - b.totalDuration;
         });
-        const seenDepTimes = new Set();
+        // BUG FIX: The old key was depTime alone, which silently discarded valid options
+        // that share a departure time but use a completely different hub or arrive much later.
+        // The key must be (depTime + transferStation) so each physical path is preserved.
+        const seenKeys = new Set();
         allTransferOptions.forEach(opt => {
-            if(!seenDepTimes.has(opt.depTime)) { seenDepTimes.add(opt.depTime); unique.push(opt); }
+            const key = `${opt.depTime}|${normalizeStationName(opt.transferStation)}`;
+            if (!seenKeys.has(key)) { seenKeys.add(key); unique.push(opt); }
         });
     }
 
@@ -465,7 +483,7 @@ function planDoubleTransferTrip(origin, dest, dayType, isRollover = false) {
     return { status: 'NO_PATH', trips: [] };
 }
 
-// --- 2. LOGIC HELPERS ---
+// --- 2. LOGIC HELPERS (Preserved) ---
 
 function getDynamicHubs() {
     if (typeof globalStationIndex === 'undefined') return [];
@@ -630,8 +648,18 @@ function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3,
 
     for (const l1 of legs1) {
         
-        // PRUNE: If Leg 1 goes straight to Hub 2 faster...
-        if (isTrainFasterDirect(l1.route, l1.train, hub2, dayType, null)) {
+        // PRUNE FIX: We used to pass `null` as limitTime, which made isTrainFasterDirect return
+        // true whenever the train reached hub2 AT ALL — even hours after the connection window.
+        // We now pass the departure time of the earliest available leg2 as the deadline.
+        // This way we only skip Leg 1 if the same train genuinely beats the transfer connection.
+        const earliestLeg2Dep = legs2.length > 0 
+            ? legs2.reduce((min, l) => Math.min(min, timeToSeconds(l.depTime)), Infinity) 
+            : Infinity;
+        const leg2DepTimeStr = earliestLeg2Dep !== Infinity
+            ? legs2.find(l => timeToSeconds(l.depTime) === earliestLeg2Dep)?.depTime
+            : null;
+
+        if (leg2DepTimeStr && isTrainFasterDirect(l1.route, l1.train, hub2, dayType, leg2DepTimeStr)) {
             continue; 
         }
 
@@ -640,8 +668,15 @@ function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3,
 
         for (const l2 of validLegs2) {
             
-            // PRUNE: If Leg 2 goes straight to Dest faster...
-            if (isTrainFasterDirect(l2.route, l2.train, dest, dayType, null)) {
+            // PRUNE FIX: Same correction — use earliest leg3 departure as the deadline.
+            const earliestLeg3Dep = legs3.length > 0
+                ? legs3.reduce((min, l) => Math.min(min, timeToSeconds(l.depTime)), Infinity)
+                : Infinity;
+            const leg3DepTimeStr = earliestLeg3Dep !== Infinity
+                ? legs3.find(l => timeToSeconds(l.depTime) === earliestLeg3Dep)?.depTime
+                : null;
+
+            if (leg3DepTimeStr && isTrainFasterDirect(l2.route, l2.train, dest, dayType, leg3DepTimeStr)) {
                 continue;
             }
 
@@ -816,35 +851,400 @@ function getIntermediateStops(schedule, startIndex, endIndex, trainName) {
     return stops;
 }
 
-// --- 3. DATA UTILS ---
 
-function ensureScheduleLoaded(routeId, dayType) {
-    if (!fullDatabase) return null; 
-    const route = ROUTES[routeId];
-    if (!route) return null;
+// -----------------------------------------------------------------------------
+// SECTION 3: TRUE TIME-DEPENDENT DIJKSTRA ENGINE (WITH TRAIN-BOUND STATE)
+// -----------------------------------------------------------------------------
 
-    let sheetKeys = [];
-
-    if (dayType === 'weekday') {
-        sheetKeys = [route.sheetKeys.weekday_to_a, route.sheetKeys.weekday_to_b];
-    } else if (dayType === 'saturday' || dayType === 'sunday') {
-        sheetKeys = [route.sheetKeys.saturday_to_a, route.sheetKeys.saturday_to_b];
+/**
+ * Lightweight binary min-heap priority queue.
+ * Items are [priority: number, payload: any].
+ * O(log n) push and pop.
+ */
+class TransitMinHeap {
+    constructor() { this._h = []; }
+    push(p, v) { this._h.push([p, v]); this._up(this._h.length - 1); }
+    pop() {
+        if (this._h.length === 0) return null;
+        const top  = this._h[0];
+        const last = this._h.pop();
+        if (this._h.length > 0) { this._h[0] = last; this._down(0); }
+        return top;
     }
-
-    return sheetKeys.map(key => {
-        if (!fullDatabase[key]) return null;
-        return parseJSONSchedule(fullDatabase[key], fullDatabase[key + "_meta"]);
-    }).filter(s => s !== null);
+    get size() { return this._h.length; }
+    _up(i) {
+        while (i > 0) {
+            const p = (i - 1) >> 1;
+            if (this._h[p][0] <= this._h[i][0]) break;
+            [this._h[p], this._h[i]] = [this._h[i], this._h[p]];
+            i = p;
+        }
+    }
+    _down(i) {
+        const n = this._h.length;
+        for (;;) {
+            let s = i, l = 2 * i + 1, r = 2 * i + 2;
+            if (l < n && this._h[l][0] < this._h[s][0]) s = l;
+            if (r < n && this._h[r][0] < this._h[s][0]) s = r;
+            if (s === i) break;
+            [this._h[s], this._h[i]] = [this._h[i], this._h[s]];
+            i = s;
+        }
+    }
 }
 
-// --- GUARDIAN V6.2: MASTER UNIFICATION & DOMINANCE FILTER ---
+/**
+ * Converts fullDatabase schedules into a transit event graph.
+ * Edge model — "next-stop-only":
+ */
+function buildTransitGraph(dayType, dayIdx) {
+    const graph = new Map();
+
+    for (const [routeId, routeConfig] of Object.entries(ROUTES)) {
+        if (!routeConfig.isActive) continue;
+        const directions = getDirectionsForRoute(routeConfig, dayType);
+
+        for (const dir of directions) {
+            if (!fullDatabase || !fullDatabase[dir.key]) continue;
+            const schedule = parseJSONSchedule(fullDatabase[dir.key]);
+            const rows     = schedule.rows;
+
+            for (const trainName of schedule.headers.slice(1)) {
+                if (isTrainExcluded(trainName, routeId, dayIdx)) continue;
+
+                for (let i = 0; i < rows.length - 1; i++) {
+                    const rawDep = rows[i][trainName];
+                    if (!rawDep || String(rawDep).trim() === '' || String(rawDep).trim() === '-') continue;
+
+                    const fromStation = normalizeStationName(rows[i].STATION);
+                    const depTime     = String(rawDep).trim();
+                    const depSec      = timeToSeconds(depTime);
+
+                    // Walk forward to find the very next stop this train calls at
+                    for (let j = i + 1; j < rows.length; j++) {
+                        const rawArr = rows[j][trainName];
+                        if (!rawArr || String(rawArr).trim() === '' || String(rawArr).trim() === '-') continue;
+
+                        const toStation = normalizeStationName(rows[j].STATION);
+                        const arrTime   = String(rawArr).trim();
+                        const arrSec    = timeToSeconds(arrTime);
+
+                        if (!graph.has(fromStation)) graph.set(fromStation, []);
+                        graph.get(fromStation).push({
+                            to: toStation,
+                            depSec, arrSec, depTime, arrTime,
+                            train: trainName,
+                            routeId, routeConfig,
+                            schedule,
+                            fromIdx: i, toIdx: j
+                        });
+
+                        break; // Next stop only
+                    }
+                }
+            }
+        }
+    }
+    return graph;
+}
+
+/**
+ * Core Time-Dependent Dijkstra.
+ * GUARDIAN HYBRID FIX: State tracks `currentTrain` to enforce real-world transfer penalties,
+ * prevents overshoot boomerangs using `visited` sets, and blocks hub-templates explicitly.
+ */
+function dijkstraPlanCore(normOrigin, normDest, graph, startSec, bannedEdges = new Set()) {
+    const INF = Infinity;
+    const dist = new Map(); // "station|train" -> score
+    const prev = new Map();
+
+    const pq = new TransitMinHeap();
+    pq.push(startSec, { station: normOrigin, train: null, transfers: 0, curSec: startSec, visited: new Set([normOrigin]) });
+    dist.set(`${normOrigin}|null`, startSec);
+
+    let bestDestScore = INF;
+    let bestDestState = null;
+
+    while (pq.size > 0) {
+        const [score, state] = pq.pop();
+        const { station, train, transfers, curSec, visited } = state;
+
+        if (station === normDest) {
+            if (score < bestDestScore) {
+                bestDestScore = score;
+                bestDestState = state;
+            }
+            continue; 
+        }
+
+        if (score > bestDestScore) break;
+
+        const edges = graph.get(station);
+        if (!edges) continue;
+
+        for (const edge of edges) {
+            // Diversity Engine: Template Hub Bans
+            if (bannedEdges.has(`ROUTE:${edge.routeId}`)) continue;
+            if (station !== normOrigin && edge.to !== normDest && bannedEdges.has(`HUB:${edge.to}`)) continue;
+
+            if (edge.depSec < curSec) continue;
+
+            const isTransfer = (train !== null && train !== edge.train);
+            const TRANSFER_BUFFER_SEC = 0; // Metrorail zero-minute cross-platform logic
+            
+            if (isTransfer && (edge.depSec - curSec) < TRANSFER_BUFFER_SEC) continue;
+            
+            // GUARDIAN isPathLogical Injection: prevent boomerangs and visiting same station twice
+            if (isTransfer && visited.has(edge.to)) continue;
+
+            const newTransfers = transfers + (isTransfer ? 1 : 0);
+            const penalty = newTransfers * 60; // 1 min penalty per transfer strictly for heap sorting tie-breakers
+            const newScore = edge.arrSec + penalty;
+            const stateKey = `${edge.to}|${edge.train}`;
+
+            if (newScore < (dist.get(stateKey) ?? INF)) {
+                dist.set(stateKey, newScore);
+                prev.set(stateKey, { edge, fromStation: station, fromTrain: train });
+                
+                const newVisited = new Set(visited);
+                newVisited.add(edge.to);
+                
+                pq.push(newScore, { 
+                    station: edge.to, 
+                    train: edge.train, 
+                    transfers: newTransfers, 
+                    curSec: edge.arrSec,
+                    visited: newVisited
+                });
+            }
+        }
+    }
+
+    if (!bestDestState) return null;
+
+    // Reconstruct path
+    const legs = [];
+    let curKey = `${normDest}|${bestDestState.train}`;
+    while (prev.has(curKey)) {
+        const { edge, fromStation, fromTrain } = prev.get(curKey);
+        legs.unshift({
+            type: 'DIRECT',
+            route: edge.routeConfig,
+            from: fromStation,
+            to: edge.to,
+            train: edge.train,
+            depTime: edge.depTime,
+            arrTime: edge.arrTime,
+            stops: getIntermediateStops(edge.schedule, edge.fromIdx, edge.toIdx, edge.train)
+        });
+        curKey = `${fromStation}|${fromTrain}`;
+    }
+    return legs;
+}
+
+/**
+ * Merges consecutive single-hop legs that share the same train and route
+ * into single "ride-through" legs.
+ */
+function mergeConsecutiveLegs(legs) {
+    if (!legs || legs.length === 0) return [];
+    const out = [{ ...legs[0], stops: [...(legs[0].stops || [])] }];
+    for (let i = 1; i < legs.length; i++) {
+        const prev = out[out.length - 1];
+        const curr = legs[i];
+        if (prev.train === curr.train && prev.route.id === curr.route.id) {
+            out[out.length - 1] = {
+                ...prev,
+                to: curr.to,
+                arrTime: curr.arrTime,
+                stops: [...(prev.stops || []), ...(curr.stops || []).slice(1)]
+            };
+        } else {
+            out.push({ ...curr, stops: [...(curr.stops || [])] });
+        }
+    }
+    return out;
+}
+
+/**
+ * Converts a merged legs array into a UI-compatible trip object.
+ */
+function legsToTripObject(legs, origin, dest) {
+    if (!legs || legs.length === 0) return null;
+    const n             = legs.length - 1; // number of transfers
+    const depTime       = legs[0].depTime;
+    const arrTime       = legs[legs.length - 1].arrTime;
+    const totalDuration = timeToSeconds(arrTime) - timeToSeconds(depTime);
+
+    const base = {
+        from: origin, to: dest,
+        depTime, arrTime, totalDuration,
+        train: legs[0].train,
+        legs   
+    };
+
+    if (n === 0) {
+        return {
+            ...base, type: 'DIRECT', route: legs[0].route, stops: legs[0].stops,
+            actualDestination: legs[0].stops?.[legs[0].stops.length - 1]?.station || dest
+        };
+    }
+    if (n === 1) {
+        return {
+            ...base, type: 'TRANSFER', route: legs[0].route,
+            transferStation: legs[0].to, leg1: legs[0], leg2: legs[1]
+        };
+    }
+    if (n === 2) {
+        return {
+            ...base, type: 'DOUBLE_TRANSFER', route: legs[0].route,
+            hub1: legs[0].to, hub2: legs[1].to,
+            leg1: legs[0], leg2: legs[1], leg3: legs[2],
+            routePath: legs.map(l => l.route.name)
+        };
+    }
+    return {
+        ...base, type: 'MULTI_TRANSFER', route: legs[0].route,
+        hub1: legs[0].to, hub2: legs[1].to, hub3: legs[2]?.to || null,
+        leg1: legs[0], leg2: legs[1], leg3: legs[2] || null,
+        routePath: legs.map(l => l.route.name),
+        transferCount: n
+    };
+}
+
+/**
+ * Enumerates ALL valid departure times along a Dijkstra-discovered path template.
+ */
+function enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, startSec) {
+    if (!mergedLegs || mergedLegs.length === 0) return [];
+
+    const TRANSFER_BUFFER_SEC = 0;
+    const MAX_WAIT_SEC        = 10800; // 3 hours
+
+    const waypoints = [origin, ...mergedLegs.map(l => l.to)];
+    const routeIds  = mergedLegs.map(l => l.route.id);
+
+    const legOptionSets = routeIds.map((routeId, idx) =>
+        findAllLegsBetween(waypoints[idx], waypoints[idx + 1], new Set([routeId]), dayType)
+            .filter(l => idx === 0 ? timeToSeconds(l.depTime) >= startSec : true)
+    );
+
+    if (legOptionSets.some(opts => opts.length === 0)) return [];
+
+    let validPaths = legOptionSets[0].map(l => [l]);
+
+    for (let idx = 1; idx < legOptionSets.length; idx++) {
+        const nextOptions = legOptionSets[idx];
+        const nextPaths   = [];
+
+        for (const path of validPaths) {
+            const prevArrSec = timeToSeconds(path[path.length - 1].arrTime);
+            const bestNext = nextOptions.find(l => {
+                const depSec = timeToSeconds(l.depTime);
+                return depSec >= prevArrSec + TRANSFER_BUFFER_SEC &&
+                       depSec <= prevArrSec + MAX_WAIT_SEC;
+            });
+            if (bestNext) nextPaths.push([...path, bestNext]);
+        }
+        validPaths = nextPaths;
+        if (validPaths.length === 0) break;
+    }
+
+    return validPaths.map(path => legsToTripObject(path, origin, dest)).filter(Boolean);
+}
+
+const _DIJKSTRA_MAX_RUNS = 3;
+
+/**
+ * Time-Dependent Dijkstra Trip Planner Orchestrator
+ * GUARDIAN HYBRID: Banning physical hubs forces Dijkstra to find alternative backup corridors.
+ */
+function planDijkstraTrip(origin, dest, dayType, isRollover = false) {
+    const normOrigin = normalizeStationName(origin);
+    const normDest   = normalizeStationName(dest);
+
+    if (normOrigin === normDest || !fullDatabase) return { status: 'NO_PATH', trips: [] };
+
+    const dayIdx = _rolloverDayIdx !== null ? _rolloverDayIdx
+                 : (dayType === currentDayType ? currentDayIndex
+                 : (dayType === 'saturday' ? 6 : 1));
+
+    const startSec = (!isRollover && dayType === currentDayType && _rolloverDayIdx === null)
+                   ? timeToSeconds(currentTime) : 0;
+
+    const baseGraph       = buildTransitGraph(dayType, dayIdx);
+    const bannedEdges     = new Set();
+    const seenTemplates   = new Set();
+    const allTrips        = [];
+
+    for (let run = 0; run < _DIJKSTRA_MAX_RUNS; run++) {
+        const rawLegs = dijkstraPlanCore(normOrigin, normDest, baseGraph, startSec, bannedEdges);
+        if (!rawLegs || rawLegs.length === 0) break;
+
+        const mergedLegs = mergeConsecutiveLegs(rawLegs);
+        if (!mergedLegs || mergedLegs.length === 0) break;
+
+        const templateSig = mergedLegs.map(
+            l => `${l.route.id}:${normalizeStationName(l.from)}->${normalizeStationName(l.to)}`
+        ).join('|');
+        if (seenTemplates.has(templateSig)) break;
+        seenTemplates.add(templateSig);
+
+        // Enumerate ALL trips for this exact physical path (Template)
+        // startSec is 0 because we want to grab all backup shuttles that match this template for the whole day.
+        const templatedTrips = enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, 0);
+        allTrips.push(...templatedTrips);
+
+        // Ban the key defining edge of this template to force Dijkstra to find a diverse physical path on the next run
+        if (mergedLegs.length === 1) {
+            bannedEdges.add(`ROUTE:${mergedLegs[0].route.id}`);
+        } else {
+            for (let i = 0; i < mergedLegs.length - 1; i++) {
+                bannedEdges.add(`HUB:${normalizeStationName(mergedLegs[i].to)}`);
+            }
+        }
+    }
+
+    if (!isRollover && dayType === currentDayType) {
+        const nowSec = timeToSeconds(currentTime);
+        if (allTrips.length > 0) {
+            const latestDep = Math.max(...allTrips.map(t => timeToSeconds(t.depTime)));
+            if (nowSec > latestDep) {
+                const nextTransit = getNextTransitDay(dayType, currentDayIndex);
+                _rolloverDayIdx = nextTransit.idx;
+                const rollover = planDijkstraTrip(origin, dest, nextTransit.type, true);
+                _rolloverDayIdx = null;
+                if (rollover?.trips?.length > 0) {
+                    rollover.trips.forEach(t => t.dayLabel = nextTransit.name);
+                    return rollover;
+                }
+            }
+        } else {
+            const nextTransit = getNextTransitDay(dayType, currentDayIndex);
+            _rolloverDayIdx = nextTransit.idx;
+            const nextResult = planDijkstraTrip(origin, dest, nextTransit.type, true);
+            _rolloverDayIdx = null;
+            if (nextResult?.trips?.length > 0) {
+                nextResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                return nextResult;
+            }
+        }
+    }
+
+    if (allTrips.length > 0) return { status: 'FOUND', trips: allTrips };
+    return { status: 'NO_PATH', trips: [] };
+}
+
+// -----------------------------------------------------------------------------
+// SECTION 4: DOMINANCE FILTER AND UNIFIED ORCHESTRATOR
+// -----------------------------------------------------------------------------
 
 /**
  * Evaluates an array of trips and mercilessly deletes "Dominated" trips.
- * GUARDIAN PHASE 1 PATCH: Path-Diversity Signature Engine.
+ * GUARDIAN PHASE 1 PATCH: Path-Diversity Signature Engine Restored.
  * We now ONLY allow trips to dominate each other if they share the exact same physical path.
- * A Direct Train will no longer delete a Transfer backup shuttle, ensuring Commuters 
- * always see every physical corridor available to them as a fallback option.
+ * A Direct Train will no longer delete a Transfer backup shuttle on a different line.
+ * GUARDIAN PHASE 2 UPGRADE: Cross-Path Dominance activated to eliminate useless, early-departure transfers that arrive at the same time as simpler direct trains.
  */
 function filterDominatedTrips(trips) {
     if (!trips || trips.length === 0) return [];
@@ -855,6 +1255,8 @@ function filterDominatedTrips(trips) {
     const getArr = t => timeToSeconds(t.arrTime || (t.leg3 ? t.leg3.arrTime : (t.leg2 ? t.leg2.arrTime : "00:00")));
     
     const getTrans = t => {
+        // Handle V7 MULTI_TRANSFER recursively and safely
+        if (t.type === 'MULTI_TRANSFER') return t.transferCount ?? (t.legs ? t.legs.length - 1 : 3);
         let base = t.type === 'DOUBLE_TRANSFER' ? 2 : (t.type === 'TRANSFER' ? 1 : 0);
         if (t.leg1 && t.leg1.isRelayComposite) base += 1;
         if (t.leg2 && t.leg2.isRelayComposite) base += 1;
@@ -863,12 +1265,15 @@ function filterDominatedTrips(trips) {
     };
 
     // GUARDIAN PHASE 1: PATH-DIVERSITY SIGNATURE GENERATOR
-    // Generates a unique string fingerprint for the physical path taken
     const getPathSig = t => {
+        if (t.type === 'MULTI_TRANSFER') {
+            const hubs   = t.legs ? t.legs.slice(0, -1).map(l => normalizeStationName(l.to)).join('_') : '';
+            const routes = t.routePath ? t.routePath.join(',') : '';
+            return `MULTI_${hubs}_[${routes}]`;
+        }
         let sig = t.type;
         if (t.type === 'TRANSFER') sig += `_${t.transferStation}`;
         if (t.type === 'DOUBLE_TRANSFER') sig += `_${t.hub1}_${t.hub2}`;
-        // Append routes traversed for extreme precision
         if (t.routePath) sig += `_[${t.routePath.join(',')}]`;
         else if (t.route) sig += `_[${t.route.id}]`;
         return sig;
@@ -897,146 +1302,128 @@ function filterDominatedTrips(trips) {
             // CONDITION 1: EXACT SAME PHYSICAL PATH
             if (samePath) {
                 // Y strictly dominates X if Y departs later (or same time) AND arrives strictly earlier (or same time).
-                // e.g. Why take a 09:30 train if a 10:00 train overtakes it and gets there at the same time?
                 const isStrictlyBetterTime = (yDep > xDep && yArr <= xArr) || (yDep >= xDep && yArr < xArr);
-                
-                // Prevent mutual deletion of mathematically identical duplicate arrays
                 const isDuplicate = (yDep === xDep && yArr === xArr && yTransfers === xTransfers && j < i);
-                
                 if (isStrictlyBetterTime || isDuplicate) {
                     isDominated = true;
                     break;
                 }
             } 
             // CONDITION 2: DIFFERENT PHYSICAL PATH (Cross-Path Dominance)
+            // GUARDIAN PHASE 2 UPGRADE: Eliminate inferior early-departure transfers
             else {
-                // We NEVER dominate if Y leaves later. X's early departure is saved as a "Plan B Backup Shuttle".
-                // We ONLY dominate across paths if Y leaves at the EXACT SAME TIME, and gets there faster or easier.
-                const sameDep = (yDep === xDep);
-                const betterOrSameArr = (yArr <= xArr);
-                const strictlyBetterArr = (yArr < xArr);
-                const fewerTransfers = (yTransfers < xTransfers);
-                const sameOrFewerTransfers = (yTransfers <= xTransfers);
+                const departsLaterOrSame = (yDep >= xDep);
+                const arrivesEarlierOrSame = (yArr <= xArr);
+                const strictlyFewerTransfers = (yTransfers < xTransfers);
+                const sameTransfers = (yTransfers === xTransfers);
+                const isStrictlyBetterTime = (yDep > xDep && yArr <= xArr) || (yDep >= xDep && yArr < xArr);
 
-                if (sameDep) {
-                    // Y wins if it gets there at the same time (or earlier) but with strictly fewer transfers.
-                    // Y wins if it gets there strictly earlier, with the same (or fewer) transfers.
-                    if ((betterOrSameArr && fewerTransfers) || (strictlyBetterArr && sameOrFewerTransfers)) {
+                // If Y lets you wait at the origin instead of on a train, AND arrives at the same time or earlier:
+                if (departsLaterOrSame && arrivesEarlierOrSame) {
+                    // Absolute upgrade: It's faster AND has fewer connections
+                    if (strictlyFewerTransfers) {
+                        isDominated = true;
+                        break;
+                    }
+                    // Speed upgrade: Same amount of transfers, but Y leaves strictly later or arrives strictly earlier
+                    if (sameTransfers && isStrictlyBetterTime) {
                         isDominated = true;
                         break;
                     }
                 }
             }
         }
-        
-        if (!isDominated) {
-            optimalTrips.push(tripX);
-        }
+        if (!isDominated) optimalTrips.push(tripX);
     }
-    
     return optimalTrips;
 }
 
-/**
- * The New Master Orchestrator for the Core Logic.
- * Fires search depths, applies the 5-min/3-hour guardrails, 
- * filters dominated trips, and returns a perfectly sorted chronological array.
- */
 function planUnifiedTrip(origin, dest, dayType) {
     console.log(`[GUARDIAN] Running Unified Trip Planner for ${origin} -> ${dest}`);
-    
-    // 1. Gather trips
-    const directResult = typeof planDirectTrip === 'function' ? planDirectTrip(origin, dest, dayType) : { trips: [] };
-    const relayResult = typeof planRelayTransferTrip === 'function' ? planRelayTransferTrip(origin, dest, dayType) : { trips: [] };
-    const hubResult = typeof planHubTransferTrip === 'function' ? planHubTransferTrip(origin, dest, dayType) : { trips: [] };
-    
-    let allRawTrips = [
-        ...(directResult.trips || []),
-        ...(relayResult.trips || []),
-        ...(hubResult.trips || [])
-    ];
-    
-    // GUARDIAN STRIKE 1: Execute Macro Corridors outside the CPU short-circuit block!
-    // This ensures heavy internal bridges (like Herc-Koed) are evaluated unconditionally.
-    const macroResult = typeof planMacroCorridorTrip === 'function' ? planMacroCorridorTrip(origin, dest, dayType) : { trips: [] };
-    if (macroResult.trips && macroResult.trips.length > 0) {
-        allRawTrips = [...allRawTrips, ...macroResult.trips];
+
+    // GUARDIAN V7 HYBRID: The Dijkstra Engine goes first, fortified by Template Diversity bans
+    const dijkstraResult = typeof planDijkstraTrip === 'function'
+        ? planDijkstraTrip(origin, dest, dayType) : { trips: [] };
+
+    let allRawTrips = [...(dijkstraResult.trips || [])];
+
+    // GUARDIAN V7 HYBRID: If Dijkstra found absolutely nothing (e.g. graph not ready or network too sparse), 
+    // fall back to legacy exhaust loops to ensure 100% routing uptime
+    if (allRawTrips.length === 0) {
+        const directResult = typeof planDirectTrip === 'function' ? planDirectTrip(origin, dest, dayType) : { trips: [] };
+        const macroResult = typeof planMacroCorridorTrip === 'function' ? planMacroCorridorTrip(origin, dest, dayType) : { trips: [] };
+        const relayResult = typeof planRelayTransferTrip === 'function' ? planRelayTransferTrip(origin, dest, dayType) : { trips: [] };
+        const hubResult   = typeof planHubTransferTrip === 'function' ? planHubTransferTrip(origin, dest, dayType) : { trips: [] };
+        
+        allRawTrips = [
+            ...(directResult.trips || []),
+            ...(macroResult.trips || []),
+            ...(relayResult.trips || []),
+            ...(hubResult.trips || [])
+        ];
+
+        const todayCount = allRawTrips.filter(t => !t.dayLabel).length;
+        if (todayCount < 3 && (macroResult.trips || []).length === 0) {
+            const doubleResult = typeof planDoubleTransferTrip === 'function' ? planDoubleTransferTrip(origin, dest, dayType) : { trips: [] };
+            allRawTrips = [...allRawTrips, ...(doubleResult.trips || [])];
+        }
     }
 
-    // SMART SHORT-CIRCUIT: CPU Protection
-    // If we found ample direct/single-transfer routes for TODAY, skip massive double-transfer calculations.
-    const todayCount = allRawTrips.filter(t => !t.dayLabel).length;
-    // Fallback to exhaustive double-transfer pathfinding ONLY if few trips are found AND macro didn't catch it
-    if (todayCount < 3 && macroResult.trips.length === 0) {
-        const doubleResult = typeof planDoubleTransferTrip === 'function' ? planDoubleTransferTrip(origin, dest, dayType) : { trips: [] };
-        allRawTrips = [...allRawTrips, ...(doubleResult.trips || [])];
-    }
+    let rawTrips = [], rawNextDayTrips = [];
+    allRawTrips.forEach(t => (t.dayLabel ? rawNextDayTrips : rawTrips).push(t));
 
-    // 2. Separate Today from Tomorrow (Fixing the Black Hole)
-    let rawTrips = [];
-    let rawNextDayTrips = [];
-    allRawTrips.forEach(t => {
-        if (t.dayLabel) rawNextDayTrips.push(t);
-        else rawTrips.push(t);
-    });
-
-    // 3. Enforce strict layover guardrails (0 mins to 3 hours)
+    // Enforce strict layover guardrails
     const hasValidLayovers = (trip) => {
         if (trip.type === 'DIRECT') return true;
-        
+
         const checkLayover = (arrTime, depTime) => {
-            const arrSec = timeToSeconds(arrTime);
-            const depSec = timeToSeconds(depTime);
-            let layover = depSec - arrSec;
-            if (layover < 0) layover += 86400; // Handle midnight crossover
-            // GUARDIAN PHASE 5: Dropped to 0 seconds to allow immediate platform relays
+            let layover = timeToSeconds(depTime) - timeToSeconds(arrTime);
+            if (layover < 0) layover += 86400; 
             return layover >= 0 && layover <= 10800;
         };
 
-        if (trip.type === 'TRANSFER') {
+        if (trip.type === 'TRANSFER')
             return checkLayover(trip.leg1.arrTime, trip.leg2.depTime);
-        }
-        if (trip.type === 'DOUBLE_TRANSFER') {
-            return checkLayover(trip.leg1.arrTime, trip.leg2.depTime) && 
+
+        if (trip.type === 'DOUBLE_TRANSFER')
+            return checkLayover(trip.leg1.arrTime, trip.leg2.depTime) &&
                    checkLayover(trip.leg2.arrTime, trip.leg3.depTime);
+
+        if (trip.type === 'MULTI_TRANSFER') {
+            const legs = trip.legs || [trip.leg1, trip.leg2, trip.leg3].filter(Boolean);
+            for (let i = 0; i < legs.length - 1; i++) {
+                if (!checkLayover(legs[i].arrTime, legs[i + 1].depTime)) return false;
+            }
+            return true;
         }
+
         return true;
     };
 
-    rawTrips = rawTrips.filter(hasValidLayovers);
+    rawTrips        = rawTrips.filter(hasValidLayovers);
     rawNextDayTrips = rawNextDayTrips.filter(hasValidLayovers);
 
-    // 4. Apply Pareto Dominance Filter
-    const optimalTrips = filterDominatedTrips(rawTrips);
+    // Apply Pareto Dominance Filter (V6 Signature-Restored)
+    const optimalTrips        = filterDominatedTrips(rawTrips);
     const optimalNextDayTrips = filterDominatedTrips(rawNextDayTrips);
 
-    // 5. Master Sort (Chronological by Departure Time, then Arrival Time, then Transfers)
     const masterSort = (a, b) => {
-        const getDep = t => timeToSeconds(t.depTime || (t.leg1 ? t.leg1.depTime : "00:00"));
-        const getArr = t => timeToSeconds(t.arrTime || (t.leg3 ? t.leg3.arrTime : (t.leg2 ? t.leg2.arrTime : "00:00")));
-        const getTrans = t => t.type === 'DOUBLE_TRANSFER' ? 2 : (t.type === 'TRANSFER' ? 1 : 0);
-
-        const aDep = getDep(a);
-        const bDep = getDep(b);
-        if (aDep !== bDep) return aDep - bDep;
-        
-        const aArr = getArr(a);
-        const bArr = getArr(b);
-        if (aArr !== bArr) return aArr - bArr;
-
+        const getDep   = t => timeToSeconds(t.depTime || (t.leg1?.depTime  || "00:00"));
+        const getArr   = t => timeToSeconds(t.arrTime || (t.leg3?.arrTime  || (t.leg2?.arrTime || "00:00")));
+        const getTrans = t => t.type === 'MULTI_TRANSFER' ? (t.transferCount || 3)
+                            : t.type === 'DOUBLE_TRANSFER' ? 2
+                            : t.type === 'TRANSFER' ? 1 : 0;
+        const depDiff = getDep(a) - getDep(b); if (depDiff !== 0) return depDiff;
+        const arrDiff = getArr(a) - getArr(b); if (arrDiff !== 0) return arrDiff;
         return getTrans(a) - getTrans(b);
     };
 
     optimalTrips.sort(masterSort);
     optimalNextDayTrips.sort(masterSort);
 
-    // 6. Return Unified Result (Matching UI expectations for `logic.js`)
-    let finalStatus = 'NO_PATH';
-    if (optimalTrips.length > 0) {
-        finalStatus = 'FOUND';
-    } else if (optimalNextDayTrips.length > 0) {
-        finalStatus = 'NO_MORE_TODAY';
-    }
+    const finalStatus = optimalTrips.length > 0        ? 'FOUND'
+                      : optimalNextDayTrips.length > 0 ? 'NO_MORE_TODAY'
+                      : 'NO_PATH';
 
     return {
         status: finalStatus,

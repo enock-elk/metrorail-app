@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.01 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7.00.02 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -7,9 +7,36 @@
  * * V6.00.21: The Great Decoupling - Absorbed robust UI overrides from monolithic ui.js.
  * * PHASE 10: App Router Parity - Integrated deep history stack for Planner Results.
  * * STRIKE 2: Dynamic Leg Renderer Injection - Unhides 'isRelayComposite' internal transfers.
- * * PHASE B: Elegant Dropdown Formatting (08:00 ➔ 09:00 [2 Transfers]) & Dynamic Transfer Counter.
- * * PHASE 2 (GUARDIAN): Banish "---" Ghost Stations from UI, prepare map Waypoints & Valid Stops arrays.
+ * * V7.00.01 (GUARDIAN): Dynamic MULTI_TRANSFER UI Renderer for True Dijkstra Graph.
+ * * PHASE 1 (GUARDIAN BUGFIX): Live Map Router Bleed & Grey Screen Interceptor injected.
  */
+
+// --- GUARDIAN PHASE 1: ROUTER BLEED & GREY SCREEN INTERCEPTOR ---
+// Resolves the bug where double-tapping "Close Map" fires history.back() twice, dumping the user to the input page.
+// Also forces an instant opacity fade to cover the Leaflet engine's tile destruction (the "grey screen" flash).
+document.addEventListener('click', (e) => {
+    const tripMapCloseBtn = e.target.closest('#close-trip-map-btn, #close-trip-map-btn-2');
+    if (tripMapCloseBtn) {
+        // Strike 1: Prevent double-tap router bleed
+        if (tripMapCloseBtn.dataset.isClosing === "true") {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log("🛡️ Guardian: Suppressed double-tap on Map Close button (Router Bleed Prevented).");
+            return;
+        }
+        tripMapCloseBtn.dataset.isClosing = "true";
+        
+        // Reset the lock after a safe duration (1 second)
+        setTimeout(() => { delete tripMapCloseBtn.dataset.isClosing; }, 1000);
+
+        // Strike 2: Force instant visual hide to prevent the grey screen flash 
+        // before ui.js destroys the map instance.
+        const modal = document.getElementById('trip-map-modal');
+        if (modal) {
+            modal.classList.add('opacity-0');
+        }
+    }
+}, true); // Capture phase guarantees we strike before ui.js standard listeners
 
 // State (UI Specific)
 let plannerOrigin = null;
@@ -40,7 +67,7 @@ window.addEventListener('popstate', (event) => {
     }
 });
 
-// --- GUARDIAN PHASE 6.1 & 2: DATA EXTRACTION ENGINE ---
+// --- GUARDIAN PHASE 6.1 & V7: DATA EXTRACTION ENGINE ---
 window.extractTripCoordinates = function(tripIndex) {
     if (typeof triggerHaptic === 'function') triggerHaptic();
     if (!currentTripOptions || !currentTripOptions[tripIndex]) return;
@@ -86,6 +113,9 @@ window.extractTripCoordinates = function(tripIndex) {
         addStops(trip.leg1.stops);
         addStops(trip.leg2.stops);
         addStops(trip.leg3.stops);
+    } else if (trip.type === 'MULTI_TRANSFER' || trip.legs) {
+        // GUARDIAN V7: Dynamic leg iteration for Dijkstra output
+        trip.legs.forEach(leg => addStops(leg.stops));
     }
 
     if (coordinates.length === 0) {
@@ -320,7 +350,7 @@ const PlannerRenderer = {
             <div class="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 overflow-hidden mb-4 flex flex-col">
                 ${PlannerRenderer.renderHeader(step, isNextDay)}
                 ${PlannerRenderer.renderOptionsSelector(allOptions, selectedIndex, isNextDay)}
-                ${step.type !== 'TRANSFER' && step.type !== 'DOUBLE_TRANSFER' ? PlannerRenderer.renderInstruction(step) : ''}
+                ${step.type !== 'TRANSFER' && step.type !== 'DOUBLE_TRANSFER' && step.type !== 'MULTI_TRANSFER' ? PlannerRenderer.renderInstruction(step) : ''}
                 <div class="p-4 bg-white dark:bg-gray-800 flex-grow">
                     <p class="text-xs font-bold text-gray-400 uppercase mb-2">Journey Timeline</p>
                     ${PlannerRenderer.renderTimeline(step)}
@@ -333,11 +363,19 @@ const PlannerRenderer = {
     },
 
     renderHeader: (step, isNextDay) => {
-        // GUARDIAN PHASE B: True Transfer Counting
-        let transferCount = step.type === 'DOUBLE_TRANSFER' ? 2 : (step.type === 'TRANSFER' ? 1 : 0);
-        if (step.leg1 && step.leg1.isRelayComposite) transferCount += 1;
-        if (step.leg2 && step.leg2.isRelayComposite) transferCount += 1;
-        if (step.leg3 && step.leg3.isRelayComposite) transferCount += 1;
+        // GUARDIAN V7: True Transfer Counting using Legs Array
+        let transferCount = 0;
+        if (step.type === 'MULTI_TRANSFER') {
+            transferCount = step.legs ? step.legs.length - 1 : (step.transferCount || 3);
+            if (step.legs) {
+                step.legs.forEach(leg => { if (leg.isRelayComposite) transferCount += 1; });
+            }
+        } else {
+            transferCount = step.type === 'DOUBLE_TRANSFER' ? 2 : (step.type === 'TRANSFER' ? 1 : 0);
+            if (step.leg1 && step.leg1.isRelayComposite) transferCount += 1;
+            if (step.leg2 && step.leg2.isRelayComposite) transferCount += 1;
+            if (step.leg3 && step.leg3.isRelayComposite) transferCount += 1;
+        }
 
         const colorClass = transferCount > 0 ? 'text-yellow-600 dark:text-yellow-400' : (isNextDay ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400');
         
@@ -420,11 +458,19 @@ const PlannerRenderer = {
             
             let label = "";
             
-            // GUARDIAN PHASE B: Accurately count composite relays
-            let transferCount = opt.type === 'DOUBLE_TRANSFER' ? 2 : (opt.type === 'TRANSFER' ? 1 : 0);
-            if (opt.leg1 && opt.leg1.isRelayComposite) transferCount += 1;
-            if (opt.leg2 && opt.leg2.isRelayComposite) transferCount += 1;
-            if (opt.leg3 && opt.leg3.isRelayComposite) transferCount += 1;
+            // GUARDIAN V7: Accurately count composite relays and Dijkstra legs
+            let transferCount = 0;
+            if (opt.type === 'MULTI_TRANSFER') {
+                transferCount = opt.legs ? opt.legs.length - 1 : (opt.transferCount || 3);
+                if (opt.legs) {
+                    opt.legs.forEach(leg => { if (leg.isRelayComposite) transferCount += 1; });
+                }
+            } else {
+                transferCount = opt.type === 'DOUBLE_TRANSFER' ? 2 : (opt.type === 'TRANSFER' ? 1 : 0);
+                if (opt.leg1 && opt.leg1.isRelayComposite) transferCount += 1;
+                if (opt.leg2 && opt.leg2.isRelayComposite) transferCount += 1;
+                if (opt.leg3 && opt.leg3.isRelayComposite) transferCount += 1;
+            }
 
             let typeLabel = transferCount === 0 ? "Direct" : `${transferCount} Transfer${transferCount > 1 ? 's' : ''}`;
             
@@ -432,8 +478,7 @@ const PlannerRenderer = {
                 label = " (Tomorrow)";
             }
             
-            // GUARDIAN PHASE B: Formatted explicitly as "08:59 ➔ 10:30 [1 Transfer]"
-            // Removed the "(Departed)" string entirely. Fading is managed strictly by the CSS class injection.
+            // Formatted explicitly as "08:59 ➔ 10:30 [1 Transfer]"
             return `<option value="${idx}" ${idx === selectedIndex ? 'selected' : ''} ${isPast ? 'class="text-gray-400 dark:text-gray-500"' : ''}>
                 ${formatTimeDisplay(opt.depTime)} ➔ ${formatTimeDisplay(opt.arrTime)} [${typeLabel}]${label}
             </option>`;
@@ -464,6 +509,7 @@ const PlannerRenderer = {
     renderTimeline: (step) => {
         if (step.type === 'TRANSFER') return PlannerRenderer.renderTransferTimeline(step);
         if (step.type === 'DOUBLE_TRANSFER') return PlannerRenderer.renderDoubleTransferTimeline(step);
+        if (step.type === 'MULTI_TRANSFER') return PlannerRenderer.renderMultiTransferTimeline(step);
         
         // DIRECT TRIP (Has no transfer hubs, but might be a relay)
         if (step.isRelayComposite) {
@@ -493,6 +539,70 @@ const PlannerRenderer = {
             `;
         });
         return html + `</div>`;
+    },
+
+    // GUARDIAN V7: Dynamic Renderer for unlimited transfers
+    renderMultiTransferTimeline: (step) => {
+        if (!step.legs || step.legs.length === 0) return '';
+        let html = '<div class="mt-4 ml-0 space-y-0">';
+
+        // Safe Tailwind Color Arrays to avoid JIT CSS purging
+        const colors = [
+            {
+                dot: 'bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900',
+                box: 'text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500'
+            },
+            {
+                dot: 'bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900',
+                box: 'text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 border-purple-500'
+            },
+            {
+                dot: 'bg-teal-500 ring-4 ring-teal-100 dark:ring-teal-900',
+                box: 'text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/30 border-teal-500'
+            },
+            {
+                dot: 'bg-pink-500 ring-4 ring-pink-100 dark:ring-pink-900',
+                box: 'text-pink-800 dark:text-pink-300 bg-pink-50 dark:bg-pink-900/30 border-pink-500'
+            }
+        ];
+
+        for (let i = 0; i < step.legs.length; i++) {
+            const leg = step.legs[i];
+            const isFinalDest = (i === step.legs.length - 1);
+            const legId = `l${i+1}-${step.train}`;
+            
+            html += PlannerRenderer.renderLegTimeline(leg, leg.from, leg.to, legId, isFinalDest);
+
+            if (!isFinalDest) {
+                const nextLeg = step.legs[i+1];
+                const arr = timeToSeconds(leg.arrTime);
+                const dep = timeToSeconds(nextLeg.depTime);
+                const waitMins = Math.floor((dep - arr) / 60);
+                const waitStr = PlannerRenderer.formatDuration(waitMins);
+                const hubName = PlannerRenderer.applyUIIntercepts(leg.to);
+                const trainDest = PlannerRenderer.applyUIIntercepts(nextLeg.actualDestination || nextLeg.route.destB);
+
+                const c = colors[i % colors.length];
+
+                html += `
+                    <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                        <div class="relative pl-6 pb-6 pt-2">
+                            <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full ${c.dot} z-10"></div>
+                            <div class="mt-1 text-xs ${c.box} p-2 rounded border-l-4">
+                                <div class="font-bold uppercase tracking-wide mb-1">TRANSFER ${i+1} @ ${hubName}</div>
+                                <div class="text-gray-600 dark:text-gray-400 leading-snug">
+                                    <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Wait</span><br>
+                                    &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${trainDest} Train ${nextLeg.train}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        html += '</div>';
+        return html;
     },
 
     renderTransferTimeline: (step) => {

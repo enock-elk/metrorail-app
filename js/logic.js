@@ -55,6 +55,99 @@ const SPECIAL_DATES = {
     "12-26": "sunday"  // Day of Goodwill
 };
 
+// --- GUARDIAN PHASE 1 (Bug 4 Fix): Universal Holiday Lookahead Engine ---
+window.getLookaheadDayInfo = function(daysAhead = 1) {
+    let baseDate = new Date();
+    
+    // Respect Developer Sim Mode Base Date
+    if (typeof window.isSimMode !== 'undefined' && window.isSimMode) {
+        const dateInput = document.getElementById('sim-date');
+        if (dateInput && dateInput.value) {
+            const parts = dateInput.value.split('-');
+            if(parts.length === 3) {
+                baseDate = new Date(parts[0], parts[1] - 1, parts[2]);
+            }
+        }
+    }
+
+    // Advance the physical date
+    baseDate.setDate(baseDate.getDate() + daysAhead);
+
+    const dayOfWeek = baseDate.getDay(); // 0 = Sunday, 6 = Saturday
+    let dayType = (dayOfWeek === 0) ? 'sunday' : (dayOfWeek === 6 ? 'saturday' : 'weekday');
+    
+    // GUARDIAN BUGFIX: Do not overwrite physical day names with Holiday Titles.
+    // Commuters need to read "First train on Monday is at", not "Public Holiday".
+    let dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dayOfWeek];
+    if (daysAhead === 1) dayName = "Tomorrow";
+
+    // Pad month and date for dictionary matching (e.g. "04-06")
+    const m = String(baseDate.getMonth() + 1).padStart(2, '0');
+    const d = String(baseDate.getDate()).padStart(2, '0');
+    const dateKey = `${m}-${d}`;
+
+    // Override the Schedule Type if it's a Special Date (Public Holiday)
+    if (typeof SPECIAL_DATES !== 'undefined' && SPECIAL_DATES[dateKey]) {
+        dayType = SPECIAL_DATES[dateKey];
+    }
+
+    return {
+        type: dayType,
+        name: dayName,
+        idx: dayOfWeek,
+        isHoliday: !!(typeof SPECIAL_DATES !== 'undefined' && SPECIAL_DATES[dateKey])
+    };
+};
+
+// --- GUARDIAN PHASE 1 (Bug 4 Fix): The True Day Simulator ---
+// Looks up to 7 days ahead to find the very next physical train that runs,
+// securely bypassing Ghost Exclusions on Public Holidays and Weekends.
+window.simulateNextActiveService = function(selectedStation, destination) {
+    if (!currentRouteId || !ROUTES[currentRouteId]) return null;
+    const currentRoute = ROUTES[currentRouteId];
+    
+    let firstTrain = null;
+    let daysAhead = 1;
+    let nextDayInfo = null;
+
+    const isDestA = (destination === currentRoute.destA);
+
+    while (daysAhead <= 7 && !firstTrain) {
+        nextDayInfo = window.getLookaheadDayInfo(daysAhead);
+        
+        // GUARDIAN BUGFIX: Use the generic internal keys (e.g., 'weekday_to_a') 
+        // to query the in-memory 'schedules' object, NOT the raw DB sheet names!
+        const sheetKey = isDestA
+            ? (nextDayInfo.type === 'weekday' ? 'weekday_to_a' : 'saturday_to_a')
+            : (nextDayInfo.type === 'weekday' ? 'weekday_to_b' : 'saturday_to_b');
+
+        const schedule = schedules[sheetKey];
+        
+        if (schedule && schedule.rows && schedule.rows.length > 0) {
+            // Drill down using the precise target day index to accurately bypass ghost trains
+            const res = isDestA
+                ? findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute, nextDayInfo.idx)
+                : findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute, nextDayInfo.idx);
+            
+            const remainingJourneys = res.allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
+            if (remainingJourneys.length > 0) {
+                firstTrain = remainingJourneys[0];
+            }
+        }
+        
+        if (!firstTrain) daysAhead++;
+    }
+
+    if (firstTrain) {
+        return {
+            train: firstTrain,
+            dayInfo: nextDayInfo,
+            daysAhead: daysAhead
+        };
+    }
+    return null;
+};
+
 // --- SIMULATION STATE ---
 let clickCount = 0;
 let clickTimer = null;
@@ -537,7 +630,7 @@ async function loadAllSchedules(force = false) {
         console.error("Fetch Error:", error);
         const fallbackCache = await loadFromLocalCache(`full_db_${currentRegion}`); // GUARDIAN: Fallback handles async DB
         if (fallbackCache) {
-            if(offlineIndicator) offlineIndicator.style.display = 'block';
+            if(offlineIndicator) offlineIndicator.style.display = 'flex'; // GUARDIAN BUGFIX 3: Changed from 'block' to 'flex'
         } else {
             if (typeof renderRouteError === 'function') renderRouteError(error);
         }
@@ -811,14 +904,26 @@ function getRouteFare(sheetKey, departureTimeStr) {
     const profile = FARE_CONFIG.profiles[currentUserProfile] || FARE_CONFIG.profiles["Adult"];
     let useOffPeakRate = false;
     
-    if (currentDayType === 'weekday') {
-        const now = new Date();
+    // GUARDIAN BUGFIX 1: Tie Off-Peak explicitly to the Sheet Type (No discounts on Sat/Sun/Holidays)
+    let isWeekdaySheet = (currentDayType === 'weekday');
+    if (sheetKey) {
+        isWeekdaySheet = sheetKey.includes('weekday');
+    }
+    
+    if (isWeekdaySheet) {
         let checkH, checkM;
+        
+        // GUARDIAN BUGFIX: Use the actual train departure time to calculate off-peak, NOT the current physical clock!
         if (typeof window.isSimMode !== 'undefined' && window.isSimMode && window.simTimeStr) {
             const parts = window.simTimeStr.split(':');
             checkH = parseInt(parts[0], 10);
             checkM = parseInt(parts[1], 10);
+        } else if (departureTimeStr && typeof departureTimeStr === 'string' && departureTimeStr.includes(':')) {
+            const parts = departureTimeStr.split(':');
+            checkH = parseInt(parts[0], 10);
+            checkM = parseInt(parts[1], 10);
         } else {
+            const now = new Date();
             checkH = now.getHours();
             checkM = now.getMinutes();
         }
@@ -972,7 +1077,7 @@ function findNextTrains() {
     } else {
         const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_a : schedules.saturday_to_a;
         const currentSheetKey = (currentDayType === 'weekday') ? currentRoute.sheetKeys.weekday_to_a : currentRoute.sheetKeys.saturday_to_a;
-        const { allJourneys: currentJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute);
+        const { allJourneys: currentJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute, currentDayIndex);
         
         let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
         const seenTrainsA = new Set(mergedJourneys.map(j => j.train || j.train1.train));
@@ -985,7 +1090,7 @@ function findNextTrains() {
                 const otherRows = fullDatabase[key];
                 const otherMeta = fullDatabase[key + "_meta"];
                 const otherSchedule = parseJSONSchedule(otherRows, otherMeta);
-                const { allJourneys: otherJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", otherSchedule, otherRoute);
+                const { allJourneys: otherJourneys } = findNextJourneyToDestA(selectedStation, "00:00:00", otherSchedule, otherRoute, currentDayIndex);
                 
                 const uniqueOther = otherJourneys.filter(j => {
                     const tNum = j.train || j.train1.train;
@@ -1023,7 +1128,7 @@ function findNextTrains() {
     } else {
         const schedule = (currentDayType === 'weekday') ? schedules.weekday_to_b : schedules.saturday_to_b;
         const currentSheetKey = (currentDayType === 'weekday') ? currentRoute.sheetKeys.weekday_to_b : currentRoute.sheetKeys.saturday_to_b;
-        const { allJourneys: currentJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute);
+        const { allJourneys: currentJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute, currentDayIndex);
 
         let mergedJourneys = currentJourneys.map(j => ({...j, sourceRoute: currentRoute.name, sheetKey: currentSheetKey}));
         const seenTrainsB = new Set(mergedJourneys.map(j => j.train || j.train1.train));
@@ -1036,7 +1141,7 @@ function findNextTrains() {
                  const otherRows = fullDatabase[key];
                  const otherMeta = fullDatabase[key + "_meta"];
                  const otherSchedule = parseJSONSchedule(otherRows, otherMeta);
-                 const { allJourneys: otherJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", otherSchedule, otherRoute);
+                 const { allJourneys: otherJourneys } = findNextJourneyToDestB(selectedStation, "00:00:00", otherSchedule, otherRoute, currentDayIndex);
                  
                  const uniqueOther = otherJourneys.filter(j => {
                      const tNum = j.train || j.train1.train;
@@ -1069,13 +1174,13 @@ function findNextTrains() {
     }
 }
 
-function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
-    const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA);
+function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig, targetDayIdx = currentDayIndex) {
+    const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA, targetDayIdx);
     let allTransferJourneys = [];
     
     const transferHub = routeConfig.transferStation || routeConfig.relayStation;
     if (transferHub) {
-        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destA);
+        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destA, targetDayIdx);
         allTransferJourneys = allTransfers;
     }
     
@@ -1095,13 +1200,13 @@ function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig) {
     return { allJourneys };
 }
 
-function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
-    const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destB);
+function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig, targetDayIdx = currentDayIndex) {
+    const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destB, targetDayIdx);
     let allTransferJourneys = [];
     
     const transferHub = routeConfig.transferStation || routeConfig.relayStation;
     if (transferHub) {
-        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destB);
+        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destB, targetDayIdx);
         allTransferJourneys = allTransfers;
     }
 
@@ -1121,27 +1226,36 @@ function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig) {
     return { allJourneys };
 }
 
-function findNextDirectTrain(fromStation, schedule, destinationStation) {
+function findNextDirectTrain(fromStation, schedule, destinationStation, targetDayIdx = currentDayIndex) {
     if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
     let allJourneys = [];
 
+    // GUARDIAN BUGFIX: Use robust substring matching to handle trailing spaces from raw DB data safely
+    const cleanTargetStation = fromStation.trim().toUpperCase();
+
     for (const train of trainHeaders) {
         if (!train || train === "") continue;
-        if (isTrainExcluded(train, currentRouteId, currentDayIndex)) continue; 
+        if (isTrainExcluded(train, currentRouteId, targetDayIdx)) continue; 
 
-        const fromRow = schedule.rows.find(row => row[stationCol] === fromStation);
+        const fromRow = schedule.rows.find(row => {
+            const val = row[stationCol];
+            return val && val.trim().toUpperCase() === cleanTargetStation;
+        });
+
         const departureTime = fromRow ? fromRow[train] : null;
 
-        if (!departureTime) continue;
+        // GUARDIAN BUGFIX: Ignore cells that contain generic dashes indicating no stop
+        if (!departureTime || departureTime.trim() === "-" || departureTime.trim() === "") continue;
+
         let actualLastStop = null;
         let actualArrivalTime = null;
         let destRow = null; 
         
         for (let i = schedule.rows.length - 1; i >= 0; i--) {
             const time = schedule.rows[i][train];
-            if (time) {
+            if (time && time.trim() !== "-" && time.trim() !== "") {
                 actualLastStop = schedule.rows[i][stationCol];
                 actualArrivalTime = time;
                 destRow = schedule.rows[i]; 
@@ -1167,7 +1281,7 @@ function findNextDirectTrain(fromStation, schedule, destinationStation) {
     return { allJourneys };
 }
 
-function findTransfers(fromStation, schedule, terminalStation, finalDestination) {
+function findTransfers(fromStation, schedule, terminalStation, finalDestination, targetDayIdx = currentDayIndex) {
     if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
@@ -1184,17 +1298,17 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination)
 
     for (const train1 of trainHeaders) {
         if (!train1 || train1 === "") continue;
-        if (isTrainExcluded(train1, currentRouteId, currentDayIndex)) continue; 
+        if (isTrainExcluded(train1, currentRouteId, targetDayIdx)) continue; 
 
         const departureTime = fromRow[train1]; 
         const terminationTime = termRow[train1];
-        if (!departureTime || !terminationTime) continue;
+        if (!departureTime || !terminationTime || departureTime.trim() === "-" || terminationTime.trim() === "-") continue;
         
         const finalDestRow = findRowFuzzy(finalDestination);
         const destinationTime = finalDestRow ? finalDestRow[train1] : null;
 
-        if (!destinationTime) {
-            const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination, train1);
+        if (!destinationTime || destinationTime.trim() === "-") {
+            const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination, train1, targetDayIdx);
             if (connectionData && connectionData.earliest) {
                 let realHeadboardDest = terminalStation;
                 for (let k = termIndex + 1; k < schedule.rows.length; k++) {
@@ -1222,7 +1336,7 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination)
     return { allJourneys };
 }
 
-function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination, incomingTrainName) {
+function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination, incomingTrainName, targetDayIdx = currentDayIndex) {
     if (!schedule || !schedule.rows) return null;
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
@@ -1237,10 +1351,10 @@ function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, fin
     for (const train of trainHeaders) {
         if (!train || train === "") continue;
         if (train === incomingTrainName) continue; 
-        if (isTrainExcluded(train, currentRouteId, currentDayIndex)) continue; 
+        if (isTrainExcluded(train, currentRouteId, targetDayIdx)) continue; 
 
         const connectionTime = connRow[train];
-        if (!connectionTime) continue;
+        if (!connectionTime || connectionTime.trim() === "-" || connectionTime.trim() === "") continue;
         if (timeToSeconds(connectionTime) < arrivalSeconds) continue;
 
         let goesFurther = false;
@@ -1249,7 +1363,7 @@ function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, fin
         
         for (let i = connIndex + 1; i < schedule.rows.length; i++) {
             const time = schedule.rows[i][train];
-            if (time) { 
+            if (time && time.trim() !== "-" && time.trim() !== "") { 
                 goesFurther = true;
                 actualLastStop = schedule.rows[i][stationCol]; 
                 actualArrivalTime = time; 
@@ -1381,9 +1495,15 @@ function populateStationList() {
     if (schedules.saturday_to_b && schedules.saturday_to_b.rows) schedules.saturday_to_b.rows.forEach(row => { if (hasTimes(row)) stationSet.add(row.STATION); });
 
     allStations = Array.from(stationSet);
-    if (schedules.weekday_to_a && schedules.weekday_to_a.rows) { 
-        const orderMap = schedules.weekday_to_a.rows.map(r => r.STATION); 
+    
+    // GUARDIAN UX FIX: Sort by outbound (weekday_to_b) so Hubs (Dest A) appear naturally at the top
+    if (schedules.weekday_to_b && schedules.weekday_to_b.rows) { 
+        const orderMap = schedules.weekday_to_b.rows.map(r => r.STATION); 
         allStations.sort((a, b) => orderMap.indexOf(a) - orderMap.indexOf(b)); 
+    } else if (schedules.weekday_to_a && schedules.weekday_to_a.rows) {
+        // Safe fallback: If B is missing, sort by A but in reverse to maintain the Hub-Top flow
+        const orderMap = schedules.weekday_to_a.rows.map(r => r.STATION); 
+        allStations.sort((a, b) => orderMap.indexOf(b) - orderMap.indexOf(a));
     }
     
     const currentSelectedStation = stationSelect.value;
@@ -1445,4 +1565,85 @@ function updateLastUpdatedText() {
     displayDate = formatEffectiveDate(displayDate);
     
     if (displayDate && lastUpdatedEl) lastUpdatedEl.textContent = `Effective: ${displayDate}`;
+}
+
+// Update the global clock
+function updateTime() {
+    try {
+        let day, timeString;
+        let dateToCheck = null; 
+        const simActive = (typeof window.isSimMode !== 'undefined') ? window.isSimMode : false;
+        
+        if (simActive) {
+            day = parseInt(window.simDayIndex || 1);
+            timeString = window.simTimeStr || "12:00:00"; 
+            const dateInput = document.getElementById('sim-date');
+            if (dateInput && dateInput.value) {
+                const parts = dateInput.value.split('-');
+                if(parts.length === 3) dateToCheck = new Date(parts[0], parts[1] - 1, parts[2]);
+            } 
+        } else {
+            const now = new Date();
+            day = now.getDay(); 
+            // Manual padding inside updateTime since pad() was historically used here
+            const p = n => (n < 10 ? '0' + n : n);
+            timeString = p(now.getHours()) + ":" + p(now.getMinutes()) + ":" + p(now.getSeconds());
+            dateToCheck = now;
+        }
+        currentTime = timeString; 
+        if(currentTimeEl) currentTimeEl.textContent = `Current Time: ${timeString} ${simActive ? '(SIM)' : ''}`;
+        
+        let newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
+        let specialStatusText = "";
+        
+        if (dateToCheck) {
+            var m = String(dateToCheck.getMonth() + 1).padStart(2, '0');
+            var d = String(dateToCheck.getDate()).padStart(2, '0');
+            var dateKey = m + "-" + d;
+            if (SPECIAL_DATES[dateKey]) { 
+                newDayType = SPECIAL_DATES[dateKey]; 
+                specialStatusText = (typeof HOLIDAY_NAMES !== 'undefined' && HOLIDAY_NAMES[dateKey]) ? " (Holiday)" : " (Holiday Schedule)"; 
+            }
+        }
+        
+        const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        if (newDayType !== currentDayType) { 
+            currentDayType = newDayType; 
+            currentDayIndex = day; 
+            updateLastUpdatedText(); 
+        } else { 
+            currentDayIndex = day; 
+        }
+        
+        let displayType = "";
+        if (newDayType === 'sunday') displayType = "No Service";
+        else if (newDayType === 'saturday') displayType = "Saturday Schedule";
+        else displayType = "Weekday Schedule";
+        
+        if (dateToCheck) {
+            var m = String(dateToCheck.getMonth() + 1).padStart(2, '0');
+            var d = String(dateToCheck.getDate()).padStart(2, '0');
+            var dateKey = m + "-" + d;
+            if (typeof HOLIDAY_NAMES !== 'undefined' && HOLIDAY_NAMES[dateKey]) { 
+                displayType = `${HOLIDAY_NAMES[dateKey]} Schedule`; 
+                specialStatusText = ""; 
+            }
+        }
+        
+        if(currentDayEl) currentDayEl.innerHTML = `${dayNames[day]} <span class="font-bold text-blue-600 dark:text-blue-400">${displayType}</span>${specialStatusText}`;
+        const plannerDaySelect = document.getElementById('planner-day-select');
+        if (plannerDaySelect && !typeof selectedPlannerDay !== 'undefined' && !selectedPlannerDay) { 
+            plannerDaySelect.value = currentDayType; 
+            selectedPlannerDay = currentDayType; 
+        }
+        
+        if (typeof findNextTrains === 'function') findNextTrains();
+    } catch(e) { console.error("Error in updateTime", e); }
+}
+
+// Attach startClock to logic to ensure updateTime is bound properly.
+// This replaces the inline call in ui.js to keep time logic centralized.
+window.startClock = function() { 
+    updateTime(); 
+    setInterval(updateTime, 1000); 
 }

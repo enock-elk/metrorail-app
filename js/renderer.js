@@ -1,9 +1,10 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.01 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.02 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
  * * PART OF PHASE 5: NATIVE EXPERIENCE (Targeted Haptics & Grid UI)
+ * * PHASE 1 (BUGFIX 4): Dynamic Holiday Lookahead bindings for UI buttons. Grid dropdowns relabeled.
  */
 
 const Renderer = {
@@ -272,9 +273,15 @@ const Renderer = {
         if (element) element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-green-500 dark:text-green-400">You are at this station</div>`;
     },
 
+    // GUARDIAN BUGFIX 4: Dynamically consumes nextDayInfo to build UI buttons
     renderNoService: (element, destination, firstNextTrain, dayOffset, openModalCallback) => {
         let timeHTML = 'N/A';
         
+        // Fetch the dynamic day info using the offset passed from ui.js
+        const nextDayInfo = typeof window.getLookaheadDayInfo === 'function' 
+            ? window.getLookaheadDayInfo(dayOffset || 1) 
+            : { name: 'Monday', type: 'weekday' };
+
         if (firstNextTrain) {
             const rawTime = firstNextTrain.departureTime || firstNextTrain.train1.departureTime;
             const departureTime = formatTimeDisplay(rawTime);
@@ -290,12 +297,15 @@ const Renderer = {
         }
         
         const safeDestForClick = escapeHTML(destination).replace(/'/g, "\\'");
-        const buttonHTML = `<button onclick="openScheduleModal('${safeDestForClick}', 'weekday')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">Check Monday's Schedule</button>`;
+        const buttonHTML = `<button onclick="openScheduleModal('${safeDestForClick}', '${nextDayInfo.type}')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">Check ${nextDayInfo.name} Schedule</button>`;
+
+        let dayText = nextDayInfo.name;
+        if (dayText !== "Tomorrow") dayText = `on ${dayText}`;
 
         element.innerHTML = `
             <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 animate-fade-in-up">
                 <div class="text-sm font-bold text-gray-600 dark:text-gray-400">No service today</div>
-                <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train next weekday is at:</p>
+                <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${dayText} is at:</p>
                 <div class="text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md transition-all mt-1 w-3/4 shadow-sm border border-gray-100 dark:border-gray-800">
                     ${timeHTML}
                 </div>
@@ -304,6 +314,7 @@ const Renderer = {
         `;
     },
 
+    // GUARDIAN BUGFIX 4: Dynamically consumes nextDayInfo to build UI buttons
     renderNextAvailableTrain: (element, destination, firstTrain, dayName, dayType, dayOffset) => {
         const rawTime = firstTrain.departureTime || firstTrain.train1.departureTime;
         const departureTime = formatTimeDisplay(rawTime);
@@ -316,15 +327,18 @@ const Renderer = {
         const safeDest = escapeHTML(destination);
         const safeDestForClick = safeDest.replace(/'/g, "\\'"); 
 
+        let dayText = dayName;
+        if (dayText !== "Tomorrow") dayText = `on ${dayText}`;
+
         element.innerHTML = `
             <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 animate-fade-in-up">
                 <div class="text-sm font-bold text-gray-600 dark:text-gray-400">No more trains today</div>
-                <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${dayName} is at:</p>
+                <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${dayText} is at:</p>
                 <div class="text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md transition-all mt-1 w-3/4 shadow-sm border border-gray-100 dark:border-gray-800">
                     <div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
                     <div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>
                 </div>
-                <button onclick="openScheduleModal('${safeDestForClick}', '${dayType}')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">See Upcoming Trains</button>
+                <button onclick="openScheduleModal('${safeDestForClick}', '${dayType}')" class="mt-2 text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">See ${dayName} Schedule</button>
             </div>
         `;
     },
@@ -724,186 +738,6 @@ const Renderer = {
 
         html += `</tbody></table>`;
         return html;
-    }
-};
-
-window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
-    if (!schedules || Object.keys(schedules).length === 0) {
-        showToast("Loading latest schedules... please wait.", "info", 2000);
-        return;
-    }
-
-    const route = ROUTES[currentRouteId];
-    if (!route) return;
-
-    const selectedDay = dayOverride || currentDayType;
-    let sheetDayType = 'weekday';
-    
-    if (selectedDay === 'saturday') {
-        sheetDayType = 'saturday';
-    } else if (selectedDay === 'sunday') {
-        sheetDayType = 'weekday';
-    } else {
-        sheetDayType = 'weekday';
-    }
-
-    let dayIdx = (typeof currentDayIndex !== 'undefined') ? currentDayIndex : new Date().getDay();
-    
-    if (dayOverride) {
-        const isSameType = (dayOverride === currentDayType);
-        if (!isSameType) {
-            if (dayOverride === 'weekday') dayIdx = 1; 
-            else if (dayOverride === 'saturday') dayIdx = 6;
-            else if (dayOverride === 'sunday') dayIdx = 0;
-        }
-    }
-
-    // --- PATCH STARTS HERE ---
-    const existingModal = document.getElementById('full-schedule-modal');
-    const isFirstOpen = !existingModal || existingModal.classList.contains('hidden');
-
-    if (isFirstOpen) {
-        trackAnalyticsEvent('view_full_grid', { 
-            route: route.name, 
-            direction: direction,
-            day: selectedDay 
-        });
-    }
-    // --- PATCH ENDS HERE ---
-
-    const destName = (direction === 'A' ? route.destA : route.destB).replace(' STATION', '');
-    const oppositeDestName = (direction === 'A' ? route.destB : route.destA).replace(' STATION', ''); // GUARDIAN ADDITION
-    
-    const sheetKey = `${sheetDayType}_to_${direction.toLowerCase()}`;
-    const schedule = schedules[sheetKey];
-
-    if (!schedule || !schedule.rows || schedule.rows.length === 0) {
-        showToast(`No ${sheetDayType} schedule available for this route.`, "error");
-        return;
-    }
-
-    let modal = document.getElementById('full-schedule-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'full-schedule-modal';
-        modal.className = 'fixed inset-0 bg-white dark:bg-gray-900 z-[95] hidden flex items-center justify-center p-0 full-screen transition-opacity duration-300';
-        // GUARDIAN V6.13: Native Back Button integration via history.back() for Close Buttons
-        modal.innerHTML = `
-            <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
-                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800 z-20 relative">
-                    <h3 class="flex-grow min-w-0 pr-2"></h3>
-                    <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition flex-shrink-0" aria-label="Close Grid">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
-                </div>
-                <div id="grid-controls" class="px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shadow-sm z-20 relative"></div>
-                <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative"></div>
-                <!-- GUARDIAN Phase 4: Standardized Primary Blue Close Button -->
-                <div class="p-2.5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
-                    <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-md transition-colors text-sm">Close Timetable</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-    }
-
-    const container = document.getElementById('grid-container');
-    const headerTitle = modal.querySelector('h3');
-    const controlsDiv = modal.querySelector('#grid-controls');
-    
-    let effectiveDate = "Standard Schedule";
-    if (schedule.lastUpdated) {
-        const cleanDate = schedule.lastUpdated.replace(/^last updated[:\s-]*/i, '').trim();
-        effectiveDate = `Effective: ${cleanDate}`;
-    }
-
-    if (headerTitle) {
-        headerTitle.innerHTML = `
-            <div class="flex flex-col w-full">
-                <span class="text-sm font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider truncate">Trains to ${destName}</span>
-                <span class="text-[10px] text-gray-400 font-mono mt-0.5 truncate">${effectiveDate}</span>
-            </div>
-        `;
-    }
-
-    if (controlsDiv) {
-        const isWk = sheetDayType === 'weekday';
-        const shareUrl = `https://nexttrain.co.za/?action=route&route=${currentRouteId}&view=grid&dir=${direction}&day=${selectedDay}`;
-        const shareText = `Check out the ${sheetDayType} schedule to ${destName}`;
-        
-        window.shareCurrentGrid = async () => {
-            if (typeof triggerHaptic === 'function') triggerHaptic(); // GUARDIAN: Targeted Haptic
-            const data = { title: 'Next Train Schedule', text: shareText, url: shareUrl };
-            try {
-                if (navigator.share) await navigator.share(data);
-                else {
-                    const textArea = document.createElement('textarea');
-                    textArea.value = shareUrl;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textArea);
-                    alert('Schedule link copied to clipboard!');
-                }
-            } catch (e) {}
-        };
-
-        controlsDiv.innerHTML = `
-            <div class="flex items-center space-x-2">
-                <select onchange="renderFullScheduleGrid('${direction}', this.value)" class="text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm">
-                    <option value="weekday" ${isWk ? 'selected' : ''}>Mon-Fri</option>
-                    <option value="saturday" ${!isWk ? 'selected' : ''}>Saturday</option>
-                </select>
-                <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">
-                    ⇄ To ${Renderer._applyUIIntercepts(oppositeDestName)}
-                </button>
-            </div>
-            
-            <div class="flex items-center space-x-2 border-l border-gray-200 dark:border-gray-700 pl-3 ml-1">
-                <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center space-x-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600" title="Save Image">
-                    <span class="text-[10px] font-bold text-gray-700 dark:text-gray-300">Save Image</span>
-                    <svg class="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                </button>
-                <button onclick="shareCurrentGrid()" class="p-2 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100 transition shadow-sm" title="Share Link">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
-                </button>
-            </div>
-        `;
-    }
-
-    const isTodayType = (currentDayType === 'weekday' && sheetDayType === 'weekday') || 
-                        (currentDayType !== 'weekday' && sheetDayType === 'saturday');
-    
-    const html = Renderer._buildGridHTML(schedule, route.sheetKeys[sheetKey], currentRouteId, dayIdx, isTodayType, false);
-
-    container.innerHTML = html;
-    modal.classList.remove('hidden');
-    history.pushState({ modal: 'grid' }, '', '#grid');
-
-    setTimeout(() => {
-        const activeCol = document.getElementById('grid-active-col');
-        if (activeCol) activeCol.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }, 100);
-};
-
-window.highlightGridRow = function(tr) {
-    if (!tr || !tr.classList) return; // GUARDIAN SAFETY CHECK
-    const allRows = document.querySelectorAll('#grid-container tr');
-    allRows.forEach(r => {
-        if(r && r.classList) {
-            r.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40');
-            const sticky = r.querySelector('td.sticky');
-            if(sticky && sticky.classList) { 
-                sticky.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40'); 
-                sticky.classList.add('bg-white', 'dark:bg-gray-900'); 
-            }
-        }
-    });
-    tr.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40');
-    const stickyCell = tr.querySelector('td.sticky');
-    if (stickyCell && stickyCell.classList) { 
-        stickyCell.classList.remove('bg-white', 'dark:bg-gray-900'); 
-        stickyCell.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40'); 
     }
 };
 

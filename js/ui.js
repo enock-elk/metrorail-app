@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.01 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.03 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -9,6 +9,9 @@
  * * PHASE 6.2: Lazy-Loaded Leaflet Trip Map Engine Injected.
  * * PHASE 4 (GUARDIAN): The Crash Immunity. Wrapped all missing addEventListeners in null-checks. Async cache-clearing race condition patched.
  * * PHASE 6 (GUARDIAN): Trip Map Ergonomics. Bottom-Left Zooms, and Background GPS Auto-Locate (Swap feature removed per Phase 3).
+ * * PHASE 11 (GUARDIAN): Router Bleed Fixed for Planner, Offline Dynamic Toggle, and Subtitle alignment.
+ * * PHASE 1.2 (GUARDIAN BUGFIX): Popstate logic reordered to prioritize Modals over Planner Results. Holiday Lookahead injected.
+ * * PHASE 2 (BUGFIX 4): Ripped out flawed `while` loops from `renderNoService` / `renderNextAvailableTrain`. Hooked to True Day Simulator. Modal and Grid sync patched.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -165,14 +168,18 @@ function trackAnalyticsEvent(eventName, params = {}) {
     } catch (e) { console.warn("[Analytics] Clarity Error:", e); }
 }
 
-window.addEventListener('online', () => { console.log("Network restored. Flushing analytics queue."); OfflineTracker.flush(); });
+// GUARDIAN Phase 11: Dynamic Offline State Tracking
+window.addEventListener('online', () => { 
+    console.log("Network restored. Flushing analytics queue."); 
+    OfflineTracker.flush(); 
+    const oi = document.getElementById('offline-indicator');
+    if (oi) oi.style.display = 'none';
+});
 
-const HOLIDAY_NAMES = {
-    "01-01": "New Year's Day", "03-21": "Human Rights Day", "04-03": "Good Friday",
-    "04-06": "Family Day", "04-27": "Freedom Day", "05-01": "Workers' Day",
-    "06-16": "Youth Day", "08-09": "National Women's Day", "09-24": "Heritage Day",
-    "12-16": "Day of Reconciliation", "12-25": "Christmas Day", "12-26": "Day of Goodwill"
-};
+window.addEventListener('offline', () => { 
+    const oi = document.getElementById('offline-indicator');
+    if (oi) oi.style.display = 'flex';
+});
 
 // --- NEXT TRAIN AUTOCOMPLETE ENGINE (GUARDIAN V6.16) ---
 window._renderNextTrainList = function() {
@@ -320,31 +327,24 @@ function renderRouteError(error) {
     }
     if(stationSelect) stationSelect.innerHTML = '<option>Unable to load stations</option>';
 }
-function renderComingSoon(routeName) {
-    if (typeof Renderer !== 'undefined') {
-        if(pretoriaTimeEl) Renderer.renderComingSoon(pretoriaTimeEl, routeName);
-        if(pienaarspoortTimeEl) Renderer.renderComingSoon(pienaarspoortTimeEl, routeName);
-    }
-    if(stationSelect) stationSelect.innerHTML = '<option>Route not available</option>';
-}
+
 function renderAtDestination(element) { if (element && typeof Renderer !== 'undefined') Renderer.renderAtDestination(element); }
 
+// GUARDIAN BUGFIX 4: Dynamically uses window.simulateNextActiveService to skip holidays/weekends
 function renderNoService(element, destination) {
     if (!element) return;
     const currentRoute = ROUTES[currentRouteId];
     if (!currentRoute) return;
-    let sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
-    const schedule = schedules[sheetKey];
-    let allJourneys = [];
-    if (typeof findNextJourneyToDestA === 'function') {
-        const res = (destination === currentRoute.destA) 
-            ? findNextJourneyToDestA(stationSelect.value, "00:00:00", schedule, currentRoute)
-            : findNextJourneyToDestB(stationSelect.value, "00:00:00", schedule, currentRoute);
-        allJourneys = res.allJourneys;
-    }
-    const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
-    const firstTrain = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
-    if (typeof Renderer !== 'undefined') Renderer.renderNoService(element, destination, firstTrain, 1);
+
+    const selectedStation = stationSelect ? stationSelect.value : "";
+    const simResult = typeof window.simulateNextActiveService === 'function' 
+        ? window.simulateNextActiveService(selectedStation, destination) 
+        : null;
+
+    let firstTrain = simResult ? simResult.train : null;
+    let daysAhead = simResult ? simResult.daysAhead : 1;
+
+    if (typeof Renderer !== 'undefined') Renderer.renderNoService(element, destination, firstTrain, daysAhead);
 }
 
 function processAndRenderJourney(allJourneys, element, header, destination) {
@@ -372,68 +372,25 @@ function processAndRenderJourney(allJourneys, element, header, destination) {
     }
 }
 
+// GUARDIAN BUGFIX 4: Dynamically uses window.simulateNextActiveService
 function renderNextAvailableTrain(element, destination) {
     if (!element) return;
     const currentRoute = ROUTES[currentRouteId];
     if (!currentRoute) return;
 
-    let nextDayName = "", nextDaySheetKey = "", dayOffset = 1, nextDayType = 'weekday'; 
-    let checkMondayFallback = false;
+    const selectedStation = stationSelect ? stationSelect.value : "";
+    const simResult = typeof window.simulateNextActiveService === 'function' 
+        ? window.simulateNextActiveService(selectedStation, destination) 
+        : null;
 
-    switch (currentDayIndex) {
-        case 6: 
-            nextDayName = "Monday"; 
-            dayOffset = 2; 
-            nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; 
-            nextDayType = 'weekday'; 
-            break;
-        case 5: 
-            nextDayName = "Saturday"; 
-            dayOffset = 1; 
-            nextDaySheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b'; 
-            nextDayType = 'saturday'; 
-            checkMondayFallback = true; 
-            break;
-        default: 
-            nextDayName = "tomorrow"; 
-            dayOffset = 1; 
-            nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; 
-            nextDayType = 'weekday'; 
-            break;
-    }
-
-    let nextSchedule = schedules[nextDaySheetKey];
-    let res = { allJourneys: [] };
-    
-    if (nextSchedule) {
-        res = (destination === currentRoute.destA) 
-            ? findNextJourneyToDestA(stationSelect.value, "00:00:00", nextSchedule, currentRoute)
-            : findNextJourneyToDestB(stationSelect.value, "00:00:00", nextSchedule, currentRoute);
-    }
-
-    let firstTrainOfNextDay = res.allJourneys.find(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
-
-    if (!firstTrainOfNextDay && checkMondayFallback) {
-        nextDayName = "Monday";
-        dayOffset = 3; 
-        nextDayType = 'weekday';
-        nextDaySheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b';
-        nextSchedule = schedules[nextDaySheetKey];
-        
-        if (nextSchedule) {
-            res = (destination === currentRoute.destA) 
-                ? findNextJourneyToDestA(stationSelect.value, "00:00:00", nextSchedule, currentRoute)
-                : findNextJourneyToDestB(stationSelect.value, "00:00:00", nextSchedule, currentRoute);
-            firstTrainOfNextDay = res.allJourneys.find(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= 0);
-        }
-    }
-
-    if (!firstTrainOfNextDay) { 
+    if (!simResult) { 
         element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400">No upcoming trains.</div>`; 
         return; 
     }
     
-    if (typeof Renderer !== 'undefined') Renderer.renderNextAvailableTrain(element, destination, firstTrainOfNextDay, nextDayName, nextDayType, dayOffset);
+    if (typeof Renderer !== 'undefined') {
+        Renderer.renderNextAvailableTrain(element, destination, simResult.train, simResult.dayInfo.name, simResult.dayInfo.type, simResult.daysAhead);
+    }
 }
 
 function updateFareDisplay(sheetKey, nextTrainTimeStr) {
@@ -735,73 +692,6 @@ function updateSidebarActiveState() {
     if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), currentRouteId);
 }
 
-function updateLastUpdatedText() {
-    if (!fullDatabase) return;
-    let displayDate = fullDatabase.lastUpdated || "Unknown";
-    const isValidDate = (d) => d && d !== "undefined" && d !== "null" && String(d).length > 5;
-    if (currentDayType === 'weekday' || currentDayType === 'monday') { 
-        if (schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) displayDate = schedules.weekday_to_a.lastUpdated;
-    } else if (currentDayType === 'saturday') {
-        if (schedules.saturday_to_a && isValidDate(schedules.saturday_to_a.lastUpdated)) displayDate = schedules.saturday_to_a.lastUpdated;
-    } else if (currentDayType === 'sunday') {
-         if (schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) displayDate = schedules.weekday_to_a.lastUpdated;
-    }
-    displayDate = displayDate.replace(/^last updated[:\s-]*/i, '').trim();
-    if (displayDate && lastUpdatedEl) lastUpdatedEl.textContent = `Schedule Effective from: ${displayDate}`;
-}
-
-function startClock() { updateTime(); setInterval(updateTime, 1000); }
-
-function updateTime() {
-    try {
-        let day, timeString;
-        let dateToCheck = null; 
-        const simActive = (typeof window.isSimMode !== 'undefined') ? window.isSimMode : false;
-        if (simActive) {
-            day = parseInt(window.simDayIndex || 1);
-            timeString = window.simTimeStr || "12:00:00"; 
-            const dateInput = document.getElementById('sim-date');
-            if (dateInput && dateInput.value) {
-                const parts = dateInput.value.split('-');
-                if(parts.length === 3) dateToCheck = new Date(parts[0], parts[1] - 1, parts[2]);
-            } 
-        } else {
-            const now = new Date();
-            day = now.getDay(); 
-            timeString = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
-            dateToCheck = now;
-        }
-        currentTime = timeString; 
-        if(currentTimeEl) currentTimeEl.textContent = `Current Time: ${timeString} ${simActive ? '(SIM)' : ''}`;
-        
-        let newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
-        let specialStatusText = "";
-        if (dateToCheck) {
-            var m = pad(dateToCheck.getMonth() + 1);
-            var d = pad(dateToCheck.getDate());
-            var dateKey = m + "-" + d;
-            if (SPECIAL_DATES[dateKey]) { newDayType = SPECIAL_DATES[dateKey]; specialStatusText = HOLIDAY_NAMES[dateKey] ? " (Holiday)" : " (Holiday Schedule)"; }
-        }
-        const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-        if (newDayType !== currentDayType) { currentDayType = newDayType; currentDayIndex = day; updateLastUpdatedText(); } else { currentDayIndex = day; }
-        
-        let displayType = "";
-        if (newDayType === 'sunday') displayType = "No Service";
-        else if (newDayType === 'saturday') displayType = "Saturday Schedule";
-        else displayType = "Weekday Schedule";
-        if (dateToCheck) {
-            var m = pad(dateToCheck.getMonth() + 1);
-            var d = pad(dateToCheck.getDate());
-            var dateKey = m + "-" + d;
-            if (HOLIDAY_NAMES[dateKey]) { displayType = `${HOLIDAY_NAMES[dateKey]} Schedule`; specialStatusText = ""; }
-        }
-        if(currentDayEl) currentDayEl.innerHTML = `${dayNames[day]} <span class="font-bold text-blue-600 dark:text-blue-400">${displayType}</span>${specialStatusText}`;
-        const plannerDaySelect = document.getElementById('planner-day-select');
-        if (plannerDaySelect && !selectedPlannerDay) { plannerDaySelect.value = currentDayType; selectedPlannerDay = currentDayType; }
-        findNextTrains();
-    } catch(e) { console.error("Error in updateTime", e); }
-}
-
 function handleShortcutActions() {
     const urlParams = new URLSearchParams(window.location.search);
     const action = urlParams.get('action');
@@ -1009,7 +899,12 @@ function initializeApp() {
     populateStationList();
     if (typeof initPlanner === 'function') initPlanner();
     if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), currentRouteId);
-    startClock();
+    
+    // Call the global startClock bound in logic.js
+    if (typeof window.startClock === 'function') {
+        window.startClock();
+    }
+    
     const urlParams = new URLSearchParams(window.location.search);
     if (!urlParams.has('action') && !urlParams.has('route')) { findNextTrains(); }
     checkServiceAlerts();
@@ -1023,7 +918,10 @@ function initializeApp() {
     updateNextTrainView();
     if(stationSelect && !stationSelect.value) renderPlaceholder();
 
-    if (navigator.onLine) { setTimeout(OfflineTracker.flush, 5000); }
+    if (!navigator.onLine) { 
+        const oi = document.getElementById('offline-indicator');
+        if (oi) oi.style.display = 'flex';
+    }
 }
 
 async function checkMaintenanceStatus() {
@@ -1276,6 +1174,7 @@ function switchTab(tab) {
     localStorage.setItem('activeTab', tab);
 }
 
+// GUARDIAN PHASE 1.2: Complete popstate rebuild. Modals check precedes Router Bleed trap.
 window.addEventListener('popstate', (event) => {
     const hash = location.hash;
 
@@ -1303,6 +1202,7 @@ window.addEventListener('popstate', (event) => {
         return; 
     }
 
+    // 1. EVALUATE & CLOSE MODALS FIRST (Highest Z-Index)
     const activeModals = [];
     const modalIds = [
         'pin-modal', 'dev-modal', 'about-modal', 'help-modal', 'legal-modal', 
@@ -1336,6 +1236,13 @@ window.addEventListener('popstate', (event) => {
             }
             return; 
         }
+    }
+
+    // 2. NOW CHECK PLANNER RESULTS (Lower Z-Index than Modals)
+    const resultsSection = document.getElementById('planner-results-section');
+    if (resultsSection && !resultsSection.classList.contains('hidden')) {
+        if (typeof window.hidePlannerResults === 'function') window.hidePlannerResults();
+        return; 
     }
 
     if (location.hash === '#sidenav' && !document.body.classList.contains('sidenav-open')) {
@@ -1435,25 +1342,49 @@ function setupSwipeNavigation() {
     }, {passive: true});
 }
 
+// GUARDIAN BUGFIX 4: Dynamic Simulator Resolution for Modal
 window.openScheduleModal = function(destination, dayOverride = null) {
     history.pushState({ modal: 'schedule' }, '', '#schedule');
     let journeys = [];
     let titleSuffix = "";
+    let targetDayIdx = currentDayIndex; // Default
+
     if (dayOverride) {
         const currentRoute = ROUTES[currentRouteId];
         let sheetKey = null;
-        if (dayOverride === 'weekday') { sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; titleSuffix = " (Weekday)"; } 
-        else if (dayOverride === 'saturday') { sheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b'; titleSuffix = " (Saturday)"; } 
-        else if (dayOverride === 'sunday') { sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; titleSuffix = " (Monday)"; }
+
+        // Automatically discover the correct targetDayIdx if checking future schedules
+        const selectedStation = stationSelect ? stationSelect.value : "";
+        const simResult = typeof window.simulateNextActiveService === 'function'
+            ? window.simulateNextActiveService(selectedStation, destination)
+            : null;
+        
+        if (simResult && simResult.dayInfo.type === dayOverride) {
+            targetDayIdx = simResult.dayInfo.idx;
+            titleSuffix = ` (${simResult.dayInfo.name})`;
+        } else {
+            // Fallback
+            if (dayOverride === 'weekday') { targetDayIdx = 1; titleSuffix = " (Weekday)"; } 
+            else if (dayOverride === 'saturday') { targetDayIdx = 6; titleSuffix = " (Weekend/Holiday)"; } 
+        }
+
+        if (dayOverride === 'weekday') { sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; } 
+        else if (dayOverride === 'saturday') { sheetKey = (destination === currentRoute.destA) ? 'saturday_to_a' : 'saturday_to_b'; } 
+        else if (dayOverride === 'sunday') { sheetKey = (destination === currentRoute.destA) ? 'weekday_to_a' : 'weekday_to_b'; }
+
         const schedule = schedules[sheetKey];
         if (schedule) {
-            if (destination === currentRoute.destA) { journeys = findNextJourneyToDestA(stationSelect ? stationSelect.value : "", "00:00:00", schedule, currentRoute).allJourneys; } 
-            else { journeys = findNextJourneyToDestB(stationSelect ? stationSelect.value : "", "00:00:00", schedule, currentRoute).allJourneys; }
+            if (destination === currentRoute.destA) { 
+                journeys = findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute, targetDayIdx).allJourneys; 
+            } else { 
+                journeys = findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute, targetDayIdx).allJourneys; 
+            }
         }
     } else {
         if (!currentScheduleData || !currentScheduleData[destination]) { showToast("No full schedule data available.", "error"); return; }
         journeys = currentScheduleData[destination]; 
     }
+
     if (!journeys || journeys.length === 0) { showToast("No trains found for this schedule.", "error"); return; }
     
     let fromStationName = "Upcoming Trains";
@@ -2009,6 +1940,190 @@ window.triggerAppUpdate = function() {
     }
 };
 
+// GUARDIAN BUGFIX 4: Grid Auto-Forward Integration
+window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
+    if (!schedules || Object.keys(schedules).length === 0) {
+        showToast("Loading latest schedules... please wait.", "info", 2000);
+        return;
+    }
+
+    const route = ROUTES[currentRouteId];
+    if (!route) return;
+
+    let selectedDay = dayOverride || currentDayType;
+    let targetDayIdx = (typeof currentDayIndex !== 'undefined') ? currentDayIndex : new Date().getDay();
+
+    let autoForwarded = false;
+    let dynamicDayName = null;
+
+    if (!dayOverride) {
+        const dest = direction === 'A' ? route.destA : route.destB;
+        const selectedStation = stationSelect ? stationSelect.value : "";
+        const simResult = typeof window.simulateNextActiveService === 'function'
+            ? window.simulateNextActiveService(selectedStation, dest)
+            : null;
+        
+        if (simResult && simResult.daysAhead > 0) {
+            selectedDay = simResult.dayInfo.type;
+            targetDayIdx = simResult.dayInfo.idx;
+            dynamicDayName = simResult.dayInfo.name;
+            autoForwarded = true;
+        }
+    } else {
+        const isSameType = (dayOverride === currentDayType);
+        if (!isSameType) {
+            if (dayOverride === 'weekday') targetDayIdx = 1; 
+            else if (dayOverride === 'saturday') targetDayIdx = 6;
+            else if (dayOverride === 'sunday') targetDayIdx = 0;
+        }
+    }
+
+    let sheetDayType = 'weekday';
+    if (selectedDay === 'saturday') {
+        sheetDayType = 'saturday';
+    } else if (selectedDay === 'sunday') {
+        sheetDayType = 'weekday';
+    } else {
+        sheetDayType = 'weekday';
+    }
+
+    const existingModal = document.getElementById('full-schedule-modal');
+    const isFirstOpen = !existingModal || existingModal.classList.contains('hidden');
+
+    if (isFirstOpen) {
+        trackAnalyticsEvent('view_full_grid', { 
+            route: route.name, 
+            direction: direction,
+            day: selectedDay 
+        });
+    }
+
+    const destName = (direction === 'A' ? route.destA : route.destB).replace(' STATION', '');
+    const oppositeDestName = (direction === 'A' ? route.destB : route.destA).replace(' STATION', '');
+    
+    const sheetKey = `${sheetDayType}_to_${direction.toLowerCase()}`;
+    const schedule = schedules[sheetKey];
+
+    if (!schedule || !schedule.rows || schedule.rows.length === 0) {
+        showToast(`No ${sheetDayType} schedule available for this route.`, "error");
+        return;
+    }
+
+    let modal = document.getElementById('full-schedule-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'full-schedule-modal';
+        modal.className = 'fixed inset-0 bg-white dark:bg-gray-900 z-[95] hidden flex items-center justify-center p-0 full-screen transition-opacity duration-300';
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
+                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800 z-20 relative">
+                    <h3 class="flex-grow min-w-0 pr-2"></h3>
+                    <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition flex-shrink-0" aria-label="Close Grid">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <div id="grid-controls" class="px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shadow-sm z-20 relative"></div>
+                <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative"></div>
+                <div class="p-2.5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
+                    <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-md transition-colors text-sm">Close Timetable</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    const container = document.getElementById('grid-container');
+    const headerTitle = modal.querySelector('h3');
+    const controlsDiv = modal.querySelector('#grid-controls');
+    
+    let effectiveDate = "Standard Schedule";
+    if (schedule.lastUpdated) {
+        const cleanDate = schedule.lastUpdated.replace(/^last updated[:\s-]*/i, '').trim();
+        effectiveDate = `Effective: ${cleanDate}`;
+    }
+
+    if (headerTitle) {
+        headerTitle.innerHTML = `
+            <div class="flex flex-col w-full">
+                <span class="text-sm font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider truncate">Trains to ${destName}</span>
+                <span class="text-[10px] text-gray-400 font-mono mt-0.5 truncate">${effectiveDate}</span>
+            </div>
+        `;
+    }
+
+    if (controlsDiv) {
+        const isWk = sheetDayType === 'weekday';
+        const shareUrl = `https://nexttrain.co.za/?action=route&route=${currentRouteId}&view=grid&dir=${direction}&day=${selectedDay}`;
+        const shareText = `Check out the ${sheetDayType} schedule to ${destName}`;
+        
+        window.shareCurrentGrid = async () => {
+            if (typeof triggerHaptic === 'function') triggerHaptic(); 
+            const data = { title: 'Next Train Schedule', text: shareText, url: shareUrl };
+            try {
+                if (navigator.share) await navigator.share(data);
+                else {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = shareUrl;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    alert('Schedule link copied to clipboard!');
+                }
+            } catch (e) {}
+        };
+
+        let wkLabel = "Mon - Fri";
+        let satLabel = "Sat / Hol";
+
+        if (autoForwarded && dynamicDayName) {
+            if (sheetDayType === 'saturday') {
+                satLabel = `${dynamicDayName} (Sat/Hol)`;
+            } else if (sheetDayType === 'weekday') {
+                wkLabel = `${dynamicDayName} (Mon-Fri)`;
+            }
+        }
+
+        controlsDiv.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <select onchange="renderFullScheduleGrid('${direction}', this.value)" class="text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm">
+                    <option value="weekday" ${isWk ? 'selected' : ''}>${wkLabel}</option>
+                    <option value="saturday" ${!isWk ? 'selected' : ''}>${satLabel}</option>
+                </select>
+                <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">
+                    ⇄ To ${Renderer._applyUIIntercepts(oppositeDestName)}
+                </button>
+            </div>
+            
+            <div class="flex items-center space-x-2 border-l border-gray-200 dark:border-gray-700 pl-3 ml-1">
+                <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center space-x-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600" title="Save Image">
+                    <span class="text-[10px] font-bold text-gray-700 dark:text-gray-300">Save Image</span>
+                    <svg class="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                </button>
+                <button onclick="shareCurrentGrid()" class="p-2 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100 transition shadow-sm" title="Share Link">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                </button>
+            </div>
+        `;
+    }
+
+    const isTodayType = !autoForwarded && (
+                        (currentDayType === 'weekday' && sheetDayType === 'weekday') || 
+                        (currentDayType !== 'weekday' && sheetDayType === 'saturday')
+                    );
+    
+    const html = Renderer._buildGridHTML(schedule, route.sheetKeys[sheetKey], currentRouteId, targetDayIdx, isTodayType, false);
+
+    container.innerHTML = html;
+    modal.classList.remove('hidden');
+    history.pushState({ modal: 'grid' }, '', '#grid');
+
+    setTimeout(() => {
+        const activeCol = document.getElementById('grid-active-col');
+        if (activeCol) activeCol.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }, 100);
+};
+
 function updateNextTrainView() {
     const fareBox = document.getElementById('fare-container');
     const container = fareBox ? fareBox.parentNode : null;
@@ -2135,11 +2250,11 @@ window.openTripMapRenderer = async function(routeData) {
                     <div class="flex items-center space-x-3 min-w-0 pr-2">
                         <span class="text-2xl shrink-0">🗺️</span>
                         <div class="flex flex-col min-w-0">
+                            <h3 class="text-base font-black text-gray-900 dark:text-white truncate uppercase tracking-tight mb-0.5" id="trip-map-title">Route Map</h3>
                             <div class="flex items-center">
-                                <h3 class="text-base font-black text-gray-900 dark:text-white truncate uppercase tracking-tight" id="trip-map-title">Route Map</h3>
-                                <span class="ml-2 text-[8px] font-bold text-yellow-800 bg-yellow-100 dark:text-yellow-300 dark:bg-yellow-900/50 px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 border border-yellow-200 dark:border-yellow-800">🧪 In Development</span>
+                                <p class="text-xs text-blue-600 dark:text-blue-400 font-bold truncate shrink-0 mr-2" id="trip-map-subtitle">Loading...</p>
+                                <span class="text-[8px] font-bold text-yellow-800 bg-yellow-100 dark:text-yellow-300 dark:bg-yellow-900/50 px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 border border-yellow-200 dark:border-yellow-800">🧪 In Dev</span>
                             </div>
-                            <p class="text-xs text-blue-600 dark:text-blue-400 font-bold truncate" id="trip-map-subtitle">Loading...</p>
                         </div>
                     </div>
                     <div class="flex items-center space-x-2 shrink-0">
