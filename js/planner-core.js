@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V7.00.03 - Guardian Hybrid Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V6.04.05 - Guardian Hybrid Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.

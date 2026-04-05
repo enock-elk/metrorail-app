@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.03 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.05 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -12,13 +12,14 @@
  * * PHASE 11 (GUARDIAN): Router Bleed Fixed for Planner, Offline Dynamic Toggle, and Subtitle alignment.
  * * PHASE 1.2 (GUARDIAN BUGFIX): Popstate logic reordered to prioritize Modals over Planner Results. Holiday Lookahead injected.
  * * PHASE 2 (BUGFIX 4): Ripped out flawed `while` loops from `renderNoService` / `renderNextAvailableTrain`. Hooked to True Day Simulator. Modal and Grid sync patched.
+ * * PHASE 2 (GUARDIAN STORAGE): Swapped localStorage to safeStorage. Guarded sessionStorage. Added Array bounds checking.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
 function triggerHaptic() {
     try {
-        // GUARDIAN: Safe localStorage check
-        const isEnabled = localStorage.getItem('hapticsEnabled') !== 'false';
+        // GUARDIAN: Safe storage check
+        const isEnabled = safeStorage.getItem('hapticsEnabled') !== 'false';
         if (isEnabled && navigator.vibrate) {
             navigator.vibrate(50);
         }
@@ -100,10 +101,12 @@ window.onerror = function(msg, url, line, col, error) {
     if (overlay) overlay.style.display = 'none';
     if (content) content.style.display = 'block';
     
-    const hasReloaded = sessionStorage.getItem('error_reloaded');
+    // GUARDIAN: Safe Session Storage
+    let hasReloaded = false;
+    try { hasReloaded = sessionStorage.getItem('error_reloaded'); } catch(e) {}
 
     if (!hasReloaded) {
-        sessionStorage.setItem('error_reloaded', 'true');
+        try { sessionStorage.setItem('error_reloaded', 'true'); } catch(e) {}
         // GUARDIAN (Option B): Silent Ninja Protocol (Strike 1)
         // Silently attempt a recovery reload without jarring the user with a toast.
         setTimeout(() => window.location.reload(), 1000);
@@ -123,23 +126,23 @@ const OfflineTracker = {
     queueKey: 'analytics_queue',
     enqueue: (eventName, params) => {
         try {
-            const queue = JSON.parse(localStorage.getItem(OfflineTracker.queueKey) || "[]");
+            const queue = JSON.parse(safeStorage.getItem(OfflineTracker.queueKey) || "[]");
             queue.push({ event: eventName, params: params, timestamp: Date.now() });
             if (queue.length > 50) queue.shift();
-            localStorage.setItem(OfflineTracker.queueKey, JSON.stringify(queue));
+            safeStorage.setItem(OfflineTracker.queueKey, JSON.stringify(queue));
         } catch (e) { console.warn("OfflineTracker Error:", e); }
     },
     flush: () => {
         if (!navigator.onLine) return;
         try {
-            const queue = JSON.parse(localStorage.getItem(OfflineTracker.queueKey) || "[]");
+            const queue = JSON.parse(safeStorage.getItem(OfflineTracker.queueKey) || "[]");
             if (queue.length === 0) return;
             console.log(`[OfflineTracker] Flushing ${queue.length} events...`);
             queue.forEach(item => {
                 const enrichedParams = { ...item.params, offline_captured: true, original_ts: item.timestamp };
                 trackAnalyticsEvent(item.event, enrichedParams);
             });
-            localStorage.removeItem(OfflineTracker.queueKey);
+            safeStorage.removeItem(OfflineTracker.queueKey);
         } catch (e) { console.warn("OfflineTracker Flush Error:", e); }
     }
 };
@@ -349,6 +352,8 @@ function renderNoService(element, destination) {
 
 function processAndRenderJourney(allJourneys, element, header, destination) {
     if (!element) return;
+    if (!allJourneys || !Array.isArray(allJourneys)) return; // GUARDIAN: Sentry JAVASCRIPT-1P Fix
+
     const nowInSeconds = timeToSeconds(currentTime);
     const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
     const nextJourney = remainingJourneys.length > 0 ? remainingJourneys[0] : null;
@@ -644,13 +649,13 @@ function copyToClipboard(text) { const textArea = document.createElement('textar
 function loadUserProfile() {
     profileModal = document.getElementById('profile-modal');
     const settingsProfileDisplay = document.getElementById('settings-profile-display');
-    const savedProfile = localStorage.getItem('userProfile');
+    const savedProfile = safeStorage.getItem('userProfile');
     
     if (savedProfile) {
         currentUserProfile = savedProfile;
     } else {
         currentUserProfile = "Adult";
-        localStorage.setItem('userProfile', "Adult");
+        safeStorage.setItem('userProfile', "Adult");
     }
     
     if(settingsProfileDisplay) settingsProfileDisplay.textContent = currentUserProfile;
@@ -658,7 +663,7 @@ function loadUserProfile() {
 
 window.selectProfile = function(profileType) {
     currentUserProfile = profileType;
-    localStorage.setItem('userProfile', profileType);
+    safeStorage.setItem('userProfile', profileType);
     
     const settingsProfileDisplay = document.getElementById('settings-profile-display');
     if(settingsProfileDisplay) settingsProfileDisplay.textContent = profileType;
@@ -679,7 +684,7 @@ window.resetProfile = function() {
 };
 
 function updatePinUI() {
-    const savedDefault = localStorage.getItem('defaultRoute_' + currentRegion); 
+    const savedDefault = safeStorage.getItem('defaultRoute_' + currentRegion); 
     const isPinned = savedDefault === currentRouteId;
     if (pinOutline && pinFilled && pinRouteBtn) {
         if (isPinned) { pinOutline.classList.add('hidden'); pinFilled.classList.remove('hidden'); pinRouteBtn.title = "Unpin this route"; } 
@@ -701,7 +706,7 @@ function handleShortcutActions() {
 
     if (linkRegion && typeof currentRegion !== 'undefined' && linkRegion !== currentRegion) {
         console.log(`[DeepLink] Region mismatch. Switching from ${currentRegion} to ${linkRegion} and reloading...`);
-        localStorage.setItem('userRegion', linkRegion);
+        safeStorage.setItem('userRegion', linkRegion);
         window.location.href = window.location.href; 
         return; 
     }
@@ -716,7 +721,7 @@ function handleShortcutActions() {
         console.log(`[DeepLink] Auto-loading route: ${route}`);
         
         if (ROUTES[route].region && ROUTES[route].region !== currentRegion) {
-            localStorage.setItem('userRegion', ROUTES[route].region);
+            safeStorage.setItem('userRegion', ROUTES[route].region);
             window.location.href = window.location.href; 
             return;
         }
@@ -834,8 +839,8 @@ window.performHardCacheClear = async function() {
             }
         }
 
-        localStorage.removeItem(`full_db_${currentRegion}`); 
-        localStorage.removeItem('app_installed_version');
+        safeStorage.removeItem(`full_db_${currentRegion}`); 
+        safeStorage.removeItem('app_installed_version');
         
         if (window.indexedDB) {
             indexedDB.deleteDatabase('NextTrainDB');
@@ -864,7 +869,7 @@ window.showCacheClearWarning = function() {
                         <svg class="h-6 w-6 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                     </div>
                     <h3 class="text-xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Sync Latest Schedule?</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">This will clear your offline cache and download the absolute latest train times from the server.</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">This will clear your offline cache and download the absolute latest App version from the server.</p>
                     <div class="flex space-x-3">
                         <button onclick="closeSmoothModal('cache-clear-modal')" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors focus:outline-none">Cancel</button>
                         <button onclick="performHardCacheClear()" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none">Sync Now</button>
@@ -884,7 +889,10 @@ function initializeApp() {
         window.history.replaceState({}, '', newPath + window.location.search + window.location.hash);
     }
     
-    if (!sessionStorage.getItem('exitTrapSet')) {
+    let exitTrapSet = false;
+    try { exitTrapSet = sessionStorage.getItem('exitTrapSet'); } catch(e) {}
+
+    if (!exitTrapSet) {
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
         if (isStandalone) {
             history.replaceState({ view: 'exit-trap' }, '', '#exit');
@@ -892,7 +900,7 @@ function initializeApp() {
         } else {
             history.replaceState({ view: 'home' }, '', '#home');
         }
-        sessionStorage.setItem('exitTrapSet', 'true');
+        try { sessionStorage.setItem('exitTrapSet', 'true'); } catch(e) {}
     }
 
     loadUserProfile(); 
@@ -999,7 +1007,7 @@ async function checkServiceAlerts() {
         const activeNotice = validNotices[0];
         const severity = activeNotice.severity || 'info';
         const seenKey = `seen_notice_${activeNotice.id}`;
-        const hasSeen = localStorage.getItem(seenKey) === 'true';
+        const hasSeen = safeStorage.getItem(seenKey) === 'true';
         const forcePopup = activeNotice.forcePopup === true;
         
         // GUARDIAN Phase 2: Content Binder (With URL Parsing & Dynamic Feedback Button)
@@ -1080,7 +1088,7 @@ async function checkServiceAlerts() {
                 setTimeout(() => {
                     triggerHaptic();
                     trackAnalyticsEvent('auto_open_alert', { severity: severity, route_id: currentRouteId || 'all' });
-                    localStorage.setItem(seenKey, 'true');
+                    safeStorage.setItem(seenKey, 'true');
                     bellBtn.classList.remove('animate-shake');
                     if (dot) dot.classList.add('hidden');
                     bindModalContent();
@@ -1096,7 +1104,7 @@ async function checkServiceAlerts() {
         bellBtn.onclick = () => {
             triggerHaptic();
             trackAnalyticsEvent('view_service_alert', { severity: severity, route_id: currentRouteId || 'all' });
-            localStorage.setItem(seenKey, 'true');
+            safeStorage.setItem(seenKey, 'true');
             bellBtn.classList.remove('animate-shake');
             if (dot) dot.classList.add('hidden');
             bindModalContent();
@@ -1171,7 +1179,7 @@ function switchTab(tab) {
         targetBtn.classList.add('active'); 
         setTimeout(() => moveTabIndicator(targetBtn), 50); 
     }
-    localStorage.setItem('activeTab', tab);
+    safeStorage.setItem('activeTab', tab);
 }
 
 // GUARDIAN PHASE 1.2: Complete popstate rebuild. Modals check precedes Router Bleed trap.
@@ -1184,7 +1192,7 @@ window.addEventListener('popstate', (event) => {
             return; 
         }
 
-        const activeTab = localStorage.getItem('activeTab');
+        const activeTab = safeStorage.getItem('activeTab');
         
         if (activeTab === 'trip-planner') {
             history.pushState({ view: 'home' }, '', '#home');
@@ -1251,7 +1259,7 @@ window.addEventListener('popstate', (event) => {
     }
 
     if (!location.hash || location.hash === '#home') {
-        const activeTab = localStorage.getItem('activeTab');
+        const activeTab = safeStorage.getItem('activeTab');
         if (activeTab === 'trip-planner') switchTab('next-train');
     }
 });
@@ -1512,7 +1520,7 @@ function showRedirectModal(url, message) {
 }
 
 function setupFeatureButtons() {
-    const storedTheme = localStorage.theme;
+    const storedTheme = safeStorage.getItem('theme');
     const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
     const welcomeThemeToggleBtn = document.getElementById('welcome-theme-toggle');
@@ -1527,7 +1535,7 @@ function setupFeatureButtons() {
     const applyTheme = (isDark) => {
         if (isDark) {
             document.documentElement.classList.add('dark');
-            localStorage.theme = 'dark'; 
+            safeStorage.setItem('theme', 'dark'); 
             if(welcomeDarkIcon) welcomeDarkIcon.classList.remove('hidden');
             if(welcomeLightIcon) welcomeLightIcon.classList.add('hidden');
             if(welcomeThemeText) welcomeThemeText.textContent = "Dark Mode";
@@ -1537,7 +1545,7 @@ function setupFeatureButtons() {
             if(settingsThemeTextEl) settingsThemeTextEl.textContent = "Currently On";
         } else {
             document.documentElement.classList.remove('dark');
-            localStorage.theme = 'light';
+            safeStorage.setItem('theme', 'light');
             if(welcomeDarkIcon) welcomeDarkIcon.classList.add('hidden');
             if(welcomeLightIcon) welcomeLightIcon.classList.remove('hidden');
             if(welcomeThemeText) welcomeThemeText.textContent = "Light Mode";
@@ -1554,7 +1562,7 @@ function setupFeatureButtons() {
         applyTheme(false);
     }
 
-    const handleThemeToggle = () => { triggerHaptic(); applyTheme(localStorage.theme !== 'dark'); };
+    const handleThemeToggle = () => { triggerHaptic(); applyTheme(safeStorage.getItem('theme') !== 'dark'); };
     if(welcomeThemeToggleBtn) welcomeThemeToggleBtn.addEventListener('click', handleThemeToggle);
     
     const settingsThemeToggleBtn = document.getElementById('settings-theme-toggle');
@@ -1578,12 +1586,12 @@ function setupFeatureButtons() {
     const hapticsTextEl = document.getElementById('settings-haptics-text');
 
     const applyHaptics = (isEnabled) => {
-        try { localStorage.setItem('hapticsEnabled', isEnabled ? 'true' : 'false'); } catch(e) {}
+        try { safeStorage.setItem('hapticsEnabled', isEnabled ? 'true' : 'false'); } catch(e) {}
         if (hapticsCheckbox) hapticsCheckbox.checked = isEnabled;
         if (hapticsTextEl) hapticsTextEl.textContent = isEnabled ? "Currently On" : "Currently Off";
     };
 
-    try { applyHaptics(localStorage.getItem('hapticsEnabled') !== 'false'); } catch(e) {}
+    try { applyHaptics(safeStorage.getItem('hapticsEnabled') !== 'false'); } catch(e) {}
 
     if (hapticsToggleBtn) {
         hapticsToggleBtn.addEventListener('click', (e) => {
@@ -1726,7 +1734,7 @@ function setupSettingsHub() {
 
         if (!navigator.onLine) {
             const cacheKey = `full_db_${newRegion}`;
-            const cachedData = localStorage.getItem(cacheKey);
+            const cachedData = safeStorage.getItem(cacheKey);
             if (!cachedData) {
                 showToast(`Internet required to download ${name} schedules for the first time.`, "error", 4000);
                 return;
@@ -1753,7 +1761,7 @@ function setupSettingsHub() {
 
             const confirmAction = () => {
                 triggerHaptic();
-                localStorage.setItem('userRegion', newRegion);
+                safeStorage.setItem('userRegion', newRegion);
                 window.location.reload();
             };
 
@@ -1823,12 +1831,12 @@ function showWelcomeScreen() {
         const btnGP = document.createElement('button');
         btnGP.className = `px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors ${currentRegion === 'GP' ? 'bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300'}`;
         btnGP.textContent = 'Gauteng';
-        btnGP.onclick = () => { localStorage.setItem('userRegion', 'GP'); window.location.reload(); };
+        btnGP.onclick = () => { safeStorage.setItem('userRegion', 'GP'); window.location.reload(); };
         
         const btnWC = document.createElement('button');
         btnWC.className = `px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors ${currentRegion === 'WC' ? 'bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300'}`;
         btnWC.textContent = 'Western Cape';
-        btnWC.onclick = () => { localStorage.setItem('userRegion', 'WC'); window.location.reload(); };
+        btnWC.onclick = () => { safeStorage.setItem('userRegion', 'WC'); window.location.reload(); };
         
         regionDiv.appendChild(btnGP);
         regionDiv.appendChild(btnWC);
@@ -1842,7 +1850,7 @@ function showWelcomeScreen() {
 
 function selectWelcomeRoute(routeId) {
     currentRouteId = routeId;
-    localStorage.setItem('defaultRoute_' + currentRegion, routeId);
+    safeStorage.setItem('defaultRoute_' + currentRegion, routeId);
     closeSmoothModal('welcome-modal'); 
     setTimeout(() => {
         updateSidebarActiveState(); updatePinUI(); loadAllSchedules(); checkServiceAlerts(); 
@@ -1888,14 +1896,15 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (refreshing) return;
             
-            // GUARDIAN Phase 3: Live Server Immunity
-            const lastReload = sessionStorage.getItem('sw_last_reload');
+            // GUARDIAN Phase 3: Live Server Immunity (Session Storage Protected)
+            let lastReload = null;
+            try { lastReload = sessionStorage.getItem('sw_last_reload'); } catch(e) {}
             const now = Date.now();
             if (lastReload && (now - parseInt(lastReload, 10)) < 10000) {
                 console.warn("🛡️ Guardian: Suppressed rapid infinite reload (Live Server loop blocked).");
                 return;
             }
-            sessionStorage.setItem('sw_last_reload', now.toString());
+            try { sessionStorage.setItem('sw_last_reload', now.toString()); } catch(e) {}
 
             refreshing = true;
             window.location.reload(); 
@@ -1954,7 +1963,6 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     let targetDayIdx = (typeof currentDayIndex !== 'undefined') ? currentDayIndex : new Date().getDay();
 
     let autoForwarded = false;
-    let dynamicDayName = null;
 
     if (!dayOverride) {
         const dest = direction === 'A' ? route.destA : route.destB;
@@ -1966,7 +1974,6 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         if (simResult && simResult.daysAhead > 0) {
             selectedDay = simResult.dayInfo.type;
             targetDayIdx = simResult.dayInfo.idx;
-            dynamicDayName = simResult.dayInfo.name;
             autoForwarded = true;
         }
     } else {
@@ -2073,16 +2080,9 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
             } catch (e) {}
         };
 
+        // GUARDIAN: Hardcoded clean labels for optimal mobile UI flow. No dynamic text injection here.
         let wkLabel = "Mon - Fri";
         let satLabel = "Sat / Hol";
-
-        if (autoForwarded && dynamicDayName) {
-            if (sheetDayType === 'saturday') {
-                satLabel = `${dynamicDayName} (Sat/Hol)`;
-            } else if (sheetDayType === 'weekday') {
-                wkLabel = `${dynamicDayName} (Mon-Fri)`;
-            }
-        }
 
         controlsDiv.innerHTML = `
             <div class="flex items-center space-x-2">
@@ -2148,7 +2148,7 @@ function updateNextTrainView() {
 
 function enforceAppVersion() {
     const currentVersion = typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown';
-    const storedVersion = localStorage.getItem('app_installed_version');
+    const storedVersion = safeStorage.getItem('app_installed_version');
 
     const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
 
@@ -2177,7 +2177,7 @@ function enforceAppVersion() {
         return; 
     }
     
-    if (!storedVersion) localStorage.setItem('app_installed_version', currentVersion);
+    if (!storedVersion) safeStorage.setItem('app_installed_version', currentVersion);
 }
 
 // GUARDIAN Phase 4: Async Update Race Condition Fix
@@ -2199,7 +2199,7 @@ window.handleUpdateClick = async function(newVersion) {
         console.warn("Cache clear failed during update", e);
     }
     
-    localStorage.setItem('app_installed_version', newVersion);
+    safeStorage.setItem('app_installed_version', newVersion);
     window.location.reload(true);
 };
 
@@ -2631,12 +2631,15 @@ document.addEventListener('DOMContentLoaded', () => {
         pinRouteBtn.addEventListener('click', () => { 
             triggerHaptic();
             const regionKey = 'defaultRoute_' + currentRegion;
-            const savedDefault = localStorage.getItem(regionKey); 
+            let savedDefault = null;
+            try { savedDefault = safeStorage.getItem(regionKey); } catch(e) {}
             
             if (savedDefault === currentRouteId) { 
-                localStorage.removeItem(regionKey); showToast("Route unpinned.", "info", 2000); 
+                try { safeStorage.removeItem(regionKey); } catch(e) {}
+                showToast("Route unpinned.", "info", 2000); 
             } else { 
-                localStorage.setItem(regionKey, currentRouteId); showToast("Route pinned!", "success", 2000); 
+                try { safeStorage.setItem(regionKey, currentRouteId); } catch(e) {}
+                showToast("Route pinned!", "success", 2000); 
             } 
             updatePinUI(); 
         });
@@ -2696,13 +2699,15 @@ document.addEventListener('DOMContentLoaded', () => {
         mapImageEl.src = currentRegion === 'WC' ? 'images/network-map_wc.png' : 'images/network-map.png';
     }
 
-    let savedDefault = localStorage.getItem('defaultRoute_' + currentRegion);
+    let savedDefault = null;
+    try { savedDefault = safeStorage.getItem('defaultRoute_' + currentRegion); } catch(e) {}
     
     if (!savedDefault) {
-        const legacyDefault = localStorage.getItem('defaultRoute');
+        let legacyDefault = null;
+        try { legacyDefault = safeStorage.getItem('defaultRoute'); } catch(e) {}
         if (legacyDefault && ROUTES[legacyDefault] && ROUTES[legacyDefault].region === currentRegion) {
             savedDefault = legacyDefault;
-            localStorage.setItem('defaultRoute_' + currentRegion, legacyDefault);
+            try { safeStorage.setItem('defaultRoute_' + currentRegion, legacyDefault); } catch(e) {}
         }
     }
     
@@ -2730,7 +2735,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (urlParams.has('action')) {
         console.log("Shortcut action detected, ignoring saved tab preference.");
     } else {
-        const lastActiveTab = localStorage.getItem('activeTab');
+        let lastActiveTab = null;
+        try { lastActiveTab = localStorage.getItem('activeTab'); } catch(e) {}
         if (lastActiveTab) {
             switchTab(lastActiveTab);
         } else {
@@ -2740,3 +2746,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initializeApp();
 });
+
+// GUARDIAN Phase 1.3: Update date text on the main UI
+function updateLastUpdatedText() {
+    if (!fullDatabase) return;
+    let displayDate = fullDatabase.lastUpdated || "Unknown";
+    const isValidDate = (d) => d && d !== "undefined" && d !== "null" && String(d).length > 5;
+    
+    if (currentDayType === 'weekday' || currentDayType === 'monday') { 
+        if (schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) displayDate = schedules.weekday_to_a.lastUpdated;
+    } else if (currentDayType === 'saturday') {
+        if (schedules.saturday_to_a && isValidDate(schedules.saturday_to_a.lastUpdated)) displayDate = schedules.saturday_to_a.lastUpdated;
+    } else if (currentDayType === 'sunday') {
+         if (schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) displayDate = schedules.weekday_to_a.lastUpdated;
+    }
+    
+    displayDate = formatEffectiveDate(displayDate);
+    
+    // GUARDIAN BUGFIX: Restored "Schedule Effective from:" phrasing to match HTML placeholder
+    if (displayDate && lastUpdatedEl) lastUpdatedEl.textContent = `Schedule effective from: ${displayDate}`;
+}

@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN UTILITIES (V4.07) ---
+// --- METRORAIL NEXT TRAIN UTILITIES (V6.04.05 - Guardian Edition) ---
 // Pure, stateless helper functions shared across the application.
 
 function pad(num) {
@@ -58,3 +58,36 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
     return R * c; 
 }
+
+// --- GUARDIAN PHASE 1: SAFE STORAGE WRAPPER ---
+// Protects against SecurityError (Sentry JAVASCRIPT-1K) in Safari Private Mode / Brave Shields
+const safeStorage = {
+    memoryFallback: {},
+    
+    getItem: function(key) {
+        try {
+            return localStorage.getItem(key);
+        } catch (e) {
+            console.warn(`🛡️ Guardian: localStorage.getItem blocked. Using RAM fallback for ${key}.`);
+            return this.memoryFallback[key] || null;
+        }
+    },
+    
+    setItem: function(key, value) {
+        try {
+            localStorage.setItem(key, value);
+        } catch (e) {
+            console.warn(`🛡️ Guardian: localStorage.setItem blocked. Using RAM fallback for ${key}.`);
+            this.memoryFallback[key] = value;
+        }
+    },
+    
+    removeItem: function(key) {
+        try {
+            localStorage.removeItem(key);
+        } catch (e) {
+            console.warn(`🛡️ Guardian: localStorage.removeItem blocked. Using RAM fallback for ${key}.`);
+            delete this.memoryFallback[key];
+        }
+    }
+};

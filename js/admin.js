@@ -1,16 +1,17 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.00.33 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.05 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (Tiered & Regional - Restored)
  * 2. Maintenance Mode Toggle
  * 3. Enterprise Login Logic & Token Mgmt (Phase 9)
  * 4. Simulation Controls
- * 5. Ghost Train Exclusion Manager (Deep Scan - Restored)
+ * 5. Exceptions Manager (Deep Scan + Banned/Special Types)
  * 6. Special Event Route Manager
  * 7. System Health / Diagnostics Scanner (Phase 2 - New)
  * 8. Nuclear Cache Wipe (Killswitch - New)
  * 9. Live Telemetry Bridge (Cloudflare Path B - New)
+ * * * GUARDIAN PHASE 12: Added SPL (Special) tagging to exclusions manager and live sync timestamps.
  */
 
 const Admin = {
@@ -39,6 +40,7 @@ const Admin = {
         const statToday = document.getElementById('stat-today');
         const statAllTime = document.getElementById('stat-alltime');
         const statErrors = document.getElementById('stat-errors');
+        const syncEl = document.getElementById('telemetry-last-sync'); // GUARDIAN: Live Sync Timestamp
         
         // Guard: Only fetch if the modal is currently open to save bandwidth
         const devModal = document.getElementById('dev-modal');
@@ -78,6 +80,14 @@ const Admin = {
                 if(statAllTime) statAllTime.textContent = data.allTimeUsers !== undefined ? data.allTimeUsers : '--';
                 if(statErrors) statErrors.textContent = data.todayErrors !== undefined ? data.todayErrors : '--';
                 
+                // GUARDIAN: Inject explicit last updated timestamp into the UI
+                if (syncEl) {
+                    syncEl.classList.remove('hidden');
+                    const now = new Date();
+                    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+                    syncEl.textContent = `synced: ${timeStr}`;
+                }
+
                 // Kill pulse animations once data streams successfully
                 [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
                     if(el) el.classList.remove('animate-pulse');
@@ -681,7 +691,7 @@ const Admin = {
         };
     },
 
-    // --- 5. EXCLUSION MANAGER (GUARDIAN CARD + DEEP ROW SCANNER) ---
+    // --- 5. EXCLUSION MANAGER (GUARDIAN CARD + DEEP ROW SCANNER + SPL TAGS) ---
     setupExclusionManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
@@ -726,25 +736,37 @@ const Admin = {
                 </div>
 
                 <div id="excl-train-picker" class="hidden border border-gray-200 dark:border-gray-700 rounded-lg p-2 bg-gray-50 dark:bg-gray-900">
-                    <p class="text-[10px] text-gray-400 uppercase font-bold mb-2">Select Trains to Ban:</p>
+                    <p class="text-[10px] text-gray-400 uppercase font-bold mb-2">Select Trains:</p>
                     <div id="excl-train-grid" class="grid grid-cols-4 gap-2 text-xs max-h-40 overflow-y-auto"></div>
                 </div>
 
                 <input id="excl-train-manual" type="text" placeholder="Or type manually (e.g. 4401)" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none hidden">
                 
                 <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700">
-                    <span class="text-xs font-bold text-gray-500 mr-2">Exclude On:</span>
+                    <span class="text-xs font-bold text-gray-500 mr-2">Apply To:</span>
                     <div class="flex space-x-1" id="excl-days-container"></div>
                 </div>
 
-                <input id="excl-reason" type="text" placeholder="Reason (e.g. Testing)" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
+                <!-- GUARDIAN PHASE 12: Banned vs Special Tag Toggle -->
+                <div class="flex space-x-2 mt-2 mb-2">
+                    <label class="flex-1 flex items-center justify-center p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg cursor-pointer transition-colors">
+                        <input type="radio" name="excl-type" value="banned" checked class="form-radio h-3 w-3 text-red-600 bg-white border-gray-300 focus:ring-0">
+                        <span class="text-[10px] font-bold text-red-700 dark:text-red-300 ml-1.5 uppercase tracking-wide">Ban Train</span>
+                    </label>
+                    <label class="flex-1 flex items-center justify-center p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg cursor-pointer transition-colors">
+                        <input type="radio" name="excl-type" value="special" class="form-radio h-3 w-3 text-green-600 bg-white border-gray-300 focus:ring-0">
+                        <span class="text-[10px] font-bold text-green-700 dark:text-green-300 ml-1.5 uppercase tracking-wide">Mark Special</span>
+                    </label>
+                </div>
+
+                <input id="excl-reason" type="text" placeholder="Reason (e.g. Testing, Easter)" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
                 
-                <button id="excl-save-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors text-xs uppercase tracking-wide">
-                    Ban Selected Trains
+                <button id="excl-save-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors text-xs uppercase tracking-wide">
+                    Apply Exceptions
                 </button>
 
                 <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
-                    <p class="text-[10px] text-gray-400 uppercase font-bold mb-2">Active Exclusions:</p>
+                    <p class="text-[10px] text-gray-400 uppercase font-bold mb-2">Active Exceptions:</p>
                     <div id="excl-list" class="space-y-1 max-h-40 overflow-y-auto pr-1 custom-scrollbar"></div>
                 </div>
             </div>
@@ -808,7 +830,7 @@ const Admin = {
             const label = document.createElement('label');
             label.className = "flex flex-col items-center cursor-pointer";
             label.innerHTML = `
-                <input type="checkbox" value="${idx}" class="form-checkbox h-3 w-3 text-red-600 bg-white border-gray-300 rounded mb-1 focus:ring-0">
+                <input type="checkbox" value="${idx}" class="form-checkbox h-3 w-3 text-blue-600 bg-white border-gray-300 rounded mb-1 focus:ring-0">
                 <span class="text-[9px] font-bold text-gray-500">${d}</span>
             `;
             daysContainer.appendChild(label);
@@ -872,7 +894,7 @@ const Admin = {
                         }
                     };
                     div.innerHTML = `
-                        <input type="checkbox" value="${tNum}" class="rounded text-red-600 focus:ring-0 w-3 h-3 cursor-pointer">
+                        <input type="checkbox" value="${tNum}" class="rounded text-blue-600 focus:ring-0 w-3 h-3 cursor-pointer">
                         <span class="font-mono text-gray-700 dark:text-gray-300">${tNum}</span>
                     `;
                     trainGrid.appendChild(div);
@@ -890,22 +912,30 @@ const Admin = {
                 const data = await res.json();
                 listDiv.innerHTML = '';
                 if (!data) {
-                    listDiv.innerHTML = '<div class="text-xs text-gray-400 italic">No active exclusions.</div>';
+                    listDiv.innerHTML = '<div class="text-xs text-gray-400 italic">No active exceptions.</div>';
                     return;
                 }
                 Object.keys(data).forEach(trainNum => {
                     const item = data[trainNum];
                     const dayLabels = item.days.map(d => days[d]).join('');
+                    
+                    // GUARDIAN PHASE 12: Identify SPL vs BANNED
+                    const isSpecial = item.type === 'special';
+                    const badgeHtml = isSpecial 
+                        ? '<span class="bg-green-100 text-green-700 px-1 rounded text-[9px] font-black tracking-widest mr-1">SPL</span>'
+                        : '<span class="bg-red-100 text-red-700 px-1 rounded text-[9px] font-black tracking-widest mr-1">BAN</span>';
+
                     const row = document.createElement('div');
                     row.className = "flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs border border-gray-100 dark:border-gray-700 mt-1";
                     row.innerHTML = `
                         <div>
-                            <span class="font-bold text-red-600">#${trainNum}</span>
+                            ${badgeHtml}
+                            <span class="font-bold ${isSpecial ? 'text-green-600' : 'text-red-600'}">#${trainNum}</span>
                             <span class="text-gray-400 mx-1">|</span>
                             <span class="text-gray-700 dark:text-gray-300 font-mono tracking-widest">[${dayLabels}]</span>
-                            <div class="text-[9px] text-gray-400">${item.reason || 'No reason'}</div>
+                            <div class="text-[9px] text-gray-400 mt-0.5">${item.reason || 'No reason specified'}</div>
                         </div>
-                        <button class="text-red-500 hover:text-white hover:bg-red-500 rounded px-1.5 py-0.5 transition-colors font-bold" onclick="Admin.deleteExclusion('${rId}', '${trainNum}')">✕</button>
+                        <button class="text-gray-400 hover:text-white hover:bg-red-500 rounded px-1.5 py-0.5 transition-colors font-bold" onclick="Admin.deleteExclusion('${rId}', '${trainNum}')">✕</button>
                     `;
                     listDiv.appendChild(row);
                 });
@@ -918,6 +948,10 @@ const Admin = {
             const rId = routeSelect.value;
             const reason = document.getElementById('excl-reason').value.trim() || "Service Adjustment";
             const selectedDays = getSelectedDays();
+            
+            // GUARDIAN: Capture the selected type (banned vs special)
+            const typeSelect = document.querySelector('input[name="excl-type"]:checked');
+            const exceptionType = typeSelect ? typeSelect.value : 'banned';
             
             // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey(); 
@@ -940,12 +974,13 @@ const Admin = {
                 updates[`${tNum}`] = {
                     days: selectedDays,
                     reason: reason,
+                    type: exceptionType, // Guaranteed payload persistence
                     updatedAt: Date.now()
                 };
             });
 
             try {
-                saveBtn.textContent = `Banning ${selectedTrains.length} trains...`;
+                saveBtn.textContent = `Applying...`;
                 saveBtn.disabled = true;
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 
@@ -954,7 +989,7 @@ const Admin = {
                     return fetch(url, { method: 'PUT', body: JSON.stringify(updates[tNum]) });
                 });
                 await Promise.all(promises);
-                showToast(`Updated ${selectedTrains.length} exclusions!`, "success");
+                showToast(`Updated ${selectedTrains.length} exceptions!`, "success");
                 trainGrid.querySelectorAll('input').forEach(cb => cb.checked = false);
                 document.getElementById('excl-train-manual').value = '';
                 fetchExclusions();
@@ -962,13 +997,13 @@ const Admin = {
             } catch (e) {
                 showToast("Network Error: " + e.message, "error");
             } finally {
-                saveBtn.textContent = "Ban Selected Trains";
+                saveBtn.textContent = "Apply Exceptions";
                 saveBtn.disabled = false;
             }
         };
 
         Admin.deleteExclusion = async function(rId, trainNum) {
-            if(!confirm(`Unban Train #${trainNum}?`)) return;
+            if(!confirm(`Remove exception for Train #${trainNum}?`)) return;
             // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey(); 
             if (!secret) { showToast("Authentication required.", "error"); return; }
@@ -977,7 +1012,7 @@ const Admin = {
             try {
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
-                    showToast("Unbanned.", "success");
+                    showToast("Exception removed.", "success");
                     fetchExclusions();
                     if (typeof loadAllSchedules === 'function') loadAllSchedules();
                 } else { showToast("Delete failed.", "error"); }

@@ -38,7 +38,7 @@
         <!-- HEADER -->
         <header class="border-b border-gray-700 pb-8 mb-8">
             <h1 class="text-4xl font-black text-white mb-2">Project Handover</h1>
-            <p class="text-xl text-blue-400 font-bold">Metrorail Next Train (Guardian Edition V4.58.1)</p>
+            <p class="text-xl text-blue-400 font-bold">Metrorail Next Train (Guardian Edition V6.04.05)</p>
             <p class="text-gray-400 mt-2">Technical Documentation & Operational Protocols</p>
         </header>
 
@@ -52,9 +52,10 @@
                     <h3 class="font-bold text-lg text-blue-300 mb-3">Core Stack</h3>
                     <ul class="space-y-2 text-sm text-gray-300">
                         <li><strong>Frontend:</strong> Vanilla JS + Tailwind CSS (via CDN).</li>
-                        <li><strong>Data Source:</strong> Firebase Realtime Database (JSON).</li>
+                        <li><strong>Data Source:</strong> Firebase Realtime Database (JSON) & GitHub jsDelivr.</li>
+                        <li><strong>Local Cache:</strong> IndexedDB (NextTrainDB) with RAM fallback.</li>
                         <li><strong>Hosting:</strong> GitHub Pages (Enforced HTTPS).</li>
-                        <li><strong>Routing:</strong> Cloudflare DNS (Proxied).</li>
+                        <li><strong>Routing:</strong> Cloudflare DNS (Proxied) + Cloudflare Workers (Telemetry).</li>
                     </ul>
                 </div>
                 <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
@@ -62,9 +63,12 @@
                     <ul class="space-y-2 text-sm text-gray-300">
                         <li><code class="text-yellow-400">index.html</code>: App shell & Analytics container.</li>
                         <li><code class="text-yellow-400">js/logic.js</code>: Data fetching, state & Holiday logic.</li>
-                        <li><code class="text-yellow-400">js/planner.js</code>: Trip planning (Hybrid Logic: Direct + Transfer + Smart Pruning).</li>
-                        <li><code class="text-yellow-400">js/config.js</code>: Routes (East, North, West, Soweto), Fares & Constants.</li>
-                        <li><code class="text-yellow-400">js/map-viewer.js</code>: Interactive Pinch-to-Zoom Map Logic.</li>
+                        <li><code class="text-yellow-400">js/planner-core.js</code>: Trip planning (Dijkstra + Hub Bans).</li>
+                        <li><code class="text-yellow-400">js/config.js</code>: Routes, Regions (GP/WC), Fares & Constants.</li>
+                        <li><code class="text-yellow-400">map.html</code>: Interactive Map (Hybrid Engine: Dynamic + Static).</li>
+                        <li><code class="text-gray-500 line-through">js/map-data.js</code>: (Deprecated/Merged into map.html).</li>
+                        <li><code class="text-yellow-400">status.html</code>: Live system health and roadmap tracker.</li>
+                        <li><code class="text-yellow-400">marketing.html</code>: Printable A5 flyers and social assets.</li>
                         <li><code class="text-yellow-400">service-worker.js</code>: Offline caching logic (Cache-First/Stale-While-Revalidate).</li>
                     </ul>
                 </div>
@@ -100,6 +104,28 @@
                             <span class="block mt-2 font-bold text-white">DO NOT re-introduce strict directionality checks.</span>
                         </p>
                     </div>
+                    <!-- GUARDIAN PHASE 6 ADDITIONS -->
+                    <div>
+                        <h4 class="font-bold text-red-400 mb-2">4. Storage Safety (Crash Immunity)</h4>
+                        <p class="text-sm text-gray-300">
+                            iOS Private Browsing strict limits cause <code>QuotaExceededError</code>.
+                            <span class="block mt-2 font-bold text-white">NEVER use raw <code>localStorage.setItem()</code>.</span> Always use the <code>safeSetLocalStorage()</code> wrapper in <code>ui.js</code>.
+                        </p>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-red-400 mb-2">5. Hybrid Map Engine</h4>
+                        <p class="text-sm text-gray-300">
+                            <code>map.html</code> parses dynamic coordinates but falls back to <code>STATIC_ROUTE_PATHS</code>. 
+                            <span class="block mt-2 font-bold text-white">NEVER remove the static fallbacks.</span> They guarantee 100% offline rendering if the DB lacks coordinates.
+                        </p>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-red-400 mb-2">6. Telemetry Integrity</h4>
+                        <p class="text-sm text-gray-300">
+                            Grid analytics use a 2-second debounce to prevent CSS animation double-fires. 
+                            <span class="block mt-2 font-bold text-white">NEVER bypass the <code>_lastGridTrackTime</code> lock.</span> App Version tags must always append to events.
+                        </p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -129,7 +155,7 @@
                         <tr>
                             <td class="p-4 font-bold text-white">PWA Update</td>
                             <td class="p-4">
-                                Increment <code>CACHE_NAME</code> in <code>service-worker.js</code> (e.g., v4.57 -> v4.58). 
+                                Increment <code>CACHE_NAME</code> in <code>service-worker.js</code> (e.g., v4.57 -> v6.04). 
                                 Users get update on next visit.
                             </td>
                         </tr>
@@ -138,7 +164,7 @@
                             <td class="p-4">
                                 1. Add Sheet to App Script.
                                 2. Add config block to <code>js/config.js</code>.
-                                3. Add coordinates to <code>js/map-data.js</code>.
+                                3. Add static array fallback to <code>map.html</code>.
                                 4. Add link to Side Nav in <code>index.html</code>.
                             </td>
                         </tr>
@@ -175,7 +201,7 @@
         <!-- FOOTER -->
         <footer class="text-center text-gray-500 text-sm border-t border-gray-700 pt-8">
             <p>Generated by <strong>NextTrain Guardian AI</strong></p>
-            <p class="mt-1">Last Updated: Jan 2026 (V4.58.1)</p>
+            <p class="mt-1">Last Updated: April 2026 (V6.04.05)</p>
             <a href="index.html" class="inline-block mt-4 text-blue-500 hover:underline">Back to Application</a>
         </footer>
 

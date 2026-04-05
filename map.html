@@ -247,7 +247,6 @@
 
     <script>
         // 🛡️ GUARDIAN PHASE 3: RESTORED STATION COORDINATES DICTIONARY
-        // Serves as the primary anchor for mapping until database columns are populated.
         const STATION_COORDINATES = {
             "PRETORIA": [-25.75864361043285, 28.189866445989118],
             "MEARS STREET": [-25.759836388884576, 28.201559350093763],
@@ -354,19 +353,63 @@
             "MERAFE": [-26.26213048623854, 27.84657941488496],
             "NALEDI": [-26.257998333942396, 27.822761926970013],
             "BELLE-OMBRE": [-25.73740468957095, 28.178914335051033],
-            "CROESUS": [-26.201595050664512, 27.97172133796557],
-            "MLAMLANKUNZI": [-26.22594835366509, 27.928217035582186],
-            "ORLANDO": [-26.237577526260885, 27.91727947272508],
-            "NANCEFIELD": [-26.25168123666912, 27.906423465881122],
-            "KLIPTOWN": [-26.272809958189928, 27.887633494308975],
-            "TSHIAWELO": [-26.288947777153577, 27.87068768853021],
-            "MIDWAY": [-26.292695060119772, 27.851230923913732],
-            "CAPITAL PARK": [-25.71861021137544, 28.199638809110184],
-            "GEZINA": [-25.72149393871516, 28.205461660683653],
-            "DEERNESS": [-25.720427758066748, 28.215590710959766],
-            "VILLIERIA": [-25.71978884760139, 28.228856837877064],
-            "PIERNEEFSRUS": [-25.719666309748767, 28.239301131411885],
-            "QUEENSWOOD": [-25.721853760563217, 28.25178790666072]
+            
+            // --- WESTERN CAPE ---
+            "BELLVILLE": [-33.906263, 18.626621],
+            "SAREPTA": [-33.926555, 18.661143],
+            "PENTECH": [-33.934680, 18.646053],
+            "UNIBELL": [-33.936863, 18.628117],
+            "BELHAR": [-33.939597, 18.608944],
+            "LAVISTOWN": [-33.943269, 18.583722],
+            "CHRIS HANI": [-34.054706, 18.710707],
+            "KUYASA": [-34.054899, 18.692323],
+            "KHAYELITSHA": [-34.047943, 18.670737],
+            "NONKQUBELA": [-34.026817, 18.663190],
+            "NOLUNGILE": [-34.016811, 18.649023],
+            "MANDALAY": [-34.019015, 18.624391],
+            "STOCK ROAD": [-34.014122, 18.606174],
+            "KAPTEINSKLIP": [-34.067558, 18.620534],
+            "MITCHELL'S PLAIN": [-34.050461, 18.619222],
+            "LENTEGEUR": [-34.034189, 18.611322],
+            "PHILIPPI": [-34.013288, 18.584421],
+            "NYANGA": [-33.992713, 18.559776],
+            "BONTEHEUWEL": [-33.941850, 18.549579],
+            "LANGA": [-33.938934, 18.529744],
+            "MUTUAL": [-33.922093, 18.511988],
+            "YSTERPLAAT": [-33.919902, 18.476775],
+            "ESPLANADE": [-33.923640, 18.446037],
+            "PINELANDS": [-33.939644, 18.490635],
+            "NDABENI": [-33.928548, 18.495159],
+            "MAITLAND": [-33.924651, 18.487001],
+            "KOEBERG RD": [-33.925709, 18.478877],
+            "SALT RIVER": [-33.927545, 18.464689],
+            "WOODSTOCK": [-33.925058, 18.446139],
+            "CAPE TOWN": [-33.923631, 18.427186],
+            "NETREG": [-33.952666, 18.563566],
+            "HEIDEVELD": [-33.969594, 18.561877]
+        };
+
+        // 🛡️ GUARDIAN PHASE 3: STATIC PATH DEFINITIONS
+        // Bypasses empty or missing DB coordinate columns to draw lines flawlessly offline
+        const STATIC_ROUTE_PATHS = {
+            'pta-pien': ["PRETORIA", "MEARS STREET", "DEVENISH STREET", "WALKER STREET", "LOFTUS VERSFELD PARK", "RISSIK", "HARTBEESSPRUIT", "KOEDOESPOORT", "SILVERTON", "WALTLOO", "DENNEBOOM", "EERSTE FABRIEKE", "MAMELODI GARDENS", "GREENVIEW", "PIENAARSPOORT"],
+            'pta-mabopane': ["PRETORIA", "PRETORIA-B", "PRETORIA WES", "HERCULES", "DASPOORT", "MOUNTAIN VIEW", "WONDERBOOM", "PRETORIA-N", "WOLMERTON", "WINTERSNEST", "AKASIABOOM", "KOPANONG", "SOSHANGUVE", "MABOPANE"],
+            'mab-belle': ["MABOPANE", "SOSHANGUVE", "KOPANONG", "AKASIABOOM", "WINTERSNEST", "WOLMERTON", "PRETORIA-N", "WONDERBOOM", "MOUNTAIN VIEW", "DASPOORT", "HERCULES", "BELLE-OMBRE"],
+            'pta-dewildt': ["WINTERSNEST", "ROSSLYN", "GA-RANKUWA", "TAILLARDSHOOP", "DE WILDT"],
+            'herc-koed': ["HERCULES", "DASPOORT", "CAPITAL PARK", "GEZINA", "DEERNESS", "VILLIERIA", "PIERNEEFSRUS", "QUEENSWOOD", "KOEDOESPOORT"],
+            'pta-saul': ["PRETORIA", "PRETORIA WES", "MITCHELLSTRAAT", "SCHUTTESTRAAT", "KALAFONG", "ATTERIDGEVILLE", "SAULSVILLE"],
+            'pta-kempton': ["PRETORIA", "FONTEINE", "KLOOFSIG", "SPORTPARK", "CENTURION", "IRENE", "PINEDENE", "OLIFANTSFONTEIN", "OAKMOOR", "KAALFONTEIN", "BIRCHLEIGH", "VAN RIEBEECKPARK", "KEMPTON PARK"],
+            'germ-leralla': ["GERMISTON", "KNIGHTS", "RAVENSKLIP", "ELANDSFONTEIN", "ISANDO", "RHODESFIELD", "KEMPTON PARK", "VAN RIEBEECKPARK", "BIRCHLEIGH", "KAALFONTEIN", "TEMBISA", "LIMINDLELA", "LERALLA"],
+            'germ-kwesine': ["GERMISTON", "ELSBURG", "KATLEHONG", "LINDELA", "PILOT", "KWESINE"],
+            'jhb-germiston': ["JOHANNESBURG", "DOORNFONTEIN", "ELLIS PARK", "JEPPE", "GEORGE GOCH", "DENVER", "TOORONGA", "CLEVELAND", "GELDENHUIS", "DRIEHOEK", "PRESIDENT", "GERMISTON"],
+            'jhb-rand': ["JOHANNESBURG", "BRAAMFONTEIN", "MAYFAIR", "GROSVENOR", "LANGLAAGTE", "MARAISBURG", "UNIFIED", "FLORIDA", "HAMBERG", "GEORGINIA", "ROODEPOORT", "HORISON", "PRINCESS", "WITPOORTJIE", "LUIPAARDSVLEI", "KRUGERSDORP", "WESRAND", "MILLSITE", "ROBINSON", "HOMELAKE", "RANDFONTEIN"],
+            'jhb-soweto': ["LANGLAAGTE", "LONGDALE", "NEW CANADA", "MZIMHLOPE", "PHOMOLONG", "PHEFENI", "DUBE", "IKWEZI", "INHLAZANE", "MERAFE", "NALEDI"],
+            'jhb-midway': ["JOHANNESBURG", "BRAAMFONTEIN", "MAYFAIR", "GROSVENOR", "LANGLAAGTE", "CROESUS", "LONGDALE", "NEW CANADA", "MLAMLANKUNZI", "ORLANDO", "NANCEFIELD", "KLIPTOWN", "TSHIAWELO", "MIDWAY"],
+            
+            // --- WESTERN CAPE (GUARDIAN CORRECTED PATHS) ---
+            'ct-chrishani': ["CAPE TOWN", "ESPLANADE", "YSTERPLAAT", "MUTUAL", "LANGA", "BONTEHEUWEL", "NETREG", "HEIDEVELD", "NYANGA", "PHILIPPI", "STOCK ROAD", "MANDALAY", "NOLUNGILE", "NONKQUBELA", "KHAYELITSHA", "KUYASA", "CHRIS HANI"],
+            'ct-kapteinsklip': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "NDABENI", "PINELANDS", "LANGA", "BONTEHEUWEL", "NETREG", "HEIDEVELD", "NYANGA", "PHILIPPI", "LENTEGEUR", "MITCHELL'S PLAIN", "KAPTEINSKLIP"],
+            'bellville-mutual': ["BELLVILLE", "SAREPTA", "PENTECH", "UNIBELL", "BELHAR", "LAVISTOWN", "BONTEHEUWEL", "LANGA", "MUTUAL"]
         };
 
         // --- MAP LOGIC (Dynamic Region & DB Sync) ---
@@ -492,12 +535,11 @@
                 if (route.region !== currentRegion || route.id === 'special_event') return;
 
                 // Track Hubs and Terminals to size markers properly later
-                if (route.destA) ends.add(route.destA.replace(' STATION', '').trim().toUpperCase());
-                if (route.destB) ends.add(route.destB.replace(' STATION', '').trim().toUpperCase());
-                if (route.transferStation) hubs.add(route.transferStation.replace(' STATION', '').trim().toUpperCase());
-                if (route.relayStation) hubs.add(route.relayStation.replace(' STATION', '').trim().toUpperCase());
+                if (route.destA) ends.add(route.destA.replace(/ STATION/gi, '').trim().toUpperCase());
+                if (route.destB) ends.add(route.destB.replace(/ STATION/gi, '').trim().toUpperCase());
+                if (route.transferStation) hubs.add(route.transferStation.replace(/ STATION/gi, '').trim().toUpperCase());
+                if (route.relayStation) hubs.add(route.relayStation.replace(/ STATION/gi, '').trim().toUpperCase());
 
-                // Attempt to grab coordinate sequence from weekday_to_a, fallback to weekday_to_b
                 let sheetKey = route.sheetKeys.weekday_to_a;
                 let sheetData = mergedDb[sheetKey];
                 
@@ -506,73 +548,110 @@
                     sheetData = mergedDb[sheetKey];
                 }
 
-                if (!sheetData || !Array.isArray(sheetData)) return;
+                let routeCoords = [];
+                let extractedDynamically = false;
 
-                // Dynamically find Header Row
-                let headerIndex = -1;
-                for (let i = 0; i < Math.min(sheetData.length, 5); i++) {
-                    if (Object.values(sheetData[i]).some(val => val && String(val).toUpperCase().includes('STATION'))) {
-                        headerIndex = i;
-                        break;
+                if (sheetData && Array.isArray(sheetData)) {
+                    let stationKey = 'STATION';
+                    let coordKey = 'COORDINATES';
+                    let startIndex = 0;
+
+                    // 🛡️ GUARDIAN FIX: Universal Format Detector
+                    // Safely handles both legacy array format (GP) and modern object array format (WC)
+                    let foundHeader = false;
+                    for (let i = 0; i < Math.min(sheetData.length, 5); i++) {
+                        const row = sheetData[i];
+                        for (const k of Object.keys(row)) {
+                            if (String(row[k]).toUpperCase().trim() === 'STATION') {
+                                stationKey = k;
+                                foundHeader = true;
+                                for (const ck of Object.keys(row)) {
+                                    if (String(row[ck]).toUpperCase().trim() === 'COORDINATES') coordKey = ck;
+                                }
+                                startIndex = i + 1; // Start AFTER the detected header row
+                                break;
+                            }
+                        }
+                        if (foundHeader) break;
+                    }
+
+                    for (let i = startIndex; i < sheetData.length; i++) {
+                        const row = sheetData[i];
+                        if (!row || !row[stationKey]) continue;
+                        
+                        const sNameOrig = String(row[stationKey]).trim();
+                        if (sNameOrig.toLowerCase().includes('last updated') || sNameOrig.toLowerCase().includes('inter-station')) continue;
+
+                        // 🛡️ GUARDIAN FIX: Ghost Row Pruning
+                        // Only process this station if it actually has active train times on this sheet!
+                        const hasData = Object.keys(row).some(k => k !== stationKey && k !== coordKey && k !== 'KM_MARK' && k !== 'row_index' && row[k] && String(row[k]).trim() !== "" && String(row[k]).trim() !== "-");
+                        if (!hasData) continue;
+
+                        const sName = sNameOrig.replace(/ STATION/gi, '').toUpperCase();
+
+                        let lat = null, lon = null;
+                        const cVal = row[coordKey];
+                        if (cVal) {
+                            const parts = String(cVal).split(',').map(s => parseFloat(s.trim()));
+                            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) { 
+                                lat = parts[0]; lon = parts[1]; 
+                            }
+                        }
+
+                        // Rescue missing coordinates using hardcoded dictionary
+                        if (lat === null && STATION_COORDINATES[sName]) {
+                            lat = STATION_COORDINATES[sName][0];
+                            lon = STATION_COORDINATES[sName][1];
+                        }
+
+                        // Rescue missing coordinates from previously mapped sheets
+                        if (lat === null && globalStations[sName]) {
+                            lat = globalStations[sName].lat;
+                            lon = globalStations[sName].lon;
+                        }
+
+                        if (lat !== null && lon !== null) {
+                            routeCoords.push([lat, lon]);
+                            if (!globalStations[sName]) {
+                                globalStations[sName] = { lat, lon, origName: sNameOrig, routes: new Set() };
+                            }
+                            globalStations[sName].routes.add(route.id);
+                        }
+                    }
+                    
+                    if (routeCoords.length > 1) {
+                        extractedDynamically = true;
                     }
                 }
 
-                if (headerIndex === -1) return;
+                // 🛡️ GUARDIAN HYBRID FALLBACK: Force static definitions for Western Cape template sheets
+                if (!extractedDynamically || currentRegion === 'WC') {
+                    routeCoords = [];
+                    if (STATIC_ROUTE_PATHS[route.id]) {
+                        STATIC_ROUTE_PATHS[route.id].forEach(sName => {
+                            let lat = null, lon = null;
+                            if (STATION_COORDINATES[sName]) {
+                                lat = STATION_COORDINATES[sName][0];
+                                lon = STATION_COORDINATES[sName][1];
+                            } else if (globalStations[sName]) {
+                                lat = globalStations[sName].lat;
+                                lon = globalStations[sName].lon;
+                            }
 
-                // Identify Keys
-                let stationKey = null, coordKey = null;
-                Object.keys(sheetData[headerIndex]).forEach(k => {
-                    const v = String(sheetData[headerIndex][k]).toUpperCase();
-                    if (v.includes('STATION')) stationKey = k;
-                    if (v.includes('COORDINATES')) coordKey = k;
-                });
-                if (!stationKey) stationKey = 'STATION';
-                if (!coordKey) coordKey = 'COORDINATES';
-
-                let routeCoords = [];
-
-                for(let i = headerIndex + 1; i < sheetData.length; i++) {
-                    const row = sheetData[i];
-                    if (!row[stationKey]) continue;
-                    
-                    const sNameOrig = String(row[stationKey]).trim();
-                    if (sNameOrig.toLowerCase().includes('last updated') || sNameOrig.toLowerCase().includes('inter-station')) continue;
-
-                    const sName = sNameOrig.replace(' STATION', '').toUpperCase();
-
-                    let lat = null, lon = null;
-                    const cVal = row[coordKey];
-                    if (cVal) {
-                        const parts = String(cVal).split(',').map(s => parseFloat(s.trim()));
-                        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) { 
-                            lat = parts[0]; lon = parts[1]; 
-                        }
-                    }
-
-                    // 🛡️ GUARDIAN FIX: Rescue missing coordinates using hardcoded dictionary
-                    if (lat === null && STATION_COORDINATES[sName]) {
-                        lat = STATION_COORDINATES[sName][0];
-                        lon = STATION_COORDINATES[sName][1];
-                    }
-
-                    // Rescue missing coordinates from previously mapped sheets
-                    if (lat === null && globalStations[sName]) {
-                        lat = globalStations[sName].lat;
-                        lon = globalStations[sName].lon;
-                    }
-
-                    if (lat !== null && lon !== null) {
-                        routeCoords.push([lat, lon]);
-                        if (!globalStations[sName]) {
-                            globalStations[sName] = { lat, lon, origName: sNameOrig, routes: new Set() };
-                        }
-                        globalStations[sName].routes.add(route.id);
+                            if (lat !== null && lon !== null) {
+                                routeCoords.push([lat, lon]);
+                                if (!globalStations[sName]) {
+                                    globalStations[sName] = { lat, lon, origName: sName, routes: new Set() };
+                                }
+                                globalStations[sName].routes.add(route.id);
+                            }
+                        });
                     }
                 }
 
                 if (routeCoords.length > 1) {
                      drawnRoutes.push({
-                         name: route.name.replace('<->', '↔'),
+                         name: route.name.replace(/<->/g, '↔'),
                          color: colorMap[route.colorClass] || '#9ca3af',
                          isActive: route.isActive,
                          coords: routeCoords
@@ -580,7 +659,7 @@
                 }
             });
 
-            // 🛡️ GUARDIAN UX FIX: Empty Map Warning for Western Cape
+            // 🛡️ GUARDIAN UX FIX: Empty Map Warning
             if (drawnRoutes.length === 0) {
                 const warningBox = document.getElementById('empty-map-warning');
                 if (warningBox) warningBox.classList.remove('hidden');
@@ -614,8 +693,8 @@
                     opacity: 1,
                     fillOpacity: 1
                 }).addTo(map)
-                  .bindPopup(`<b class="text-sm">${data.origName.replace(' STATION', '')}</b>`) 
-                  .bindTooltip(data.origName.replace(' STATION', ''), { 
+                  .bindPopup(`<b class="text-sm">${data.origName.replace(/ STATION/gi, '')}</b>`) 
+                  .bindTooltip(data.origName.replace(/ STATION/gi, ''), { 
                       permanent: true, 
                       direction: 'top',
                       offset: [0, -5],

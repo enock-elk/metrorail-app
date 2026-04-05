@@ -1,6 +1,7 @@
+// --- METRORAIL NEXT TRAIN LOGIC (V6.04.05 - Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
-let currentRegion = localStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP)
+let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
 let globalStationIndex = {}; 
 let currentRouteId = null; 
 let fullDatabase = null; 
@@ -286,7 +287,7 @@ async function saveToLocalCache(key, data) {
     } catch (e) {
         console.warn("🛡️ Guardian: IndexedDB Save Failed (Possible Disk Full). Falling back...", e);
         try { 
-            localStorage.setItem(key, JSON.stringify(cacheEntry)); 
+            safeStorage.setItem(key, JSON.stringify(cacheEntry)); 
         } catch(ex) {
             console.warn("🛡️ Guardian: LocalStorage also failed (Disk critically full). Operating strictly in RAM mode.");
             // We already saved to memoryFallbackCache[key] above, so the app will still work this session.
@@ -314,13 +315,13 @@ async function loadFromLocalCache(key) {
                 } else {
                     // GUARDIAN SILENT MIGRATION: If IDB is empty, check legacy localStorage, import it, and delete it.
                     try {
-                        const lsItem = localStorage.getItem(key);
+                        const lsItem = safeStorage.getItem(key);
                         if (lsItem) {
                             const parsed = JSON.parse(lsItem);
                             memoryFallbackCache[key] = parsed; // Mirror to RAM
                             resolve(parsed);
                             saveToLocalCache(key, parsed.data); // Migrate seamlessly in background
-                            localStorage.removeItem(key); // Free up quota limit
+                            safeStorage.removeItem(key); // Free up quota limit
                         } else {
                             resolve(null);
                         }
@@ -332,7 +333,7 @@ async function loadFromLocalCache(key) {
     } catch (e) {
         console.warn("🛡️ Guardian: IndexedDB Load Failed (Disk IO Error). Checking LocalStorage...", e);
         try { 
-            const item = localStorage.getItem(key); 
+            const item = safeStorage.getItem(key); 
             if (item) {
                 const parsed = JSON.parse(item);
                 memoryFallbackCache[key] = parsed; // Mirror to RAM
@@ -358,8 +359,8 @@ window.clearScheduleCache = async function() {
             tx.onerror = () => resolve();
         });
     } catch(e) {} finally {
-        localStorage.removeItem(`full_db_GP`);
-        localStorage.removeItem(`full_db_WC`);
+        safeStorage.removeItem(`full_db_GP`);
+        safeStorage.removeItem(`full_db_WC`);
     }
 };
 
@@ -389,10 +390,10 @@ async function checkKillswitch() {
         if (res.ok) {
             const data = await res.json();
             if (data && data.timestamp) {
-                const localTimestamp = localStorage.getItem('last_killswitch_timestamp');
+                const localTimestamp = safeStorage.getItem('last_killswitch_timestamp');
                 if (!localTimestamp || data.timestamp > parseInt(localTimestamp)) {
                     console.log("☢️ GUARDIAN KILLSWITCH ACTIVATED. Wiping all local data...");
-                    localStorage.setItem('last_killswitch_timestamp', data.timestamp);
+                    safeStorage.setItem('last_killswitch_timestamp', data.timestamp);
                     
                     // Trigger global wipe if ui.js is bound, otherwise fallback to raw local logic
                     if (typeof window.performHardCacheClear === 'function') {
@@ -408,8 +409,8 @@ async function checkKillswitch() {
                                 for (let name of names) caches.delete(name);
                             });
                         }
-                        localStorage.removeItem(`full_db_${currentRegion}`); 
-                        localStorage.removeItem('app_installed_version');
+                        safeStorage.removeItem(`full_db_${currentRegion}`); 
+                        safeStorage.removeItem('app_installed_version');
                         setTimeout(() => { window.location.reload(true); }, 500);
                     }
                     return true; 

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V6.04.01 (Guardian Edition - UI/UX Polish)
+  Metrorail Next Train V6.04.05 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -11,7 +11,7 @@
   - PHASE 9 (Step 3): Dev Hub Accordion Restructure. Live Telemetry injected. Sign-out relocated. Pristine Layout Fix.
   - PHASE 10: Smooth Two-Step Modal Animation Engine Injected.
   - GUARDIAN PHASE 7: Sidenav Spacing normalized, iOS Region Toggle added, Fare box restructured.
-  - GUARDIAN V7: Planner UI copy updated. Offline pill repositioned for cross-viewport centering.
+  - GUARDIAN UX: Drop-Tab offline indicator with Light/Dark Mode neon glow adaptation.
 -->
 <html lang="en" class="dark">
 
@@ -115,7 +115,12 @@
                     "Load failed",
                     "QuotaExceededError", // GUARDIAN: Drop physical disk full exceptions
                     "UnknownError: Connection is closing because of: IO error", // GUARDIAN: Drop SQLite corruption events
-                    "Internal error opening backing store" // GUARDIAN: Drop IndexedDB IO startup failures
+                    "Internal error opening backing store", // GUARDIAN: Drop IndexedDB IO startup failures
+                    // GUARDIAN Phase 1: Noise Filter Injections
+                    "UnknownError",
+                    "Failed to update a ServiceWorker",
+                    "AbortError",
+                    "window.webkit.messageHandlers"
                 ]
             });
         };
@@ -242,6 +247,22 @@
             overflow: hidden !important;
             touch-action: none !important;
             overscroll-behavior: none !important;
+        }
+
+        /* GUARDIAN V6.23 JIT BYPASS: Offline Banner Positioning & Centring */
+        #offline-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            z-index: 60;
+            pointer-events: none;
+        }
+        #offline-indicator {
+            width: fit-content;
+            pointer-events: auto;
         }
 
         /* GUARDIAN V6.22 JIT BYPASS: Sidenav Transitions */
@@ -372,7 +393,7 @@
                             </div>
                             <div class="text-left flex-1 min-w-0">
                                 <p class="text-sm font-bold text-gray-900 dark:text-white leading-tight truncate">Check for Updates</p>
-                                <p class="text-[10px] text-gray-500 dark:text-gray-400 whitespace-normal leading-snug pr-1">Sync latest offline schedules</p>
+                                <p class="text-[10px] text-gray-500 dark:text-gray-400 whitespace-normal leading-snug pr-1">Reset WebApp</p>
                             </div>
                         </div>
                         <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
@@ -407,9 +428,11 @@
         <!-- THE CLEAN HEADER -->
         <div class="pt-2 px-3 pb-1 bg-white dark:bg-gray-800 z-20 shadow-sm relative flex flex-col justify-center min-h-[85px]">
             
-            <!-- GUARDIAN PHASE 11: Sleek Offline Pill (Relocated & High Contrast) -->
-            <div id="offline-indicator" style="display: none;" class="absolute top-2 left-0 right-0 mx-auto w-max max-w-[50vw] z-[60] bg-amber-400 text-gray-900 dark:bg-amber-500 dark:text-gray-900 text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-md border border-amber-500 dark:border-amber-600 flex items-center justify-center tracking-widest whitespace-nowrap">
-                <span class="mr-1.5 animate-pulse text-sm leading-none"></span> WORKING OFFLINE
+            <!-- GUARDIAN UX V6.08: Flex-Wrapped Drop-Tab (Solves width stretching & clipping) -->
+            <div id="offline-wrapper" class="absolute top-0 left-0 right-0 flex justify-center z-[60] pointer-events-none">
+                <div id="offline-indicator" style="display: none;" class="pointer-events-auto w-max bg-amber-400 text-gray-900 border-amber-500 border-b border-x border-t-0 dark:bg-gray-900/95 dark:text-amber-400 dark:border-amber-500/80 dark:shadow-[0_4px_12px_rgba(245,158,11,0.15)] backdrop-blur-md text-xs font-black uppercase px-4 py-1 rounded-b-lg shadow-md flex items-center justify-center tracking-widest whitespace-nowrap transition-colors">
+                    <span class="w-2 h-2 rounded-full mr-2 animate-pulse bg-gray-900 dark:bg-amber-400"></span> WORKING OFFLINE
+                </div>
             </div>
 
             <!-- Absolute Hamburger Menu -->
@@ -1297,24 +1320,24 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=6.04.01"></script>
-    <script src="js/renderer.js?v=6.04.01"></script>
+    <script src="js/grid-order.js?v=6.04.05"></script>
+    <script src="js/renderer.js?v=6.04.05"></script>
     
-    <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=6.04.01"></script>
+    <script src="js/utils.js?v=6.04.05"></script>
+    <script src="js/config.js?v=6.04.05"></script>
+    <script src="js/logic.js?v=6.04.05"></script>
 
-    <script src="js/utils.js?v=6.04.01"></script>
-    <script src="js/config.js?v=6.04.01"></script>
-    <script src="js/logic.js?v=6.04.01"></script>
+    <!-- ADMIN TOOLS -->
+    <script src="js/admin.js?v=6.04.05"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=6.04.01"></script>
-    <script src="js/planner-ui.js?v=6.04.01"></script>
+    <script src="js/planner-core.js?v=6.04.05"></script>
+    <script src="js/planner-ui.js?v=6.04.05"></script>
     
-    <script src="js/map-viewer.js?v=6.04.01"></script> 
+    <script src="js/map-viewer.js?v=6.04.05"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=6.04.01"></script>
+    <script src="js/ui.js?v=6.04.05"></script>
 
     <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>

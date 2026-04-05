@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v6.04.01'; // BUMPED: V6.04.01 - Network-First Strategy Upgrade
+const CACHE_NAME = 'metrorail-next-train-v6.04.05'; // BUMPED: V6.04.05 - Network-First Strategy Upgrade
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.

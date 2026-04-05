@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7.00.02 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.05 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -55,17 +55,6 @@ window.hidePlannerResults = function() {
     if (resultsSection) resultsSection.classList.add('hidden');
     if (typeof plannerExpandedState !== 'undefined') plannerExpandedState.clear(); 
 };
-
-window.addEventListener('popstate', (event) => {
-    const hash = location.hash;
-    // If user navigates back to root planner, home, or exit trap, hide results
-    if (hash === '#planner' || hash === '#home' || hash === '#exit' || !hash) {
-        const resultsSection = document.getElementById('planner-results-section');
-        if (resultsSection && !resultsSection.classList.contains('hidden')) {
-            window.hidePlannerResults();
-        }
-    }
-});
 
 // --- GUARDIAN PHASE 6.1 & V7: DATA EXTRACTION ENGINE ---
 window.extractTripCoordinates = function(tripIndex) {
@@ -968,10 +957,14 @@ function initPlanner() {
     // GUARDIAN Phase 10 & 11: Router-Aware Reset
     const resetAction = () => {
         if (typeof triggerHaptic === 'function') triggerHaptic();
+        
+        window.hidePlannerResults();
+        
+        // GUARDIAN Phase 1 (Router Stabilization): 
+        // Bypass async history.back() to prevent race conditions with the main ui.js popstate.
+        // We explicitly replace the URL state to halt backward bleed to #home.
         if (location.hash === '#planner-results') {
-            history.back();
-        } else {
-            window.hidePlannerResults();
+            history.replaceState({ view: 'planner' }, '', '#planner');
         }
     };
 
@@ -1440,10 +1433,28 @@ function updatePlannerHeader(dayLabel, showShare = true) {
                 showToast("Switched to " + e.target.options[e.target.selectedIndex].text, "info", 1500);
             }
             
-            const fromSelect = document.getElementById('planner-from');
-            const toSelect = document.getElementById('planner-to');
-            if (fromSelect && toSelect && fromSelect.value && toSelect.value) {
-                executeTripPlan(fromSelect.value, toSelect.value);
+            // GUARDIAN V7: Safely extract resolved origin and destination directly from the active results memory.
+            // If the user is on the NO_PATH screen, fall back robustly to the input fields.
+            let fromStation = "";
+            let toStation = "";
+            
+            if (typeof currentTripOptions !== 'undefined' && currentTripOptions.length > 0) {
+                fromStation = currentTripOptions[0].from;
+                toStation = currentTripOptions[0].to;
+            } else {
+                const fromInput = document.getElementById('planner-from-search');
+                const toInput = document.getElementById('planner-to-search');
+                const fromSelect = document.getElementById('planner-from');
+                const toSelect = document.getElementById('planner-to');
+                
+                fromStation = (fromInput && fromInput.dataset.resolvedValue) ? fromInput.dataset.resolvedValue : (fromSelect ? fromSelect.value : "");
+                toStation = (toInput && toInput.dataset.resolvedValue) ? toInput.dataset.resolvedValue : (toSelect ? toSelect.value : "");
+            }
+
+            if (fromStation && toStation) {
+                executeTripPlan(fromStation, toStation);
+            } else if (typeof showToast === 'function') {
+                showToast("Could not resolve stations for new date.", "error");
             }
         });
         
