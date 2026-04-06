@@ -1,11 +1,14 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.06 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.05 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
  * * PART OF PHASE 5: NATIVE EXPERIENCE (Targeted Haptics & Grid UI)
  * * PHASE 1 (BUGFIX 4): Dynamic Holiday Lookahead bindings for UI buttons. Grid dropdowns relabeled.
  * * GUARDIAN PHASE 12: Integrated specific metadata styling for "SPL" vs "NO SVC" in the Timetable Grid.
+ * * GUARDIAN PHASE 15: Ultra-Wide Data Matrix Polish (Zebra Striping, Right-Side Anchors, Typography scaling).
+ * * GUARDIAN PHASE 16: Ultra-Compact Matrix Mode for routes with 20+ trains (Negative tracking, dynamic min-widths, asymmetrical padding).
+ * * GUARDIAN PHASE 17: "Tall Grid" mode for Web UI vertical compression, strict Export sandbox, and Ghost Number transparency fix.
  */
 
 const Renderer = {
@@ -649,10 +652,38 @@ const Renderer = {
             }
         }
 
-        const paddingClass = isExport ? 'p-2' : 'p-3'; 
+        // GUARDIAN PHASE 15 & 16: Right-Side Anchor Dictionary & Ultra-Compact Matrix Mode (EXPORT ONLY)
+        const showRightAnchor = isExport && sortedCols.length >= 20;
+        const getAbbrev = (name) => {
+            const map = {
+                "PRETORIA": "PTA",
+                "JOHANNESBURG": "JHB",
+                "GERMISTON": "GERM",
+                "MABOPANE": "MABO",
+                "SAULSVILLE": "SAUL",
+                "BELLE OMBRE": "BELL",
+                "PIENAARSPOORT": "PIEN",
+                "KEMPTON PARK": "KEMP",
+                "CAPE TOWN": "CPT",
+                "BELLVILLE": "BELL",
+                "KOEDOESPOORT": "KOED",
+                "ATTERIDGEVILLE": "ATTR",
+                "LERALLA": "LERA",
+                "KWESINE": "KWES",
+                "RANDFONTEIN": "RAND",
+                "NALEDI": "NALD"
+            };
+            const upper = name.trim().toUpperCase();
+            return map[upper] || upper.substring(0, 4);
+        };
+
+        // GUARDIAN: Tall Grid Mode - Compress vertical padding for mobile view if many stations
+        const isTallGrid = !isExport && schedule.rows.length > 15;
+        const paddingClass = isExport ? 'p-2' : (isTallGrid ? 'py-2 px-3' : 'p-3'); 
         const fontSizeClass = isExport ? 'text-sm' : 'text-xs'; 
+        const minWidthClass = showRightAnchor ? 'min-w-[46px]' : 'min-w-[70px]';
         
-        let tableClass = isExport ? '' : 'bg-white dark:bg-gray-900';
+        let tableClass = isExport ? (showRightAnchor ? 'export-compact' : '') : 'bg-white dark:bg-gray-900';
         let theadClass = isExport ? '' : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-200'; 
         let stickyHeaderClass = isExport ? '' : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700'; 
         let borderClass = isExport ? 'border-gray-300' : 'border-gray-300 dark:border-gray-700';
@@ -683,13 +714,15 @@ const Renderer = {
                                 }
                             }
 
-                            return `<th class="${paddingClass} border-b border-r ${borderClass} whitespace-nowrap text-center ${bgClass} min-w-[70px]" ${isHighlight ? 'id="grid-active-col"' : ''}>${headerContent}</th>`;
+                            return `<th class="${paddingClass} border-b border-r ${borderClass} whitespace-nowrap text-center ${bgClass} ${minWidthClass}" ${isHighlight ? 'id="grid-active-col"' : ''}>${headerContent}</th>`;
                         }).join('')}
+                        ${showRightAnchor ? `<th class="right-anchor-header sticky right-0 z-30 ${stickyHeaderClass} ${paddingClass} border-b border-l ${borderClass} font-bold min-w-[50px] shadow-[-4px_0_10px_rgba(0,0,0,0.05)] text-center bg-gray-100 dark:bg-gray-800">STN</th>` : ''}
                     </tr>
                 </thead>
                 <tbody class="divide-y ${borderClass} ${tbodyClass}">
         `;
 
+        let validRowIndex = 0;
         schedule.rows.forEach(row => {
             if (!row.STATION || row.STATION.toLowerCase().includes('updated')) return; 
             const cleanStation = row.STATION.replace(' STATION', '');
@@ -698,14 +731,21 @@ const Renderer = {
             if (!hasData) return;
 
             const isSelectedRow = (!isExport && row.STATION === selectedStation);
+            const isZebra = (validRowIndex % 2 === 1);
             let currentStickyCellClass = stickyCellClass;
             
+            // GUARDIAN FIX: Removed opacity from sticky cells to prevent "Ghost Numbers" bleeding through
             if (isSelectedRow) {
-                currentStickyCellClass = isExport ? '' : 'bg-blue-50 dark:bg-blue-900/30 border-gray-300 dark:border-gray-700 text-blue-900 dark:text-blue-100';
+                currentStickyCellClass = isExport ? '' : 'bg-blue-50 dark:bg-blue-900 border-gray-300 dark:border-gray-700 text-blue-900 dark:text-blue-100';
+            } else if (isZebra && !isExport) {
+                currentStickyCellClass = 'bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white';
             }
 
+            let rowClass = isSelectedRow ? 'bg-blue-50 dark:bg-blue-900/20' : (isZebra && !isExport ? 'bg-gray-50 dark:bg-gray-800/40' : '');
+            if (isZebra && isExport) rowClass += ' export-zebra';
+
             html += `
-                <tr class="${isSelectedRow ? 'bg-blue-50 dark:bg-blue-900/20' : ''}">
+                <tr class="${rowClass.trim()}">
                     <td class="sticky left-0 z-10 ${currentStickyCellClass} ${paddingClass} border-r font-bold truncate max-w-[140px] shadow-lg border-b text-left pl-3">${cleanStation}</td>
                     ${sortedCols.map((col, i) => {
                         let val = row[col] || "-";
@@ -749,8 +789,10 @@ const Renderer = {
                         }
                         return `<td class="${cellClass}">${val}</td>`;
                     }).join('')}
+                    ${showRightAnchor ? `<td class="right-anchor-col sticky right-0 z-10 ${currentStickyCellClass || (isExport ? '' : 'bg-gray-50 dark:bg-gray-800/80')} ${paddingClass} border-l ${borderClass} border-b font-mono font-bold text-center shadow-[-4px_0_10px_rgba(0,0,0,0.05)] text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs">${getAbbrev(cleanStation)}</td>` : ''}
                 </tr>
             `;
+            validRowIndex++;
         });
 
         html += `</tbody></table>`;
@@ -793,10 +835,12 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
 
     const bgColor = '#ffffff'; 
     const textColor = '#111827'; 
-    const borderColor = '#e5e7eb';
+    const borderColor = '#cbd5e1'; // GUARDIAN: Darkened gridlines (Slate-300)
     const accentColor = '#2563eb';
     const mutedColor = '#6b7280';
-    const tableHeaderBg = '#f3f4f6'; 
+    const tableHeaderBg = '#f1f5f9'; // GUARDIAN: Solid Slate-100 header
+    const headerTextColor = '#1e293b'; // GUARDIAN: Darker text for headers
+    const zebraBg = '#f8fafc'; // GUARDIAN: Slate-50 for Zebra Striping
 
     const exportContainer = document.createElement('div');
     exportContainer.style.position = 'fixed';
@@ -885,32 +929,71 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     tables.forEach(t => {
         t.style.width = '100%';
         t.style.borderCollapse = 'collapse';
+        
+        // GUARDIAN PHASE 16: Ultra-Compact Matrix Trigger
+        const isCompact = t.classList.contains('export-compact');
+        
         t.querySelectorAll('th').forEach(th => {
             th.style.backgroundColor = tableHeaderBg;
-            th.style.color = mutedColor;
+            th.style.color = headerTextColor;
             th.style.border = `1px solid ${borderColor}`;
-            th.className = ''; 
-            th.style.padding = '6px';
-            th.style.fontSize = '12px';
-            th.style.fontWeight = 'bold';
-            th.style.textAlign = 'left';
+            th.className = th.className; // Maintain logic classes like 'right-anchor-header'
+            th.style.padding = isCompact ? '8px 3px' : '8px 6px'; // Dynamic asymmetrical padding
+            th.style.fontSize = isCompact ? '12.5px' : '13px';
+            th.style.fontWeight = '900';
+            th.style.textAlign = 'center';
+            if (isCompact) th.style.letterSpacing = '-0.5px'; // Kerning reduction
         });
+        
         t.querySelectorAll('td').forEach(td => {
             td.style.border = `1px solid ${borderColor}`;
-            td.style.padding = '6px'; 
+            td.style.padding = isCompact ? '6px 2.5px' : '6px'; // Dynamic asymmetrical padding
             td.style.color = textColor;
-            td.style.fontSize = '14px'; 
-            td.style.fontFamily = 'monospace';
+            td.style.fontSize = isCompact ? '13.5px' : '15px'; // Dynamic typography scaling
+            td.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
             td.style.textAlign = 'center'; 
             td.style.fontWeight = '600'; 
+            if (isCompact) td.style.letterSpacing = '-0.5px'; // Kerning reduction
         });
+
+        // GUARDIAN: Apply Zebra Striping safely
+        t.querySelectorAll('tr.export-zebra td').forEach(td => {
+            td.style.backgroundColor = zebraBg;
+        });
+
+        // GUARDIAN: Specific styling for the Right-Side Anchor column
+        t.querySelectorAll('.right-anchor-header').forEach(th => {
+            th.style.backgroundColor = '#e2e8f0'; // Slightly darker for distinction
+            th.style.color = '#475569';
+            th.style.letterSpacing = 'normal'; // Reset tracking
+            th.style.padding = '8px 6px'; // Standard padding
+        });
+        t.querySelectorAll('.right-anchor-col').forEach(td => {
+            td.style.backgroundColor = '#f1f5f9';
+            td.style.color = '#64748b';
+            td.style.fontWeight = '800';
+            td.style.fontSize = '13px';
+            td.style.letterSpacing = 'normal'; // Reset tracking
+            td.style.padding = '6px 6px'; // Standard padding
+        });
+
         t.querySelectorAll('.sticky').forEach(el => {
             el.style.position = 'static';
             el.classList.remove('sticky');
         });
+        
+        // Reset the overrides for the station names (1st column)
+        t.querySelectorAll('th:first-child, td:first-child').forEach(cell => {
+            cell.style.textAlign = 'left';
+            cell.style.paddingLeft = '12px';
+            cell.style.paddingRight = '12px';
+            cell.style.letterSpacing = 'normal';
+        });
+
         t.querySelectorAll('td:first-child').forEach(td => {
-            td.style.textAlign = 'left';
-            td.style.paddingLeft = '10px';
+            td.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+            td.style.fontWeight = '800';
+            td.style.color = '#1f2937';
         });
     });
 
@@ -919,8 +1002,9 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     try {
         await new Promise(r => setTimeout(r, 100));
 
+        // GUARDIAN PHASE 15: Scale bumped to 2 for crisp Retina text rendering
         const canvas = await html2canvas(exportContainer, {
-            scale: 1.5,
+            scale: 2,
             backgroundColor: bgColor,
             logging: false,
             useCORS: true
