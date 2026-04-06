@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.05 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.06 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -13,6 +13,7 @@
  * * PHASE 1.2 (GUARDIAN BUGFIX): Popstate logic reordered to prioritize Modals over Planner Results. Holiday Lookahead injected.
  * * PHASE 2 (BUGFIX 4): Ripped out flawed `while` loops from `renderNoService` / `renderNextAvailableTrain`. Hooked to True Day Simulator. Modal and Grid sync patched.
  * * PHASE 2 (GUARDIAN STORAGE): Swapped localStorage to safeStorage. Guarded sessionStorage. Added Array bounds checking.
+ * * GUARDIAN PHASE 15: Grid Synchronization Patch. Prevented grid from blindly auto-forwarding on active holidays.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -329,6 +330,45 @@ function renderRouteError(error) {
         if(pienaarspoortTimeEl) Renderer.renderRouteError(pienaarspoortTimeEl, error);
     }
     if(stationSelect) stationSelect.innerHTML = '<option>Unable to load stations</option>';
+}
+
+function renderComingSoon(element, routeName) {
+    const msg = `
+        <div class="flex flex-col items-center justify-center p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-center w-full">
+            <div class="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4 shadow-inner">
+                <span class="text-3xl">🚧</span>
+            </div>
+            <h3 class="text-xl font-black text-gray-900 dark:text-white mb-2">Route Under Construction</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
+                We are currently building the digital timetable for the <strong class="text-blue-600 dark:text-blue-400">${routeName.replace('<->', '↔')}</strong> corridor.
+            </p>
+            
+            <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800 w-full text-left">
+                <p class="text-xs font-bold text-blue-800 dark:text-blue-300 mb-1 uppercase tracking-wider">Do you commute on this line?</p>
+                <p class="text-xs text-gray-700 dark:text-gray-300 mb-4">
+                    If you have recent photos of the official station timetables, you can help us launch this route faster!
+                </p>
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform" target="_blank" class="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow transition-colors text-sm group">
+                    <svg class="w-4 h-4 mr-2 group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0L8 8m4-4v12"></path></svg>
+                    Share Schedules
+                </a>
+            </div>
+        </div>
+    `;
+    if (element) {
+        const pHeader = document.getElementById('pretoria-header');
+        const pienHeader = document.getElementById('pienaarspoort-header');
+        
+        if (pHeader) pHeader.parentElement.style.display = 'none';
+        if (pienHeader) pienHeader.parentElement.style.display = 'none';
+        
+        const parent = element.closest('.space-y-6') || element.closest('.space-y-4');
+        if (parent) {
+            parent.innerHTML = msg;
+        } else {
+            element.innerHTML = msg;
+        }
+    }
 }
 
 function renderAtDestination(element) { if (element && typeof Renderer !== 'undefined') Renderer.renderAtDestination(element); }
@@ -1965,16 +2005,45 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     let autoForwarded = false;
 
     if (!dayOverride) {
-        const dest = direction === 'A' ? route.destA : route.destB;
-        const selectedStation = stationSelect ? stationSelect.value : "";
-        const simResult = typeof window.simulateNextActiveService === 'function'
-            ? window.simulateNextActiveService(selectedStation, dest)
-            : null;
+        // GUARDIAN PHASE 15: Grid Sync Patch
+        // Only auto-forward to tomorrow if there is absolutely no service on the current day type.
+        let hasServiceToday = false;
         
-        if (simResult && simResult.daysAhead > 0) {
-            selectedDay = simResult.dayInfo.type;
-            targetDayIdx = simResult.dayInfo.idx;
-            autoForwarded = true;
+        if (currentDayType !== 'sunday') {
+            const testSheetKey = `${currentDayType}_to_${direction.toLowerCase()}`;
+            const testSchedule = schedules[testSheetKey];
+            
+            if (testSchedule && testSchedule.rows && testSchedule.rows.length > 0) {
+                const headers = testSchedule.headers.slice(1);
+                for (const t of headers) {
+                    if (typeof isTrainExcluded === 'function' && !isTrainExcluded(t, currentRouteId, targetDayIdx)) {
+                        hasServiceToday = true;
+                        break;
+                    } else if (typeof isTrainExcluded !== 'function') {
+                        hasServiceToday = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!hasServiceToday) {
+            const dest = direction === 'A' ? route.destA : route.destB;
+            const selectedStation = stationSelect ? stationSelect.value : "";
+            const simResult = typeof window.simulateNextActiveService === 'function'
+                ? window.simulateNextActiveService(selectedStation, dest)
+                : null;
+            
+            if (simResult && simResult.daysAhead > 0) {
+                selectedDay = simResult.dayInfo.type;
+                targetDayIdx = simResult.dayInfo.idx;
+                autoForwarded = true;
+            } else if (currentDayType === 'sunday') {
+                // Fallback
+                selectedDay = 'weekday';
+                targetDayIdx = 1;
+                autoForwarded = true;
+            }
         }
     } else {
         const isSameType = (dayOverride === currentDayType);
@@ -2020,10 +2089,10 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'full-schedule-modal';
-        modal.className = 'fixed inset-0 bg-white dark:bg-gray-900 z-[95] hidden flex items-center justify-center p-0 full-screen transition-opacity duration-300';
+        modal.className = 'fixed inset-0 bg-white dark:bg-gray-900 z-[95] hidden flex items-center justify-center p-0 full-screen backdrop-blur-md transition-opacity duration-300';
         modal.innerHTML = `
             <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
-                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800 z-20 relative">
+                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative">
                     <h3 class="flex-grow min-w-0 pr-2"></h3>
                     <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition flex-shrink-0" aria-label="Close Grid">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -2564,7 +2633,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const exitConfirmBtn = document.getElementById('exit-confirm-btn');
     const exitCancelBtn = document.getElementById('exit-cancel-btn');
     
-    if (exitConfirmBtn) {
+        if (exitConfirmBtn) {
         exitConfirmBtn.addEventListener('click', () => {
             if (navigator.app && navigator.app.exitApp) {
                 navigator.app.exitApp();

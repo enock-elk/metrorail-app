@@ -1,10 +1,11 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.05 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.06 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
  * * PART OF PHASE 5: NATIVE EXPERIENCE (Targeted Haptics & Grid UI)
  * * PHASE 1 (BUGFIX 4): Dynamic Holiday Lookahead bindings for UI buttons. Grid dropdowns relabeled.
+ * * GUARDIAN PHASE 12: Integrated specific metadata styling for "SPL" vs "NO SVC" in the Timetable Grid.
  */
 
 const Renderer = {
@@ -665,15 +666,22 @@ const Renderer = {
                         <th class="sticky left-0 z-30 ${stickyHeaderClass} ${paddingClass} border-b border-r font-bold min-w-[140px] shadow-lg text-left pl-3">Station</th>
                         ${sortedCols.map((h, i) => {
                             const isHighlight = i === activeColIndex;
-                            const isExcluded = (typeof isTrainExcluded === 'function') && isTrainExcluded(h, routeId, dayIdx);
+                            const exclusionType = (typeof isTrainExcluded === 'function') ? isTrainExcluded(h, routeId, dayIdx) : false;
                             
                             let bgClass = '';
+                            let headerContent = h;
+                            
                             if (!isExport) {
-                                if (isHighlight) bgClass = 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 font-bold';
-                                if (isExcluded) bgClass = 'bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-300 opacity-90';
+                                if (exclusionType === 'special') {
+                                    bgClass = 'bg-green-50 dark:bg-green-900/50 text-green-700 dark:text-green-300 opacity-95';
+                                    headerContent = `<span class="block text-[8px] text-green-600 dark:text-green-400 font-black mb-0.5 tracking-tight">⭐ SPL</span>${h}`;
+                                } else if (exclusionType) {
+                                    bgClass = 'bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-300 opacity-90';
+                                    headerContent = `<span class="block text-[8px] text-red-600 dark:text-red-400 font-black mb-0.5 tracking-tight">🚫 NO SVC</span>${h}`;
+                                } else if (isHighlight) {
+                                    bgClass = 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 font-bold';
+                                }
                             }
-
-                            const headerContent = (isExcluded && !isExport) ? `<span class="block text-[8px] text-red-600 dark:text-red-400 font-black mb-0.5 tracking-tight">🚫 NO SVC</span>${h}` : h;
 
                             return `<th class="${paddingClass} border-b border-r ${borderClass} whitespace-nowrap text-center ${bgClass} min-w-[70px]" ${isHighlight ? 'id="grid-active-col"' : ''}>${headerContent}</th>`;
                         }).join('')}
@@ -713,21 +721,30 @@ const Renderer = {
                         if (isExport && val === "-") val = "";
 
                         const isHighlight = i === activeColIndex;
-                        const isExcluded = (typeof isTrainExcluded === 'function') && isTrainExcluded(col, routeId, dayIdx);
+                        const exclusionType = (typeof isTrainExcluded === 'function') ? isTrainExcluded(col, routeId, dayIdx) : false;
 
                         let cellClass = `${paddingClass} text-center border-r ${borderClass} border-b`;
                         
                         if (val !== "" && val !== "-") {
                             cellClass += " font-mono font-medium";
                             if (!isExport) {
-                                cellClass += " text-gray-900 dark:text-gray-200";
-                                if (isHighlight) cellClass += " bg-blue-50 dark:bg-blue-900/20 font-bold text-blue-800 dark:text-blue-300";
-                                if (isExcluded) cellClass += " text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 opacity-80 font-normal decoration-slice";
+                                if (exclusionType === 'special') {
+                                    cellClass += " text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 opacity-95 font-bold";
+                                } else if (exclusionType) {
+                                    cellClass += " text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 opacity-80 font-normal decoration-slice";
+                                } else {
+                                    cellClass += " text-gray-900 dark:text-gray-200";
+                                    if (isHighlight) cellClass += " bg-blue-50 dark:bg-blue-900/20 font-bold text-blue-800 dark:text-blue-300";
+                                }
                             }
                         } else { 
                             if (!isExport) {
                                 cellClass += " text-gray-300 dark:text-gray-700"; 
-                                if (isExcluded) cellClass += " bg-red-50 dark:bg-red-900/10";
+                                if (exclusionType === 'special') {
+                                    cellClass += " bg-green-50 dark:bg-green-900/10";
+                                } else if (exclusionType) {
+                                    cellClass += " bg-red-50 dark:bg-red-900/10";
+                                }
                             }
                         }
                         return `<td class="${cellClass}">${val}</td>`;

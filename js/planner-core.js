@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V6.04.05 - Guardian Hybrid Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V6.04.06 - Guardian Hybrid Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -11,10 +11,13 @@
  * * PHASE 1 (GUARDIAN): Path-Diversity Signature Engine injected. Trips on different physical paths no longer delete each other.
  * * V7.00.02 (GUARDIAN HYBRID): True Time-Dependent Dijkstra Engine Injected with Train-Bound State Tracking, Penalty Buffers, and Hub-Banning Template Diversity.
  * * PHASE 2 (GUARDIAN BUGFIX): Easter Holiday Midnight Rollover patched via Calendar Sync. Dominance Filter upgraded to purge useless early-transfers.
+ * * GUARDIAN FIX 3 (The Leg Compactor): Phantom Boundary Transfers physically merged if Train IDs match.
+ * * GUARDIAN PHASE 13 (The Zero-Hour Probe): Probes mathematically impossible routes on sparse holiday/weekend schedules to distinguish them from standard missed trains.
  */
 
 // GUARDIAN V6.2: Midnight Rollover State Tracker
 let _rolloverDayIdx = null;
+let _zeroHourProbeActive = false; // GUARDIAN PHASE 13: Probe State Flag
 
 function getNextTransitDay(baseDayType, dayIdx) {
     // GUARDIAN PHASE 2: Smart Calendar Sync
@@ -84,8 +87,8 @@ function planDirectTrip(origin, dest, dayType, isRollover = false) {
         }
     }
 
-    // GUARDIAN V6.2: Universal Midnight Rollover Protocol
-    if (!isRollover && dayType === currentDayType) {
+    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
+    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (bestTrips.length > 0) {
             const latestDep = Math.max(...bestTrips.map(t => timeToSeconds(t.depTime)));
@@ -206,8 +209,8 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false) {
         });
     }
 
-    // GUARDIAN V6.2: Universal Midnight Rollover Protocol
-    if (!isRollover && dayType === currentDayType) {
+    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
+    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (unique.length > 0) {
             const latestDep = Math.max(...unique.map(t => timeToSeconds(t.depTime)));
@@ -272,26 +275,42 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false) {
                     const wait = dep2 - arr1;
 
                     if (wait >= TRANSFER_BUFFER_SEC && wait <= MAX_WAIT_SEC) {
-                        allRelayTrips.push({
-                            type: 'TRANSFER', // Reuse existing UI type
-                            route: routeConfig, // Main Route
-                            from: origin, to: dest,
-                            transferStation: routeConfig.relayStation,
-                            depTime: l1.depTime,
-                            arrTime: l2.arrTime,
-                            train: l1.train,
-                            leg1: l1,
-                            leg2: l2,
-                            totalDuration: (timeToSeconds(l2.arrTime) - timeToSeconds(l1.depTime))
-                        });
+                        // GUARDIAN V6.24 BUGFIX: If the same train number continues through the
+                        // relay station (e.g. train 9116 runs Waltoo->Koedoespoort->Pretoria
+                        // as one service), no passenger transfer is needed. Present as DIRECT.
+                        if (l1.train === l2.train) {
+                            allRelayTrips.push({
+                                type: 'DIRECT',
+                                route: routeConfig,
+                                from: origin, to: dest,
+                                depTime: l1.depTime,
+                                arrTime: l2.arrTime,
+                                train: l1.train,
+                                stops: [...(l1.stops || []), ...(l2.stops || []).slice(1)],
+                                totalDuration: (timeToSeconds(l2.arrTime) - timeToSeconds(l1.depTime))
+                            });
+                        } else {
+                            allRelayTrips.push({
+                                type: 'TRANSFER', // Reuse existing UI type
+                                route: routeConfig, // Main Route
+                                from: origin, to: dest,
+                                transferStation: routeConfig.relayStation,
+                                depTime: l1.depTime,
+                                arrTime: l2.arrTime,
+                                train: l1.train,
+                                leg1: l1,
+                                leg2: l2,
+                                totalDuration: (timeToSeconds(l2.arrTime) - timeToSeconds(l1.depTime))
+                            });
+                        }
                     }
                 });
             });
         });
     }
 
-    // GUARDIAN V6.2: Universal Midnight Rollover Protocol
-    if (!isRollover && dayType === currentDayType) {
+    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
+    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (allRelayTrips.length > 0) {
             const latestDep = Math.max(...allRelayTrips.map(t => timeToSeconds(t.depTime)));
@@ -387,8 +406,8 @@ function planMacroCorridorTrip(origin, dest, dayType, isRollover = false) {
     
     if (!matchedAny || trips.length === 0) return { trips: [] };
     
-    // GUARDIAN: Handle Universal Midnight Rollover Protocol for Macro Corridor
-    if (!isRollover && dayType === currentDayType) {
+    // GUARDIAN & P13: Handle Universal Midnight Rollover Protocol for Macro Corridor
+    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (trips.length > 0) {
             const latestDep = Math.max(...trips.map(t => timeToSeconds(t.depTime)));
@@ -452,8 +471,8 @@ function planDoubleTransferTrip(origin, dest, dayType, isRollover = false) {
         potentialTrips.sort((a,b) => timeToSeconds(a.arrTime) - timeToSeconds(b.arrTime));
     }
 
-    // GUARDIAN V6.2: Universal Midnight Rollover Protocol
-    if (!isRollover && dayType === currentDayType) {
+    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
+    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (potentialTrips.length > 0) {
             const latestDep = Math.max(...potentialTrips.map(t => timeToSeconds(t.depTime)));
@@ -596,21 +615,36 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType) {
                             const wait = dep2 - arr1;
                             
                             if (wait >= TRANSFER_BUFFER_SEC && wait <= MAX_RELAY_WAIT) {
-                                // Create Composite Leg
-                                allLegs.push({
-                                    ...l1, // Inherit basic props from first leg
-                                    to: stationB, // GUARDIAN STRIKE 3: Un-boomerang! Overwrite the relay destination with the true leg destination.
-                                    arrTime: l2.arrTime, // Arrival is final dest
-                                    actualDestination: l2.actualDestination,
-                                    isRelayComposite: true,
-                                    stops: [...l1.stops, ...l2.stops],
-                                    internalTransfer: {
-                                        station: relay,
-                                        train1: l1.train,
-                                        train2: l2.train,
-                                        wait: wait
-                                    }
-                                });
+                                if (l1.train === l2.train) {
+                                    // GUARDIAN V6.24 BUGFIX: Same train number continues through
+                                    // the relay station — the passenger stays seated, this is a
+                                    // pure through-running service. Emit as a plain leg with NO
+                                    // relay flags so it is never counted as a transfer anywhere
+                                    // in the rendering or counting pipeline.
+                                    allLegs.push({
+                                        ...l1,
+                                        to: stationB,
+                                        arrTime: l2.arrTime,
+                                        actualDestination: l2.actualDestination,
+                                        stops: [...l1.stops, ...l2.stops.slice(1)]
+                                    });
+                                } else {
+                                    // Different train numbers — a real platform transfer is needed.
+                                    allLegs.push({
+                                        ...l1,
+                                        to: stationB,
+                                        arrTime: l2.arrTime,
+                                        actualDestination: l2.actualDestination,
+                                        isRelayComposite: true,
+                                        stops: [...l1.stops, ...l2.stops],
+                                        internalTransfer: {
+                                            station: relay,
+                                            train1: l1.train,
+                                            train2: l2.train,
+                                            wait: wait
+                                        }
+                                    });
+                                }
                             }
                         });
                     });
@@ -808,7 +842,9 @@ function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, 
 function findUpcomingTrainsForLeg(schedule, originRow, destRow, dayType, allowPast = false, routeId = null) {
     // Only check current time if we are planning for the CURRENT day type
     const isToday = (dayType === currentDayType && _rolloverDayIdx === null);
-    const nowSeconds = (isToday && !allowPast) ? timeToSeconds(currentTime) : 0; 
+    
+    // GUARDIAN P13: Zero-Hour Probe explicitly bypasses `currentTime` constraints, simulating a 00:00 start
+    const nowSeconds = (isToday && !allowPast && !_zeroHourProbeActive) ? timeToSeconds(currentTime) : 0; 
     
     // GUARDIAN GHOST PROTOCOL (V4.60.82): Determine Day Index
     // If _rolloverDayIdx is set, use it. Otherwise default to currentDayIndex if it's today.
@@ -1043,8 +1079,8 @@ function dijkstraPlanCore(normOrigin, normDest, graph, startSec, bannedEdges = n
 }
 
 /**
- * Merges consecutive single-hop legs that share the same train and route
- * into single "ride-through" legs.
+ * Merges consecutive single-hop legs that share the same train ID into single "ride-through" legs.
+ * GUARDIAN BUGFIX 3: Removed route constraint to merge boundary-hub phantom transfers.
  */
 function mergeConsecutiveLegs(legs) {
     if (!legs || legs.length === 0) return [];
@@ -1052,12 +1088,25 @@ function mergeConsecutiveLegs(legs) {
     for (let i = 1; i < legs.length; i++) {
         const prev = out[out.length - 1];
         const curr = legs[i];
-        if (prev.train === curr.train && prev.route.id === curr.route.id) {
+        
+        // Account for Relay composite legs which change train IDs midway
+        const prevEndTrain = (prev.isRelayComposite && prev.internalTransfer) ? prev.internalTransfer.train2 : prev.train;
+        const currStartTrain = curr.train;
+        
+        // Calculate wait time between arrival of previous leg and departure of current leg
+        let waitSec = timeToSeconds(curr.depTime) - timeToSeconds(prev.arrTime);
+        if (waitSec < 0) waitSec += 86400; // Handle midnight rollover safely
+        
+        // THE GOLDEN RULE: If Train IDs match exactly, and layover is logical (<= 2 hours), IT IS THE SAME TRAIN.
+        if (prevEndTrain === currStartTrain && waitSec >= 0 && waitSec <= 7200) {
             out[out.length - 1] = {
                 ...prev,
                 to: curr.to,
                 arrTime: curr.arrTime,
-                stops: [...(prev.stops || []), ...(curr.stops || []).slice(1)]
+                // Stitch stops cleanly by omitting the duplicated hub station at index 0 of current
+                stops: [...(prev.stops || []), ...(curr.stops || []).slice(1)],
+                // Optional: Maintain UI metadata for routing display
+                routePath: prev.routePath ? [...prev.routePath, curr.route?.name] : [prev.route?.name, curr.route?.name]
             };
         } else {
             out.push({ ...curr, stops: [...(curr.stops || [])] });
@@ -1100,16 +1149,46 @@ function legsToTripObject(legs, origin, dest) {
             ...base, type: 'DOUBLE_TRANSFER', route: legs[0].route,
             hub1: legs[0].to, hub2: legs[1].to,
             leg1: legs[0], leg2: legs[1], leg3: legs[2],
-            routePath: legs.map(l => l.route.name)
+            routePath: legs.map(l => l.route?.name || 'Unknown Route')
         };
     }
     return {
         ...base, type: 'MULTI_TRANSFER', route: legs[0].route,
         hub1: legs[0].to, hub2: legs[1].to, hub3: legs[2]?.to || null,
         leg1: legs[0], leg2: legs[1], leg3: legs[2] || null,
-        routePath: legs.map(l => l.route.name),
+        routePath: legs.map(l => l.route?.name || 'Unknown Route'),
         transferCount: n
     };
+}
+
+/**
+ * GUARDIAN FIX 3: Universal Leg Compactor
+ * Intercepts trips from all engines and forcefully merges artificial boundary legs
+ * that share the same train ID into continuous legs before the UI renders them.
+ */
+function compactTrip(trip) {
+    if (trip.type === 'DIRECT') return trip;
+    
+    let legs = [];
+    if (trip.type === 'TRANSFER' && trip.leg1 && trip.leg2) {
+        legs = [trip.leg1, trip.leg2];
+    } else if (trip.type === 'DOUBLE_TRANSFER' && trip.leg1 && trip.leg2 && trip.leg3) {
+        legs = [trip.leg1, trip.leg2, trip.leg3];
+    } else if (trip.type === 'MULTI_TRANSFER' && trip.legs) {
+        legs = trip.legs;
+    } else {
+        return trip;
+    }
+
+    const mergedLegs = mergeConsecutiveLegs(legs);
+    
+    // If the compactor didn't find any phantom transfers to merge, return original payload untouched.
+    if (mergedLegs.length === legs.length) return trip;
+    
+    const newTrip = legsToTripObject(mergedLegs, trip.from, trip.to);
+    if (newTrip && trip.dayLabel) newTrip.dayLabel = trip.dayLabel;
+    
+    return newTrip || trip;
 }
 
 /**
@@ -1124,8 +1203,13 @@ function enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, startSec) {
     const waypoints = [origin, ...mergedLegs.map(l => l.to)];
     const routeIds  = mergedLegs.map(l => l.route.id);
 
+    // GUARDIAN V6.24 BUGFIX: Use relay-aware leg finder so that journeys crossing a relay
+    // station boundary (e.g. WALTOO->PRETORIA via KOEDOESPOORT on a single train) are found
+    // correctly. findAllLegsBetween only searches within a single schedule sheet and returns
+    // empty for cross-sheet legs, causing Dijkstra to report no results and the legacy relay
+    // engine to mislabel the trip as a TRANSFER.
     const legOptionSets = routeIds.map((routeId, idx) =>
-        findAllLegsBetween(waypoints[idx], waypoints[idx + 1], new Set([routeId]), dayType)
+        findAllLegsWithRelayExpansion(waypoints[idx], waypoints[idx + 1], new Set([routeId]), dayType)
             .filter(l => idx === 0 ? timeToSeconds(l.depTime) >= startSec : true)
     );
 
@@ -1169,7 +1253,8 @@ function planDijkstraTrip(origin, dest, dayType, isRollover = false) {
                  : (dayType === currentDayType ? currentDayIndex
                  : (dayType === 'saturday' ? 6 : 1));
 
-    const startSec = (!isRollover && dayType === currentDayType && _rolloverDayIdx === null)
+    // GUARDIAN P13: Zero-Hour Probe overrides startSec to 0 to find mathematically valid historical paths for today
+    const startSec = (!isRollover && dayType === currentDayType && _rolloverDayIdx === null && !_zeroHourProbeActive)
                    ? timeToSeconds(currentTime) : 0;
 
     const baseGraph       = buildTransitGraph(dayType, dayIdx);
@@ -1205,7 +1290,8 @@ function planDijkstraTrip(origin, dest, dayType, isRollover = false) {
         }
     }
 
-    if (!isRollover && dayType === currentDayType) {
+    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
+    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (allTrips.length > 0) {
             const latestDep = Math.max(...allTrips.map(t => timeToSeconds(t.depTime)));
@@ -1339,35 +1425,52 @@ function filterDominatedTrips(trips) {
 }
 
 function planUnifiedTrip(origin, dest, dayType) {
+    // GUARDIAN V6.24 BUGFIX: Sunday has no Metrorail service (getDirectionsForRoute returns []).
+    // A manually-selected Sunday never triggers the midnight rollover (which only fires when
+    // dayType === currentDayType). Intercept here and re-plan against Monday, labelling all
+    // trips so the UI shows the correct "next service day" context to the user.
+    if (dayType === 'sunday') {
+        const result = planUnifiedTrip(origin, dest, 'weekday');
+        if (result && result.trips) {
+            result.trips.forEach(t => { if (!t.dayLabel) t.dayLabel = 'Monday'; });
+        }
+        return result;
+    }
+
     console.log(`[GUARDIAN] Running Unified Trip Planner for ${origin} -> ${dest}`);
 
-    // GUARDIAN V7 HYBRID: The Dijkstra Engine goes first, fortified by Template Diversity bans
-    const dijkstraResult = typeof planDijkstraTrip === 'function'
-        ? planDijkstraTrip(origin, dest, dayType) : { trips: [] };
+    // GUARDIAN PHASE 13: Universal Raw Fetch Helper
+    // Refactored to seamlessly supply both the live engine and the Zero-Hour Probe.
+    const fetchRawTrips = (o, d, dt) => {
+        const dijkstraResult = typeof planDijkstraTrip === 'function'
+            ? planDijkstraTrip(o, d, dt) : { trips: [] };
 
-    let allRawTrips = [...(dijkstraResult.trips || [])];
+        let raw = [...(dijkstraResult.trips || [])];
 
-    // GUARDIAN V7 HYBRID: If Dijkstra found absolutely nothing (e.g. graph not ready or network too sparse), 
-    // fall back to legacy exhaust loops to ensure 100% routing uptime
-    if (allRawTrips.length === 0) {
-        const directResult = typeof planDirectTrip === 'function' ? planDirectTrip(origin, dest, dayType) : { trips: [] };
-        const macroResult = typeof planMacroCorridorTrip === 'function' ? planMacroCorridorTrip(origin, dest, dayType) : { trips: [] };
-        const relayResult = typeof planRelayTransferTrip === 'function' ? planRelayTransferTrip(origin, dest, dayType) : { trips: [] };
-        const hubResult   = typeof planHubTransferTrip === 'function' ? planHubTransferTrip(origin, dest, dayType) : { trips: [] };
-        
-        allRawTrips = [
-            ...(directResult.trips || []),
-            ...(macroResult.trips || []),
-            ...(relayResult.trips || []),
-            ...(hubResult.trips || [])
-        ];
+        // Fallback to legacy exhaust loops if Dijkstra returns nothing
+        if (raw.length === 0) {
+            const directResult = typeof planDirectTrip === 'function' ? planDirectTrip(o, d, dt) : { trips: [] };
+            const macroResult = typeof planMacroCorridorTrip === 'function' ? planMacroCorridorTrip(o, d, dt) : { trips: [] };
+            const relayResult = typeof planRelayTransferTrip === 'function' ? planRelayTransferTrip(o, d, dt) : { trips: [] };
+            const hubResult   = typeof planHubTransferTrip === 'function' ? planHubTransferTrip(o, d, dt) : { trips: [] };
+            
+            raw = [
+                ...(directResult.trips || []),
+                ...(macroResult.trips || []),
+                ...(relayResult.trips || []),
+                ...(hubResult.trips || [])
+            ];
 
-        const todayCount = allRawTrips.filter(t => !t.dayLabel).length;
-        if (todayCount < 3 && (macroResult.trips || []).length === 0) {
-            const doubleResult = typeof planDoubleTransferTrip === 'function' ? planDoubleTransferTrip(origin, dest, dayType) : { trips: [] };
-            allRawTrips = [...allRawTrips, ...(doubleResult.trips || [])];
+            const todayCount = raw.filter(t => !t.dayLabel).length;
+            if (todayCount < 3 && (macroResult.trips || []).length === 0) {
+                const doubleResult = typeof planDoubleTransferTrip === 'function' ? planDoubleTransferTrip(o, d, dt) : { trips: [] };
+                raw = [...raw, ...(doubleResult.trips || [])];
+            }
         }
-    }
+        return raw.map(compactTrip).filter(Boolean);
+    };
+
+    let allRawTrips = fetchRawTrips(origin, dest, dayType);
 
     let rawTrips = [], rawNextDayTrips = [];
     allRawTrips.forEach(t => (t.dayLabel ? rawNextDayTrips : rawTrips).push(t));
@@ -1421,9 +1524,31 @@ function planUnifiedTrip(origin, dest, dayType) {
     optimalTrips.sort(masterSort);
     optimalNextDayTrips.sort(masterSort);
 
-    const finalStatus = optimalTrips.length > 0        ? 'FOUND'
-                      : optimalNextDayTrips.length > 0 ? 'NO_MORE_TODAY'
-                      : 'NO_PATH';
+    let finalStatus = optimalTrips.length > 0        ? 'FOUND'
+                    : optimalNextDayTrips.length > 0 ? 'NO_MORE_TODAY'
+                    : 'NO_PATH';
+
+    // --- GUARDIAN PHASE 13: THE ZERO-HOUR PROBE ---
+    // If the engines decided to roll over to tomorrow, we must verify WHY.
+    // Did the commuter simply miss the last train, or does the route mathematically not exist today?
+    if (finalStatus === 'NO_MORE_TODAY') {
+        console.log("[GUARDIAN] Commencing Zero-Hour Probe...");
+        
+        // Activating the probe temporarily disables all current-time limits and rollover protocols
+        // across all underlying engines, effectively asking: "Was this route EVER possible today?"
+        _zeroHourProbeActive = true;
+        const probeTripsRaw = fetchRawTrips(origin, dest, dayType);
+        _zeroHourProbeActive = false;
+
+        const validProbeTrips = probeTripsRaw.filter(hasValidLayovers);
+        
+        if (validProbeTrips.length === 0) {
+            console.log("[GUARDIAN] Zero-Hour Probe verified 0 valid trips exist from 00:00. Route is IMPOSSIBLE today.");
+            finalStatus = 'IMPOSSIBLE_TODAY';
+        } else {
+            console.log(`[GUARDIAN] Zero-Hour Probe found ${validProbeTrips.length} historical trips for today. Commuter missed them.`);
+        }
+    }
 
     return {
         status: finalStatus,

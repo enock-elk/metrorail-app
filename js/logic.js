@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V6.04.05 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V6.04.06 - Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -20,6 +20,8 @@ let globalExclusions = {};
 let lastTrackedOD = null; 
 // GUARDIAN V6.00.33 Phase 3: RAM Fallback Engine for devices with 100% full storage
 let memoryFallbackCache = {}; 
+// GUARDIAN PERFORMANCE PATCH: Track last minute to prevent CPU thrashing
+let lastRenderedMinute = -1;
 
 // --- SHARED UI REFERENCES (Declared here, Assigned in UI.js) ---
 let stationSelect, locateBtn, pretoriaTimeEl, pienaarspoortTimeEl, pretoriaHeader, pienaarspoortHeader;
@@ -54,6 +56,23 @@ const SPECIAL_DATES = {
     "12-16": "saturday", // Day of Reconciliation
     "12-25": "sunday",   // Christmas Day
     "12-26": "sunday"  // Day of Goodwill
+};
+
+// GUARDIAN Phase 1: Typography Polish Mapping
+const HOLIDAY_NAMES = {
+    "01-01": "New Year's Day",
+    "03-21": "Human Rights Day",
+    "04-03": "Good Friday",
+    "04-06": "Family Day",
+    "04-27": "Freedom Day",
+    "05-01": "Workers' Day",
+    "06-16": "Youth Day",
+    "08-09": "National Women's Day",
+    "08-10": "Women's Day Observed",
+    "09-24": "Heritage Day",
+    "12-16": "Day of Reconciliation",
+    "12-25": "Christmas Day",
+    "12-26": "Day of Goodwill"
 };
 
 // --- GUARDIAN PHASE 1 (Bug 4 Fix): Universal Holiday Lookahead Engine ---
@@ -232,7 +251,8 @@ function isTrainExcluded(trainNumber, routeId, dayIdx) {
     if (rules && rules[trainNumber]) {
         const rule = rules[trainNumber];
         if (rule.days && rule.days.includes(parseInt(dayIdx))) {
-            return true; // BANNED
+            // GUARDIAN PHASE 12: Return specific metadata string instead of generic boolean
+            return rule.type || 'banned'; 
         }
     }
     return false;
@@ -1595,16 +1615,30 @@ function updateTime() {
         if(currentTimeEl) currentTimeEl.textContent = `Current Time: ${timeString} ${simActive ? '(SIM)' : ''}`;
         
         let newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
-        let specialStatusText = "";
+        
+        // --- GUARDIAN Phase 1: Clean Typography Polish ---
+        let isHoliday = false;
+        let displayType = "";
         
         if (dateToCheck) {
             var m = String(dateToCheck.getMonth() + 1).padStart(2, '0');
             var d = String(dateToCheck.getDate()).padStart(2, '0');
             var dateKey = m + "-" + d;
-            if (SPECIAL_DATES[dateKey]) { 
+            
+            if (typeof SPECIAL_DATES !== 'undefined' && SPECIAL_DATES[dateKey]) { 
                 newDayType = SPECIAL_DATES[dateKey]; 
-                specialStatusText = (typeof HOLIDAY_NAMES !== 'undefined' && HOLIDAY_NAMES[dateKey]) ? " (Holiday)" : " (Holiday Schedule)"; 
+                if (typeof HOLIDAY_NAMES !== 'undefined' && HOLIDAY_NAMES[dateKey]) {
+                    isHoliday = true;
+                    let schedNote = newDayType === 'saturday' ? 'Sat. Schedule' : (newDayType === 'sunday' ? 'No Service' : 'Wkd. Schedule');
+                    displayType = `&bull; ${HOLIDAY_NAMES[dateKey]} <span class="text-xs opacity-75 font-medium ml-0.5">(${schedNote})</span>`;
+                }
             }
+        }
+        
+        if (!isHoliday) {
+            if (newDayType === 'sunday') displayType = "&bull; No Service";
+            else if (newDayType === 'saturday') displayType = "&bull; Weekend Schedule";
+            else displayType = "&bull; Weekday Schedule";
         }
         
         const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -1616,29 +1650,31 @@ function updateTime() {
             currentDayIndex = day; 
         }
         
-        let displayType = "";
-        if (newDayType === 'sunday') displayType = "No Service";
-        else if (newDayType === 'saturday') displayType = "Saturday Schedule";
-        else displayType = "Weekday Schedule";
+        if(currentDayEl) currentDayEl.innerHTML = `${dayNames[day]} <span class="font-bold text-blue-600 dark:text-blue-400 ml-1">${displayType}</span>`;
         
-        if (dateToCheck) {
-            var m = String(dateToCheck.getMonth() + 1).padStart(2, '0');
-            var d = String(dateToCheck.getDate()).padStart(2, '0');
-            var dateKey = m + "-" + d;
-            if (typeof HOLIDAY_NAMES !== 'undefined' && HOLIDAY_NAMES[dateKey]) { 
-                displayType = `${HOLIDAY_NAMES[dateKey]} Schedule`; 
-                specialStatusText = ""; 
-            }
-        }
-        
-        if(currentDayEl) currentDayEl.innerHTML = `${dayNames[day]} <span class="font-bold text-blue-600 dark:text-blue-400">${displayType}</span>${specialStatusText}`;
         const plannerDaySelect = document.getElementById('planner-day-select');
         if (plannerDaySelect && !typeof selectedPlannerDay !== 'undefined' && !selectedPlannerDay) { 
             plannerDaySelect.value = currentDayType; 
             selectedPlannerDay = currentDayType; 
         }
         
-        if (typeof findNextTrains === 'function') findNextTrains();
+        // GUARDIAN PERFORMANCE PATCH: The Battery Torch Loop Fix
+        // Extract current minute safely
+        let currentMinute = -1;
+        if (dateToCheck) {
+            currentMinute = dateToCheck.getMinutes();
+        } else {
+            const parts = timeString.split(':');
+            if (parts.length > 1) currentMinute = parseInt(parts[1], 10);
+        }
+
+        // Throttle the heavy UI/DOM recalculation to only run once per minute,
+        // UNLESS the user is actively tinkering with the Dev Sim Mode (which requires instant feedback).
+        if (lastRenderedMinute !== currentMinute || simActive) {
+            lastRenderedMinute = currentMinute;
+            if (typeof findNextTrains === 'function') findNextTrains();
+        }
+
     } catch(e) { console.error("Error in updateTime", e); }
 }
 

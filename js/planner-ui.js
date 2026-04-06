@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.05 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.06 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -9,6 +9,8 @@
  * * STRIKE 2: Dynamic Leg Renderer Injection - Unhides 'isRelayComposite' internal transfers.
  * * V7.00.01 (GUARDIAN): Dynamic MULTI_TRANSFER UI Renderer for True Dijkstra Graph.
  * * PHASE 1 (GUARDIAN BUGFIX): Live Map Router Bleed & Grey Screen Interceptor injected.
+ * * GUARDIAN PHASE 13: Impossible Route Warning Card integrated via Zero-Hour Probe.
+ * * GUARDIAN PHASE 14: Dynamic Time-Sync applied to UI to prevent future-day times matching against today's clock.
  */
 
 // --- GUARDIAN PHASE 1: ROUTER BLEED & GREY SCREEN INTERCEPTOR ---
@@ -42,6 +44,7 @@ document.addEventListener('click', (e) => {
 let plannerOrigin = null;
 let plannerDest = null;
 let currentTripOptions = []; 
+let currentPlannerStatus = 'NO_PATH'; // GUARDIAN PHASE 13: Track status for Impossible Route Cards
 let selectedPlannerDay = null; 
 let plannerPulse = null; 
 let plannerExpandedState = new Set(); 
@@ -378,9 +381,11 @@ const PlannerRenderer = {
         let stateBadge = "";
         
         if (isNextDay) {
+             // GUARDIAN PHASE 14: Dynamic Typography to handle actual designated day
+             const dynamicDayText = step.dayLabel ? `Departure: ${step.dayLabel}` : "Departure: Tomorrow";
              stateBadge = `<div class="flex items-center text-sm font-bold text-orange-600 dark:text-orange-400">
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            Tomorrow Morning
+                            ${dynamicDayText}
                           </div>`;
         } else if (isDeparted) {
             stateBadge = `
@@ -442,8 +447,8 @@ const PlannerRenderer = {
 
         const optionsHtml = allOptions.map((opt, idx) => {
             const depSec = timeToSeconds(opt.depTime);
-            // If in rollover mode, nothing is "past"
-            let isPast = isToday && !midnightRollover && depSec < nowSec;
+            // GUARDIAN PHASE 14: If it's a future day, it's never "past" compared to today's clock
+            let isPast = isToday && !midnightRollover && !opt.dayLabel && (depSec < nowSec);
             
             let label = "";
             
@@ -463,7 +468,10 @@ const PlannerRenderer = {
 
             let typeLabel = transferCount === 0 ? "Direct" : `${transferCount} Transfer${transferCount > 1 ? 's' : ''}`;
             
-            if (midnightRollover) {
+            // GUARDIAN PHASE 14: Dynamic future label injection
+            if (opt.dayLabel) {
+                label = ` (${opt.dayLabel})`;
+            } else if (midnightRollover) {
                 label = " (Tomorrow)";
             }
             
@@ -703,12 +711,13 @@ const PlannerRenderer = {
         let effectiveDepSec = depSec;
         let isTomorrowOverride = false;
         
-        if (midnightRollover) { 
+        // GUARDIAN PHASE 14: Protect future trips from triggering departed/missed flags
+        if (midnightRollover || step.dayLabel) { 
             effectiveDepSec += 86400; 
             isTomorrowOverride = true; 
         }
 
-        if (isToday || isTomorrowOverride) {
+        if (isToday && !isTomorrowOverride) {
             if (effectiveDepSec > nowSec) {
                 const diff = effectiveDepSec - nowSec;
                 const h = Math.floor(diff / 3600);
@@ -1260,6 +1269,7 @@ function executeTripPlan(origin, dest, preferredTime = null) {
         }
 
         currentTripOptions = plannerResponse.trips || [];
+        currentPlannerStatus = plannerResponse.status; // GUARDIAN PHASE 13: Track status
         
         if (currentTripOptions.length > 0) {
             let nextTripIndex = 0;
@@ -1286,7 +1296,14 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                     if (nowSec > latestDep) isMidnightRollover = true;
                 }
                 
-                if (isMidnightRollover) {
+                // GUARDIAN PHASE 14: Dynamic Time-Sync Fix.
+                // If it's an impossible route, a normal rollover, OR a simulated rollover (like searching on Sunday for Monday), 
+                // instantly snap the dropdown to the 1st train of that day (Index 0).
+                if (currentPlannerStatus === 'IMPOSSIBLE_TODAY' || currentPlannerStatus === 'NO_MORE_TODAY') {
+                    nextTripIndex = 0;
+                } else if (currentTripOptions.length > 0 && currentTripOptions[0].dayLabel) {
+                    nextTripIndex = 0;
+                } else if (isMidnightRollover) {
                     nextTripIndex = 0;
                 } else {
                     const idx = currentTripOptions.findIndex(t => timeToSeconds(t.depTime) >= nowSec);
@@ -1337,7 +1354,12 @@ function renderSelectedTrip(container, index) {
     const effectivelyTomorrow = isTomorrow || midnightRollover;
 
     if (effectivelyTomorrow) {
-        renderNoMoreTrainsResult(container, currentTripOptions, index, "No more trains today");
+        // GUARDIAN PHASE 13: Distinct handling for Mathematically Impossible routes vs simply missing the last train
+        if (currentPlannerStatus === 'IMPOSSIBLE_TODAY') {
+            renderImpossibleTodayResult(container, currentTripOptions, index);
+        } else {
+            renderNoMoreTrainsResult(container, currentTripOptions, index, "No more trains today");
+        }
     } else {
         renderTripResult(container, currentTripOptions, index);
     }
@@ -1561,6 +1583,30 @@ function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "
                 <div>
                     <h3 class="font-bold text-orange-800 dark:text-orange-200">${title}</h3>
                     <p class="text-xs text-orange-700 dark:text-orange-300">Showing trains for <b>${selectedTrip.dayLabel || 'Tomorrow'}</b></p>
+                </div>
+            </div>
+            ${PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex)}
+        </div>
+    `;
+}
+
+// GUARDIAN PHASE 13: Specialized aesthetic for mathematically impossible routes on sparse schedules
+function renderImpossibleTodayResult(container, trips, selectedIndex = 0) {
+    const selectedTrip = trips[selectedIndex];
+    if (!selectedTrip) return;
+
+    const dayLabel = getPlanningDayLabel();
+    updatePlannerHeader(dayLabel, true);
+
+    container.innerHTML = `
+        <div class="bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-4 shadow-sm">
+            <div class="flex items-start mb-3">
+                <div class="flex-shrink-0 w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span class="text-base">📅</span>
+                </div>
+                <div>
+                    <h3 class="font-bold text-gray-900 dark:text-white">Route Unavailable Today</h3>
+                    <p class="text-xs text-gray-600 dark:text-gray-400 mt-1 leading-snug">Today's limited schedule does not support this exact route. Showing the next available option for <b>${selectedTrip.dayLabel || 'Tomorrow'}</b>.</p>
                 </div>
             </div>
             ${PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex)}
