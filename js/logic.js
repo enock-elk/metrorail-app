@@ -1615,30 +1615,16 @@ function updateTime() {
         if(currentTimeEl) currentTimeEl.textContent = `Current Time: ${timeString} ${simActive ? '(SIM)' : ''}`;
         
         let newDayType = (day === 0) ? 'sunday' : (day === 6 ? 'saturday' : 'weekday');
-        
-        // --- GUARDIAN Phase 1: Clean Typography Polish ---
-        let isHoliday = false;
-        let displayType = "";
+        let specialStatusText = "";
         
         if (dateToCheck) {
             var m = String(dateToCheck.getMonth() + 1).padStart(2, '0');
             var d = String(dateToCheck.getDate()).padStart(2, '0');
             var dateKey = m + "-" + d;
-            
-            if (typeof SPECIAL_DATES !== 'undefined' && SPECIAL_DATES[dateKey]) { 
+            if (SPECIAL_DATES[dateKey]) { 
                 newDayType = SPECIAL_DATES[dateKey]; 
-                if (typeof HOLIDAY_NAMES !== 'undefined' && HOLIDAY_NAMES[dateKey]) {
-                    isHoliday = true;
-                    let schedNote = newDayType === 'saturday' ? 'Sat. Schedule' : (newDayType === 'sunday' ? 'No Service' : 'Wkd. Schedule');
-                    displayType = `&bull; ${HOLIDAY_NAMES[dateKey]} <span class="text-xs opacity-75 font-medium ml-0.5">(${schedNote})</span>`;
-                }
+                specialStatusText = (typeof HOLIDAY_NAMES !== 'undefined' && HOLIDAY_NAMES[dateKey]) ? " (Holiday)" : " (Holiday Schedule)"; 
             }
-        }
-        
-        if (!isHoliday) {
-            if (newDayType === 'sunday') displayType = "&bull; No Service";
-            else if (newDayType === 'saturday') displayType = "&bull; Weekend Schedule";
-            else displayType = "&bull; Weekday Schedule";
         }
         
         const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -1650,10 +1636,26 @@ function updateTime() {
             currentDayIndex = day; 
         }
         
+        let displayType = "";
+        if (newDayType === 'sunday') displayType = "No Service";
+        else if (newDayType === 'saturday') displayType = "Saturday Schedule";
+        else displayType = "Weekday Schedule";
+        
+        if (dateToCheck) {
+            var m = String(dateToCheck.getMonth() + 1).padStart(2, '0');
+            var d = String(dateToCheck.getDate()).padStart(2, '0');
+            var dateKey = m + "-" + d;
+            if (typeof HOLIDAY_NAMES !== 'undefined' && HOLIDAY_NAMES[dateKey]) { 
+                displayType = `${HOLIDAY_NAMES[dateKey]} Schedule`; 
+                specialStatusText = ""; 
+            }
+        }
+        
         if(currentDayEl) currentDayEl.innerHTML = `${dayNames[day]} <span class="font-bold text-blue-600 dark:text-blue-400 ml-1">${displayType}</span>`;
         
         const plannerDaySelect = document.getElementById('planner-day-select');
-        if (plannerDaySelect && !typeof selectedPlannerDay !== 'undefined' && !selectedPlannerDay) { 
+        // GUARDIAN BUGFIX: Cleaned syntax error for dynamic Holiday Sync
+        if (plannerDaySelect && (typeof selectedPlannerDay === 'undefined' || !selectedPlannerDay)) { 
             plannerDaySelect.value = currentDayType; 
             selectedPlannerDay = currentDayType; 
         }

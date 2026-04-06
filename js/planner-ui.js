@@ -758,8 +758,12 @@ function initPlanner() {
         inputSection.insertBefore(daySelectDiv, searchBtn);
         
         const daySelect = document.getElementById('planner-day-select');
-        if (typeof currentDayType !== 'undefined') daySelect.value = currentDayType;
-        daySelect.addEventListener('change', (e) => selectedPlannerDay = e.target.value);
+        // GUARDIAN BUGFIX: Ensures the UI dropdown perfectly mirrors the Holiday Sync state 
+        // established by logic.js during the startup cycle.
+        if (daySelect) {
+            daySelect.value = (typeof selectedPlannerDay !== 'undefined' && selectedPlannerDay) ? selectedPlannerDay : (typeof currentDayType !== 'undefined' ? currentDayType : 'weekday');
+            daySelect.addEventListener('change', (e) => selectedPlannerDay = e.target.value);
+        }
     }
 
     // Inject History Container
