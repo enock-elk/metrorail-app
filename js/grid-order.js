@@ -2,8 +2,8 @@
  * METRORAIL NEXT TRAIN - GRID ORDER CONFIG
  * ---------------------------------------------------
  * This file defines the explicit column order for the Full Schedule Grid.
- * Generated from: NextTrain GP-Schedules - 06 Apr.xlsx, NextTrain WC-Schedules - 07 Mar.xlsx
- * Date: 2026-04-06
+ * Generated from: NextTrain GP-Schedules - 07 Apr.xlsx, NextTrain WC-Schedules - 07 Mar.xlsx
+ * Date: 2026-04-07
  */
 
 const MANUAL_GRID_ORDER = {
@@ -147,7 +147,10 @@ const MANUAL_GRID_ORDER = {
         "4450",
         "4452",
         "4454",
-        "4456"
+        "4456",
+        "4458",
+        "4460",
+        "4462"
     ],
     "pta_to_dewil_sat": [
         "4401",

@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.04.07 - 7th APRIL"; // BUMPED: To force cache clear on clients
+const APP_VERSION = "V6.04.07 - 7th of APRIL"; // BUMPED: To force cache clear on clients
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
