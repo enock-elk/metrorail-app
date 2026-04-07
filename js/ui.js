@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.06 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.07 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -14,6 +14,8 @@
  * * PHASE 2 (BUGFIX 4): Ripped out flawed `while` loops from `renderNoService` / `renderNextAvailableTrain`. Hooked to True Day Simulator. Modal and Grid sync patched.
  * * PHASE 2 (GUARDIAN STORAGE): Swapped localStorage to safeStorage. Guarded sessionStorage. Added Array bounds checking.
  * * GUARDIAN PHASE 15: Grid Synchronization Patch. Prevented grid from blindly auto-forwarding on active holidays.
+ * * PHASE 1 (GUARDIAN ANALYTICS): 'check_updates_click' tracked.
+ * * PHASE 2 (GUARDIAN FEEDBACK): In-House Feedback System, Firebase Storage Pipeline, & Modal bindings injected.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -348,7 +350,7 @@ function renderComingSoon(element, routeName) {
                 <p class="text-xs text-gray-700 dark:text-gray-300 mb-4">
                     If you have recent photos of the official station timetables, you can help us launch this route faster!
                 </p>
-                <a href="https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform" target="_blank" class="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow transition-colors text-sm group">
+                <a href="#" onclick="document.getElementById('feedback-btn').click(); return false;" class="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow transition-colors text-sm group">
                     <svg class="w-4 h-4 mr-2 group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0L8 8m4-4v12"></path></svg>
                     Share Schedules
                 </a>
@@ -856,6 +858,8 @@ function handleShortcutActions() {
 }
 
 window.performHardCacheClear = async function() {
+    triggerHaptic();
+    trackAnalyticsEvent('execute_hard_cache_clear', { location: 'modal_confirm' });
     window.closeAppHub(true); 
     showToast("Clearing offline data and syncing...", "info", 5000);
     const modal = document.getElementById('cache-clear-modal');
@@ -896,6 +900,8 @@ window.performHardCacheClear = async function() {
 };
 
 window.showCacheClearWarning = function() {
+    triggerHaptic();
+    trackAnalyticsEvent('check_updates_click', { location: 'sidebar' });
     window.closeAppHub(true); 
     let modal = document.getElementById('cache-clear-modal');
     if (!modal) {
@@ -1081,13 +1087,25 @@ async function checkServiceAlerts() {
                 newCloseBtn.textContent = "Close";
                 newCloseBtn.onclick = closeNotice;
 
+                // GUARDIAN FEEDBACK: Bind Reply to internal Feedback system
                 const newReplyBtn = document.createElement('button');
                 newReplyBtn.className = `flex-1 ${baseColorClass} text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center`;
                 newReplyBtn.innerHTML = `<span class="mr-1.5">💬</span> Reply`;
                 newReplyBtn.onclick = () => {
                     triggerHaptic();
-                    window.open(`https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform?usp=pp_url&entry.1017835848=Replying+to+Alert+ID:+${activeNotice.id}`, '_blank');
+                    
+                    // Pre-fill the modal
+                    const fText = document.getElementById('feedback-text');
+                    const fType = document.getElementById('feedback-type');
+                    if (fText) fText.value = `Replying to Alert [${activeNotice.id}]:\n`;
+                    if (fType) fType.value = 'general';
+                    
                     closeNotice();
+                    // Open modal after CSS transition finishes
+                    setTimeout(() => {
+                        const feedbackBtn = document.getElementById('feedback-btn');
+                        if (feedbackBtn) feedbackBtn.click();
+                    }, 350);
                 };
 
                 oldCloseBtn.parentNode.replaceChild(btnContainer, oldCloseBtn);
@@ -1257,7 +1275,7 @@ window.addEventListener('popstate', (event) => {
         'profile-modal', 'notice-modal', 'cache-clear-modal', 'fare-modal', 
         'schedule-modal', 'full-schedule-modal', 'map-modal', 'trip-map-modal', 
         'redirect-modal', 'welcome-modal', 'changelog-modal', 'region-confirm-modal',
-        'route-modal', 'install-modal'
+        'route-modal', 'install-modal', 'feedback-modal' // GUARDIAN: Added feedback-modal
     ];
     
     modalIds.forEach(id => {
@@ -1268,8 +1286,8 @@ window.addEventListener('popstate', (event) => {
     });
 
     if (activeModals.length > 0) {
-        const topTier = ['pin-modal', 'dev-modal', 'notice-modal', 'cache-clear-modal', 'fare-modal', 'about-modal', 'help-modal', 'legal-modal', 'profile-modal', 'changelog-modal', 'region-confirm-modal', 'route-modal', 'install-modal'];
-        const midTier = ['schedule-modal', 'full-schedule-modal', 'redirect-modal', 'welcome-modal', 'trip-map-modal']; // GUARDIAN: trip-map-modal registered
+        const topTier = ['pin-modal', 'dev-modal', 'notice-modal', 'cache-clear-modal', 'fare-modal', 'about-modal', 'help-modal', 'legal-modal', 'profile-modal', 'changelog-modal', 'region-confirm-modal', 'route-modal', 'install-modal', 'feedback-modal'];
+        const midTier = ['schedule-modal', 'full-schedule-modal', 'redirect-modal', 'welcome-modal', 'trip-map-modal']; 
         const baseTier = ['map-modal'];
 
         let modalToClose = null;
@@ -1540,10 +1558,161 @@ window.openScheduleModal = function(destination, dayOverride = null) {
     else { const container = document.getElementById('modal-list'); if(container) container.scrollTop = 0; }
 };
 
-function setupRedirectLogic() {
-    if (feedbackBtn) feedbackBtn.addEventListener('click', (e) => { e.preventDefault(); showRedirectModal("https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform", "Open Google Form to send feedback?"); }); 
+// --- GUARDIAN PHASE 2: IN-HOUSE FEEDBACK PIPELINE ---
+function setupFeedbackLogic() {
+    if (feedbackBtn) {
+        feedbackBtn.addEventListener('click', (e) => { 
+            e.preventDefault(); 
+            triggerHaptic();
+            trackAnalyticsEvent('open_feedback_modal', { location: 'app_footer' });
+            history.pushState({ modal: 'feedback' }, '', '#feedback');
+            openSmoothModal('feedback-modal'); 
+        }); 
+    }
+
+    // Bind File Input Triggers
+    const fileInput = document.getElementById('feedback-file');
+    const filePreview = document.getElementById('feedback-file-preview');
+    const fileNameDisplay = document.getElementById('feedback-file-name');
+    const fileRemoveBtn = document.getElementById('feedback-file-remove');
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files.length > 0) {
+                const file = this.files[0];
+                
+                // Strict 5MB payload limit to protect Firebase Quota
+                if (file.size > 5242880) {
+                    showToast("File is too large. Maximum size is 5MB.", "error");
+                    this.value = '';
+                    if (filePreview) filePreview.classList.add('hidden');
+                    return;
+                }
+                if (fileNameDisplay) fileNameDisplay.textContent = file.name;
+                if (filePreview) filePreview.classList.remove('hidden');
+            } else {
+                if (filePreview) filePreview.classList.add('hidden');
+            }
+        });
+    }
+
+    if (fileRemoveBtn) {
+        fileRemoveBtn.addEventListener('click', () => {
+            if (fileInput) fileInput.value = '';
+            if (filePreview) filePreview.classList.add('hidden');
+        });
+    }
+
+    // Bind Submit Button
+    const submitBtn = document.getElementById('feedback-submit-btn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', submitFeedback);
+    }
 }
 
+async function submitFeedback() {
+    const type = document.getElementById('feedback-type').value;
+    const text = document.getElementById('feedback-text').value.trim();
+    const email = document.getElementById('feedback-email').value.trim();
+    const fileInput = document.getElementById('feedback-file');
+    const submitBtn = document.getElementById('feedback-submit-btn');
+    const submitText = document.getElementById('feedback-submit-text');
+    const spinner = document.getElementById('feedback-spinner');
+
+    if (!text) {
+        showToast("Please enter your feedback details.", "error");
+        return;
+    }
+
+    triggerHaptic();
+    submitBtn.disabled = true;
+    submitText.textContent = "Sending...";
+    spinner.classList.remove('hidden');
+
+    try {
+        // Ensure anonymous auth so Firebase Storage Rules will accept the upload
+        if (window.firebaseAuth && !window.firebaseAuth.currentUser && window.firebaseSignInAnonymously) {
+            await window.firebaseSignInAnonymously(window.firebaseAuth);
+        }
+
+        let attachmentUrl = null;
+
+        // Secure Storage Uploader Pipeline
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            if (window.firebaseStorage && window.firebaseStorageRef && window.firebaseUploadBytesResumable && window.firebaseGetDownloadURL) {
+                submitText.textContent = "Uploading File...";
+                
+                const fileExt = file.name.split('.').pop();
+                const fileName = `feedback_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
+                const storageReference = window.firebaseStorageRef(window.firebaseStorage, `feedback_attachments/${fileName}`);
+                
+                const uploadTask = window.firebaseUploadBytesResumable(storageReference, file);
+                
+                await new Promise((resolve, reject) => {
+                    uploadTask.on('state_changed', 
+                        null, 
+                        (error) => reject(error), 
+                        async () => {
+                            attachmentUrl = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
+                            resolve();
+                        }
+                    );
+                });
+            } else {
+                console.warn("🛡️ Firebase Storage SDK not available. Skipping attachment.");
+            }
+        }
+
+        submitText.textContent = "Saving...";
+
+        const payload = {
+            type: type,
+            text: text,
+            email: email,
+            attachmentUrl: attachmentUrl,
+            appVersion: typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown',
+            routeId: typeof currentRouteId !== 'undefined' ? currentRouteId : 'none',
+            region: typeof currentRegion !== 'undefined' ? currentRegion : 'GP',
+            timestamp: Date.now(),
+            userAgent: navigator.userAgent
+        };
+
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        
+        // Push payload to RTDB using REST POST (creates a secure unique ID instantly)
+        const res = await fetch(`${dynamicEndpoint}feedback.json`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Failed to post to database");
+
+        showToast("Feedback sent! Thank you.", "success");
+        closeSmoothModal('feedback-modal');
+        
+        // Reset physical form
+        document.getElementById('feedback-text').value = '';
+        document.getElementById('feedback-email').value = '';
+        document.getElementById('feedback-type').value = 'schedule_error';
+        if (fileInput) fileInput.value = '';
+        const preview = document.getElementById('feedback-file-preview');
+        if (preview) preview.classList.add('hidden');
+        
+        trackAnalyticsEvent('submit_feedback_success', { feedback_type: type, has_attachment: !!attachmentUrl });
+
+    } catch (e) {
+        console.error("🛡️ Feedback Error:", e);
+        showToast("Failed to send feedback. Please try again.", "error");
+        trackAnalyticsEvent('submit_feedback_error', { error_msg: e.message });
+    } finally {
+        submitBtn.disabled = false;
+        submitText.textContent = "Submit";
+        spinner.classList.add('hidden');
+    }
+}
+
+// Note: Kept strictly for external links (if any still exist) but decoupled from internal feedback flow
 function showRedirectModal(url, message) {
     if (redirectMessage) redirectMessage.textContent = message;
     history.pushState({ modal: 'redirect' }, '', '#redirect');
@@ -2203,7 +2372,7 @@ function updateNextTrainView() {
         triggerDiv.id = 'grid-trigger-container';
         triggerDiv.className = "mb-5 mt-2 px-1"; 
         triggerDiv.innerHTML = `
-            <button onclick="triggerHaptic(); renderFullScheduleGrid('A')" class="w-full flex items-center justify-center space-x-3 bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-xl shadow-lg ring-4 ring-blue-100 dark:ring-blue-900 transition-all transform active:scale-95 group">
+            <button onclick="triggerHaptic(); renderFullScheduleGrid('A')" class="w-full flex items-center justify-center space-x-3 bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-xl shadow-lg ring-4 ring-blue-100 dark:ring-blue-900 transition-all transform active:scale-95 group focus:outline-none">
                 <span class="text-xl">📅</span>
                 <span class="tracking-wide">VIEW FULL TIMETABLE</span>
             </button>
@@ -2754,7 +2923,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSettingsHub();
     updatePinUI(); 
     setupModalButtons(); 
-    setupRedirectLogic(); 
+    setupFeedbackLogic(); // GUARDIAN PHASE 2: Initializing In-House Feedback System
     startSmartRefresh();
     setupSwipeNavigation(); 
     initTabIndicator(); 

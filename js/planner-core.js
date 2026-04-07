@@ -13,6 +13,7 @@
  * * PHASE 2 (GUARDIAN BUGFIX): Easter Holiday Midnight Rollover patched via Calendar Sync. Dominance Filter upgraded to purge useless early-transfers.
  * * GUARDIAN FIX 3 (The Leg Compactor): Phantom Boundary Transfers physically merged if Train IDs match.
  * * GUARDIAN PHASE 13 (The Zero-Hour Probe): Probes mathematically impossible routes on sparse holiday/weekend schedules to distinguish them from standard missed trains.
+ * * PHASE 1 (GUARDIAN ANALYTICS): Injected tracking for complex (3+ transfer) route rendering.
  */
 
 // GUARDIAN V6.2: Midnight Rollover State Tracker
@@ -1550,8 +1551,35 @@ function planUnifiedTrip(origin, dest, dayType) {
         }
     }
 
+    const finalChosenTrips = optimalTrips.length > 0 ? optimalTrips : optimalNextDayTrips;
+
+    // --- GUARDIAN PHASE 1 (ANALYTICS): Track Complex Routes ---
+    if (finalChosenTrips.length > 0) {
+        const topTrip = finalChosenTrips[0];
+        let tCount = 0;
+        if (topTrip.type === 'MULTI_TRANSFER') tCount = topTrip.transferCount || (topTrip.legs ? topTrip.legs.length - 1 : 3);
+        else if (topTrip.type === 'DOUBLE_TRANSFER') tCount = 2;
+        else if (topTrip.type === 'TRANSFER') tCount = 1;
+        
+        // Include internal relays in UI-level transfer count
+        if (topTrip.leg1 && topTrip.leg1.isRelayComposite) tCount += 1;
+        if (topTrip.leg2 && topTrip.leg2.isRelayComposite) tCount += 1;
+        if (topTrip.leg3 && topTrip.leg3.isRelayComposite) tCount += 1;
+
+        if (tCount >= 3) {
+            if (typeof trackAnalyticsEvent === 'function') {
+                trackAnalyticsEvent('complex_route_rendered', {
+                    origin: topTrip.from.replace(/ STATION/gi, ''),
+                    destination: topTrip.to.replace(/ STATION/gi, ''),
+                    transfers: tCount,
+                    day_type: dayType
+                });
+            }
+        }
+    }
+
     return {
         status: finalStatus,
-        trips: optimalTrips.length > 0 ? optimalTrips : optimalNextDayTrips
+        trips: finalChosenTrips
     };
 }

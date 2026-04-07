@@ -1481,6 +1481,17 @@ function findNearestStation(isAuto = false) {
                     if (!isAuto) {
                         showToast(`Found: ${stationName.replace(' STATION', '')} (${distStr}km)`, "success");
                     }
+
+                    // GUARDIAN PHASE 1 (ANALYTICS): Inject 'auto_locate_success' event tracking
+                    if (typeof trackAnalyticsEvent === 'function') {
+                        trackAnalyticsEvent('auto_locate_success', {
+                            station: stationName.replace(' STATION', ''),
+                            route_id: currentRouteId,
+                            distance_km: parseFloat(distStr),
+                            is_background_check: isAuto
+                        });
+                    }
+                    
                 } else {
                      if (!isAuto) showToast("Station found nearby, but not available in dropdown.", "error");
                 }

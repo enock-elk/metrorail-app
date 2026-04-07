@@ -11,6 +11,7 @@
  * 7. System Health / Diagnostics Scanner (Phase 2 - New)
  * 8. Nuclear Cache Wipe (Killswitch - New)
  * 9. Live Telemetry Bridge (Cloudflare Path B - New)
+ * 10. User Feedback Manager (In-House Pipeline)
  * * * GUARDIAN PHASE 12: Added SPL (Special) tagging to exclusions manager and live sync timestamps.
  */
 
@@ -406,12 +407,176 @@ const Admin = {
     // --- HELPER: RENDER ALL DYNAMIC MODULES ---
     renderAdminModules: () => {
         Admin.setupTelemetry();
+        Admin.setupFeedbackManager(); // NEW: In-House Feedback Hub
         Admin.setupServiceAlertsManager();
         Admin.setupExclusionManager();
         Admin.setupMaintenanceManager();
         Admin.setupSpecialEventManager(); 
-        Admin.setupDiagnosticsManager(); // NEW: Injected directly above Nuclear Wipe
+        Admin.setupDiagnosticsManager(); 
         Admin.setupNuclearManager(); 
+    },
+
+    // --- 3.5 FEEDBACK MANAGER (NEW: IN-HOUSE PIPELINE) ---
+    setupFeedbackManager: () => {
+        const alertPanel = document.getElementById('alert-panel');
+        // Ensure we find the simulation panel to inject feedback above/below cleanly
+        const simPanel = document.getElementById('simulation-panel');
+        if (!alertPanel || !alertPanel.parentNode) return;
+
+        let fbPanel = document.getElementById('feedback-panel');
+        if (!fbPanel) {
+            fbPanel = document.createElement('div');
+            fbPanel.id = 'feedback-panel';
+            alertPanel.parentNode.insertBefore(fbPanel, alertPanel); // Place right above alerts
+        }
+
+        if (fbPanel.dataset.adminLoaded === "true") return;
+        fbPanel.dataset.adminLoaded = "true";
+
+        fbPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+
+        fbPanel.innerHTML = `
+            <button id="fb-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
+                <span class="flex items-center"><span class="mr-2">💬</span> Commuter Feedback</span>
+                <svg id="fb-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            
+            <div id="fb-body" class="hidden mt-4 space-y-4">
+                <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="fb-count-display">Inbox: Loading...</span>
+                    <button id="fb-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
+                        Refresh Inbox
+                    </button>
+                </div>
+                
+                <div id="fb-list" class="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar"></div>
+            </div>
+        `;
+
+        const header = document.getElementById('fb-header-btn');
+        const body = document.getElementById('fb-body');
+        const chevron = document.getElementById('fb-chevron');
+        const refreshBtn = document.getElementById('fb-refresh-btn');
+        const listContainer = document.getElementById('fb-list');
+        const countDisplay = document.getElementById('fb-count-display');
+
+        header.onclick = () => {
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+                header.classList.remove('mb-4');
+            } else {
+                chevron.classList.remove('-rotate-90');
+                header.classList.add('mb-4');
+                Admin.fetchFeedback(); // Auto-fetch on open
+            }
+        };
+
+        refreshBtn.onclick = () => Admin.fetchFeedback();
+
+        Admin.fetchFeedback = async () => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+
+            listContainer.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Checking database...</div>';
+            countDisplay.textContent = "Inbox: Syncing...";
+
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await fetch(`${dynamicEndpoint}feedback.json?auth=${secret}&orderBy="$key"`);
+                
+                if (!res.ok) throw new Error("Failed to fetch feedback");
+                
+                const data = await res.json();
+                listContainer.innerHTML = '';
+
+                if (!data) {
+                    listContainer.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Inbox is completely clean! ✨</div>';
+                    countDisplay.textContent = "Inbox: 0";
+                    return;
+                }
+
+                // Convert object to array and sort newest first
+                const feedbackArray = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+                feedbackArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+                countDisplay.textContent = `Inbox: ${feedbackArray.length}`;
+
+                feedbackArray.forEach(item => {
+                    const date = new Date(item.timestamp || Date.now());
+                    const dateStr = `${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                    
+                    let badgeClass = "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600";
+                    let typeLabel = "General";
+                    
+                    if (item.type === 'schedule_error') { badgeClass = "bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"; typeLabel = "⏱️ Schedule Error"; }
+                    else if (item.type === 'bug') { badgeClass = "bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800"; typeLabel = "🐛 App Bug"; }
+                    else if (item.type === 'suggestion') { badgeClass = "bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800"; typeLabel = "💡 Suggestion"; }
+
+                    const emailDisplay = item.email ? `<a href="mailto:${item.email}" class="text-blue-500 dark:text-blue-400 hover:underline">${item.email}</a>` : "Anonymous User";
+                    const attachmentHtml = item.attachmentUrl 
+                        ? `<a href="${item.attachmentUrl}" target="_blank" class="flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-[10px] font-bold"><span class="mr-1">📎</span> View File</a>`
+                        : `<div></div>`;
+
+                    // Escape HTML for text to prevent XSS in admin panel
+                    const safeText = item.text ? item.text.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>") : "No content";
+
+                    const card = document.createElement('div');
+                    card.className = "bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col";
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border ${badgeClass}">${typeLabel}</span>
+                            <span class="text-[9px] text-gray-400 dark:text-gray-500 font-mono">${dateStr}</span>
+                        </div>
+                        
+                        <p class="text-xs text-gray-700 dark:text-gray-200 mb-3 leading-relaxed">${safeText}</p>
+                        
+                        <div class="flex justify-between items-end border-t border-gray-200 dark:border-gray-800 pt-2 mt-auto">
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium mb-0.5">${emailDisplay}</span>
+                                <span class="text-[8px] text-gray-400 dark:text-gray-600 font-mono">App: ${item.appVersion || 'Unknown'} | Route: ${item.routeId || 'None'}</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                ${attachmentHtml}
+                                <button class="text-green-600 dark:text-green-500 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-2 py-1 rounded transition-colors focus:outline-none" onclick="Admin.resolveFeedback('${item.id}')">
+                                    Resolve
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    listContainer.appendChild(card);
+                });
+
+            } catch (e) {
+                console.error(e);
+                listContainer.innerHTML = '<div class="text-xs text-red-500 text-center py-4">Failed to load feedback.</div>';
+            }
+        };
+
+        Admin.resolveFeedback = async (id) => {
+            if (!confirm("Mark this feedback as resolved and archive it?")) return;
+            
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                
+                // Delete from active queue
+                const res = await fetch(`${dynamicEndpoint}feedback/${id}.json?auth=${secret}`, {
+                    method: 'DELETE'
+                });
+
+                if (res.ok) {
+                    if (typeof showToast === 'function') showToast("Feedback resolved!", "success");
+                    Admin.fetchFeedback(); // Refresh list
+                } else {
+                    throw new Error("Failed to delete");
+                }
+            } catch (e) {
+                if (typeof showToast === 'function') showToast("Error resolving feedback.", "error");
+            }
+        };
     },
 
     // --- 4. SERVICE ALERTS MANAGER (GUARDIAN CARD STYLE + REGION SYNC) ---
