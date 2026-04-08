@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.07 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.08 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -15,7 +15,7 @@
  * * PHASE 2 (GUARDIAN STORAGE): Swapped localStorage to safeStorage. Guarded sessionStorage. Added Array bounds checking.
  * * GUARDIAN PHASE 15: Grid Synchronization Patch. Prevented grid from blindly auto-forwarding on active holidays.
  * * PHASE 1 (GUARDIAN ANALYTICS): 'check_updates_click' tracked.
- * * PHASE 2 (GUARDIAN FEEDBACK): In-House Feedback System, Firebase Storage Pipeline, & Modal bindings injected.
+ * * PHASE 2 (GUARDIAN FEEDBACK): In-House Feedback System, Firebase Storage Pipeline, 15s Timeout Race & Modal bindings injected.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -1619,6 +1619,10 @@ async function submitFeedback() {
     const submitText = document.getElementById('feedback-submit-text');
     const spinner = document.getElementById('feedback-spinner');
 
+    // GUARDIAN PHASE 2: Analytics event for the feedback submission click
+    const hasFile = !!(fileInput && fileInput.files && fileInput.files.length > 0);
+    trackAnalyticsEvent('click_submit_feedback_btn', { feedback_type: type, has_attachment: hasFile });
+
     if (!text) {
         showToast("Please enter your feedback details.", "error");
         return;
@@ -1635,10 +1639,16 @@ async function submitFeedback() {
             await window.firebaseSignInAnonymously(window.firebaseAuth);
         }
 
+        // GUARDIAN FIX: Securely fetch ID Token to authenticate REST API writes
+        let authToken = "";
+        if (window.firebaseAuth && window.firebaseAuth.currentUser && window.firebaseGetIdToken) {
+            authToken = await window.firebaseGetIdToken(window.firebaseAuth.currentUser, true);
+        }
+
         let attachmentUrl = null;
 
-        // Secure Storage Uploader Pipeline
-        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+        // Secure Storage Uploader Pipeline with 15-Second Timeout Race
+        if (hasFile) {
             const file = fileInput.files[0];
             if (window.firebaseStorage && window.firebaseStorageRef && window.firebaseUploadBytesResumable && window.firebaseGetDownloadURL) {
                 submitText.textContent = "Uploading File...";
@@ -1649,16 +1659,34 @@ async function submitFeedback() {
                 
                 const uploadTask = window.firebaseUploadBytesResumable(storageReference, file);
                 
-                await new Promise((resolve, reject) => {
+                const uploadPromise = new Promise((resolve, reject) => {
                     uploadTask.on('state_changed', 
                         null, 
                         (error) => reject(error), 
                         async () => {
-                            attachmentUrl = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
-                            resolve();
+                            try {
+                                attachmentUrl = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
+                                resolve();
+                            } catch (err) {
+                                reject(err);
+                            }
                         }
                     );
                 });
+
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('UPLOAD_TIMEOUT')), 15000);
+                });
+
+                try {
+                    await Promise.race([uploadPromise, timeoutPromise]);
+                } catch (uploadError) {
+                    console.warn("🛡️ Guardian: Image upload failed or timed out. Abandoning image to save text feedback.", uploadError);
+                    if (uploadError.message === 'UPLOAD_TIMEOUT') {
+                        uploadTask.cancel(); // Force kill the background Firebase retries
+                    }
+                    attachmentUrl = null; // Reset to null so text payload proceeds cleanly
+                }
             } else {
                 console.warn("🛡️ Firebase Storage SDK not available. Skipping attachment.");
             }
@@ -1680,15 +1708,26 @@ async function submitFeedback() {
 
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
         
+        // GUARDIAN FIX: Append Auth Token to REST URL
+        const authParam = authToken ? `?auth=${authToken}` : '';
+        
         // Push payload to RTDB using REST POST (creates a secure unique ID instantly)
-        const res = await fetch(`${dynamicEndpoint}feedback.json`, {
+        const res = await fetch(`${dynamicEndpoint}feedback.json${authParam}`, {
             method: 'POST',
             body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error("Failed to post to database");
+        if (!res.ok) {
+            // GUARDIAN FIX: Verbose error logging to catch 401 Unauthorized Rules blocks
+            const errorText = await res.text();
+            throw new Error(`Failed to post to database: ${res.status} ${res.statusText} - ${errorText}`);
+        }
 
-        showToast("Feedback sent! Thank you.", "success");
+        if (hasFile && !attachmentUrl) {
+            showToast("Feedback sent! (Image upload was blocked by network and skipped)", "warning", 4000);
+        } else {
+            showToast("Feedback sent! Thank you.", "success");
+        }
         closeSmoothModal('feedback-modal');
         
         // Reset physical form

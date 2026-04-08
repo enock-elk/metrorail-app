@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.04.07 - 7bro APRIL"; // BUMPED: To force cache clear on clients
+const APP_VERSION = "V6.04.07 - Edge Cache Active F5"; // BUMPED: To force cache clear on clients
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -9,15 +9,19 @@ const FORCE_UPDATE_REQUIRED = true;
 
 // --- 🛡️ GUARDIAN PHASE 5: INFRASTRUCTURE PIVOT & DATA ROUTING ---
 // Toggle this to instantly switch where the heavy schedule data comes from.
-const DATA_SOURCE_MODE = 'FIREBASE'; // 'GITHUB' or 'FIREBASE'
+const DATA_SOURCE_MODE = 'CLOUDFLARE'; // 'GITHUB', 'FIREBASE', or 'CLOUDFLARE'
 
 // 🛡️ GUARDIAN: GitHub via jsDelivr CDN (100% Free, Unlimited Bandwidth)
-// Connected securely to enock-elk/metrorail-app
 const GITHUB_BASE_URL = "https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/data/";
+// Raw Firebase RTDB (Expensive if used for heavy data)
 const FIREBASE_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";
+// 🛡️ GUARDIAN: Cloudflare Edge Cache Shield (100% Free, 24hr Cache, Instant Purge)
+const CLOUDFLARE_BASE_URL = "https://nexttrain-cache.enock.workers.dev/";
 
 // Heavy Data (Schedules) respects the toggle.
-const SCHEDULE_BASE_URL = DATA_SOURCE_MODE === 'GITHUB' ? GITHUB_BASE_URL : FIREBASE_BASE_URL;
+let SCHEDULE_BASE_URL = FIREBASE_BASE_URL;
+if (DATA_SOURCE_MODE === 'GITHUB') SCHEDULE_BASE_URL = GITHUB_BASE_URL;
+if (DATA_SOURCE_MODE === 'CLOUDFLARE') SCHEDULE_BASE_URL = CLOUDFLARE_BASE_URL;
 
 // Dynamic Data (Admin Bans, Alerts, Maintenance) ALWAYS uses Firebase for real-time capability.
 const DYNAMIC_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";

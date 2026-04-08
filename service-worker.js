@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v6.04.07 F2'; // BUMPED: V6.04.07 - Network-First Strategy Upgrade
+const CACHE_NAME = 'metrorail-next-train-v6.04.07 F5'; // BUMPED: V6.04.07 F3 - POST Request Bypass Patch
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.
@@ -61,6 +61,10 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // GUARDIAN PHASE 1: Ignore non-HTTP requests (like chrome-extension://)
   if (!event.request.url.startsWith('http')) return;
+
+  // GUARDIAN PHASE 2: Ignore non-GET requests (e.g., POST for Firebase Auth/API calls)
+  // Caches cannot store POST requests, and intercepting them causes TypeErrors.
+  if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
 

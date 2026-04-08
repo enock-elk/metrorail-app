@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.06 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.08 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (Tiered & Regional - Restored)
@@ -1154,6 +1154,16 @@ const Admin = {
                     return fetch(url, { method: 'PUT', body: JSON.stringify(updates[tNum]) });
                 });
                 await Promise.all(promises);
+
+                // --- 🛡️ GUARDIAN PHASE 4: CLOUDFLARE EDGE CACHE DETONATION ---
+                try {
+                    const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                        method: 'POST', 
+                        headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                    });
+                    if (purgeRes.ok) console.log("🛡️ Cloudflare Edge Cache Purged.");
+                } catch(pe) { console.warn("Purge failed", pe); }
+
                 showToast(`Updated ${selectedTrains.length} exceptions!`, "success");
                 trainGrid.querySelectorAll('input').forEach(cb => cb.checked = false);
                 document.getElementById('excl-train-manual').value = '';
@@ -1177,6 +1187,16 @@ const Admin = {
             try {
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
+                    
+                    // --- 🛡️ GUARDIAN PHASE 4: CLOUDFLARE EDGE CACHE DETONATION ---
+                    try {
+                        const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                            method: 'POST', 
+                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                        });
+                        if (purgeRes.ok) console.log("🛡️ Cloudflare Edge Cache Purged.");
+                    } catch(pe) { console.warn("Purge failed", pe); }
+
                     showToast("Exception removed.", "success");
                     fetchExclusions();
                     if (typeof loadAllSchedules === 'function') loadAllSchedules();
@@ -1599,6 +1619,15 @@ const Admin = {
                 
                 const res = await fetch(url, { method: 'PUT', body: JSON.stringify(payload) });
                 if (res.ok) {
+                    // --- 🛡️ GUARDIAN PHASE 4: CLOUDFLARE EDGE CACHE DETONATION ---
+                    try {
+                        const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                            method: 'POST', 
+                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                        });
+                        if (purgeRes.ok) console.log("🛡️ Cloudflare Edge Cache Purged.");
+                    } catch(pe) { console.warn("Purge failed", pe); }
+
                     showToast("Nuclear Wipe Triggered Globally!", "success", 5000);
                 } else {
                     showToast("Auth failed.", "error");
