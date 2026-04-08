@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.04.07 - Edge Cache Active F5"; // BUMPED: To force cache clear on clients
+const APP_VERSION = "V6.04.07 - Edge Cache Active F8"; // BUMPED: To force cache clear on clients
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -9,7 +9,7 @@ const FORCE_UPDATE_REQUIRED = true;
 
 // --- 🛡️ GUARDIAN PHASE 5: INFRASTRUCTURE PIVOT & DATA ROUTING ---
 // Toggle this to instantly switch where the heavy schedule data comes from.
-const DATA_SOURCE_MODE = 'CLOUDFLARE'; // 'GITHUB', 'FIREBASE', or 'CLOUDFLARE'
+const DATA_SOURCE_MODE = 'FIREBASE'; // 'GITHUB', 'FIREBASE', or 'CLOUDFLARE'
 
 // 🛡️ GUARDIAN: GitHub via jsDelivr CDN (100% Free, Unlimited Bandwidth)
 const GITHUB_BASE_URL = "https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/data/";

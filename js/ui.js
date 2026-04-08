@@ -200,7 +200,7 @@ window._renderNextTrainList = function() {
     if (matches.length === 0) {
         const li = document.createElement('li');
         li.className = "p-3 text-sm text-gray-400 italic";
-        li.textContent = "No stations on this route";
+        li.textContent = "Please wait, fetching data";
         list.appendChild(li);
     } else {
         matches.forEach(station => {
