@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V6.04.08 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V6.04.09- Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -417,7 +417,7 @@ async function checkKillswitch() {
                     
                     // Trigger global wipe if ui.js is bound, otherwise fallback to raw local logic
                     if (typeof window.performHardCacheClear === 'function') {
-                        window.performHardCacheClear();
+                        window.performHardCacheClear('system_killswitch'); // GUARDIAN FIX: Proper attribution for analytics
                     } else {
                         if ('serviceWorker' in navigator) {
                             navigator.serviceWorker.getRegistrations().then(regs => {

@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.08 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.09 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -16,6 +16,7 @@
  * * GUARDIAN PHASE 15: Grid Synchronization Patch. Prevented grid from blindly auto-forwarding on active holidays.
  * * PHASE 1 (GUARDIAN ANALYTICS): 'check_updates_click' tracked.
  * * PHASE 2 (GUARDIAN FEEDBACK): In-House Feedback System, Firebase Storage Pipeline, 15s Timeout Race & Modal bindings injected.
+ * * GUARDIAN BUGFIX: Separated telemetry tracking for manual vs system cache wipes. Injected proper loading UI for slow DB hydration.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -199,8 +200,16 @@ window._renderNextTrainList = function() {
 
     if (matches.length === 0) {
         const li = document.createElement('li');
-        li.className = "p-3 text-sm text-gray-400 italic";
-        li.textContent = "Please wait, fetching data";
+        
+        // GUARDIAN BUGFIX: Protect users from seeing "No stations on this route" when the app is merely loading the database.
+        if (!fullDatabase) {
+            li.className = "p-4 text-sm text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center bg-blue-50 dark:bg-blue-900/20";
+            li.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Loading stations... please wait`;
+        } else {
+            li.className = "p-4 text-sm text-gray-400 italic text-center";
+            li.textContent = "No stations on this route";
+        }
+        
         list.appendChild(li);
     } else {
         matches.forEach(station => {
@@ -375,7 +384,7 @@ function renderComingSoon(element, routeName) {
 
 function renderAtDestination(element) { if (element && typeof Renderer !== 'undefined') Renderer.renderAtDestination(element); }
 
-// GUARDIAN BUGFIX 4: Dynamically uses window.simulateNextActiveService to skip holidays/weekends
+// GUARDIAN BUGFIX 4: Dynamically consumes nextDayInfo to build UI buttons
 function renderNoService(element, destination) {
     if (!element) return;
     const currentRoute = ROUTES[currentRouteId];
@@ -857,11 +866,16 @@ function handleShortcutActions() {
     }
 }
 
-window.performHardCacheClear = async function() {
+// GUARDIAN BUGFIX: Properly attribute analytics source for forced system cache wipes
+window.performHardCacheClear = async function(source = 'modal_confirm') {
     triggerHaptic();
-    trackAnalyticsEvent('execute_hard_cache_clear', { location: 'modal_confirm' });
+    trackAnalyticsEvent('execute_hard_cache_clear', { location: source });
     window.closeAppHub(true); 
-    showToast("Clearing offline data and syncing...", "info", 5000);
+    
+    if (source === 'modal_confirm') {
+        showToast("Clearing offline data and syncing...", "info", 5000);
+    }
+    
     const modal = document.getElementById('cache-clear-modal');
     if (modal) {
         closeSmoothModal('cache-clear-modal');
@@ -918,7 +932,7 @@ window.showCacheClearWarning = function() {
                     <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">This will clear your offline cache and download the absolute latest App version from the server.</p>
                     <div class="flex space-x-3">
                         <button onclick="closeSmoothModal('cache-clear-modal')" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors focus:outline-none">Cancel</button>
-                        <button onclick="performHardCacheClear()" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none">Sync Now</button>
+                        <button onclick="performHardCacheClear('modal_confirm')" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none">Sync Now</button>
                     </div>
                 </div>
             </div>
