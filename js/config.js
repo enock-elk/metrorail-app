@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.04.07 F08 - Edge Cache Active"; // BUMPED: To force cache clear on clients
+const APP_VERSION = "V6.04.11 - Route Visibility Patch"; // BUMPED: Force cache clear for route visibility
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -28,7 +28,7 @@ const DYNAMIC_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.c
 
 const REGIONS = {
     'GP': { 
-        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'full-database.json' : 'schedules.json', 
+        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'full-database.json' : 'schedules/gauteng.json', 
         name: 'Gauteng' 
     },
     'WC': { 
@@ -64,14 +64,16 @@ const LEGAL_TEXTS = {
 
 // 3. Route Definitions
 const ROUTES = {
-    // NEW V5.01: Dynamic Special Event Scaffold (Hidden by Default)
+    // ==========================================
+    // 🛡️ GAUTENG ROUTES (AUTHENTIC LEGACY CONFIG)
+    // ==========================================
     'special_event': { 
         id: 'special_event', 
         name: "Special Event Route", 
         corridorId: "SPECIAL",
         region: "GP",
-        colorClass: "text-yellow-500", // Will be styled uniquely in UI
-        isActive: false, // Activated via Admin Panel
+        colorClass: "text-yellow-500", 
+        isActive: false, 
         destA: 'EVENT A STATION', 
         destB: 'EVENT B STATION', 
         transferStation: null, 
@@ -147,7 +149,7 @@ const ROUTES = {
         isActive: true, 
         destA: 'HERCULES STATION', 
         destB: 'KOEDOESPOORT STATION', 
-        transferStation: null, // Acts as a bridge itself
+        transferStation: null, 
         sheetKeys: { 
             weekday_to_a: 'koed_to_herc_weekday', 
             weekday_to_b: 'herc_to_koed_weekday',
@@ -252,9 +254,9 @@ const ROUTES = {
         transferStation: null, 
         sheetKeys: {
             weekday_to_a: 'kemp_to_pta_weekday', 
-            weekday_to_b: 'pta_to_kemp_weekday', // GUARDIAN: FIXED KEY
+            weekday_to_b: 'pta_to_kemp_weekday', 
             saturday_to_a: 'kemp_to_pta_sat', 
-            saturday_to_b: 'pta_to_kemp_sat'     // GUARDIAN: FIXED KEY
+            saturday_to_b: 'pta_to_kemp_sat'     
         } 
     },
     'jhb-rand': { 
@@ -310,42 +312,230 @@ const ROUTES = {
         } 
     },
 
-    // WESTERN CAPE REGION
+    // ==========================================
+    // 🛡️ WESTERN CAPE ROUTES (V6 EXPANSION)
+    // ==========================================
     'ct-chrishani': { 
         id: 'ct-chrishani', 
-        name: "Cape Town <-> Chris Hani", 
-        corridorId: "WC_CENTRAL",
-        region: "WC",
-        colorClass: "text-orange-500", 
+        name: 'Cape Town <-> Chris Hani', 
+        corridorId: 'WC_CENTRAL', 
+        region: 'WC', 
+        colorClass: 'text-orange-500', 
         isActive: true, 
         destA: 'CAPE TOWN STATION', 
         destB: 'CHRIS HANI STATION', 
         transferStation: null, 
-        sheetKeys: { weekday_to_a: 'hani_to_ct_weekday', weekday_to_b: 'ct_to_hani_weekday', saturday_to_a: 'hani_to_ct_sat', saturday_to_b: 'ct_to_hani_sat' } 
+        sheetKeys: { 
+            weekday_to_a: 'hani_to_ct_weekday', 
+            weekday_to_b: 'ct_to_hani_weekday', 
+            saturday_to_a: 'hani_to_ct_sat', 
+            saturday_to_b: 'ct_to_hani_sat' 
+        } 
     },
     'ct-kapteinsklip': { 
         id: 'ct-kapteinsklip', 
-        name: "Cape Town <-> Kapteinsklip", 
-        corridorId: "WC_CENTRAL",
-        region: "WC",
-        colorClass: "text-purple-500", 
+        name: 'Cape Town <-> Kapteinsklip', 
+        corridorId: 'WC_CENTRAL', 
+        region: 'WC', 
+        colorClass: 'text-purple-500', 
         isActive: true, 
         destA: 'CAPE TOWN STATION', 
         destB: 'KAPTEINSKLIP STATION', 
         transferStation: null, 
-        sheetKeys: { weekday_to_a: 'kap_to_ct_weekday', weekday_to_b: 'ct_to_kap_weekday', saturday_to_a: 'kap_to_ct_sat', saturday_to_b: 'ct_to_kap_sat' } 
+        sheetKeys: { 
+            weekday_to_a: 'kap_to_ct_weekday', 
+            weekday_to_b: 'ct_to_kap_weekday', 
+            saturday_to_a: 'kap_to_ct_sat', 
+            saturday_to_b: 'ct_to_kap_sat' 
+        } 
+    },
+    'ct-nolu': { 
+        id: 'ct-nolu', 
+        name: 'Cape Town <-> Nolungile', 
+        corridorId: 'WC_CENTRAL', 
+        region: 'WC', 
+        colorClass: 'text-blue-500', 
+        isActive: true, 
+        destA: 'CAPE TOWN STATION', 
+        destB: 'NOLUNGILE STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'nolu_to_ct_weekday', 
+            weekday_to_b: 'ct_to_nolu_weekday', 
+            saturday_to_a: 'nolu_to_ct_sat', 
+            saturday_to_b: 'ct_to_nolu_sat' 
+        } 
     },
     'bellville-mutual': { 
         id: 'bellville-mutual', 
-        name: "Bellville <-> Mutual", 
-        corridorId: "WC_NORTHERN",
-        region: "WC",
-        colorClass: "text-green-500", 
+        name: 'Bellville <-> Mutual', 
+        corridorId: 'WC_NORTHERN', 
+        region: 'WC', 
+        colorClass: 'text-green-500', 
         isActive: true, 
         destA: 'BELLVILLE STATION', 
         destB: 'MUTUAL STATION', 
         transferStation: null, 
-        sheetKeys: { weekday_to_a: 'bellv_to_mutul_weekday', weekday_to_b: 'mutul_to_bellv_weekday', saturday_to_a: 'bellv_to_mutul_sat', saturday_to_b: 'mutul_to_bellv_sat' } 
+        sheetKeys: { 
+            weekday_to_a: 'bellv_to_mutul_weekday', 
+            weekday_to_b: 'mutul_to_bellv_weekday', 
+            saturday_to_a: 'bellv_to_mutul_sat', 
+            saturday_to_b: 'mutul_to_bellv_sat' 
+        } 
+    },
+    'ct-simon': { 
+        id: 'ct-simon', 
+        name: "Cape Town <-> Simon's Town", 
+        corridorId: 'WC_SOUTHERN', 
+        region: 'WC', 
+        colorClass: 'text-red-500', 
+        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        destA: 'CAPE TOWN STATION', 
+        destB: "SIMON'S TOWN STATION", 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'simon_to_ct_weekday', 
+            weekday_to_b: 'ct_to_simon_weekday', 
+            saturday_to_a: 'simon_to_ct_sat', 
+            saturday_to_b: 'ct_to_simon_sat' 
+        } 
+    },
+    'ct-flats': { 
+        id: 'ct-flats', 
+        name: "Cape Town <-> Retreat (Cape Flats)", 
+        corridorId: 'WC_FLATS', 
+        region: 'WC', 
+        colorClass: 'text-yellow-600', 
+        isActive: true, 
+        destA: 'CAPE TOWN STATION', 
+        destB: "RETREAT STATION", 
+        transferStation: null, 
+        sheetKeys: { 
+            // GUARDIAN FIX: Corrected to match Apps Script sanitized keys exactly
+            weekday_to_a: 'rtret_to_ct_weekday', 
+            weekday_to_b: 'ct_to_rtret_weekday', 
+            saturday_to_a: 'rtret_to_ct_sat', 
+            saturday_to_b: 'ct_to_rtret_sat' 
+        } 
+    },
+    'ct-bellv': { 
+        id: 'ct-bellv', 
+        name: "Cape Town <-> Bellville", 
+        corridorId: 'WC_NORTHERN', 
+        region: 'WC', 
+        colorClass: 'text-green-500', 
+        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        destA: 'CAPE TOWN STATION', 
+        destB: "BELLVILLE STATION", 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'bellv_to_ct_weekday', 
+            weekday_to_b: 'ct_to_bellv_weekday', 
+            saturday_to_a: 'bellv_to_ct_sat', 
+            saturday_to_b: 'ct_to_bellv_sat' 
+        } 
+    },
+    'ct-kraai': { 
+        id: 'ct-kraai', 
+        name: "Cape Town <-> Kraaifontein", 
+        corridorId: 'WC_NORTHERN', 
+        region: 'WC', 
+        colorClass: 'text-green-500', 
+        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        destA: 'CAPE TOWN STATION', 
+        destB: "KRAAIFONTEIN STATION", 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'kraai_to_ct_weekday', 
+            weekday_to_b: 'ct_to_kraai_weekday', 
+            saturday_to_a: 'kraai_to_ct_sat', 
+            saturday_to_b: 'ct_to_kraai_sat' 
+        } 
+    },
+    'ct-eerst': { 
+        id: 'ct-eerst', 
+        name: "Cape Town <-> Eerste River", 
+        corridorId: 'WC_NORTHERN', 
+        region: 'WC', 
+        colorClass: 'text-green-500', 
+        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        destA: 'CAPE TOWN STATION', 
+        destB: "EERSTE RIVER STATION", 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'eerst_to_ct_weekday', 
+            weekday_to_b: 'ct_to_eerst_weekday', 
+            saturday_to_a: 'eerst_to_ct_sat', 
+            saturday_to_b: 'ct_to_eerst_sat' 
+        } 
+    },
+    'ct-strnd': { 
+        id: 'ct-strnd', 
+        name: "Cape Town <-> Strand", 
+        corridorId: 'WC_NORTHERN', 
+        region: 'WC', 
+        colorClass: 'text-green-500', 
+        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        destA: 'CAPE TOWN STATION', 
+        destB: "STRAND STATION", 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'strnd_to_ct_weekday', 
+            weekday_to_b: 'ct_to_strnd_weekday', 
+            saturday_to_a: 'strnd_to_ct_sat', 
+            saturday_to_b: 'ct_to_strnd_sat' 
+        } 
+    },
+    'eerst-dtoit': { 
+        id: 'eerst-dtoit', 
+        name: "Eerste River <-> Du Toit", 
+        corridorId: 'WC_NORTHERN', 
+        region: 'WC', 
+        colorClass: 'text-green-500', 
+        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        destA: 'EERSTE RIVER STATION', 
+        destB: "DU TOIT STATION", 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'dtoit_to_eerst_weekday', 
+            weekday_to_b: 'eerst_to_dtoit_weekday', 
+            saturday_to_a: 'dtoit_to_eerst_sat', 
+            saturday_to_b: 'eerst_to_dtoit_sat' 
+        } 
+    },
+    'ct-well': { 
+        id: 'ct-well', 
+        name: "Cape Town <-> Wellington", 
+        corridorId: 'WC_NORTHERN', 
+        region: 'WC', 
+        colorClass: 'text-green-500', 
+        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        destA: 'CAPE TOWN STATION', 
+        destB: "WELLINGTON STATION", 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'well_to_ct_weekday', 
+            weekday_to_b: 'ct_to_well_weekday', 
+            saturday_to_a: 'well_to_ct_sat', 
+            saturday_to_b: 'ct_to_well_sat' 
+        } 
+    },
+    'ct-malm': { 
+        id: 'ct-malm', 
+        name: "Cape Town <-> Malmesbury", 
+        corridorId: 'WC_REGIONAL', 
+        region: 'WC', 
+        colorClass: 'text-lime-500', // GUARDIAN: Preserved the lime-500 color correction
+        isActive: true, 
+        destA: 'CAPE TOWN STATION', 
+        destB: "MALMESBURY STATION", 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'malm_to_ct_weekday', 
+            weekday_to_b: 'ct_to_malm_weekday', 
+            saturday_to_a: 'malm_to_ct_sat', 
+            saturday_to_b: 'ct_to_malm_sat' 
+        } 
     }
 };
 
@@ -385,7 +575,6 @@ const FARE_CONFIG = {
 // Fallback rules if Firebase is unreachable.
 // Day Index: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
 const DEFAULT_EXCLUSIONS = {
-
     'pta-kempton': {
         // Runs Tue, Wed, Thu only. Exclude Mon (1) and Fri (5).
         "0618": { days: [1, 5], reason: "Runs Tue-Thu Only" },
@@ -397,28 +586,10 @@ const DEFAULT_EXCLUSIONS = {
 // This drives the "What's New" modal.
 const CHANGELOG_DATA = [
     {
-        version: "Version 6.2 — Advanced Routing & Stability",
-        date: "",
+        version: "Version 6.04 (Guardian Edition)",
+        date: "April 2026",
         features: [
-            "<b>Smart Routing:</b> The Trip Planner now maps the absolute fastest connections across the network with boundless multi-transfer capabilities.",
-            "<b>Optimized Connections:</b> Eliminated unnecessary early-departure transfers if a more convenient direct train arrives at the same time.",
-            "<b>Seamless Navigation:</b> Resolved visual glitches on the Live Route Map and improved the accuracy of next-day schedule rollovers."
-        ]
-    },
-    {
-        version: "Version 6.1 — The Commuter Update",
-        date: "",
-        features: [
-            "<b>Live GPS Maps:</b> View your real-time location on the interactive network map.",
-            "<b>Smart Fares:</b> Prices now dynamically calculate your 40% Off-Peak and Pensioner discounts.",
-            "<b>Fluid Navigation:</b> Eliminated accidental exits and smoothed out the App Router."
-        ]
-    },
-    {
-        version: "Version 6.0 — Regional Expansion & Fluid UX",
-        date: "",
-        features: [
-            "<b>Western Cape Integration:</b> The Next Train network now officially supports the Western Cape, bringing offline-first schedules to Cape Town corridors.",
+            "<b>Western Cape Expansion:</b> The Next Train network now officially supports the Western Cape, bringing offline-first schedules to Cape Town corridors.",
             "<b>The App Hub:</b> Settings, preferences, and offline syncing have been consolidated into a unified, swipeable navigation drawer for a premium native feel.",
             "<b>State Preservation:</b> Modals and routing now respect native Android/iOS back-button gestures, eliminating accidental app exits."
         ]

@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V6.04.09- Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V6.04.11- Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -135,6 +135,15 @@ window.simulateNextActiveService = function(selectedStation, destination) {
     while (daysAhead <= 7 && !firstTrain) {
         nextDayInfo = window.getLookaheadDayInfo(daysAhead);
         
+        // GUARDIAN BUGFIX: The Sunday Mirage Patch.
+        // Explicitly skip Sundays as there are no schedule sheets for them. 
+        // If a special holiday falls on a Sunday but runs trains, nextDayInfo.type 
+        // would evaluate to 'saturday', safely bypassing this block.
+        if (nextDayInfo.type === 'sunday') {
+            daysAhead++;
+            continue;
+        }
+
         // GUARDIAN BUGFIX: Use the generic internal keys (e.g., 'weekday_to_a') 
         // to query the in-memory 'schedules' object, NOT the raw DB sheet names!
         const sheetKey = isDestA

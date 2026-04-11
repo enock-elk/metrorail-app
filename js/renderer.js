@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.09 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.11 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -31,7 +31,8 @@ const Renderer = {
             "WC_CENTRAL": "Cape Town Central Line",
             "WC_SOUTHERN": "Cape Town Southern Line",
             "WC_FLATS": "Cape Flats Line",
-            "WC_NORTHERN": "Cape Town Northern Line"
+            "WC_NORTHERN": "Cape Town Northern Line",
+            "WC_REGIONAL": "Malmesbury Line" // GUARDIAN: Registered Malmesbury corridor
         };
 
         const categoryOrder = [
@@ -39,6 +40,7 @@ const Renderer = {
             "Pretoria - JHB Line",
             "JHB West Line",
             "Cape Town Central Line",
+            "Malmesbury Line", // GUARDIAN: Moved up for better accessibility
             "Cape Town Southern Line",
             "Cape Flats Line",
             "Cape Town Northern Line"
@@ -158,7 +160,8 @@ const Renderer = {
             
             if (route.isActive) {
                 let borderColor = 'border-gray-500';
-                if (route.colorClass.includes('orange')) borderColor = 'border-orange-500';
+                if (route.colorClass.includes('lime')) borderColor = 'border-lime-500'; // GUARDIAN: Lime Check
+                else if (route.colorClass.includes('orange')) borderColor = 'border-orange-500';
                 else if (route.colorClass.includes('purple')) borderColor = 'border-purple-500';
                 else if (route.colorClass.includes('green')) borderColor = 'border-green-500';
                 else if (route.colorClass.includes('blue')) borderColor = 'border-blue-500';
@@ -504,6 +507,7 @@ const Renderer = {
     // GUARDIAN V6.05 FIX: Completely rebuilt to return strict Tailwind utilities instead of brittle CSS classes
     _getDotColor: (colorClass) => {
         if (!colorClass) return 'bg-gray-400';
+        if (colorClass.includes('lime')) return 'bg-lime-500 shadow-[0_0_8px_rgba(132,204,22,0.5)]'; // GUARDIAN: Map-Accurate Malmesbury Check
         if (colorClass.includes('green')) return 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]';
         if (colorClass.includes('orange')) return 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]';
         if (colorClass.includes('purple')) return 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]';
@@ -953,7 +957,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             td.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
             td.style.textAlign = 'center'; 
             td.style.fontWeight = '600'; 
-            if (isCompact) td.style.letterSpacing = '-0.5px'; // Kerning reduction
+            if (isCompact) th.style.letterSpacing = '-0.5px'; // Kerning reduction
         });
 
         // GUARDIAN: Apply Zebra Striping safely
