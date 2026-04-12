@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.11 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.12 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -10,7 +10,9 @@
  * * V7.00.01 (GUARDIAN): Dynamic MULTI_TRANSFER UI Renderer for True Dijkstra Graph.
  * * PHASE 1 (GUARDIAN BUGFIX): Live Map Router Bleed & Grey Screen Interceptor injected.
  * * GUARDIAN PHASE 13: Impossible Route Warning Card integrated via Zero-Hour Probe.
- * * GUARDIAN PHASE 14: Dynamic Time-Sync applied to UI to prevent future-day times matching against today's clock.
+ * * GUARDIAN PHASE 14 & D: Dynamic Time-Sync applied to UI to prevent future-day times matching against today's clock, incorporating dayOffset weekend math.
+ * * GUARDIAN PHASE D: Leaflet anti-rubberband flyTo() lock applied to prevent camera snapping race conditions.
+ * * GUARDIAN PHASE 20: Map UX Parity - Integrated Action Bar, Naked Halo tooltips, and Dark Mode Tile Inversion from map.html.
  */
 
 // --- GUARDIAN PHASE 1: ROUTER BLEED & GREY SCREEN INTERCEPTOR ---
@@ -244,7 +246,6 @@ const PlannerRenderer = {
             let train2Dest = trainDest;
 
             return `
-                <!-- SUB-LEG 1 START -->
                 <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
                     <div class="flex flex-col">
@@ -260,7 +261,6 @@ const PlannerRenderer = {
                 
                 ${PlannerRenderer.buildStopListHTML(stopsBefore, `${legId}-A`)}
 
-                <!-- SUB-LEG 1 END (ARRIVE RELAY HUB) -->
                 <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     <div class="absolute -left-[7px] top-1.5 w-3 h-3 rounded-full bg-gray-400"></div>
                     <div class="flex justify-between items-center mb-1">
@@ -269,10 +269,9 @@ const PlannerRenderer = {
                     </div>
                 </div>
 
-                <!-- INTERNAL RELAY BADGE (Injected onto Main Timeline) -->
                 <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     <div class="relative pl-6 pb-6 pt-2">
-                        <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
+                        <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-50 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
                         <div class="mt-1 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
                             <div class="font-bold uppercase tracking-wide mb-1">INTERNAL TRANSFER @ ${sName}</div>
                             <div class="text-gray-600 dark:text-gray-400 leading-snug">
@@ -283,7 +282,6 @@ const PlannerRenderer = {
                     </div>
                 </div>
 
-                <!-- SUB-LEG 2 START (DEPART RELAY HUB) -->
                 <div class="relative pl-8 pb-6 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900"></div>
                     <div class="flex flex-col">
@@ -299,7 +297,6 @@ const PlannerRenderer = {
 
                 ${PlannerRenderer.buildStopListHTML(stopsAfter, `${legId}-B`)}
 
-                <!-- FINAL DESTINATION FOR THIS LEG -->
                 <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     <div class="${arriveDotClass}"></div>
                     <div class="flex justify-between items-center">
@@ -627,9 +624,7 @@ const PlannerRenderer = {
         return `
             <div class="mt-4 ml-0 space-y-0">
                 ${PlannerRenderer.renderLegTimeline(step.leg1, step.from, step.transferStation, `stops-leg1-${step.train}`, false)}
-                <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                    ${standardTransferBlock}
-                </div>
+                <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">${standardTransferBlock}</div>
                 ${PlannerRenderer.renderLegTimeline(step.leg2, step.transferStation, step.to, `stops-leg2-${step.train}`, true)}
             </div>
         `;
@@ -686,13 +681,10 @@ const PlannerRenderer = {
 
         return `
             <div class="mt-4 ml-0 space-y-0">
-                <!-- LEG 1 -->
                 ${PlannerRenderer.renderLegTimeline(step.leg1, step.from, step.hub1, leg1Id, false)}
                 <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">${transferBlock1}</div>
-                <!-- LEG 2 -->
                 ${PlannerRenderer.renderLegTimeline(step.leg2, step.hub1, step.hub2, leg2Id, false)}
                 <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">${transferBlock2}</div>
-                <!-- LEG 3 -->
                 ${PlannerRenderer.renderLegTimeline(step.leg3, step.hub2, step.to, leg3Id, true)}
             </div>
         `;
@@ -711,9 +703,11 @@ const PlannerRenderer = {
         let effectiveDepSec = depSec;
         let isTomorrowOverride = false;
         
-        // GUARDIAN PHASE 14: Protect future trips from triggering departed/missed flags
+        // GUARDIAN PHASE 14 & PHASE D: Protect future trips from triggering departed/missed flags
+        // and apply correct weekend math (dayOffset) to prevent 24-hour hallucinations.
         if (midnightRollover || step.dayLabel) { 
-            effectiveDepSec += 86400; 
+            const offsetMultiplier = step.dayOffset ? step.dayOffset : 1;
+            effectiveDepSec += (86400 * offsetMultiplier); 
             isTomorrowOverride = true; 
         }
 
@@ -1098,12 +1092,12 @@ function savePlannerHistory(from, to) {
     
     const historyKey = 'plannerHistory_' + (typeof currentRegion !== 'undefined' ? currentRegion : 'GP');
     
-    let history = JSON.parse(localStorage.getItem(historyKey) || "[]");
+    let history = JSON.parse(safeStorage.getItem(historyKey) || "[]");
     history = history.filter(item => `${item.from}|${item.to}` !== routeKey);
     history.unshift({ from: cleanFrom, to: cleanTo, fullFrom: from, fullTo: to });
     if (history.length > 4) history = history.slice(0, 4);
     
-    localStorage.setItem(historyKey, JSON.stringify(history));
+    safeStorage.setItem(historyKey, JSON.stringify(history));
     renderPlannerHistory();
 }
 
@@ -1112,7 +1106,7 @@ function renderPlannerHistory() {
     if (!container) return;
     
     const historyKey = 'plannerHistory_' + (typeof currentRegion !== 'undefined' ? currentRegion : 'GP');
-    let rawHistory = JSON.parse(localStorage.getItem(historyKey) || "[]");
+    let rawHistory = JSON.parse(safeStorage.getItem(historyKey) || "[]");
 
     let validHistory = rawHistory;
     if (typeof MASTER_STATION_LIST !== 'undefined' && MASTER_STATION_LIST.length > 0) {
@@ -1134,7 +1128,7 @@ function renderPlannerHistory() {
     container.innerHTML = `
         <div class="flex items-center justify-between mb-2 px-1">
              <p class="text-xs font-bold text-gray-400 uppercase">Recent Trips</p>
-             <button onclick="localStorage.removeItem('${historyKey}'); renderPlannerHistory()" class="text-[10px] text-gray-400 hover:text-red-500 focus:outline-none">Clear</button>
+             <button onclick="safeStorage.removeItem('${historyKey}'); renderPlannerHistory()" class="text-[10px] text-gray-400 hover:text-red-500 focus:outline-none">Clear</button>
         </div>
         <div class="flex flex-col gap-2">
             ${validHistory.map(item => `
@@ -1632,3 +1626,358 @@ function renderErrorCard(title, message, actionHtml = "") {
         </div>
     `;
 }
+
+// --- GUARDIAN PHASE 6 & 20: LAZY-LOADED TRIP MAP ENGINE (ERGONOMICS UPGRADE) ---
+let tripMapInstance = null;
+
+window.openTripMapRenderer = async function(routeData) {
+    if (typeof triggerHaptic === 'function') triggerHaptic();
+
+    if (!navigator.onLine && !window.L) {
+        showToast("Internet connection required to load live map.", "error");
+        return;
+    }
+
+    showToast("Loading live map...", "info", 1500);
+
+    // 0. GUARDIAN Phase 20: Inject Map UX CSS (Dark Mode, Halos, Pulses)
+    if (!document.getElementById('live-map-custom-styles')) {
+        const style = document.createElement('style');
+        style.id = 'live-map-custom-styles';
+        style.innerHTML = `
+            .gps-pulse { width: 16px; height: 16px; background: #3b82f6; border-radius: 50%; box-shadow: 0 0 0 rgba(59, 130, 246, 0.4); animation: pulse 2s infinite; border: 3px solid white; }
+            @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
+            .custom-div-icon { background: transparent; border: none; }
+            .dark .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
+            .tooltip-dynamic { transition: opacity 0.3s ease, font-size 0.2s ease; font-family: 'Inter', sans-serif; opacity: 0; }
+            .leaflet-tooltip.tooltip-halo { background: transparent !important; border: none !important; box-shadow: none !important; white-space: nowrap; color: #1f2937; text-shadow: -1.5px -1.5px 0 #ffffff, 1.5px -1.5px 0 #ffffff, -1.5px 1.5px 0 #ffffff, 1.5px 1.5px 0 #ffffff; }
+            .dark .leaflet-tooltip.tooltip-halo { color: #ffffff !important; text-shadow: -1px -1px 0 rgba(0, 0, 0, 0.8), 1px -1px 0 rgba(0, 0, 0, 0.8), -1px 1px 0 rgba(0, 0, 0, 0.8), 1px 1px 0 rgba(0, 0, 0, 0.8), 0 0 8px rgba(0,0,0,0.9) !important; }
+            .leaflet-tooltip.tooltip-halo::before { display: none !important; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // 1. Lazy-load Leaflet if missing
+    if (!window.L) {
+        try {
+            await new Promise((resolve, reject) => {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';
+                document.head.appendChild(link);
+
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        } catch (e) {
+            showToast("Failed to load map engine.", "error");
+            return;
+        }
+    }
+
+    // 2. Build Modal Skeleton with Horizontal Action Bar (GUARDIAN UX)
+    let modal = document.getElementById('trip-map-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'trip-map-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-90 z-[100] hidden flex items-center justify-center p-0 full-screen backdrop-blur-md transition-opacity duration-300';
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative shrink-0 shadow-sm">
+                    <div class="flex items-center space-x-3 min-w-0 pr-2">
+                        <span class="text-2xl shrink-0">🗺️</span>
+                        <div class="flex flex-col min-w-0">
+                            <h3 class="text-base font-black text-gray-900 dark:text-white truncate uppercase tracking-tight mb-0.5" id="trip-map-title">Route Map</h3>
+                            <div class="flex items-center">
+                                <p class="text-xs text-blue-600 dark:text-blue-400 font-bold truncate shrink-0 mr-2" id="trip-map-subtitle">Loading...</p>
+                                <span class="text-[8px] font-bold text-yellow-800 bg-yellow-100 dark:text-yellow-300 dark:bg-yellow-900/50 px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 border border-yellow-200 dark:border-yellow-800">🧪 In Dev</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2 shrink-0">
+                        <button id="close-trip-map-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition focus:outline-none" aria-label="Close Map">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex-grow w-full bg-gray-200 dark:bg-gray-800 relative z-10">
+                    <div id="trip-map-canvas" class="absolute inset-0"></div>
+                    
+                    <!-- 🛡️ GUARDIAN UX: HORIZONTAL ACTION BAR -->
+                    <div class="absolute bottom-6 left-4 right-4 z-[1000] flex justify-between items-end pointer-events-none">
+                        <div class="flex items-end space-x-3 pointer-events-auto">
+                            <!-- Zoom Controls -->
+                            <div class="flex flex-col bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+                                <button id="custom-zoom-in" class="w-11 h-11 flex items-center justify-center text-blue-600 dark:text-blue-400 text-2xl font-bold hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-300 dark:border-gray-600 transition-colors focus:outline-none">+</button>
+                                <button id="custom-zoom-out" class="w-11 h-11 flex items-center justify-center text-blue-600 dark:text-blue-400 text-2xl font-bold hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none">−</button>
+                            </div>
+                            <!-- Theme Toggle -->
+                            <button id="custom-theme-btn" class="w-11 h-11 flex items-center justify-center bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-300 dark:border-gray-600 text-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none">
+                                ☀️
+                            </button>
+                        </div>
+                        
+                        <!-- Auto-Locate Anti-Rubberband Button -->
+                        <button id="custom-locate-btn" class="w-14 h-14 flex items-center justify-center bg-white dark:bg-gray-800 rounded-full shadow-lg border border-gray-300 dark:border-gray-600 hover:scale-105 transition-transform pointer-events-auto text-gray-400 focus:outline-none">
+                            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 rounded-b-none z-20 relative shrink-0">
+                    <button id="close-trip-map-btn-2" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none">Close Map</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const closeAction = () => {
+            if (location.hash === '#trip-map') history.back();
+            else closeSmoothModal('trip-map-modal');
+            
+            // Delay map destruction to allow CSS transition to finish
+            setTimeout(() => {
+                if (tripMapInstance) {
+                    tripMapInstance.stopLocate(); // GUARDIAN: Stop background GPS polling
+                    tripMapInstance.remove();
+                    tripMapInstance = null;
+                }
+            }, 350);
+        };
+
+        const closeBtn1 = document.getElementById('close-trip-map-btn');
+        if (closeBtn1) closeBtn1.addEventListener('click', closeAction);
+        
+        const closeBtn2 = document.getElementById('close-trip-map-btn-2');
+        if (closeBtn2) closeBtn2.addEventListener('click', closeAction);
+    }
+
+    // 3. Open Modal & Push State (Before rendering so container has dimensions)
+    history.pushState({ modal: 'trip-map' }, '', '#trip-map');
+    openSmoothModal('trip-map-modal');
+
+    // 4. Initialize Leaflet Canvas
+    setTimeout(() => {
+        if (tripMapInstance) {
+            tripMapInstance.remove();
+        }
+
+        // Initialize Map (GUARDIAN Phase 20: Default Attribution enabled so it sits naturally at bottom-right)
+        tripMapInstance = L.map('trip-map-canvas', {
+            zoomControl: false,
+            attributionControl: true
+        });
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(tripMapInstance);
+
+        // --- MAP STATE & RENDERING ENGINE ---
+        let routeLayerGroup = L.layerGroup().addTo(tripMapInstance);
+        
+        const createDot = (bgColor, size) => L.divIcon({
+            className: 'custom-map-dot',
+            html: `<div style="background-color:${bgColor}; width: ${size}px; height: ${size}px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+            iconSize: [size, size],
+            iconAnchor: [size/2, size/2]
+        });
+
+        // The Master Drawing Function
+        const drawRouteElements = () => {
+            routeLayerGroup.clearLayers();
+            
+            let currentPath = routeData.path;
+            let currentOrigin = routeData.origin;
+            let currentDest = routeData.destination;
+            let currentValidStops = routeData.validStops;
+
+            // Update Header Titles
+            const titleEl = document.getElementById('trip-map-title');
+            if (titleEl) titleEl.textContent = `${currentOrigin.replace(' STATION', '')} to ${currentDest.replace(' STATION', '')}`;
+            
+            const subTitleEl = document.getElementById('trip-map-subtitle');
+            if (subTitleEl) {
+                const stopCount = currentValidStops ? currentValidStops.length : currentPath.length;
+                subTitleEl.textContent = `${stopCount} stops along route`;
+            }
+
+            // 1. Draw Curved Track (Using Full Waypoints)
+            const polyline = L.polyline(currentPath, {
+                color: '#3b82f6', 
+                weight: 6,
+                opacity: 0.8,
+                lineCap: 'round',
+                lineJoin: 'round'
+            }).addTo(routeLayerGroup);
+
+            // GUARDIAN Phase 20: Naked Halo Label Classes
+            const majorLabelClass = 'font-bold text-[11px] text-gray-900 dark:text-white z-50 tooltip-dynamic tooltip-halo';
+            const minorLabelClass = 'font-medium text-[9.5px] text-gray-700 dark:text-gray-300 tooltip-dynamic tooltip-halo minor-station-tooltip';
+
+            // 2. Draw Clean Station Markers with Naked Halo Tooltips
+            if (currentValidStops && currentValidStops.length > 0) {
+                // Ghost Buster: Plot only valid physical stops
+                currentValidStops.forEach((stop, idx) => {
+                    if (idx !== 0 && idx !== currentValidStops.length - 1) {
+                         L.circleMarker([stop.lat, stop.lon], { radius: 2.5, color: '#3b82f6', weight: 1, fillColor: '#ffffff', fillOpacity: 1 })
+                          .bindTooltip(stop.name.replace(' STATION', ''), { permanent: true, direction: 'top', offset: [0, -5], className: minorLabelClass })
+                          .addTo(routeLayerGroup);
+                    }
+                });
+            } else {
+                // Legacy Fallback (If validStops array is missing)
+                currentPath.forEach((coord, idx) => {
+                    if (idx !== 0 && idx !== currentPath.length - 1) {
+                         L.circleMarker(coord, { radius: 2.5, color: '#3b82f6', weight: 1, fillColor: '#ffffff', fillOpacity: 1 }).addTo(routeLayerGroup);
+                    }
+                });
+            }
+
+            // 3. Start Marker (Green)
+            const startCoord = currentPath[0];
+            L.marker(startCoord, { icon: createDot('#22c55e', 14) })
+             .bindTooltip(`<b>Start:</b> ${currentOrigin.replace(' STATION', '')}`, { permanent: true, direction: 'top', offset: [0, -10], className: majorLabelClass })
+             .addTo(routeLayerGroup);
+
+            // 4. End Marker (Red)
+            const endCoord = currentPath[currentPath.length - 1];
+            L.marker(endCoord, { icon: createDot('#ef4444', 14) })
+             .bindTooltip(`<b>End:</b> ${currentDest.replace(' STATION', '')}`, { permanent: true, direction: 'top', offset: [0, -10], className: majorLabelClass })
+             .addTo(routeLayerGroup);
+
+            return polyline;
+        };
+
+        // Execute Initial Draw & Frame Route
+        const initialPolyline = drawRouteElements();
+        tripMapInstance.fitBounds(initialPolyline.getBounds(), { padding: [50, 50] });
+
+        // --- 🛡️ GUARDIAN UX: ACTION BAR WIRING ---
+        
+        // 1. Zoom Controls
+        const zoomInBtn = document.getElementById('custom-zoom-in');
+        const zoomOutBtn = document.getElementById('custom-zoom-out');
+        if (zoomInBtn) zoomInBtn.onclick = () => tripMapInstance.zoomIn();
+        if (zoomOutBtn) zoomOutBtn.onclick = () => tripMapInstance.zoomOut();
+
+        // 2. Theme Toggle
+        const themeBtn = document.getElementById('custom-theme-btn');
+        let isDarkNow = document.documentElement.classList.contains('dark');
+        if (themeBtn) {
+            themeBtn.innerHTML = isDarkNow ? '🌙' : '☀️';
+            themeBtn.onclick = () => {
+                isDarkNow = !isDarkNow;
+                if (isDarkNow) {
+                    document.documentElement.classList.add('dark');
+                    try { localStorage.setItem('theme', 'dark'); } catch(e){}
+                    themeBtn.innerHTML = '🌙';
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    try { localStorage.setItem('theme', 'light'); } catch(e){}
+                    themeBtn.innerHTML = '☀️';
+                }
+            };
+        }
+
+        // 3. GPS Anti-Rubberband Logic
+        let lastKnownLatLng = null;
+        let userMarker = null;
+        let userRadius = null;
+        let isManualLocate = false; // GUARDIAN PHASE D: Anti-rubberband state flag
+
+        const pulsingIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: '<div class="gps-pulse"></div>',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+
+        const locateBtn = document.getElementById('custom-locate-btn');
+        const locateIcon = locateBtn ? locateBtn.querySelector('svg') : null;
+
+        // Background Location Tracker
+        tripMapInstance.on('locationfound', function(e) {
+            lastKnownLatLng = e.latlng;
+            const radius = e.accuracy / 2;
+
+            if (!userMarker) {
+                userMarker = L.marker(e.latlng, { icon: pulsingIcon, zIndexOffset: 1000 }).addTo(tripMapInstance)
+                    .bindPopup("<div class='text-xs font-bold text-center text-gray-900'>You are here<br><span class='text-[10px] text-gray-500 font-normal'>Within " + Math.round(radius) + " meters</span></div>");
+                userRadius = L.circle(e.latlng, radius, {
+                    color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.15, weight: 1
+                }).addTo(tripMapInstance);
+            } else {
+                userMarker.setLatLng(e.latlng);
+                userRadius.setLatLng(e.latlng);
+                userRadius.setRadius(radius);
+            }
+            
+            if (locateIcon) {
+                locateIcon.classList.remove('animate-spin', 'text-gray-400');
+                locateIcon.classList.add('text-blue-600', 'dark:text-blue-400');
+            }
+
+            // Execute flyTo() only if manual request is active
+            if (isManualLocate) {
+                tripMapInstance.flyTo(e.latlng, 15, { duration: 1.5 });
+                isManualLocate = false; // Reset the lock
+            }
+        });
+
+        tripMapInstance.on('locationerror', function(e) {
+            if (locateIcon) {
+                locateIcon.classList.remove('animate-spin', 'text-blue-600', 'dark:text-blue-400');
+                locateIcon.classList.add('text-gray-400');
+            }
+            if (e.code !== 1) console.warn("Location error:", e.message);
+        });
+
+        // Start passive tracking silently (no setView)
+        tripMapInstance.locate({setView: false, watch: true, enableHighAccuracy: true});
+
+        // Manual Locate Click
+        if (locateBtn) {
+            locateBtn.onclick = () => {
+                if (typeof triggerHaptic === 'function') triggerHaptic();
+                
+                if (lastKnownLatLng) {
+                    // Fly camera to the dot elegantly
+                    tripMapInstance.flyTo(lastKnownLatLng, 15, { duration: 1.5 });
+                } else {
+                    // Spin and wait for locationfound event to trigger flyTo()
+                    if (locateIcon) {
+                        locateIcon.classList.remove('text-gray-400');
+                        locateIcon.classList.add('animate-spin', 'text-blue-600', 'dark:text-blue-400');
+                    }
+                    isManualLocate = true; // Lock active
+                    tripMapInstance.locate({setView: false, enableHighAccuracy: true, maxZoom: 15}); // Ensure setView is strictly FALSE
+                }
+            };
+        }
+
+        // --- DYNAMIC TEXT RESIZING & PROGRESSIVE DISCLOSURE ---
+        function updateTooltipSize() {
+            const zoom = tripMapInstance.getZoom();
+            const allTooltips = document.querySelectorAll('.tooltip-dynamic');
+            const minorTooltips = document.querySelectorAll('.minor-station-tooltip');
+
+            if (zoom < 11) {
+                allTooltips.forEach(t => t.style.opacity = '0');
+            } else {
+                allTooltips.forEach(t => t.style.opacity = '1');
+                if (zoom < 13) {
+                    minorTooltips.forEach(t => t.style.opacity = '0');
+                }
+            }
+        }
+
+        tripMapInstance.on('zoomend', updateTooltipSize);
+        updateTooltipSize(); 
+
+    }, 350); 
+};

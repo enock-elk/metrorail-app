@@ -377,10 +377,10 @@ const ROUTES = {
         destB: 'MUTUAL STATION', 
         transferStation: null, 
         sheetKeys: { 
-            weekday_to_a: 'bellv_to_mutul_weekday', 
-            weekday_to_b: 'mutul_to_bellv_weekday', 
-            saturday_to_a: 'bellv_to_mutul_sat', 
-            saturday_to_b: 'mutul_to_bellv_sat' 
+            weekday_to_a: 'mutul_to_bellv_weekday', 
+            weekday_to_b: 'bellv_to_mutul_weekday', 
+            saturday_to_a: 'mutul_to_bellv_sat', 
+            saturday_to_b: 'bellv_to_mutul_sat' 
         } 
     },
     'ct-simon': { 

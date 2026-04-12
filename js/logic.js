@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V6.04.11- Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V6.04.12- Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -75,6 +75,52 @@ const HOLIDAY_NAMES = {
     "12-26": "Day of Goodwill"
 };
 
+// --- GUARDIAN PHASE B: THE LIE-FI DETECTOR & FETCH WRAPPER ---
+window.isLieFi = false;
+window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
+    if (!navigator.onLine) {
+        window.isLieFi = true;
+        throw new Error("OS reports offline state.");
+    }
+    
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    
+    try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        window.isLieFi = false;
+        
+        // Hide the offline indicator if network succeeded
+        const oi = document.getElementById('offline-indicator');
+        if (oi) oi.style.display = 'none';
+        
+        return response;
+    } catch (error) {
+        clearTimeout(id);
+        if (error.name === 'AbortError' || error.message.includes('fetch') || error.message.includes('Network')) {
+            window.isLieFi = true;
+            console.warn(`🛡️ Guardian Lie-Fi Detector: Request to ${url} timed out/failed. Assumed offline.`);
+            
+            // Show Lie-Fi Toast (Phase A UX Integration)
+            const offlineToast = document.getElementById('offline-toast');
+            if (offlineToast) {
+                offlineToast.classList.remove('translate-y-[150%]', 'opacity-0');
+                setTimeout(() => offlineToast.classList.add('translate-y-[150%]', 'opacity-0'), 4000);
+            }
+
+            // Priority Clash Fix: Suppress Maintenance Banner if offline
+            const maintBanner = document.getElementById('maintenance-banner');
+            if (maintBanner) maintBanner.style.display = 'none'; 
+
+            // Show standard offline indicator
+            const oi = document.getElementById('offline-indicator');
+            if (oi) oi.style.display = 'flex';
+        }
+        throw error;
+    }
+};
+
 // --- GUARDIAN PHASE 1 (Bug 4 Fix): Universal Holiday Lookahead Engine ---
 window.getLookaheadDayInfo = function(daysAhead = 1) {
     let baseDate = new Date();
@@ -121,7 +167,7 @@ window.getLookaheadDayInfo = function(daysAhead = 1) {
 
 // --- GUARDIAN PHASE 1 (Bug 4 Fix): The True Day Simulator ---
 // Looks up to 7 days ahead to find the very next physical train that runs,
-// securely bypassing Ghost Exclusions on Public Holidays and Weekends.
+// securely bypassing Ghost Exclusions on Public Holidays and weekends.
 window.simulateNextActiveService = function(selectedStation, destination) {
     if (!currentRouteId || !ROUTES[currentRouteId]) return null;
     const currentRoute = ROUTES[currentRouteId];
@@ -136,16 +182,11 @@ window.simulateNextActiveService = function(selectedStation, destination) {
         nextDayInfo = window.getLookaheadDayInfo(daysAhead);
         
         // GUARDIAN BUGFIX: The Sunday Mirage Patch.
-        // Explicitly skip Sundays as there are no schedule sheets for them. 
-        // If a special holiday falls on a Sunday but runs trains, nextDayInfo.type 
-        // would evaluate to 'saturday', safely bypassing this block.
         if (nextDayInfo.type === 'sunday') {
             daysAhead++;
             continue;
         }
 
-        // GUARDIAN BUGFIX: Use the generic internal keys (e.g., 'weekday_to_a') 
-        // to query the in-memory 'schedules' object, NOT the raw DB sheet names!
         const sheetKey = isDestA
             ? (nextDayInfo.type === 'weekday' ? 'weekday_to_a' : 'saturday_to_a')
             : (nextDayInfo.type === 'weekday' ? 'weekday_to_b' : 'saturday_to_b');
@@ -153,7 +194,6 @@ window.simulateNextActiveService = function(selectedStation, destination) {
         const schedule = schedules[sheetKey];
         
         if (schedule && schedule.rows && schedule.rows.length > 0) {
-            // Drill down using the precise target day index to accurately bypass ghost trains
             const res = isDestA
                 ? findNextJourneyToDestA(selectedStation, "00:00:00", schedule, currentRoute, nextDayInfo.idx)
                 : findNextJourneyToDestB(selectedStation, "00:00:00", schedule, currentRoute, nextDayInfo.idx);
@@ -187,7 +227,7 @@ let toastTimeout;
 
 // --- HELPERS ---
 
-// GUARDIAN V6.1: Date Formatter Helper (Converts "3/7/2026, 2:58:50 PM" to "7 March 2026")
+// GUARDIAN V6.1: Date Formatter Helper
 function formatEffectiveDate(rawDateStr) {
     if (!rawDateStr || String(rawDateStr).toLowerCase().includes("undefined") || rawDateStr === "null") return "Unknown";
     let cleanStr = String(rawDateStr).replace(/^last updated[:\s-]*/i, '').trim();
@@ -223,7 +263,6 @@ function getTargetStations(schedule, fromStation) {
     if (fromIdx === -1) return new Set();
     
     const targets = new Set();
-    // Collect all stations AFTER the current station in the schedule's order
     for (let i = fromIdx + 1; i < rows.length; i++) {
         targets.add(normalizeStationName(rows[i].STATION));
     }
@@ -238,10 +277,8 @@ function hasForwardOverlap(trainName, otherSchedule, fromStation, targetStations
     
     if (fromIdx === -1) return false;
 
-    // Check stops strictly AFTER the current station
     for (let i = fromIdx + 1; i < rows.length; i++) {
         const row = rows[i];
-        // If the train has a time for this station AND this station is in our target path
         if (row[trainName] && targetStations.has(normalizeStationName(row.STATION))) {
             return true;
         }
@@ -259,6 +296,12 @@ function isTrainExcluded(trainNumber, routeId, dayIdx) {
     
     if (rules && rules[trainNumber]) {
         const rule = rules[trainNumber];
+        
+        // GUARDIAN PHASE C: Automatic Expiry Enforcement
+        if (rule.expiresAt && Date.now() > rule.expiresAt) {
+            return false; // The ban has expired, treat the train as active
+        }
+        
         if (rule.days && rule.days.includes(parseInt(dayIdx))) {
             // GUARDIAN PHASE 12: Return specific metadata string instead of generic boolean
             return rule.type || 'banned'; 
@@ -292,7 +335,6 @@ function initDB() {
                 }
             };
         } catch(err) {
-            // Catches synchronous QuotaExceeded or IO Exceptions from Chrome if disk is critically full
             reject(err);
         }
     });
@@ -300,8 +342,6 @@ function initDB() {
 
 async function saveToLocalCache(key, data) {
     const cacheEntry = { timestamp: Date.now(), data: data };
-    
-    // GUARDIAN Phase 3: Always mirror to RAM first for this active session (bulletproof reads if disk IO fails later)
     memoryFallbackCache[key] = cacheEntry;
 
     try {
@@ -318,14 +358,12 @@ async function saveToLocalCache(key, data) {
         try { 
             safeStorage.setItem(key, JSON.stringify(cacheEntry)); 
         } catch(ex) {
-            console.warn("🛡️ Guardian: LocalStorage also failed (Disk critically full). Operating strictly in RAM mode.");
-            // We already saved to memoryFallbackCache[key] above, so the app will still work this session.
+            console.warn("🛡️ Guardian: LocalStorage also failed. Operating strictly in RAM mode.");
         }
     }
 }
 
 async function loadFromLocalCache(key) {
-    // GUARDIAN Phase 3: 1. Check RAM First (Fastest, bypasses disk IO errors entirely if already loaded this session)
     if (memoryFallbackCache[key]) {
         console.log("🛡️ Guardian: Serving schedule from RAM cache.");
         return memoryFallbackCache[key];
@@ -339,24 +377,23 @@ async function loadFromLocalCache(key) {
             const request = store.get(key);
             request.onsuccess = () => {
                 if (request.result) {
-                    memoryFallbackCache[key] = request.result; // Mirror to RAM for future fast access
+                    memoryFallbackCache[key] = request.result; 
                     resolve(request.result);
                 } else {
-                    // GUARDIAN SILENT MIGRATION: If IDB is empty, check legacy localStorage, import it, and delete it.
                     try {
                         const lsItem = safeStorage.getItem(key);
                         if (lsItem) {
                             const parsed = JSON.parse(lsItem);
-                            memoryFallbackCache[key] = parsed; // Mirror to RAM
+                            memoryFallbackCache[key] = parsed; 
                             resolve(parsed);
-                            saveToLocalCache(key, parsed.data); // Migrate seamlessly in background
-                            safeStorage.removeItem(key); // Free up quota limit
+                            saveToLocalCache(key, parsed.data); 
+                            safeStorage.removeItem(key); 
                         } else {
                             resolve(null);
                         }
                     } catch(ex) { resolve(null); }
                 }
-            };
+            }
             request.onerror = () => reject(request.error);
         });
     } catch (e) {
@@ -365,20 +402,18 @@ async function loadFromLocalCache(key) {
             const item = safeStorage.getItem(key); 
             if (item) {
                 const parsed = JSON.parse(item);
-                memoryFallbackCache[key] = parsed; // Mirror to RAM
+                memoryFallbackCache[key] = parsed;
                 return parsed;
             }
             return null;
         } catch (ex) { 
-            console.warn("🛡️ Guardian: LocalStorage Load Failed too. App must rely on network.");
             return null; 
         }
     }
 }
 
-// GUARDIAN: Global cleanup helper for Settings menu
 window.clearScheduleCache = async function() {
-    memoryFallbackCache = {}; // GUARDIAN Phase 3: Clear RAM Cache
+    memoryFallbackCache = {}; 
     try {
         const db = await initDB();
         return new Promise((resolve) => {
@@ -412,10 +447,10 @@ function scheduleNextRefresh() {
 
 // GUARDIAN PHASE 8: Nuclear Killswitch Listener
 async function checkKillswitch() {
-    if (!navigator.onLine) return false;
+    if (!navigator.onLine || window.isLieFi) return false;
     try {
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-        const res = await fetch(`${dynamicEndpoint}config/killswitch.json?t=${Date.now()}`);
+        const res = await window.guardianFetch(`${dynamicEndpoint}config/killswitch.json?t=${Date.now()}`, {}, 3000);
         if (res.ok) {
             const data = await res.json();
             if (data && data.timestamp) {
@@ -424,9 +459,8 @@ async function checkKillswitch() {
                     console.log("☢️ GUARDIAN KILLSWITCH ACTIVATED. Wiping all local data...");
                     safeStorage.setItem('last_killswitch_timestamp', data.timestamp);
                     
-                    // Trigger global wipe if ui.js is bound, otherwise fallback to raw local logic
                     if (typeof window.performHardCacheClear === 'function') {
-                        window.performHardCacheClear('system_killswitch'); // GUARDIAN FIX: Proper attribution for analytics
+                        window.performHardCacheClear('system_killswitch'); 
                     } else {
                         if ('serviceWorker' in navigator) {
                             navigator.serviceWorker.getRegistrations().then(regs => {
@@ -452,10 +486,10 @@ async function checkKillswitch() {
 
 // GUARDIAN PHASE 3: Task 7.2 Remote Config Fetch
 async function fetchSpecialEventConfig() {
+    if (!navigator.onLine || window.isLieFi) return;
     try {
-        // GUARDIAN PHASE 5: Dynamic Routing Update
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-        const eventResp = await fetch(`${dynamicEndpoint}config/special_event.json?t=${Date.now()}`);
+        const eventResp = await window.guardianFetch(`${dynamicEndpoint}config/special_event.json?t=${Date.now()}`, {}, 4000);
         
         if (eventResp.ok) {
             const eventData = await eventResp.json();
@@ -465,26 +499,43 @@ async function fetchSpecialEventConfig() {
                 if (eventData.destA) ROUTES['special_event'].destA = eventData.destA;
                 if (eventData.destB) ROUTES['special_event'].destB = eventData.destB;
                 
-                // Trigger sidebar re-render to inject/remove the Event Route seamlessly
-                if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', ROUTES, currentRouteId);
+                // GUARDIAN FIX: Prevent Route Bleed by filtering regional routes before rendering
+                if (typeof Renderer !== 'undefined') {
+                    const regionalRoutes = typeof getRoutesForCurrentRegion === 'function' ? getRoutesForCurrentRegion() : ROUTES;
+                    Renderer.renderRouteMenu('route-list', regionalRoutes, currentRouteId);
+                }
             }
         }
     } catch(e) { console.warn("Failed to fetch special event config", e); }
 }
 
 // --- DATA FETCHING & PROCESSING ---
+// GUARDIAN PHASE B: EAGER RENDERING PROTOCOL
 async function loadAllSchedules(force = false) {
     try {
-        // GUARDIAN PHASE 8: Execute Killswitch Check FIRST
-        const wasKilled = await checkKillswitch();
-        if (wasKilled) return; // Halt execution if we are wiping and reloading
-
-        await fetchSpecialEventConfig();
-
         if (!currentRouteId) return; 
         const currentRoute = ROUTES[currentRouteId];
         if (!currentRoute) return;
-        
+
+        // 🛡️ GUARDIAN PHASE 2: Unwrap Unified Database Export safely with Smart Merge
+        const unwrapDatabase = (db, region) => {
+            if (!db) return null;
+            let regionalData = {};
+            if (region === 'GP' && db.gauteng) {
+                regionalData = db.gauteng;
+            } else if (region === 'WC' && db.westerncape) {
+                regionalData = db.westerncape;
+            } else if (region === 'GP' && db.schedules && !db.gauteng) {
+                regionalData = db.schedules;
+            }
+            const mergedDb = { ...db, ...regionalData };
+            delete mergedDb.gauteng;
+            delete mergedDb.westerncape;
+            delete mergedDb.schedules;
+            return mergedDb;
+        };
+
+        // SETUP HEADERS INSTANTLY
         if(routeSubtitleText) {
             routeSubtitleText.textContent = currentRoute.name;
             const twColors = {
@@ -502,17 +553,8 @@ async function loadAllSchedules(force = false) {
         
         if(pretoriaHeader) pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
         if(pienaarspoortHeader) pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
-        
-        if (typeof renderSkeletonLoader === 'function') {
-            if(pretoriaTimeEl) renderSkeletonLoader(pretoriaTimeEl);
-            if(pienaarspoortTimeEl) renderSkeletonLoader(pienaarspoortTimeEl);
-        }
 
-        if(offlineIndicator) offlineIndicator.style.display = 'none';
-        if (typeof updatePinUI === 'function') updatePinUI(); 
-
-        // Initial UI wipe for inactive routes is handled primarily in findNextTrains now, 
-        // but we keep this here for the initial load sweep.
+        // GUARDIAN PHASE B: EAGER ROUTE GUARD (Stop Grid Crashes)
         if (!currentRoute.isActive) {
             if (typeof renderComingSoon === 'function') renderComingSoon(currentRoute.name);
             if(mainContent) mainContent.style.display = 'block';
@@ -524,87 +566,75 @@ async function loadAllSchedules(force = false) {
             if (gContainer) gContainer.classList.add('hidden');
             const sBtn = document.getElementById('share-app-btn');
             if (sBtn && sBtn.closest('.border-t')) sBtn.closest('.border-t').classList.add('hidden');
+            
+            return; // HALT EXECUTION: Inactive routes do not render grids or query Firebase.
         } else {
             const sBtn = document.getElementById('share-app-btn');
             if (sBtn && sBtn.closest('.border-t')) sBtn.closest('.border-t').classList.remove('hidden');
+            updateNextTrainView(); 
         }
-        
+
+        // --- 1. EAGER RENDER CACHE LOAD ---
+        // Instantly parse IndexedDB and paint the DOM before doing any network checks
+        const cacheKey = `full_db_${currentRegion}`;
+        const cachedDB = await loadFromLocalCache(cacheKey);
+        let usedCache = false;
+
+        if (cachedDB) {
+            console.log("🛡️ Guardian Eager Render: Restoring from local cache instantly...");
+            fullDatabase = unwrapDatabase(cachedDB.data, currentRegion);
+            processRouteDataFromDB(currentRoute);
+            buildGlobalStationIndex(); 
+            buildMasterStationList(); 
+            updateLastUpdatedText();
+            
+            if (typeof initializeApp === 'function') initializeApp();
+            if (typeof findNextTrains === 'function') findNextTrains();
+            usedCache = true;
+            
+            if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
+            else if(loadingOverlay) loadingOverlay.style.display = 'none';
+            
+            if(currentRouteId && mainContent) mainContent.style.display = 'block';
+        } else {
+            if (typeof renderSkeletonLoader === 'function') {
+                if(pretoriaTimeEl) renderSkeletonLoader(pretoriaTimeEl);
+                if(pienaarspoortTimeEl) renderSkeletonLoader(pienaarspoortTimeEl);
+            }
+        }
+
+        // --- 2. BACKGROUND NETWORK SYNC (LIE-FI PROTECTED) ---
+        if (!navigator.onLine || window.isLieFi) {
+            console.log("🛡️ Guardian: Offline/Lie-Fi detected. Halting background network sync.");
+            return; 
+        }
+
+        const wasKilled = await checkKillswitch();
+        if (wasKilled) return; 
+
+        await fetchSpecialEventConfig();
+
         try {
-            // GUARDIAN PHASE 5: Dynamic Routing Update for the lightweight exclusions payload
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-            const exclResp = await fetch(`${dynamicEndpoint}exclusions.json?t=${Date.now()}`);
+            const exclResp = await window.guardianFetch(`${dynamicEndpoint}exclusions.json?t=${Date.now()}`, {}, 4000);
             if (exclResp.ok) {
                 const exclData = await exclResp.json();
                 if (exclData) globalExclusions = exclData;
             }
         } catch(e) { console.warn("Exclusions fetch failed, using defaults."); }
 
-        const cacheKey = `full_db_${currentRegion}`;
-        const cachedDB = await loadFromLocalCache(cacheKey); // GUARDIAN: Now fully asynchronous!
-        let usedCache = false;
-
-        // 🛡️ GUARDIAN PHASE 2: Unwrap Unified Database Export safely with Smart Merge
-        const unwrapDatabase = (db, region) => {
-            if (!db) return null;
-            
-            // GUARDIAN SMART MERGE PROTOCOL
-            // Combines explicit regional nodes with any orphaned root-level schedules.
-            let regionalData = {};
-            if (region === 'GP' && db.gauteng) {
-                regionalData = db.gauteng;
-            } else if (region === 'WC' && db.westerncape) {
-                regionalData = db.westerncape;
-            } else if (region === 'GP' && db.schedules && !db.gauteng) {
-                regionalData = db.schedules;
-            }
-            
-            // Merge root objects (orphans) with the regional specifics
-            const mergedDb = { ...db, ...regionalData };
-            
-            // Clean up to prevent recursive bloat or memory leaks
-            delete mergedDb.gauteng;
-            delete mergedDb.westerncape;
-            delete mergedDb.schedules;
-            
-            return mergedDb;
-        };
-
-        if (cachedDB) {
-            console.log("Restoring from cache...");
-            fullDatabase = unwrapDatabase(cachedDB.data, currentRegion);
-            processRouteDataFromDB(currentRoute);
-            buildGlobalStationIndex(); 
-            buildMasterStationList(); 
-            updateLastUpdatedText();
-            if (typeof initializeApp === 'function') initializeApp();
-            usedCache = true;
-        }
-        
-        if(forceReloadBtn) {
-            const reloadIcon = forceReloadBtn.querySelector('svg');
-            if(reloadIcon) reloadIcon.classList.add('spinning');
-            forceReloadBtn.disabled = true;
-        }
-
-        // --- GUARDIAN SMART SYNC PROTOCOL ---
+        // GUARDIAN SMART SYNC PROTOCOL
         let needsDownload = true;
-        const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
-
-        // GUARDIAN FIX: Removed `!isForceUpdate` constraint so logic.js always checks the edge cache
-        // to prevent unnecessary 15MB bandwidth re-downloads when the UI invokes a forced version bump.
         if (usedCache && !force && fullDatabase.lastUpdated) {
-            // GUARDIAN PHASE 5: The Infrastructure Pivot Smart Bypass
             if (typeof DATA_SOURCE_MODE !== 'undefined' && DATA_SOURCE_MODE === 'GITHUB') {
-                console.log("🛡️ Guardian Smart Sync: GITHUB CDN Mode Active. Relying on browser/edge cache policies.");
-                // needsDownload remains true to fetch the schedule, but the browser will use the 200 (disk cache) or 304 response,
-                // saving 100% of the Firebase bandwidth cost.
+                // CDN relies on browser cache policies
             } else {
                 try {
                     const nodePath = REGIONS[currentRegion].dbNode.replace('.json', '');
                     const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : FIREBASE_BASE_URL;
                     const pingUrl = `${dynamicEndpoint}${nodePath}/lastUpdated.json?t=${Date.now()}`;
                     
-                    const pingRes = await fetch(pingUrl);
+                    const pingRes = await window.guardianFetch(pingUrl, {}, 4000);
                     if (pingRes.ok) {
                         const remoteUpdated = await pingRes.json();
                         if (remoteUpdated && remoteUpdated === fullDatabase.lastUpdated) {
@@ -619,11 +649,10 @@ async function loadAllSchedules(force = false) {
         }
 
         if (needsDownload) {
-            // GUARDIAN PHASE 5: The Elephant Route (Uses GitHub/jsDelivr safely)
             const activeScheduleUrl = typeof SCHEDULE_BASE_URL !== 'undefined' ? SCHEDULE_BASE_URL : FIREBASE_BASE_URL;
             const regionDbUrl = activeScheduleUrl + REGIONS[currentRegion].dbNode;
             
-            const response = await fetch(regionDbUrl);
+            const response = await window.guardianFetch(regionDbUrl, {}, 10000);
             
             if (!response.ok) throw new Error("Schedule Data fetch failed");
             const newDatabase = await response.json();
@@ -635,7 +664,7 @@ async function loadAllSchedules(force = false) {
             if (newStr !== oldStr) {
                 console.log("New data detected! Updating local storage...");
                 fullDatabase = unwrapDatabase(newDatabase, currentRegion);
-                await saveToLocalCache(cacheKey, newDatabase); // GUARDIAN: Saving securely via IndexedDB
+                await saveToLocalCache(cacheKey, newDatabase); 
                 
                 processRouteDataFromDB(currentRoute);
                 buildGlobalStationIndex(); 
@@ -658,10 +687,8 @@ async function loadAllSchedules(force = false) {
 
     } catch (error) {
         console.error("Fetch Error:", error);
-        const fallbackCache = await loadFromLocalCache(`full_db_${currentRegion}`); // GUARDIAN: Fallback handles async DB
-        if (fallbackCache) {
-            if(offlineIndicator) offlineIndicator.style.display = 'flex'; // GUARDIAN BUGFIX 3: Changed from 'block' to 'flex'
-        } else {
+        if (!usedCache) {
+            if(offlineIndicator) offlineIndicator.style.display = 'flex'; 
             if (typeof renderRouteError === 'function') renderRouteError(error);
         }
     } finally {
@@ -1605,7 +1632,7 @@ function updateLastUpdatedText() {
     
     displayDate = formatEffectiveDate(displayDate);
     
-    if (displayDate && lastUpdatedEl) lastUpdatedEl.textContent = `Effective: ${displayDate}`;
+    if (displayDate && lastUpdatedEl) lastUpdatedEl.textContent = `Schedule effective from: ${displayDate}`;
 }
 
 // Update the global clock
@@ -1705,4 +1732,34 @@ function updateTime() {
 window.startClock = function() { 
     updateTime(); 
     setInterval(updateTime, 1000); 
+}
+
+function updateNextTrainView() {
+    const fareBox = document.getElementById('fare-container');
+    const container = fareBox ? fareBox.parentNode : null;
+    if (!container) return;
+
+    // GUARDIAN Phase B: Inactive Route Grid Guard
+    const currentRoute = ROUTES[currentRouteId];
+    if (!currentRoute || !currentRoute.isActive) {
+        const gridTrigger = document.getElementById('grid-trigger-container');
+        if (gridTrigger) gridTrigger.classList.add('hidden');
+        return;
+    }
+
+    if (!document.getElementById('grid-trigger-container')) {
+        const triggerDiv = document.createElement('div');
+        triggerDiv.id = 'grid-trigger-container';
+        triggerDiv.className = "mb-5 mt-2 px-1"; 
+        triggerDiv.innerHTML = `
+            <button onclick="triggerHaptic(); renderFullScheduleGrid('A')" class="w-full flex items-center justify-center space-x-3 bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-xl shadow-lg ring-4 ring-blue-100 dark:ring-blue-900 transition-all transform active:scale-95 group focus:outline-none">
+                <span class="text-xl">📅</span>
+                <span class="tracking-wide">VIEW FULL TIMETABLE</span>
+            </button>
+        `;
+        container.insertBefore(triggerDiv, fareBox);
+    } else {
+        const gridTrigger = document.getElementById('grid-trigger-container');
+        if (gridTrigger) gridTrigger.classList.remove('hidden');
+    }
 }

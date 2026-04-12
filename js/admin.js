@@ -1,18 +1,19 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.11 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.12 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (Tiered & Regional - Restored)
  * 2. Maintenance Mode Toggle
  * 3. Enterprise Login Logic & Token Mgmt (Phase 9)
  * 4. Simulation Controls
- * 5. Exceptions Manager (Deep Scan + Banned/Special Types)
+ * 5. Exceptions Manager (Deep Scan + Banned/Special Types + EXPIRY)
  * 6. Special Event Route Manager
  * 7. System Health / Diagnostics Scanner (Phase 2 - New)
  * 8. Nuclear Cache Wipe (Killswitch - New)
  * 9. Live Telemetry Bridge (Cloudflare Path B - New)
  * 10. User Feedback Manager (In-House Pipeline)
  * * * GUARDIAN PHASE 12: Added SPL (Special) tagging to exclusions manager and live sync timestamps.
+ * * * GUARDIAN PHASE C: Replaced all PWA-crashing native prompt/confirms with Async Secure Modals.
  */
 
 const Admin = {
@@ -29,6 +30,73 @@ const Admin = {
             }
         }
         return null;
+    },
+
+    // --- 0.15 SECURE ASYNC CONFIRMATION MODAL (PWA SANDBOX SAFE) ---
+    secureConfirm: function(title, message, requirePromptText = null) {
+        return new Promise((resolve) => {
+            const modalId = 'admin-secure-confirm';
+            let modal = document.getElementById(modalId);
+            
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = modalId;
+                modal.className = 'fixed inset-0 bg-black/80 z-[200] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+                document.body.appendChild(modal);
+            }
+            
+            const promptHtml = requirePromptText ? `
+                <input type="text" id="admin-prompt-input" class="w-full h-10 px-3 mt-4 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white outline-none font-mono" placeholder="Type '${requirePromptText}' to confirm">
+            ` : '';
+
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
+                    <div class="text-center">
+                        <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 mb-4 shadow-inner">
+                            <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        </div>
+                        <h3 class="text-lg font-black text-gray-900 dark:text-white mb-2 tracking-tight">${title}</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-2 leading-relaxed">${message}</p>
+                        ${promptHtml}
+                        <div class="flex space-x-3 mt-6">
+                            <button id="asc-cancel" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors focus:outline-none text-sm">Cancel</button>
+                            <button id="asc-confirm" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none text-sm">Confirm</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            modal.classList.remove('hidden');
+            void modal.offsetWidth; // force reflow
+            modal.firstElementChild.classList.remove('scale-95');
+            modal.firstElementChild.classList.add('scale-100');
+
+            const btnCancel = document.getElementById('asc-cancel');
+            const btnConfirm = document.getElementById('asc-confirm');
+            const inputPrompt = document.getElementById('admin-prompt-input');
+
+            if (inputPrompt) inputPrompt.focus();
+
+            const cleanup = (result) => {
+                modal.classList.add('hidden');
+                modal.firstElementChild.classList.remove('scale-100');
+                modal.firstElementChild.classList.add('scale-95');
+                resolve(result);
+            };
+
+            btnCancel.onclick = () => cleanup(false);
+            btnConfirm.onclick = () => {
+                if (requirePromptText) {
+                    if (inputPrompt && inputPrompt.value === requirePromptText) {
+                        cleanup(true);
+                    } else {
+                        if (typeof showToast === 'function') showToast(`Must type exactly '${requirePromptText}'`, 'error');
+                    }
+                } else {
+                    cleanup(true);
+                }
+            };
+        });
     },
 
     currentUser: null,
@@ -554,7 +622,8 @@ const Admin = {
         };
 
         Admin.resolveFeedback = async (id) => {
-            if (!confirm("Mark this feedback as resolved and archive it?")) return;
+            const confirmed = await Admin.secureConfirm("Resolve Feedback", "Mark this feedback as resolved and archive it?");
+            if (!confirmed) return;
             
             const secret = await Admin.getAuthKey();
             if (!secret) return;
@@ -823,7 +892,9 @@ const Admin = {
             const target = alertTarget.value;
             const secret = await Admin.getAuthKey();
             if (!secret) { showToast("Authentication required.", "error"); return; }
-            if(!confirm(`Delete alert for: ${target}?`)) return;
+            
+            const confirmed = await Admin.secureConfirm("Clear Alert", `Delete alert for: ${target}?`);
+            if (!confirmed) return;
 
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
             const url = `${dynamicEndpoint}notices/${target}.json?auth=${secret}`;
@@ -856,7 +927,7 @@ const Admin = {
         };
     },
 
-    // --- 5. EXCLUSION MANAGER (GUARDIAN CARD + DEEP ROW SCANNER + SPL TAGS) ---
+    // --- 5. EXCLUSION MANAGER (GUARDIAN CARD + DEEP ROW SCANNER + SPL TAGS + EXPIRY) ---
     setupExclusionManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
@@ -925,6 +996,12 @@ const Admin = {
                 </div>
 
                 <input id="excl-reason" type="text" placeholder="Reason (e.g. Testing, Easter)" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
+                
+                <div class="mt-2 mb-3">
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Expiry Date & Time (Optional)</label>
+                    <input type="datetime-local" id="excl-expiry" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
+                    <p class="text-[9px] text-gray-400 mt-1">If set, the train will automatically reappear on the schedule after this date.</p>
+                </div>
                 
                 <button id="excl-save-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors text-xs uppercase tracking-wide">
                     Apply Exceptions
@@ -1086,12 +1163,29 @@ const Admin = {
                     
                     // GUARDIAN PHASE 12: Identify SPL vs BANNED
                     const isSpecial = item.type === 'special';
+                    
+                    // GUARDIAN PHASE C: Display Expiry
+                    let expiryHtml = '';
+                    let rowOpacityClass = '';
+                    if (item.expiresAt) {
+                        const expDate = new Date(item.expiresAt);
+                        const isExpired = Date.now() > item.expiresAt;
+                        const expStr = `${expDate.toLocaleDateString()} ${expDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                        
+                        if (isExpired) {
+                            expiryHtml = `<div class="text-[9px] text-red-500 font-bold mt-0.5">⚠️ EXPIRED: ${expStr}</div>`;
+                            rowOpacityClass = 'opacity-60 grayscale';
+                        } else {
+                            expiryHtml = `<div class="text-[9px] text-blue-500 font-medium mt-0.5">⏳ Expires: ${expStr}</div>`;
+                        }
+                    }
+
                     const badgeHtml = isSpecial 
                         ? '<span class="bg-green-100 text-green-700 px-1 rounded text-[9px] font-black tracking-widest mr-1">SPL</span>'
                         : '<span class="bg-red-100 text-red-700 px-1 rounded text-[9px] font-black tracking-widest mr-1">BAN</span>';
 
                     const row = document.createElement('div');
-                    row.className = "flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs border border-gray-100 dark:border-gray-700 mt-1";
+                    row.className = `flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs border border-gray-100 dark:border-gray-700 mt-1 ${rowOpacityClass}`;
                     row.innerHTML = `
                         <div>
                             ${badgeHtml}
@@ -1099,6 +1193,7 @@ const Admin = {
                             <span class="text-gray-400 mx-1">|</span>
                             <span class="text-gray-700 dark:text-gray-300 font-mono tracking-widest">[${dayLabels}]</span>
                             <div class="text-[9px] text-gray-400 mt-0.5">${item.reason || 'No reason specified'}</div>
+                            ${expiryHtml}
                         </div>
                         <button class="text-gray-400 hover:text-white hover:bg-red-500 rounded px-1.5 py-0.5 transition-colors font-bold" onclick="Admin.deleteExclusion('${rId}', '${trainNum}')">✕</button>
                     `;
@@ -1117,6 +1212,10 @@ const Admin = {
             // GUARDIAN: Capture the selected type (banned vs special)
             const typeSelect = document.querySelector('input[name="excl-type"]:checked');
             const exceptionType = typeSelect ? typeSelect.value : 'banned';
+            
+            // GUARDIAN: Capture Expiry
+            const expiryInput = document.getElementById('excl-expiry').value;
+            const expiryTs = expiryInput ? new Date(expiryInput).getTime() : null;
             
             // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey(); 
@@ -1139,7 +1238,8 @@ const Admin = {
                 updates[`${tNum}`] = {
                     days: selectedDays,
                     reason: reason,
-                    type: exceptionType, // Guaranteed payload persistence
+                    type: exceptionType, 
+                    expiresAt: expiryTs, // GUARDIAN: Sent to Firebase
                     updatedAt: Date.now()
                 };
             });
@@ -1167,6 +1267,7 @@ const Admin = {
                 showToast(`Updated ${selectedTrains.length} exceptions!`, "success");
                 trainGrid.querySelectorAll('input').forEach(cb => cb.checked = false);
                 document.getElementById('excl-train-manual').value = '';
+                document.getElementById('excl-expiry').value = ''; // Clean up expiry input
                 fetchExclusions();
                 if (typeof loadAllSchedules === 'function') loadAllSchedules();
             } catch (e) {
@@ -1178,7 +1279,9 @@ const Admin = {
         };
 
         Admin.deleteExclusion = async function(rId, trainNum) {
-            if(!confirm(`Remove exception for Train #${trainNum}?`)) return;
+            const confirmed = await Admin.secureConfirm("Remove Exception", `Remove exception for Train #${trainNum}?`);
+            if (!confirmed) return;
+
             // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey(); 
             if (!secret) { showToast("Authentication required.", "error"); return; }
@@ -1606,8 +1709,8 @@ const Admin = {
             const secret = await Admin.getAuthKey(); 
             if (!secret) { showToast("Authentication required.", "error"); return; }
             
-            const p1 = prompt("Type 'NUKE' to confirm mass cache wipe:");
-            if (p1 !== 'NUKE') return;
+            const confirmed = await Admin.secureConfirm("Nuclear Cache Wipe", "Type 'NUKE' to confirm mass cache wipe:", "NUKE");
+            if (!confirmed) return;
             
             fireBtn.textContent = "Firing...";
             fireBtn.disabled = true;

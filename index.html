@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V6.04.11 (Guardian Edition - UI/UX Polish)
+  Metrorail Next Train V6.04.12 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -12,6 +12,8 @@
   - PHASE 10: Smooth Two-Step Modal Animation Engine Injected.
   - GUARDIAN PHASE 7: Sidenav Spacing normalized, iOS Region Toggle added, Fare box restructured.
   - GUARDIAN UX: Drop-Tab offline indicator with Light/Dark Mode neon glow adaptation.
+  - GUARDIAN SEO & STORAGE PATCH: Updated Meta/JSON-LD for Western Cape. Wrapped head scripts in try/catch to prevent Private Mode crashes.
+  - GUARDIAN UX OVERHAUL: Route Modal top-anchored and de-AI'd. Contact Enock button added. Lie-Fi Offline Toast structure added.
 -->
 <html lang="en" class="dark">
 
@@ -20,12 +22,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
 
     <!-- SEO: Freshness Signal -->
-    <title>Metrorail Next Train | 2026 Live Schedules & Fares</title>
+    <title>Metrorail Next Train | 2026 Schedules for Gauteng & Cape Town</title>
     
     <!-- SEO: Canonical Tag -->
     <link rel="canonical" href="https://nexttrain.co.za/">
 
-    <meta name="description" content="Check live train schedules and fares for Metrorail Gauteng (Pretoria, JHB, Soweto). Works offline!">
+    <meta name="description" content="Check live train schedules, download offline timetables, and calculate fares for Metrorail Gauteng (Pretoria, JHB) and Western Cape (Cape Town).">
     
     <!-- SEO: JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -40,9 +42,9 @@
         "price": "0",
         "priceCurrency": "ZAR"
       },
-      "description": "Live Metrorail schedules for Pretoria, Johannesburg, and Soweto. 2026 Updates.",
+      "description": "Live Metrorail schedules and route maps for Gauteng (Pretoria, Johannesburg) and Western Cape (Cape Town). Download timetable images for offline use.",
       "softwareVersion": "6.1.0",
-      "featureList": "Offline Access, Full Timetable, Fare Calculator, Trip Planner, Network Map",
+      "featureList": "Offline Access, Full Timetable, Fare Calculator, Trip Planner, Network Map, Download Timetable Images",
       "url": "https://nexttrain.co.za/"
     }
     </script>
@@ -51,7 +53,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nexttrain.co.za/">
     <meta property="og:title" content="Metrorail Next Train | Updated Schedules">
-    <meta property="og:description" content="Stop guessing. Get accurate train times, ticket prices, and updates for Pretoria, JHB, and Soweto lines. Works offline!">
+    <meta property="og:description" content="Stop guessing. Get accurate train times, ticket prices, and updates for Gauteng and Cape Town lines. Download timetables and check live updates offline!">
     <meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png">
     <meta property="og:image:width" content="512">
     <meta property="og:image:height" content="512">
@@ -59,7 +61,7 @@
     <!-- TWITTER CARD -->
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="Metrorail Next Train">
-    <meta name="twitter:description" content="Live Metrorail schedules for Gauteng. Plan your trip now.">
+    <meta name="twitter:description" content="Live Metrorail schedules for Gauteng and Western Cape. Download timetables and plan your trip offline.">
     <meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png">
 
     <link rel="manifest" href="manifest.json">
@@ -72,9 +74,14 @@
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
 
-        // GUARDIAN: Check for Developer Flag to filter internal traffic
+        // GUARDIAN: Check for Developer Flag to filter internal traffic. Wrapped in try/catch to survive iOS Private Mode
         var gaConfig = {};
-        if (localStorage.getItem('analytics_ignore') === 'true') {
+        var isDevAnalytics = false;
+        try {
+            isDevAnalytics = localStorage.getItem('analytics_ignore') === 'true';
+        } catch(e) {}
+        
+        if (isDevAnalytics) {
             gaConfig['traffic_type'] = 'internal'; 
             console.log("🛡️ Analytics: Internal Traffic Flag Set");
         }
@@ -83,8 +90,13 @@
 
     <!-- MICROSOFT CLARITY TRACKING CODE (With Dev Filter) -->
     <script type="text/javascript">
-        // GUARDIAN: Only load Clarity if NOT in dev mode
-        if (localStorage.getItem('analytics_ignore') !== 'true') {
+        // GUARDIAN: Only load Clarity if NOT in dev mode. Wrapped in try/catch to survive iOS Private Mode
+        var blockClarity = false;
+        try {
+            blockClarity = localStorage.getItem('analytics_ignore') === 'true';
+        } catch(e) {}
+        
+        if (!blockClarity) {
             (function(c,l,a,r,i,t,y){
                 c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
                 t=l.createElement(r);
@@ -668,12 +680,21 @@
     <!-- Toast & Modals... -->
     <div id="toast" class=""></div>
 
+    <!-- GUARDIAN PHASE A: Lie-Fi Offline Pull-To-Refresh Toast -->
+    <div id="offline-toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900/95 dark:bg-gray-800/95 border border-gray-700 dark:border-gray-600 text-white px-4 py-3 rounded-xl shadow-2xl z-[150] transition-all duration-500 translate-y-[150%] opacity-0 flex items-center space-x-3 w-max max-w-[90%] pointer-events-none backdrop-blur-md">
+        <span class="text-xl flex-shrink-0 animate-pulse">📡</span>
+        <div class="flex flex-col">
+            <span class="text-sm font-bold tracking-wide">You are offline.</span>
+            <span class="text-[10px] text-gray-300 leading-snug">Pull down to refresh when signal returns.</span>
+        </div>
+    </div>
+
     <!-- GUARDIAN V6.17: ROUTE SELECTOR MODAL RE-ARCHITECTED -->
-    <div id="route-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[120] hidden flex items-start justify-center p-4 pt-16 sm:pt-24 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-all scale-100 max-h-[85vh]">
+    <div id="route-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[120] hidden flex items-start justify-center p-2 pt-2 sm:pt-8 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-sm flex flex-col transform transition-all scale-100 max-h-[96vh]">
             
             <!-- Slim Header -->
-            <div class="py-3 px-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-900 rounded-t-2xl shadow-sm shrink-0 relative z-20">
+            <div class="py-3 px-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-900 rounded-t-xl shadow-sm shrink-0 relative z-20">
                 <h3 class="text-lg font-black text-gray-900 dark:text-white tracking-tight">Select Route</h3>
                 <button onclick="closeSmoothModal('route-modal')" class="p-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition focus:outline-none">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -681,28 +702,32 @@
             </div>
             
             <!-- Distinct Region Selector Strip -->
-            <div class="p-4 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800 shrink-0 z-10 relative">
-                <div class="relative shadow-sm rounded-xl">
+            <div class="p-3 bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 shrink-0 z-10 relative">
+                <div class="relative shadow-sm rounded-lg">
                     <div class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
                         <span class="text-base">🌍</span>
                     </div>
-                    <select id="route-modal-region-select" style="-webkit-appearance: none; -moz-appearance: none;" class="block w-full appearance-none bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-700 py-3 pl-10 pr-10 rounded-xl text-sm font-bold text-indigo-900 dark:text-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors shadow-sm" onchange="localStorage.setItem('userRegion', this.value); window.location.reload();">
+                    <select id="route-modal-region-select" style="-webkit-appearance: none; -moz-appearance: none;" class="block w-full appearance-none bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 py-2.5 pl-10 pr-10 rounded-lg text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors shadow-sm" onchange="typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); window.location.reload();">
                         <option value="GP">Region: Gauteng</option>
                         <option value="WC">Region: Western Cape</option>
                     </select>
-                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-indigo-500 dark:text-indigo-400">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 dark:text-gray-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </div>
                 </div>
             </div>
 
             <!-- Scrollable Route List -->
-            <div class="p-4 overflow-y-auto flex-grow bg-gray-50 dark:bg-gray-900/50 w-full custom-scrollbar rounded-b-2xl">
+            <div class="p-4 overflow-y-auto flex-grow bg-gray-50 dark:bg-gray-900/50 w-full custom-scrollbar rounded-b-xl">
                 <!-- Mini script to set initial Region state without UI flash -->
                 <script>
                     document.addEventListener('DOMContentLoaded', () => {
                         const sel = document.getElementById('route-modal-region-select');
-                        if (sel) sel.value = localStorage.getItem('userRegion') || 'GP';
+                        if (sel) {
+                            try {
+                                sel.value = (typeof safeStorage !== 'undefined' ? safeStorage.getItem('userRegion') : localStorage.getItem('userRegion')) || 'GP';
+                            } catch(e) { sel.value = 'GP'; }
+                        }
                     });
                 </script>
 
@@ -1094,16 +1119,21 @@
             <!-- Developer Credit -->
             <div class="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-4 mb-6 shadow-inner border border-gray-100 dark:border-gray-700">
                 <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Built & Maintained By</p>
-                <div class="flex items-center justify-center space-x-4">
+                <div class="flex items-center justify-center space-x-3">
                     <div class="text-right">
-                        <p class="text-lg font-bold text-gray-900 dark:text-white leading-tight">Enock Kazembe</p>
-                        <p class="text-xs text-gray-500">Lead Developer</p>
+                        <p class="text-base font-bold text-gray-900 dark:text-white leading-tight">Enock Kazembe</p>
+                        <p class="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5">Lead Developer</p>
                     </div>
-                    <div class="h-8 w-0.5 bg-gray-300 dark:bg-gray-700"></div>
-                    <a id="facebook-connect-link" href="https://www.facebook.com/enock.kazembe/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center px-3 py-1.5 bg-[#1877F2] hover:bg-blue-700 text-white rounded-lg font-bold text-xs transition-colors shadow-md group">
-                        <svg class="w-3 h-3 mr-1.5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                        Connect
-                    </a>
+                    <div class="h-8 w-px bg-gray-300 dark:bg-gray-700"></div>
+                    <div class="flex flex-col space-y-1.5">
+                        <a id="facebook-connect-link" href="https://www.facebook.com/enock.kazembe/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center px-3 py-1 bg-[#1877F2] hover:bg-blue-700 text-white rounded font-bold text-[10px] transition-colors shadow-sm group">
+                            <svg class="w-3 h-3 mr-1.5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                            Facebook
+                        </a>
+                        <button onclick="document.getElementById('feedback-btn').click(); closeSmoothModal('about-modal'); return false;" class="flex items-center justify-center px-3 py-1 bg-gray-800 hover:bg-gray-900 dark:bg-gray-600 dark:hover:bg-gray-500 text-white rounded font-bold text-[10px] transition-colors shadow-sm focus:outline-none">
+                            <span class="mr-1.5 text-[11px]">✉️</span> Contact Enock
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1396,24 +1426,24 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=6.04.11"></script>
-    <script src="js/renderer.js?v=6.04.11"></script>
+    <script src="js/grid-order.js?v=6.04.12"></script>
+    <script src="js/renderer.js?v=6.04.12"></script>
     
-    <script src="js/utils.js?v=6.04.11"></script>
-    <script src="js/config.js?v=6.04.11"></script>
-    <script src="js/logic.js?v=6.04.11"></script>
+    <script src="js/utils.js?v=6.04.12"></script>
+    <script src="js/config.js?v=6.04.12"></script>
+    <script src="js/logic.js?v=6.04.12"></script>
 
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=6.04.11"></script>
+    <script src="js/admin.js?v=6.04.12"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=6.04.11"></script>
-    <script src="js/planner-ui.js?v=6.04.11"></script>
+    <script src="js/planner-core.js?v=6.04.12"></script>
+    <script src="js/planner-ui.js?v=6.04.12"></script>
     
-    <script src="js/map-viewer.js?v=6.04.11"></script> 
+    <script src="js/map-viewer.js?v=6.04.12"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=6.04.11"></script>
+    <script src="js/ui.js?v=6.04.12"></script>
 
     <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>

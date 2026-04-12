@@ -7,30 +7,35 @@ Allow: /
 User-agent: DuckDuckBot
 Allow: /
 
-# --- BLOCK AI SCRAPERS & DATA MINERS ---
-# We block these to prevent them from training on your proprietary schedule data.
 User-agent: GPTBot
-Disallow: /
+Allow: /
 
 User-agent: ChatGPT-User
-Disallow: /
+Allow: /
 
 User-agent: CCBot
-Disallow: /
+Allow: /
 
 User-agent: Anthropic-AI
-Disallow: /
+Allow: /
 
 User-agent: Claude-Web
-Disallow: /
+Allow: /
 
-# --- GENERAL RULES ---
+User-agent: PerplexityBot
+Allow: /
+
+--- GENERAL RULES ---
+
 User-agent: *
 Allow: /
-# Keep system pages hidden from search results
+
+Keep system pages hidden from search results
+
 Disallow: /404.html
 Disallow: /offline.html
 Disallow: /cdn-cgi/
 
-# Point to the Sitemap
+Point to the Sitemap
+
 Sitemap: https://nexttrain.co.za/sitemap.xml

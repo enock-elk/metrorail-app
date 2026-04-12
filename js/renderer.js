@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.11 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.12 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -9,6 +9,8 @@
  * * GUARDIAN PHASE 15: Ultra-Wide Data Matrix Polish (Zebra Striping, Right-Side Anchors, Typography scaling).
  * * GUARDIAN PHASE 16: Ultra-Compact Matrix Mode for routes with 20+ trains (Negative tracking, dynamic min-widths, asymmetrical padding).
  * * GUARDIAN PHASE 17: "Tall Grid" mode for Web UI vertical compression, strict Export sandbox, and Ghost Number transparency fix.
+ * * GUARDIAN PHASE 18: Phantom Row Matrix Immunity and Android Chrome DOM-Attachment Export Fix.
+ * * GUARDIAN PHASE 19: Android Chrome Anchor Click Patch & Blob Revocation Stabilization.
  */
 
 const Renderer = {
@@ -31,8 +33,7 @@ const Renderer = {
             "WC_CENTRAL": "Cape Town Central Line",
             "WC_SOUTHERN": "Cape Town Southern Line",
             "WC_FLATS": "Cape Flats Line",
-            "WC_NORTHERN": "Cape Town Northern Line",
-            "WC_REGIONAL": "Malmesbury Line" // GUARDIAN: Registered Malmesbury corridor
+            "WC_NORTHERN": "Cape Town Northern Line"
         };
 
         const categoryOrder = [
@@ -40,7 +41,6 @@ const Renderer = {
             "Pretoria - JHB Line",
             "JHB West Line",
             "Cape Town Central Line",
-            "Malmesbury Line", // GUARDIAN: Moved up for better accessibility
             "Cape Town Southern Line",
             "Cape Flats Line",
             "Cape Town Northern Line"
@@ -160,8 +160,7 @@ const Renderer = {
             
             if (route.isActive) {
                 let borderColor = 'border-gray-500';
-                if (route.colorClass.includes('lime')) borderColor = 'border-lime-500'; // GUARDIAN: Lime Check
-                else if (route.colorClass.includes('orange')) borderColor = 'border-orange-500';
+                if (route.colorClass.includes('orange')) borderColor = 'border-orange-500';
                 else if (route.colorClass.includes('purple')) borderColor = 'border-purple-500';
                 else if (route.colorClass.includes('green')) borderColor = 'border-green-500';
                 else if (route.colorClass.includes('blue')) borderColor = 'border-blue-500';
@@ -507,7 +506,6 @@ const Renderer = {
     // GUARDIAN V6.05 FIX: Completely rebuilt to return strict Tailwind utilities instead of brittle CSS classes
     _getDotColor: (colorClass) => {
         if (!colorClass) return 'bg-gray-400';
-        if (colorClass.includes('lime')) return 'bg-lime-500 shadow-[0_0_8px_rgba(132,204,22,0.5)]'; // GUARDIAN: Map-Accurate Malmesbury Check
         if (colorClass.includes('green')) return 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]';
         if (colorClass.includes('orange')) return 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]';
         if (colorClass.includes('purple')) return 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]';
@@ -847,6 +845,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     const zebraBg = '#f8fafc'; // GUARDIAN: Slate-50 for Zebra Striping
 
     const exportContainer = document.createElement('div');
+    // GUARDIAN PHASE 18/19: Restored exactly to the proven off-screen fixed attachment strategy
     exportContainer.style.position = 'fixed';
     exportContainer.style.left = '-9999px';
     exportContainer.style.top = '0';
@@ -957,7 +956,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             td.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
             td.style.textAlign = 'center'; 
             td.style.fontWeight = '600'; 
-            if (isCompact) th.style.letterSpacing = '-0.5px'; // Kerning reduction
+            if (isCompact) td.style.letterSpacing = '-0.5px'; // Kerning reduction
         });
 
         // GUARDIAN: Apply Zebra Striping safely
@@ -1004,14 +1003,18 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     document.body.appendChild(exportContainer);
 
     try {
+        // GUARDIAN PHASE 18/19: Strict 100ms delay to let the browser physically paint the DOM
         await new Promise(r => setTimeout(r, 100));
 
         // GUARDIAN PHASE 15: Scale bumped to 2 for crisp Retina text rendering
+        // GUARDIAN PHASE 19: Explicit windowWidth/Height bounds to prevent clipping
         const canvas = await html2canvas(exportContainer, {
             scale: 2,
             backgroundColor: bgColor,
             logging: false,
-            useCORS: true
+            useCORS: true,
+            windowWidth: exportContainer.scrollWidth,
+            windowHeight: exportContainer.scrollHeight
         });
 
         canvas.toBlob(async (blob) => {
@@ -1023,7 +1026,12 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             const link = document.createElement('a');
             link.download = fileName;
             link.href = blobUrl;
+            
+            // GUARDIAN PHASE 19: Android Chrome Anchor Click Patch
+            // Mobile Chrome completely ignores .click() calls on <a> tags that aren't attached to the DOM
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
             
             window._pendingShareFile = file;
             window._pendingShareText = `Commuter Notice: ${route.name.replace('<->', '↔')} (${selectedDay})`;
@@ -1044,7 +1052,10 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             }
             
             document.body.removeChild(exportContainer);
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000); 
+            
+            // GUARDIAN PHASE 19: Blob Revocation Stabilization
+            // Allow 60 full seconds for the Android OS Download Manager to stream the blob before revocation
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 60000); 
         });
     } catch (e) {
         console.error(e);

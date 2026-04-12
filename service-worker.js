@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v6.04.11'; // BUMPED: V6.04.11 - POST Request Bypass Patch
+const CACHE_NAME = 'metrorail-next-train-v6.04.12'; // BUMPED: V6.04.12 - Phase E Cache Trap Patch
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.
@@ -67,6 +67,22 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
+
+  // GUARDIAN PHASE E: THE CACHE TRAP (Strict Network-Only Bypass)
+  // Ensure real-time database queries (Firebase RTDB) and Cloudflare telemetry workers are NEVER cached by the SW.
+  // This guarantees Service Alerts, Killswitches, and Maintenance banners hit the UI instantly.
+  if (url.hostname.includes('firebaseio.com') || url.hostname.includes('workers.dev')) {
+      event.respondWith(
+          fetch(event.request).catch(() => {
+              // If offline, fail gracefully returning a synthetic JSON 503 instead of crashing the UI parser
+              return new Response('{"error": "Offline"}', { 
+                  status: 503, 
+                  headers: { 'Content-Type': 'application/json' } 
+              });
+          })
+      );
+      return; // HALT SW EXECUTION FOR THIS REQUEST
+  }
 
   // STRATEGY A: App Shell (HTML) - Network-First + Fast Fail (Cache Fallback)
   // Ensures users ALWAYS get the latest version if they have a fast connection,

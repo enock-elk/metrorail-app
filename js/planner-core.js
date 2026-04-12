@@ -14,14 +14,12 @@
  * * GUARDIAN FIX 3 (The Leg Compactor): Phantom Boundary Transfers physically merged if Train IDs match.
  * * GUARDIAN PHASE 13 (The Zero-Hour Probe): Probes mathematically impossible routes on sparse holiday/weekend schedules to distinguish them from standard missed trains.
  * * PHASE 1 (GUARDIAN ANALYTICS): Injected tracking for complex (3+ transfer) route rendering.
+ * * GUARDIAN PHASE 18: Engine Hardened. Eliminated global state pollution via Context threading. Fixed falsy transfer matrix bug.
+ * * GUARDIAN PHASE D: Day Offset mathematical payload injected into Rollover triggers to resolve 24-hour UI countdown hallucinations.
  */
 
-// GUARDIAN V6.2: Midnight Rollover State Tracker
-let _rolloverDayIdx = null;
-let _zeroHourProbeActive = false; // GUARDIAN PHASE 13: Probe State Flag
-
 function getNextTransitDay(baseDayType, dayIdx) {
-    // GUARDIAN PHASE 2: Smart Calendar Sync
+    // GUARDIAN PHASE 2 & D: Smart Calendar Sync with Mathematical Offsets
     // Look ahead using the physical calendar to bypass public holidays seamlessly.
     let daysAhead = 1;
     if (dayIdx === 6) daysAhead = 2; // Saturday -> skip Sunday -> Monday
@@ -29,26 +27,26 @@ function getNextTransitDay(baseDayType, dayIdx) {
 
     if (typeof window.getLookaheadDayInfo === 'function') {
         const info = window.getLookaheadDayInfo(daysAhead);
-        return { type: info.type, name: info.name, idx: info.idx };
+        return { type: info.type, name: info.name, idx: info.idx, offset: daysAhead };
     }
     
     // Legacy Fallback (If logic.js somehow failed to load)
     if (baseDayType === 'weekday') {
         // If today is Friday (5), tomorrow is Saturday (6). Otherwise, it's just the next weekday.
-        if (dayIdx === 5) return { type: 'saturday', name: 'Saturday', idx: 6 };
-        return { type: 'weekday', name: 'Tomorrow', idx: (dayIdx + 1) % 7 };
+        if (dayIdx === 5) return { type: 'saturday', name: 'Saturday', idx: 6, offset: 1 };
+        return { type: 'weekday', name: 'Tomorrow', idx: (dayIdx + 1) % 7, offset: 1 };
     } else if (baseDayType === 'saturday') {
         // Assuming no Sunday service, jump straight to Monday (1)
-        return { type: 'weekday', name: 'Monday', idx: 1 };
+        return { type: 'weekday', name: 'Monday', idx: 1, offset: 2 };
     } else if (baseDayType === 'sunday') {
-        return { type: 'weekday', name: 'Monday', idx: 1 };
+        return { type: 'weekday', name: 'Monday', idx: 1, offset: 1 };
     }
-    return { type: 'weekday', name: 'Tomorrow', idx: 1 };
+    return { type: 'weekday', name: 'Tomorrow', idx: 1, offset: 1 };
 }
 
 // --- 1. LEGACY CORE ALGORITHMS (Preserved for Safety & Exhaustive Fallbacks) ---
 
-function planDirectTrip(origin, dest, dayType, isRollover = false) {
+function planDirectTrip(origin, dest, dayType, isRollover = false, context = {}) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     const commonRoutes = [...originRoutes].filter(x => destRoutes.has(x));
@@ -76,8 +74,8 @@ function planDirectTrip(origin, dest, dayType, isRollover = false) {
                 if (originIdx < destIdx) {
                     pathFoundToday = true; 
                     pathExistsGenerally = true;
-                    // GUARDIAN: Pass routeId for exclusion checks
-                    const upcomingTrains = findUpcomingTrainsForLeg(schedule, originRow, destRow, dayType, true, routeId); 
+                    // GUARDIAN: Pass routeId and isolated context for exclusion checks
+                    const upcomingTrains = findUpcomingTrainsForLeg(schedule, originRow, destRow, dayType, true, routeId, context); 
                     if (upcomingTrains.length > 0) {
                         bestTrips = [...bestTrips, ...upcomingTrains.map(info => 
                             createTripObject(routeConfig, info, schedule, originIdx, destIdx, origin, dest)
@@ -89,29 +87,35 @@ function planDirectTrip(origin, dest, dayType, isRollover = false) {
     }
 
     // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
-    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
+    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (bestTrips.length > 0) {
             const latestDep = Math.max(...bestTrips.map(t => timeToSeconds(t.depTime)));
             if (nowSec > latestDep) {
                 // All trains have departed today. Roll over to tomorrow.
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                _rolloverDayIdx = nextTransit.idx;
-                const rolloverResult = planDirectTrip(origin, dest, nextTransit.type, true);
-                _rolloverDayIdx = null; // Clean up
+                context.rolloverDayIdx = nextTransit.idx;
+                const rolloverResult = planDirectTrip(origin, dest, nextTransit.type, true, context);
+                context.rolloverDayIdx = null; // Clean up
                 if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
-                    rolloverResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                    rolloverResult.trips.forEach(t => {
+                        t.dayLabel = nextTransit.name;
+                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
+                    });
                     return rolloverResult;
                 }
             }
         } else {
             // No scheduled service for today at all (e.g., a Sunday). Jump to next transit day.
             const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-            _rolloverDayIdx = nextTransit.idx;
-            const nextResult = planDirectTrip(origin, dest, nextTransit.type, true);
-            _rolloverDayIdx = null;
+            context.rolloverDayIdx = nextTransit.idx;
+            const nextResult = planDirectTrip(origin, dest, nextTransit.type, true, context);
+            context.rolloverDayIdx = null;
             if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
-                nextResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                nextResult.trips.forEach(t => {
+                    t.dayLabel = nextTransit.name;
+                    t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
+                });
                 return { status: pathFoundToday ? 'NO_MORE_TODAY' : 'NO_SERVICE_TODAY_FUTURE_FOUND', trips: nextResult.trips };
             }
         }
@@ -121,7 +125,7 @@ function planDirectTrip(origin, dest, dayType, isRollover = false) {
     return { status: (pathExistsGenerally || pathFoundToday) ? 'NO_SERVICE' : 'NO_PATH', trips: [] };
 }
 
-function planHubTransferTrip(origin, dest, dayType, isRollover = false) {
+function planHubTransferTrip(origin, dest, dayType, isRollover = false, context = {}) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     
@@ -147,11 +151,11 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false) {
     
     for (const hub of potentialHubs) {
         // LEG 1: Origin -> Hub (FIX: ENABLED RELAY EXPANSION)
-        const leg1Options = findAllLegsWithRelayExpansion(origin, hub, originRoutes, dayType);
+        const leg1Options = findAllLegsWithRelayExpansion(origin, hub, originRoutes, dayType, context);
         if (leg1Options.length === 0) continue;
         
         // LEG 2: Hub -> Dest (STANDARD + RELAY RECURSION)
-        const leg2Options = findAllLegsWithRelayExpansion(hub, dest, destRoutes, dayType); 
+        const leg2Options = findAllLegsWithRelayExpansion(hub, dest, destRoutes, dayType, context); 
         if (leg2Options.length === 0) continue;
 
         const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
@@ -211,27 +215,33 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false) {
     }
 
     // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
-    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
+    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (unique.length > 0) {
             const latestDep = Math.max(...unique.map(t => timeToSeconds(t.depTime)));
             if (nowSec > latestDep) {
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                _rolloverDayIdx = nextTransit.idx;
-                const rolloverResult = planHubTransferTrip(origin, dest, nextTransit.type, true);
-                _rolloverDayIdx = null;
+                context.rolloverDayIdx = nextTransit.idx;
+                const rolloverResult = planHubTransferTrip(origin, dest, nextTransit.type, true, context);
+                context.rolloverDayIdx = null;
                 if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
-                    rolloverResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                    rolloverResult.trips.forEach(t => {
+                        t.dayLabel = nextTransit.name;
+                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
+                    });
                     return rolloverResult;
                 }
             }
         } else {
             const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-            _rolloverDayIdx = nextTransit.idx;
-            const nextResult = planHubTransferTrip(origin, dest, nextTransit.type, true);
-            _rolloverDayIdx = null;
+            context.rolloverDayIdx = nextTransit.idx;
+            const nextResult = planHubTransferTrip(origin, dest, nextTransit.type, true, context);
+            context.rolloverDayIdx = null;
             if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
-                nextResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                nextResult.trips.forEach(t => {
+                    t.dayLabel = nextTransit.name;
+                    t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
+                });
                 return nextResult;
             }
         }
@@ -241,7 +251,7 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false) {
     return { status: 'NO_PATH', trips: [] };
 }
 
-function planRelayTransferTrip(origin, dest, dayType, isRollover = false) {
+function planRelayTransferTrip(origin, dest, dayType, isRollover = false, context = {}) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     // Intersection: Same route for Start and End (but logic forces a split)
@@ -258,11 +268,11 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false) {
             const relayStationName = normalizeStationName(routeConfig.relayStation);
             
             // 3. Find Legs: Origin -> Relay
-            const legs1 = findAllLegsBetween(origin, relayStationName, new Set([routeId]), dayType);
+            const legs1 = findAllLegsBetween(origin, relayStationName, new Set([routeId]), dayType, context);
             if (legs1.length === 0) return;
 
             // 4. Find Legs: Relay -> Dest
-            const legs2 = findAllLegsBetween(relayStationName, dest, new Set([routeId]), dayType);
+            const legs2 = findAllLegsBetween(relayStationName, dest, new Set([routeId]), dayType, context);
             if (legs2.length === 0) return;
 
             const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
@@ -311,27 +321,33 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false) {
     }
 
     // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
-    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
+    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (allRelayTrips.length > 0) {
             const latestDep = Math.max(...allRelayTrips.map(t => timeToSeconds(t.depTime)));
             if (nowSec > latestDep) {
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                _rolloverDayIdx = nextTransit.idx;
-                const rolloverResult = planRelayTransferTrip(origin, dest, nextTransit.type, true);
-                _rolloverDayIdx = null;
+                context.rolloverDayIdx = nextTransit.idx;
+                const rolloverResult = planRelayTransferTrip(origin, dest, nextTransit.type, true, context);
+                context.rolloverDayIdx = null;
                 if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
-                    rolloverResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                    rolloverResult.trips.forEach(t => {
+                        t.dayLabel = nextTransit.name;
+                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
+                    });
                     return rolloverResult;
                 }
             }
         } else {
             const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-            _rolloverDayIdx = nextTransit.idx;
-            const nextResult = planRelayTransferTrip(origin, dest, nextTransit.type, true);
-            _rolloverDayIdx = null;
+            context.rolloverDayIdx = nextTransit.idx;
+            const nextResult = planRelayTransferTrip(origin, dest, nextTransit.type, true, context);
+            context.rolloverDayIdx = null;
             if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
-                nextResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                nextResult.trips.forEach(t => {
+                    t.dayLabel = nextTransit.name;
+                    t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
+                });
                 return nextResult;
             }
         }
@@ -341,7 +357,7 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false) {
 }
 
 // GUARDIAN PHASE 2 & 5: The Hardcoded Multi-Corridor Engine
-function planMacroCorridorTrip(origin, dest, dayType, isRollover = false) {
+function planMacroCorridorTrip(origin, dest, dayType, isRollover = false, context = {}) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     
@@ -397,7 +413,7 @@ function planMacroCorridorTrip(origin, dest, dayType, isRollover = false) {
                     const newTrips = calculateThreeLegTrip(
                         origin, macro.h1, macro.h2, dest,
                         ROUTES[r1], bridgeRoute, ROUTES[r3],
-                        dayType
+                        dayType, context
                     );
                     trips = [...trips, ...newTrips];
                 }
@@ -408,17 +424,20 @@ function planMacroCorridorTrip(origin, dest, dayType, isRollover = false) {
     if (!matchedAny || trips.length === 0) return { trips: [] };
     
     // GUARDIAN & P13: Handle Universal Midnight Rollover Protocol for Macro Corridor
-    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
+    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (trips.length > 0) {
             const latestDep = Math.max(...trips.map(t => timeToSeconds(t.depTime)));
             if (nowSec > latestDep) {
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                _rolloverDayIdx = nextTransit.idx;
-                const rolloverResult = planMacroCorridorTrip(origin, dest, nextTransit.type, true);
-                _rolloverDayIdx = null;
+                context.rolloverDayIdx = nextTransit.idx;
+                const rolloverResult = planMacroCorridorTrip(origin, dest, nextTransit.type, true, context);
+                context.rolloverDayIdx = null;
                 if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
-                    rolloverResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                    rolloverResult.trips.forEach(t => {
+                        t.dayLabel = nextTransit.name;
+                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
+                    });
                     return rolloverResult;
                 }
             }
@@ -429,7 +448,7 @@ function planMacroCorridorTrip(origin, dest, dayType, isRollover = false) {
     return { trips };
 }
 
-function planDoubleTransferTrip(origin, dest, dayType, isRollover = false) {
+function planDoubleTransferTrip(origin, dest, dayType, isRollover = false, context = {}) {
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     
@@ -459,7 +478,7 @@ function planDoubleTransferTrip(origin, dest, dayType, isRollover = false) {
                         const trips = calculateThreeLegTrip(
                             origin, hub1, hub2, dest,
                             ROUTES[startRouteId], ROUTES[bridgeRouteId], ROUTES[endRouteId],
-                            dayType
+                            dayType, context
                         );
                         potentialTrips = [...potentialTrips, ...trips];
                     }
@@ -473,27 +492,33 @@ function planDoubleTransferTrip(origin, dest, dayType, isRollover = false) {
     }
 
     // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
-    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
+    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (potentialTrips.length > 0) {
             const latestDep = Math.max(...potentialTrips.map(t => timeToSeconds(t.depTime)));
             if (nowSec > latestDep) {
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                _rolloverDayIdx = nextTransit.idx;
-                const rolloverResult = planDoubleTransferTrip(origin, dest, nextTransit.type, true);
-                _rolloverDayIdx = null;
+                context.rolloverDayIdx = nextTransit.idx;
+                const rolloverResult = planDoubleTransferTrip(origin, dest, nextTransit.type, true, context);
+                context.rolloverDayIdx = null;
                 if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
-                    rolloverResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                    rolloverResult.trips.forEach(t => {
+                        t.dayLabel = nextTransit.name;
+                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
+                    });
                     return rolloverResult;
                 }
             }
         } else {
             const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-            _rolloverDayIdx = nextTransit.idx;
-            const nextResult = planDoubleTransferTrip(origin, dest, nextTransit.type, true);
-            _rolloverDayIdx = null;
+            context.rolloverDayIdx = nextTransit.idx;
+            const nextResult = planDoubleTransferTrip(origin, dest, nextTransit.type, true, context);
+            context.rolloverDayIdx = null;
             if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
-                nextResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                nextResult.trips.forEach(t => {
+                    t.dayLabel = nextTransit.name;
+                    t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
+                });
                 return nextResult;
             }
         }
@@ -582,7 +607,7 @@ function isPathLogical(leg1, leg2, finalDest) {
     return true;
 }
 
-function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType) {
+function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType, context = {}) {
     let allLegs = [];
     const routesToCheck = routeSet ? [...routeSet] : Object.keys(ROUTES);
 
@@ -590,7 +615,7 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType) {
         const routeConfig = ROUTES[rId];
         
         // 1. Find Direct Legs (Standard)
-        let directLegs = findAllLegsBetween(stationA, stationB, new Set([rId]), dayType);
+        let directLegs = findAllLegsBetween(stationA, stationB, new Set([rId]), dayType, context);
         allLegs = [...allLegs, ...directLegs];
 
         // 2. Find Relay Composite Legs
@@ -600,9 +625,9 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType) {
             // Cannot use relay if start/end IS the relay (avoid loops)
             if (normalizeStationName(stationA) === relay || normalizeStationName(stationB) === relay) continue;
 
-            const legsToRelay = findAllLegsBetween(stationA, relay, new Set([rId]), dayType);
+            const legsToRelay = findAllLegsBetween(stationA, relay, new Set([rId]), dayType, context);
             if (legsToRelay.length > 0) {
-                const legsFromRelay = findAllLegsBetween(relay, stationB, new Set([rId]), dayType);
+                const legsFromRelay = findAllLegsBetween(relay, stationB, new Set([rId]), dayType, context);
                 
                 if (legsFromRelay.length > 0) {
                     const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
@@ -666,17 +691,17 @@ function findIntersections(routeAId, routeBId) {
     return intersections;
 }
 
-function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3, dayType) {
+function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3, dayType, context = {}) {
     const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 minutes
 
     // 1. Get All Leg Options ONCE
-    const legs1 = findAllLegsBetween(origin, hub1, new Set([route1.id]), dayType);
+    const legs1 = findAllLegsBetween(origin, hub1, new Set([route1.id]), dayType, context);
     if (legs1.length === 0) return [];
 
-    const legs2 = findAllLegsBetween(hub1, hub2, new Set([route2.id]), dayType);
+    const legs2 = findAllLegsBetween(hub1, hub2, new Set([route2.id]), dayType, context);
     if (legs2.length === 0) return [];
 
-    const legs3 = findAllLegsBetween(hub2, dest, new Set([route3.id]), dayType);
+    const legs3 = findAllLegsBetween(hub2, dest, new Set([route3.id]), dayType, context);
     if (legs3.length === 0) return [];
 
     const trips = [];
@@ -737,7 +762,7 @@ function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3,
     return trips;
 }
 
-function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
+function findAllLegsBetween(stationA, stationB, routeSet, dayType, context = {}) {
     let legs = [];
     const routesToCheck = routeSet ? [...routeSet] : Object.keys(ROUTES);
     for (const rId of routesToCheck) {
@@ -752,7 +777,7 @@ function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
                 const idxA = schedule.rows.indexOf(rowA);
                 const idxB = schedule.rows.indexOf(rowB);
                 if (idxA < idxB) {
-                    findUpcomingTrainsForLeg(schedule, rowA, rowB, dayType, true, rId).forEach(t => {
+                    findUpcomingTrainsForLeg(schedule, rowA, rowB, dayType, true, rId, context).forEach(t => {
                         legs.push(createTripObject(routeConfig, t, schedule, idxA, idxB, stationA, stationB));
                     });
                 }
@@ -764,7 +789,7 @@ function findAllLegsBetween(stationA, stationB, routeSet, dayType) {
 
 // GUARDIAN: Legacy function preserved to prevent silent deletions and maintain external API contracts.
 function findNextDayTrips(routeConfig, origin, dest, baseDay) {
-    let dayName = 'Tomorrow', nextDayType = 'weekday';
+    let dayName = 'Tomorrow', nextDayType = 'weekday', offset = 1;
     
     // GUARDIAN GHOST PROTOCOL (V4.60.82): 
     let nextDayIdx = (currentDayIndex + 1) % 7; 
@@ -772,14 +797,17 @@ function findNextDayTrips(routeConfig, origin, dest, baseDay) {
     if (baseDay === 'weekday') { 
         nextDayType = 'weekday'; 
         dayName = 'Tomorrow'; 
+        offset = 1;
     } else if (baseDay === 'saturday') { 
         nextDayType = 'weekday'; 
         dayName = 'Monday'; 
         nextDayIdx = 1; // Force check against Monday rules
+        offset = 2; // Saturday -> Monday offset
     } else if (baseDay === 'sunday') { 
         nextDayType = 'weekday'; 
         dayName = 'Monday'; 
         nextDayIdx = 1; // Force check against Monday rules
+        offset = 1; // Sunday -> Monday offset
     }
 
     let allNextDayTrains = [];
@@ -814,6 +842,7 @@ function findNextDayTrips(routeConfig, origin, dest, baseDay) {
             routeConfig, info, info.schedule, info.originIdx, info.destIdx, origin, dest
         ); 
         trip.dayLabel = dayName;
+        trip.dayOffset = offset; // GUARDIAN PHASE D
         return trip;
     });
 }
@@ -840,18 +869,18 @@ function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, 
     };
 }
 
-function findUpcomingTrainsForLeg(schedule, originRow, destRow, dayType, allowPast = false, routeId = null) {
+function findUpcomingTrainsForLeg(schedule, originRow, destRow, dayType, allowPast = false, routeId = null, context = {}) {
     // Only check current time if we are planning for the CURRENT day type
-    const isToday = (dayType === currentDayType && _rolloverDayIdx === null);
+    const isToday = (dayType === currentDayType && context.rolloverDayIdx === null);
     
     // GUARDIAN P13: Zero-Hour Probe explicitly bypasses `currentTime` constraints, simulating a 00:00 start
-    const nowSeconds = (isToday && !allowPast && !_zeroHourProbeActive) ? timeToSeconds(currentTime) : 0; 
+    const nowSeconds = (isToday && !allowPast && !context.zeroHourProbeActive) ? timeToSeconds(currentTime) : 0; 
     
     // GUARDIAN GHOST PROTOCOL (V4.60.82): Determine Day Index
-    // If _rolloverDayIdx is set, use it. Otherwise default to currentDayIndex if it's today.
+    // If context.rolloverDayIdx is set, use it. Otherwise default to currentDayIndex if it's today.
     let exclusionDayIdx = 1; // Default Monday
-    if (_rolloverDayIdx !== null) {
-        exclusionDayIdx = _rolloverDayIdx;
+    if (context.rolloverDayIdx !== null) {
+        exclusionDayIdx = context.rolloverDayIdx;
     } else if (isToday) {
         exclusionDayIdx = currentDayIndex;
     } else {
@@ -1166,6 +1195,7 @@ function legsToTripObject(legs, origin, dest) {
  * GUARDIAN FIX 3: Universal Leg Compactor
  * Intercepts trips from all engines and forcefully merges artificial boundary legs
  * that share the same train ID into continuous legs before the UI renders them.
+ * GUARDIAN PHASE D: Preserves the Mathematical Offset payload through the compactor pipeline.
  */
 function compactTrip(trip) {
     if (trip.type === 'DIRECT') return trip;
@@ -1187,7 +1217,12 @@ function compactTrip(trip) {
     if (mergedLegs.length === legs.length) return trip;
     
     const newTrip = legsToTripObject(mergedLegs, trip.from, trip.to);
-    if (newTrip && trip.dayLabel) newTrip.dayLabel = trip.dayLabel;
+    
+    // GUARDIAN PHASE D: Preserve Offset Metadata!
+    if (newTrip) {
+        if (trip.dayLabel) newTrip.dayLabel = trip.dayLabel;
+        if (trip.dayOffset) newTrip.dayOffset = trip.dayOffset; 
+    }
     
     return newTrip || trip;
 }
@@ -1195,7 +1230,7 @@ function compactTrip(trip) {
 /**
  * Enumerates ALL valid departure times along a Dijkstra-discovered path template.
  */
-function enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, startSec) {
+function enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, startSec, context = {}) {
     if (!mergedLegs || mergedLegs.length === 0) return [];
 
     const TRANSFER_BUFFER_SEC = 0;
@@ -1210,7 +1245,7 @@ function enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, startSec) {
     // empty for cross-sheet legs, causing Dijkstra to report no results and the legacy relay
     // engine to mislabel the trip as a TRANSFER.
     const legOptionSets = routeIds.map((routeId, idx) =>
-        findAllLegsWithRelayExpansion(waypoints[idx], waypoints[idx + 1], new Set([routeId]), dayType)
+        findAllLegsWithRelayExpansion(waypoints[idx], waypoints[idx + 1], new Set([routeId]), dayType, context)
             .filter(l => idx === 0 ? timeToSeconds(l.depTime) >= startSec : true)
     );
 
@@ -1244,18 +1279,18 @@ const _DIJKSTRA_MAX_RUNS = 3;
  * Time-Dependent Dijkstra Trip Planner Orchestrator
  * GUARDIAN HYBRID: Banning physical hubs forces Dijkstra to find alternative backup corridors.
  */
-function planDijkstraTrip(origin, dest, dayType, isRollover = false) {
+function planDijkstraTrip(origin, dest, dayType, isRollover = false, context = {}) {
     const normOrigin = normalizeStationName(origin);
     const normDest   = normalizeStationName(dest);
 
     if (normOrigin === normDest || !fullDatabase) return { status: 'NO_PATH', trips: [] };
 
-    const dayIdx = _rolloverDayIdx !== null ? _rolloverDayIdx
+    const dayIdx = context.rolloverDayIdx !== null ? context.rolloverDayIdx
                  : (dayType === currentDayType ? currentDayIndex
                  : (dayType === 'saturday' ? 6 : 1));
 
     // GUARDIAN P13: Zero-Hour Probe overrides startSec to 0 to find mathematically valid historical paths for today
-    const startSec = (!isRollover && dayType === currentDayType && _rolloverDayIdx === null && !_zeroHourProbeActive)
+    const startSec = (!isRollover && dayType === currentDayType && context.rolloverDayIdx === null && !context.zeroHourProbeActive)
                    ? timeToSeconds(currentTime) : 0;
 
     const baseGraph       = buildTransitGraph(dayType, dayIdx);
@@ -1278,7 +1313,7 @@ function planDijkstraTrip(origin, dest, dayType, isRollover = false) {
 
         // Enumerate ALL trips for this exact physical path (Template)
         // startSec is 0 because we want to grab all backup shuttles that match this template for the whole day.
-        const templatedTrips = enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, 0);
+        const templatedTrips = enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, 0, context);
         allTrips.push(...templatedTrips);
 
         // Ban the key defining edge of this template to force Dijkstra to find a diverse physical path on the next run
@@ -1292,27 +1327,33 @@ function planDijkstraTrip(origin, dest, dayType, isRollover = false) {
     }
 
     // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
-    if (!isRollover && dayType === currentDayType && !_zeroHourProbeActive) {
+    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (allTrips.length > 0) {
             const latestDep = Math.max(...allTrips.map(t => timeToSeconds(t.depTime)));
             if (nowSec > latestDep) {
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                _rolloverDayIdx = nextTransit.idx;
-                const rollover = planDijkstraTrip(origin, dest, nextTransit.type, true);
-                _rolloverDayIdx = null;
+                context.rolloverDayIdx = nextTransit.idx;
+                const rollover = planDijkstraTrip(origin, dest, nextTransit.type, true, context);
+                context.rolloverDayIdx = null;
                 if (rollover?.trips?.length > 0) {
-                    rollover.trips.forEach(t => t.dayLabel = nextTransit.name);
+                    rollover.trips.forEach(t => {
+                        t.dayLabel = nextTransit.name;
+                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
+                    });
                     return rollover;
                 }
             }
         } else {
             const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-            _rolloverDayIdx = nextTransit.idx;
-            const nextResult = planDijkstraTrip(origin, dest, nextTransit.type, true);
-            _rolloverDayIdx = null;
+            context.rolloverDayIdx = nextTransit.idx;
+            const nextResult = planDijkstraTrip(origin, dest, nextTransit.type, true, context);
+            context.rolloverDayIdx = null;
             if (nextResult?.trips?.length > 0) {
-                nextResult.trips.forEach(t => t.dayLabel = nextTransit.name);
+                nextResult.trips.forEach(t => {
+                    t.dayLabel = nextTransit.name;
+                    t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
+                });
                 return nextResult;
             }
         }
@@ -1430,30 +1471,37 @@ function planUnifiedTrip(origin, dest, dayType) {
     // A manually-selected Sunday never triggers the midnight rollover (which only fires when
     // dayType === currentDayType). Intercept here and re-plan against Monday, labelling all
     // trips so the UI shows the correct "next service day" context to the user.
+    // GUARDIAN PHASE D: Attach explicit dayOffset payload for UI tracking.
     if (dayType === 'sunday') {
         const result = planUnifiedTrip(origin, dest, 'weekday');
         if (result && result.trips) {
-            result.trips.forEach(t => { if (!t.dayLabel) t.dayLabel = 'Monday'; });
+            result.trips.forEach(t => { 
+                if (!t.dayLabel) t.dayLabel = 'Monday'; 
+                if (!t.dayOffset) t.dayOffset = 1; // Explicit UI Override 
+            });
         }
         return result;
     }
 
     console.log(`[GUARDIAN] Running Unified Trip Planner for ${origin} -> ${dest}`);
 
+    // GUARDIAN PHASE 18: Isolate Stateful Variables into execution context
+    const context = { rolloverDayIdx: null, zeroHourProbeActive: false };
+
     // GUARDIAN PHASE 13: Universal Raw Fetch Helper
     // Refactored to seamlessly supply both the live engine and the Zero-Hour Probe.
-    const fetchRawTrips = (o, d, dt) => {
+    const fetchRawTrips = (o, d, dt, ctx) => {
         const dijkstraResult = typeof planDijkstraTrip === 'function'
-            ? planDijkstraTrip(o, d, dt) : { trips: [] };
+            ? planDijkstraTrip(o, d, dt, false, ctx) : { trips: [] };
 
         let raw = [...(dijkstraResult.trips || [])];
 
         // Fallback to legacy exhaust loops if Dijkstra returns nothing
         if (raw.length === 0) {
-            const directResult = typeof planDirectTrip === 'function' ? planDirectTrip(o, d, dt) : { trips: [] };
-            const macroResult = typeof planMacroCorridorTrip === 'function' ? planMacroCorridorTrip(o, d, dt) : { trips: [] };
-            const relayResult = typeof planRelayTransferTrip === 'function' ? planRelayTransferTrip(o, d, dt) : { trips: [] };
-            const hubResult   = typeof planHubTransferTrip === 'function' ? planHubTransferTrip(o, d, dt) : { trips: [] };
+            const directResult = typeof planDirectTrip === 'function' ? planDirectTrip(o, d, dt, false, ctx) : { trips: [] };
+            const macroResult = typeof planMacroCorridorTrip === 'function' ? planMacroCorridorTrip(o, d, dt, false, ctx) : { trips: [] };
+            const relayResult = typeof planRelayTransferTrip === 'function' ? planRelayTransferTrip(o, d, dt, false, ctx) : { trips: [] };
+            const hubResult   = typeof planHubTransferTrip === 'function' ? planHubTransferTrip(o, d, dt, false, ctx) : { trips: [] };
             
             raw = [
                 ...(directResult.trips || []),
@@ -1464,14 +1512,14 @@ function planUnifiedTrip(origin, dest, dayType) {
 
             const todayCount = raw.filter(t => !t.dayLabel).length;
             if (todayCount < 3 && (macroResult.trips || []).length === 0) {
-                const doubleResult = typeof planDoubleTransferTrip === 'function' ? planDoubleTransferTrip(o, d, dt) : { trips: [] };
+                const doubleResult = typeof planDoubleTransferTrip === 'function' ? planDoubleTransferTrip(o, d, dt, false, ctx) : { trips: [] };
                 raw = [...raw, ...(doubleResult.trips || [])];
             }
         }
         return raw.map(compactTrip).filter(Boolean);
     };
 
-    let allRawTrips = fetchRawTrips(origin, dest, dayType);
+    let allRawTrips = fetchRawTrips(origin, dest, dayType, context);
 
     let rawTrips = [], rawNextDayTrips = [];
     allRawTrips.forEach(t => (t.dayLabel ? rawNextDayTrips : rawTrips).push(t));
@@ -1514,7 +1562,7 @@ function planUnifiedTrip(origin, dest, dayType) {
     const masterSort = (a, b) => {
         const getDep   = t => timeToSeconds(t.depTime || (t.leg1?.depTime  || "00:00"));
         const getArr   = t => timeToSeconds(t.arrTime || (t.leg3?.arrTime  || (t.leg2?.arrTime || "00:00")));
-        const getTrans = t => t.type === 'MULTI_TRANSFER' ? (t.transferCount || 3)
+        const getTrans = t => t.type === 'MULTI_TRANSFER' ? (t.transferCount ?? (t.legs ? t.legs.length - 1 : 3))
                             : t.type === 'DOUBLE_TRANSFER' ? 2
                             : t.type === 'TRANSFER' ? 1 : 0;
         const depDiff = getDep(a) - getDep(b); if (depDiff !== 0) return depDiff;
@@ -1537,9 +1585,9 @@ function planUnifiedTrip(origin, dest, dayType) {
         
         // Activating the probe temporarily disables all current-time limits and rollover protocols
         // across all underlying engines, effectively asking: "Was this route EVER possible today?"
-        _zeroHourProbeActive = true;
-        const probeTripsRaw = fetchRawTrips(origin, dest, dayType);
-        _zeroHourProbeActive = false;
+        context.zeroHourProbeActive = true;
+        const probeTripsRaw = fetchRawTrips(origin, dest, dayType, context);
+        context.zeroHourProbeActive = false;
 
         const validProbeTrips = probeTripsRaw.filter(hasValidLayovers);
         

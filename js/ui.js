@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.11 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.12 - Guardian Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -17,6 +17,9 @@
  * * PHASE 1 (GUARDIAN ANALYTICS): 'check_updates_click' tracked.
  * * PHASE 2 (GUARDIAN FEEDBACK): In-House Feedback System, Firebase Storage Pipeline, 15s Timeout Race & Modal bindings injected.
  * * GUARDIAN BUGFIX: Separated telemetry tracking for manual vs system cache wipes. Injected proper loading UI for slow DB hydration.
+ * * GUARDIAN BUGFIX (V6.04.12): Fixed Pinned Route UI race condition where pin was hollow on app boot despite valid LocalStorage state.
+ * * GUARDIAN BUGFIX (V6.04.13): Universal Shared Corridor Text Formatting (Option B String Split) for region-agnostic tags (Modal).
+ * * GUARDIAN BUGFIX (V6.04.14): Universal Shared Corridor Text Formatting ported to main Live Board `Renderer.renderJourney`.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -966,7 +969,10 @@ function initializeApp() {
     loadUserProfile(); 
     populateStationList();
     if (typeof initPlanner === 'function') initPlanner();
-    if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), currentRouteId);
+    
+    // GUARDIAN BUGFIX: Call updatePinUI here *after* currentRouteId has been populated from storage
+    // This perfectly syncs the empty/filled visual state of the Star Pin button on the main screen.
+    updatePinUI();
     
     // Call the global startClock bound in logic.js
     if (typeof window.startClock === 'function') {
@@ -1494,11 +1500,24 @@ window.openScheduleModal = function(destination, dayOverride = null) {
         const div = document.createElement('div'); div.className = divClass;
         if (!isPassed && !firstNextTrainFound && !dayOverride) { div.id = "next-train-marker"; firstNextTrainFound = true; }
         
-        let modalTag = "";
+        let sharedTag = "";
         if (j.isShared && j.sourceRoute) {
-             const routeName = j.sourceRoute.replace(/^(Pretoria|JHB|Germiston|Mabopane)\s+<->\s+/i, "").replace("Route", "").trim();
-             if (j.isDivergent) modalTag = `<span class="text-[9px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-1.5 py-0.5 rounded uppercase ml-2 border border-red-200 dark:border-red-800">⚠️ To ${toTitleCase(j.actualDestName)}</span>`;
-             else modalTag = `<span class="text-[9px] font-bold text-purple-600 bg-purple-100 dark:text-purple-300 dark:bg-purple-900 px-1.5 py-0.5 rounded uppercase ml-2">From ${routeName}</span>`;
+             let rawName = j.sourceRoute.replace("Route", "").trim();
+             let routeName = rawName;
+             
+             // GUARDIAN V6.04.13 FIX: Universal String Split for region-agnostic formatting
+             if (rawName.includes('<->')) {
+                 routeName = rawName.split('<->')[1].trim();
+             } else if (rawName.includes('↔')) {
+                 routeName = rawName.split('↔')[1].trim();
+             }
+
+             if (j.isDivergent) {
+                 const divDest = Renderer._applyUIIntercepts(j.actualDestName);
+                 sharedTag = `<span class="text-[9px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-1.5 py-0.5 rounded uppercase ml-2 border border-red-200 dark:border-red-800">⚠️ To ${toTitleCase(divDest)}</span>`;
+             } else {
+                 sharedTag = `<span class="text-[9px] font-bold text-purple-600 bg-purple-100 dark:text-purple-300 dark:bg-purple-900 px-1.5 py-0.5 rounded uppercase ml-2">From ${toTitleCase(routeName)}</span>`;
+             }
         }
         
         const formattedDep = formatTimeDisplay(dep);
@@ -1518,9 +1537,9 @@ window.openScheduleModal = function(destination, dayOverride = null) {
             }
         }
 
-        if (modalTag && modalTag !== "") { 
-            rightPillHTML = modalTag; 
-            modalTag = ""; 
+        if (sharedTag && sharedTag !== "") { 
+            rightPillHTML = sharedTag; 
+            sharedTag = ""; 
         } else {
             if (type === 'Direct') {
                 if (isShortTrip) {
@@ -1557,7 +1576,7 @@ window.openScheduleModal = function(destination, dayOverride = null) {
         div.innerHTML = `
             <div>
                 <span class="text-lg font-bold text-gray-900 dark:text-white">${formattedDep}</span>
-                <div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName} ${modalTag}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">Train ${trainName}</div>
                 ${terminationBadge}
             </div>
             <div class="flex flex-col items-end gap-1 text-right">
@@ -2494,273 +2513,6 @@ window.handleUpdateClick = async function(newVersion) {
     window.location.reload(true);
 };
 
-// --- GUARDIAN PHASE 6: LAZY-LOADED TRIP MAP ENGINE (ERGONOMICS UPGRADE) ---
-let tripMapInstance = null;
-
-window.openTripMapRenderer = async function(routeData) {
-    if (typeof triggerHaptic === 'function') triggerHaptic();
-
-    if (!navigator.onLine && !window.L) {
-        showToast("Internet connection required to load live map.", "error");
-        return;
-    }
-
-    showToast("Loading live map...", "info", 1500);
-
-    // 1. Lazy-load Leaflet if missing
-    if (!window.L) {
-        try {
-            await new Promise((resolve, reject) => {
-                const link = document.createElement('link');
-                link.rel = 'stylesheet';
-                link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';
-                document.head.appendChild(link);
-
-                const script = document.createElement('script');
-                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';
-                script.onload = resolve;
-                script.onerror = reject;
-                document.head.appendChild(script);
-            });
-        } catch (e) {
-            showToast("Failed to load map engine.", "error");
-            return;
-        }
-    }
-
-    // 2. Build Modal Skeleton with Ergonomic Controls
-    let modal = document.getElementById('trip-map-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'trip-map-modal';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-90 z-[100] hidden flex items-center justify-center p-0 full-screen backdrop-blur-md transition-opacity duration-300';
-        modal.innerHTML = `
-            <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
-                <!-- TOP HEADER -->
-                <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative shrink-0 shadow-sm">
-                    <div class="flex items-center space-x-3 min-w-0 pr-2">
-                        <span class="text-2xl shrink-0">🗺️</span>
-                        <div class="flex flex-col min-w-0">
-                            <h3 class="text-base font-black text-gray-900 dark:text-white truncate uppercase tracking-tight mb-0.5" id="trip-map-title">Route Map</h3>
-                            <div class="flex items-center">
-                                <p class="text-xs text-blue-600 dark:text-blue-400 font-bold truncate shrink-0 mr-2" id="trip-map-subtitle">Loading...</p>
-                                <span class="text-[8px] font-bold text-yellow-800 bg-yellow-100 dark:text-yellow-300 dark:bg-yellow-900/50 px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 border border-yellow-200 dark:border-yellow-800">🧪 In Dev</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center space-x-2 shrink-0">
-                        <button id="close-trip-map-btn" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition focus:outline-none" aria-label="Close Map">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- MAP CANVAS WRAPPER -->
-                <div class="flex-grow w-full bg-gray-200 dark:bg-gray-800 relative z-10">
-                    <div id="trip-map-canvas" class="absolute inset-0"></div>
-                    
-                    <!-- BOTTOM-RIGHT LOCATE BUTTON -->
-                    <button id="locate-trip-map-btn" class="absolute bottom-6 right-4 z-[1000] p-3 bg-white dark:bg-gray-800 text-gray-400 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:scale-105 transition-all focus:outline-none flex items-center justify-center" aria-label="Locate Me">
-                        <svg class="w-6 h-6 animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
-                    </button>
-                </div>
-
-                <!-- BOTTOM CLOSE -->
-                <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 rounded-b-none z-20 relative shrink-0">
-                    <button id="close-trip-map-btn-2" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none">Close Map</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-
-        const closeAction = () => {
-            if (location.hash === '#trip-map') history.back();
-            else closeSmoothModal('trip-map-modal');
-            
-            // Delay map destruction to allow CSS transition to finish
-            setTimeout(() => {
-                if (tripMapInstance) {
-                    tripMapInstance.stopLocate(); // GUARDIAN: Stop background GPS polling
-                    tripMapInstance.remove();
-                    tripMapInstance = null;
-                }
-            }, 350);
-        };
-
-        const closeBtn1 = document.getElementById('close-trip-map-btn');
-        if (closeBtn1) closeBtn1.addEventListener('click', closeAction);
-        
-        const closeBtn2 = document.getElementById('close-trip-map-btn-2');
-        if (closeBtn2) closeBtn2.addEventListener('click', closeAction);
-    }
-
-    // 3. Open Modal & Push State (Before rendering so container has dimensions)
-    history.pushState({ modal: 'trip-map' }, '', '#trip-map');
-    openSmoothModal('trip-map-modal');
-
-    // 4. Initialize Leaflet Canvas
-    setTimeout(() => {
-        if (tripMapInstance) {
-            tripMapInstance.remove();
-        }
-
-        // Initialize Map (Zoom controls disabled here so we can custom place them)
-        tripMapInstance = L.map('trip-map-canvas', {
-            zoomControl: false,
-            attributionControl: false
-        });
-
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19,
-        }).addTo(tripMapInstance);
-
-        // Ergonomics: Inject Zoom and Attribution to the bottom-left
-        L.control.zoom({ position: 'bottomleft' }).addTo(tripMapInstance);
-        L.control.attribution({ position: 'bottomleft' }).addAttribution('&copy; OSM').addTo(tripMapInstance);
-
-        // --- MAP STATE & RENDERING ENGINE ---
-        let routeLayerGroup = L.layerGroup().addTo(tripMapInstance);
-        
-        let userLocationMarker = null;
-        let lastKnownLatLng = null;
-
-        const createDot = (bgColor, size) => L.divIcon({
-            className: 'custom-map-dot',
-            html: `<div style="background-color:${bgColor}; width: ${size}px; height: ${size}px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-            iconSize: [size, size],
-            iconAnchor: [size/2, size/2]
-        });
-
-        // The Master Drawing Function
-        const drawRouteElements = () => {
-            routeLayerGroup.clearLayers();
-            
-            let currentPath = routeData.path;
-            let currentOrigin = routeData.origin;
-            let currentDest = routeData.destination;
-            let currentValidStops = routeData.validStops;
-
-            // Update Header Titles
-            const titleEl = document.getElementById('trip-map-title');
-            if (titleEl) titleEl.textContent = `${currentOrigin.replace(' STATION', '')} to ${currentDest.replace(' STATION', '')}`;
-            
-            const subTitleEl = document.getElementById('trip-map-subtitle');
-            if (subTitleEl) {
-                const stopCount = currentValidStops ? currentValidStops.length : currentPath.length;
-                subTitleEl.textContent = `${stopCount} stops along route`;
-            }
-
-            // 1. Draw Curved Track (Using Full Waypoints)
-            const polyline = L.polyline(currentPath, {
-                color: '#3b82f6', 
-                weight: 6,
-                opacity: 0.8,
-                lineCap: 'round',
-                lineJoin: 'round'
-            }).addTo(routeLayerGroup);
-
-            // 2. Draw Clean Station Markers
-            if (currentValidStops && currentValidStops.length > 0) {
-                // Ghost Buster: Plot only valid physical stops
-                currentValidStops.forEach((stop, idx) => {
-                    if (idx !== 0 && idx !== currentValidStops.length - 1) {
-                         L.circleMarker([stop.lat, stop.lon], { radius: 4, color: 'white', weight: 2, fillColor: '#9ca3af', fillOpacity: 1 })
-                          .bindTooltip(stop.name.replace(' STATION', ''), { direction: 'top', className: 'text-[10px] font-medium shadow-sm' })
-                          .addTo(routeLayerGroup);
-                    }
-                });
-            } else {
-                // Legacy Fallback (If validStops array is missing)
-                currentPath.forEach((coord, idx) => {
-                    if (idx !== 0 && idx !== currentPath.length - 1) {
-                         L.circleMarker(coord, { radius: 4, color: 'white', weight: 2, fillColor: '#9ca3af', fillOpacity: 1 }).addTo(routeLayerGroup);
-                    }
-                });
-            }
-
-            // 3. Start Marker (Green)
-            const startCoord = currentPath[0];
-            L.marker(startCoord, { icon: createDot('#22c55e', 18) })
-             .bindTooltip(`<b>Start:</b> ${currentOrigin.replace(' STATION', '')}`, { permanent: true, direction: 'top', offset: [0, -10], className: 'text-xs font-bold shadow-md' })
-             .addTo(routeLayerGroup);
-
-            // 4. End Marker (Red)
-            const endCoord = currentPath[currentPath.length - 1];
-            L.marker(endCoord, { icon: createDot('#ef4444', 18) })
-             .bindTooltip(`<b>End:</b> ${currentDest.replace(' STATION', '')}`, { permanent: true, direction: 'top', offset: [0, -10], className: 'text-xs font-bold shadow-md' })
-             .addTo(routeLayerGroup);
-
-            return polyline;
-        };
-
-        // Execute Initial Draw & Frame Route
-        const initialPolyline = drawRouteElements();
-        tripMapInstance.fitBounds(initialPolyline.getBounds(), { padding: [50, 50] });
-
-        // --- GPS AUTO-LOCATE LOGIC ---
-        const locateBtn = document.getElementById('locate-trip-map-btn');
-        const locateIcon = locateBtn ? locateBtn.querySelector('svg') : null;
-
-        const blueDotIcon = L.divIcon({
-            className: 'user-gps-marker',
-            html: `
-                <div class="relative flex h-5 w-5 items-center justify-center">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600 border-2 border-white shadow-md"></span>
-                </div>
-            `,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
-        });
-
-        // Background Location Tracker
-        tripMapInstance.on('locationfound', function(e) {
-            lastKnownLatLng = e.latlng;
-
-            if (!userLocationMarker) {
-                userLocationMarker = L.marker(e.latlng, { icon: blueDotIcon, zIndexOffset: 1000 }).addTo(tripMapInstance);
-            } else {
-                userLocationMarker.setLatLng(e.latlng);
-            }
-            
-            if (locateIcon) {
-                locateIcon.classList.remove('animate-spin', 'text-gray-400');
-                locateIcon.classList.add('text-blue-600', 'dark:text-blue-400');
-            }
-        });
-
-        tripMapInstance.on('locationerror', function(e) {
-            if (locateIcon) {
-                locateIcon.classList.remove('animate-spin', 'text-blue-600', 'dark:text-blue-400');
-                locateIcon.classList.add('text-gray-400');
-            }
-            if (e.code !== 1) console.warn("Location error:", e.message);
-        });
-
-        // Start passive tracking silently
-        tripMapInstance.locate({setView: false, watch: true, enableHighAccuracy: true});
-
-        // Manual Locate Click
-        if (locateBtn) {
-            locateBtn.onclick = () => {
-                if (typeof triggerHaptic === 'function') triggerHaptic();
-                
-                if (lastKnownLatLng) {
-                    // Fly camera to the dot
-                    tripMapInstance.flyTo(lastKnownLatLng, 15, { duration: 1.5 });
-                } else {
-                    // Spin and try to force location
-                    if (locateIcon) {
-                        locateIcon.classList.remove('text-gray-400');
-                        locateIcon.classList.add('animate-spin', 'text-blue-600', 'dark:text-blue-400');
-                    }
-                    tripMapInstance.locate({setView: true, enableHighAccuracy: true, maxZoom: 15});
-                }
-            };
-        }
-    }, 350); 
-};
-
 // --- DOM READY ---
 document.addEventListener('DOMContentLoaded', () => {
     enforceAppVersion();
@@ -2974,7 +2726,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     setupFeatureButtons(); 
     setupSettingsHub();
-    updatePinUI(); 
     setupModalButtons(); 
     setupFeedbackLogic(); // GUARDIAN PHASE 2: Initializing In-House Feedback System
     startSmartRefresh();
