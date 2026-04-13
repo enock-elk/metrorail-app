@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.12 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.13 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -11,6 +11,8 @@
  * * GUARDIAN PHASE 17: "Tall Grid" mode for Web UI vertical compression, strict Export sandbox, and Ghost Number transparency fix.
  * * GUARDIAN PHASE 18: Phantom Row Matrix Immunity and Android Chrome DOM-Attachment Export Fix.
  * * GUARDIAN PHASE 19: Android Chrome Anchor Click Patch & Blob Revocation Stabilization.
+ * * GUARDIAN PHASE 20 (BUGFIX): Universal String Split logic injected to fix Cape Town route string bleed natively.
+ * * GUARDIAN PHASE 21 (BUGFIX): Variable shadowing (th) resolved in export engine to prevent older Android WebView crashes.
  */
 
 const Renderer = {
@@ -374,16 +376,21 @@ const Renderer = {
 
         let sharedTag = "";
         if (journey.isShared && journey.sourceRoute) {
-             const routeName = journey.sourceRoute
-                .replace(/^(Pretoria|JHB|Germiston|Mabopane)\s+<->\s+/i, "") 
-                .replace("Route", "")
-                .trim();
+             let rawName = journey.sourceRoute.replace("Route", "").trim();
+             let routeName = rawName;
+             
+             // GUARDIAN V6.04.13 FIX: Universal String Split for region-agnostic formatting
+             if (rawName.includes('<->')) {
+                 routeName = rawName.split('<->')[1].trim();
+             } else if (rawName.includes('↔')) {
+                 routeName = rawName.split('↔')[1].trim();
+             }
 
              if (journey.isDivergent) {
                  const divDest = Renderer._applyUIIntercepts(journey.actualDestName);
                  sharedTag = `<span class="block text-[9px] uppercase font-bold text-red-600 dark:text-red-400 mt-0.5 bg-red-100 dark:bg-red-900 px-1 rounded w-fit mx-auto border border-red-200 dark:border-red-700">⚠️ To ${divDest}</span>`;
              } else {
-                 sharedTag = `<span class="block text-[9px] uppercase font-bold text-purple-600 dark:text-purple-400 mt-0.5 bg-purple-100 dark:bg-purple-900 px-1 rounded w-fit mx-auto">From ${routeName.replace('<->', '↔')}</span>`;
+                 sharedTag = `<span class="block text-[9px] uppercase font-bold text-purple-600 dark:text-purple-400 mt-0.5 bg-purple-100 dark:bg-purple-900 px-1 rounded w-fit mx-auto">From ${routeName}</span>`;
              }
         }
 
@@ -845,7 +852,6 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     const zebraBg = '#f8fafc'; // GUARDIAN: Slate-50 for Zebra Striping
 
     const exportContainer = document.createElement('div');
-    // GUARDIAN PHASE 18/19: Restored exactly to the proven off-screen fixed attachment strategy
     exportContainer.style.position = 'fixed';
     exportContainer.style.left = '-9999px';
     exportContainer.style.top = '0';
@@ -936,16 +942,17 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
         // GUARDIAN PHASE 16: Ultra-Compact Matrix Trigger
         const isCompact = t.classList.contains('export-compact');
         
-        t.querySelectorAll('th').forEach(th => {
-            th.style.backgroundColor = tableHeaderBg;
-            th.style.color = headerTextColor;
-            th.style.border = `1px solid ${borderColor}`;
-            th.className = th.className; // Maintain logic classes like 'right-anchor-header'
-            th.style.padding = isCompact ? '8px 3px' : '8px 6px'; // Dynamic asymmetrical padding
-            th.style.fontSize = isCompact ? '12.5px' : '13px';
-            th.style.fontWeight = '900';
-            th.style.textAlign = 'center';
-            if (isCompact) th.style.letterSpacing = '-0.5px'; // Kerning reduction
+        // GUARDIAN PHASE 21: Shadowed Variable Renamed (`th` -> `headerCell`)
+        t.querySelectorAll('th').forEach(headerCell => {
+            headerCell.style.backgroundColor = tableHeaderBg;
+            headerCell.style.color = headerTextColor;
+            headerCell.style.border = `1px solid ${borderColor}`;
+            headerCell.className = headerCell.className; // Maintain logic classes like 'right-anchor-header'
+            headerCell.style.padding = isCompact ? '8px 3px' : '8px 6px'; // Dynamic asymmetrical padding
+            headerCell.style.fontSize = isCompact ? '12.5px' : '13px';
+            headerCell.style.fontWeight = '900';
+            headerCell.style.textAlign = 'center';
+            if (isCompact) headerCell.style.letterSpacing = '-0.5px'; // Kerning reduction
         });
         
         t.querySelectorAll('td').forEach(td => {
@@ -965,11 +972,12 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
         });
 
         // GUARDIAN: Specific styling for the Right-Side Anchor column
-        t.querySelectorAll('.right-anchor-header').forEach(th => {
-            th.style.backgroundColor = '#e2e8f0'; // Slightly darker for distinction
-            th.style.color = '#475569';
-            th.style.letterSpacing = 'normal'; // Reset tracking
-            th.style.padding = '8px 6px'; // Standard padding
+        // GUARDIAN PHASE 21: Shadowed Variable Renamed (`th` -> `headerCell`)
+        t.querySelectorAll('.right-anchor-header').forEach(headerCell => {
+            headerCell.style.backgroundColor = '#e2e8f0'; // Slightly darker for distinction
+            headerCell.style.color = '#475569';
+            headerCell.style.letterSpacing = 'normal'; // Reset tracking
+            headerCell.style.padding = '8px 6px'; // Standard padding
         });
         t.querySelectorAll('.right-anchor-col').forEach(td => {
             td.style.backgroundColor = '#f1f5f9';
@@ -1003,18 +1011,14 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     document.body.appendChild(exportContainer);
 
     try {
-        // GUARDIAN PHASE 18/19: Strict 100ms delay to let the browser physically paint the DOM
         await new Promise(r => setTimeout(r, 100));
 
         // GUARDIAN PHASE 15: Scale bumped to 2 for crisp Retina text rendering
-        // GUARDIAN PHASE 19: Explicit windowWidth/Height bounds to prevent clipping
         const canvas = await html2canvas(exportContainer, {
             scale: 2,
             backgroundColor: bgColor,
             logging: false,
-            useCORS: true,
-            windowWidth: exportContainer.scrollWidth,
-            windowHeight: exportContainer.scrollHeight
+            useCORS: true
         });
 
         canvas.toBlob(async (blob) => {
@@ -1026,12 +1030,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             const link = document.createElement('a');
             link.download = fileName;
             link.href = blobUrl;
-            
-            // GUARDIAN PHASE 19: Android Chrome Anchor Click Patch
-            // Mobile Chrome completely ignores .click() calls on <a> tags that aren't attached to the DOM
-            document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
             
             window._pendingShareFile = file;
             window._pendingShareText = `Commuter Notice: ${route.name.replace('<->', '↔')} (${selectedDay})`;

@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.12 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.13 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -13,6 +13,8 @@
  * * GUARDIAN PHASE 14 & D: Dynamic Time-Sync applied to UI to prevent future-day times matching against today's clock, incorporating dayOffset weekend math.
  * * GUARDIAN PHASE D: Leaflet anti-rubberband flyTo() lock applied to prevent camera snapping race conditions.
  * * GUARDIAN PHASE 20: Map UX Parity - Integrated Action Bar, Naked Halo tooltips, and Dark Mode Tile Inversion from map.html.
+ * * GUARDIAN BUGFIX (V6.04.13): Ghost Station Polyline Trap resolved in extractTripCoordinates.
+ * * GUARDIAN UX UPGRADE (V6.04.14): Autocomplete native focus-select & Unconditional Swap Protocol.
  */
 
 // --- GUARDIAN PHASE 1: ROUTER BLEED & GREY SCREEN INTERCEPTOR ---
@@ -75,6 +77,11 @@ window.extractTripCoordinates = function(tripIndex) {
     const addStops = (stopsArray) => {
         if (!stopsArray) return;
         stopsArray.forEach(stop => {
+            // GUARDIAN BUGFIX: The Ghost Station Polyline Trap Fix
+            // Early exit prevents "---" stations on branch Y-junctions from being pushed
+            // to the path coordinates, curing the chaotic map zigzags!
+            if (stop.time === "---") return;
+
             const name = normalizeStationName(stop.station);
             // Prevent consecutive duplicates (e.g., Hub Arrival followed instantly by Hub Departure)
             if (stationNames.length > 0 && stationNames[stationNames.length - 1] === name) return;
@@ -83,16 +90,13 @@ window.extractTripCoordinates = function(tripIndex) {
             
             if (globalStationIndex && globalStationIndex[name] && globalStationIndex[name].lat) {
                 const coord = [globalStationIndex[name].lat, globalStationIndex[name].lon];
-                coordinates.push(coord);
+                coordinates.push(coord); // Now strictly physically visited stations
                 
-                // GUARDIAN: Only push valid stops (no "---") for future marker rendering
-                if (stop.time !== "---") {
-                    validStops.push({
-                        name: name,
-                        lat: coord[0],
-                        lon: coord[1]
-                    });
-                }
+                validStops.push({
+                    name: name,
+                    lat: coord[0],
+                    lon: coord[1]
+                });
             }
         });
     };
@@ -121,7 +125,7 @@ window.extractTripCoordinates = function(tripIndex) {
     const routeData = {
         origin: normalizeStationName(trip.from),
         destination: normalizeStationName(trip.to),
-        path: coordinates,        // GUARDIAN: Full curved waypoint path
+        path: coordinates,        // GUARDIAN: Full curved waypoint path (now scrubbed of Y-junction ghosts)
         stationNames: stationNames, // Legacy array (will be phased out)
         validStops: validStops    // GUARDIAN: Clean stops for precise markers
     };
@@ -990,7 +994,7 @@ function initPlanner() {
     }
 }
 
-// --- GUARDIAN V6.15: BULLETPROOF RESULTS SWAP ---
+// --- GUARDIAN V6.15 & V6.04.14: UNCONDITIONAL BULLETPROOF RESULTS SWAP ---
 window.swapPlannerResults = function() {
     if (typeof triggerHaptic === 'function') triggerHaptic();
 
@@ -1010,68 +1014,73 @@ window.swapPlannerResults = function() {
         }
     }
 
-    // 1. Capture current visual & semantic states
-    let tempFromVal = fromInput.value;
-    let tempFromResolved = fromInput.dataset.resolvedValue;
-
-    let tempToVal = toInput.value;
-    let tempToResolved = toInput.dataset.resolvedValue;
-
-    // 2. Swap visual text
-    fromInput.value = tempToVal;
+    // 1. Unconditional Visual Swap
+    const tempFromVal = fromInput.value;
+    fromInput.value = toInput.value;
     toInput.value = tempFromVal;
 
-    // 3. Swap datasets
-    if (tempToResolved) fromInput.dataset.resolvedValue = tempToResolved;
-    else delete fromInput.dataset.resolvedValue;
+    // Clear datasets to force re-resolution based on the strictly new text
+    delete fromInput.dataset.resolvedValue;
+    delete toInput.dataset.resolvedValue;
 
-    if (tempFromResolved) toInput.dataset.resolvedValue = tempFromResolved;
-    else delete toInput.dataset.resolvedValue;
-
-    // 4. Ensure datasets are fully resolved before executing search
+    // 2. Mathematical Resolution Attempt
     const resolveStation = (inputEl) => {
         if (!inputEl) return "";
-        if (inputEl.dataset.resolvedValue) return inputEl.dataset.resolvedValue;
-        
         const inputVal = inputEl.value;
         if (!inputVal || typeof MASTER_STATION_LIST === 'undefined') return "";
 
         const cleanInput = inputVal.trim().replace(/\s+/g, ' ').toUpperCase();
         const exact = MASTER_STATION_LIST.find(s => s.replace(' STATION', '').trim().toUpperCase() === cleanInput);
-        if (exact) {
-            inputEl.dataset.resolvedValue = exact;
-            return exact;
-        }
+        if (exact) return exact;
 
         const matches = MASTER_STATION_LIST.filter(s => s.replace(' STATION', '').trim().toUpperCase().includes(cleanInput));
-        if (matches.length === 1) {
-            inputEl.dataset.resolvedValue = matches[0];
-            return matches[0];
-        }
+        if (matches.length === 1) return matches[0];
+        
         return "";
     };
 
     const resolvedFrom = resolveStation(fromInput);
     const resolvedTo = resolveStation(toInput);
 
-    // 5. Sync legacy selects safely
-    if (fromSelect && resolvedFrom) {
-        if (!fromSelect.querySelector(`option[value="${resolvedFrom}"]`)) fromSelect.appendChild(new Option(resolvedFrom, resolvedFrom));
-        fromSelect.value = resolvedFrom;
-    }
-    if (toSelect && resolvedTo) {
-        if (!toSelect.querySelector(`option[value="${resolvedTo}"]`)) toSelect.appendChild(new Option(resolvedTo, resolvedTo));
-        toSelect.value = resolvedTo;
+    // 3. Sync legacy selects securely if resolved
+    if (resolvedFrom) {
+        fromInput.dataset.resolvedValue = resolvedFrom;
+        if (fromSelect) {
+            if (!fromSelect.querySelector(`option[value="${resolvedFrom}"]`)) fromSelect.appendChild(new Option(resolvedFrom, resolvedFrom));
+            fromSelect.value = resolvedFrom;
+        }
+    } else {
+        if (fromSelect) fromSelect.value = "";
     }
 
+    if (resolvedTo) {
+        toInput.dataset.resolvedValue = resolvedTo;
+        if (toSelect) {
+            if (!toSelect.querySelector(`option[value="${resolvedTo}"]`)) toSelect.appendChild(new Option(resolvedTo, resolvedTo));
+            toSelect.value = resolvedTo;
+        }
+    } else {
+        if (toSelect) toSelect.value = "";
+    }
+
+    const resultsSection = document.getElementById('planner-results-section');
+    const isOnResultsScreen = resultsSection && !resultsSection.classList.contains('hidden');
+
+    // 4. Execution & Dead-End Error Handling
     if (!resolvedFrom || !resolvedTo) {
-        showToast("Cannot resolve stations for swap. Please select from list.", "error");
+        showToast("Stations swapped. Please clarify names.", "warning");
+        if (isOnResultsScreen) {
+            // Bounce the user back to the input screen to fix the ambiguous names
+            window.hidePlannerResults();
+        } else {
+            if (fromSelect) fromSelect.dispatchEvent(new Event('change'));
+            if (fromInput) fromInput.dispatchEvent(new Event('change'));
+        }
         return; 
     }
 
-    // GUARDIAN FIX: Visibility Guard
-    const resultsSection = document.getElementById('planner-results-section');
-    if (resultsSection && !resultsSection.classList.contains('hidden')) {
+    // Successfully resolved both!
+    if (isOnResultsScreen) {
         showToast("Reversing Direction...", "info", 1000);
         if (typeof executeTripPlan === 'function') {
             executeTripPlan(resolvedFrom, resolvedTo, preferredTime);
@@ -1177,7 +1186,7 @@ window.restorePlannerSearch = function(fullFrom, fullTo) {
     }
 };
 
-// GUARDIAN V6.20: Prevents trailing space bugs
+// GUARDIAN V6.20 & V6.04.14: Prevents trailing space bugs & Enables 1-Tap Select List
 function setupAutocomplete(inputId, selectId) {
     const input = document.getElementById(inputId);
     const select = document.getElementById(selectId);
@@ -1237,9 +1246,29 @@ function setupAutocomplete(inputId, selectId) {
         if(select) select.value = ""; 
         renderList(input.value); 
     });
-    input.addEventListener('focus', () => renderList(input.value));
-    chevron.addEventListener('click', (e) => { e.stopPropagation(); list.classList.contains('hidden') ? (renderList(input.value), input.focus()) : list.classList.add('hidden'); });
-    document.addEventListener('click', (e) => { if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) list.classList.add('hidden'); });
+    
+    // GUARDIAN FIX: Unconditionally select text and display full list on focus,
+    // saving the user from having to manually backspace the existing text.
+    input.addEventListener('focus', () => {
+        input.select();
+        renderList('');
+    });
+    
+    chevron.addEventListener('click', (e) => { 
+        e.stopPropagation(); 
+        if (list.classList.contains('hidden')) {
+            renderList('');
+            input.focus();
+        } else {
+            list.classList.add('hidden');
+        }
+    });
+    
+    document.addEventListener('click', (e) => { 
+        if (!input.contains(e.target) && !list.contains(e.target) && !chevron.contains(e.target)) {
+            list.classList.add('hidden');
+        }
+    });
 }
 
 // --- ORCHESTRATION ---

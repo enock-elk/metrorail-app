@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V6.04.12- Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V6.04.13 - Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -512,6 +512,8 @@ async function fetchSpecialEventConfig() {
 // --- DATA FETCHING & PROCESSING ---
 // GUARDIAN PHASE B: EAGER RENDERING PROTOCOL
 async function loadAllSchedules(force = false) {
+    let usedCache = false; // 🛡️ GUARDIAN FIX: Hoisted to prevent ReferenceError in catch block
+    
     try {
         if (!currentRouteId) return; 
         const currentRoute = ROUTES[currentRouteId];
@@ -578,7 +580,6 @@ async function loadAllSchedules(force = false) {
         // Instantly parse IndexedDB and paint the DOM before doing any network checks
         const cacheKey = `full_db_${currentRegion}`;
         const cachedDB = await loadFromLocalCache(cacheKey);
-        let usedCache = false;
 
         if (cachedDB) {
             console.log("🛡️ Guardian Eager Render: Restoring from local cache instantly...");
@@ -687,6 +688,7 @@ async function loadAllSchedules(force = false) {
 
     } catch (error) {
         console.error("Fetch Error:", error);
+        // GUARDIAN FIX: Now safely reads usedCache from outer scope without crashing
         if (!usedCache) {
             if(offlineIndicator) offlineIndicator.style.display = 'flex'; 
             if (typeof renderRouteError === 'function') renderRouteError(error);

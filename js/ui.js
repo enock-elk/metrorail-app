@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.12 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.13 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -17,9 +17,11 @@
  * * PHASE 1 (GUARDIAN ANALYTICS): 'check_updates_click' tracked.
  * * PHASE 2 (GUARDIAN FEEDBACK): In-House Feedback System, Firebase Storage Pipeline, 15s Timeout Race & Modal bindings injected.
  * * GUARDIAN BUGFIX: Separated telemetry tracking for manual vs system cache wipes. Injected proper loading UI for slow DB hydration.
- * * GUARDIAN BUGFIX (V6.04.12): Fixed Pinned Route UI race condition where pin was hollow on app boot despite valid LocalStorage state.
  * * GUARDIAN BUGFIX (V6.04.13): Universal Shared Corridor Text Formatting (Option B String Split) for region-agnostic tags (Modal).
  * * GUARDIAN BUGFIX (V6.04.14): Universal Shared Corridor Text Formatting ported to main Live Board `Renderer.renderJourney`.
+ * * GUARDIAN PHASE 3 (V6.04.15): Region Interceptor Pattern. Injected `handleRegionChange` to prevent dead-ends for unreleased regions, tracking KZN/EC demand.
+ * * GUARDIAN PHASE 4 (V6.04.16): Hybrid Feedback Pipeline. Routes inactive/future traffic to Google Forms. Blocks empty text noise. Enhances Alert Reply Context.
+ * * GUARDIAN V6.05.03: Supercharged Alerts Renderer (Hero Images, CTA Buttons, Interactive Polling). Clarity Unique User identification lock.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -154,6 +156,13 @@ const OfflineTracker = {
     }
 };
 
+// --- 🛡️ GUARDIAN UX: UNIQUE DEVICE IDENTITY (Clarity Sync) ---
+let NEXT_TRAIN_DEVICE_ID = safeStorage.getItem('next_train_device_id');
+if (!NEXT_TRAIN_DEVICE_ID) {
+    NEXT_TRAIN_DEVICE_ID = 'usr_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+    try { safeStorage.setItem('next_train_device_id', NEXT_TRAIN_DEVICE_ID); } catch(e) {}
+}
+
 // --- ANALYTICS HELPER ---
 function trackAnalyticsEvent(eventName, params = {}) {
     params.region = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
@@ -169,11 +178,13 @@ function trackAnalyticsEvent(eventName, params = {}) {
     
     try {
         if (typeof clarity === 'function') {
-            // GUARDIAN PHASE 10: Stop session clobbering. Only set region as a session tag.
+            // GUARDIAN FIX: Force Clarity to identify this device specifically.
+            // This prevents PWA standalone vs Safari vs background-sync from inflating unique user counts!
+            if (NEXT_TRAIN_DEVICE_ID) {
+                clarity("identify", NEXT_TRAIN_DEVICE_ID);
+            }
             clarity("set", "crm_region", params.region);
-            // Send the transient event name.
             clarity("event", eventName);
-            // Removed the params loop that was overwriting global session variables
         }
     } catch (e) { console.warn("[Analytics] Clarity Error:", e); }
 }
@@ -872,12 +883,14 @@ function handleShortcutActions() {
 // GUARDIAN BUGFIX: Properly attribute analytics source for forced system cache wipes
 window.performHardCacheClear = async function(source = 'modal_confirm') {
     triggerHaptic();
-    trackAnalyticsEvent('execute_hard_cache_clear', { location: source });
-    window.closeAppHub(true); 
     
+    // 🛡️ GUARDIAN FIX: Stop spamming analytics! Only fire when manually initiated from UI.
     if (source === 'modal_confirm') {
+        trackAnalyticsEvent('execute_hard_cache_clear', { location: 'sidebar' });
         showToast("Clearing offline data and syncing...", "info", 5000);
     }
+    
+    window.closeAppHub(true); 
     
     const modal = document.getElementById('cache-clear-modal');
     if (modal) {
@@ -1028,6 +1041,43 @@ async function checkMaintenanceStatus() {
     } catch(e) { /* silent fail */ }
 }
 
+// 🛡️ GUARDIAN UX: INTERACTIVE POLL VOTE HANDLER
+window.submitPollVote = function(pollId, optionKey, optionText) {
+    triggerHaptic();
+    
+    // Protect against double voting locally
+    if (safeStorage.getItem('poll_voted_' + pollId)) {
+        showToast("You have already voted on this poll.", "warning");
+        return;
+    }
+
+    // Fire Analytics (Zero Database Writes, purely measured in GA4!)
+    trackAnalyticsEvent('alert_poll_vote', { 
+        poll_id: pollId, 
+        vote_option: optionKey,
+        vote_text: optionText,
+        route_id: currentRouteId || 'global'
+    });
+
+    // Save persistent state
+    try { safeStorage.setItem('poll_voted_' + pollId, optionKey); } catch(e) {}
+
+    // Instantly morph the UI to the "Thank You" state
+    const container = document.getElementById(`poll-container-${pollId}`);
+    if (container) {
+        container.innerHTML = `
+            <div class="text-center animate-fade-in-up">
+                <span class="text-2xl block mb-1">✅</span>
+                <p class="text-xs font-bold text-green-800 dark:text-green-300">Thanks for voting!</p>
+                <p class="text-[10px] text-green-600 dark:text-green-500 mt-0.5">Your response has been recorded.</p>
+            </div>
+        `;
+        container.className = "mt-4 bg-green-50 dark:bg-green-900/20 p-3 rounded-xl border border-green-200 dark:border-green-800 shadow-inner transition-all";
+    }
+
+    showToast("Vote recorded successfully!", "success");
+};
+
 async function checkServiceAlerts() {
     const bellBtn = document.getElementById('notice-bell');
     const dot = document.getElementById('notice-dot');
@@ -1079,15 +1129,65 @@ async function checkServiceAlerts() {
         // GUARDIAN Phase 2: Content Binder (With URL Parsing & Dynamic Feedback Button)
         const bindModalContent = () => {
             if (!content || !modal) return;
-            // URL Parser Regex Injection
-            let formattedMsg = activeNotice.message.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" class="text-blue-500 dark:text-blue-400 underline underline-offset-2" target="_blank">$1</a>');
-            content.innerHTML = formattedMsg;
             
+            // Basic text parsing
+            let formattedMsg = activeNotice.message.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" class="text-blue-500 dark:text-blue-400 underline underline-offset-2" target="_blank">$1</a>');
+            
+            // 🛡️ SUPERCHARGED ALERTS: Rich Media Injection (Images & CTA Buttons)
+            let mediaHtml = '';
+            
+            if (activeNotice.imageUrl) {
+                mediaHtml += `<img src="${escapeHTML(activeNotice.imageUrl)}" class="w-full h-auto max-h-48 object-cover rounded-lg mb-3 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image" onerror="this.style.display='none'">`;
+            }
+
+            // Put image on top, then text
+            content.innerHTML = mediaHtml + formattedMsg;
+            
+            // CTA Button Injection
+            if (activeNotice.ctaUrl && activeNotice.ctaText) {
+                content.innerHTML += `
+                    <a href="${escapeHTML(activeNotice.ctaUrl)}" target="_blank" class="mt-4 flex items-center justify-center w-full bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 font-bold py-2.5 px-4 rounded-lg transition-colors text-xs uppercase tracking-wide border border-blue-200 dark:border-blue-800 shadow-sm focus:outline-none">
+                        ${escapeHTML(activeNotice.ctaText)}
+                        <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    </a>
+                `;
+            }
+
+            // 🛡️ SUPERCHARGED ALERTS: Interactive Polling Engine
+            if (activeNotice.poll && activeNotice.poll.active) {
+                const pollId = activeNotice.id;
+                const votedOption = safeStorage.getItem('poll_voted_' + pollId);
+
+                let pollHtml = '';
+                if (votedOption) {
+                    pollHtml = `
+                        <div class="mt-4 bg-green-50 dark:bg-green-900/20 p-3 rounded-xl border border-green-200 dark:border-green-800 text-center shadow-inner">
+                            <span class="text-xl block mb-1">✅</span>
+                            <p class="text-xs font-bold text-green-800 dark:text-green-300">Thanks for voting!</p>
+                            <p class="text-[10px] text-green-600 dark:text-green-500 mt-0.5">Your response has been recorded.</p>
+                        </div>
+                    `;
+                } else {
+                    pollHtml = `
+                        <div id="poll-container-${pollId}" class="mt-4 bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-200 dark:border-purple-800 shadow-sm">
+                            <p class="text-sm font-black text-purple-900 dark:text-purple-100 mb-3 leading-tight text-center">${escapeHTML(activeNotice.poll.question)}</p>
+                            <div class="flex space-x-3">
+                                <button onclick="submitPollVote('${pollId}', 'A', '${escapeHTML(activeNotice.poll.optionA)}')" class="flex-1 bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 text-purple-700 dark:text-purple-300 font-bold py-2.5 rounded-lg transition-all transform hover:scale-105 text-xs focus:outline-none shadow-sm">${escapeHTML(activeNotice.poll.optionA)}</button>
+                                <button onclick="submitPollVote('${pollId}', 'B', '${escapeHTML(activeNotice.poll.optionB)}')" class="flex-1 bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 text-purple-700 dark:text-purple-300 font-bold py-2.5 rounded-lg transition-all transform hover:scale-105 text-xs focus:outline-none shadow-sm">${escapeHTML(activeNotice.poll.optionB)}</button>
+                            </div>
+                        </div>
+                    `;
+                }
+                content.innerHTML += pollHtml;
+            }
+            
+            // Append Severity Tags below everything
             if (severity === 'critical') {
                 content.innerHTML += `<div class="mt-3 text-xs text-red-600 font-bold border border-red-200 bg-red-50 dark:bg-red-900/30 dark:border-red-800 p-2 rounded text-center">🔴 CRITICAL SERVICE DISRUPTION</div>`;
             } else if (severity === 'warning') {
                 content.innerHTML += `<div class="mt-3 text-xs text-yellow-700 font-bold border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-400 p-2 rounded text-center">🟡 SERVICE WARNING</div>`;
             }
+            
             const date = new Date(activeNotice.postedAt);
             if (timestamp) timestamp.textContent = `Posted: ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, ${date.toLocaleDateString()}`;
 
@@ -1111,13 +1211,24 @@ async function checkServiceAlerts() {
                 const newReplyBtn = document.createElement('button');
                 newReplyBtn.className = `flex-1 ${baseColorClass} text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center`;
                 newReplyBtn.innerHTML = `<span class="mr-1.5">💬</span> Reply`;
+                
+                // 🛡️ GUARDIAN PHASE 4: Contextual Alert Reply formatting
                 newReplyBtn.onclick = () => {
                     triggerHaptic();
+                    
+                    // Strip HTML completely so the admin input box isn't polluted
+                    let cleanMsgText = activeNotice.message.replace(/<[^>]*>?/gm, '');
+                    // Strip the signature if it exists (everything after the em dash)
+                    cleanMsgText = cleanMsgText.replace(/—.*/, '').trim();
+                    
+                    // Truncate to a digestible context length
+                    let truncatedMsg = cleanMsgText;
+                    if (truncatedMsg.length > 35) truncatedMsg = truncatedMsg.substring(0, 35) + '...';
                     
                     // Pre-fill the modal
                     const fText = document.getElementById('feedback-text');
                     const fType = document.getElementById('feedback-type');
-                    if (fText) fText.value = `Replying to Alert [${activeNotice.id}]:\n`;
+                    if (fText) fText.value = `Replying to Alert: "${truncatedMsg}"\n\n`;
                     if (fType) fType.value = 'general';
                     
                     closeNotice();
@@ -1295,7 +1406,7 @@ window.addEventListener('popstate', (event) => {
         'profile-modal', 'notice-modal', 'cache-clear-modal', 'fare-modal', 
         'schedule-modal', 'full-schedule-modal', 'map-modal', 'trip-map-modal', 
         'redirect-modal', 'welcome-modal', 'changelog-modal', 'region-confirm-modal',
-        'route-modal', 'install-modal', 'feedback-modal' // GUARDIAN: Added feedback-modal
+        'route-modal', 'install-modal', 'feedback-modal', 'region-soon-modal' // GUARDIAN: Added 'region-soon-modal'
     ];
     
     modalIds.forEach(id => {
@@ -1306,7 +1417,7 @@ window.addEventListener('popstate', (event) => {
     });
 
     if (activeModals.length > 0) {
-        const topTier = ['pin-modal', 'dev-modal', 'notice-modal', 'cache-clear-modal', 'fare-modal', 'about-modal', 'help-modal', 'legal-modal', 'profile-modal', 'changelog-modal', 'region-confirm-modal', 'route-modal', 'install-modal', 'feedback-modal'];
+        const topTier = ['pin-modal', 'dev-modal', 'notice-modal', 'cache-clear-modal', 'fare-modal', 'about-modal', 'help-modal', 'legal-modal', 'profile-modal', 'changelog-modal', 'region-confirm-modal', 'route-modal', 'install-modal', 'feedback-modal', 'region-soon-modal']; // GUARDIAN: Added 'region-soon-modal'
         const midTier = ['schedule-modal', 'full-schedule-modal', 'redirect-modal', 'welcome-modal', 'trip-map-modal']; 
         const baseTier = ['map-modal'];
 
@@ -1585,7 +1696,9 @@ window.openScheduleModal = function(destination, dayOverride = null) {
         `;
         if (modalList) modalList.appendChild(div);
     });
-    openSmoothModal('schedule-modal');
+    
+    // GUARDIAN BUGFIX: Call the smooth modal engine to prevent dead-ends
+    openScheduleModal('schedule-modal');
     
     if (!dayOverride) { setTimeout(() => { const target = document.getElementById('next-train-marker'); if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' }); }, 10); } 
     else { const container = document.getElementById('modal-list'); if(container) container.scrollTop = 0; }
@@ -1597,6 +1710,26 @@ function setupFeedbackLogic() {
         feedbackBtn.addEventListener('click', (e) => { 
             e.preventDefault(); 
             triggerHaptic();
+            
+            // 🛡️ GUARDIAN PHASE 4: THE HYBRID FEEDBACK INTERCEPTOR
+            // If the route is inactive (coming soon), OR if we are caught in the KZN/EC region trap,
+            // we bypass the in-house modal entirely and route to Google Forms (to protect Firebase Storage limits).
+            const currentRoute = typeof currentRouteId !== 'undefined' && currentRouteId ? ROUTES[currentRouteId] : null;
+            const isInactiveRoute = currentRoute && !currentRoute.isActive;
+            
+            if (isInactiveRoute || window.lastClickedFutureRegion) {
+                trackAnalyticsEvent('open_google_form_feedback', { 
+                    location: 'feedback_interceptor',
+                    region: window.lastClickedFutureRegion || currentRegion
+                });
+                
+                // Directly launch the massive Crowdsource Form for heavy files
+                window.open('https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform', '_blank');
+                window.lastClickedFutureRegion = null; // Clear the trap state safely
+                return;
+            }
+
+            // Normal In-House Text-Feedback Modal for active regions/routes
             trackAnalyticsEvent('open_feedback_modal', { location: 'app_footer' });
             history.pushState({ modal: 'feedback' }, '', '#feedback');
             openSmoothModal('feedback-modal'); 
@@ -1652,14 +1785,15 @@ async function submitFeedback() {
     const submitText = document.getElementById('feedback-submit-text');
     const spinner = document.getElementById('feedback-spinner');
 
+    // 🛡️ GUARDIAN PHASE 4: Strict Empty Noise Blocker
+    if (!text || text.length < 5) {
+        showToast("Please provide more details (at least 5 characters).", "error");
+        return;
+    }
+
     // GUARDIAN PHASE 2: Analytics event for the feedback submission click
     const hasFile = !!(fileInput && fileInput.files && fileInput.files.length > 0);
     trackAnalyticsEvent('click_submit_feedback_btn', { feedback_type: type, has_attachment: hasFile });
-
-    if (!text) {
-        showToast("Please enter your feedback details.", "error");
-        return;
-    }
 
     triggerHaptic();
     submitBtn.disabled = true;
@@ -1732,6 +1866,7 @@ async function submitFeedback() {
             text: text,
             email: email,
             attachmentUrl: attachmentUrl,
+            status: "unread", // GUARDIAN: Sets the unread flag for admin sync
             appVersion: typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown',
             routeId: typeof currentRouteId !== 'undefined' ? currentRouteId : 'none',
             region: typeof currentRegion !== 'undefined' ? currentRegion : 'GP',
@@ -1810,7 +1945,6 @@ function setupFeatureButtons() {
     const welcomeThemeText = document.getElementById('welcome-theme-text');
     
     const settingsThemeCheckbox = document.getElementById('settings-theme-checkbox');
-    const settingsThemeEmoji = document.getElementById('settings-theme-emoji');
     const settingsThemeTextEl = document.getElementById('settings-theme-text');
 
     const applyTheme = (isDark) => {
@@ -1822,7 +1956,6 @@ function setupFeatureButtons() {
             if(welcomeThemeText) welcomeThemeText.textContent = "Dark Mode";
 
             if(settingsThemeCheckbox) settingsThemeCheckbox.checked = true;
-            if(settingsThemeEmoji) settingsThemeEmoji.textContent = "🌙";
             if(settingsThemeTextEl) settingsThemeTextEl.textContent = "Currently On";
         } else {
             document.documentElement.classList.remove('dark');
@@ -1832,7 +1965,6 @@ function setupFeatureButtons() {
             if(welcomeThemeText) welcomeThemeText.textContent = "Light Mode";
 
             if(settingsThemeCheckbox) settingsThemeCheckbox.checked = false;
-            if(settingsThemeEmoji) settingsThemeEmoji.textContent = "☀️";
             if(settingsThemeTextEl) settingsThemeTextEl.textContent = "Currently Off";
         }
     };
@@ -1989,77 +2121,114 @@ function setupFeatureButtons() {
     }
 }
 
-function setupSettingsHub() {
-    const regionGP = document.getElementById('settings-region-gp');
-    const regionWC = document.getElementById('settings-region-wc');
-    const regionSlider = document.getElementById('region-slider'); 
+// --- GUARDIAN PHASE 3: THE REGION INTERCEPTOR ---
+window.lastClickedFutureRegion = null;
+
+window.handleRegionChange = function(newRegion, selectElement) {
+    triggerHaptic();
     
-    const updateRegionUI = () => {
-        if (!regionGP || !regionWC) return;
-        if (currentRegion === 'GP') {
-            regionGP.className = 'relative z-10 flex-1 py-1.5 text-center text-xs font-bold text-gray-900 dark:text-white transition-colors focus:outline-none';
-            regionWC.className = 'relative z-10 flex-1 py-1.5 text-center text-xs font-bold text-gray-500 dark:text-gray-400 transition-colors focus:outline-none cursor-pointer';
-            if (regionSlider) regionSlider.classList.remove('translate-x-full');
+    if (newRegion === currentRegion) return;
+
+    // 1. THE INTERCEPTOR: Trap KZN and EC safely to prevent blank screens
+    if (newRegion === 'KZN' || newRegion === 'EC') {
+        window.lastClickedFutureRegion = newRegion;
+        
+        // Forcefully revert the dropdown so the UI state remains pristine
+        if (selectElement) selectElement.value = currentRegion;
+
+        // Telemetry: Capture the precise demand heatmap for expansion
+        trackAnalyticsEvent('select_future_region', { region: newRegion });
+
+        const titleEl = document.getElementById('region-soon-title');
+        const descEl = document.getElementById('region-soon-desc');
+        const regionName = newRegion === 'KZN' ? 'KwaZulu-Natal' : 'Eastern Cape';
+        
+        if (titleEl) titleEl.textContent = `${newRegion} is Next!`;
+        if (descEl) descEl.textContent = `We are currently mapping out the corridors for ${regionName}. We need your help to launch faster!`;
+
+        history.pushState({ modal: 'region-soon' }, '', '#regionsoon');
+        openSmoothModal('region-soon-modal');
+        window.closeAppHub(true);
+
+        return; // HALT EXECUTION (Prevents app crash/reload)
+    }
+
+    // 2. ACTIVE REGION SWITCHING (GP / WC)
+    // We revert the select visually first, waiting for the strict Confirm Modal to handle the actual write
+    if (selectElement) selectElement.value = currentRegion;
+
+    if (!navigator.onLine) {
+        const cacheKey = `full_db_${newRegion}`;
+        const cachedData = safeStorage.getItem(cacheKey);
+        if (!cachedData) {
+            const name = newRegion === 'GP' ? 'Gauteng' : 'Western Cape';
+            showToast(`Internet required to download ${name} schedules for the first time.`, "error", 4000);
+            return;
+        }
+    }
+
+    const confirmModal = document.getElementById('region-confirm-modal');
+    const title = document.getElementById('region-confirm-title');
+    const desc = document.getElementById('region-confirm-desc');
+    const actionBtn = document.getElementById('region-confirm-action-btn');
+    const cancelBtn = document.getElementById('region-cancel-btn');
+
+    if (confirmModal) {
+        history.pushState({ modal: 'region-confirm' }, '', '#regionconfirm');
+        const name = newRegion === 'GP' ? 'Gauteng' : 'Western Cape';
+        if (title) title.textContent = `Switch Region?`;
+        if (desc) desc.textContent = `Are you sure you want to switch to ${name}?`;
+        openSmoothModal('region-confirm-modal');
+        window.closeAppHub(true);
+
+        const cleanup = () => {
+            if (actionBtn) actionBtn.removeEventListener('click', confirmAction);
+            if (cancelBtn) cancelBtn.removeEventListener('click', cancelAction);
+        };
+
+        const confirmAction = () => {
+            triggerHaptic();
+            safeStorage.setItem('userRegion', newRegion);
+            window.location.reload();
+        };
+
+        const cancelAction = () => {
+            if (location.hash === '#regionconfirm') history.back();
+            else closeSmoothModal('region-confirm-modal');
+            cleanup();
+        };
+
+        if (actionBtn) actionBtn.addEventListener('click', confirmAction);
+        if (cancelBtn) cancelBtn.addEventListener('click', cancelAction);
+    }
+};
+
+window.voteForRegion = function() {
+    triggerHaptic();
+    if (window.lastClickedFutureRegion) {
+        const storageKey = 'voted_' + window.lastClickedFutureRegion;
+        let hasVoted = false;
+        try { hasVoted = safeStorage.getItem(storageKey); } catch(e) {}
+        
+        // 🛡️ GUARDIAN PHASE 4: Anti-Spam Polling Check
+        if (hasVoted) {
+            showToast("You've already voted for this region!", "info");
         } else {
-            regionWC.className = 'relative z-10 flex-1 py-1.5 text-center text-xs font-bold text-gray-900 dark:text-white transition-colors focus:outline-none';
-            regionGP.className = 'relative z-10 flex-1 py-1.5 text-center text-xs font-bold text-gray-500 dark:text-gray-400 transition-colors focus:outline-none cursor-pointer';
-            if (regionSlider) regionSlider.classList.add('translate-x-full');
+            trackAnalyticsEvent('vote_future_region', { region: window.lastClickedFutureRegion });
+            try { safeStorage.setItem(storageKey, 'true'); } catch(e) {}
+            showToast("Thanks for voting! We've logged your request.", "success");
         }
-    };
+    } else {
+        // Fallback catch if global variable is empty
+        showToast("Thanks for voting!", "success");
+    }
     
-    updateRegionUI();
+    if (location.hash === '#regionsoon') history.back();
+    else closeSmoothModal('region-soon-modal');
+};
 
-    const handleRegionSwitchClick = (newRegion, name) => {
-        triggerHaptic();
-        if (currentRegion === newRegion) return;
-
-        if (!navigator.onLine) {
-            const cacheKey = `full_db_${newRegion}`;
-            const cachedData = safeStorage.getItem(cacheKey);
-            if (!cachedData) {
-                showToast(`Internet required to download ${name} schedules for the first time.`, "error", 4000);
-                return;
-            }
-        }
-
-        const confirmModal = document.getElementById('region-confirm-modal');
-        const title = document.getElementById('region-confirm-title');
-        const desc = document.getElementById('region-confirm-desc');
-        const actionBtn = document.getElementById('region-confirm-action-btn');
-        const cancelBtn = document.getElementById('region-cancel-btn');
-
-        if (confirmModal) {
-            history.pushState({ modal: 'region-confirm' }, '', '#regionconfirm');
-            if (title) title.textContent = `Switch Region?`;
-            if (desc) desc.textContent = `Are you sure you want to switch to ${name}?`;
-            openSmoothModal('region-confirm-modal');
-            window.closeAppHub(true);
-
-            const cleanup = () => {
-                if (actionBtn) actionBtn.removeEventListener('click', confirmAction);
-                if (cancelBtn) cancelBtn.removeEventListener('click', cancelAction);
-            };
-
-            const confirmAction = () => {
-                triggerHaptic();
-                safeStorage.setItem('userRegion', newRegion);
-                window.location.reload();
-            };
-
-            const cancelAction = () => {
-                if (location.hash === '#regionconfirm') history.back();
-                else closeSmoothModal('region-confirm-modal');
-                cleanup();
-            };
-
-            if (actionBtn) actionBtn.addEventListener('click', confirmAction);
-            if (cancelBtn) cancelBtn.addEventListener('click', cancelAction);
-        }
-    };
-
-    if (regionGP) regionGP.addEventListener('click', () => handleRegionSwitchClick('GP', 'Gauteng'));
-    if (regionWC) regionWC.addEventListener('click', () => handleRegionSwitchClick('WC', 'Western Cape'));
-    
+function setupSettingsHub() {
+    // GUARDIAN FIX: Removed legacy pill-toggle bindings, cleanly mapping basic buttons
     const helpBtn = document.getElementById('settings-help-btn');
     const aboutBtn = document.getElementById('settings-about-btn');
     const helpModal = document.getElementById('help-modal');
@@ -2438,6 +2607,14 @@ function updateNextTrainView() {
     const fareBox = document.getElementById('fare-container');
     const container = fareBox ? fareBox.parentNode : null;
     if (!container) return;
+
+    // GUARDIAN Phase B: Inactive Route Grid Guard
+    const currentRoute = ROUTES[currentRouteId];
+    if (!currentRoute || !currentRoute.isActive) {
+        const gridTrigger = document.getElementById('grid-trigger-container');
+        if (gridTrigger) gridTrigger.classList.add('hidden');
+        return;
+    }
 
     if (!document.getElementById('grid-trigger-container')) {
         const triggerDiv = document.createElement('div');

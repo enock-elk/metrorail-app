@@ -1,19 +1,21 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.12 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.13 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
- * 1. Service Alerts Manager (Tiered & Regional - Restored)
+ * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting)
  * 2. Maintenance Mode Toggle
  * 3. Enterprise Login Logic & Token Mgmt (Phase 9)
  * 4. Simulation Controls
- * 5. Exceptions Manager (Deep Scan + Banned/Special Types + EXPIRY)
+ * 5. Exceptions Manager (God-Mode + Banned/Special Types + EXPIRY)
  * 6. Special Event Route Manager
  * 7. System Health / Diagnostics Scanner (Phase 2 - New)
  * 8. Nuclear Cache Wipe (Killswitch - New)
  * 9. Live Telemetry Bridge (Cloudflare Path B - New)
- * 10. User Feedback Manager (In-House Pipeline)
+ * 10. User Feedback Manager (Archive Protocol & Unread Badge Sync)
  * * * GUARDIAN PHASE 12: Added SPL (Special) tagging to exclusions manager and live sync timestamps.
  * * * GUARDIAN PHASE C: Replaced all PWA-crashing native prompt/confirms with Async Secure Modals.
+ * * * GUARDIAN V6.05: God-Mode Optgroup Injection & Rich-Text Alert Formatting Toolbars.
+ * * * GUARDIAN V6.05.02: Supercharged Alerts (Hero Images, CTA Buttons & Interactive Poll Manager).
  */
 
 const Admin = {
@@ -225,11 +227,17 @@ const Admin = {
                     `;
                     document.getElementById('admin-signout-btn').addEventListener('click', () => {
                         window.firebaseSignOut(window.firebaseAuth).then(() => {
-                            showToast("Signed out successfully.", "success");
-                            closeSmoothModal('dev-modal');
+                            if (typeof showToast === 'function') showToast("Signed out successfully.", "success");
+                            if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
                         });
                     });
                 }
+
+                // Check unread feedback gracefully on login
+                if (Admin.checkUnreadFeedback) {
+                    Admin.checkUnreadFeedback();
+                }
+
             } else {
                 console.log("🛡️ Guardian: Admin Logged Out. Analytics restored.");
                 localStorage.removeItem('analytics_ignore');
@@ -276,7 +284,7 @@ const Admin = {
                         Admin.renderAdminModules(); 
                         Admin.initAutoSim(); 
                     }
-                    showToast("Developer Session Active", "info");
+                    if (typeof showToast === 'function') showToast("Developer Session Active", "info");
                 } else {
                     if (loginModal) {
                         loginModal.classList.remove('hidden');
@@ -301,7 +309,7 @@ const Admin = {
                 const password = passInput.value;
 
                 if (!email || !password) {
-                    showToast("Enter email and password", "error");
+                    if (typeof showToast === 'function') showToast("Enter email and password", "error");
                     return;
                 }
 
@@ -317,10 +325,10 @@ const Admin = {
                             Admin.renderAdminModules();
                             Admin.initAutoSim(); 
                         }
-                        showToast(`Welcome back!`, "success");
+                        if (typeof showToast === 'function') showToast(`Welcome back!`, "success");
                     })
                     .catch((error) => {
-                        showToast("Authentication Failed", "error");
+                        if (typeof showToast === 'function') showToast("Authentication Failed", "error");
                         console.error("🛡️ Guardian Login Error:", error);
                     })
                     .finally(() => {
@@ -432,9 +440,9 @@ const Admin = {
                     if (dateInput && dateInput.value) {
                         const d = new Date(dateInput.value);
                         window.simDayIndex = d.getDay(); 
-                        showToast(`Simulating specific date: ${dateInput.value}`, "info");
+                        if (typeof showToast === 'function') showToast(`Simulating specific date: ${dateInput.value}`, "info");
                     } else {
-                        showToast("Please select a valid date.", "error");
+                        if (typeof showToast === 'function') showToast("Please select a valid date.", "error");
                         return;
                     }
                 } else if (dayDropdown) {
@@ -444,11 +452,11 @@ const Admin = {
                 }
 
                 if (window.isSimMode && !simTimeInput.value) { 
-                    showToast("Please enter a time first!", "error"); 
+                    if (typeof showToast === 'function') showToast("Please enter a time first!", "error"); 
                     return; 
                 }
                 
-                showToast(window.isSimMode ? "Dev Simulation Active!" : "Real-time Mode Active", "success");
+                if (typeof showToast === 'function') showToast(window.isSimMode ? "Dev Simulation Active!" : "Real-time Mode Active", "success");
                 if(devModal) devModal.classList.add('hidden');
                 
                 if (typeof updateTime === 'function') updateTime(); 
@@ -465,7 +473,7 @@ const Admin = {
                 if(dateContainer) dateContainer.classList.add('hidden');
                 if(dateInput) dateInput.value = '';
                 if(devModal) devModal.classList.add('hidden');
-                showToast("Exited Developer Mode", "info");
+                if (typeof showToast === 'function') showToast("Exited Developer Mode", "info");
                 if (typeof updateTime === 'function') updateTime(); 
                 if (typeof findNextTrains === 'function') findNextTrains();
             });
@@ -475,7 +483,7 @@ const Admin = {
     // --- HELPER: RENDER ALL DYNAMIC MODULES ---
     renderAdminModules: () => {
         Admin.setupTelemetry();
-        Admin.setupFeedbackManager(); // NEW: In-House Feedback Hub
+        Admin.setupFeedbackManager(); // IN-HOUSE FEEDBACK
         Admin.setupServiceAlertsManager();
         Admin.setupExclusionManager();
         Admin.setupMaintenanceManager();
@@ -484,7 +492,47 @@ const Admin = {
         Admin.setupNuclearManager(); 
     },
 
-    // --- 3.5 FEEDBACK MANAGER (NEW: IN-HOUSE PIPELINE) ---
+    // --- GUARDIAN UX: UNREAD FEEDBACK BADGE CHECKER ---
+    checkUnreadFeedback: async () => {
+        const secret = await Admin.getAuthKey();
+        if (!secret) return;
+
+        try {
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            // We do a shallow query to avoid heavy bandwidth just for a badge count
+            const res = await fetch(`${dynamicEndpoint}feedback.json?auth=${secret}&shallow=true`);
+            if (!res.ok) return;
+            
+            const data = await res.json();
+            if (!data) return;
+
+            // Since it's shallow, we only get keys. We must fetch the full node if there are keys.
+            // Better approach: fetch everything, filter locally. (Safe for Spark tier at this scale).
+            const fullRes = await fetch(`${dynamicEndpoint}feedback.json?auth=${secret}`);
+            const fullData = await fullRes.json();
+            
+            let unreadCount = 0;
+            if (fullData) {
+                Object.values(fullData).forEach(item => {
+                    if (item.status !== 'resolved') unreadCount++;
+                });
+            }
+
+            const badge = document.getElementById('fb-unread-badge');
+            if (badge) {
+                if (unreadCount > 0) {
+                    badge.textContent = `${unreadCount} New`;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
+        } catch (e) {
+            console.warn("🛡️ Could not sync unread feedback count.");
+        }
+    },
+
+    // --- 3.5 FEEDBACK MANAGER (NEW: IN-HOUSE PIPELINE w/ ARCHIVE) ---
     setupFeedbackManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         // Ensure we find the simulation panel to inject feedback above/below cleanly
@@ -505,7 +553,10 @@ const Admin = {
 
         fbPanel.innerHTML = `
             <button id="fb-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center"><span class="mr-2">💬</span> Commuter Feedback</span>
+                <span class="flex items-center">
+                    <span class="mr-2">💬</span> Commuter Feedback
+                    <span id="fb-unread-badge" class="hidden bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full ml-2 shadow-sm font-black tracking-normal animate-pulse">New</span>
+                </span>
                 <svg id="fb-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             
@@ -517,7 +568,7 @@ const Admin = {
                     </button>
                 </div>
                 
-                <div id="fb-list" class="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar"></div>
+                <div id="fb-list" class="space-y-3 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar"></div>
             </div>
         `;
 
@@ -561,16 +612,35 @@ const Admin = {
                 if (!data) {
                     listContainer.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Inbox is completely clean! ✨</div>';
                     countDisplay.textContent = "Inbox: 0";
+                    const badge = document.getElementById('fb-unread-badge');
+                    if (badge) badge.classList.add('hidden');
                     return;
                 }
 
-                // Convert object to array and sort newest first
+                // Convert object to array, filter out archived/resolved, and sort newest first
                 const feedbackArray = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-                feedbackArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                const activeFeedback = feedbackArray.filter(f => f.status !== 'resolved');
+                activeFeedback.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
-                countDisplay.textContent = `Inbox: ${feedbackArray.length}`;
+                countDisplay.textContent = `Inbox: ${activeFeedback.length}`;
 
-                feedbackArray.forEach(item => {
+                // Sync Unread Badge
+                const badge = document.getElementById('fb-unread-badge');
+                if (badge) {
+                    if (activeFeedback.length > 0) {
+                        badge.textContent = `${activeFeedback.length} New`;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+
+                if (activeFeedback.length === 0) {
+                    listContainer.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">All feedback has been resolved! 🎉</div>';
+                    return;
+                }
+
+                activeFeedback.forEach(item => {
                     const date = new Date(item.timestamp || Date.now());
                     const dateStr = `${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
                     
@@ -590,14 +660,14 @@ const Admin = {
                     const safeText = item.text ? item.text.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>") : "No content";
 
                     const card = document.createElement('div');
-                    card.className = "bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col";
+                    card.className = "bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col transition-all hover:border-gray-300 dark:hover:border-gray-500";
                     card.innerHTML = `
                         <div class="flex justify-between items-start mb-2">
                             <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border ${badgeClass}">${typeLabel}</span>
                             <span class="text-[9px] text-gray-400 dark:text-gray-500 font-mono">${dateStr}</span>
                         </div>
                         
-                        <p class="text-xs text-gray-700 dark:text-gray-200 mb-3 leading-relaxed">${safeText}</p>
+                        <p class="text-xs text-gray-700 dark:text-gray-200 mb-3 leading-relaxed whitespace-pre-wrap">${safeText}</p>
                         
                         <div class="flex justify-between items-end border-t border-gray-200 dark:border-gray-800 pt-2 mt-auto">
                             <div class="flex flex-col">
@@ -621,6 +691,7 @@ const Admin = {
             }
         };
 
+        // GUARDIAN: The Archive Protocol (Moves to resolved state instead of deleting)
         Admin.resolveFeedback = async (id) => {
             const confirmed = await Admin.secureConfirm("Resolve Feedback", "Mark this feedback as resolved and archive it?");
             if (!confirmed) return;
@@ -631,24 +702,62 @@ const Admin = {
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 
-                // Delete from active queue
+                // PATCH the status instead of DELETE
+                const payload = { status: 'resolved', resolvedAt: Date.now() };
                 const res = await fetch(`${dynamicEndpoint}feedback/${id}.json?auth=${secret}`, {
-                    method: 'DELETE'
+                    method: 'PATCH',
+                    body: JSON.stringify(payload)
                 });
 
                 if (res.ok) {
-                    if (typeof showToast === 'function') showToast("Feedback resolved!", "success");
+                    if (typeof showToast === 'function') showToast("Feedback resolved and archived!", "success");
                     Admin.fetchFeedback(); // Refresh list
                 } else {
-                    throw new Error("Failed to delete");
+                    throw new Error("Failed to archive feedback");
                 }
             } catch (e) {
                 if (typeof showToast === 'function') showToast("Error resolving feedback.", "error");
             }
         };
+        
+        // Initial Badge Check on Load
+        Admin.checkUnreadFeedback();
     },
 
-    // --- 4. SERVICE ALERTS MANAGER (GUARDIAN CARD STYLE + REGION SYNC) ---
+    // --- RICH TEXT FORMATTING HELPER ---
+    formatAlertText: (tag) => {
+        const textarea = document.getElementById('alert-msg');
+        if (!textarea) return;
+        
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = textarea.value;
+        let prefix = '', suffix = '';
+        
+        if (tag === 'bold') { 
+            prefix = '*'; suffix = '*'; 
+        } else if (tag === 'italic') { 
+            prefix = '<i>'; suffix = '</i>'; 
+        } else if (tag === 'link') { 
+            prefix = '<a href="https://example.com" target="_blank" class="text-blue-500 dark:text-blue-400 underline underline-offset-2">'; suffix = '</a>'; 
+        } else if (tag === 'image') {
+            prefix = '<img src="https://example.com/image.jpg" class="w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image">'; suffix = '';
+        }
+
+        textarea.value = text.substring(0, start) + prefix + text.substring(start, end) + suffix + text.substring(end);
+        textarea.focus();
+        
+        // Put cursor inside the tags if nothing was selected
+        if (start === end && suffix) {
+            textarea.selectionStart = start + prefix.length;
+            textarea.selectionEnd = end + prefix.length;
+        } else {
+            textarea.selectionStart = end + prefix.length + suffix.length;
+            textarea.selectionEnd = end + prefix.length + suffix.length;
+        }
+    },
+
+    // --- 4. SERVICE ALERTS MANAGER (SUPERCHARGED EDITION: Rich Media & Polling) ---
     setupServiceAlertsManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel) return;
@@ -660,7 +769,7 @@ const Admin = {
         // Apply Guardian Card Classes to the container
         alertPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
-        // GUARDIAN Phase 10: Injected Privacy Sign-off & Force Popup controls
+        // GUARDIAN Phase 10: God-Mode Selects, Formatting Toolbar, Image URLs, CTA Buttons, and Interactive Polling
         alertPanel.innerHTML = `
             <button id="alert-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
                 <span class="flex items-center"><span class="mr-2">📢</span> Service Alerts Manager</span>
@@ -670,17 +779,10 @@ const Admin = {
             <div id="alert-body" class="hidden mt-4 space-y-4">
                 
                 <div>
-                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Region</label>
-                    <select id="alert-region" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
-                        <option value="GP">Gauteng</option>
-                        <option value="WC">Western Cape</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Route</label>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Audience (God-Mode)</label>
                     <select id="alert-target" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
-                        </select>
+                        <!-- Populated dynamically with optgroups -->
+                    </select>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
@@ -711,7 +813,61 @@ const Admin = {
 
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Message</label>
-                    <textarea id="alert-msg" rows="3" class="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="e.g. Delays of 45min due to cable theft..."></textarea>
+                    <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
+                        <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 p-1 border-b border-gray-300 dark:border-gray-600">
+                            <button type="button" onclick="Admin.formatAlertText('bold')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Bold">B</button>
+                            <button type="button" onclick="Admin.formatAlertText('italic')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Italic">I</button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
+                            <button type="button" onclick="Admin.formatAlertText('link')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Add Custom Link">🔗 Link</button>
+                            <button type="button" onclick="Admin.formatAlertText('image')" class="px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Insert Image via HTML tag">📸 Img Tag</button>
+                        </div>
+                        <textarea id="alert-msg" rows="6" class="w-full p-3 bg-gray-50 dark:bg-gray-900 border-0 text-gray-900 dark:text-white text-xs focus:ring-0 outline-none resize-y" placeholder="e.g. Delays of 45min due to cable theft..."></textarea>
+                    </div>
+                </div>
+
+                <!-- 🛡️ SUPERCHARGED: Rich Media Inputs -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    <div class="sm:col-span-2">
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Hero Image URL (Optional)</label>
+                        <input type="text" id="alert-image-url" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">CTA Button Text</label>
+                        <input type="text" id="alert-cta-text" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="e.g. Read PRASA Statement">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">CTA Button Link</label>
+                        <input type="text" id="alert-cta-url" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                    </div>
+                </div>
+
+                <!-- 🛡️ SUPERCHARGED: Interactive Poll Manager -->
+                <div class="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 p-3 rounded-xl border border-purple-200 dark:border-purple-800 mt-2">
+                    <div>
+                        <span class="font-bold text-purple-800 dark:text-purple-200 text-sm">Interactive Poll Mode</span>
+                        <p class="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5">Add commuter voting buttons</p>
+                    </div>
+                    <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" id="alert-poll-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
+                        <label for="alert-poll-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                    </div>
+                </div>
+
+                <div id="alert-poll-container" class="hidden space-y-3 bg-purple-50/50 dark:bg-purple-900/10 p-4 rounded-xl border border-purple-100 dark:border-purple-800/50 mt-2">
+                    <div>
+                        <label class="block text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Poll Question</label>
+                        <input type="text" id="alert-poll-question" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-900 border border-purple-200 dark:border-purple-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-purple-500 outline-none" placeholder="e.g. Would you use a Dark Mode feature?">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Option A</label>
+                            <input type="text" id="alert-poll-opt-a" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-900 border border-purple-200 dark:border-purple-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-purple-500 outline-none" placeholder="e.g. Yes">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Option B</label>
+                            <input type="text" id="alert-poll-opt-b" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-900 border border-purple-200 dark:border-purple-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-purple-500 outline-none" placeholder="e.g. No">
+                        </div>
+                    </div>
                 </div>
 
                 <div>
@@ -734,7 +890,6 @@ const Admin = {
         const header = document.getElementById('alert-header-btn');
         const body = document.getElementById('alert-body');
         const chevron = document.getElementById('alert-chevron');
-        const regionSelect = document.getElementById('alert-region');
         const alertTarget = document.getElementById('alert-target');
         const dateInput = document.getElementById('alert-duration-custom');
         const alertMsg = document.getElementById('alert-msg');
@@ -742,11 +897,20 @@ const Admin = {
         const clearBtn = document.getElementById('alert-clear-btn');
         const severitySelect = document.getElementById('alert-severity');
         
-        // NEW: Privacy Controls
         const signoffInput = document.getElementById('alert-signoff');
         const forcePopupToggle = document.getElementById('alert-force-popup');
 
-        // Toggle
+        // Supercharged Inputs
+        const imageUrlInput = document.getElementById('alert-image-url');
+        const ctaUrlInput = document.getElementById('alert-cta-url');
+        const ctaTextInput = document.getElementById('alert-cta-text');
+        const pollToggle = document.getElementById('alert-poll-toggle');
+        const pollContainer = document.getElementById('alert-poll-container');
+        const pollQuestion = document.getElementById('alert-poll-question');
+        const pollOptA = document.getElementById('alert-poll-opt-a');
+        const pollOptB = document.getElementById('alert-poll-opt-b');
+
+        // Toggles
         header.onclick = () => {
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
@@ -757,6 +921,14 @@ const Admin = {
                 header.classList.add('mb-4');
             }
         };
+
+        pollToggle.addEventListener('change', () => {
+            if (pollToggle.checked) {
+                pollContainer.classList.remove('hidden');
+            } else {
+                pollContainer.classList.add('hidden');
+            }
+        });
 
         // Fetch Current Alert
         async function fetchCurrentAlert(target) {
@@ -792,46 +964,89 @@ const Admin = {
                     if (data.forcePopup !== undefined) forcePopupToggle.checked = data.forcePopup;
                     else forcePopupToggle.checked = (data.severity === 'critical'); // Backwards compatibility for old alerts
 
+                    // SUPERCHARGED: Parse rich media and polls back into UI
+                    if (data.imageUrl) imageUrlInput.value = data.imageUrl; else imageUrlInput.value = "";
+                    if (data.ctaUrl) ctaUrlInput.value = data.ctaUrl; else ctaUrlInput.value = "";
+                    if (data.ctaText) ctaTextInput.value = data.ctaText; else ctaTextInput.value = "";
+                    
+                    if (data.poll && data.poll.active) {
+                        pollToggle.checked = true;
+                        pollContainer.classList.remove('hidden');
+                        pollQuestion.value = data.poll.question || "";
+                        pollOptA.value = data.poll.optionA || "";
+                        pollOptB.value = data.poll.optionB || "";
+                    } else {
+                        pollToggle.checked = false;
+                        pollContainer.classList.add('hidden');
+                        pollQuestion.value = "";
+                        pollOptA.value = "";
+                        pollOptB.value = "";
+                    }
+
                     sendBtn.textContent = "Update Alert"; 
                 } else {
                     alertMsg.value = "";
                     if(severitySelect) severitySelect.value = 'info';
                     signoffInput.value = "Next Train Ops";
                     forcePopupToggle.checked = false;
+                    
+                    imageUrlInput.value = "";
+                    ctaUrlInput.value = "";
+                    ctaTextInput.value = "";
+                    pollToggle.checked = false;
+                    pollContainer.classList.add('hidden');
+                    pollQuestion.value = "";
+                    pollOptA.value = "";
+                    pollOptB.value = "";
+
                     sendBtn.textContent = "Post Alert";
                 }
             } catch (e) { console.log("No active alert."); }
         }
 
-        // Populate Targets Based on Region
-        if (typeof currentRegion !== 'undefined') regionSelect.value = currentRegion;
-
+        // GUARDIAN: God-Mode Populate Targets (Cross-Region)
         function populateTargets() {
             alertTarget.innerHTML = '';
-            const reg = regionSelect.value;
-            const globalOpt = document.createElement('option');
-            globalOpt.value = `all_${reg}`;
-            globalOpt.textContent = `🌐 Global Alert (${reg === 'GP' ? 'Gauteng' : 'Western Cape'})`;
-            globalOpt.style.fontWeight = 'bold';
-            alertTarget.appendChild(globalOpt);
+            
+            const globalGroup = document.createElement('optgroup');
+            globalGroup.label = "Global Alerts";
+            globalGroup.innerHTML = `
+                <option value="all">🌍 Entire Network (All Regions)</option>
+                <option value="all_GP">📍 Gauteng Only</option>
+                <option value="all_WC">📍 Western Cape Only</option>
+            `;
+            alertTarget.appendChild(globalGroup);
+
+            const gpGroup = document.createElement('optgroup');
+            gpGroup.label = "Gauteng Routes";
+            
+            const wcGroup = document.createElement('optgroup');
+            wcGroup.label = "Western Cape Routes";
 
             if (typeof ROUTES !== 'undefined') {
                 Object.values(ROUTES).forEach(r => {
-                    if (r.isActive && r.region === reg) {
+                    if (r.isActive && r.id !== 'special_event') {
                         const opt = document.createElement('option');
                         opt.value = r.id;
-                        opt.textContent = `📍 ${r.name}`;
-                        alertTarget.appendChild(opt);
+                        opt.textContent = `🚂 ${r.name}`;
+                        if (r.region === 'GP') gpGroup.appendChild(opt);
+                        if (r.region === 'WC') wcGroup.appendChild(opt);
                     }
                 });
             }
+
+            alertTarget.appendChild(gpGroup);
+            alertTarget.appendChild(wcGroup);
+            
+            // Auto-select current region global by default
+            const defOpt = typeof currentRegion !== 'undefined' ? `all_${currentRegion}` : 'all_GP';
+            const optionToSelect = alertTarget.querySelector(`option[value="${defOpt}"]`);
+            if (optionToSelect) optionToSelect.selected = true;
+
             fetchCurrentAlert(alertTarget.value);
         }
 
-        regionSelect.addEventListener('change', populateTargets);
         alertTarget.addEventListener('change', () => fetchCurrentAlert(alertTarget.value));
-        
-        // Initial Population
         populateTargets();
 
         const now = new Date();
@@ -850,9 +1065,10 @@ const Admin = {
             
             const secret = await Admin.getAuthKey();
             
-            if (!msg) { showToast("Message required!", "error"); return; }
-            if (!secret) { showToast("Authentication required! Sign in again.", "error"); return; }
+            if (!msg) { if (typeof showToast === 'function') showToast("Message required!", "error"); return; }
+            if (!secret) { if (typeof showToast === 'function') showToast("Authentication required! Sign in again.", "error"); return; }
 
+            // Allow bolding via *text* and preserve other HTML tags (like images/links added via toolbar)
             msg = msg.replace(/\n/g, "<br>").replace(/\*(.*?)\*/g, "<b>$1</b>");
             
             // GUARDIAN: Injecting the generic/safe sign-off
@@ -860,14 +1076,26 @@ const Admin = {
 
             let expiresAtVal = dateInput && dateInput.value ? new Date(dateInput.value).getTime() : Date.now() + (2 * 3600 * 1000);
 
+            // SUPERCHARGED PAYLOAD BUILDER
             const payload = {
                 id: Date.now().toString(), 
                 message: msg,
-                authorName: signoff,       // Save to database
-                forcePopup: isForcePopup,  // Save to database
+                authorName: signoff,
+                forcePopup: isForcePopup,
                 postedAt: Date.now(),
                 expiresAt: expiresAtVal,
-                severity: severity
+                severity: severity,
+                // Rich Media
+                imageUrl: imageUrlInput.value.trim() || null,
+                ctaUrl: ctaUrlInput.value.trim() || null,
+                ctaText: ctaTextInput.value.trim() || null,
+                // Poll Data
+                poll: {
+                    active: pollToggle.checked,
+                    question: pollToggle.checked ? pollQuestion.value.trim() : null,
+                    optionA: pollToggle.checked ? pollOptA.value.trim() : null,
+                    optionB: pollToggle.checked ? pollOptB.value.trim() : null
+                }
             };
 
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -878,12 +1106,12 @@ const Admin = {
                 sendBtn.disabled = true;
                 const res = await fetch(url, { method: 'PUT', body: JSON.stringify(payload) });
                 if (res.ok) {
-                    showToast("Alert Posted!", "success");
+                    if (typeof showToast === 'function') showToast("Alert Posted!", "success");
                     if (typeof checkServiceAlerts === 'function') checkServiceAlerts(); 
                 } else {
-                    showToast("Failed. Check Session.", "error");
+                    if (typeof showToast === 'function') showToast("Failed. Check Session.", "error");
                 }
-            } catch (e) { showToast("Error: " + e.message, "error"); } 
+            } catch (e) { if (typeof showToast === 'function') showToast("Error: " + e.message, "error"); } 
             finally { sendBtn.textContent = "Update Alert"; sendBtn.disabled = false; }
         };
 
@@ -891,7 +1119,7 @@ const Admin = {
         clearBtn.onclick = async () => {
             const target = alertTarget.value;
             const secret = await Admin.getAuthKey();
-            if (!secret) { showToast("Authentication required.", "error"); return; }
+            if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
             
             const confirmed = await Admin.secureConfirm("Clear Alert", `Delete alert for: ${target}?`);
             if (!confirmed) return;
@@ -916,18 +1144,29 @@ const Admin = {
                 // 3. Proceed with deletion from active node
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
-                    showToast("Cleared & Archived!", "info");
+                    if (typeof showToast === 'function') showToast("Cleared & Archived!", "info");
+                    
+                    // Reset UI states
                     alertMsg.value = "";
                     signoffInput.value = "Next Train Ops";
                     forcePopupToggle.checked = false;
+                    imageUrlInput.value = "";
+                    ctaUrlInput.value = "";
+                    ctaTextInput.value = "";
+                    pollToggle.checked = false;
+                    pollContainer.classList.add('hidden');
+                    pollQuestion.value = "";
+                    pollOptA.value = "";
+                    pollOptB.value = "";
+                    
                     sendBtn.textContent = "Post Alert";
                     if (typeof checkServiceAlerts === 'function') setTimeout(checkServiceAlerts, 500); 
-                } else { showToast("Failed to clear alert.", "error"); }
-            } catch (e) { showToast(e.message, "error"); }
+                } else { if (typeof showToast === 'function') showToast("Failed to clear alert.", "error"); }
+            } catch (e) { if (typeof showToast === 'function') showToast(e.message, "error"); }
         };
     },
 
-    // --- 5. EXCLUSION MANAGER (GUARDIAN CARD + DEEP ROW SCANNER + SPL TAGS + EXPIRY) ---
+    // --- 5. EXCLUSION MANAGER (GUARDIAN CARD + GOD-MODE OPTGROUPS + SPL TAGS + EXPIRY) ---
     setupExclusionManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
@@ -954,7 +1193,7 @@ const Admin = {
             <div id="excl-body" class="hidden mt-4 space-y-3">
                 <div class="flex space-x-2">
                     <select id="excl-route" class="w-2/3 h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
-                        <option value="">Select Route...</option>
+                        <!-- Populated dynamically with optgroups -->
                     </select>
                     <select id="excl-direction" class="w-1/3 h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
                         <option value="A">To Dest A</option>
@@ -1039,16 +1278,31 @@ const Admin = {
             }
         };
 
-        // Populate Route Select
+        // GUARDIAN: God-Mode Populate Targets (Cross-Region)
         if (typeof ROUTES !== 'undefined') {
+            const gpGroup = document.createElement('optgroup');
+            gpGroup.label = "Gauteng Routes";
+            
+            const wcGroup = document.createElement('optgroup');
+            wcGroup.label = "Western Cape Routes";
+
             Object.values(ROUTES).forEach(r => {
-                if (r.isActive && r.region === currentRegion) {
+                if (r.isActive && r.id !== 'special_event') {
                     const opt = document.createElement('option');
                     opt.value = r.id;
                     opt.textContent = r.name;
-                    routeSelect.appendChild(opt);
+                    if (r.region === 'GP') gpGroup.appendChild(opt);
+                    if (r.region === 'WC') wcGroup.appendChild(opt);
                 }
             });
+            
+            routeSelect.appendChild(gpGroup);
+            routeSelect.appendChild(wcGroup);
+            
+            // Set default cleanly
+            if (typeof currentRouteId !== 'undefined' && currentRouteId) {
+                routeSelect.value = currentRouteId;
+            }
         }
 
         // Update Direction Labels based on Route
@@ -1065,6 +1319,9 @@ const Admin = {
                 dirSelect.options[1].textContent = "To Dest B";
             }
         });
+        
+        // Initial trigger for labels
+        routeSelect.dispatchEvent(new Event('change'));
 
         // Days Checkboxes
         const days = ['S','M','T','W','T','F','S'];
@@ -1086,7 +1343,7 @@ const Admin = {
             const type = schedTypeSelect.value;
             const dir = dirSelect.value;
 
-            if (!rId) { showToast("Select a route first", "error"); return; }
+            if (!rId) { if (typeof showToast === 'function') showToast("Select a route first", "error"); return; }
             const route = ROUTES[rId];
             if (!route) return;
 
@@ -1100,13 +1357,13 @@ const Admin = {
             }
             
             if (typeof fullDatabase === 'undefined' || !fullDatabase) {
-                showToast("Database not ready. Refresh app.", "error");
+                if (typeof showToast === 'function') showToast("Database not ready. Refresh app.", "error");
                 return;
             }
 
             const rawData = fullDatabase[sheetKey];
             if (!rawData) {
-                showToast(`No data found for ${type}`, "error");
+                if (typeof showToast === 'function') showToast(`No data found for ${type}`, "error");
                 return;
             }
 
@@ -1225,11 +1482,11 @@ const Admin = {
             if (manualTrain) selectedTrains.push(manualTrain);
 
             if (selectedTrains.length === 0 || selectedDays.length === 0) {
-                showToast("Select trains and days.", "error");
+                if (typeof showToast === 'function') showToast("Select trains and days.", "error");
                 return;
             }
             if (!secret) {
-                showToast("Authentication required.", "error");
+                if (typeof showToast === 'function') showToast("Authentication required.", "error");
                 return;
             }
 
@@ -1264,14 +1521,14 @@ const Admin = {
                     if (purgeRes.ok) console.log("🛡️ Cloudflare Edge Cache Purged.");
                 } catch(pe) { console.warn("Purge failed", pe); }
 
-                showToast(`Updated ${selectedTrains.length} exceptions!`, "success");
+                if (typeof showToast === 'function') showToast(`Updated ${selectedTrains.length} exceptions!`, "success");
                 trainGrid.querySelectorAll('input').forEach(cb => cb.checked = false);
                 document.getElementById('excl-train-manual').value = '';
                 document.getElementById('excl-expiry').value = ''; // Clean up expiry input
                 fetchExclusions();
                 if (typeof loadAllSchedules === 'function') loadAllSchedules();
             } catch (e) {
-                showToast("Network Error: " + e.message, "error");
+                if (typeof showToast === 'function') showToast("Network Error: " + e.message, "error");
             } finally {
                 saveBtn.textContent = "Apply Exceptions";
                 saveBtn.disabled = false;
@@ -1284,7 +1541,7 @@ const Admin = {
 
             // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey(); 
-            if (!secret) { showToast("Authentication required.", "error"); return; }
+            if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
             const url = `${dynamicEndpoint}exclusions/${rId}/${trainNum}.json?auth=${secret}`;
             try {
@@ -1300,11 +1557,11 @@ const Admin = {
                         if (purgeRes.ok) console.log("🛡️ Cloudflare Edge Cache Purged.");
                     } catch(pe) { console.warn("Purge failed", pe); }
 
-                    showToast("Exception removed.", "success");
+                    if (typeof showToast === 'function') showToast("Exception removed.", "success");
                     fetchExclusions();
                     if (typeof loadAllSchedules === 'function') loadAllSchedules();
-                } else { showToast("Delete failed.", "error"); }
-            } catch(e) { showToast(e.message, "error"); }
+                } else { if (typeof showToast === 'function') showToast("Delete failed.", "error"); }
+            } catch(e) { if (typeof showToast === 'function') showToast(e.message, "error"); }
         };
     },
 
@@ -1397,7 +1654,7 @@ const Admin = {
         saveBtn.onclick = async () => {
             // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey();
-            if (!secret) { showToast("Authentication required", "error"); return; }
+            if (!secret) { if (typeof showToast === 'function') showToast("Authentication required", "error"); return; }
             
             const payload = {
                 isActive: toggle.checked,
@@ -1417,7 +1674,7 @@ const Admin = {
                 });
                 
                 if (res.ok) {
-                    showToast("Special Event Updated!", "success");
+                    if (typeof showToast === 'function') showToast("Special Event Updated!", "success");
                     // Instantly sync local memory & UI without hard reload
                     if (typeof ROUTES !== 'undefined' && ROUTES['special_event']) {
                         ROUTES['special_event'].isActive = payload.isActive;
@@ -1429,10 +1686,10 @@ const Admin = {
                         }
                     }
                 } else {
-                    showToast("Failed. Check Admin Key.", "error");
+                    if (typeof showToast === 'function') showToast("Failed. Check Admin Key.", "error");
                 }
             } catch(e) {
-                showToast("Network Error", "error");
+                if (typeof showToast === 'function') showToast("Network Error", "error");
             } finally {
                 saveBtn.textContent = "Publish Event";
                 saveBtn.disabled = false;
@@ -1633,7 +1890,7 @@ const Admin = {
             // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey(); 
             if (!secret) {
-                showToast("Authentication required to change system status.", "error");
+                if (typeof showToast === 'function') showToast("Authentication required to change system status.", "error");
                 toggle.checked = !toggle.checked; // Revert UI
                 return;
             }
@@ -1646,12 +1903,12 @@ const Admin = {
                     body: JSON.stringify(newState)
                 });
                 if(res.ok) {
-                    showToast(`Maintenance Mode: ${newState ? "ON" : "OFF"}`, newState ? "warning" : "success");
+                    if (typeof showToast === 'function') showToast(`Maintenance Mode: ${newState ? "ON" : "OFF"}`, newState ? "warning" : "success");
                 } else {
                     throw new Error("Auth failed");
                 }
             } catch(e) {
-                showToast("Failed to update status.", "error");
+                if (typeof showToast === 'function') showToast("Failed to update status.", "error");
                 toggle.checked = !toggle.checked; // Revert
             }
         });
@@ -1707,7 +1964,7 @@ const Admin = {
         fireBtn.onclick = async () => {
             // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey(); 
-            if (!secret) { showToast("Authentication required.", "error"); return; }
+            if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
             
             const confirmed = await Admin.secureConfirm("Nuclear Cache Wipe", "Type 'NUKE' to confirm mass cache wipe:", "NUKE");
             if (!confirmed) return;
@@ -1731,12 +1988,12 @@ const Admin = {
                         if (purgeRes.ok) console.log("🛡️ Cloudflare Edge Cache Purged.");
                     } catch(pe) { console.warn("Purge failed", pe); }
 
-                    showToast("Nuclear Wipe Triggered Globally!", "success", 5000);
+                    if (typeof showToast === 'function') showToast("Nuclear Wipe Triggered Globally!", "success", 5000);
                 } else {
-                    showToast("Auth failed.", "error");
+                    if (typeof showToast === 'function') showToast("Auth failed.", "error");
                 }
             } catch(e) {
-                showToast("Network Error", "error");
+                if (typeof showToast === 'function') showToast("Network Error", "error");
             } finally {
                 fireBtn.textContent = "Fire Killswitch";
                 fireBtn.disabled = false;
@@ -1744,6 +2001,9 @@ const Admin = {
         };
     }
 };
+
+// EXPOSE ADMIN GLOBALLY TO ALLOW INLINE HTML CLICKS (E.G., RESOLVE FEEDBACK)
+window.Admin = Admin;
 
 document.addEventListener('DOMContentLoaded', () => {
     Admin.init();
