@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.13 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.14 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -13,7 +13,7 @@
  * * GUARDIAN PHASE 14 & D: Dynamic Time-Sync applied to UI to prevent future-day times matching against today's clock, incorporating dayOffset weekend math.
  * * GUARDIAN PHASE D: Leaflet anti-rubberband flyTo() lock applied to prevent camera snapping race conditions.
  * * GUARDIAN PHASE 20: Map UX Parity - Integrated Action Bar, Naked Halo tooltips, and Dark Mode Tile Inversion from map.html.
- * * GUARDIAN BUGFIX (V6.04.13): Ghost Station Polyline Trap resolved in extractTripCoordinates.
+ * * GUARDIAN BUGFIX (V6.04.14): Ghost Station Polyline Trap resolved in extractTripCoordinates.
  * * GUARDIAN UX UPGRADE (V6.04.14): Autocomplete native focus-select & Unconditional Swap Protocol.
  */
 

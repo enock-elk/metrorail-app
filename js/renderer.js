@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.13 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.14 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -379,7 +379,7 @@ const Renderer = {
              let rawName = journey.sourceRoute.replace("Route", "").trim();
              let routeName = rawName;
              
-             // GUARDIAN V6.04.13 FIX: Universal String Split for region-agnostic formatting
+             // GUARDIAN V6.04.14 FIX: Universal String Split for region-agnostic formatting
              if (rawName.includes('<->')) {
                  routeName = rawName.split('<->')[1].trim();
              } else if (rawName.includes('↔')) {

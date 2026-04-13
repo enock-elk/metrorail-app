@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.13 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.14 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -17,7 +17,7 @@
  * * PHASE 1 (GUARDIAN ANALYTICS): 'check_updates_click' tracked.
  * * PHASE 2 (GUARDIAN FEEDBACK): In-House Feedback System, Firebase Storage Pipeline, 15s Timeout Race & Modal bindings injected.
  * * GUARDIAN BUGFIX: Separated telemetry tracking for manual vs system cache wipes. Injected proper loading UI for slow DB hydration.
- * * GUARDIAN BUGFIX (V6.04.13): Universal Shared Corridor Text Formatting (Option B String Split) for region-agnostic tags (Modal).
+ * * GUARDIAN BUGFIX (V6.04.14): Universal Shared Corridor Text Formatting (Option B String Split) for region-agnostic tags (Modal).
  * * GUARDIAN BUGFIX (V6.04.14): Universal Shared Corridor Text Formatting ported to main Live Board `Renderer.renderJourney`.
  * * GUARDIAN PHASE 3 (V6.04.15): Region Interceptor Pattern. Injected `handleRegionChange` to prevent dead-ends for unreleased regions, tracking KZN/EC demand.
  * * GUARDIAN PHASE 4 (V6.04.16): Hybrid Feedback Pipeline. Routes inactive/future traffic to Google Forms. Blocks empty text noise. Enhances Alert Reply Context.
@@ -1616,7 +1616,7 @@ window.openScheduleModal = function(destination, dayOverride = null) {
              let rawName = j.sourceRoute.replace("Route", "").trim();
              let routeName = rawName;
              
-             // GUARDIAN V6.04.13 FIX: Universal String Split for region-agnostic formatting
+             // GUARDIAN V6.04.14 FIX: Universal String Split for region-agnostic formatting
              if (rawName.includes('<->')) {
                  routeName = rawName.split('<->')[1].trim();
              } else if (rawName.includes('↔')) {
@@ -1698,7 +1698,7 @@ window.openScheduleModal = function(destination, dayOverride = null) {
     });
     
     // GUARDIAN BUGFIX: Call the smooth modal engine to prevent dead-ends
-    openScheduleModal('schedule-modal');
+    openSmoothModal('schedule-modal');
     
     if (!dayOverride) { setTimeout(() => { const target = document.getElementById('next-train-marker'); if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' }); }, 10); } 
     else { const container = document.getElementById('modal-list'); if(container) container.scrollTop = 0; }
