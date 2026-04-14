@@ -279,7 +279,9 @@ function hasForwardOverlap(trainName, otherSchedule, fromStation, targetStations
 
     for (let i = fromIdx + 1; i < rows.length; i++) {
         const row = rows[i];
-        if (row[trainName] && targetStations.has(normalizeStationName(row.STATION))) {
+        // GUARDIAN BUGFIX: Safely cast to string to prevent .trim() crash on numeric cells
+        const val = row[trainName] ? String(row[trainName]).trim() : "";
+        if (val && val !== "-" && targetStations.has(normalizeStationName(row.STATION))) {
             return true;
         }
     }
@@ -1153,14 +1155,24 @@ function findNextTrains() {
                 
                 const uniqueOther = otherJourneys.filter(j => {
                     const tNum = j.train || j.train1.train;
-                    if (seenTrainsA.has(tNum)) return false;
-                    if (!hasForwardOverlap(tNum, otherSchedule, selectedStation, targetStationsA)) return false; 
-                    seenTrainsA.add(tNum); 
-                    return true;
+                    return hasForwardOverlap(tNum, otherSchedule, selectedStation, targetStationsA);
                 });
 
-                const tagged = uniqueOther.map(j => ({...j, sourceRoute: otherRoute.name, isShared: true, sheetKey: key}));
-                mergedJourneys = [...mergedJourneys, ...tagged];
+                const tagged = uniqueOther.map(j => ({
+                    ...j, 
+                    sourceRoute: otherRoute.name, 
+                    isShared: true, 
+                    isDivergent: false,
+                    sheetKey: key
+                }));
+                
+                tagged.forEach(sharedJ => {
+                    const tNum = sharedJ.train || sharedJ.train1.train;
+                    // GUARDIAN BUGFIX: Safely replace native train with rich shared train without dynamic filter collision
+                    mergedJourneys = mergedJourneys.filter(mj => (mj.train || mj.train1.train) !== tNum);
+                    seenTrainsA.add(tNum);
+                    mergedJourneys.push(sharedJ);
+                });
             }
         });
         
@@ -1204,10 +1216,7 @@ function findNextTrains() {
                  
                  const uniqueOther = otherJourneys.filter(j => {
                      const tNum = j.train || j.train1.train;
-                     if (seenTrainsB.has(tNum)) return false; 
-                     if (!hasForwardOverlap(tNum, otherSchedule, selectedStation, targetStationsB)) return false; 
-                     seenTrainsB.add(tNum); 
-                     return true;
+                     return hasForwardOverlap(tNum, otherSchedule, selectedStation, targetStationsB);
                  });
  
                  const isDivergent = normalizeStationName(otherRoute.destB) !== normalizeStationName(currentRoute.destB);
@@ -1220,7 +1229,14 @@ function findNextTrains() {
                      actualDestName: otherRoute.destB.replace(' STATION', ''),
                      sheetKey: key
                  }));
-                 mergedJourneys = [...mergedJourneys, ...tagged];
+                 
+                 tagged.forEach(sharedJ => {
+                     const tNum = sharedJ.train || sharedJ.train1.train;
+                     // GUARDIAN BUGFIX: Safely replace native train with rich shared train without dynamic filter collision
+                     mergedJourneys = mergedJourneys.filter(mj => (mj.train || mj.train1.train) !== tNum);
+                     seenTrainsB.add(tNum);
+                     mergedJourneys.push(sharedJ);
+                 });
         });
 
         mergedJourneys.sort((a, b) => {
@@ -1234,12 +1250,12 @@ function findNextTrains() {
 }
 
 function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig, targetDayIdx = currentDayIndex) {
-    const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA, targetDayIdx);
+    const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destA, targetDayIdx, routeConfig.id);
     let allTransferJourneys = [];
     
     const transferHub = routeConfig.transferStation || routeConfig.relayStation;
     if (transferHub) {
-        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destA, targetDayIdx);
+        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destA, targetDayIdx, routeConfig.id);
         allTransferJourneys = allTransfers;
     }
     
@@ -1260,12 +1276,12 @@ function findNextJourneyToDestA(fromStation, timeNow, schedule, routeConfig, tar
 }
 
 function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig, targetDayIdx = currentDayIndex) {
-    const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destB, targetDayIdx);
+    const { allJourneys: allDirectJourneys } = findNextDirectTrain(fromStation, schedule, routeConfig.destB, targetDayIdx, routeConfig.id);
     let allTransferJourneys = [];
     
     const transferHub = routeConfig.transferStation || routeConfig.relayStation;
     if (transferHub) {
-        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destB, targetDayIdx);
+        const { allJourneys: allTransfers } = findTransfers(fromStation, schedule, transferHub, routeConfig.destB, targetDayIdx, routeConfig.id);
         allTransferJourneys = allTransfers;
     }
 
@@ -1285,22 +1301,21 @@ function findNextJourneyToDestB(fromStation, timeNow, schedule, routeConfig, tar
     return { allJourneys };
 }
 
-function findNextDirectTrain(fromStation, schedule, destinationStation, targetDayIdx = currentDayIndex) {
+function findNextDirectTrain(fromStation, schedule, destinationStation, targetDayIdx = currentDayIndex, routeId = currentRouteId) {
     if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
     let allJourneys = [];
 
-    // GUARDIAN BUGFIX: Use robust substring matching to handle trailing spaces from raw DB data safely
-    const cleanTargetStation = fromStation.trim().toUpperCase();
+    const cleanTargetStation = normalizeStationName(fromStation);
 
     for (const train of trainHeaders) {
         if (!train || train === "") continue;
-        if (isTrainExcluded(train, currentRouteId, targetDayIdx)) continue; 
+        if (isTrainExcluded(train, routeId, targetDayIdx)) continue; 
 
         const fromRow = schedule.rows.find(row => {
             const val = row[stationCol];
-            return val && val.trim().toUpperCase() === cleanTargetStation;
+            return val && normalizeStationName(val) === cleanTargetStation;
         });
 
         const departureTime = fromRow ? fromRow[train] : null;
@@ -1340,7 +1355,7 @@ function findNextDirectTrain(fromStation, schedule, destinationStation, targetDa
     return { allJourneys };
 }
 
-function findTransfers(fromStation, schedule, terminalStation, finalDestination, targetDayIdx = currentDayIndex) {
+function findTransfers(fromStation, schedule, terminalStation, finalDestination, targetDayIdx = currentDayIndex, routeId = currentRouteId) {
     if (!schedule || !schedule.rows || schedule.rows.length === 0) return { allJourneys: [] };
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
@@ -1357,7 +1372,7 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination,
 
     for (const train1 of trainHeaders) {
         if (!train1 || train1 === "") continue;
-        if (isTrainExcluded(train1, currentRouteId, targetDayIdx)) continue; 
+        if (isTrainExcluded(train1, routeId, targetDayIdx)) continue; 
 
         const departureTime = fromRow[train1]; 
         const terminationTime = termRow[train1];
@@ -1367,7 +1382,7 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination,
         const destinationTime = finalDestRow ? finalDestRow[train1] : null;
 
         if (!destinationTime || destinationTime.trim() === "-") {
-            const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination, train1, targetDayIdx);
+            const connectionData = findConnections(terminationTime, schedule, terminalStation, finalDestination, train1, targetDayIdx, routeId);
             if (connectionData && connectionData.earliest) {
                 let realHeadboardDest = terminalStation;
                 for (let k = termIndex + 1; k < schedule.rows.length; k++) {
@@ -1395,7 +1410,7 @@ function findTransfers(fromStation, schedule, terminalStation, finalDestination,
     return { allJourneys };
 }
 
-function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination, incomingTrainName, targetDayIdx = currentDayIndex) {
+function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, finalDestination, incomingTrainName, targetDayIdx = currentDayIndex, routeId = currentRouteId) {
     if (!schedule || !schedule.rows) return null;
     const stationCol = schedule.stationColumnName;
     const trainHeaders = schedule.headers.slice(1);
@@ -1410,7 +1425,7 @@ function findConnections(arrivalTimeAtTransfer, schedule, connectionStation, fin
     for (const train of trainHeaders) {
         if (!train || train === "") continue;
         if (train === incomingTrainName) continue; 
-        if (isTrainExcluded(train, currentRouteId, targetDayIdx)) continue; 
+        if (isTrainExcluded(train, routeId, targetDayIdx)) continue; 
 
         const connectionTime = connRow[train];
         if (!connectionTime || connectionTime.trim() === "-" || connectionTime.trim() === "") continue;
