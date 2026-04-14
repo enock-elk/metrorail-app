@@ -166,12 +166,23 @@ if (!NEXT_TRAIN_DEVICE_ID) {
 // --- ANALYTICS HELPER ---
 function trackAnalyticsEvent(eventName, params = {}) {
     params.region = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
+    
+    // GUARDIAN PHASE 2: Event Payload Hardening
+    // Explicitly attach the immutable device ID to every individual event payload.
+    // This perfectly aligns offline events and nested tracker payloads to the core identity.
+    if (NEXT_TRAIN_DEVICE_ID) {
+        params.device_id = NEXT_TRAIN_DEVICE_ID;
+    }
 
     if (!navigator.onLine) { OfflineTracker.enqueue(eventName, params); return; }
     
     try {
         if (typeof gtag === 'function') { 
-            gtag('set', 'user_properties', { crm_region: params.region });
+            // GUARDIAN FIX: Persist the ID dynamically into the user_properties map
+            gtag('set', 'user_properties', { 
+                crm_region: params.region,
+                custom_device_id: NEXT_TRAIN_DEVICE_ID
+            });
             gtag('event', eventName, params); 
         }
     } catch (e) { console.warn("[Analytics] GA4 Error:", e); }

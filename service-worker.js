@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v6.04.14 F1.1'; // BUMPED: V6.04.14 - Route Visibility Patch
+const CACHE_NAME = 'metrorail-next-train-v6.04.14 F1.2'; // BUMPED: V6.04.14 - Route Visibility Patch
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.

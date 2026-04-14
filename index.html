@@ -79,14 +79,30 @@
         // GUARDIAN: Check for Developer Flag to filter internal traffic. Wrapped in try/catch to survive iOS Private Mode
         var gaConfig = {};
         var isDevAnalytics = false;
+        var deviceId = null;
+
         try {
             isDevAnalytics = localStorage.getItem('analytics_ignore') === 'true';
+            
+            // GUARDIAN PHASE 1: GA4 Identity Lock (Anti-Splintering)
+            // We explicitly fetch or create the unique device ID here so GA4 catches it on the absolute first payload.
+            deviceId = localStorage.getItem('next_train_device_id');
+            if (!deviceId) {
+                deviceId = 'usr_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+                localStorage.setItem('next_train_device_id', deviceId);
+            }
         } catch(e) {}
         
         if (isDevAnalytics) {
             gaConfig['traffic_type'] = 'internal'; 
             console.log("🛡️ Analytics: Internal Traffic Flag Set");
         }
+        
+        // Inject the persistent User ID to force Google to deduplicate PWA/WebView sessions
+        if (deviceId) {
+            gaConfig['user_id'] = deviceId;
+        }
+
         gtag('config', 'G-JM5DH6ERVX', gaConfig);
     </script>
 
