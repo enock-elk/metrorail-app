@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN UTILITIES (V6.04.13 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN UTILITIES (V6.04.15 - Guardian Edition) ---
 // Pure, stateless helper functions shared across the application.
 
 function pad(num) {
@@ -59,11 +59,12 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
     return R * c; 
 }
 
-// --- GUARDIAN PHASE 1: SAFE STORAGE WRAPPER ---
-// Protects against SecurityError (Sentry JAVASCRIPT-1K) in Safari Private Mode / Brave Shields
+// --- GUARDIAN PHASE 1 & 2: RESILIENT STORAGE WRAPPER ---
+// Protects against SecurityError (Safari Private Mode) AND Apple ITP 7-Day Purge via IndexedDB Mirroring
 const safeStorage = {
     memoryFallback: {},
     
+    // Standard Synchronous Get (For UI state, preferences, etc.)
     getItem: function(key) {
         try {
             return localStorage.getItem(key);
@@ -73,6 +74,7 @@ const safeStorage = {
         }
     },
     
+    // Standard Synchronous Set
     setItem: function(key, value) {
         try {
             localStorage.setItem(key, value);
@@ -89,5 +91,130 @@ const safeStorage = {
             console.warn(`🛡️ Guardian: localStorage.removeItem blocked. Using RAM fallback for ${key}.`);
             delete this.memoryFallback[key];
         }
+    },
+
+    // GUARDIAN PHASE 2 (Identity Protection): Safe Volatile Flush
+    // Mass-deletes localStorage to clear zombie cache items, while surgically extracting, 
+    // protecting, and restoring core identity/preference keys.
+    flushVolatile: function() {
+        const protectedKeys = [
+            'next_train_device_id',
+            'userProfile',
+            'theme',
+            'hapticsEnabled',
+            'userRegion',
+            'analytics_ignore',
+            'defaultRoute_GP',
+            'defaultRoute_WC',
+            'last_killswitch_timestamp', // Protect killswitch memory
+            'analytics_queue' // Protect offline events queue
+        ];
+        
+        const vault = {};
+        
+        // 1. Extract to RAM Vault
+        protectedKeys.forEach(key => {
+            const val = this.getItem(key);
+            if (val !== null) vault[key] = val;
+        });
+        
+        // 2. Nuke Local Storage Completely
+        try {
+            localStorage.clear();
+        } catch(e) {
+            console.warn("🛡️ Guardian: localStorage.clear blocked.");
+        }
+        this.memoryFallback = {};
+        
+        // 3. Resurrect from Vault
+        Object.keys(vault).forEach(key => {
+            this.setItem(key, vault[key]);
+        });
+        
+        console.log("🛡️ Guardian: Volatile cache flushed. Identity & preferences secured and restored.");
+    },
+
+    // --- ITP RESILIENCE (IndexedDB Mirroring) ---
+    _initIDB: function() {
+        return new Promise((resolve, reject) => {
+            if (!window.indexedDB) {
+                reject(new Error("IndexedDB not supported"));
+                return;
+            }
+            try {
+                const request = indexedDB.open('GuardianIdentityDB', 1);
+                request.onerror = (e) => reject(e.target.error || new Error("IDB Open Error"));
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('IdentityStore')) {
+                        db.createObjectStore('IdentityStore');
+                    }
+                };
+            } catch(err) {
+                reject(err);
+            }
+        });
+    },
+
+    // Asynchronously fetches from localStorage. If missing (purged), resurrects from IndexedDB.
+    getResilientItem: async function(key) {
+        // Fast path: Check synchronous storage first
+        let val = this.getItem(key);
+        if (val) {
+            // Background sync to ensure IDB is up-to-date
+            this.setResilientItem(key, val);
+            return val;
+        }
+
+        // Slow path: Resurrect from IndexedDB
+        try {
+            const db = await this._initIDB();
+            return new Promise((resolve) => {
+                const tx = db.transaction('IdentityStore', 'readonly');
+                const request = tx.objectStore('IdentityStore').get(key);
+                request.onsuccess = () => {
+                    if (request.result && request.result.value) {
+                        console.log(`🛡️ Guardian: Resurrected ${key} from IndexedDB after ITP purge.`);
+                        // Restore it to fast synchronous storage for the rest of the session
+                        this.setItem(key, request.result.value);
+                        resolve(request.result.value);
+                    } else {
+                        resolve(null);
+                    }
+                };
+                request.onerror = () => resolve(null); // Fail gracefully
+            });
+        } catch (e) {
+            console.warn("🛡️ Guardian: IDB read failed.", e);
+            return null;
+        }
+    },
+
+    // Synchronously saves to localStorage, then asynchronously mirrors to IndexedDB
+    setResilientItem: async function(key, value) {
+        this.setItem(key, value); // Instant UI availability
+        try {
+            const db = await this._initIDB();
+            return new Promise((resolve) => {
+                const tx = db.transaction('IdentityStore', 'readwrite');
+                tx.objectStore('IdentityStore').put({ value: value, timestamp: Date.now() }, key);
+                tx.oncomplete = () => resolve(true);
+                tx.onerror = () => resolve(false);
+            });
+        } catch (e) {
+            console.warn("🛡️ Guardian: IDB mirror write failed.", e);
+            return false;
+        }
     }
 };
+
+// 🛡️ GUARDIAN PHASE 2: Identity ITP Protection Bootstrapper
+// The UUID is generated synchronously in index.html to ensure GA4 fires immediately.
+// We run a deferred sweep here to mirror it into IndexedDB, permanently shielding it from Apple's 7-Day ITP wipe.
+setTimeout(() => {
+    const currentId = safeStorage.getItem('next_train_device_id');
+    if (currentId) {
+        safeStorage.setResilientItem('next_train_device_id', currentId);
+    }
+}, 2000);

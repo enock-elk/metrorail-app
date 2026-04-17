@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.14 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.17 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -13,8 +13,8 @@
  * * GUARDIAN PHASE 14 & D: Dynamic Time-Sync applied to UI to prevent future-day times matching against today's clock, incorporating dayOffset weekend math.
  * * GUARDIAN PHASE D: Leaflet anti-rubberband flyTo() lock applied to prevent camera snapping race conditions.
  * * GUARDIAN PHASE 20: Map UX Parity - Integrated Action Bar, Naked Halo tooltips, and Dark Mode Tile Inversion from map.html.
- * * GUARDIAN BUGFIX (V6.04.14): Ghost Station Polyline Trap resolved in extractTripCoordinates.
- * * GUARDIAN UX UPGRADE (V6.04.14): Autocomplete native focus-select & Unconditional Swap Protocol.
+ * * GUARDIAN BUGFIX (V6.04.17): Ghost Station Polyline Trap resolved in extractTripCoordinates.
+ * * GUARDIAN UX UPGRADE (V6.04.17): Autocomplete native focus-select & Unconditional Swap Protocol.
  */
 
 // --- GUARDIAN PHASE 1: ROUTER BLEED & GREY SCREEN INTERCEPTOR ---
@@ -994,7 +994,7 @@ function initPlanner() {
     }
 }
 
-// --- GUARDIAN V6.15 & V6.04.14: UNCONDITIONAL BULLETPROOF RESULTS SWAP ---
+// --- GUARDIAN V6.15 & V6.04.17: UNCONDITIONAL BULLETPROOF RESULTS SWAP ---
 window.swapPlannerResults = function() {
     if (typeof triggerHaptic === 'function') triggerHaptic();
 
@@ -1186,7 +1186,7 @@ window.restorePlannerSearch = function(fullFrom, fullTo) {
     }
 };
 
-// GUARDIAN V6.20 & V6.04.14: Prevents trailing space bugs & Enables 1-Tap Select List
+// GUARDIAN V6.20 & V6.04.17: Prevents trailing space bugs & Enables 1-Tap Select List
 function setupAutocomplete(inputId, selectId) {
     const input = document.getElementById(inputId);
     const select = document.getElementById(selectId);

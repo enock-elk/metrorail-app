@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.14 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.17 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -17,11 +17,12 @@
  * * PHASE 1 (GUARDIAN ANALYTICS): 'check_updates_click' tracked.
  * * PHASE 2 (GUARDIAN FEEDBACK): In-House Feedback System, Firebase Storage Pipeline, 15s Timeout Race & Modal bindings injected.
  * * GUARDIAN BUGFIX: Separated telemetry tracking for manual vs system cache wipes. Injected proper loading UI for slow DB hydration.
- * * GUARDIAN BUGFIX (V6.04.14): Universal Shared Corridor Text Formatting (Option B String Split) for region-agnostic tags (Modal).
+ * * GUARDIAN BUGFIX (V6.04.13): Universal Shared Corridor Text Formatting (Option B String Split) for region-agnostic tags (Modal).
  * * GUARDIAN BUGFIX (V6.04.14): Universal Shared Corridor Text Formatting ported to main Live Board `Renderer.renderJourney`.
  * * GUARDIAN PHASE 3 (V6.04.15): Region Interceptor Pattern. Injected `handleRegionChange` to prevent dead-ends for unreleased regions, tracking KZN/EC demand.
  * * GUARDIAN PHASE 4 (V6.04.16): Hybrid Feedback Pipeline. Routes inactive/future traffic to Google Forms. Blocks empty text noise. Enhances Alert Reply Context.
  * * GUARDIAN V6.05.03: Supercharged Alerts Renderer (Hero Images, CTA Buttons, Interactive Polling). Clarity Unique User identification lock.
+ * * GROWTH MODE PHASE 1: MS Clarity Fortification, Firebase Vote Counter, Monetization Hooks, and Idle Update Protocol.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -189,16 +190,43 @@ function trackAnalyticsEvent(eventName, params = {}) {
     
     try {
         if (typeof clarity === 'function') {
-            // GUARDIAN FIX: Force Clarity to identify this device specifically.
-            // This prevents PWA standalone vs Safari vs background-sync from inflating unique user counts!
+            // GROWTH MODE PHASE 1: MS Clarity Fortification
+            // Force Clarity to strictly align its internal unique ID generation with our PWA ID
+            // to stop browser-vs-PWA duplicate counting.
             if (NEXT_TRAIN_DEVICE_ID) {
                 clarity("identify", NEXT_TRAIN_DEVICE_ID);
+                clarity("set", "custom_id", NEXT_TRAIN_DEVICE_ID); 
             }
             clarity("set", "crm_region", params.region);
             clarity("event", eventName);
         }
     } catch (e) { console.warn("[Analytics] Clarity Error:", e); }
 }
+
+// 🛡️ GROWTH MODE PHASE 1: IDLE UPDATE PROTOCOL
+// If an update is waiting (via SW) and the user puts the app in the background
+// for more than 5 minutes, we silently apply it. This prevents the "zombie app" effect.
+let appBackgroundTimestamp = null;
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        appBackgroundTimestamp = Date.now();
+    } else {
+        if (appBackgroundTimestamp) {
+            const idleDuration = Date.now() - appBackgroundTimestamp;
+            // > 5 minutes (300,000 ms)
+            if (idleDuration > 300000 && window._pendingUpdateReg && window._pendingUpdateReg.waiting) {
+                console.log("🛡️ Guardian: App was idle for > 5 mins. Forcing silent background update.");
+                window._pendingUpdateReg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
+            
+            // Re-sync clarity to ensure session didn't die while offline
+            if (typeof clarity === 'function' && NEXT_TRAIN_DEVICE_ID) {
+                try { clarity("identify", NEXT_TRAIN_DEVICE_ID); } catch(e){}
+            }
+        }
+        appBackgroundTimestamp = null;
+    }
+});
 
 // GUARDIAN Phase 11: Dynamic Offline State Tracking
 window.addEventListener('online', () => { 
@@ -384,7 +412,7 @@ function renderComingSoon(element, routeName) {
                 <p class="text-xs text-gray-700 dark:text-gray-300 mb-4">
                     If you have recent photos of the official station timetables, you can help us launch this route faster!
                 </p>
-                <a href="#" onclick="document.getElementById('feedback-btn').click(); return false;" class="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow transition-colors text-sm group">
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform" target="_blank" class="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow transition-colors text-sm group">
                     <svg class="w-4 h-4 mr-2 group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0L8 8m4-4v12"></path></svg>
                     Share Schedules
                 </a>
@@ -575,7 +603,12 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
 
 window.openFareModal = function(fareDetails) {
     if (!fareDetails) return;
-    trackAnalyticsEvent('view_fare_modal', { zone: fareDetails.code });
+    
+    // GROWTH MODE: Track Fare Modal Interactions (Monetization Hook)
+    trackAnalyticsEvent('view_fare_modal', { 
+        zone: fareDetails.code,
+        route_id: typeof currentRouteId !== 'undefined' ? currentRouteId : 'none'
+    });
 
     let modal = document.getElementById('fare-modal');
     if (!modal) {
@@ -899,6 +932,12 @@ window.performHardCacheClear = async function(source = 'modal_confirm') {
     if (source === 'modal_confirm') {
         trackAnalyticsEvent('execute_hard_cache_clear', { location: 'sidebar' });
         showToast("Clearing offline data and syncing...", "info", 5000);
+
+        // 🛡️ GUARDIAN PHASE 1 (Analytics Beacon Hardening):
+        // The GA4 and Clarity tracking pixels need time to leave the device.
+        // If we immediately unregister the Service Worker below, it aborts in-flight network requests.
+        // We force a 600ms network buffer here to guarantee the beacon lands.
+        await new Promise(resolve => setTimeout(resolve, 600));
     }
     
     window.closeAppHub(true); 
@@ -924,8 +963,15 @@ window.performHardCacheClear = async function(source = 'modal_confirm') {
             }
         }
 
-        safeStorage.removeItem(`full_db_${currentRegion}`); 
-        safeStorage.removeItem('app_installed_version');
+        // 🛡️ GUARDIAN PHASE 2: Identity Protection Protocol (The Vault)
+        // Replace manual key targeting with the full volatile sweep.
+        // This safely obliterates old schedules/zombie keys while locking Identity & Settings.
+        if (typeof safeStorage.flushVolatile === 'function') {
+            safeStorage.flushVolatile();
+        } else {
+            safeStorage.removeItem(`full_db_${currentRegion}`); 
+            safeStorage.removeItem('app_installed_version');
+        }
         
         if (window.indexedDB) {
             indexedDB.deleteDatabase('NextTrainDB');
@@ -935,9 +981,10 @@ window.performHardCacheClear = async function(source = 'modal_confirm') {
         console.warn("🛡️ Guardian: Failed to fully clear caches", e);
     }
     
+    // 🛡️ GUARDIAN PHASE 1: Extended disk IO buffer before reload
     setTimeout(() => {
         window.location.reload(true);
-    }, 800);
+    }, 1000);
 };
 
 window.showCacheClearWarning = function() {
@@ -1228,18 +1275,22 @@ async function checkServiceAlerts() {
                     triggerHaptic();
                     
                     // Strip HTML completely so the admin input box isn't polluted
-                    let cleanMsgText = activeNotice.message.replace(/<[^>]*>?/gm, '');
-                    // Strip the signature if it exists (everything after the em dash)
-                    cleanMsgText = cleanMsgText.replace(/—.*/, '').trim();
+                    let cleanMsgText = "";
+                    if (activeNotice && activeNotice.message) {
+                        cleanMsgText = activeNotice.message.replace(/<[^>]*>?/gm, '');
+                        // Strip the signature if it exists (everything after the em dash)
+                        cleanMsgText = cleanMsgText.replace(/—.*/, '').trim();
+                    }
                     
-                    // Truncate to a digestible context length
-                    let truncatedMsg = cleanMsgText;
-                    if (truncatedMsg.length > 35) truncatedMsg = truncatedMsg.substring(0, 35) + '...';
+                    // Truncate to a digestible context length (First 6 words)
+                    let words = cleanMsgText.split(/\s+/).filter(w => w.length > 0);
+                    let truncatedMsg = words.slice(0, 6).join(' ');
+                    if (words.length > 6) truncatedMsg += '...';
                     
                     // Pre-fill the modal
                     const fText = document.getElementById('feedback-text');
                     const fType = document.getElementById('feedback-type');
-                    if (fText) fText.value = `Replying to Alert: "${truncatedMsg}"\n\n`;
+                    if (fText) fText.value = `Replying to: "${truncatedMsg}"\n\n`;
                     if (fType) fType.value = 'general';
                     
                     closeNotice();
@@ -2041,6 +2092,7 @@ function setupFeatureButtons() {
             triggerHaptic();
             trackAnalyticsEvent('click_share', { location: 'main_view' });
             const shareText = 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive.';
+            // 🛡️ GUARDIAN Phase 2: Explicitly verified this URL does NOT contain the UID to prevent identity leakage.
             const shareUrl = 'https://nexttrain.co.za/';
 
             const shareData = { title: "Metrorail Next Train", text: shareText, url: shareUrl }; 
@@ -2056,16 +2108,48 @@ function setupFeatureButtons() {
     installBtn = document.getElementById('install-app-btn');
     const installBtnPlanner = document.getElementById('install-app-btn-planner');
     
+    // 🛡️ GUARDIAN PHASE 2: Identity Bridge (WebView Detection)
+    const ua = navigator.userAgent || navigator.vendor || window.opera;
+    const isWebView = (ua.indexOf('FBAN') > -1) || (ua.indexOf('FBAV') > -1) || (ua.indexOf('Instagram') > -1) || (ua.indexOf('Line') > -1);
+
     const showInstallButton = () => { 
         if (installBtn) installBtn.classList.remove('hidden'); 
         if (installBtnPlanner) installBtnPlanner.classList.remove('hidden'); 
+        
+        // GUARDIAN Phase 2: Escape Hatch UI Transformation
+        if (isWebView) {
+            const escapeIcon = `<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>`;
+            if (installBtn) {
+                installBtn.innerHTML = `${escapeIcon} Open in Browser to Install`;
+                installBtn.classList.replace('bg-green-500', 'bg-blue-600');
+                installBtn.classList.replace('hover:bg-green-600', 'hover:bg-blue-700');
+            }
+            if (installBtnPlanner) {
+                installBtnPlanner.innerHTML = `${escapeIcon} Open in Browser to Install`;
+                installBtnPlanner.classList.replace('bg-green-500', 'bg-blue-600');
+                installBtnPlanner.classList.replace('hover:bg-green-600', 'hover:bg-blue-700');
+            }
+        }
     };
     
-    if (window.deferredInstallPrompt) { showInstallButton(); } else { window.addEventListener('pwa-install-ready', () => { showInstallButton(); }); }
+    if (window.deferredInstallPrompt || isWebView) { 
+        showInstallButton(); 
+    } else { 
+        window.addEventListener('pwa-install-ready', () => { showInstallButton(); }); 
+    }
     
     const handleInstallClick = () => { 
         triggerHaptic();
-        trackAnalyticsEvent('install_app_click', { location: 'main_view' });
+        trackAnalyticsEvent('install_app_click', { location: 'main_view', is_webview: isWebView });
+        
+        // 🛡️ GUARDIAN PHASE 2: The Identity Bridge Execution
+        if (isWebView) {
+            const bridgeUrl = `https://nexttrain.co.za/?uid=${NEXT_TRAIN_DEVICE_ID}`;
+            copyToClipboard(bridgeUrl);
+            showToast("Bridge Link Copied! Paste into Safari/Chrome to continue.", "success", 6000);
+            return;
+        }
+
         if (installBtn) installBtn.classList.add('hidden'); 
         if (installBtnPlanner) installBtnPlanner.classList.add('hidden');
         
@@ -2214,7 +2298,7 @@ window.handleRegionChange = function(newRegion, selectElement) {
     }
 };
 
-window.voteForRegion = function() {
+window.voteForRegion = async function() {
     triggerHaptic();
     if (window.lastClickedFutureRegion) {
         const storageKey = 'voted_' + window.lastClickedFutureRegion;
@@ -2226,6 +2310,36 @@ window.voteForRegion = function() {
             showToast("You've already voted for this region!", "info");
         } else {
             trackAnalyticsEvent('vote_future_region', { region: window.lastClickedFutureRegion });
+
+            // GROWTH MODE Phase 1: Direct Firebase RTDB Push for absolute mathematical proof
+            try {
+                if (window.firebaseAuth && !window.firebaseAuth.currentUser && window.firebaseSignInAnonymously) {
+                    await window.firebaseSignInAnonymously(window.firebaseAuth);
+                }
+
+                let authToken = "";
+                if (window.firebaseAuth && window.firebaseAuth.currentUser && window.firebaseGetIdToken) {
+                    authToken = await window.firebaseGetIdToken(window.firebaseAuth.currentUser, true);
+                }
+
+                const payload = {
+                    region: window.lastClickedFutureRegion,
+                    timestamp: Date.now(),
+                    device_id: typeof NEXT_TRAIN_DEVICE_ID !== 'undefined' ? NEXT_TRAIN_DEVICE_ID : 'unknown'
+                };
+
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const authParam = authToken ? `?auth=${authToken}` : '';
+
+                fetch(`${dynamicEndpoint}votes.json${authParam}`, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                }).catch(e => console.warn("Vote network error, continuing.", e));
+
+            } catch (fbError) {
+                console.warn("Firebase vote submission failed:", fbError);
+            }
+
             try { safeStorage.setItem(storageKey, 'true'); } catch(e) {}
             showToast("Thanks for voting! We've logged your request.", "success");
         }
@@ -2397,6 +2511,7 @@ function handleUpdateFound(registration) {
         `;
         showToast("New version available.", "info", 10000, actionHTML);
         
+        // This enables the Idle tracker to see the pending update and trigger it automatically
         window._pendingUpdateReg = registration;
     }
 }
@@ -2701,6 +2816,151 @@ window.handleUpdateClick = async function(newVersion) {
     window.location.reload(true);
 };
 
+// GUARDIAN BUGFIX: Properly attribute analytics source for forced system cache wipes
+window.performHardCacheClear = async function(source = 'modal_confirm') {
+    triggerHaptic();
+    
+    // 🛡️ GUARDIAN FIX: Stop spamming analytics! Only fire when manually initiated from UI.
+    if (source === 'modal_confirm') {
+        trackAnalyticsEvent('execute_hard_cache_clear', { location: 'sidebar' });
+        showToast("Clearing offline data and syncing...", "info", 5000);
+
+        // 🛡️ GUARDIAN PHASE 1 (Analytics Beacon Hardening):
+        // The GA4 and Clarity tracking pixels need time to leave the device.
+        // If we immediately unregister the Service Worker below, it aborts in-flight network requests.
+        // We force a 600ms network buffer here to guarantee the beacon lands.
+        await new Promise(resolve => setTimeout(resolve, 600));
+    }
+    
+    window.closeAppHub(true); 
+    
+    const modal = document.getElementById('cache-clear-modal');
+    if (modal) {
+        closeSmoothModal('cache-clear-modal');
+    }
+    
+    // GUARDIAN Phase 4: Async Cache Wipe to prevent Update Race Conditions
+    try {
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let registration of registrations) {
+                await registration.unregister();
+            }
+        }
+
+        if ('caches' in window) {
+            const names = await caches.keys();
+            for (let name of names) {
+                await caches.delete(name);
+            }
+        }
+
+        // 🛡️ GUARDIAN PHASE 2: Identity Protection Protocol (The Vault)
+        // Replace manual key targeting with the full volatile sweep.
+        // This safely obliterates old schedules/zombie keys while locking Identity & Settings.
+        if (typeof safeStorage.flushVolatile === 'function') {
+            safeStorage.flushVolatile();
+        } else {
+            safeStorage.removeItem(`full_db_${currentRegion}`); 
+            safeStorage.removeItem('app_installed_version');
+        }
+        
+        if (window.indexedDB) {
+            indexedDB.deleteDatabase('NextTrainDB');
+            console.log("🛡️ Guardian: IndexedDB 'NextTrainDB' successfully queued for deletion.");
+        }
+    } catch (e) {
+        console.warn("🛡️ Guardian: Failed to fully clear caches", e);
+    }
+    
+    // 🛡️ GUARDIAN PHASE 1: Extended disk IO buffer before reload
+    setTimeout(() => {
+        window.location.reload(true);
+    }, 1000);
+};
+
+window.showCacheClearWarning = function() {
+    triggerHaptic();
+    trackAnalyticsEvent('check_updates_click', { location: 'sidebar' });
+    window.closeAppHub(true); 
+    let modal = document.getElementById('cache-clear-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'cache-clear-modal';
+        modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-md z-[140] hidden flex items-center justify-center p-4 transition-opacity duration-300';
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
+                <div class="text-center">
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900 mb-4 shadow-inner">
+                        <svg class="h-6 w-6 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Sync Latest Schedule?</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">This will clear your offline cache and download the absolute latest App version from the server.</p>
+                    <div class="flex space-x-3">
+                        <button onclick="closeSmoothModal('cache-clear-modal')" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors focus:outline-none">Cancel</button>
+                        <button onclick="performHardCacheClear('modal_confirm')" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none">Sync Now</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    history.pushState({ modal: 'cache-clear-modal' }, '', '#cacheclear');
+    openSmoothModal('cache-clear-modal');
+}
+
+function initializeApp() {
+    if (window.location.pathname.endsWith('index.html')) {
+        const newPath = window.location.pathname.replace('index.html', '');
+        window.history.replaceState({}, '', newPath + window.location.search + window.location.hash);
+    }
+    
+    let exitTrapSet = false;
+    try { exitTrapSet = sessionStorage.getItem('exitTrapSet'); } catch(e) {}
+
+    if (!exitTrapSet) {
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        if (isStandalone) {
+            history.replaceState({ view: 'exit-trap' }, '', '#exit');
+            history.pushState({ view: 'home' }, '', '#home');
+        } else {
+            history.replaceState({ view: 'home' }, '', '#home');
+        }
+        try { sessionStorage.setItem('exitTrapSet', 'true'); } catch(e) {}
+    }
+
+    loadUserProfile(); 
+    populateStationList();
+    if (typeof initPlanner === 'function') initPlanner();
+    
+    // GUARDIAN BUGFIX: Call updatePinUI here *after* currentRouteId has been populated from storage
+    // This perfectly syncs the empty/filled visual state of the Star Pin button on the main screen.
+    updatePinUI();
+    
+    // Call the global startClock bound in logic.js
+    if (typeof window.startClock === 'function') {
+        window.startClock();
+    }
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    if (!urlParams.has('action') && !urlParams.has('route')) { findNextTrains(); }
+    checkServiceAlerts();
+    checkMaintenanceStatus(); 
+    handleShortcutActions();
+    
+    if(mainContent && currentRouteId) {
+        mainContent.style.display = 'block';
+    }
+    
+    updateNextTrainView();
+    if(stationSelect && !stationSelect.value) renderPlaceholder();
+
+    if (!navigator.onLine) { 
+        const oi = document.getElementById('offline-indicator');
+        if (oi) oi.style.display = 'flex';
+    }
+}
+
 // --- DOM READY ---
 document.addEventListener('DOMContentLoaded', () => {
     enforceAppVersion();
@@ -2724,8 +2984,6 @@ document.addEventListener('DOMContentLoaded', () => {
     redirectMessage = document.getElementById('redirect-message');
     redirectConfirmBtn = document.getElementById('redirect-confirm-btn');
     redirectCancelBtn = document.getElementById('redirect-cancel-btn');
-    shareBtn = document.getElementById('share-app-btn');
-    installBtn = document.getElementById('install-app-btn');
     
     pinRouteBtn = document.getElementById('pin-route-btn');
     pinOutline = document.getElementById('pin-outline');
@@ -2867,9 +3125,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (savedDefault === currentRouteId) { 
                 try { safeStorage.removeItem(regionKey); } catch(e) {}
+                trackAnalyticsEvent('click_pin_route', { action: 'unpin', route_id: currentRouteId }); 
                 showToast("Route unpinned.", "info", 2000); 
             } else { 
                 try { safeStorage.setItem(regionKey, currentRouteId); } catch(e) {}
+                trackAnalyticsEvent('click_pin_route', { action: 'pin', route_id: currentRouteId }); 
                 showToast("Route pinned!", "success", 2000); 
             } 
             updatePinUI(); 

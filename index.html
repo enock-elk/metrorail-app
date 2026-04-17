@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V6.04.14 (Guardian Edition - UI/UX Polish)
+  Metrorail Next Train V6.04.17 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -16,6 +16,7 @@
   - GUARDIAN UX OVERHAUL: Route Modal top-anchored and de-AI'd. Contact Enock button added. Lie-Fi Offline Toast structure added.
   - GUARDIAN APP HUB RESTRUCTURE: Flattened "vibe-coded" floating cards into edge-to-edge native lists. 4-Region drop-down prepared.
   - GUARDIAN MOBILE OPTIMIZATION: Stripped vertical bloat from Sidenav. Injected "Region Coming Soon" interceptor modal to prevent dead-ends.
+  - GROWTH MODE PHASE 3: Identity Bridge Polish (Clarity Synchronized Natively) & Sidenav Region Header Tightened.
 -->
 <html lang="en" class="dark">
 
@@ -45,7 +46,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules and route maps for Gauteng (Pretoria, Johannesburg) and Western Cape (Cape Town). Download timetable images for offline use.",
-      "softwareVersion": "6.04.14",
+      "softwareVersion": "6.04.17",
       "featureList": "Offline Access, Full Timetable, Fare Calculator, Trip Planner, Network Map, Download Timetable Images",
       "url": "https://nexttrain.co.za/"
     }
@@ -84,12 +85,26 @@
         try {
             isDevAnalytics = localStorage.getItem('analytics_ignore') === 'true';
             
-            // GUARDIAN PHASE 1: GA4 Identity Lock (Anti-Splintering)
-            // We explicitly fetch or create the unique device ID here so GA4 catches it on the absolute first payload.
-            deviceId = localStorage.getItem('next_train_device_id');
-            if (!deviceId) {
-                deviceId = 'usr_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+            // GUARDIAN PHASE 1 (Identity Bridge): Check URL for cross-sandbox UID transfer
+            var urlParams = new URLSearchParams(window.location.search);
+            var transferredUid = urlParams.get('uid');
+
+            if (transferredUid) {
+                deviceId = transferredUid;
                 localStorage.setItem('next_train_device_id', deviceId);
+                
+                // Clean the URL to prevent accidental UID sharing via copy-paste
+                urlParams.delete('uid');
+                var newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '') + window.location.hash;
+                window.history.replaceState({}, '', newUrl);
+                console.log("🛡️ Guardian: Identity Bridge connected. UID transferred across sandboxes.");
+            } else {
+                // Standard fetch or create
+                deviceId = localStorage.getItem('next_train_device_id');
+                if (!deviceId) {
+                    deviceId = 'usr_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+                    localStorage.setItem('next_train_device_id', deviceId);
+                }
             }
         } catch(e) {}
         
@@ -123,6 +138,13 @@
                 t.crossOrigin="anonymous"; // GUARDIAN: Unmasks "Script error." in Facebook WebView
                 y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
             })(window, document, "clarity", "script", "v1aj19921i");
+
+            // GUARDIAN PHASE 1: Instant Clarity Identity Sync
+            // Instantly stitch passive "bounce" sessions to the user's Device ID without waiting for ui.js
+            if (typeof deviceId !== 'undefined' && deviceId) {
+                clarity("identify", deviceId);
+                clarity("set", "custom_id", deviceId); // GROWTH MODE PHASE 3: Exact duplication prevention synced to head
+            }
         } else {
             console.log("🛡️ Clarity: Tracking blocked for Developer Session.");
         }
@@ -313,20 +335,20 @@
     <!-- APP HUB SIDENAV (Flat Native UI Edition - Vertical Compression) -->
     <div id="sidenav" class="fixed inset-y-0 left-0 w-[90vw] sm:w-96 shadow-2xl bg-white dark:bg-gray-900 flex flex-col h-full z-[100]">
         
-        <!-- 4-Region Native Selector (Interceptor Bindings) -->
-        <div class="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 shrink-0">
-            <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 px-1">Active Region</label>
-            <div class="relative shadow-sm rounded-xl">
-                <div class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-                    <span class="text-base">🌍</span>
+        <!-- 4-Region Native Selector (Interceptor Bindings) - GROWTH MODE PHASE 3 TIGHTENED -->
+        <div class="px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 shrink-0">
+            <label class="block text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1 px-1">Active Region</label>
+            <div class="relative shadow-sm rounded-lg">
+                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                    <span class="text-sm">🌍</span>
                 </div>
-                <select id="app-hub-region-select" class="block w-full appearance-none bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 py-3 pl-10 pr-10 rounded-xl text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors shadow-sm" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); window.location.reload(); }">
+                <select id="app-hub-region-select" class="block w-full appearance-none bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 py-2 pl-9 pr-9 rounded-lg text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors shadow-sm" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); window.location.reload(); }">
                     <option value="GP">Gauteng</option>
                     <option value="WC">Western Cape</option>
                     <option value="KZN">KwaZulu-Natal (Soon)</option>
                     <option value="EC">Eastern Cape (Soon)</option>
                 </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 dark:text-gray-400">
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 dark:text-gray-400">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
             </div>
@@ -1190,7 +1212,7 @@
             </div>
 
             <p class="mt-8 text-[10px] text-gray-400 font-mono">
-                Version 6.04.14 (Guardian Edition)
+                Version 6.04.17 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -1226,7 +1248,7 @@
             </div>
 
             <div class="flex space-x-3 mt-8">
-                <button id="admin-cancel-btn" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 py-3 rounded-xl font-bold transition-colors focus:outline-none text-sm">Cancel</button>
+                <button id="admin-cancel-btn" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 py-3 rounded-xl font-bold transition-colors focus:outline-none text-sm">Cancel</button>
                 <button id="admin-login-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-md transition-colors focus:outline-none text-sm flex items-center justify-center">
                     <span>Sign In</span>
                     <svg id="admin-login-spinner" class="w-4 h-4 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -1478,24 +1500,24 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=6.04.14"></script>
-    <script src="js/renderer.js?v=6.04.14"></script>
+    <script src="js/grid-order.js?v=6.04.17"></script>
+    <script src="js/renderer.js?v=6.04.17"></script>
     
-    <script src="js/utils.js?v=6.04.14"></script>
-    <script src="js/config.js?v=6.04.14"></script>
-    <script src="js/logic.js?v=6.04.14"></script>
+    <script src="js/utils.js?v=6.04.17"></script>
+    <script src="js/config.js?v=6.04.17"></script>
+    <script src="js/logic.js?v=6.04.17"></script>
 
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=6.04.14"></script>
+    <script src="js/admin.js?v=6.04.17"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=6.04.14"></script>
-    <script src="js/planner-ui.js?v=6.04.14"></script>
+    <script src="js/planner-core.js?v=6.04.17"></script>
+    <script src="js/planner-ui.js?v=6.04.17"></script>
     
-    <script src="js/map-viewer.js?v=6.04.14"></script> 
+    <script src="js/map-viewer.js?v=6.04.17"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=6.04.14"></script>
+    <script src="js/ui.js?v=6.04.17"></script>
 
     <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>

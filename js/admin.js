@@ -1,21 +1,18 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.14 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.17 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
- * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting)
+ * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
  * 2. Maintenance Mode Toggle
  * 3. Enterprise Login Logic & Token Mgmt (Phase 9)
- * 4. Simulation Controls
+ * 4. Simulation Controls (Disarmed on Entry, Triggered on Apply)
  * 5. Exceptions Manager (God-Mode + Banned/Special Types + EXPIRY)
  * 6. Special Event Route Manager
- * 7. System Health / Diagnostics Scanner (Phase 2 - New)
- * 8. Nuclear Cache Wipe (Killswitch - New)
- * 9. Live Telemetry Bridge (Cloudflare Path B - New)
- * 10. User Feedback Manager (Archive Protocol & Unread Badge Sync)
- * * * GUARDIAN PHASE 12: Added SPL (Special) tagging to exclusions manager and live sync timestamps.
- * * * GUARDIAN PHASE C: Replaced all PWA-crashing native prompt/confirms with Async Secure Modals.
- * * * GUARDIAN V6.05: God-Mode Optgroup Injection & Rich-Text Alert Formatting Toolbars.
- * * * GUARDIAN V6.05.02: Supercharged Alerts (Hero Images, CTA Buttons & Interactive Poll Manager).
+ * 7. System Health / Diagnostics Scanner
+ * 8. Nuclear Cache Wipe (Killswitch)
+ * 9. Live Telemetry Bridge & Snapshot Export
+ * 10. User Feedback Manager (Inbox & Archive Protocol Tabs)
+ * 11. Growth & Promo Manager (QR Codes)
  */
 
 const Admin = {
@@ -102,21 +99,20 @@ const Admin = {
     },
 
     currentUser: null,
-    telemetryInterval: null, // GUARDIAN: Polling tracker for analytics
+    telemetryInterval: null, 
+    clockInterval: null,
 
-    // --- 0.2 TELEMETRY REFRESH ENGINE ---
+    // --- 0.2 TELEMETRY REFRESH ENGINE & EXPORT ---
     refreshTelemetry: async () => {
         const stat5m = document.getElementById('stat-5m');
         const stat30m = document.getElementById('stat-30m');
         const statToday = document.getElementById('stat-today');
         const statAllTime = document.getElementById('stat-alltime');
         const statErrors = document.getElementById('stat-errors');
-        const syncEl = document.getElementById('telemetry-last-sync'); // GUARDIAN: Live Sync Timestamp
+        const syncEl = document.getElementById('telemetry-last-sync');
         
-        // Guard: Only fetch if the modal is currently open to save bandwidth
         const devModal = document.getElementById('dev-modal');
         if (devModal && devModal.classList.contains('hidden')) {
-            // GUARDIAN FIX: Kill the interval entirely to prevent background data drain
             if (Admin.telemetryInterval) {
                 clearInterval(Admin.telemetryInterval);
                 Admin.telemetryInterval = null;
@@ -125,16 +121,13 @@ const Admin = {
             return;
         }
 
-        // Secure validation: Worker will reject queries without a valid Admin Auth token
         const secret = await Admin.getAuthKey();
         if (!secret) return;
 
-        // Visual feedback that a fresh pull is happening (Instantly on 5-tap)
         [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
             if (el && !el.classList.contains('animate-pulse')) el.classList.add('animate-pulse');
         });
 
-        // GUARDIAN: Updated to the live production worker URL
         const CLOUDFLARE_WORKER_URL = 'https://nexttrain-telemetry.enock.workers.dev/';
         
         try {
@@ -151,7 +144,6 @@ const Admin = {
                 if(statAllTime) statAllTime.textContent = data.allTimeUsers !== undefined ? data.allTimeUsers : '--';
                 if(statErrors) statErrors.textContent = data.todayErrors !== undefined ? data.todayErrors : '--';
                 
-                // GUARDIAN: Inject explicit last updated timestamp into the UI
                 if (syncEl) {
                     syncEl.classList.remove('hidden');
                     const now = new Date();
@@ -159,7 +151,6 @@ const Admin = {
                     syncEl.textContent = `synced: ${timeStr}`;
                 }
 
-                // Kill pulse animations once data streams successfully
                 [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
                     if(el) el.classList.remove('animate-pulse');
                 });
@@ -167,7 +158,7 @@ const Admin = {
                 throw new Error("Worker returned status: " + res.status);
             }
         } catch(e) {
-            console.warn("🛡️ Telemetry Fetch Failed (Expected until Backend Worker is deployed):", e.message);
+            console.warn("🛡️ Telemetry Fetch Failed:", e.message);
             
             if(stat5m && stat5m.textContent === '--') stat5m.textContent = "Wait";
             if(stat30m && stat30m.textContent === '--') stat30m.textContent = "Wait";
@@ -175,23 +166,145 @@ const Admin = {
             if(statAllTime && statAllTime.textContent === '--') statAllTime.textContent = "Wait";
             if(statErrors && statErrors.textContent === '--') statErrors.textContent = "Wait";
 
-            // Cleanup animations on fail
             [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
                 if(el) el.classList.remove('animate-pulse');
             });
         }
     },
 
+    exportTelemetry: async () => {
+        if (typeof showToast === 'function') showToast("Generating Snapshot...", "info", 2000);
+        
+        if (typeof html2canvas === 'undefined') {
+            try {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+            } catch(e) {
+                if (typeof showToast === 'function') showToast("Failed to load snapshot engine.", "error");
+                return;
+            }
+        }
+
+        // Grab current stats from the DOM
+        const stat5m = document.getElementById('stat-5m')?.textContent || '--';
+        const stat30m = document.getElementById('stat-30m')?.textContent || '--';
+        const statToday = document.getElementById('stat-today')?.textContent || '--';
+        const statAllTime = document.getElementById('stat-alltime')?.textContent || '--';
+        const statErrors = document.getElementById('stat-errors')?.textContent || '--';
+        const syncTime = document.getElementById('telemetry-last-sync')?.textContent || '';
+        
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-ZA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const timeStr = now.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+
+        const exportContainer = document.createElement('div');
+        exportContainer.style.position = 'fixed';
+        exportContainer.style.left = '-9999px';
+        exportContainer.style.top = '0';
+        exportContainer.style.width = '600px';
+        exportContainer.style.backgroundColor = '#ffffff'; 
+        exportContainer.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+        exportContainer.style.padding = '30px';
+        exportContainer.style.color = '#1f2937';
+        exportContainer.style.borderRadius = '16px';
+        
+        exportContainer.innerHTML = `
+            <div style="border-bottom: 3px solid #3b82f6; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+                <div>
+                    <h1 style="font-size: 26px; font-weight: 900; margin: 0; color: #1e3a8a; text-transform: uppercase; letter-spacing: -0.5px;">Live Telemetry Snapshot</h1>
+                    <p style="font-size: 13px; font-weight: 700; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Metrorail Next Train</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 14px; font-weight: 800; color: #0f172a;">${dateStr}</div>
+                    <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-top: 2px;">${timeStr}</div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 12px; text-align: center;">
+                    <div style="font-size: 11px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Active (Last 5 Mins)</div>
+                    <div style="font-size: 36px; font-weight: 900; color: #15803d; line-height: 1;">${stat5m}</div>
+                </div>
+                <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 20px; border-radius: 12px; text-align: center;">
+                    <div style="font-size: 11px; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Active (Last 30 Mins)</div>
+                    <div style="font-size: 36px; font-weight: 900; color: #1d4ed8; line-height: 1;">${stat30m}</div>
+                </div>
+                <div style="background: #eef2ff; border: 1px solid #c7d2fe; padding: 20px; border-radius: 12px; text-align: center;">
+                    <div style="font-size: 11px; font-weight: 800; color: #3730a3; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Unique Users Today</div>
+                    <div style="font-size: 36px; font-weight: 900; color: #4338ca; line-height: 1;">${statToday}</div>
+                </div>
+                <div style="background: #faf5ff; border: 1px solid #e9d5ff; padding: 20px; border-radius: 12px; text-align: center;">
+                    <div style="font-size: 11px; font-weight: 800; color: #5b21b6; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Total Users (All-Time)</div>
+                    <div style="font-size: 36px; font-weight: 900; color: #6d28d9; line-height: 1;">${statAllTime}</div>
+                </div>
+            </div>
+
+            <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                <div style="font-size: 13px; font-weight: 800; color: #991b1b; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center;">
+                    <span style="font-size: 16px; margin-right: 8px;">🚨</span> System Errors (Today)
+                </div>
+                <div style="font-size: 24px; font-weight: 900; color: #b91c1c;">${statErrors}</div>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 2px;">Exported by System Admin</div>
+                    <div style="font-size: 10px; font-weight: 600; color: #64748b;">nexttrain.co.za | ${syncTime}</div>
+                </div>
+                <div style="display: flex; align-items: center; background: #ffffff; padding: 6px 12px; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                    <svg style="width: 14px; height: 14px; color: #f59e0b; margin-right: 6px;" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+                    <span style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Verified by Google Analytics</span>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(exportContainer);
+
+        try {
+            await new Promise(r => setTimeout(r, 150)); 
+
+            const canvas = await html2canvas(exportContainer, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false
+            });
+
+            canvas.toBlob(async (blob) => {
+                const timestampStr = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 12); 
+                const fileName = `NextTrain_Telemetry_${timestampStr}.png`;
+                const file = new File([blob], fileName, { type: "image/png" });
+                const blobUrl = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = blobUrl;
+                link.click();
+                
+                if (typeof showToast === 'function') showToast("Snapshot saved to device!", "success", 4000);
+                
+                document.body.removeChild(exportContainer);
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 60000); 
+            });
+        } catch (e) {
+            console.error(e);
+            if (typeof showToast === 'function') showToast("Snapshot failed.", "error");
+            if(document.body.contains(exportContainer)) document.body.removeChild(exportContainer);
+        }
+    },
+
     // --- 1. INITIALIZATION ---
     init: () => {
-        // Listen for Firebase initialization from index.html
         window.addEventListener('firebase-auth-ready', () => {
             Admin.setupAuthListener();
             Admin.setupLoginAccess();
             Admin.setupSimulationControls();
         });
         
-        // Fallback in case the event fired before this script parsed
         if (window.firebaseAuth) {
             Admin.setupAuthListener();
             Admin.setupLoginAccess();
@@ -201,9 +314,8 @@ const Admin = {
 
     // --- 2. AUTH LISTENER (PHASE 9) ---
     setupAuthListener: () => {
-        // 🛡️ GUARDIAN FIX: Crash Immunity. Stop execution immediately if Firebase failed to initialize
         if (typeof window.firebaseOnAuthStateChanged !== 'function') {
-            console.warn("🛡️ Guardian: Firebase Auth not loaded. Skipping auth listener to prevent crash.");
+            console.warn("🛡️ Guardian: Firebase Auth not loaded. Skipping auth listener.");
             return;
         }
 
@@ -212,10 +324,9 @@ const Admin = {
             
             if (user) {
                 console.log("🛡️ Guardian: Admin Authenticated. Analytics blocked.");
-                localStorage.setItem('analytics_ignore', 'true');
+                try { localStorage.setItem('analytics_ignore', 'true'); } catch(e){}
                 Admin.currentUser = user;
                 
-                // Inject Sign Out button into the Dev Modal
                 if (signoutContainer) {
                     signoutContainer.innerHTML = `
                         <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -228,19 +339,19 @@ const Admin = {
                     document.getElementById('admin-signout-btn').addEventListener('click', () => {
                         window.firebaseSignOut(window.firebaseAuth).then(() => {
                             if (typeof showToast === 'function') showToast("Signed out successfully.", "success");
-                            if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
+                            if (location.hash === '#dev') history.back();
+                            else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
                         });
                     });
                 }
 
-                // Check unread feedback gracefully on login
                 if (Admin.checkUnreadFeedback) {
                     Admin.checkUnreadFeedback();
                 }
 
             } else {
                 console.log("🛡️ Guardian: Admin Logged Out. Analytics restored.");
-                localStorage.removeItem('analytics_ignore');
+                try { localStorage.removeItem('analytics_ignore'); } catch(e){}
                 Admin.currentUser = null;
                 if (signoutContainer) signoutContainer.innerHTML = '';
             }
@@ -266,7 +377,6 @@ const Admin = {
         appTitle.style.cursor = 'pointer'; 
         appTitle.title = "Developer Access";
 
-        // 5-Tap Trigger
         appTitle.addEventListener('click', (e) => {
             e.preventDefault(); 
             clickCount++;
@@ -277,10 +387,13 @@ const Admin = {
             if (clickCount >= 5) {
                 clickCount = 0;
                 
-                // If already logged in via Firebase Auth, bypass modal directly to hub
                 if (Admin.currentUser || window.isSimMode) {
                     if (devModal) {
-                        devModal.classList.remove('hidden');
+                        // GUARDIAN FIX: Route-aware modal opening prevents router bleed on back-button
+                        if (location.hash !== '#dev') history.pushState({ modal: 'dev' }, '', '#dev');
+                        if (typeof openSmoothModal === 'function') openSmoothModal('dev-modal');
+                        else devModal.classList.remove('hidden');
+                        
                         Admin.renderAdminModules(); 
                         Admin.initAutoSim(); 
                     }
@@ -294,7 +407,6 @@ const Admin = {
             }
         });
 
-        // Form Logic
         if (cancelBtn) cancelBtn.addEventListener('click', () => { loginModal.classList.add('hidden'); });
         
         if (passInput) {
@@ -319,9 +431,12 @@ const Admin = {
                 window.firebaseSignIn(window.firebaseAuth, email, password)
                     .then((userCredential) => {
                         loginModal.classList.add('hidden');
-                        passInput.value = ''; // Clean up password field
+                        passInput.value = ''; 
                         if (devModal) {
-                            devModal.classList.remove('hidden');
+                            if (location.hash !== '#dev') history.pushState({ modal: 'dev' }, '', '#dev');
+                            if (typeof openSmoothModal === 'function') openSmoothModal('dev-modal');
+                            else devModal.classList.remove('hidden');
+                            
                             Admin.renderAdminModules();
                             Admin.initAutoSim(); 
                         }
@@ -339,7 +454,7 @@ const Admin = {
         }
     },
 
-    // --- 2.8 AUTO-SIM INITIALIZATION (GUARDIAN UPGRADE) ---
+    // --- 2.8 AUTO-SIM PREPARATION (GUARDIAN UPGRADE) ---
     initAutoSim: () => {
         const simEnabledCheckbox = document.getElementById('sim-enabled');
         const simTimeInput = document.getElementById('sim-time');
@@ -349,48 +464,50 @@ const Admin = {
 
         const now = new Date();
         
-        // 1. Enable Checkbox
-        if (simEnabledCheckbox) simEnabledCheckbox.checked = true;
+        // 1. Prepare Checkbox (Leave disabled unless they explicitly applied it before)
+        if (simEnabledCheckbox) simEnabledCheckbox.checked = !!window.isSimMode;
         
-        // 2. Set Exact Current Time
-        const h = String(now.getHours()).padStart(2, '0');
-        const m = String(now.getMinutes()).padStart(2, '0');
-        const s = String(now.getSeconds()).padStart(2, '0');
-        const timeString = `${h}:${m}:${s}`;
-        
-        if (simTimeInput) simTimeInput.value = timeString;
-        
-        // 3. Set Specific Date Dropdown & Inputs
-        if (dayDropdown) {
-            dayDropdown.value = 'specific';
-            if (dateContainer) dateContainer.classList.remove('hidden');
+        // 2. Prepare Time Input (Only overwrite if not already simulating)
+        if (!window.isSimMode) {
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            if (simTimeInput) simTimeInput.value = `${h}:${m}:${s}`;
+            
+            if (dayDropdown) {
+                dayDropdown.value = 'specific';
+                if (dateContainer) dateContainer.classList.remove('hidden');
+            }
+            
+            if (dateInput) {
+                const yyyy = now.getFullYear();
+                const mm = String(now.getMonth() + 1).padStart(2, '0');
+                const dd = String(now.getDate()).padStart(2, '0');
+                dateInput.value = `${yyyy}-${mm}-${dd}`;
+            }
         }
         
-        if (dateInput) {
-            const yyyy = now.getFullYear();
-            const mm = String(now.getMonth() + 1).padStart(2, '0');
-            const dd = String(now.getDate()).padStart(2, '0');
-            dateInput.value = `${yyyy}-${mm}-${dd}`;
-        }
-
-        // 4. Activate Simulation Globally Instantly
-        window.isSimMode = true;
-        window.simTimeStr = timeString;
-        window.simDayIndex = now.getDay();
-        
-        if (typeof updateTime === 'function') updateTime(); 
-        if (typeof findNextTrains === 'function') findNextTrains();
+        // Note: We NO LONGER activate the simulation globally just by opening the hub!
+        // The user must press 'Apply' to hijack the system clock.
     },
 
-    // --- 2.9 LIVE TELEMETRY (CLOUD WORKER BRIDGE - NEW) ---
+    // --- 2.9 LIVE TELEMETRY (CLOUD WORKER BRIDGE) ---
     setupTelemetry: () => {
         const telPanel = document.getElementById('telemetry-panel');
         if (!telPanel) return;
 
-        // If the Dev modal is opened again during the same session, bypass complete re-initialization
-        // and instantly force a visual data refresh.
+        // GUARDIAN: Inject Export Button dynamically if it doesn't exist
+        const telBody = document.getElementById('telemetry-body');
+        if (telBody && !document.getElementById('tel-export-btn')) {
+            const exportBtn = document.createElement('button');
+            exportBtn.id = 'tel-export-btn';
+            exportBtn.className = "w-full mt-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-800/50 border border-indigo-200 dark:border-indigo-800 font-bold py-2.5 rounded-lg transition-colors text-xs flex items-center justify-center focus:outline-none";
+            exportBtn.innerHTML = `<span class="mr-2 text-base">📸</span> Export Telemetry Snapshot`;
+            exportBtn.onclick = Admin.exportTelemetry;
+            telBody.appendChild(exportBtn);
+        }
+
         if (telPanel.dataset.adminLoaded === "true") {
-            // GUARDIAN FIX: Ensure the interval restarts if it was previously killed by closing the modal
             if (!Admin.telemetryInterval) {
                 Admin.telemetryInterval = setInterval(Admin.refreshTelemetry, 10000);
             }
@@ -399,10 +516,7 @@ const Admin = {
         }
         telPanel.dataset.adminLoaded = "true";
 
-        // Fire instantly upon absolute first setup
         Admin.refreshTelemetry();
-
-        // Auto-refresh every 10 seconds (Down from 30s)
         if (Admin.telemetryInterval) clearInterval(Admin.telemetryInterval);
         Admin.telemetryInterval = setInterval(Admin.refreshTelemetry, 10000);
     },
@@ -416,7 +530,6 @@ const Admin = {
         const dayDropdown = document.getElementById('sim-day');
         const dateContainer = document.getElementById('sim-date-container');
         const dateInput = document.getElementById('sim-date');
-        const devModal = document.getElementById('dev-modal');
 
         if (dayDropdown && dateContainer && dateInput) {
             dayDropdown.addEventListener('change', () => {
@@ -431,16 +544,18 @@ const Admin = {
 
         if (simApplyBtn) {
             simApplyBtn.addEventListener('click', () => {
-                if (!simEnabledCheckbox || !simTimeInput) return;
+                if (!simTimeInput || !simEnabledCheckbox) return;
+                
+                // If they hit apply, we assume they want to turn it ON
+                simEnabledCheckbox.checked = true;
 
-                window.isSimMode = simEnabledCheckbox.checked;
-                window.simTimeStr = simTimeInput.value + ":00";
+                window.isSimMode = true;
+                window.simTimeStr = simTimeInput.value + (simTimeInput.value.length === 5 ? ":00" : "");
                 
                 if (dayDropdown && dayDropdown.value === 'specific') {
                     if (dateInput && dateInput.value) {
                         const d = new Date(dateInput.value);
                         window.simDayIndex = d.getDay(); 
-                        if (typeof showToast === 'function') showToast(`Simulating specific date: ${dateInput.value}`, "info");
                     } else {
                         if (typeof showToast === 'function') showToast("Please select a valid date.", "error");
                         return;
@@ -451,13 +566,11 @@ const Admin = {
                     window.simDayIndex = 1;
                 }
 
-                if (window.isSimMode && !simTimeInput.value) { 
-                    if (typeof showToast === 'function') showToast("Please enter a time first!", "error"); 
-                    return; 
-                }
+                if (typeof showToast === 'function') showToast("Dev Simulation Active!", "success");
                 
-                if (typeof showToast === 'function') showToast(window.isSimMode ? "Dev Simulation Active!" : "Real-time Mode Active", "success");
-                if(devModal) devModal.classList.add('hidden');
+                // GUARDIAN FIX: Proper Router-aware Exit. Closes Hub, lets you see the result.
+                if (location.hash === '#dev') history.back();
+                else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
                 
                 if (typeof updateTime === 'function') updateTime(); 
                 if (typeof findNextTrains === 'function') findNextTrains();
@@ -468,12 +581,12 @@ const Admin = {
             simExitBtn.addEventListener('click', () => {
                 window.isSimMode = false;
                 if(simEnabledCheckbox) simEnabledCheckbox.checked = false;
-                if(simTimeInput) simTimeInput.value = '';
-                if(dayDropdown) dayDropdown.value = '1'; 
-                if(dateContainer) dateContainer.classList.add('hidden');
-                if(dateInput) dateInput.value = '';
-                if(devModal) devModal.classList.add('hidden');
+                
                 if (typeof showToast === 'function') showToast("Exited Developer Mode", "info");
+                
+                if (location.hash === '#dev') history.back();
+                else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
+
                 if (typeof updateTime === 'function') updateTime(); 
                 if (typeof findNextTrains === 'function') findNextTrains();
             });
@@ -482,14 +595,99 @@ const Admin = {
 
     // --- HELPER: RENDER ALL DYNAMIC MODULES ---
     renderAdminModules: () => {
+        // 1. Inject Live Clock (Guardian UX Upgrade) precisely above Telemetry
+        let clockContainer = document.getElementById('admin-live-clock');
+        if (!clockContainer) {
+            const telPanel = document.getElementById('telemetry-panel');
+            if (telPanel) {
+                clockContainer = document.createElement('div');
+                clockContainer.id = 'admin-live-clock';
+                clockContainer.className = 'text-center mb-4';
+                clockContainer.innerHTML = `<span class="text-xs font-mono font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/80 px-3.5 py-1.5 rounded-full shadow-inner border border-gray-200 dark:border-gray-700"></span>`;
+                telPanel.parentNode.insertBefore(clockContainer, telPanel);
+            }
+        }
+
+        if (!Admin.clockInterval) {
+            Admin.clockInterval = setInterval(() => {
+                const devModal = document.getElementById('dev-modal');
+                if (devModal && !devModal.classList.contains('hidden') && clockContainer) {
+                    const now = new Date();
+                    clockContainer.querySelector('span').textContent = now.toLocaleString('en-ZA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                }
+            }, 1000);
+        }
+
+        // Setup Execution Order
         Admin.setupTelemetry();
-        Admin.setupFeedbackManager(); // IN-HOUSE FEEDBACK
+        Admin.setupFeedbackManager(); 
         Admin.setupServiceAlertsManager();
         Admin.setupExclusionManager();
         Admin.setupMaintenanceManager();
         Admin.setupSpecialEventManager(); 
         Admin.setupDiagnosticsManager(); 
+        
+        // 2. Setup Growth Panel (Injected precisely after Diagnostics, before Nuclear)
+        Admin.setupGrowthManager(); 
+        
         Admin.setupNuclearManager(); 
+    },
+
+    // --- 2.9 GROWTH & PROMO MANAGER (QR CODE) ---
+    setupGrowthManager: () => {
+        const adminContainer = document.getElementById('admin-modules-container');
+        if (!adminContainer) return;
+
+        let growthPanel = document.getElementById('growth-panel');
+        if (!growthPanel) {
+            growthPanel = document.createElement('div');
+            growthPanel.id = 'growth-panel';
+            
+            // GUARDIAN: Insert strictly before Nuclear Cache Wipe
+            const nukePanel = document.getElementById('nuke-panel');
+            if (nukePanel) {
+                adminContainer.insertBefore(growthPanel, nukePanel);
+            } else {
+                adminContainer.appendChild(growthPanel);
+            }
+        }
+
+        if (growthPanel.dataset.adminLoaded === "true") return;
+        growthPanel.dataset.adminLoaded = "true";
+
+        growthPanel.className = "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl shadow-md border border-blue-200 dark:border-indigo-800 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+
+        growthPanel.innerHTML = `
+            <button id="growth-header-btn" class="w-full text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
+                <span class="flex items-center"><span class="mr-2">🚀</span> Growth & Promo</span>
+                <svg id="growth-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            
+            <div id="growth-body" class="hidden mt-4">
+                <p class="text-[10px] text-indigo-800 dark:text-indigo-300 font-medium leading-snug mb-4 text-center px-2">Let commuters scan this to instantly open and install the app without typing the URL.</p>
+                <div class="flex flex-col items-center justify-center bg-white p-3 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-800 w-max mx-auto">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://nexttrain.co.za&color=1e3a8a&bgcolor=ffffff" alt="Next Train QR Code" class="w-40 h-40 object-contain rounded-lg">
+                </div>
+                <div class="text-center mt-4 mb-1">
+                    <span class="text-xs font-bold text-indigo-900 dark:text-indigo-100 bg-white/60 dark:bg-black/20 px-4 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-800 shadow-sm">nexttrain.co.za</span>
+                </div>
+            </div>
+        `;
+
+        const header = document.getElementById('growth-header-btn');
+        const body = document.getElementById('growth-body');
+        const chevron = document.getElementById('growth-chevron');
+
+        header.onclick = () => {
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+                header.classList.remove('mb-4');
+            } else {
+                chevron.classList.remove('-rotate-90');
+                header.classList.add('mb-4');
+            }
+        };
     },
 
     // --- GUARDIAN UX: UNREAD FEEDBACK BADGE CHECKER ---
@@ -499,16 +697,8 @@ const Admin = {
 
         try {
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-            // We do a shallow query to avoid heavy bandwidth just for a badge count
-            const res = await fetch(`${dynamicEndpoint}feedback.json?auth=${secret}&shallow=true`);
-            if (!res.ok) return;
-            
-            const data = await res.json();
-            if (!data) return;
-
-            // Since it's shallow, we only get keys. We must fetch the full node if there are keys.
-            // Better approach: fetch everything, filter locally. (Safe for Spark tier at this scale).
             const fullRes = await fetch(`${dynamicEndpoint}feedback.json?auth=${secret}`);
+            if (!fullRes.ok) return;
             const fullData = await fullRes.json();
             
             let unreadCount = 0;
@@ -532,22 +722,24 @@ const Admin = {
         }
     },
 
-    // --- 3.5 FEEDBACK MANAGER (NEW: IN-HOUSE PIPELINE w/ ARCHIVE) ---
+    // --- 3.5 FEEDBACK MANAGER (GUARDIAN INBOX & ARCHIVE PROTOCOL) ---
     setupFeedbackManager: () => {
         const alertPanel = document.getElementById('alert-panel');
-        // Ensure we find the simulation panel to inject feedback above/below cleanly
-        const simPanel = document.getElementById('simulation-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
 
         let fbPanel = document.getElementById('feedback-panel');
         if (!fbPanel) {
             fbPanel = document.createElement('div');
             fbPanel.id = 'feedback-panel';
-            alertPanel.parentNode.insertBefore(fbPanel, alertPanel); // Place right above alerts
+            alertPanel.parentNode.insertBefore(fbPanel, alertPanel);
         }
 
         if (fbPanel.dataset.adminLoaded === "true") return;
         fbPanel.dataset.adminLoaded = "true";
+
+        // Local state config
+        Admin.currentFeedbackTab = 'inbox';
+        Admin.cachedFeedbackData = [];
 
         fbPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
@@ -560,11 +752,16 @@ const Admin = {
                 <svg id="fb-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             
-            <div id="fb-body" class="hidden mt-4 space-y-4">
+            <div id="fb-body" class="hidden mt-4 space-y-3">
+                <div class="flex border-b border-gray-200 dark:border-gray-700 mb-2">
+                    <button id="fb-tab-inbox" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 transition-colors focus:outline-none tracking-wider">Inbox (<span id="fb-inbox-count">0</span>)</button>
+                    <button id="fb-tab-archive" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors focus:outline-none tracking-wider">Archive</button>
+                </div>
+                
                 <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
-                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="fb-count-display">Inbox: Loading...</span>
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="fb-status-display">Syncing Data...</span>
                     <button id="fb-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
-                        Refresh Inbox
+                        Refresh Network
                     </button>
                 </div>
                 
@@ -577,7 +774,10 @@ const Admin = {
         const chevron = document.getElementById('fb-chevron');
         const refreshBtn = document.getElementById('fb-refresh-btn');
         const listContainer = document.getElementById('fb-list');
-        const countDisplay = document.getElementById('fb-count-display');
+        const statusDisplay = document.getElementById('fb-status-display');
+        const tabInbox = document.getElementById('fb-tab-inbox');
+        const tabArchive = document.getElementById('fb-tab-archive');
+        const inboxCountSpan = document.getElementById('fb-inbox-count');
 
         header.onclick = () => {
             body.classList.toggle('hidden');
@@ -593,107 +793,134 @@ const Admin = {
 
         refreshBtn.onclick = () => Admin.fetchFeedback();
 
+        // Dual-Tab Switcher Logic
+        const switchTab = (tab) => {
+            Admin.currentFeedbackTab = tab;
+            if (tab === 'inbox') {
+                tabInbox.classList.replace('border-transparent', 'border-blue-500');
+                tabInbox.classList.replace('text-gray-400', 'text-blue-600');
+                tabInbox.classList.replace('dark:text-gray-400', 'dark:text-blue-400');
+                
+                tabArchive.classList.replace('border-blue-500', 'border-transparent');
+                tabArchive.classList.replace('text-blue-600', 'text-gray-400');
+                tabArchive.classList.replace('dark:text-blue-400', 'dark:text-gray-400');
+            } else {
+                tabArchive.classList.replace('border-transparent', 'border-blue-500');
+                tabArchive.classList.replace('text-gray-400', 'text-blue-600');
+                tabArchive.classList.replace('dark:text-gray-400', 'dark:text-blue-400');
+                
+                tabInbox.classList.replace('border-blue-500', 'border-transparent');
+                tabInbox.classList.replace('text-blue-600', 'text-gray-400');
+                tabInbox.classList.replace('dark:text-blue-400', 'dark:text-gray-400');
+            }
+            Admin.renderFeedbackList();
+        };
+
+        tabInbox.onclick = () => switchTab('inbox');
+        tabArchive.onclick = () => switchTab('archive');
+
+        // Render purely from RAM state based on Active Tab
+        Admin.renderFeedbackList = () => {
+            listContainer.innerHTML = '';
+            const isInbox = Admin.currentFeedbackTab === 'inbox';
+            const targetData = Admin.cachedFeedbackData.filter(f => isInbox ? f.status !== 'resolved' : f.status === 'resolved');
+            
+            statusDisplay.textContent = isInbox ? `Active Items: ${targetData.length}` : `Archived Items: ${targetData.length}`;
+
+            if (targetData.length === 0) {
+                listContainer.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${isInbox ? 'Inbox is completely clean! ✨' : 'No archived feedback yet.'}</div>`;
+                return;
+            }
+
+            targetData.forEach(item => {
+                const date = new Date(item.timestamp || Date.now());
+                const dateStr = `${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                
+                let badgeClass = "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600";
+                let typeLabel = "General";
+                
+                if (item.type === 'schedule_error') { badgeClass = "bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"; typeLabel = "⏱️ Schedule Error"; }
+                else if (item.type === 'bug') { badgeClass = "bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800"; typeLabel = "🐛 App Bug"; }
+                else if (item.type === 'suggestion') { badgeClass = "bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800"; typeLabel = "💡 Suggestion"; }
+
+                const emailDisplay = item.email ? `<a href="mailto:${item.email}" class="text-blue-500 dark:text-blue-400 hover:underline">${item.email}</a>` : "Anonymous User";
+                const attachmentHtml = item.attachmentUrl 
+                    ? `<a href="${item.attachmentUrl}" target="_blank" class="flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-[10px] font-bold"><span class="mr-1">📎</span> View File</a>`
+                    : `<div></div>`;
+
+                const safeText = item.text ? item.text.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>") : "No content";
+
+                const actionHtml = isInbox 
+                    ? `<button class="text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${item.id}')">Resolve</button>`
+                    : `<span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived</span>`;
+
+                const card = document.createElement('div');
+                card.className = "bg-white dark:bg-gray-900 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col transition-all hover:border-blue-300 dark:hover:border-blue-500";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border ${badgeClass}">${typeLabel}</span>
+                        <span class="text-[9px] text-gray-400 dark:text-gray-500 font-mono">${dateStr}</span>
+                    </div>
+                    
+                    <p class="text-xs text-gray-800 dark:text-gray-200 mb-3 leading-relaxed whitespace-pre-wrap">${safeText}</p>
+                    
+                    <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-800 pt-2 mt-auto">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium mb-0.5">${emailDisplay}</span>
+                            <span class="text-[8px] text-gray-400 dark:text-gray-600 font-mono">App: ${item.appVersion || 'Unknown'} | Route: ${item.routeId || 'None'}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            ${attachmentHtml}
+                            ${actionHtml}
+                        </div>
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
+        };
+
         Admin.fetchFeedback = async () => {
             const secret = await Admin.getAuthKey();
             if (!secret) return;
 
-            listContainer.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Checking database...</div>';
-            countDisplay.textContent = "Inbox: Syncing...";
+            listContainer.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Synchronizing database...</div>';
+            statusDisplay.textContent = "Syncing Network...";
 
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 const res = await fetch(`${dynamicEndpoint}feedback.json?auth=${secret}&orderBy="$key"`);
                 
                 if (!res.ok) throw new Error("Failed to fetch feedback");
-                
                 const data = await res.json();
-                listContainer.innerHTML = '';
 
-                if (!data) {
-                    listContainer.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Inbox is completely clean! ✨</div>';
-                    countDisplay.textContent = "Inbox: 0";
-                    const badge = document.getElementById('fb-unread-badge');
-                    if (badge) badge.classList.add('hidden');
-                    return;
-                }
+                Admin.cachedFeedbackData = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+                Admin.cachedFeedbackData.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
-                // Convert object to array, filter out archived/resolved, and sort newest first
-                const feedbackArray = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-                const activeFeedback = feedbackArray.filter(f => f.status !== 'resolved');
-                activeFeedback.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                const activeCount = Admin.cachedFeedbackData.filter(f => f.status !== 'resolved').length;
+                if(inboxCountSpan) inboxCountSpan.textContent = activeCount;
 
-                countDisplay.textContent = `Inbox: ${activeFeedback.length}`;
-
-                // Sync Unread Badge
                 const badge = document.getElementById('fb-unread-badge');
                 if (badge) {
-                    if (activeFeedback.length > 0) {
-                        badge.textContent = `${activeFeedback.length} New`;
+                    if (activeCount > 0) {
+                        badge.textContent = `${activeCount} New`;
                         badge.classList.remove('hidden');
                     } else {
                         badge.classList.add('hidden');
                     }
                 }
 
-                if (activeFeedback.length === 0) {
-                    listContainer.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">All feedback has been resolved! 🎉</div>';
-                    return;
-                }
-
-                activeFeedback.forEach(item => {
-                    const date = new Date(item.timestamp || Date.now());
-                    const dateStr = `${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-                    
-                    let badgeClass = "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600";
-                    let typeLabel = "General";
-                    
-                    if (item.type === 'schedule_error') { badgeClass = "bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"; typeLabel = "⏱️ Schedule Error"; }
-                    else if (item.type === 'bug') { badgeClass = "bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800"; typeLabel = "🐛 App Bug"; }
-                    else if (item.type === 'suggestion') { badgeClass = "bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800"; typeLabel = "💡 Suggestion"; }
-
-                    const emailDisplay = item.email ? `<a href="mailto:${item.email}" class="text-blue-500 dark:text-blue-400 hover:underline">${item.email}</a>` : "Anonymous User";
-                    const attachmentHtml = item.attachmentUrl 
-                        ? `<a href="${item.attachmentUrl}" target="_blank" class="flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-[10px] font-bold"><span class="mr-1">📎</span> View File</a>`
-                        : `<div></div>`;
-
-                    // Escape HTML for text to prevent XSS in admin panel
-                    const safeText = item.text ? item.text.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>") : "No content";
-
-                    const card = document.createElement('div');
-                    card.className = "bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col transition-all hover:border-gray-300 dark:hover:border-gray-500";
-                    card.innerHTML = `
-                        <div class="flex justify-between items-start mb-2">
-                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border ${badgeClass}">${typeLabel}</span>
-                            <span class="text-[9px] text-gray-400 dark:text-gray-500 font-mono">${dateStr}</span>
-                        </div>
-                        
-                        <p class="text-xs text-gray-700 dark:text-gray-200 mb-3 leading-relaxed whitespace-pre-wrap">${safeText}</p>
-                        
-                        <div class="flex justify-between items-end border-t border-gray-200 dark:border-gray-800 pt-2 mt-auto">
-                            <div class="flex flex-col">
-                                <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium mb-0.5">${emailDisplay}</span>
-                                <span class="text-[8px] text-gray-400 dark:text-gray-600 font-mono">App: ${item.appVersion || 'Unknown'} | Route: ${item.routeId || 'None'}</span>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                ${attachmentHtml}
-                                <button class="text-green-600 dark:text-green-500 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-2 py-1 rounded transition-colors focus:outline-none" onclick="Admin.resolveFeedback('${item.id}')">
-                                    Resolve
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    listContainer.appendChild(card);
-                });
+                Admin.renderFeedbackList();
 
             } catch (e) {
                 console.error(e);
                 listContainer.innerHTML = '<div class="text-xs text-red-500 text-center py-4">Failed to load feedback.</div>';
+                statusDisplay.textContent = "Network Error";
             }
         };
 
-        // GUARDIAN: The Archive Protocol (Moves to resolved state instead of deleting)
+        // GUARDIAN: The Archive Protocol
         Admin.resolveFeedback = async (id) => {
-            const confirmed = await Admin.secureConfirm("Resolve Feedback", "Mark this feedback as resolved and archive it?");
+            const confirmed = await Admin.secureConfirm("Resolve Feedback", "Mark this feedback as resolved and sweep it to the Archive Tab?");
             if (!confirmed) return;
             
             const secret = await Admin.getAuthKey();
@@ -702,7 +929,6 @@ const Admin = {
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 
-                // PATCH the status instead of DELETE
                 const payload = { status: 'resolved', resolvedAt: Date.now() };
                 const res = await fetch(`${dynamicEndpoint}feedback/${id}.json?auth=${secret}`, {
                     method: 'PATCH',
@@ -711,7 +937,7 @@ const Admin = {
 
                 if (res.ok) {
                     if (typeof showToast === 'function') showToast("Feedback resolved and archived!", "success");
-                    Admin.fetchFeedback(); // Refresh list
+                    Admin.fetchFeedback(); 
                 } else {
                     throw new Error("Failed to archive feedback");
                 }
@@ -720,7 +946,6 @@ const Admin = {
             }
         };
         
-        // Initial Badge Check on Load
         Admin.checkUnreadFeedback();
     },
 
@@ -747,7 +972,6 @@ const Admin = {
         textarea.value = text.substring(0, start) + prefix + text.substring(start, end) + suffix + text.substring(end);
         textarea.focus();
         
-        // Put cursor inside the tags if nothing was selected
         if (start === end && suffix) {
             textarea.selectionStart = start + prefix.length;
             textarea.selectionEnd = end + prefix.length;
@@ -757,19 +981,16 @@ const Admin = {
         }
     },
 
-    // --- 4. SERVICE ALERTS MANAGER (SUPERCHARGED EDITION: Rich Media & Polling) ---
+    // --- 4. SERVICE ALERTS MANAGER ---
     setupServiceAlertsManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel) return;
         
-        // Ensure strictly one initialization
         if (alertPanel.dataset.adminLoaded === "true") return;
         alertPanel.dataset.adminLoaded = "true";
 
-        // Apply Guardian Card Classes to the container
         alertPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
-        // GUARDIAN Phase 10: God-Mode Selects, Formatting Toolbar, Image URLs, CTA Buttons, and Interactive Polling
         alertPanel.innerHTML = `
             <button id="alert-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
                 <span class="flex items-center"><span class="mr-2">📢</span> Service Alerts Manager</span>
@@ -825,15 +1046,20 @@ const Admin = {
                     </div>
                 </div>
 
-                <!-- 🛡️ SUPERCHARGED: Rich Media Inputs -->
+                <!-- 🛡️ SUPERCHARGED: Rich Media Inputs with Live Preview -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                     <div class="sm:col-span-2">
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Hero Image URL (Optional)</label>
                         <input type="text" id="alert-image-url" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                        
+                        <div id="alert-image-preview-container" class="hidden mt-3 border border-gray-200 dark:border-gray-700 rounded-lg p-2 bg-white dark:bg-gray-800 shadow-inner text-center">
+                            <p class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Live Image Preview</p>
+                            <img id="alert-image-preview" src="" class="max-h-32 w-auto mx-auto rounded-md object-contain border border-gray-100 dark:border-gray-700 shadow-sm" onerror="this.parentElement.classList.add('hidden')">
+                        </div>
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">CTA Button Text</label>
-                        <input type="text" id="alert-cta-text" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="e.g. Read PRASA Statement">
+                        <input type="text" id="alert-cta-text" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="e.g. Read Statement">
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">CTA Button Link</label>
@@ -900,8 +1126,9 @@ const Admin = {
         const signoffInput = document.getElementById('alert-signoff');
         const forcePopupToggle = document.getElementById('alert-force-popup');
 
-        // Supercharged Inputs
         const imageUrlInput = document.getElementById('alert-image-url');
+        const imagePreviewContainer = document.getElementById('alert-image-preview-container');
+        const imagePreview = document.getElementById('alert-image-preview');
         const ctaUrlInput = document.getElementById('alert-cta-url');
         const ctaTextInput = document.getElementById('alert-cta-text');
         const pollToggle = document.getElementById('alert-poll-toggle');
@@ -910,7 +1137,6 @@ const Admin = {
         const pollOptA = document.getElementById('alert-poll-opt-a');
         const pollOptB = document.getElementById('alert-poll-opt-b');
 
-        // Toggles
         header.onclick = () => {
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
@@ -922,6 +1148,18 @@ const Admin = {
             }
         };
 
+        if (imageUrlInput) {
+            imageUrlInput.addEventListener('input', () => {
+                const url = imageUrlInput.value.trim();
+                if (url && url.startsWith('http')) {
+                    imagePreview.src = url;
+                    imagePreview.onload = () => imagePreviewContainer.classList.remove('hidden');
+                } else {
+                    imagePreviewContainer.classList.add('hidden');
+                }
+            });
+        }
+
         pollToggle.addEventListener('change', () => {
             if (pollToggle.checked) {
                 pollContainer.classList.remove('hidden');
@@ -930,7 +1168,6 @@ const Admin = {
             }
         });
 
-        // Fetch Current Alert
         async function fetchCurrentAlert(target) {
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -938,15 +1175,11 @@ const Admin = {
                 const data = await res.json();
                 
                 if (data && data.message) {
-                    // GUARDIAN PHASE 1: Aggressive Regex Cleanup
                     let cleanedMsg = data.message;
-                    // Strip out the appended signature (e.g., <br><br><span class="opacity-75...">— Ops</span>) from the absolute end
                     cleanedMsg = cleanedMsg.replace(/(<br\s*\/?>\s*){1,2}<span[^>]*>.*?<\/span>\s*$/i, '');
-                    // Fallback catch if there are no line breaks before the span
                     cleanedMsg = cleanedMsg.replace(/<span[^>]*>.*?<\/span>\s*$/i, '');
-                    
-                    // Convert remaining HTML back to editing text
                     cleanedMsg = cleanedMsg.replace(/<br\s*\/?>/gi, "\n").replace(/<b>/gi, "*").replace(/<\/b>/gi, "*");
+                    
                     alertMsg.value = cleanedMsg.trim();
                     
                     if(data.expiresAt && dateInput) {
@@ -957,15 +1190,20 @@ const Admin = {
                     if (severitySelect && data.severity) severitySelect.value = data.severity;
                     else if (severitySelect) severitySelect.value = 'info';
 
-                    // Parse saved preferences
                     if (data.authorName) signoffInput.value = data.authorName;
                     else signoffInput.value = "Next Train Ops";
 
                     if (data.forcePopup !== undefined) forcePopupToggle.checked = data.forcePopup;
-                    else forcePopupToggle.checked = (data.severity === 'critical'); // Backwards compatibility for old alerts
+                    else forcePopupToggle.checked = (data.severity === 'critical');
 
-                    // SUPERCHARGED: Parse rich media and polls back into UI
-                    if (data.imageUrl) imageUrlInput.value = data.imageUrl; else imageUrlInput.value = "";
+                    if (data.imageUrl) {
+                        imageUrlInput.value = data.imageUrl;
+                        imageUrlInput.dispatchEvent(new Event('input')); 
+                    } else {
+                        imageUrlInput.value = "";
+                        if (imagePreviewContainer) imagePreviewContainer.classList.add('hidden');
+                    }
+
                     if (data.ctaUrl) ctaUrlInput.value = data.ctaUrl; else ctaUrlInput.value = "";
                     if (data.ctaText) ctaTextInput.value = data.ctaText; else ctaTextInput.value = "";
                     
@@ -991,6 +1229,7 @@ const Admin = {
                     forcePopupToggle.checked = false;
                     
                     imageUrlInput.value = "";
+                    if (imagePreviewContainer) imagePreviewContainer.classList.add('hidden');
                     ctaUrlInput.value = "";
                     ctaTextInput.value = "";
                     pollToggle.checked = false;
@@ -1004,7 +1243,6 @@ const Admin = {
             } catch (e) { console.log("No active alert."); }
         }
 
-        // GUARDIAN: God-Mode Populate Targets (Cross-Region)
         function populateTargets() {
             alertTarget.innerHTML = '';
             
@@ -1038,7 +1276,6 @@ const Admin = {
             alertTarget.appendChild(gpGroup);
             alertTarget.appendChild(wcGroup);
             
-            // Auto-select current region global by default
             const defOpt = typeof currentRegion !== 'undefined' ? `all_${currentRegion}` : 'all_GP';
             const optionToSelect = alertTarget.querySelector(`option[value="${defOpt}"]`);
             if (optionToSelect) optionToSelect.selected = true;
@@ -1054,7 +1291,6 @@ const Admin = {
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); 
         if(dateInput) dateInput.value = now.toISOString().slice(0, 16);
 
-        // Actions
         sendBtn.onclick = async () => {
             let msg = alertMsg.value.trim();
             const target = alertTarget.value;
@@ -1068,15 +1304,11 @@ const Admin = {
             if (!msg) { if (typeof showToast === 'function') showToast("Message required!", "error"); return; }
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required! Sign in again.", "error"); return; }
 
-            // Allow bolding via *text* and preserve other HTML tags (like images/links added via toolbar)
             msg = msg.replace(/\n/g, "<br>").replace(/\*(.*?)\*/g, "<b>$1</b>");
-            
-            // GUARDIAN: Injecting the generic/safe sign-off
             msg += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">— ${signoff}</span>`;
 
             let expiresAtVal = dateInput && dateInput.value ? new Date(dateInput.value).getTime() : Date.now() + (2 * 3600 * 1000);
 
-            // SUPERCHARGED PAYLOAD BUILDER
             const payload = {
                 id: Date.now().toString(), 
                 message: msg,
@@ -1085,11 +1317,9 @@ const Admin = {
                 postedAt: Date.now(),
                 expiresAt: expiresAtVal,
                 severity: severity,
-                // Rich Media
                 imageUrl: imageUrlInput.value.trim() || null,
                 ctaUrl: ctaUrlInput.value.trim() || null,
                 ctaText: ctaTextInput.value.trim() || null,
-                // Poll Data
                 poll: {
                     active: pollToggle.checked,
                     question: pollToggle.checked ? pollQuestion.value.trim() : null,
@@ -1115,7 +1345,6 @@ const Admin = {
             finally { sendBtn.textContent = "Update Alert"; sendBtn.disabled = false; }
         };
 
-        // GUARDIAN PHASE 1: Archive Protocol Injection
         clearBtn.onclick = async () => {
             const target = alertTarget.value;
             const secret = await Admin.getAuthKey();
@@ -1128,29 +1357,33 @@ const Admin = {
             const url = `${dynamicEndpoint}notices/${target}.json?auth=${secret}`;
             
             try {
-                // 1. Fetch exact payload before deletion for the Archive
                 const fetchRes = await fetch(`${dynamicEndpoint}notices/${target}.json`);
                 if (fetchRes.ok) {
                     const alertData = await fetchRes.json();
                     if (alertData && alertData.id) {
                         alertData.archivedAt = Date.now();
                         alertData.clearedFrom = target;
-                        // 2. Save it to notices_archive node safely
                         const archiveUrl = `${dynamicEndpoint}notices_archive/${alertData.id}_${Date.now()}.json?auth=${secret}`;
                         await fetch(archiveUrl, { method: 'PUT', body: JSON.stringify(alertData) });
                     }
                 }
 
-                // 3. Proceed with deletion from active node
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
+                    try {
+                        const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                            method: 'POST', 
+                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                        });
+                    } catch(pe) { console.warn("Purge failed", pe); }
+
                     if (typeof showToast === 'function') showToast("Cleared & Archived!", "info");
                     
-                    // Reset UI states
                     alertMsg.value = "";
                     signoffInput.value = "Next Train Ops";
                     forcePopupToggle.checked = false;
                     imageUrlInput.value = "";
+                    if (imagePreviewContainer) imagePreviewContainer.classList.add('hidden');
                     ctaUrlInput.value = "";
                     ctaTextInput.value = "";
                     pollToggle.checked = false;
@@ -1166,7 +1399,7 @@ const Admin = {
         };
     },
 
-    // --- 5. EXCLUSION MANAGER (GUARDIAN CARD + GOD-MODE OPTGROUPS + SPL TAGS + EXPIRY) ---
+    // --- 5. EXCLUSION MANAGER ---
     setupExclusionManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
@@ -1181,7 +1414,6 @@ const Admin = {
         if (exclPanel.dataset.adminLoaded === "true") return;
         exclPanel.dataset.adminLoaded = "true";
 
-        // Apply Guardian Card Classes
         exclPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         exclPanel.innerHTML = `
@@ -1222,7 +1454,6 @@ const Admin = {
                     <div class="flex space-x-1" id="excl-days-container"></div>
                 </div>
 
-                <!-- GUARDIAN PHASE 12: Banned vs Special Tag Toggle -->
                 <div class="flex space-x-2 mt-2 mb-2">
                     <label class="flex-1 flex items-center justify-center p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg cursor-pointer transition-colors">
                         <input type="radio" name="excl-type" value="banned" checked class="form-radio h-3 w-3 text-red-600 bg-white border-gray-300 focus:ring-0">
@@ -1253,7 +1484,6 @@ const Admin = {
             </div>
         `;
 
-        // --- Wiring ---
         const header = document.getElementById('excl-header-btn');
         const body = document.getElementById('excl-body');
         const chevron = document.getElementById('excl-chevron');
@@ -1278,7 +1508,6 @@ const Admin = {
             }
         };
 
-        // GUARDIAN: God-Mode Populate Targets (Cross-Region)
         if (typeof ROUTES !== 'undefined') {
             const gpGroup = document.createElement('optgroup');
             gpGroup.label = "Gauteng Routes";
@@ -1299,20 +1528,17 @@ const Admin = {
             routeSelect.appendChild(gpGroup);
             routeSelect.appendChild(wcGroup);
             
-            // Set default cleanly
             if (typeof currentRouteId !== 'undefined' && currentRouteId) {
                 routeSelect.value = currentRouteId;
             }
         }
 
-        // Update Direction Labels based on Route
         routeSelect.addEventListener('change', () => {
             const rId = routeSelect.value;
             if (rId && ROUTES[rId]) {
                 const r = ROUTES[rId];
                 dirSelect.options[0].textContent = `To ${r.destA.replace(' STATION','')}`;
                 dirSelect.options[1].textContent = `To ${r.destB.replace(' STATION','')}`;
-                // Trigger fetch existing exclusions
                 fetchExclusions();
             } else {
                 dirSelect.options[0].textContent = "To Dest A";
@@ -1320,10 +1546,8 @@ const Admin = {
             }
         });
         
-        // Initial trigger for labels
         routeSelect.dispatchEvent(new Event('change'));
 
-        // Days Checkboxes
         const days = ['S','M','T','W','T','F','S'];
         days.forEach((d, idx) => {
             const label = document.createElement('label');
@@ -1337,7 +1561,6 @@ const Admin = {
         
         function getSelectedDays() { return Array.from(daysContainer.querySelectorAll('input:checked')).map(cb => parseInt(cb.value)); }
 
-        // 🛡️ GUARDIAN V6.1 FIX: Deep Row Scanner for mid-line originating trains
         loadTrainsBtn.onclick = () => {
             const rId = routeSelect.value;
             const type = schedTypeSelect.value;
@@ -1369,7 +1592,6 @@ const Admin = {
 
             let trainNumbersSet = new Set();
             try {
-                // Scan EVERY row to find all train columns
                 rawData.forEach(row => {
                     Object.keys(row).forEach(k => {
                         if (k.match(/^\d{4}[a-zA-Z]*$/)) trainNumbersSet.add(k);
@@ -1418,10 +1640,8 @@ const Admin = {
                     const item = data[trainNum];
                     const dayLabels = item.days.map(d => days[d]).join('');
                     
-                    // GUARDIAN PHASE 12: Identify SPL vs BANNED
                     const isSpecial = item.type === 'special';
                     
-                    // GUARDIAN PHASE C: Display Expiry
                     let expiryHtml = '';
                     let rowOpacityClass = '';
                     if (item.expiresAt) {
@@ -1466,15 +1686,12 @@ const Admin = {
             const reason = document.getElementById('excl-reason').value.trim() || "Service Adjustment";
             const selectedDays = getSelectedDays();
             
-            // GUARDIAN: Capture the selected type (banned vs special)
             const typeSelect = document.querySelector('input[name="excl-type"]:checked');
             const exceptionType = typeSelect ? typeSelect.value : 'banned';
             
-            // GUARDIAN: Capture Expiry
             const expiryInput = document.getElementById('excl-expiry').value;
             const expiryTs = expiryInput ? new Date(expiryInput).getTime() : null;
             
-            // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey(); 
             
             const selectedTrains = Array.from(trainGrid.querySelectorAll('input:checked')).map(cb => cb.value);
@@ -1496,7 +1713,7 @@ const Admin = {
                     days: selectedDays,
                     reason: reason,
                     type: exceptionType, 
-                    expiresAt: expiryTs, // GUARDIAN: Sent to Firebase
+                    expiresAt: expiryTs, 
                     updatedAt: Date.now()
                 };
             });
@@ -1512,19 +1729,17 @@ const Admin = {
                 });
                 await Promise.all(promises);
 
-                // --- 🛡️ GUARDIAN PHASE 4: CLOUDFLARE EDGE CACHE DETONATION ---
                 try {
                     const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                         method: 'POST', 
                         headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
                     });
-                    if (purgeRes.ok) console.log("🛡️ Cloudflare Edge Cache Purged.");
                 } catch(pe) { console.warn("Purge failed", pe); }
 
                 if (typeof showToast === 'function') showToast(`Updated ${selectedTrains.length} exceptions!`, "success");
                 trainGrid.querySelectorAll('input').forEach(cb => cb.checked = false);
                 document.getElementById('excl-train-manual').value = '';
-                document.getElementById('excl-expiry').value = ''; // Clean up expiry input
+                document.getElementById('excl-expiry').value = ''; 
                 fetchExclusions();
                 if (typeof loadAllSchedules === 'function') loadAllSchedules();
             } catch (e) {
@@ -1539,7 +1754,6 @@ const Admin = {
             const confirmed = await Admin.secureConfirm("Remove Exception", `Remove exception for Train #${trainNum}?`);
             if (!confirmed) return;
 
-            // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey(); 
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -1547,14 +1761,11 @@ const Admin = {
             try {
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
-                    
-                    // --- 🛡️ GUARDIAN PHASE 4: CLOUDFLARE EDGE CACHE DETONATION ---
                     try {
                         const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
                             headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
                         });
-                        if (purgeRes.ok) console.log("🛡️ Cloudflare Edge Cache Purged.");
                     } catch(pe) { console.warn("Purge failed", pe); }
 
                     if (typeof showToast === 'function') showToast("Exception removed.", "success");
@@ -1642,7 +1853,6 @@ const Admin = {
             }
         };
 
-        // Populate with current state (from memory)
         if (typeof ROUTES !== 'undefined' && ROUTES['special_event']) {
             const ev = ROUTES['special_event'];
             toggle.checked = ev.isActive;
@@ -1652,7 +1862,6 @@ const Admin = {
         }
 
         saveBtn.onclick = async () => {
-            // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey();
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required", "error"); return; }
             
@@ -1675,7 +1884,6 @@ const Admin = {
                 
                 if (res.ok) {
                     if (typeof showToast === 'function') showToast("Special Event Updated!", "success");
-                    // Instantly sync local memory & UI without hard reload
                     if (typeof ROUTES !== 'undefined' && ROUTES['special_event']) {
                         ROUTES['special_event'].isActive = payload.isActive;
                         ROUTES['special_event'].name = payload.name;
@@ -1697,7 +1905,7 @@ const Admin = {
         };
     },
 
-    // --- 7. SYSTEM HEALTH / DIAGNOSTICS SCANNER (GUARDIAN Phase 2) ---
+    // --- 7. SYSTEM HEALTH / DIAGNOSTICS SCANNER ---
     setupDiagnosticsManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
@@ -1814,11 +2022,11 @@ const Admin = {
                 `;
 
                 resultsDiv.innerHTML = summary + html;
-            }, 400); // Artificial slight delay for UX feedback
+            }, 400);
         };
     },
 
-    // --- 8. MAINTENANCE MODE MANAGER (GUARDIAN CARD STYLE) ---
+    // --- 8. MAINTENANCE MODE MANAGER ---
     setupMaintenanceManager: () => {
         const exclusionPanel = document.getElementById('exclusion-panel');
         if (!exclusionPanel || !exclusionPanel.parentNode) return;
@@ -1833,7 +2041,6 @@ const Admin = {
         if (maintPanel.dataset.loaded === "true") return;
         maintPanel.dataset.loaded = "true";
 
-        // Apply Guardian Card Classes
         maintPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         maintPanel.innerHTML = `
@@ -1874,7 +2081,6 @@ const Admin = {
             }
         };
         
-        // 1. Check Current Status
         async function checkStatus() {
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -1885,13 +2091,11 @@ const Admin = {
         }
         checkStatus();
 
-        // 2. Toggle Handler
         toggle.addEventListener('change', async () => {
-            // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey(); 
             if (!secret) {
                 if (typeof showToast === 'function') showToast("Authentication required to change system status.", "error");
-                toggle.checked = !toggle.checked; // Revert UI
+                toggle.checked = !toggle.checked; 
                 return;
             }
 
@@ -1909,12 +2113,12 @@ const Admin = {
                 }
             } catch(e) {
                 if (typeof showToast === 'function') showToast("Failed to update status.", "error");
-                toggle.checked = !toggle.checked; // Revert
+                toggle.checked = !toggle.checked; 
             }
         });
     },
 
-    // --- 9. NUCLEAR CACHE WIPE (GUARDIAN KILLSWITCH RESTORE) ---
+    // --- 9. NUCLEAR CACHE WIPE ---
     setupNuclearManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
@@ -1962,7 +2166,6 @@ const Admin = {
         };
 
         fireBtn.onclick = async () => {
-            // GUARDIAN: Secure Token Fetch
             const secret = await Admin.getAuthKey(); 
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
             
@@ -1979,7 +2182,6 @@ const Admin = {
                 
                 const res = await fetch(url, { method: 'PUT', body: JSON.stringify(payload) });
                 if (res.ok) {
-                    // --- 🛡️ GUARDIAN PHASE 4: CLOUDFLARE EDGE CACHE DETONATION ---
                     try {
                         const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
@@ -2002,7 +2204,6 @@ const Admin = {
     }
 };
 
-// EXPOSE ADMIN GLOBALLY TO ALLOW INLINE HTML CLICKS (E.G., RESOLVE FEEDBACK)
 window.Admin = Admin;
 
 document.addEventListener('DOMContentLoaded', () => {
