@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.17 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.20 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -832,6 +832,15 @@ const Admin = {
                 return;
             }
 
+            // GUARDIAN FIX: Global secure fallback for sanitization
+            const secureEscape = (str) => {
+                if (!str) return '';
+                if (typeof escapeHTML === 'function') return escapeHTML(str);
+                return String(str).replace(/[&<>"']/g, function(m) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+                });
+            };
+
             targetData.forEach(item => {
                 const date = new Date(item.timestamp || Date.now());
                 const dateStr = `${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
@@ -843,12 +852,17 @@ const Admin = {
                 else if (item.type === 'bug') { badgeClass = "bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800"; typeLabel = "🐛 App Bug"; }
                 else if (item.type === 'suggestion') { badgeClass = "bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800"; typeLabel = "💡 Suggestion"; }
 
-                const emailDisplay = item.email ? `<a href="mailto:${item.email}" class="text-blue-500 dark:text-blue-400 hover:underline">${item.email}</a>` : "Anonymous User";
-                const attachmentHtml = item.attachmentUrl 
-                    ? `<a href="${item.attachmentUrl}" target="_blank" class="flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-[10px] font-bold"><span class="mr-1">📎</span> View File</a>`
-                    : `<div></div>`;
+                // 🛡️ GUARDIAN FIX: XSS Sanitization injected
+                const safeEmail = secureEscape(item.email);
+                const safeText = item.text ? secureEscape(item.text).replace(/\n/g, "<br>") : "No content";
+                const safeAppVersion = secureEscape(item.appVersion || 'Unknown');
+                const safeRouteId = secureEscape(item.routeId || 'None');
+                const safeAttachUrl = item.attachmentUrl ? secureEscape(item.attachmentUrl) : null;
 
-                const safeText = item.text ? item.text.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>") : "No content";
+                const emailDisplay = safeEmail ? `<a href="mailto:${safeEmail}" class="text-blue-500 dark:text-blue-400 hover:underline">${safeEmail}</a>` : "Anonymous User";
+                const attachmentHtml = safeAttachUrl 
+                    ? `<a href="${safeAttachUrl}" target="_blank" class="flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-[10px] font-bold"><span class="mr-1">📎</span> View File</a>`
+                    : `<div></div>`;
 
                 const actionHtml = isInbox 
                     ? `<button class="text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${item.id}')">Resolve</button>`
@@ -867,7 +881,7 @@ const Admin = {
                     <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-800 pt-2 mt-auto">
                         <div class="flex flex-col">
                             <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium mb-0.5">${emailDisplay}</span>
-                            <span class="text-[8px] text-gray-400 dark:text-gray-600 font-mono">App: ${item.appVersion || 'Unknown'} | Route: ${item.routeId || 'None'}</span>
+                            <span class="text-[8px] text-gray-400 dark:text-gray-600 font-mono">App: ${safeAppVersion} | Route: ${safeRouteId}</span>
                         </div>
                         <div class="flex items-center space-x-2">
                             ${attachmentHtml}
@@ -1370,10 +1384,11 @@ const Admin = {
 
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
+                    // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key
                     try {
                         const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                            headers: {'Authorization': `Bearer ${secret}`} 
                         });
                     } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -1729,10 +1744,11 @@ const Admin = {
                 });
                 await Promise.all(promises);
 
+                // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key
                 try {
                     const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                         method: 'POST', 
-                        headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                        headers: {'Authorization': `Bearer ${secret}`} 
                     });
                 } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -1761,10 +1777,11 @@ const Admin = {
             try {
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
+                    // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key
                     try {
                         const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                            headers: {'Authorization': `Bearer ${secret}`} 
                         });
                     } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -2182,10 +2199,11 @@ const Admin = {
                 
                 const res = await fetch(url, { method: 'PUT', body: JSON.stringify(payload) });
                 if (res.ok) {
+                    // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key
                     try {
                         const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                            headers: {'Authorization': `Bearer ${secret}`} 
                         });
                         if (purgeRes.ok) console.log("🛡️ Cloudflare Edge Cache Purged.");
                     } catch(pe) { console.warn("Purge failed", pe); }

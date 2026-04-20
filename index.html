@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V6.04.17 (Guardian Edition - UI/UX Polish)
+  Metrorail Next Train V6.04.20 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -17,6 +17,7 @@
   - GUARDIAN APP HUB RESTRUCTURE: Flattened "vibe-coded" floating cards into edge-to-edge native lists. 4-Region drop-down prepared.
   - GUARDIAN MOBILE OPTIMIZATION: Stripped vertical bloat from Sidenav. Injected "Region Coming Soon" interceptor modal to prevent dead-ends.
   - GROWTH MODE PHASE 3: Identity Bridge Polish (Clarity Synchronized Natively) & Sidenav Region Header Tightened.
+  - GUARDIAN SECURITY PHASE 1 & 2: Sentry Quota Throttled to 5%. Identity Bridge URL Stripper Hardened. GA4 Deduplication Enforced.
 -->
 <html lang="en" class="dark">
 
@@ -46,7 +47,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules and route maps for Gauteng (Pretoria, Johannesburg) and Western Cape (Cape Town). Download timetable images for offline use.",
-      "softwareVersion": "6.04.17",
+      "softwareVersion": "6.04.20",
       "featureList": "Offline Access, Full Timetable, Fare Calculator, Trip Planner, Network Map, Download Timetable Images",
       "url": "https://nexttrain.co.za/"
     }
@@ -85,7 +86,8 @@
         try {
             isDevAnalytics = localStorage.getItem('analytics_ignore') === 'true';
             
-            // GUARDIAN PHASE 1 (Identity Bridge): Check URL for cross-sandbox UID transfer
+            // GUARDIAN PHASE 1 & 2 (Identity Bridge & Protection): 
+            // Check URL for cross-sandbox UID transfer and immediately destroy it to prevent token sharing via copy-paste.
             var urlParams = new URLSearchParams(window.location.search);
             var transferredUid = urlParams.get('uid');
 
@@ -93,11 +95,11 @@
                 deviceId = transferredUid;
                 localStorage.setItem('next_train_device_id', deviceId);
                 
-                // Clean the URL to prevent accidental UID sharing via copy-paste
+                // CRITICAL SECURITY FIX: Strip the UID from the URL state invisibly so it can't be shared.
                 urlParams.delete('uid');
                 var newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '') + window.location.hash;
                 window.history.replaceState({}, '', newUrl);
-                console.log("🛡️ Guardian: Identity Bridge connected. UID transferred across sandboxes.");
+                console.log("🛡️ Guardian: Identity Bridge connected. UID securely stripped from URL state.");
             } else {
                 // Standard fetch or create
                 deviceId = localStorage.getItem('next_train_device_id');
@@ -113,7 +115,9 @@
             console.log("🛡️ Analytics: Internal Traffic Flag Set");
         }
         
-        // Inject the persistent User ID to force Google to deduplicate PWA/WebView sessions
+        // GUARDIAN PHASE 2 (Sanity over Vanity):
+        // Inject the persistent User ID to force Google to strictly deduplicate users across 
+        // PWA, Safari, and WebView sessions. Prevents cookie churn inflation.
         if (deviceId) {
             gaConfig['user_id'] = deviceId;
         }
@@ -157,8 +161,11 @@
             Sentry.init({
                 // GUARDIAN Phase 3: Sentry DSN (Required to route errors to your dashboard)
                 dsn: "https://ae241b469e4c06ae7644f55c2a796782@o4511038845222912.ingest.us.sentry.io/4511039214518272", 
-                // GUARDIAN Phase 3: Bumped to 100% for testing (Catch every error). Revert to 0.1 for production!
-                sampleRate: 1.0, 
+                
+                // 🛡️ GUARDIAN SECURITY PHASE 1: Quota Exhaustion Protection
+                // Dropped from 1.0 (100%) to 0.05 (5%) to preserve limits while still catching true errors.
+                sampleRate: 0.05, 
+                
                 // Filter out non-actionable browser noise
                 ignoreErrors: [
                     "ResizeObserver loop limit exceeded",
@@ -168,6 +175,8 @@
                     "QuotaExceededError", // GUARDIAN: Drop physical disk full exceptions
                     "UnknownError: Connection is closing because of: IO error", // GUARDIAN: Drop SQLite corruption events
                     "Internal error opening backing store", // GUARDIAN: Drop IndexedDB IO startup failures
+                    "DOMException", // GUARDIAN: General DOM timeouts
+                    "TimeoutError", // GUARDIAN: Fetch aborts
                     // GUARDIAN Phase 1: Noise Filter Injections
                     "UnknownError",
                     "Failed to update a ServiceWorker",
@@ -1212,7 +1221,7 @@
             </div>
 
             <p class="mt-8 text-[10px] text-gray-400 font-mono">
-                Version 6.04.17 (Guardian Edition)
+                Version 6.04.20 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -1500,24 +1509,24 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=6.04.17"></script>
-    <script src="js/renderer.js?v=6.04.17"></script>
+    <script src="js/grid-order.js?v=6.04.20"></script>
+    <script src="js/renderer.js?v=6.04.20"></script>
     
-    <script src="js/utils.js?v=6.04.17"></script>
-    <script src="js/config.js?v=6.04.17"></script>
-    <script src="js/logic.js?v=6.04.17"></script>
+    <script src="js/utils.js?v=6.04.20"></script>
+    <script src="js/config.js?v=6.04.20"></script>
+    <script src="js/logic.js?v=6.04.20"></script>
 
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=6.04.17"></script>
+    <script src="js/admin.js?v=6.04.20"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=6.04.17"></script>
-    <script src="js/planner-ui.js?v=6.04.17"></script>
+    <script src="js/planner-core.js?v=6.04.20"></script>
+    <script src="js/planner-ui.js?v=6.04.20"></script>
     
-    <script src="js/map-viewer.js?v=6.04.17"></script> 
+    <script src="js/map-viewer.js?v=6.04.20"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=6.04.17"></script>
+    <script src="js/ui.js?v=6.04.20"></script>
 
     <!-- Fail-Safe Script: Prevents infinite reloading loops -->
     <script>
