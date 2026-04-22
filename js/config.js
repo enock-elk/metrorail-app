@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.04.20 - Route Visibility Patch F1"; // BUMPED: Force cache clear for route visibility
+const APP_VERSION = "V6.04.21 - Route Visibility Patch F2"; // BUMPED: Force cache clear for route visibility
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -389,7 +389,7 @@ const ROUTES = {
         corridorId: 'WC_SOUTHERN', 
         region: 'WC', 
         colorClass: 'text-red-500', 
-        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        isActive: true, // GUARDIAN: Set active due to new data in log
         destA: 'CAPE TOWN STATION', 
         destB: "SIMON'S TOWN STATION", 
         transferStation: null, 

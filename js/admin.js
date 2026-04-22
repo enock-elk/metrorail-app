@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.20 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.21 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -973,14 +973,19 @@ const Admin = {
         const text = textarea.value;
         let prefix = '', suffix = '';
         
+        // 🛡️ GUARDIAN UX FIX: Swapped hardcoded 'example.com' with native prompt() injection.
         if (tag === 'bold') { 
             prefix = '*'; suffix = '*'; 
         } else if (tag === 'italic') { 
             prefix = '<i>'; suffix = '</i>'; 
         } else if (tag === 'link') { 
-            prefix = '<a href="https://example.com" target="_blank" class="text-blue-500 dark:text-blue-400 underline underline-offset-2">'; suffix = '</a>'; 
+            const url = prompt("Enter the full URL (e.g., https://nexttrain.co.za):", "https://");
+            if (!url) return;
+            prefix = `<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline underline-offset-2">`; suffix = '</a>'; 
         } else if (tag === 'image') {
-            prefix = '<img src="https://example.com/image.jpg" class="w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image">'; suffix = '';
+            const url = prompt("Enter the image URL:", "https://");
+            if (!url) return;
+            prefix = `<img src="${url}" class="w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image">`; suffix = '';
         }
 
         textarea.value = text.substring(0, start) + prefix + text.substring(start, end) + suffix + text.substring(end);
@@ -1063,8 +1068,12 @@ const Admin = {
                 <!-- 🛡️ SUPERCHARGED: Rich Media Inputs with Live Preview -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                     <div class="sm:col-span-2">
-                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Hero Image URL (Optional)</label>
-                        <input type="text" id="alert-image-url" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">Hero Image URL</label>
+                            <label for="alert-image-file" class="cursor-pointer text-[9px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded font-bold hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors shadow-sm focus:outline-none">📸 Upload</label>
+                            <input type="file" id="alert-image-file" class="hidden" accept="image/*">
+                        </div>
+                        <input type="text" id="alert-image-url" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://... or click Upload">
                         
                         <div id="alert-image-preview-container" class="hidden mt-3 border border-gray-200 dark:border-gray-700 rounded-lg p-2 bg-white dark:bg-gray-800 shadow-inner text-center">
                             <p class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Live Image Preview</p>
@@ -1143,6 +1152,7 @@ const Admin = {
         const imageUrlInput = document.getElementById('alert-image-url');
         const imagePreviewContainer = document.getElementById('alert-image-preview-container');
         const imagePreview = document.getElementById('alert-image-preview');
+        const imageFileInput = document.getElementById('alert-image-file'); // GUARDIAN: Native Image Uploader Add
         const ctaUrlInput = document.getElementById('alert-cta-url');
         const ctaTextInput = document.getElementById('alert-cta-text');
         const pollToggle = document.getElementById('alert-poll-toggle');
@@ -1170,6 +1180,61 @@ const Admin = {
                     imagePreview.onload = () => imagePreviewContainer.classList.remove('hidden');
                 } else {
                     imagePreviewContainer.classList.add('hidden');
+                }
+            });
+        }
+
+        // 🛡️ GUARDIAN FIX: Admin Native Image Uploader implementation
+        if (imageFileInput) {
+            imageFileInput.addEventListener('change', async function() {
+                if (this.files && this.files.length > 0) {
+                    const file = this.files[0];
+                    if (file.size > 5242880) { // Strict 5MB limit
+                        if (typeof showToast === 'function') showToast("Image is too large. Max 5MB.", "error");
+                        this.value = '';
+                        return;
+                    }
+                    
+                    if (typeof showToast === 'function') showToast("Uploading Hero Image...", "info", 30000);
+                    
+                    if (!window.firebaseStorage || !window.firebaseStorageRef || !window.firebaseUploadBytesResumable || !window.firebaseGetDownloadURL) {
+                        if (typeof showToast === 'function') showToast("Storage SDK not ready. Check connection.", "error");
+                        this.value = '';
+                        return;
+                    }
+
+                    try {
+                        const fileExt = file.name.split('.').pop();
+                        const fileName = `alerts_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
+                        const storageReference = window.firebaseStorageRef(window.firebaseStorage, `alert_images/${fileName}`);
+                        
+                        const uploadTask = window.firebaseUploadBytesResumable(storageReference, file);
+                        
+                        uploadTask.on('state_changed', 
+                            null, 
+                            (error) => {
+                                if (typeof showToast === 'function') showToast("Upload failed", "error");
+                                console.error("Admin Image Upload error:", error);
+                                this.value = '';
+                            }, 
+                            async () => {
+                                try {
+                                    const url = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
+                                    if (imageUrlInput) {
+                                        imageUrlInput.value = url;
+                                        imageUrlInput.dispatchEvent(new Event('input')); // Triggers preview automatically
+                                    }
+                                    if (typeof showToast === 'function') showToast("Upload complete!", "success");
+                                } catch(e) {
+                                    if (typeof showToast === 'function') showToast("Failed to get image link", "error");
+                                }
+                                this.value = '';
+                            }
+                        );
+                    } catch(e) {
+                        if (typeof showToast === 'function') showToast("Upload system error.", "error");
+                        this.value = '';
+                    }
                 }
             });
         }
