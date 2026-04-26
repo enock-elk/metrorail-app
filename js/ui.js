@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.26 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.27 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -840,8 +840,8 @@ window.selectProfile = function(profileType) {
 window.resetProfile = function() {
     if(profileModal) {
         history.pushState({ modal: 'profile' }, '', '#profile');
-        openSmoothModal('profile-modal');
         window.closeAppHub(); 
+        setTimeout(() => { openSmoothModal('profile-modal'); }, 50);
     }
 };
 
@@ -1879,7 +1879,8 @@ function setupFeedbackLogic() {
             // Normal In-House Text-Feedback Modal for active regions/routes
             trackAnalyticsEvent('open_feedback_modal', { location: 'app_footer' });
             history.pushState({ modal: 'feedback' }, '', '#feedback');
-            openSmoothModal('feedback-modal'); 
+            window.closeAppHub(true); 
+            setTimeout(() => { openSmoothModal('feedback-modal'); }, 50); 
         }); 
     }
 
@@ -2341,8 +2342,10 @@ window.handleRegionChange = function(newRegion, selectElement) {
         if (descEl) descEl.textContent = `We are currently mapping out the corridors for ${regionName}. We need your help to launch faster!`;
 
         history.pushState({ modal: 'region-soon' }, '', '#regionsoon');
-        openSmoothModal('region-soon-modal');
+        
+        // GUARDIAN BUGFIX: Reverse execution order to prevent background scroll bleed
         window.closeAppHub(true);
+        setTimeout(() => { openSmoothModal('region-soon-modal'); }, 50);
 
         return; // HALT EXECUTION (Prevents app crash/reload)
     }
@@ -2372,13 +2375,10 @@ window.handleRegionChange = function(newRegion, selectElement) {
         const name = newRegion === 'GP' ? 'Gauteng' : 'Western Cape';
         if (title) title.textContent = `Switch Region?`;
         if (desc) desc.textContent = `Are you sure you want to switch to ${name}?`;
-        openSmoothModal('region-confirm-modal');
+        
+        // GUARDIAN BUGFIX: Reverse execution order to preserve modal scroll lock
         window.closeAppHub(true);
-
-        const cleanup = () => {
-            if (actionBtn) actionBtn.removeEventListener('click', confirmAction);
-            if (cancelBtn) cancelBtn.removeEventListener('click', cancelAction);
-        };
+        setTimeout(() => { openSmoothModal('region-confirm-modal'); }, 50);
 
         const confirmAction = () => {
             triggerHaptic();
@@ -2398,11 +2398,11 @@ window.handleRegionChange = function(newRegion, selectElement) {
         const cancelAction = () => {
             if (location.hash === '#regionconfirm') history.back();
             else closeSmoothModal('region-confirm-modal');
-            cleanup();
         };
 
-        if (actionBtn) actionBtn.addEventListener('click', confirmAction);
-        if (cancelBtn) cancelBtn.addEventListener('click', cancelAction);
+        // GUARDIAN BUGFIX: Use strict .onclick to prevent event stacking memory leaks and double-fires
+        if (actionBtn) actionBtn.onclick = confirmAction;
+        if (cancelBtn) cancelBtn.onclick = cancelAction;
     }
 };
 
@@ -2471,16 +2471,16 @@ function setupSettingsHub() {
         triggerHaptic();
         trackAnalyticsEvent('view_user_guide', { location: 'settings' }); 
         history.pushState({ modal: 'help' }, '', '#help'); 
-        if(helpModal) { openSmoothModal('help-modal'); }
         window.closeAppHub(true);
+        if(helpModal) { setTimeout(() => { openSmoothModal('help-modal'); }, 50); }
     });
     
     if (aboutBtn) aboutBtn.addEventListener('click', () => { 
         triggerHaptic();
         trackAnalyticsEvent('view_about_page', { location: 'settings' }); 
         history.pushState({ modal: 'about' }, '', '#about'); 
-        if(aboutModal) { openSmoothModal('about-modal'); }
         window.closeAppHub(true);
+        if(aboutModal) { setTimeout(() => { openSmoothModal('about-modal'); }, 50); }
     });
 
     const verEl = document.getElementById('settings-app-version');
@@ -2496,9 +2496,11 @@ function setupSettingsHub() {
             triggerHaptic();
             if (typeof Renderer !== 'undefined' && Renderer.renderChangelogModal) {
                 history.pushState({ modal: 'changelog' }, '', '#changelog');
-                Renderer.renderChangelogModal(typeof CHANGELOG_DATA !== 'undefined' ? CHANGELOG_DATA : []);
+                window.closeAppHub(true);
+                setTimeout(() => { Renderer.renderChangelogModal(typeof CHANGELOG_DATA !== 'undefined' ? CHANGELOG_DATA : []); }, 50);
+            } else {
+                window.closeAppHub(true);
             }
-            window.closeAppHub(true); 
         };
     }
 }
@@ -2570,8 +2572,8 @@ window.openLegal = function(type) {
     history.pushState({ modal: 'legal' }, '', '#legal');
     if (legalTitle) legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
     if (legalContent) legalContent.innerHTML = LEGAL_TEXTS[type];
-    openSmoothModal('legal-modal');
     window.closeAppHub(true);
+    setTimeout(() => { openSmoothModal('legal-modal'); }, 50);
 };
 
 function closeLegal() { 
@@ -3164,20 +3166,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if(openHelpBtn) openHelpBtn.addEventListener('click', () => { 
         triggerHaptic(); trackAnalyticsEvent('view_user_guide', { location: 'sidebar' }); 
         history.pushState({ modal: 'help' }, '', '#help'); 
-        if(helpModal) { openSmoothModal('help-modal'); } window.closeAppHub(true); 
+        window.closeAppHub(true); 
+        if(helpModal) { setTimeout(() => { openSmoothModal('help-modal'); }, 50); } 
     });
     
     if(openAboutBtn) openAboutBtn.addEventListener('click', () => { 
         triggerHaptic(); trackAnalyticsEvent('view_about_page', { location: 'sidebar' }); 
         history.pushState({ modal: 'about' }, '', '#about'); 
-        if(aboutModal) { openSmoothModal('about-modal'); } window.closeAppHub(true); 
+        window.closeAppHub(true); 
+        if(aboutModal) { setTimeout(() => { openSmoothModal('about-modal'); }, 50); } 
     });
 
     const sidenavAboutBtn = document.getElementById('sidenav-about-btn');
     if(sidenavAboutBtn) sidenavAboutBtn.addEventListener('click', () => {
         triggerHaptic(); trackAnalyticsEvent('view_about_page', { location: 'sidebar' }); 
         history.pushState({ modal: 'about' }, '', '#about'); 
-        if(aboutModal) { openSmoothModal('about-modal'); } window.closeAppHub(true); 
+        window.closeAppHub(true); 
+        if(aboutModal) { setTimeout(() => { openSmoothModal('about-modal'); }, 50); } 
     });
 
     if(closeLegalBtn) closeLegalBtn.addEventListener('click', closeLegal);
@@ -3275,8 +3280,8 @@ document.addEventListener('DOMContentLoaded', () => {
         triggerHaptic(); 
         trackAnalyticsEvent('click_static_map', { location: 'sidebar' }); 
         history.pushState({ modal: 'map' }, '', '#map'); 
-        openSmoothModal('map-modal');
         window.closeAppHub(true); 
+        setTimeout(() => { openSmoothModal('map-modal'); }, 50);
     });
 
     const interactiveMapBtn = document.getElementById('sidenav-interactive-map-btn');

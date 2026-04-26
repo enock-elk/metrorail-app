@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.26 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.27 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -77,14 +77,12 @@ window._toggleCustomTimeDropdown = function(e) {
     list.classList.toggle('hidden');
     if (!list.classList.contains('hidden')) {
         if (chevron) chevron.classList.add('rotate-180');
-        if (typeof lockBackgroundScroll === 'function') lockBackgroundScroll();
         setTimeout(() => {
             const selected = list.querySelector('.bg-blue-600');
             if (selected) selected.scrollIntoView({ block: 'nearest' });
         }, 10);
     } else {
         if (chevron) chevron.classList.remove('rotate-180');
-        if (typeof unlockBackgroundScroll === 'function') unlockBackgroundScroll();
     }
 };
 
@@ -94,7 +92,6 @@ window._selectCustomTrip = function(idx) {
     const chevron = document.getElementById('custom-time-chevron');
     if (list) list.classList.add('hidden');
     if (chevron) chevron.classList.remove('rotate-180');
-    if (typeof unlockBackgroundScroll === 'function') unlockBackgroundScroll();
     
     selectPlannerTrip(idx);
 };
@@ -107,10 +104,8 @@ window._toggleMainDayDropdown = function(e) {
     list.classList.toggle('hidden');
     if (!list.classList.contains('hidden')) {
         if (chevron) chevron.classList.add('rotate-180');
-        if (typeof lockBackgroundScroll === 'function') lockBackgroundScroll();
     } else {
         if (chevron) chevron.classList.remove('rotate-180');
-        if (typeof unlockBackgroundScroll === 'function') unlockBackgroundScroll();
     }
 };
 
@@ -122,7 +117,6 @@ window._selectMainDay = function(e, value, text) {
     
     if (list) list.classList.add('hidden');
     if (chevron) chevron.classList.remove('rotate-180');
-    if (typeof unlockBackgroundScroll === 'function') unlockBackgroundScroll();
 
     if (display) display.textContent = text;
     selectedPlannerDay = value;
@@ -145,10 +139,8 @@ window._toggleHeaderDayDropdown = function(e) {
     list.classList.toggle('hidden');
     if (!list.classList.contains('hidden')) {
         if (chevron) chevron.classList.add('rotate-180');
-        if (typeof lockBackgroundScroll === 'function') lockBackgroundScroll();
     } else {
         if (chevron) chevron.classList.remove('rotate-180');
-        if (typeof unlockBackgroundScroll === 'function') unlockBackgroundScroll();
     }
 };
 
@@ -158,7 +150,6 @@ window._selectHeaderDay = function(e, value, text) {
     const chevron = document.getElementById('header-day-chevron');
     if (list) list.classList.add('hidden');
     if (chevron) chevron.classList.remove('rotate-180');
-    if (typeof unlockBackgroundScroll === 'function') unlockBackgroundScroll();
 
     if (typeof triggerHaptic === 'function') triggerHaptic();
     selectedPlannerDay = value;
@@ -213,7 +204,6 @@ document.addEventListener('click', (e) => {
         tList.classList.add('hidden');
         const chevron = document.getElementById('custom-time-chevron');
         if (chevron) chevron.classList.remove('rotate-180');
-        if (typeof unlockBackgroundScroll === 'function') unlockBackgroundScroll();
     }
 
     const mList = document.getElementById('main-day-list');
@@ -221,7 +211,6 @@ document.addEventListener('click', (e) => {
         mList.classList.add('hidden');
         const chevron = document.getElementById('main-day-chevron');
         if (chevron) chevron.classList.remove('rotate-180');
-        if (typeof unlockBackgroundScroll === 'function') unlockBackgroundScroll();
     }
 
     const hList = document.getElementById('header-day-list');
@@ -229,7 +218,6 @@ document.addEventListener('click', (e) => {
         hList.classList.add('hidden');
         const chevron = document.getElementById('header-day-chevron');
         if (chevron) chevron.classList.remove('rotate-180');
-        if (typeof unlockBackgroundScroll === 'function') unlockBackgroundScroll();
     }
 });
 

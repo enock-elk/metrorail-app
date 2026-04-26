@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.04.26 - Guardian Edition"; // BUMPED: April 26 Update - Map optimizations & UI Polish
+const APP_VERSION = "V6.04.27 - Guardian Edition"; // BUMPED: April 26 Update - Map optimizations & UI Polish
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -587,7 +587,7 @@ const DEFAULT_EXCLUSIONS = {
 // GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
     {
-        version: "V6.04.26 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Guardian Edition</span>",
+        version: "V6.04.27 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Guardian Edition</span>",
         date: "26 Apr 2026",
         features: [
             "<b>Smart Weekend & Holiday Routing:</b> The Trip Planner now intelligently predicts Public Holidays. If you search on a Sunday, it automatically skips forward to find the next available working train.",
