@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.21 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.26 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -23,6 +23,10 @@
  * * GUARDIAN PHASE 4 (V6.04.16): Hybrid Feedback Pipeline. Routes inactive/future traffic to Google Forms. Blocks empty text noise. Enhances Alert Reply Context.
  * * GUARDIAN V6.05.03: Supercharged Alerts Renderer (Hero Images, CTA Buttons, Interactive Polling). Clarity Unique User identification lock.
  * * GROWTH MODE PHASE 1: MS Clarity Fortification, Firebase Vote Counter, Monetization Hooks, and Idle Update Protocol.
+ * * GUARDIAN PHASE 5: Router Shield Dynamic DOM Querying & Offline Telemetry Network Throttling.
+ * * GUARDIAN BUGFIX: Link Bug Exterminator. Legacy URL regex removed from Service Alerts parser.
+ * * GUARDIAN PHASE 2 (GRID UX): Button micro-copy trimmed and responsive classes injected to prevent horizontal wrapping on narrow screens.
+ * * GROWTH MODE PHASE 2 (PHASE 1 POLISH): Crash Modal Feedback Hook, Alert Spam Suppression, Variable Scoping Fix, and AbortError Checks.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -44,12 +48,16 @@ function unlockBackgroundScroll() {
     document.body.classList.remove('modal-active');
 }
 
-// --- GUARDIAN: OVERRIDE SMOOTH MODAL TO CATCH TELEMETRY LEAKS ---
-// We intercept the modal close function (defined in index.html) to guarantee 
-// the admin telemetry interval is annihilated the moment the Dev Hub is hidden.
+// --- GUARDIAN: OVERRIDE SMOOTH MODAL TO CATCH TELEMETRY LEAKS AND ROUTER BLEED ---
+window._isModalAnimating = false;
+
 if (typeof window.closeSmoothModal === 'function' && !window._patchedCloseSmoothModal) {
     const originalCloseSmoothModal = window.closeSmoothModal;
     window.closeSmoothModal = function(modalId) {
+        // Set the lock, but don't block the function itself to allow programmatic syncing
+        window._isModalAnimating = true;
+        setTimeout(() => { window._isModalAnimating = false; }, 350);
+
         if (modalId === 'dev-modal' && window.Admin && window.Admin.telemetryInterval) {
             clearInterval(window.Admin.telemetryInterval);
             window.Admin.telemetryInterval = null;
@@ -57,6 +65,16 @@ if (typeof window.closeSmoothModal === 'function' && !window._patchedCloseSmooth
         originalCloseSmoothModal(modalId);
     };
     window._patchedCloseSmoothModal = true;
+}
+
+if (typeof window.openSmoothModal === 'function' && !window._patchedOpenSmoothModal) {
+    const originalOpenSmoothModal = window.openSmoothModal;
+    window.openSmoothModal = function(modalId) {
+        window._isModalAnimating = true;
+        setTimeout(() => { window._isModalAnimating = false; }, 350);
+        originalOpenSmoothModal(modalId);
+    };
+    window._patchedOpenSmoothModal = true;
 }
 
 // --- GLOBAL APP HUB CLOSER (GUARDIAN UX FIX) ---
@@ -123,10 +141,33 @@ window.onerror = function(msg, url, line, col, error) {
         return false;
     }
 
-    // GUARDIAN (Option B): Silent Ninja Protocol (Strike 2)
-    // We do absolutely nothing to the UI. The red toast has been purged.
-    // Sentry will automatically capture this exception in the background.
-    console.log("🛡️ Guardian: Strike 2 Error intercepted. UI alert suppressed. Forwarding to Sentry.");
+    // GUARDIAN (Phase 2): Safe Mode Fallback (Strike 2)
+    console.log("🛡️ Guardian: Strike 2 Error intercepted. Deploying Safe Mode.");
+    
+    // GUARDIAN PHASE 1 (Growth Mode): Encode error payload for Google Forms fallback
+    const errorDetails = `Error: ${msg}\nLine: ${line}:${col}\nURL: ${url}\nStack: ${error && error.stack ? error.stack : 'N/A'}`;
+    const encodedError = encodeURIComponent(errorDetails);
+    
+    // NOTE: Make sure to replace entry.123456789 with your actual Google Form entry ID: 1546175845
+    const feedbackUrl = `https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform?entry.1546175845=${encodedError}`;
+    
+    document.body.innerHTML = `
+        <div class="fixed inset-0 bg-gray-900 z-[9999] flex flex-col items-center justify-center p-6 text-center">
+            <div class="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center mb-6 shadow-inner ring-4 ring-red-500/20">
+                <span class="text-3xl">⚠️</span>
+            </div>
+            <h2 class="text-2xl font-black text-white mb-2 tracking-tight">App Crashed (Safe Mode)</h2>
+            <p class="text-gray-400 text-sm mb-8 max-w-xs leading-relaxed">A fatal data error occurred. Please clear your offline cache to resync the latest schedules.</p>
+            <div class="w-full max-w-xs space-y-3">
+                <button onclick="try{ if(typeof safeStorage !== 'undefined') safeStorage.flushVolatile(); else { localStorage.clear(); sessionStorage.clear(); } }catch(e){} if(window.indexedDB) indexedDB.deleteDatabase('NextTrainDB'); if(window.caches) { caches.keys().then(k => Promise.all(k.map(n => caches.delete(n)))).finally(() => window.location.reload(true)) } else { window.location.reload(true); }" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg transition-colors w-full focus:outline-none">
+                    Clear Cache & Restart
+                </button>
+                <a href="${feedbackUrl}" target="_blank" class="flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3.5 px-6 rounded-xl shadow-lg transition-colors w-full border border-gray-700 focus:outline-none text-sm">
+                    <span class="mr-2">✉️</span> Report Crash to Developer
+                </a>
+            </div>
+        </div>
+    `;
     
     return false;
 };
@@ -147,12 +188,30 @@ const OfflineTracker = {
         try {
             const queue = JSON.parse(safeStorage.getItem(OfflineTracker.queueKey) || "[]");
             if (queue.length === 0) return;
-            console.log(`[OfflineTracker] Flushing ${queue.length} events...`);
-            queue.forEach(item => {
+            console.log(`[OfflineTracker] Flushing ${queue.length} events with stagger...`);
+            
+            // GUARDIAN PHASE 5: Staggered Analytics Flush
+            // Pops one event every 300ms to prevent network-thread flooding and ad-blocker heuristics
+            const processNext = () => {
+                if (!navigator.onLine || queue.length === 0) {
+                    if (queue.length > 0) safeStorage.setItem(OfflineTracker.queueKey, JSON.stringify(queue));
+                    else safeStorage.removeItem(OfflineTracker.queueKey);
+                    return;
+                }
+                
+                const item = queue.shift();
                 const enrichedParams = { ...item.params, offline_captured: true, original_ts: item.timestamp };
+                
                 trackAnalyticsEvent(item.event, enrichedParams);
-            });
-            safeStorage.removeItem(OfflineTracker.queueKey);
+                
+                safeStorage.setItem(OfflineTracker.queueKey, JSON.stringify(queue));
+                
+                if (queue.length > 0) {
+                    setTimeout(processNext, 300);
+                }
+            };
+            
+            processNext();
         } catch (e) { console.warn("OfflineTracker Flush Error:", e); }
     }
 };
@@ -360,6 +419,7 @@ function getRoutesForCurrentRegion() {
 
 function renderSkeletonLoader(element) { if (element && typeof Renderer !== 'undefined') Renderer.renderSkeletonLoader(element); }
 
+// GUARDIAN PHASE 2: CLS Eradication (min-h-[96px] lock)
 function renderPlaceholder() {
     const triggerShake = `
         const inp = document.getElementById('station-search-input');
@@ -373,7 +433,7 @@ function renderPlaceholder() {
     `;
     
     const placeholderHTML = `
-        <div onclick="${triggerShake.replace(/\n/g, ' ')}" class="h-24 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors group w-full">
+        <div onclick="${triggerShake.replace(/\n/g, ' ')}" class="min-h-[96px] h-auto flex flex-col justify-center items-center text-gray-400 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl transition-colors group w-full shadow-sm border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50">
             <svg class="w-6 h-6 mb-1 opacity-50 group-hover:scale-110 transition-transform text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             <span class="text-xs font-bold group-hover:text-blue-500 transition-colors">Tap to select station</span>
         </div>`;
@@ -474,7 +534,7 @@ function processAndRenderJourney(allJourneys, element, header, destination) {
         if (typeof Renderer !== 'undefined') Renderer.renderJourney(element, nextJourney, destination);
     } else {
         if (allJourneys.length === 0) {
-              element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400">No scheduled trains.</div>`;
+              element.innerHTML = `<div class="min-h-[96px] flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800/50 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">No scheduled trains.</div>`;
               return;
         }
         renderNextAvailableTrain(element, destination);
@@ -493,7 +553,7 @@ function renderNextAvailableTrain(element, destination) {
         : null;
 
     if (!simResult) { 
-        element.innerHTML = `<div class="h-24 flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400">No upcoming trains.</div>`; 
+        element.innerHTML = `<div class="min-h-[96px] flex flex-col justify-center items-center text-lg font-bold text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800/50 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">No upcoming trains.</div>`; 
         return; 
     }
     
@@ -503,52 +563,37 @@ function renderNextAvailableTrain(element, destination) {
 }
 
 function updateFareDisplay(sheetKey, nextTrainTimeStr) {
-    fareContainer = document.getElementById('fare-container');
-    fareAmount = document.getElementById('fare-amount');
-    fareType = document.getElementById('fare-type');
-    passengerTypeLabel = document.getElementById('passenger-type-label');
+    // GUARDIAN Phase 1: Scoped variables to prevent node cloning/DOM collision bugs
+    const localFareContainer = document.getElementById('fare-container');
+    const localPassengerTypeLabel = document.getElementById('passenger-type-label');
     
     // GUARDIAN Phase 4: Protect against detached nodes
-    if (!fareContainer || !fareContainer.parentNode) return; 
+    if (!localFareContainer || !localFareContainer.parentNode) return; 
 
-    if (passengerTypeLabel) passengerTypeLabel.textContent = currentUserProfile;
+    if (localPassengerTypeLabel) localPassengerTypeLabel.textContent = currentUserProfile;
 
-    const newFareContainer = fareContainer.cloneNode(true);
-    fareContainer.parentNode.replaceChild(newFareContainer, fareContainer);
-    fareContainer = newFareContainer;
+    const newFareContainer = localFareContainer.cloneNode(true);
+    localFareContainer.parentNode.replaceChild(newFareContainer, localFareContainer);
     
-    fareAmount = document.getElementById('fare-amount');
-    fareType = document.getElementById('fare-type');
-    passengerTypeLabel = document.getElementById('passenger-type-label');
+    const activeFareContainer = newFareContainer;
+    const activeFareAmount = document.getElementById('fare-amount');
+    const activeFareType = document.getElementById('fare-type');
 
-    if (fareType && passengerTypeLabel && fareType.parentNode !== passengerTypeLabel.parentNode) {
-        let passWrapper = document.getElementById('passenger-type-wrapper');
-        // GUARDIAN Phase 4: Ensure parentNode exists before insertBefore
-        if (!passWrapper && passengerTypeLabel.parentNode) {
-            passWrapper = document.createElement('div');
-            passWrapper.id = 'passenger-type-wrapper';
-            passWrapper.className = 'flex items-center space-x-2';
-            passengerTypeLabel.parentNode.insertBefore(passWrapper, passengerTypeLabel);
-            passWrapper.appendChild(passengerTypeLabel); // GUARDIAN Phase 2: Fixed fatal typo to stop infinite DOM loop
-        }
-        if (passWrapper) passWrapper.appendChild(fareType);
-    }
-
-    fareContainer.className = "mb-6 p-3.5 rounded-xl flex items-center justify-between shadow-sm min-h-[58px] pr-10 relative transition-colors group";
+    activeFareContainer.className = "mb-6 p-3.5 rounded-xl flex items-center justify-between shadow-sm min-h-[58px] pr-10 relative transition-colors group";
 
     const fareData = getRouteFare(sheetKey, nextTrainTimeStr);
     const detailed = typeof getDetailedFare === 'function' ? getDetailedFare(sheetKey) : null;
     
     if (detailed && detailed.prices) {
-        fareContainer.onclick = () => openFareModal(detailed);
-        fareContainer.classList.add('cursor-pointer');
+        activeFareContainer.onclick = () => openFareModal(detailed);
+        activeFareContainer.classList.add('cursor-pointer');
         
         if (!document.getElementById('fare-chevron')) {
             const chevron = document.createElement('div');
             chevron.id = 'fare-chevron';
             chevron.className = "absolute right-3 top-1/2 transform -translate-y-1/2 opacity-50 group-hover:opacity-100 transition-opacity flex items-center justify-center shrink-0";
             chevron.innerHTML = `<svg class="w-5 h-5 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>`;
-            fareContainer.appendChild(chevron);
+            activeFareContainer.appendChild(chevron);
         }
     } else {
         const existingChevron = document.getElementById('fare-chevron');
@@ -556,49 +601,55 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     }
 
     if (fareData) {
-        if(fareAmount) fareAmount.textContent = `R${fareData.price}`;
+        if(activeFareAmount) activeFareAmount.textContent = `R${fareData.price}`;
         
-        fareContainer.classList.add('bg-blue-50', 'dark:bg-gray-800', 'border', 'border-blue-100', 'dark:border-gray-700');
-        if (detailed && detailed.prices) fareContainer.classList.add('hover:bg-blue-100', 'dark:hover:bg-gray-700');
+        activeFareContainer.classList.add('bg-blue-50', 'dark:bg-gray-800', 'border', 'border-blue-100', 'dark:border-gray-700');
+        if (detailed && detailed.prices) activeFareContainer.classList.add('hover:bg-blue-100', 'dark:hover:bg-gray-700');
         
-        if(fareAmount) fareAmount.className = "text-2xl font-black text-gray-900 dark:text-white leading-none";
+        if(activeFareAmount) activeFareAmount.className = "text-2xl font-black text-gray-900 dark:text-white leading-none";
 
         if (nextTrainTimeStr) {
             if (fareData.isPromo) {
-                if(fareType) {
-                    fareType.textContent = fareData.discountLabel || "Discounted";
-                    fareType.className = "text-[9px] font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap inline-block";
+                if(activeFareType) {
+                    activeFareType.textContent = fareData.discountLabel || "Discounted";
+                    activeFareType.className = "text-[9px] font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded uppercase tracking-wide whitespace-nowrap inline-block mt-1 shadow-sm border border-purple-200 dark:border-purple-800/50";
                 }
             } else if (fareData.isOffPeak) {
-                if(fareType) {
-                    fareType.textContent = "40% Off"; 
-                    fareType.className = "text-[9px] font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap inline-block";
+                if(activeFareType) {
+                    activeFareType.textContent = "Off-Peak • 40% Off until 14:30"; 
+                    activeFareType.className = "text-[9px] font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap inline-block mt-1 shadow-sm border border-green-200 dark:border-green-800/50";
                 }
             } else {
-                if(fareType) fareType.className = "hidden"; 
+                if(activeFareType) {
+                    activeFareType.textContent = "Standard Fare";
+                    activeFareType.className = "text-[9px] font-bold text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap inline-block mt-1 shadow-sm border border-gray-300 dark:border-gray-600";
+                }
             }
         } 
         else {
-            if(fareType) fareType.className = "hidden";
+            if(activeFareType) {
+                activeFareType.textContent = "Standard Fare";
+                activeFareType.className = "text-[9px] font-bold text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap inline-block mt-1 shadow-sm border border-gray-300 dark:border-gray-600";
+            }
         }
         
     } else {
-        fareContainer.classList.add('bg-blue-50', 'dark:bg-gray-800', 'border', 'border-blue-100', 'dark:border-gray-700');
-        if(fareAmount) {
-            fareAmount.textContent = "R --.--";
-            fareAmount.className = "text-2xl font-black text-gray-300 dark:text-gray-600 leading-none";
+        activeFareContainer.classList.add('bg-blue-50', 'dark:bg-gray-800', 'border', 'border-blue-100', 'dark:border-gray-700');
+        if(activeFareAmount) {
+            activeFareAmount.textContent = "R --.--";
+            activeFareAmount.className = "text-2xl font-black text-gray-300 dark:text-gray-600 leading-none";
         }
         if (stationSelect && stationSelect.value) {
-             if(fareType) {
-                 fareType.textContent = "Rate Unavailable";
-                 fareType.className = "text-[9px] font-bold text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded uppercase tracking-wide whitespace-nowrap inline-block";
+             if(activeFareType) {
+                 activeFareType.textContent = "Rate Unavailable";
+                 activeFareType.className = "text-[9px] font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded uppercase tracking-wide whitespace-nowrap inline-block mt-1 shadow-sm border border-yellow-200 dark:border-yellow-800/50";
              }
         } else {
-             if(fareType) fareType.className = "hidden";
+             if(activeFareType) activeFareType.className = "hidden";
         }
     }
     
-    fareContainer.classList.remove('hidden');
+    activeFareContainer.classList.remove('hidden');
 }
 
 window.openFareModal = function(fareDetails) {
@@ -626,6 +677,7 @@ window.openFareModal = function(fareDetails) {
                 <div class="p-6 overflow-y-auto flex-grow text-gray-700 dark:text-gray-300">
                     <div id="fare-table-content" class="space-y-0"></div>
                     <p class="text-[10px] text-gray-500 dark:text-gray-400 text-center mt-6">Prices are subject to change. Confirm at station.</p>
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400 text-center mt-1">Off-Peak Fares apply weekdays between 09:30 and 14:30.</p>
                 </div>
                 <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-b-2xl shrink-0">
                     <button onclick="closeSmoothModal('fare-modal')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors focus:outline-none">
@@ -738,14 +790,15 @@ function showToast(message, type = 'info', duration = 2500, actionHTML = '') {
         iconHTML = `<svg class="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
     }
 
-    toastEl.className = `flex items-center justify-between px-4 py-3 rounded-full shadow-2xl backdrop-blur-md border ${bgClass} ${borderClass} ${textClass}`; 
+    toastEl.className = `flex items-center justify-between px-4 py-3 rounded-full shadow-2xl backdrop-blur-md border ${bgClass} ${borderClass} ${textClass} max-w-[90vw]`; 
 
+    // GUARDIAN PHASE 1: Eradicated Toast overflow string bleed
     toastEl.innerHTML = `
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 overflow-hidden">
             ${iconHTML}
-            <span class="text-sm font-medium tracking-wide whitespace-nowrap">${message}</span>
+            <span class="text-sm font-medium tracking-wide break-words line-clamp-2">${message}</span>
         </div>
-        ${actionHTML ? `<div class="ml-3 pl-3 border-l border-white/20">${actionHTML}</div>` : ''}
+        ${actionHTML ? `<div class="ml-3 pl-3 border-l border-white/20 shrink-0">${actionHTML}</div>` : ''}
     `;
     
     toastEl.classList.add('show'); 
@@ -1188,8 +1241,8 @@ async function checkServiceAlerts() {
         const bindModalContent = () => {
             if (!content || !modal) return;
             
-            // Basic text parsing
-            let formattedMsg = activeNotice.message.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" class="text-blue-500 dark:text-blue-400 underline underline-offset-2" target="_blank">$1</a>');
+            // Basic text parsing (Legacy regex removed to prevent collision with Admin HTML)
+            let formattedMsg = activeNotice.message;
             
             // 🛡️ SUPERCHARGED ALERTS: Rich Media Injection (Images & CTA Buttons)
             let mediaHtml = '';
@@ -1270,7 +1323,7 @@ async function checkServiceAlerts() {
                 newReplyBtn.className = `flex-1 ${baseColorClass} text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center`;
                 newReplyBtn.innerHTML = `<span class="mr-1.5">💬</span> Reply`;
                 
-                // 🛡️ GUARDIAN PHASE 4: Contextual Alert Reply formatting
+                // 🛡️ GUARDIAN PHASE 4: Contextual Alert Reply formatting (Updated to greyed-out context block)
                 newReplyBtn.onclick = () => {
                     triggerHaptic();
                     
@@ -1290,14 +1343,28 @@ async function checkServiceAlerts() {
                     // Pre-fill the modal
                     const fText = document.getElementById('feedback-text');
                     const fType = document.getElementById('feedback-type');
-                    if (fText) fText.value = `Replying to: "${truncatedMsg}"\n\n`;
+                    
+                    if (fText) {
+                        let contextBox = document.getElementById('feedback-reply-context');
+                        if (!contextBox) {
+                            contextBox = document.createElement('div');
+                            contextBox.id = 'feedback-reply-context';
+                            contextBox.className = 'mb-3 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 italic flex items-start hidden shadow-inner';
+                            fText.parentNode.insertBefore(contextBox, fText);
+                        }
+                        contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Advisory:</span><span class="line-clamp-2">"${truncatedMsg}"</span></div>`;
+                        contextBox.dataset.rawMsg = truncatedMsg;
+                        contextBox.classList.remove('hidden');
+                        fText.value = ''; // Clean slate for user text
+                    }
                     if (fType) fType.value = 'general';
                     
                     closeNotice();
-                    // Open modal after CSS transition finishes
+                    // Open modal after CSS transition finishes using explicit function instead of click simulation to bypass context clear
                     setTimeout(() => {
-                        const feedbackBtn = document.getElementById('feedback-btn');
-                        if (feedbackBtn) feedbackBtn.click();
+                        trackAnalyticsEvent('open_feedback_modal', { location: 'alert_reply' });
+                        history.pushState({ modal: 'feedback' }, '', '#feedback');
+                        openSmoothModal('feedback-modal');
                     }, 350);
                 };
 
@@ -1334,7 +1401,10 @@ async function checkServiceAlerts() {
                 bellBtn.classList.remove('animate-shake');
             }
 
-            if (forcePopup && !window._criticalModalShown) {
+            // GUARDIAN PHASE 1 (UX Polish): Suppress auto-open on the Welcome screen.
+            const isWelcomeScreenActive = !currentRouteId || (document.getElementById('welcome-modal') && !document.getElementById('welcome-modal').classList.contains('hidden'));
+
+            if (forcePopup && !window._criticalModalShown && !isWelcomeScreenActive) {
                 window._criticalModalShown = true;
                 setTimeout(() => {
                     triggerHaptic();
@@ -1435,6 +1505,13 @@ function switchTab(tab) {
 
 // GUARDIAN PHASE 1.2: Complete popstate rebuild. Modals check precedes Router Bleed trap.
 window.addEventListener('popstate', (event) => {
+    // GUARDIAN Phase 2: Router Bleed Lock
+    if (window._isModalAnimating) {
+        console.log("🛡️ Guardian: Suppressed popstate router bleed during modal animation.");
+        history.pushState(null, '', location.href || '#home'); 
+        return;
+    }
+
     const hash = location.hash;
 
     if (hash === '#exit') {
@@ -1462,31 +1539,31 @@ window.addEventListener('popstate', (event) => {
     }
 
     // 1. EVALUATE & CLOSE MODALS FIRST (Highest Z-Index)
-    const activeModals = [];
-    const modalIds = [
-        'pin-modal', 'dev-modal', 'about-modal', 'help-modal', 'legal-modal', 
-        'profile-modal', 'notice-modal', 'cache-clear-modal', 'fare-modal', 
-        'schedule-modal', 'full-schedule-modal', 'map-modal', 'trip-map-modal', 
-        'redirect-modal', 'welcome-modal', 'changelog-modal', 'region-confirm-modal',
-        'route-modal', 'install-modal', 'feedback-modal', 'region-soon-modal' // GUARDIAN: Added 'region-soon-modal'
-    ];
-    
-    modalIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && !el.classList.contains('hidden')) {
-            activeModals.push(id);
-        }
-    });
+    // GUARDIAN PHASE 5: Dynamic Router Shield
+    // Safely query all active modals via DOM traits instead of hardcoded lists.
+    const openModals = Array.from(document.querySelectorAll('div[id$="-modal"].fixed:not(.hidden)'));
 
-    if (activeModals.length > 0) {
-        const topTier = ['pin-modal', 'dev-modal', 'notice-modal', 'cache-clear-modal', 'fare-modal', 'about-modal', 'help-modal', 'legal-modal', 'profile-modal', 'changelog-modal', 'region-confirm-modal', 'route-modal', 'install-modal', 'feedback-modal', 'region-soon-modal']; // GUARDIAN: Added 'region-soon-modal'
-        const midTier = ['schedule-modal', 'full-schedule-modal', 'redirect-modal', 'welcome-modal', 'trip-map-modal']; 
-        const baseTier = ['map-modal'];
-
+    if (openModals.length > 0) {
+        let highestZ = -1;
         let modalToClose = null;
-        for (const id of topTier) { if (activeModals.includes(id)) { modalToClose = id; break; } }
-        if (!modalToClose) { for (const id of midTier) { if (activeModals.includes(id)) { modalToClose = id; break; } } }
-        if (!modalToClose) { for (const id of baseTier) { if (activeModals.includes(id)) { modalToClose = id; break; } } }
+
+        openModals.forEach(modal => {
+            let zIndex = 0;
+            // Extract explicit z-[100] tailwind classes first
+            const zMatch = modal.className.match(/z-\[?(\d+)\]?/);
+            if (zMatch && zMatch[1]) {
+                zIndex = parseInt(zMatch[1], 10);
+            } else {
+                // Fallback to computed style
+                const computedZ = window.getComputedStyle(modal).zIndex;
+                if (computedZ !== 'auto') zIndex = parseInt(computedZ, 10);
+            }
+
+            if (zIndex > highestZ) {
+                highestZ = zIndex;
+                modalToClose = modal.id;
+            }
+        });
 
         if (modalToClose) {
             closeSmoothModal(modalToClose);
@@ -1771,6 +1848,14 @@ function setupFeedbackLogic() {
     if (feedbackBtn) {
         feedbackBtn.addEventListener('click', (e) => { 
             e.preventDefault(); 
+            
+            // Clear any existing reply context when opening natively
+            const contextBox = document.getElementById('feedback-reply-context');
+            if (contextBox) {
+                contextBox.classList.add('hidden');
+                contextBox.dataset.rawMsg = '';
+            }
+
             triggerHaptic();
             
             // 🛡️ GUARDIAN PHASE 4: THE HYBRID FEEDBACK INTERCEPTOR
@@ -1840,7 +1925,7 @@ function setupFeedbackLogic() {
 
 async function submitFeedback() {
     const type = document.getElementById('feedback-type').value;
-    const text = document.getElementById('feedback-text').value.trim();
+    let text = document.getElementById('feedback-text').value.trim();
     const email = document.getElementById('feedback-email').value.trim();
     const fileInput = document.getElementById('feedback-file');
     const submitBtn = document.getElementById('feedback-submit-btn');
@@ -1851,6 +1936,12 @@ async function submitFeedback() {
     if (!text || text.length < 5) {
         showToast("Please provide more details (at least 5 characters).", "error");
         return;
+    }
+
+    // Merge hidden context if responding to an alert
+    const contextBox = document.getElementById('feedback-reply-context');
+    if (contextBox && !contextBox.classList.contains('hidden') && contextBox.dataset.rawMsg) {
+        text = `[Replying to: "${contextBox.dataset.rawMsg}"]\n\n` + text;
     }
 
     // GUARDIAN PHASE 2: Analytics event for the feedback submission click
@@ -1967,6 +2058,10 @@ async function submitFeedback() {
         if (fileInput) fileInput.value = '';
         const preview = document.getElementById('feedback-file-preview');
         if (preview) preview.classList.add('hidden');
+        if (contextBox) {
+            contextBox.classList.add('hidden');
+            contextBox.dataset.rawMsg = '';
+        }
         
         trackAnalyticsEvent('submit_feedback_success', { feedback_type: type, has_attachment: !!attachmentUrl });
 
@@ -2100,7 +2195,10 @@ function setupFeatureButtons() {
                 if (navigator.share) { await navigator.share(shareData); } 
                 else { copyToClipboard(`${shareText} ${shareUrl}`); } 
             } catch (err) { 
-                copyToClipboard(`${shareText} ${shareUrl}`); 
+                // GUARDIAN Phase 1: Only fallback to clipboard if not deliberately aborted by the user
+                if (err.name !== 'AbortError') {
+                    copyToClipboard(`${shareText} ${shareUrl}`); 
+                }
             } 
         });
     }
@@ -2219,6 +2317,7 @@ function setupFeatureButtons() {
 // --- GUARDIAN PHASE 3: THE REGION INTERCEPTOR ---
 window.lastClickedFutureRegion = null;
 
+// GUARDIAN Phase 1 (UX Polish): Refactored to stop reloading and instead trigger seamless SPA state wipe
 window.handleRegionChange = function(newRegion, selectElement) {
     triggerHaptic();
     
@@ -2284,7 +2383,16 @@ window.handleRegionChange = function(newRegion, selectElement) {
         const confirmAction = () => {
             triggerHaptic();
             safeStorage.setItem('userRegion', newRegion);
-            window.location.reload();
+            
+            if (location.hash === '#regionconfirm') history.back();
+            else closeSmoothModal('region-confirm-modal');
+            
+            // GUARDIAN Phase 1: Call the SPA swap execution hook if it exists, otherwise fallback to reload.
+            if (typeof executeRegionSwap === 'function') {
+                executeRegionSwap(newRegion);
+            } else {
+                window.location.reload();
+            }
         };
 
         const cancelAction = () => {
@@ -2399,24 +2507,49 @@ function showWelcomeScreen() {
     if (!welcomeModal || !welcomeRouteList || !welcomeRouteList.parentNode) return; // GUARDIAN: Safety
 
     if (!document.getElementById('welcome-region-selector')) {
-        const regionDiv = document.createElement('div');
-        regionDiv.id = 'welcome-region-selector';
-        regionDiv.className = 'w-full mb-4 flex justify-center space-x-2 shrink-0';
-        
+        const regionWrapper = document.createElement('div');
+        regionWrapper.id = 'welcome-region-selector';
+        regionWrapper.className = 'w-full mb-4 flex flex-col items-center space-y-3 shrink-0';
+
+        // ROW 1: Active Regions
+        const activeRow = document.createElement('div');
+        activeRow.className = 'flex justify-center space-x-2 w-full';
+
         const btnGP = document.createElement('button');
         btnGP.className = `px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors ${currentRegion === 'GP' ? 'bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300'}`;
         btnGP.textContent = 'Gauteng';
         btnGP.onclick = () => { safeStorage.setItem('userRegion', 'GP'); window.location.reload(); };
-        
+
         const btnWC = document.createElement('button');
         btnWC.className = `px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors ${currentRegion === 'WC' ? 'bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300'}`;
         btnWC.textContent = 'Western Cape';
         btnWC.onclick = () => { safeStorage.setItem('userRegion', 'WC'); window.location.reload(); };
-        
-        regionDiv.appendChild(btnGP);
-        regionDiv.appendChild(btnWC);
-        
-        welcomeRouteList.parentNode.insertBefore(regionDiv, welcomeRouteList);
+
+        // Swap rendering order: GP on the left, WC on the right
+        activeRow.appendChild(btnGP);
+        activeRow.appendChild(btnWC);
+
+        // ROW 2: Growth Trap (Future Regions)
+        const futureRow = document.createElement('div');
+        futureRow.className = 'flex justify-center space-x-2 w-full opacity-70';
+
+        const btnKZN = document.createElement('button');
+        btnKZN.className = 'px-3 py-1.5 rounded-full text-[10px] font-bold border border-gray-300 dark:border-gray-600 text-gray-500 bg-gray-50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center shadow-sm focus:outline-none';
+        btnKZN.innerHTML = 'KwaZulu-Natal <span class="text-[8px] uppercase text-yellow-600 dark:text-yellow-500 ml-1.5 font-black bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">Soon</span>';
+        btnKZN.onclick = () => { window.lastClickedFutureRegion = 'KZN'; history.pushState({ modal: 'region-soon' }, '', '#regionsoon'); openSmoothModal('region-soon-modal'); window.closeAppHub(true); };
+
+        const btnEC = document.createElement('button');
+        btnEC.className = 'px-3 py-1.5 rounded-full text-[10px] font-bold border border-gray-300 dark:border-gray-600 text-gray-500 bg-gray-50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center shadow-sm focus:outline-none';
+        btnEC.innerHTML = 'Eastern Cape <span class="text-[8px] uppercase text-yellow-600 dark:text-yellow-500 ml-1.5 font-black bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">Soon</span>';
+        btnEC.onclick = () => { window.lastClickedFutureRegion = 'EC'; history.pushState({ modal: 'region-soon' }, '', '#regionsoon'); openSmoothModal('region-soon-modal'); window.closeAppHub(true); };
+
+        futureRow.appendChild(btnKZN);
+        futureRow.appendChild(btnEC);
+
+        regionWrapper.appendChild(activeRow);
+        regionWrapper.appendChild(futureRow);
+
+        welcomeRouteList.parentNode.insertBefore(regionWrapper, welcomeRouteList);
     }
 
     if (typeof Renderer !== 'undefined') Renderer.renderWelcomeList('welcome-route-list', getRoutesForCurrentRegion(), selectWelcomeRoute);
@@ -2689,23 +2822,24 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         let wkLabel = "Mon - Fri";
         let satLabel = "Sat / Hol";
 
+        // GUARDIAN Phase 2 (Grid UX): Buttons shrunk horizontally. Text wrapping applied to Save Image.
         controlsDiv.innerHTML = `
-            <div class="flex items-center space-x-2">
-                <select onchange="renderFullScheduleGrid('${direction}', this.value)" class="text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm">
+            <div class="flex items-center space-x-1.5 sm:space-x-2">
+                <select onchange="renderFullScheduleGrid('${direction}', this.value)" class="text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm">
                     <option value="weekday" ${isWk ? 'selected' : ''}>${wkLabel}</option>
                     <option value="saturday" ${!isWk ? 'selected' : ''}>${satLabel}</option>
                 </select>
-                <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">
-                    ⇄ To ${Renderer._applyUIIntercepts(oppositeDestName)}
+                <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">
+                    ⇄ ${Renderer._applyUIIntercepts(oppositeDestName)}
                 </button>
             </div>
             
-            <div class="flex items-center space-x-2 border-l border-gray-200 dark:border-gray-700 pl-3 ml-1">
-                <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center space-x-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600" title="Save Image">
-                    <span class="text-[10px] font-bold text-gray-700 dark:text-gray-300">Save Image</span>
+            <div class="flex items-center space-x-1.5 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-3 ml-1">
+                <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center space-x-1.5 px-2 sm:px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600" title="Save Image">
+                    <span class="text-[10px] font-bold text-gray-700 dark:text-gray-300 hidden sm:inline">Save Image</span>
                     <svg class="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 </button>
-                <button onclick="shareCurrentGrid()" class="p-2 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100 transition shadow-sm" title="Share Link">
+                <button onclick="shareCurrentGrid()" class="p-1.5 sm:p-2 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100 transition shadow-sm" title="Share Link">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                 </button>
             </div>

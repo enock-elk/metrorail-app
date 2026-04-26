@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V6.04.21 - Guardian Hybrid Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V6.04.26 - Guardian Hybrid Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -16,6 +16,12 @@
  * * PHASE 1 (GUARDIAN ANALYTICS): Injected tracking for complex (3+ transfer) route rendering.
  * * GUARDIAN PHASE 18: Engine Hardened. Eliminated global state pollution via Context threading. Fixed falsy transfer matrix bug.
  * * GUARDIAN PHASE D: Day Offset mathematical payload injected into Rollover triggers to resolve 24-hour UI countdown hallucinations.
+ * * GUARDIAN PHASE 3: Reverted Transit Incident Graph Severance to allow Visual UI Fracturing.
+ * * GROWTH MODE PHASE 2: Infinite Rollover & Smart Calendar Sync Engine Injected. Resolves 'Sunday No Route' and 'Impossible Today' UI dead-ends natively.
+ * * GROWTH MODE PHASE 3: Explicit Override Fix. Static dropdown selections now blindly render without triggering the 7-day physical calendar sync.
+ * * GROWTH MODE PHASE 7: Core Transfer Tolerance expanded from 3 hours to 4 hours to accommodate sparser weekend/holiday schedules natively.
+ * * GUARDIAN PHASE 14 (HEURISTIC PROBE): Replaced blind NO_PATH failures with precise analytical probes (Cross-Region, Graph Severance, Schedule Desert) for exact UI rendering.
+ * * GUARDIAN PHASE 5: The Heuristic Payload Injection. Upgraded ERR_ACTIVE_SUSPENSION to bubble up rich disruption objects.
  */
 
 function getNextTransitDay(baseDayType, dayIdx) {
@@ -159,7 +165,7 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false, context 
         if (leg2Options.length === 0) continue;
 
         const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
-        const MAX_HUB_WAIT_SEC = 180 * 60; // 3 hours (Metrorail reality)
+        const MAX_HUB_WAIT_SEC = 240 * 60; // 4 hours (Metrorail reality - Guardian expanded)
 
         leg1Options.forEach(leg1 => {
             const arrivalSec = timeToSeconds(leg1.arrTime);
@@ -276,7 +282,7 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false, contex
             if (legs2.length === 0) return;
 
             const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
-            const MAX_WAIT_SEC = 180 * 60; // 3 hours
+            const MAX_WAIT_SEC = 240 * 60; // 4 hours
 
             legs1.forEach(l1 => {
                 const arr1 = timeToSeconds(l1.arrTime);
@@ -631,7 +637,7 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType, co
                 
                 if (legsFromRelay.length > 0) {
                     const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
-                    const MAX_RELAY_WAIT = 180 * 60; // 3 hours
+                    const MAX_RELAY_WAIT = 240 * 60; // 4 hours
 
                     legsToRelay.forEach(l1 => {
                         const arr1 = timeToSeconds(l1.arrTime);
@@ -693,6 +699,7 @@ function findIntersections(routeAId, routeBId) {
 
 function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3, dayType, context = {}) {
     const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 minutes
+    const MAX_WAIT_SEC = 240 * 60; // 4 hours (GUARDIAN Expanded Tolerance)
 
     // 1. Get All Leg Options ONCE
     const legs1 = findAllLegsBetween(origin, hub1, new Set([route1.id]), dayType, context);
@@ -724,7 +731,10 @@ function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3,
         }
 
         const arr1 = timeToSeconds(l1.arrTime);
-        const validLegs2 = legs2.filter(l2 => timeToSeconds(l2.depTime) >= arr1 + TRANSFER_BUFFER_SEC);
+        const validLegs2 = legs2.filter(l2 => {
+            const dep2 = timeToSeconds(l2.depTime);
+            return dep2 >= arr1 + TRANSFER_BUFFER_SEC && dep2 <= arr1 + MAX_WAIT_SEC;
+        });
 
         for (const l2 of validLegs2) {
             
@@ -741,7 +751,10 @@ function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3,
             }
 
             const arr2 = timeToSeconds(l2.arrTime);
-            const validLegs3 = legs3.filter(l3 => timeToSeconds(l3.depTime) >= arr2 + TRANSFER_BUFFER_SEC);
+            const validLegs3 = legs3.filter(l3 => {
+                const dep3 = timeToSeconds(l3.depTime);
+                return dep3 >= arr2 + TRANSFER_BUFFER_SEC && dep3 <= arr2 + MAX_WAIT_SEC;
+            });
 
             for (const l3 of validLegs3) {
                 trips.push({
@@ -1019,7 +1032,7 @@ function buildTransitGraph(dayType, dayIdx) {
  * GUARDIAN HYBRID FIX: State tracks `currentTrain` to enforce real-world transfer penalties,
  * prevents overshoot boomerangs using `visited` sets, and blocks hub-templates explicitly.
  */
-function dijkstraPlanCore(normOrigin, normDest, graph, startSec, bannedEdges = new Set()) {
+function dijkstraPlanCore(normOrigin, normDest, graph, startSec, bannedEdges = new Set(), isRolloverLoop = false) {
     const INF = Infinity;
     const dist = new Map(); // "station|train" -> score
     const prev = new Map();
@@ -1234,7 +1247,7 @@ function enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, startSec, c
     if (!mergedLegs || mergedLegs.length === 0) return [];
 
     const TRANSFER_BUFFER_SEC = 0;
-    const MAX_WAIT_SEC        = 10800; // 3 hours
+    const MAX_WAIT_SEC        = 14400; // 4 hours (240 * 60)
 
     const waypoints = [origin, ...mergedLegs.map(l => l.to)];
     const routeIds  = mergedLegs.map(l => l.route.id);
@@ -1279,7 +1292,7 @@ const _DIJKSTRA_MAX_RUNS = 3;
  * Time-Dependent Dijkstra Trip Planner Orchestrator
  * GUARDIAN HYBRID: Banning physical hubs forces Dijkstra to find alternative backup corridors.
  */
-function planDijkstraTrip(origin, dest, dayType, isRollover = false, context = {}) {
+function planDijkstraTrip(origin, dest, dayType, isRolloverLoop = false, context = {}) {
     const normOrigin = normalizeStationName(origin);
     const normDest   = normalizeStationName(dest);
 
@@ -1290,7 +1303,8 @@ function planDijkstraTrip(origin, dest, dayType, isRollover = false, context = {
                  : (dayType === 'saturday' ? 6 : 1));
 
     // GUARDIAN P13: Zero-Hour Probe overrides startSec to 0 to find mathematically valid historical paths for today
-    const startSec = (!isRollover && dayType === currentDayType && context.rolloverDayIdx === null && !context.zeroHourProbeActive)
+    // GUARDIAN PHASE 2 (GROWTH MODE): isRolloverLoop overrides to 0 so we check entire future day.
+    const startSec = (!isRolloverLoop && dayType === currentDayType && context.rolloverDayIdx === null && !context.zeroHourProbeActive)
                    ? timeToSeconds(currentTime) : 0;
 
     const baseGraph       = buildTransitGraph(dayType, dayIdx);
@@ -1299,7 +1313,7 @@ function planDijkstraTrip(origin, dest, dayType, isRollover = false, context = {
     const allTrips        = [];
 
     for (let run = 0; run < _DIJKSTRA_MAX_RUNS; run++) {
-        const rawLegs = dijkstraPlanCore(normOrigin, normDest, baseGraph, startSec, bannedEdges);
+        const rawLegs = dijkstraPlanCore(normOrigin, normDest, baseGraph, startSec, bannedEdges, isRolloverLoop);
         if (!rawLegs || rawLegs.length === 0) break;
 
         const mergedLegs = mergeConsecutiveLegs(rawLegs);
@@ -1326,8 +1340,10 @@ function planDijkstraTrip(origin, dest, dayType, isRollover = false, context = {
         }
     }
 
-    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
-    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
+    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol
+    // Growth Mode Phase 2: If isRolloverLoop is true, the outer 7-day scanner is running. 
+    // Do NOT trigger this inner 1-day rollover to prevent infinite recursion collisions.
+    if (!isRolloverLoop && dayType === currentDayType && !context.zeroHourProbeActive) {
         const nowSec = timeToSeconds(currentTime);
         if (allTrips.length > 0) {
             const latestDep = Math.max(...allTrips.map(t => timeToSeconds(t.depTime)));
@@ -1466,42 +1482,123 @@ function filterDominatedTrips(trips) {
     return optimalTrips;
 }
 
-function planUnifiedTrip(origin, dest, dayType) {
-    // GUARDIAN V6.24 BUGFIX: Sunday has no Metrorail service (getDirectionsForRoute returns []).
-    // A manually-selected Sunday never triggers the midnight rollover (which only fires when
-    // dayType === currentDayType). Intercept here and re-plan against Monday, labelling all
-    // trips so the UI shows the correct "next service day" context to the user.
-    // GUARDIAN PHASE D: Attach explicit dayOffset payload for UI tracking.
-    if (dayType === 'sunday') {
-        const result = planUnifiedTrip(origin, dest, 'weekday');
-        if (result && result.trips) {
-            result.trips.forEach(t => { 
-                if (!t.dayLabel) t.dayLabel = 'Monday'; 
-                if (!t.dayOffset) t.dayOffset = 1; // Explicit UI Override 
-            });
-        }
-        return result;
+/**
+ * GUARDIAN PHASE 14: THE HEURISTIC FAILURE PROBE
+ * Diagnoses exactly WHY a route failed if the 7-day loop yields 0 trips.
+ * GUARDIAN PHASE 5: Upgraded to capture the specific disruption payload on ERR_ACTIVE_SUSPENSION.
+ */
+function runHeuristicFailureProbe(origin, dest) {
+    const normOrigin = typeof normalizeStationName === 'function' ? normalizeStationName(origin) : origin;
+    const normDest = typeof normalizeStationName === 'function' ? normalizeStationName(dest) : dest;
+    
+    if (typeof globalStationIndex === 'undefined' || !globalStationIndex[normOrigin] || !globalStationIndex[normDest]) {
+        return 'ERR_DISCONNECTED_GRAPH';
     }
 
-    console.log(`[GUARDIAN] Running Unified Trip Planner for ${origin} -> ${dest}`);
+    const oData = globalStationIndex[normOrigin];
+    const dData = globalStationIndex[normDest];
 
-    // GUARDIAN PHASE 18: Isolate Stateful Variables into execution context
+    // 1. Check Region Mismatch
+    let regO = null, regD = null;
+    for (const r of oData.routes) { if (typeof ROUTES !== 'undefined' && ROUTES[r]) { regO = ROUTES[r].region; break; } }
+    for (const r of dData.routes) { if (typeof ROUTES !== 'undefined' && ROUTES[r]) { regD = ROUTES[r].region; break; } }
+    
+    if (regO && regD && regO !== regD) return 'ERR_CROSS_REGION';
+
+    // 2. Physical Connectivity (Route-Level BFS)
+    let blockingDisruption = null;
+
+    const getRouteSuspension = (rId) => {
+        if (typeof globalDisruptions !== 'undefined' && globalDisruptions[rId]) {
+            return globalDisruptions[rId].find(d => d.tier === 'CRITICAL');
+        }
+        return null;
+    };
+
+    const checkConnectivity = (ignoreSuspended) => {
+        const queue = [];
+        const visited = new Set();
+        
+        const startRoutes = Array.from(oData.routes).filter(r => ROUTES[r] && ROUTES[r].isActive);
+        const endRoutes = new Set(Array.from(dData.routes).filter(r => ROUTES[r] && ROUTES[r].isActive));
+        
+        for (const r of startRoutes) {
+            if (ignoreSuspended) {
+                const susp = getRouteSuspension(r);
+                if (susp) {
+                    if (!blockingDisruption) blockingDisruption = susp;
+                    continue; // Route is blocked by incident, do not traverse
+                }
+            }
+            queue.push({ route: r, depth: 0 });
+            visited.add(r);
+        }
+
+        while (queue.length > 0) {
+            const curr = queue.shift();
+            if (endRoutes.has(curr.route)) return true;
+            if (curr.depth >= 4) continue; // Max transfers threshold
+
+            for (const otherRoute of Object.keys(ROUTES)) {
+                if (otherRoute !== curr.route && ROUTES[otherRoute].isActive) {
+                    if (!visited.has(otherRoute)) {
+                        if (typeof findIntersections === 'function' && findIntersections(curr.route, otherRoute).length > 0) {
+                            if (ignoreSuspended) {
+                                const susp = getRouteSuspension(otherRoute);
+                                if (susp) {
+                                    if (!blockingDisruption) blockingDisruption = susp;
+                                    continue; // Route is blocked by incident
+                                }
+                            }
+                            visited.add(otherRoute);
+                            queue.push({ route: otherRoute, depth: curr.depth + 1 });
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    };
+
+    // 2. Is there ANY physical path?
+    if (!checkConnectivity(false)) return 'ERR_DISCONNECTED_GRAPH';
+
+    // 3. Is the physical path currently severed by an incident?
+    if (!checkConnectivity(true)) {
+        if (blockingDisruption) {
+            return {
+                code: 'ERR_ACTIVE_SUSPENSION',
+                disruptionId: blockingDisruption.id,
+                buttonText: blockingDisruption.buttonText || 'Line Severed'
+            };
+        }
+        return 'ERR_ACTIVE_SUSPENSION';
+    }
+
+    // 4. Everything is fine physically, but timetables are too sparse
+    return 'ERR_TIMETABLE_MISMATCH';
+}
+
+function planUnifiedTrip(origin, dest, dayType) {
+    console.log(`[GUARDIAN] Running Unified Trip Planner for ${origin} -> ${dest} (Requested: ${dayType})`);
+
     const context = { rolloverDayIdx: null, zeroHourProbeActive: false };
 
     // GUARDIAN PHASE 13: Universal Raw Fetch Helper
     // Refactored to seamlessly supply both the live engine and the Zero-Hour Probe.
-    const fetchRawTrips = (o, d, dt, ctx) => {
+    // GROWTH MODE PHASE 2: Accepts isRolloverLoop to disable internal 1-day rollovers during the 7-day scan.
+    const fetchRawTrips = (o, d, dt, isRolloverLoop, ctx) => {
         const dijkstraResult = typeof planDijkstraTrip === 'function'
-            ? planDijkstraTrip(o, d, dt, false, ctx) : { trips: [] };
+            ? planDijkstraTrip(o, d, dt, isRolloverLoop, ctx) : { trips: [] };
 
         let raw = [...(dijkstraResult.trips || [])];
 
         // Fallback to legacy exhaust loops if Dijkstra returns nothing
         if (raw.length === 0) {
-            const directResult = typeof planDirectTrip === 'function' ? planDirectTrip(o, d, dt, false, ctx) : { trips: [] };
-            const macroResult = typeof planMacroCorridorTrip === 'function' ? planMacroCorridorTrip(o, d, dt, false, ctx) : { trips: [] };
-            const relayResult = typeof planRelayTransferTrip === 'function' ? planRelayTransferTrip(o, d, dt, false, ctx) : { trips: [] };
-            const hubResult   = typeof planHubTransferTrip === 'function' ? planHubTransferTrip(o, d, dt, false, ctx) : { trips: [] };
+            const directResult = typeof planDirectTrip === 'function' ? planDirectTrip(o, d, dt, isRolloverLoop, ctx) : { trips: [] };
+            const macroResult = typeof planMacroCorridorTrip === 'function' ? planMacroCorridorTrip(o, d, dt, isRolloverLoop, ctx) : { trips: [] };
+            const relayResult = typeof planRelayTransferTrip === 'function' ? planRelayTransferTrip(o, d, dt, isRolloverLoop, ctx) : { trips: [] };
+            const hubResult   = typeof planHubTransferTrip === 'function' ? planHubTransferTrip(o, d, dt, isRolloverLoop, ctx) : { trips: [] };
             
             raw = [
                 ...(directResult.trips || []),
@@ -1512,98 +1609,220 @@ function planUnifiedTrip(origin, dest, dayType) {
 
             const todayCount = raw.filter(t => !t.dayLabel).length;
             if (todayCount < 3 && (macroResult.trips || []).length === 0) {
-                const doubleResult = typeof planDoubleTransferTrip === 'function' ? planDoubleTransferTrip(o, d, dt, false, ctx) : { trips: [] };
+                const doubleResult = typeof planDoubleTransferTrip === 'function' ? planDoubleTransferTrip(o, d, dt, isRolloverLoop, ctx) : { trips: [] };
                 raw = [...raw, ...(doubleResult.trips || [])];
             }
         }
         return raw.map(compactTrip).filter(Boolean);
     };
 
-    let allRawTrips = fetchRawTrips(origin, dest, dayType, context);
+    // --- GUARDIAN GROWTH MODE PHASE 2 & 3: INFINITE ROLLOVER & SMART CALENDAR SYNC ---
+    
+    let startOffset = 0;
+    const isExplicitOverride = (dayType === 'weekday' || dayType === 'saturday') && dayType !== currentDayType;
 
-    let rawTrips = [], rawNextDayTrips = [];
-    allRawTrips.forEach(t => (t.dayLabel ? rawNextDayTrips : rawTrips).push(t));
-
-    // Enforce strict layover guardrails
-    const hasValidLayovers = (trip) => {
-        if (trip.type === 'DIRECT') return true;
-
-        const checkLayover = (arrTime, depTime) => {
-            let layover = timeToSeconds(depTime) - timeToSeconds(arrTime);
-            if (layover < 0) layover += 86400; 
-            return layover >= 0 && layover <= 10800;
-        };
-
-        if (trip.type === 'TRANSFER')
-            return checkLayover(trip.leg1.arrTime, trip.leg2.depTime);
-
-        if (trip.type === 'DOUBLE_TRANSFER')
-            return checkLayover(trip.leg1.arrTime, trip.leg2.depTime) &&
-                   checkLayover(trip.leg2.arrTime, trip.leg3.depTime);
-
-        if (trip.type === 'MULTI_TRANSFER') {
-            const legs = trip.legs || [trip.leg1, trip.leg2, trip.leg3].filter(Boolean);
-            for (let i = 0; i < legs.length - 1; i++) {
-                if (!checkLayover(legs[i].arrTime, legs[i + 1].depTime)) return false;
+    // Only hunt the physical calendar if it's NOT an explicit manual override, 
+    // AND it's not Sunday (which we handle natively via SUNDAY_SKIP),
+    // AND the dayType differs from today.
+    if (!isExplicitOverride && dayType !== 'sunday' && dayType !== currentDayType) {
+        let baseDate = new Date();
+        if (typeof window.isSimMode !== 'undefined' && window.isSimMode) {
+            const dateInput = document.getElementById('sim-date');
+            if (dateInput && dateInput.value) {
+                const parts = dateInput.value.split('-');
+                if(parts.length === 3) baseDate = new Date(parts[0], parts[1] - 1, parts[2]);
             }
-            return true;
         }
-
-        return true;
-    };
-
-    rawTrips        = rawTrips.filter(hasValidLayovers);
-    rawNextDayTrips = rawNextDayTrips.filter(hasValidLayovers);
-
-    // Apply Pareto Dominance Filter (V6 Signature-Restored)
-    const optimalTrips        = filterDominatedTrips(rawTrips);
-    const optimalNextDayTrips = filterDominatedTrips(rawNextDayTrips);
-
-    const masterSort = (a, b) => {
-        const getDep   = t => timeToSeconds(t.depTime || (t.leg1?.depTime  || "00:00"));
-        const getArr   = t => timeToSeconds(t.arrTime || (t.leg3?.arrTime  || (t.leg2?.arrTime || "00:00")));
-        const getTrans = t => t.type === 'MULTI_TRANSFER' ? (t.transferCount ?? (t.legs ? t.legs.length - 1 : 3))
-                            : t.type === 'DOUBLE_TRANSFER' ? 2
-                            : t.type === 'TRANSFER' ? 1 : 0;
-        const depDiff = getDep(a) - getDep(b); if (depDiff !== 0) return depDiff;
-        const arrDiff = getArr(a) - getArr(b); if (arrDiff !== 0) return arrDiff;
-        return getTrans(a) - getTrans(b);
-    };
-
-    optimalTrips.sort(masterSort);
-    optimalNextDayTrips.sort(masterSort);
-
-    let finalStatus = optimalTrips.length > 0        ? 'FOUND'
-                    : optimalNextDayTrips.length > 0 ? 'NO_MORE_TODAY'
-                    : 'NO_PATH';
-
-    // --- GUARDIAN PHASE 13: THE ZERO-HOUR PROBE ---
-    // If the engines decided to roll over to tomorrow, we must verify WHY.
-    // Did the commuter simply miss the last train, or does the route mathematically not exist today?
-    if (finalStatus === 'NO_MORE_TODAY') {
-        console.log("[GUARDIAN] Commencing Zero-Hour Probe...");
-        
-        // Activating the probe temporarily disables all current-time limits and rollover protocols
-        // across all underlying engines, effectively asking: "Was this route EVER possible today?"
-        context.zeroHourProbeActive = true;
-        const probeTripsRaw = fetchRawTrips(origin, dest, dayType, context);
-        context.zeroHourProbeActive = false;
-
-        const validProbeTrips = probeTripsRaw.filter(hasValidLayovers);
-        
-        if (validProbeTrips.length === 0) {
-            console.log("[GUARDIAN] Zero-Hour Probe verified 0 valid trips exist from 00:00. Route is IMPOSSIBLE today.");
-            finalStatus = 'IMPOSSIBLE_TODAY';
-        } else {
-            console.log(`[GUARDIAN] Zero-Hour Probe found ${validProbeTrips.length} historical trips for today. Commuter missed them.`);
+        for (let i = 1; i <= 7; i++) {
+            let checkDate = new Date(baseDate);
+            checkDate.setDate(checkDate.getDate() + i);
+            let dayOfWeek = checkDate.getDay();
+            let type = (dayOfWeek === 0) ? 'sunday' : (dayOfWeek === 6 ? 'saturday' : 'weekday');
+            
+            // Check for Public Holidays natively
+            const m = String(checkDate.getMonth() + 1).padStart(2, '0');
+            const d = String(checkDate.getDate()).padStart(2, '0');
+            if (typeof SPECIAL_DATES !== 'undefined' && SPECIAL_DATES[`${m}-${d}`]) {
+                type = SPECIAL_DATES[`${m}-${d}`];
+            }
+            
+            if (type === dayType) {
+                startOffset = i;
+                break;
+            }
         }
     }
 
-    const finalChosenTrips = optimalTrips.length > 0 ? optimalTrips : optimalNextDayTrips;
+    // Helper to evaluate a specific day offset in the physical calendar
+    const evaluateDay = (offset) => {
+        let targetDayType = dayType;
+        let targetDayLabel = null;
+        let isFutureOffset = offset > startOffset; // Anything past the requested day is a "future" rollover
+        
+        if (isExplicitOverride) {
+            // BLIND OVERRIDE: Do not interrogate the calendar.
+            targetDayType = dayType;
+            targetDayLabel = null; // Let UI handle it.
+        } else if (offset > 0) {
+            if (typeof window.getLookaheadDayInfo === 'function') {
+                const info = window.getLookaheadDayInfo(offset);
+                targetDayType = info.type;
+                targetDayLabel = info.name;
+            } else {
+                targetDayType = 'weekday';
+                targetDayLabel = 'Future Day';
+            }
+        }
+
+        // Metrorail has zero service on Sundays. Instantly fail to force the loop forward.
+        if (targetDayType === 'sunday') {
+            return { status: 'SUNDAY_SKIP', trips: [] };
+        }
+
+        let allRawTrips = fetchRawTrips(origin, dest, targetDayType, isFutureOffset, context);
+
+        let rawTrips = [], rawNextDayTrips = [];
+        allRawTrips.forEach(t => (t.dayLabel ? rawNextDayTrips : rawTrips).push(t));
+
+        // Enforce strict layover guardrails
+        const hasValidLayovers = (trip) => {
+            if (trip.type === 'DIRECT') return true;
+
+            const checkLayover = (arrTime, depTime) => {
+                let layover = timeToSeconds(depTime) - timeToSeconds(arrTime);
+                if (layover < 0) layover += 86400; 
+                return layover >= 0 && layover <= 14400; // GUARDIAN: 4 hours
+            };
+
+            if (trip.type === 'TRANSFER')
+                return checkLayover(trip.leg1.arrTime, trip.leg2.depTime);
+
+            if (trip.type === 'DOUBLE_TRANSFER')
+                return checkLayover(trip.leg1.arrTime, trip.leg2.depTime) &&
+                       checkLayover(trip.leg2.arrTime, trip.leg3.depTime);
+
+            if (trip.type === 'MULTI_TRANSFER') {
+                const legs = trip.legs || [trip.leg1, trip.leg2, trip.leg3].filter(Boolean);
+                for (let i = 0; i < legs.length - 1; i++) {
+                    if (!checkLayover(legs[i].arrTime, legs[i + 1].depTime)) return false;
+                }
+                return true;
+            }
+            return true;
+        };
+
+        rawTrips        = rawTrips.filter(hasValidLayovers);
+        rawNextDayTrips = rawNextDayTrips.filter(hasValidLayovers);
+
+        // Apply Pareto Dominance Filter
+        const optimalTrips        = filterDominatedTrips(rawTrips);
+        const optimalNextDayTrips = filterDominatedTrips(rawNextDayTrips);
+
+        const masterSort = (a, b) => {
+            const getDep   = t => timeToSeconds(t.depTime || (t.leg1?.depTime  || "00:00"));
+            const getArr   = t => timeToSeconds(t.arrTime || (t.leg3?.arrTime  || (t.leg2?.arrTime || "00:00")));
+            const getTrans = t => t.type === 'MULTI_TRANSFER' ? (t.transferCount ?? (t.legs ? t.legs.length - 1 : 3))
+                                : t.type === 'DOUBLE_TRANSFER' ? 2
+                                : t.type === 'TRANSFER' ? 1 : 0;
+            const depDiff = getDep(a) - getDep(b); if (depDiff !== 0) return depDiff;
+            const arrDiff = getArr(a) - getArr(b); if (arrDiff !== 0) return arrDiff;
+            return getTrans(a) - getTrans(b);
+        };
+
+        optimalTrips.sort(masterSort);
+        optimalNextDayTrips.sort(masterSort);
+
+        let finalStatus = optimalTrips.length > 0        ? 'FOUND'
+                        : optimalNextDayTrips.length > 0 ? 'NO_MORE_TODAY'
+                        : 'NO_PATH';
+
+        // --- GUARDIAN PHASE 13: THE ZERO-HOUR PROBE ---
+        // Probe ONLY if it's the natively requested day (not a future rollover) and we missed the trains.
+        if (finalStatus === 'NO_MORE_TODAY' && !isFutureOffset) {
+            console.log("[GUARDIAN] Commencing Zero-Hour Probe...");
+            context.zeroHourProbeActive = true;
+            const probeTripsRaw = fetchRawTrips(origin, dest, targetDayType, false, context);
+            context.zeroHourProbeActive = false;
+            
+            const validProbeTrips = probeTripsRaw.filter(hasValidLayovers);
+            if (validProbeTrips.length === 0) {
+                console.log("[GUARDIAN] Zero-Hour Probe verified 0 valid trips exist from 00:00. Route is IMPOSSIBLE today.");
+                finalStatus = 'IMPOSSIBLE_TODAY';
+            }
+        }
+
+        const trips = optimalTrips.length > 0 ? optimalTrips : optimalNextDayTrips;
+        
+        // Inject the manual offset label if we calculated a trip on a future day
+        // This includes offset === startOffset if the user searched for a future day from the dropdown
+        if (offset > 0 && trips.length > 0) {
+            trips.forEach(t => {
+                if (!t.dayLabel) t.dayLabel = targetDayLabel;
+                
+                // We only apply dayOffset to physical time math.
+                // For UI rendering, we tell it exactly how many days from 'now' this trip occurs.
+                if (!t.dayOffset) t.dayOffset = offset;
+            });
+        }
+
+        return { status: finalStatus, trips: trips, targetDayLabel };
+    };
+
+    // THE 7-DAY INFINITE ROLLOVER LOOP
+    let loopStatus = 'NO_PATH';
+    let loopTrips = [];
+    let initialStatus = null;
+    let errorPayload = null; // GUARDIAN PHASE 5: Rich Error Payload Container
+    
+    // If it's a strict manual override, we DO NOT loop. We query exactly once.
+    const maxOffset = isExplicitOverride ? startOffset : startOffset + 7;
+    
+    // We scan up to 7 days ahead from the natively requested start offset
+    for (let offset = startOffset; offset <= maxOffset; offset++) {
+        const evalResult = evaluateDay(offset);
+        
+        // Capture the exact reason why the route failed on the very first attempted day
+        if (offset === startOffset) {
+            initialStatus = evalResult.status;
+            if (dayType === 'sunday' || evalResult.status === 'SUNDAY_SKIP') {
+                initialStatus = 'SUNDAY_ROLLOVER';
+            }
+        }
+
+        // The moment we find a valid trip block, we capture and break
+        if (evalResult.status === 'FOUND' || evalResult.status === 'NO_MORE_TODAY') {
+            loopStatus = evalResult.status;
+            loopTrips = evalResult.trips;
+            break; 
+        }
+        
+        // If it's NO_PATH, IMPOSSIBLE_TODAY, or SUNDAY_SKIP, the loop naturally increments to scan the next day
+    }
+
+    if (loopTrips.length === 0) {
+        // GUARDIAN PHASE 14: THE HEURISTIC FAILURE PROBE
+        console.log("[GUARDIAN] Zero trips found after 7-day scan. Initiating Heuristic Failure Probe...");
+        const probeResult = runHeuristicFailureProbe(origin, dest);
+        
+        // GUARDIAN PHASE 5: Unwrap rich payload
+        if (typeof probeResult === 'object' && probeResult !== null) {
+            loopStatus = probeResult.code;
+            errorPayload = probeResult;
+        } else {
+            loopStatus = probeResult;
+        }
+    } else {
+        // Adjust the final payload status so the UI knows EXACTLY why we rolled over
+        if (initialStatus === 'IMPOSSIBLE_TODAY') {
+            loopStatus = 'IMPOSSIBLE_TODAY'; 
+        } else if (initialStatus === 'SUNDAY_ROLLOVER') {
+            loopStatus = 'SUNDAY_ROLLOVER';
+        }
+    }
 
     // --- GUARDIAN PHASE 1 (ANALYTICS): Track Complex Routes ---
-    if (finalChosenTrips.length > 0) {
-        const topTrip = finalChosenTrips[0];
+    if (loopTrips.length > 0) {
+        const topTrip = loopTrips[0];
         let tCount = 0;
         if (topTrip.type === 'MULTI_TRANSFER') tCount = topTrip.transferCount || (topTrip.legs ? topTrip.legs.length - 1 : 3);
         else if (topTrip.type === 'DOUBLE_TRANSFER') tCount = 2;
@@ -1627,7 +1846,8 @@ function planUnifiedTrip(origin, dest, dayType) {
     }
 
     return {
-        status: finalStatus,
-        trips: finalChosenTrips
+        status: loopStatus,
+        errorPayload: errorPayload, // GUARDIAN PHASE 5: Secure object transit
+        trips: loopTrips
     };
 }

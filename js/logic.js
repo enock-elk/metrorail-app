@@ -1,7 +1,66 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V6.04.21 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V6.04.26 - Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
+
+// 🛡️ GUARDIAN PHASE 5: SILENT IP GEOLOCATION HOOK
+// Fires instantly during script parsing to catch edge-cache region headers before DOMContentLoaded
+window.regionCheckPromise = Promise.resolve(); // Default resolved state
+
+if (!safeStorage.getItem('userRegion')) {
+    const fetchGeo = fetch('https://nexttrain-telemetry.enock.workers.dev/region')
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.region && (data.region === 'WC' || data.region === 'GP')) {
+                currentRegion = data.region;
+                console.log(`🛡️ Guardian: Silent IP Geolocation successfully bound to ${currentRegion}`);
+                
+                // If the UI has already rendered the Welcome Screen by the time this resolves, update it in-place
+                if (typeof document !== 'undefined') {
+                    const gpBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Gauteng'));
+                    const wcBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Western Cape'));
+                    
+                    if (gpBtn && wcBtn) {
+                        if (currentRegion === 'WC') {
+                            wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
+                            gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
+                        } else {
+                            gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
+                            wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
+                        }
+                        
+                        // Re-render the route list with the new region seamlessly
+                        if (typeof Renderer !== 'undefined' && typeof getRoutesForCurrentRegion === 'function' && typeof selectWelcomeRoute === 'function') {
+                            Renderer.renderWelcomeList('welcome-route-list', getRoutesForCurrentRegion(), selectWelcomeRoute);
+                        }
+                    }
+
+                    // Sync Sidenav & Route Modal Puppeteer displays
+                    const sideDisp = document.getElementById('sidenav-region-display');
+                    const modalDisp = document.getElementById('route-modal-region-display');
+                    const sideSel = document.getElementById('app-hub-region-select');
+                    const modalSel = document.getElementById('route-modal-region-select');
+
+                    if (sideDisp) sideDisp.textContent = currentRegion === 'WC' ? 'Western Cape' : 'Gauteng';
+                    if (modalDisp) modalDisp.textContent = currentRegion === 'WC' ? 'Region: Western Cape' : 'Region: Gauteng';
+                    if (sideSel) sideSel.value = currentRegion;
+                    if (modalSel) modalSel.value = currentRegion;
+                }
+            }
+        })
+        .catch(e => console.log("🛡️ Guardian: IP Geolocation bypassed (AdBlocker or Offline)"));
+
+    // 🛡️ GUARDIAN PHASE 1: Fast-Fail Timeout Lock
+    const geoTimeout = new Promise(resolve => {
+        setTimeout(() => {
+            console.log("🛡️ Guardian: IP Geolocation timed out (1500ms). Proceeding with default region.");
+            resolve();
+        }, 1500);
+    });
+
+    window.regionCheckPromise = Promise.race([fetchGeo, geoTimeout]);
+}
+
 let globalStationIndex = {}; 
 let currentRouteId = null; 
 let fullDatabase = null; 
@@ -16,12 +75,16 @@ let refreshTimer = null;
 let currentUserProfile = "Adult"; 
 // GUARDIAN V4.60.70: Ghost Train Exclusions
 let globalExclusions = {}; 
+// GUARDIAN PHASE 2: Tiered Disruptions State
+let globalDisruptions = {};
 // GUARDIAN V5.01.00: Analytics state for O-D Matrix
 let lastTrackedOD = null; 
 // GUARDIAN V6.00.33 Phase 3: RAM Fallback Engine for devices with 100% full storage
 let memoryFallbackCache = {}; 
 // GUARDIAN PERFORMANCE PATCH: Track last minute to prevent CPU thrashing
 let lastRenderedMinute = -1;
+// GUARDIAN PHASE 4: Async Route-Swap Bleed Prevention
+let scheduleAbortController = null; 
 
 // --- SHARED UI REFERENCES (Declared here, Assigned in UI.js) ---
 let stationSelect, locateBtn, pretoriaTimeEl, pienaarspoortTimeEl, pretoriaHeader, pienaarspoortHeader;
@@ -86,6 +149,15 @@ window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
     
+    // GUARDIAN PHASE 4: Bridge external abort signals seamlessly
+    if (options.signal) {
+        if (options.signal.aborted) {
+            controller.abort();
+        } else {
+            options.signal.addEventListener('abort', () => controller.abort());
+        }
+    }
+    
     try {
         const response = await fetch(url, { ...options, signal: controller.signal });
         clearTimeout(id);
@@ -98,6 +170,14 @@ window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
         return response;
     } catch (error) {
         clearTimeout(id);
+        
+        // GUARDIAN PHASE 4 & 2 (Growth Mode): Suppress offline UI triggers if the request was deliberately aborted by a route swap
+        if (options.signal && options.signal.aborted) {
+            console.log(`🛡️ Guardian: Request to ${url} cleanly aborted by user navigation.`);
+            window.isLieFi = false; // <-- 🛡️ The Deadlock Fix: Reset cleanly on deliberate aborts to prevent permanent deadlock
+            throw error;
+        }
+
         if (error.name === 'AbortError' || error.message.includes('fetch') || error.message.includes('Network')) {
             window.isLieFi = true;
             console.warn(`🛡️ Guardian Lie-Fi Detector: Request to ${url} timed out/failed. Assumed offline.`);
@@ -312,6 +392,166 @@ function isTrainExcluded(trainNumber, routeId, dayIdx) {
     return false;
 }
 
+// --- GUARDIAN PHASE 3: CROSS-CORRIDOR TIERED INCIDENT MANAGEMENT HELPERS ---
+window.checkDisruption = function(routeId, stationA, stationB) {
+    if (!globalDisruptions) return null;
+    
+    let highestDisruption = null;
+    const normA = normalizeStationName(stationA);
+    const normB = normalizeStationName(stationB);
+
+    const prioritizeDisruption = (current, incoming) => {
+        if (!current) return incoming;
+        if (incoming.tier === 'CRITICAL' && current.tier !== 'CRITICAL') return incoming;
+        return current;
+    };
+
+    // GUARDIAN PHASE 3: Cross-Corridor Geometry Scan
+    // We scan ALL disruptions across the entire network. If a disruption's coordinates
+    // match the current commuter's route geometry, we apply it, regardless of the routeId it was filed under.
+    for (const dRouteId in globalDisruptions) {
+        const activeDisruptions = globalDisruptions[dRouteId];
+        
+        for (const d of activeDisruptions) {
+            // If no specific stations are defined, it's a route-wide suspension.
+            // This MUST strictly apply only to its parent route to avoid shutting down the whole app.
+            if (!d.stations || d.stations.length === 0) {
+                if (dRouteId === routeId) {
+                    highestDisruption = prioritizeDisruption(highestDisruption, d);
+                }
+                continue;
+            }
+
+            const normDisruptedStations = d.stations.map(s => normalizeStationName(s));
+
+            // Segment block (e.g., Centurion to Irene) - APPLIES UNIVERSALLY to any route crossing it
+            if (normDisruptedStations.length >= 2) {
+                if (normDisruptedStations.includes(normA) && normDisruptedStations.includes(normB)) {
+                    highestDisruption = prioritizeDisruption(highestDisruption, d);
+                }
+            } 
+            // Single station block - APPLIES UNIVERSALLY to any route touching it
+            else if (normDisruptedStations.length === 1) {
+                if (normDisruptedStations.includes(normA) || normDisruptedStations.includes(normB)) {
+                    highestDisruption = prioritizeDisruption(highestDisruption, d);
+                }
+            }
+        }
+    }
+    return highestDisruption;
+};
+
+// GUARDIAN PHASE 3 (ZONE ENGINE): Cross-Corridor "First Point of Contact" Calculation
+window.getTripDisruptions = function(routeId, stopsArray) {
+    if (!globalDisruptions || !stopsArray || stopsArray.length === 0) return [];
+    
+    const hits = [];
+    const seenIds = new Set();
+    
+    // Helper: Extract the physical geometry (Master Station List) for this specific route.
+    const getRouteMasterStations = (rId) => {
+        if (!rId || !fullDatabase || !ROUTES[rId]) return [];
+        const route = ROUTES[rId];
+        // Prefer B-direction (outbound) to establish a consistent geographical array
+        const key = route.sheetKeys.weekday_to_b || route.sheetKeys.weekday_to_a;
+        if (!fullDatabase[key]) return [];
+        return fullDatabase[key]
+            .filter(r => r.STATION && !r.STATION.toLowerCase().includes('updated'))
+            .map(r => normalizeStationName(r.STATION));
+    };
+
+    // The Master Geography for the current route being evaluated
+    const currentRouteMasterStations = getRouteMasterStations(routeId);
+
+    // Scan ALL active disruptions across the network (Cross-Corridor Scan)
+    for (const dRouteId in globalDisruptions) {
+        const activeDisruptions = globalDisruptions[dRouteId];
+        
+        for (const d of activeDisruptions) {
+            if (seenIds.has(d.id)) continue;
+
+            // 1. Route-Wide Advisory (0 Stations)
+            // Strict limitation: Only applies if the commuter is actually ON the severed route
+            if (!d.stations || d.stations.length === 0) {
+                if (dRouteId === routeId) {
+                    seenIds.add(d.id);
+                    hits.push({
+                        ...d,
+                        triggerStopIndex: 0,
+                        triggerStationA: stopsArray[0].station,
+                        triggerStationB: stopsArray[stopsArray.length - 1].station
+                    });
+                }
+                continue;
+            }
+
+            const normDisrupted = d.stations.map(s => normalizeStationName(s));
+
+            // 2. Single Station Incident (Universal Match)
+            if (normDisrupted.length === 1) {
+                const targetNorm = normDisrupted[0];
+                const contactIdx = stopsArray.findIndex(s => normalizeStationName(s.station) === targetNorm);
+                
+                if (contactIdx !== -1) {
+                    seenIds.add(d.id);
+                    hits.push({
+                        ...d,
+                        triggerStopIndex: contactIdx,
+                        triggerStationA: d.stations[0],
+                        triggerStationB: d.stations[0]
+                    });
+                }
+                continue;
+            }
+
+            // 3. Multi-Station / Non-Adjacent "Danger Zone" Incident (Cross-Corridor Match)
+            if (normDisrupted.length >= 2) {
+                // We check the disruption geometry against the CURRENT ROUTE's master list
+                const idxA = currentRouteMasterStations.indexOf(normDisrupted[0]);
+                const idxB = currentRouteMasterStations.indexOf(normDisrupted[1]);
+
+                // If BOTH stations exist on the current route, the Danger Zone intersects!
+                if (idxA !== -1 && idxB !== -1) {
+                    const minZone = Math.min(idxA, idxB);
+                    const maxZone = Math.max(idxA, idxB);
+
+                    let firstContactIdx = -1;
+                    
+                    // Trace the commuter's physical trip to find the very first point of entry into the Danger Zone
+                    for (let i = 0; i < stopsArray.length; i++) {
+                        const stopNorm = normalizeStationName(stopsArray[i].station);
+                        const stopMasterIdx = currentRouteMasterStations.indexOf(stopNorm);
+                        
+                        if (stopMasterIdx >= minZone && stopMasterIdx <= maxZone) {
+                            firstContactIdx = i;
+                            break;
+                        }
+                    }
+
+                    if (firstContactIdx !== -1) {
+                        seenIds.add(d.id);
+                        hits.push({
+                            ...d,
+                            triggerStopIndex: firstContactIdx,
+                            triggerStationA: d.stations[0], 
+                            triggerStationB: d.stations[1]  
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    // Priority: CRITICAL events float to the top. Then sort by earliest contact index in the journey.
+    hits.sort((a, b) => {
+        if (a.tier === 'CRITICAL' && b.tier !== 'CRITICAL') return -1;
+        if (a.tier !== 'CRITICAL' && b.tier === 'CRITICAL') return 1;
+        return a.triggerStopIndex - b.triggerStopIndex;
+    });
+    
+    return hits;
+};
+
 // --- DATABASE ENGINE (IndexedDB / Async Storage) ---
 // GUARDIAN V6.00.12: Migrated from synchronous localStorage to asynchronous IndexedDB to stop UI freezing on data loads.
 // GUARDIAN Phase 3: Injected memoryFallbackCache to prevent Sentry IO errors when device disk is at 100% capacity.
@@ -319,7 +559,7 @@ const DB_NAME = 'NextTrainDB';
 const STORE_NAME = 'SchedulesStore';
 const DB_VERSION = 1;
 
-function initDB() {
+function initDB(retryCount = 0) {
     return new Promise((resolve, reject) => {
         if (!window.indexedDB) {
             reject(new Error("IndexedDB not supported"));
@@ -328,7 +568,21 @@ function initDB() {
         
         try {
             const request = indexedDB.open(DB_NAME, DB_VERSION);
-            request.onerror = (e) => reject(e.target.error || new Error("IDB Open Error"));
+            request.onerror = (e) => {
+                if (retryCount === 0) {
+                    console.warn("🛡️ Guardian: IndexedDB Corruption trap triggered. Auto-healing...", e.target.error);
+                    const deleteReq = indexedDB.deleteDatabase(DB_NAME);
+                    deleteReq.onsuccess = () => {
+                        console.log("🛡️ Guardian: Corrupted DB purged. Rebuilding...");
+                        initDB(1).then(resolve).catch(reject);
+                    };
+                    deleteReq.onerror = () => {
+                        reject(new Error("Fatal IDB Deletion Failure"));
+                    };
+                } else {
+                    reject(e.target.error || new Error("IDB Open Error"));
+                }
+            };
             request.onsuccess = (e) => resolve(e.target.result);
             request.onupgradeneeded = (e) => {
                 const db = e.target.result;
@@ -430,6 +684,101 @@ window.clearScheduleCache = async function() {
     }
 };
 
+// --- GUARDIAN PHASE 2 (GROWTH MODE): Seamless SPA Region Swap Engine ---
+window.executeRegionSwap = function(newRegion) {
+    console.log(`🛡️ Guardian: Executing seamless SPA region swap to ${newRegion}...`);
+
+    // 1. Update Region
+    currentRegion = newRegion;
+
+    // 2. Wipe RAM caches to prevent data bleeding
+    memoryFallbackCache = {}; 
+    fullDatabase = null; 
+    schedules = {};
+    globalStationIndex = {}; 
+    allStations = [];
+    currentScheduleData = {};
+    lastTrackedOD = null;
+
+    // 3. Clear existing route and UI components
+    currentRouteId = null;
+    
+    // 🛡️ GUARDIAN PHASE 1 (UI State Hardening): Explicitly hide main content to prevent layout bleed
+    if (typeof mainContent !== 'undefined' && mainContent) {
+        mainContent.style.display = 'none';
+    }
+    
+    if (typeof stationSelect !== 'undefined' && stationSelect) {
+        stationSelect.innerHTML = '<option value="">Loading stations...</option>';
+        stationSelect.value = "";
+    }
+    
+    if (typeof document !== 'undefined') {
+        const searchInput = document.getElementById('station-search-input');
+        if (searchInput) {
+            searchInput.value = "";
+            delete searchInput.dataset.resolvedValue;
+        }
+        
+        // 🛡️ GUARDIAN PHASE 1: Trip Planner State Isolation
+        // Aggressively purge Trip Planner inputs to prevent cross-region OD matrix bleeding
+        const plannerFrom = document.getElementById('planner-from-search');
+        const plannerTo = document.getElementById('planner-to-search');
+        const plannerFromSelect = document.getElementById('planner-from');
+        const plannerToSelect = document.getElementById('planner-to');
+        
+        if (plannerFrom) { plannerFrom.value = ""; delete plannerFrom.dataset.resolvedValue; }
+        if (plannerTo) { plannerTo.value = ""; delete plannerTo.dataset.resolvedValue; }
+        
+        if (plannerFromSelect) {
+            plannerFromSelect.innerHTML = '<option value="">Loading stations...</option>';
+            plannerFromSelect.value = "";
+        }
+        if (plannerToSelect) {
+            plannerToSelect.innerHTML = '<option value="">Loading stations...</option>';
+            plannerToSelect.value = "";
+        }
+        
+        // Forcefully collapse the Planner Results view if it was open
+        if (typeof window.hidePlannerResults === 'function') {
+            window.hidePlannerResults();
+        }
+    }
+
+    // 4. Update the sidebar UI to reflect new region routes
+    if (typeof Renderer !== 'undefined' && typeof getRoutesForCurrentRegion === 'function') {
+        Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), null);
+    }
+
+    // 5. Look for a saved default route for this new region
+    let savedDefault = null;
+    try { savedDefault = typeof safeStorage !== 'undefined' ? safeStorage.getItem('defaultRoute_' + currentRegion) : null; } catch(e) {}
+    
+    if (savedDefault && typeof ROUTES !== 'undefined' && ROUTES[savedDefault] && ROUTES[savedDefault].region === currentRegion) {
+        currentRouteId = savedDefault;
+        if (typeof updateSidebarActiveState === 'function') updateSidebarActiveState();
+        if (typeof updatePinUI === 'function') updatePinUI();
+        
+        // Re-render UI with loading skeleton
+        if (typeof renderSkeletonLoader === 'function') {
+            if (typeof pretoriaTimeEl !== 'undefined' && pretoriaTimeEl) renderSkeletonLoader(pretoriaTimeEl);
+            if (typeof pienaarspoortTimeEl !== 'undefined' && pienaarspoortTimeEl) renderSkeletonLoader(pienaarspoortTimeEl);
+        }
+        
+        // Force a full data fetch seamlessly
+        if (typeof loadAllSchedules === 'function') {
+            loadAllSchedules(true).then(() => {
+                if (typeof checkServiceAlerts === 'function') checkServiceAlerts();
+            });
+        }
+    } else {
+        // No default route: show Welcome Screen seamlessly
+        if (typeof showWelcomeScreen === 'function') {
+            showWelcomeScreen();
+        }
+    }
+};
+
 // --- REFRESH LOGIC ---
 function startSmartRefresh() {
     if (refreshTimer) clearTimeout(refreshTimer);
@@ -448,8 +797,8 @@ function scheduleNextRefresh() {
 }
 
 // GUARDIAN PHASE 8: Nuclear Killswitch Listener
-async function checkKillswitch() {
-    if (!navigator.onLine || window.isLieFi) return false;
+async function checkKillswitch(force = false) {
+    if (!navigator.onLine || (window.isLieFi && !force)) return false;
     try {
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
         const res = await window.guardianFetch(`${dynamicEndpoint}config/killswitch.json?t=${Date.now()}`, {}, 3000);
@@ -487,8 +836,8 @@ async function checkKillswitch() {
 }
 
 // GUARDIAN PHASE 3: Task 7.2 Remote Config Fetch
-async function fetchSpecialEventConfig() {
-    if (!navigator.onLine || window.isLieFi) return;
+async function fetchSpecialEventConfig(force = false) {
+    if (!navigator.onLine || (window.isLieFi && !force)) return;
     try {
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
         const eventResp = await window.guardianFetch(`${dynamicEndpoint}config/special_event.json?t=${Date.now()}`, {}, 4000);
@@ -512,9 +861,155 @@ async function fetchSpecialEventConfig() {
 }
 
 // --- DATA FETCHING & PROCESSING ---
+
+// 🛡️ GUARDIAN PHASE 1: Asynchronous Database Parsers with Main Thread Yielding
+async function processRouteDataFromDBAsync(route, targetDB) {
+    if (!targetDB) return {};
+    const getSched = async (key) => {
+        // Yield to Main Thread to keep UI responsive
+        await new Promise(resolve => setTimeout(resolve, 0));
+        const rows = targetDB[key];
+        const metaKey = key + "_meta"; 
+        const metaDate = targetDB[metaKey]; 
+        return parseJSONSchedule(rows, metaDate); 
+    };
+
+    return {
+        weekday_to_a: await getSched(route.sheetKeys.weekday_to_a),
+        weekday_to_b: await getSched(route.sheetKeys.weekday_to_b),
+        saturday_to_a: await getSched(route.sheetKeys.saturday_to_a),
+        saturday_to_b: await getSched(route.sheetKeys.saturday_to_b)
+    };
+}
+
+async function buildGlobalStationIndexAsync(targetDB) {
+    let tempIndex = {}; 
+    if (!targetDB) return tempIndex;
+
+    const hasActiveService = (row, sKey, cKey) => {
+        const ignored = new Set([sKey, cKey, 'KM_MARK', 'row_index']);
+        return Object.keys(row).some(k => !ignored.has(k) && row[k] && String(row[k]).trim() !== "");
+    };
+
+    const routeList = Object.values(ROUTES);
+    for (let i = 0; i < routeList.length; i++) {
+        const route = routeList[i];
+        if (route.region !== currentRegion) continue;
+        if (!route.sheetKeys) continue;
+
+        // Yield to Main Thread per route
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        Object.values(route.sheetKeys).forEach(dbKey => {
+            const sheetData = targetDB[dbKey];
+            if (!sheetData || !Array.isArray(sheetData)) return;
+            
+            let headerIndex = -1;
+            for (let j = 0; j < Math.min(sheetData.length, 5); j++) {
+                 if (Object.values(sheetData[j]).some(val => val && String(val).toUpperCase().includes('STATION'))) {
+                     headerIndex = j;
+                     break;
+                 }
+            }
+            
+            if (headerIndex > -1) {
+                 for (let j = headerIndex + 1; j < sheetData.length; j++) {
+                      const row = sheetData[j];
+                      const headerRow = sheetData[headerIndex];
+                      let stationKey = null;
+                      let coordKey = null;
+                      
+                      Object.keys(headerRow).forEach(key => {
+                          const valUpper = String(headerRow[key]).toUpperCase();
+                          if (valUpper.includes('STATION')) stationKey = key;
+                          if (valUpper.includes('COORDINATES')) coordKey = key;
+                      });
+
+                      if (!stationKey && row[stationKey]) stationKey = 'STATION';
+                      if (!coordKey && row['COORDINATES']) coordKey = 'COORDINATES';
+
+                      if (stationKey && row[stationKey]) {
+                           if (!hasActiveService(row, stationKey, coordKey)) continue;
+
+                           const stationName = normalizeStationName(row[stationKey]);
+                           const coordVal = coordKey ? row[coordKey] : null;
+                           let coords = { lat: null, lon: null };
+                           
+                           try {
+                               if (coordVal) {
+                                   const parts = String(coordVal).split(',').map(s => parseFloat(s.trim()));
+                                   if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                        coords = { lat: parts[0], lon: parts[1] };
+                                   }
+                               }
+                           } catch (e) { }
+
+                           if (!tempIndex[stationName]) {
+                               tempIndex[stationName] = { 
+                                   lat: coords.lat, 
+                                   lon: coords.lon, 
+                                   routes: new Set()
+                                };
+                           } else if (tempIndex[stationName].lat === null && coords.lat !== null) {
+                               // GUARDIAN Phase 5: Coordinate Resurrector
+                               tempIndex[stationName].lat = coords.lat;
+                               tempIndex[stationName].lon = coords.lon;
+                           }
+                           if (tempIndex[stationName]) tempIndex[stationName].routes.add(route.id);
+                      }
+                 }
+            } else {
+                 sheetData.forEach(row => {
+                    let stationKey = row['STATION'] !== undefined ? 'STATION' : null;
+                    let coordKey = row['COORDINATES'] !== undefined ? 'COORDINATES' : null;
+
+                    if (stationKey && row[stationKey]) {
+                        if (!hasActiveService(row, stationKey, coordKey)) return;
+
+                        const stationName = normalizeStationName(row[stationKey]);
+                        let coords = { lat: null, lon: null };
+                        
+                        try {
+                            if (coordKey && row[coordKey]) {
+                                const parts = String(row[coordKey]).split(',').map(s => parseFloat(s.trim()));
+                                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                    coords = { lat: parts[0], lon: parts[1] };
+                                }
+                            }
+                        } catch (e) { }
+
+                        if (!tempIndex[stationName]) {
+                            tempIndex[stationName] = { lat: coords.lat, lon: coords.lon, routes: new Set() };
+                        } else if (tempIndex[stationName].lat === null && coords.lat !== null) {
+                            // GUARDIAN Phase 5: Coordinate Resurrector
+                            tempIndex[stationName].lat = coords.lat;
+                            tempIndex[stationName].lon = coords.lon;
+                        }
+                        if (tempIndex[stationName]) tempIndex[stationName].routes.add(route.id);
+                    }
+                });
+            }
+        });
+    }
+    return tempIndex;
+}
+
 // GUARDIAN PHASE B: EAGER RENDERING PROTOCOL
 async function loadAllSchedules(force = false) {
     let usedCache = false; // 🛡️ GUARDIAN FIX: Hoisted to prevent ReferenceError in catch block
+    
+    // 🛡️ GUARDIAN PHASE 1: Await Region Synchronization
+    if (window.regionCheckPromise) {
+        await window.regionCheckPromise;
+    }
+    
+    // GUARDIAN PHASE 4: Async Route-Swap Bleed Prevention
+    if (scheduleAbortController) {
+        scheduleAbortController.abort();
+    }
+    scheduleAbortController = new AbortController();
+    const fetchSignal = scheduleAbortController.signal;
+    const requestedRouteId = currentRouteId;
     
     try {
         if (!currentRouteId) return; 
@@ -583,22 +1078,38 @@ async function loadAllSchedules(force = false) {
         const cacheKey = `full_db_${currentRegion}`;
         const cachedDB = await loadFromLocalCache(cacheKey);
 
+        if (fetchSignal.aborted || currentRouteId !== requestedRouteId) {
+            console.log("🛡️ Guardian: Route swapped during local cache load. Aborting stale render.");
+            return;
+        }
+
         if (cachedDB) {
             console.log("🛡️ Guardian Eager Render: Restoring from local cache instantly...");
-            fullDatabase = unwrapDatabase(cachedDB.data, currentRegion);
-            processRouteDataFromDB(currentRoute);
-            buildGlobalStationIndex(); 
-            buildMasterStationList(); 
-            updateLastUpdatedText();
-            
-            if (typeof initializeApp === 'function') initializeApp();
-            if (typeof findNextTrains === 'function') findNextTrains();
-            usedCache = true;
-            
-            if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
-            else if(loadingOverlay) loadingOverlay.style.display = 'none';
-            
-            if(currentRouteId && mainContent) mainContent.style.display = 'block';
+            try {
+                // 🛡️ GUARDIAN PHASE 1: Shadow-Clone & Main Thread Yielding
+                const proposedDB = unwrapDatabase(cachedDB.data, currentRegion);
+                const proposedSchedules = await processRouteDataFromDBAsync(currentRoute, proposedDB);
+                const proposedStationIndex = await buildGlobalStationIndexAsync(proposedDB);
+                
+                // Commit state atomically to prevent UI crashes on malformed data
+                fullDatabase = proposedDB;
+                schedules = proposedSchedules;
+                globalStationIndex = proposedStationIndex;
+                
+                buildMasterStationList(); 
+                updateLastUpdatedText();
+                
+                if (typeof initializeApp === 'function') initializeApp();
+                if (typeof findNextTrains === 'function') findNextTrains();
+                usedCache = true;
+                
+                if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
+                else if(loadingOverlay) loadingOverlay.style.display = 'none';
+                
+                if(currentRouteId && mainContent) mainContent.style.display = 'block';
+            } catch(err) {
+                console.error("🛡️ Guardian: Cached DB shadow-clone parsing failed.", err);
+            }
         } else {
             if (typeof renderSkeletonLoader === 'function') {
                 if(pretoriaTimeEl) renderSkeletonLoader(pretoriaTimeEl);
@@ -607,28 +1118,59 @@ async function loadAllSchedules(force = false) {
         }
 
         // --- 2. BACKGROUND NETWORK SYNC (LIE-FI PROTECTED) ---
-        if (!navigator.onLine || window.isLieFi) {
+        if (!navigator.onLine || (window.isLieFi && !force)) {
             console.log("🛡️ Guardian: Offline/Lie-Fi detected. Halting background network sync.");
             return; 
         }
 
-        const wasKilled = await checkKillswitch();
-        if (wasKilled) return; 
+        const wasKilled = await checkKillswitch(force);
+        if (wasKilled || fetchSignal.aborted || currentRouteId !== requestedRouteId) return; 
 
-        await fetchSpecialEventConfig();
+        await fetchSpecialEventConfig(force);
+        if (fetchSignal.aborted || currentRouteId !== requestedRouteId) return; 
 
         try {
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-            const exclResp = await window.guardianFetch(`${dynamicEndpoint}exclusions.json?t=${Date.now()}`, {}, 4000);
+            const exclResp = await window.guardianFetch(`${dynamicEndpoint}exclusions.json?t=${Date.now()}`, { signal: fetchSignal }, 4000);
             if (exclResp.ok) {
                 const exclData = await exclResp.json();
                 if (exclData) globalExclusions = exclData;
             }
         } catch(e) { console.warn("Exclusions fetch failed, using defaults."); }
 
+        // GUARDIAN PHASE 2: Disruptions Fetcher (Unwrap Nested JSON)
+        try {
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const disrResp = await window.guardianFetch(`${dynamicEndpoint}disruptions.json?t=${Date.now()}`, { signal: fetchSignal }, 4000);
+            if (disrResp.ok) {
+                const disrData = await disrResp.json();
+                if (disrData) {
+                    const now = Date.now();
+                    globalDisruptions = {};
+                    
+                    // GUARDIAN FIX: Double-loop to unwrap Firebase's nested route objects
+                    // Format: { "pta-kempton": { "12345": { id: "12345", routeId: "pta-kempton", tier: "CRITICAL"... } } }
+                    Object.keys(disrData).forEach(routeKey => {
+                        const routeObj = disrData[routeKey];
+                        if (routeObj && typeof routeObj === 'object') {
+                            Object.values(routeObj).forEach(d => {
+                                if (d && d.routeId) {
+                                    // Clean up expired disruptions locally
+                                    if (!d.expiresAt || d.expiresAt > now) {
+                                        if (!globalDisruptions[d.routeId]) globalDisruptions[d.routeId] = [];
+                                        globalDisruptions[d.routeId].push(d);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+        } catch(e) { console.warn("Disruptions fetch failed."); }
+
         // GUARDIAN SMART SYNC PROTOCOL
         let needsDownload = true;
-        if (usedCache && !force && fullDatabase.lastUpdated) {
+        if (usedCache && !force && fullDatabase && fullDatabase.lastUpdated) {
             if (typeof DATA_SOURCE_MODE !== 'undefined' && DATA_SOURCE_MODE === 'GITHUB') {
                 // CDN relies on browser cache policies
             } else {
@@ -637,7 +1179,7 @@ async function loadAllSchedules(force = false) {
                     const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : FIREBASE_BASE_URL;
                     const pingUrl = `${dynamicEndpoint}${nodePath}/lastUpdated.json?t=${Date.now()}`;
                     
-                    const pingRes = await window.guardianFetch(pingUrl, {}, 4000);
+                    const pingRes = await window.guardianFetch(pingUrl, { signal: fetchSignal }, 4000);
                     if (pingRes.ok) {
                         const remoteUpdated = await pingRes.json();
                         if (remoteUpdated && remoteUpdated === fullDatabase.lastUpdated) {
@@ -655,8 +1197,10 @@ async function loadAllSchedules(force = false) {
             const activeScheduleUrl = typeof SCHEDULE_BASE_URL !== 'undefined' ? SCHEDULE_BASE_URL : FIREBASE_BASE_URL;
             const regionDbUrl = activeScheduleUrl + REGIONS[currentRegion].dbNode;
             
-            const response = await window.guardianFetch(regionDbUrl, {}, 10000);
+            const response = await window.guardianFetch(regionDbUrl, { signal: fetchSignal }, 10000);
             
+            if (fetchSignal.aborted || currentRouteId !== requestedRouteId) return; 
+
             if (!response.ok) throw new Error("Schedule Data fetch failed");
             const newDatabase = await response.json();
             if (!newDatabase) throw new Error("Empty database");
@@ -665,20 +1209,35 @@ async function loadAllSchedules(force = false) {
             const oldStr = cachedDB ? JSON.stringify(cachedDB.data) : "";
 
             if (newStr !== oldStr) {
+                if (fetchSignal.aborted || currentRouteId !== requestedRouteId) return; 
+                
                 console.log("New data detected! Updating local storage...");
-                fullDatabase = unwrapDatabase(newDatabase, currentRegion);
-                await saveToLocalCache(cacheKey, newDatabase); 
                 
-                processRouteDataFromDB(currentRoute);
-                buildGlobalStationIndex(); 
-                buildMasterStationList();
-                updateLastUpdatedText();
-                
-                if (usedCache) { 
-                    if(typeof showToast === 'function') showToast("Schedule updated!", "success", 3000); 
-                    findNextTrains(); 
-                } else { 
-                    if(typeof initializeApp === 'function') initializeApp(); 
+                try {
+                    // 🛡️ GUARDIAN PHASE 1: Shadow-Clone & Main Thread Yielding
+                    const proposedDB = unwrapDatabase(newDatabase, currentRegion);
+                    const proposedSchedules = await processRouteDataFromDBAsync(currentRoute, proposedDB);
+                    const proposedStationIndex = await buildGlobalStationIndexAsync(proposedDB);
+                    
+                    // Commit state atomically
+                    fullDatabase = proposedDB;
+                    schedules = proposedSchedules;
+                    globalStationIndex = proposedStationIndex;
+                    
+                    await saveToLocalCache(cacheKey, newDatabase); 
+                    
+                    buildMasterStationList();
+                    updateLastUpdatedText();
+                    
+                    if (usedCache) { 
+                        if(typeof showToast === 'function') showToast("Schedule updated!", "success", 3000); 
+                        findNextTrains(); 
+                    } else { 
+                        if(typeof initializeApp === 'function') initializeApp(); 
+                    }
+                } catch(e) {
+                    console.error("Network data parsing failed, reverting to previous state.", e);
+                    throw e; // Hit the main catch block for UI handling
                 }
             } else {
                 console.log("Data verified up to date after full fetch (Hit Edge Cache).");
@@ -689,6 +1248,9 @@ async function loadAllSchedules(force = false) {
         }
 
     } catch (error) {
+        // Ignore AbortErrors natively, as they are expected during rapid route swapping
+        if (error.name === 'AbortError') return;
+        
         console.error("Fetch Error:", error);
         // GUARDIAN FIX: Now safely reads usedCache from outer scope without crashing
         if (!usedCache) {
@@ -696,6 +1258,10 @@ async function loadAllSchedules(force = false) {
             if (typeof renderRouteError === 'function') renderRouteError(error);
         }
     } finally {
+        // If it was aborted mid-flight, the user is looking at a new route loading overlay, 
+        // so DO NOT hide the loading overlay or re-enable the refresh button for the old route.
+        if (fetchSignal && fetchSignal.aborted) return;
+
         if(forceReloadBtn) {
             forceReloadBtn.disabled = false;
             const reloadIcon = forceReloadBtn.querySelector('svg');
@@ -710,23 +1276,6 @@ async function loadAllSchedules(force = false) {
 
         if(currentRouteId && mainContent) mainContent.style.display = 'block';
     }
-}
-
-function processRouteDataFromDB(route) {
-    if (!fullDatabase) return;
-    const getSched = (key) => {
-        const rows = fullDatabase[key];
-        const metaKey = key + "_meta"; 
-        const metaDate = fullDatabase[metaKey]; 
-        return parseJSONSchedule(rows, metaDate); 
-    };
-
-    schedules = {
-        weekday_to_a: getSched(route.sheetKeys.weekday_to_a),
-        weekday_to_b: getSched(route.sheetKeys.weekday_to_b),
-        saturday_to_a: getSched(route.sheetKeys.saturday_to_a),
-        saturday_to_b: getSched(route.sheetKeys.saturday_to_b)
-    };
 }
 
 function parseJSONSchedule(jsonRows, externalMetaDate = null) {
@@ -784,113 +1333,6 @@ function parseJSONSchedule(jsonRows, externalMetaDate = null) {
         console.error("Parser Error:", e);
         return { headers: [], rows: [], stationColumnName: 'STATION', lastUpdated: externalMetaDate };
     }
-}
-
-function buildGlobalStationIndex() {
-    globalStationIndex = {}; 
-    if (!fullDatabase) return;
-
-    const hasActiveService = (row, sKey, cKey) => {
-        const ignored = new Set([sKey, cKey, 'KM_MARK', 'row_index']);
-        return Object.keys(row).some(k => !ignored.has(k) && row[k] && String(row[k]).trim() !== "");
-    };
-
-    Object.values(ROUTES).forEach(route => {
-        if (route.region !== currentRegion) return;
-        if (!route.sheetKeys) return;
-
-        Object.values(route.sheetKeys).forEach(dbKey => {
-            const sheetData = fullDatabase[dbKey];
-            if (!sheetData || !Array.isArray(sheetData)) return;
-            
-            let headerIndex = -1;
-            for (let i = 0; i < Math.min(sheetData.length, 5); i++) {
-                 if (Object.values(sheetData[i]).some(val => val && String(val).toUpperCase().includes('STATION'))) {
-                     headerIndex = i;
-                     break;
-                 }
-            }
-            
-            if (headerIndex > -1) {
-                 for (let i = headerIndex + 1; i < sheetData.length; i++) {
-                      const row = sheetData[i];
-                      const headerRow = sheetData[headerIndex];
-                      let stationKey = null;
-                      let coordKey = null;
-                      
-                      Object.keys(headerRow).forEach(key => {
-                          const valUpper = String(headerRow[key]).toUpperCase();
-                          if (valUpper.includes('STATION')) stationKey = key;
-                          if (valUpper.includes('COORDINATES')) coordKey = key;
-                      });
-
-                      if (!stationKey && row[stationKey]) stationKey = 'STATION';
-                      if (!coordKey && row['COORDINATES']) coordKey = 'COORDINATES';
-
-                      if (stationKey && row[stationKey]) {
-                           if (!hasActiveService(row, stationKey, coordKey)) continue;
-
-                           const stationName = normalizeStationName(row[stationKey]);
-                           const coordVal = coordKey ? row[coordKey] : null;
-                           let coords = { lat: null, lon: null };
-                           
-                           try {
-                               if (coordVal) {
-                                   const parts = String(coordVal).split(',').map(s => parseFloat(s.trim()));
-                                   if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                                        coords = { lat: parts[0], lon: parts[1] };
-                                   }
-                               }
-                           } catch (e) { }
-
-                           if (!globalStationIndex[stationName]) {
-                               globalStationIndex[stationName] = { 
-                                   lat: coords.lat, 
-                                   lon: coords.lon, 
-                                   routes: new Set()
-                                };
-                           } else if (globalStationIndex[stationName].lat === null && coords.lat !== null) {
-                               // GUARDIAN Phase 5: Coordinate Resurrector
-                               // Overwrites null coordinates if a subsequent sheet contains valid GPS data.
-                               globalStationIndex[stationName].lat = coords.lat;
-                               globalStationIndex[stationName].lon = coords.lon;
-                           }
-                           if (globalStationIndex[stationName]) globalStationIndex[stationName].routes.add(route.id);
-                      }
-                 }
-            } else {
-                 sheetData.forEach(row => {
-                    let stationKey = row['STATION'] !== undefined ? 'STATION' : null;
-                    let coordKey = row['COORDINATES'] !== undefined ? 'COORDINATES' : null;
-
-                    if (stationKey && row[stationKey]) {
-                        if (!hasActiveService(row, stationKey, coordKey)) return;
-
-                        const stationName = normalizeStationName(row[stationKey]);
-                        let coords = { lat: null, lon: null };
-                        
-                        try {
-                            if (coordKey && row[coordKey]) {
-                                const parts = String(row[coordKey]).split(',').map(s => parseFloat(s.trim()));
-                                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                                    coords = { lat: parts[0], lon: parts[1] };
-                                }
-                            }
-                        } catch (e) { }
-
-                        if (!globalStationIndex[stationName]) {
-                            globalStationIndex[stationName] = { lat: coords.lat, lon: coords.lon, routes: new Set() };
-                        } else if (globalStationIndex[stationName].lat === null && coords.lat !== null) {
-                            // GUARDIAN Phase 5: Coordinate Resurrector
-                            globalStationIndex[stationName].lat = coords.lat;
-                            globalStationIndex[stationName].lon = coords.lon;
-                        }
-                        if (globalStationIndex[stationName]) globalStationIndex[stationName].routes.add(route.id);
-                    }
-                });
-            }
-        });
-    });
 }
 
 function buildMasterStationList() {
@@ -974,13 +1416,14 @@ function getRouteFare(sheetKey, departureTimeStr) {
     if (isWeekdaySheet) {
         let checkH, checkM;
         
-        // GUARDIAN BUGFIX: Use the actual train departure time to calculate off-peak, NOT the current physical clock!
+        // GUARDIAN PHASE 2A: Decouple Off-Peak pricing from individual train departures.
+        // Strict adherence to global physical/simulated clock.
         if (typeof window.isSimMode !== 'undefined' && window.isSimMode && window.simTimeStr) {
             const parts = window.simTimeStr.split(':');
             checkH = parseInt(parts[0], 10);
             checkM = parseInt(parts[1], 10);
-        } else if (departureTimeStr && typeof departureTimeStr === 'string' && departureTimeStr.includes(':')) {
-            const parts = departureTimeStr.split(':');
+        } else if (typeof currentTime !== 'undefined' && currentTime && currentTime.includes(':')) {
+            const parts = currentTime.split(':');
             checkH = parseInt(parts[0], 10);
             checkM = parseInt(parts[1], 10);
         } else {
@@ -999,12 +1442,17 @@ function getRouteFare(sheetKey, departureTimeStr) {
     let finalPrice = basePrice * multiplier;
     finalPrice = Math.ceil(finalPrice * 2) / 2;
 
-    if (multiplier < 1.0) {
-        isPromo = true; 
+    // GUARDIAN FIX: Mutually exclusive Promo vs OffPeak flags to prevent UI collisions
+    if (currentUserProfile === "Adult") {
+        isPromo = false; // Adults only get the time-based green Off-Peak badge
+        if (useOffPeakRate) {
+            discountLabel = "40% Off-Peak";
+        }
+    } else if (multiplier < 1.0) {
+        isPromo = true; // Special profiles get the purple Promo badge
         if (currentUserProfile === "Pensioner") discountLabel = "50% Off-Peak";
         else if (currentUserProfile === "Military") discountLabel = "50% Off-Peak";
         else if (currentUserProfile === "Scholar") discountLabel = "50% Discount";
-        else if (currentUserProfile === "Adult" && useOffPeakRate) discountLabel = "40% Off-Peak";
         else discountLabel = "Discounted"; 
     }
 
@@ -1720,7 +2168,8 @@ function updateTime() {
         const plannerDaySelect = document.getElementById('planner-day-select');
         // GUARDIAN BUGFIX: Cleaned syntax error for dynamic Holiday Sync
         if (plannerDaySelect && (typeof selectedPlannerDay === 'undefined' || !selectedPlannerDay)) { 
-            plannerDaySelect.value = currentDayType; 
+            // We NO LONGER explicitly set plannerDaySelect.value directly because it has been converted to a custom dropdown
+            // handled in planner-ui.js natively. The fallback remains active purely for logic states.
             selectedPlannerDay = currentDayType; 
         }
         

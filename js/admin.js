@@ -1,18 +1,19 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.21 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.26 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
- * 2. Maintenance Mode Toggle
- * 3. Enterprise Login Logic & Token Mgmt (Phase 9)
- * 4. Simulation Controls (Disarmed on Entry, Triggered on Apply)
- * 5. Exceptions Manager (God-Mode + Banned/Special Types + EXPIRY)
- * 6. Special Event Route Manager
- * 7. System Health / Diagnostics Scanner
- * 8. Nuclear Cache Wipe (Killswitch)
- * 9. Live Telemetry Bridge & Snapshot Export
- * 10. User Feedback Manager (Inbox & Archive Protocol Tabs)
- * 11. Growth & Promo Manager (QR Codes)
+ * 2. Transit Incident Manager (Tiered Graph/Timeline Disruptions)
+ * 3. Maintenance Mode Toggle
+ * 4. Enterprise Login Logic & Token Mgmt (Phase 9)
+ * 5. Simulation Controls (Disarmed on Entry, Triggered on Apply)
+ * 6. Exceptions Manager (God-Mode + Banned/Special Types + EXPIRY + Grid Notice Engine)
+ * 7. Special Event Route Manager
+ * 8. System Health / Diagnostics Scanner
+ * 9. Nuclear Cache Wipe (Killswitch)
+ * 10. Live Telemetry Bridge & Snapshot Export
+ * 11. User Feedback Manager (Inbox & Archive Protocol Tabs)
+ * 12. Growth & Promo Manager (QR Codes)
  */
 
 const Admin = {
@@ -131,9 +132,10 @@ const Admin = {
         const CLOUDFLARE_WORKER_URL = 'https://nexttrain-telemetry.enock.workers.dev/';
         
         try {
-            const res = await fetch(CLOUDFLARE_WORKER_URL, {
+            // GUARDIAN PHASE 4: Admin Shield - Wraps raw fetch in guardianFetch to prevent deadlocks
+            const res = await window.guardianFetch(CLOUDFLARE_WORKER_URL, {
                 headers: { 'Authorization': `Bearer ${secret}` }
-            });
+            }, 6000);
             
             if (res.ok) {
                 const data = await res.json();
@@ -622,14 +624,12 @@ const Admin = {
         Admin.setupTelemetry();
         Admin.setupFeedbackManager(); 
         Admin.setupServiceAlertsManager();
+        Admin.setupDisruptionsManager(); // GUARDIAN PHASE 6: Transit Incident Manager Injected Here
         Admin.setupExclusionManager();
         Admin.setupMaintenanceManager();
         Admin.setupSpecialEventManager(); 
         Admin.setupDiagnosticsManager(); 
-        
-        // 2. Setup Growth Panel (Injected precisely after Diagnostics, before Nuclear)
         Admin.setupGrowthManager(); 
-        
         Admin.setupNuclearManager(); 
     },
 
@@ -697,7 +697,8 @@ const Admin = {
 
         try {
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-            const fullRes = await fetch(`${dynamicEndpoint}feedback.json?auth=${secret}`);
+            // GUARDIAN PHASE 4: Admin Shield - Wraps raw fetch in guardianFetch to prevent deadlocks
+            const fullRes = await window.guardianFetch(`${dynamicEndpoint}feedback.json?auth=${secret}`, {}, 6000);
             if (!fullRes.ok) return;
             const fullData = await fullRes.json();
             
@@ -902,7 +903,8 @@ const Admin = {
 
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const res = await fetch(`${dynamicEndpoint}feedback.json?auth=${secret}&orderBy="$key"`);
+                // GUARDIAN PHASE 4: Admin Shield - Wraps raw fetch in guardianFetch to prevent deadlocks
+                const res = await window.guardianFetch(`${dynamicEndpoint}feedback.json?auth=${secret}&orderBy="$key"`, {}, 10000);
                 
                 if (!res.ok) throw new Error("Failed to fetch feedback");
                 const data = await res.json();
@@ -1250,7 +1252,8 @@ const Admin = {
         async function fetchCurrentAlert(target) {
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const res = await fetch(`${dynamicEndpoint}notices/${target}.json?t=${Date.now()}`);
+                // GUARDIAN PHASE 4: Admin Shield - Wraps raw fetch in guardianFetch to prevent deadlocks
+                const res = await window.guardianFetch(`${dynamicEndpoint}notices/${target}.json?t=${Date.now()}`, {}, 6000);
                 const data = await res.json();
                 
                 if (data && data.message) {
@@ -1413,7 +1416,8 @@ const Admin = {
             try {
                 sendBtn.textContent = "Posting...";
                 sendBtn.disabled = true;
-                const res = await fetch(url, { method: 'PUT', body: JSON.stringify(payload) });
+                // GUARDIAN PHASE 4: Admin Shield - Wraps raw fetch in guardianFetch to prevent deadlocks
+                const res = await window.guardianFetch(url, { method: 'PUT', body: JSON.stringify(payload) }, 10000);
                 if (res.ok) {
                     if (typeof showToast === 'function') showToast("Alert Posted!", "success");
                     if (typeof checkServiceAlerts === 'function') checkServiceAlerts(); 
@@ -1436,7 +1440,8 @@ const Admin = {
             const url = `${dynamicEndpoint}notices/${target}.json?auth=${secret}`;
             
             try {
-                const fetchRes = await fetch(`${dynamicEndpoint}notices/${target}.json`);
+                // GUARDIAN PHASE 4: Admin Shield - Wraps raw fetch in guardianFetch to prevent deadlocks
+                const fetchRes = await window.guardianFetch(`${dynamicEndpoint}notices/${target}.json`, {}, 6000);
                 if (fetchRes.ok) {
                     const alertData = await fetchRes.json();
                     if (alertData && alertData.id) {
@@ -1479,6 +1484,314 @@ const Admin = {
         };
     },
 
+    // --- 4.5 TRANSIT INCIDENT MANAGER (GUARDIAN PHASE 6) ---
+    setupDisruptionsManager: () => {
+        const alertPanel = document.getElementById('alert-panel');
+        if (!alertPanel || !alertPanel.parentNode) return;
+
+        let disrPanel = document.getElementById('disruption-panel');
+        if (!disrPanel) {
+            disrPanel = document.createElement('div');
+            disrPanel.id = 'disruption-panel';
+            alertPanel.parentNode.insertBefore(disrPanel, alertPanel.nextSibling);
+        }
+
+        if (disrPanel.dataset.adminLoaded === "true") return;
+        disrPanel.dataset.adminLoaded = "true";
+
+        disrPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+
+        disrPanel.innerHTML = `
+            <button id="disr-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
+                <span class="flex items-center"><span class="mr-2">🚧</span> Transit Incident Manager</span>
+                <svg id="disr-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            
+            <div id="disr-body" class="hidden mt-4 space-y-3">
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p class="text-[10px] text-blue-800 dark:text-blue-300 font-medium leading-snug">
+                        Injects live disruption badges into Planner and Next Train tabs. <b>CRITICAL</b> tiers drop the graph edge entirely (forces "No Route"). <b>WARNING</b> tiers add a visual badge but keep the route intact.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Route</label>
+                        <select id="disr-route" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Severity Tier</label>
+                        <select id="disr-tier" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none font-bold">
+                            <option value="CRITICAL" class="text-red-600">🔴 CRITICAL (Sever Line)</option>
+                            <option value="WARNING" class="text-yellow-600">🟡 WARNING (Expect Delays)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Station A</label>
+                        <select id="disr-station-a" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
+                            <option value="">Route-Wide Advisory</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Station B</label>
+                        <select id="disr-station-b" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
+                            <option value="">Single Station Only</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Badge Button Text</label>
+                    <input type="text" id="disr-btn-text" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none" placeholder="e.g. Sinkhole Advisory">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Commuter Explanation (PRASA Notice)</label>
+                    <textarea id="disr-msg" rows="4" class="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-y" placeholder="The line between Centurion and Irene is suspended due to a sinkhole..."></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Expiry Date & Time</label>
+                    <input type="datetime-local" id="disr-expiry" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
+                </div>
+
+                <button id="disr-save-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-sm transition-colors text-xs uppercase tracking-wide">
+                    Deploy Incident
+                </button>
+
+                <div class="pt-3 border-t border-gray-200 dark:border-gray-700 mt-4">
+                    <p class="text-[10px] text-gray-400 uppercase font-bold mb-2">Active Incidents:</p>
+                    <div id="disr-list" class="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar"></div>
+                </div>
+            </div>
+        `;
+
+        const header = document.getElementById('disr-header-btn');
+        const body = document.getElementById('disr-body');
+        const chevron = document.getElementById('disr-chevron');
+        const routeSelect = document.getElementById('disr-route');
+        const statASelect = document.getElementById('disr-station-a');
+        const statBSelect = document.getElementById('disr-station-b');
+        const tierSelect = document.getElementById('disr-tier');
+        const msgInput = document.getElementById('disr-msg');
+        const btnTextInput = document.getElementById('disr-btn-text');
+        const expiryInput = document.getElementById('disr-expiry');
+        const saveBtn = document.getElementById('disr-save-btn');
+        const listDiv = document.getElementById('disr-list');
+
+        header.onclick = () => {
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+                header.classList.remove('mb-4');
+            } else {
+                chevron.classList.remove('-rotate-90');
+                header.classList.add('mb-4');
+                Admin.fetchDisruptions(routeSelect.value);
+            }
+        };
+
+        // Populate Routes
+        if (typeof ROUTES !== 'undefined') {
+            const gpGroup = document.createElement('optgroup');
+            gpGroup.label = "Gauteng Routes";
+            const wcGroup = document.createElement('optgroup');
+            wcGroup.label = "Western Cape Routes";
+
+            Object.values(ROUTES).forEach(r => {
+                if (r.isActive && r.id !== 'special_event') {
+                    const opt = document.createElement('option');
+                    opt.value = r.id;
+                    opt.textContent = r.name;
+                    if (r.region === 'GP') gpGroup.appendChild(opt);
+                    if (r.region === 'WC') wcGroup.appendChild(opt);
+                }
+            });
+            routeSelect.appendChild(gpGroup);
+            routeSelect.appendChild(wcGroup);
+            
+            if (typeof currentRouteId !== 'undefined' && currentRouteId) {
+                routeSelect.value = currentRouteId;
+            }
+        }
+
+        // Populate Stations strictly bound to the selected route using globalStationIndex
+        const populateStations = () => {
+            const rId = routeSelect.value;
+            statASelect.innerHTML = '<option value="">Route-Wide Advisory</option>';
+            statBSelect.innerHTML = '<option value="">None (Single Station/Route)</option>';
+            
+            if (!rId || typeof globalStationIndex === 'undefined') return;
+
+            const stations = [];
+            for (const [stName, stData] of Object.entries(globalStationIndex)) {
+                if (stData.routes && stData.routes.has(rId)) {
+                    stations.push(stName);
+                }
+            }
+            stations.sort();
+
+            stations.forEach(st => {
+                const optA = document.createElement('option');
+                optA.value = st;
+                optA.textContent = st.replace(' STATION', '');
+                statASelect.appendChild(optA);
+
+                const optB = document.createElement('option');
+                optB.value = st;
+                optB.textContent = st.replace(' STATION', '');
+                statBSelect.appendChild(optB);
+            });
+        };
+
+        routeSelect.addEventListener('change', () => {
+            populateStations();
+            Admin.fetchDisruptions(routeSelect.value);
+        });
+        populateStations();
+
+        // Default Expiry (48 hours)
+        const now = new Date();
+        now.setHours(now.getHours() + 48);
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); 
+        expiryInput.value = now.toISOString().slice(0, 16);
+
+        Admin.fetchDisruptions = async (rId) => {
+            if (!rId) return;
+            listDiv.innerHTML = '<div class="text-xs text-gray-400 italic">Syncing...</div>';
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                // GUARDIAN PHASE 4: Admin Shield
+                const res = await window.guardianFetch(`${dynamicEndpoint}disruptions/${rId}.json?t=${Date.now()}`, {}, 6000);
+                const data = await res.json();
+                listDiv.innerHTML = '';
+                
+                if (!data) {
+                    listDiv.innerHTML = '<div class="text-xs text-gray-400 italic">No active incidents.</div>';
+                    return;
+                }
+                
+                const nowTs = Date.now();
+
+                Object.keys(data).forEach(id => {
+                    const item = data[id];
+                    const isExpired = item.expiresAt && nowTs > item.expiresAt;
+                    
+                    const badgeHtml = item.tier === 'CRITICAL' 
+                        ? '<span class="bg-red-100 text-red-700 px-1.5 py-0.5 rounded text-[8px] font-black tracking-widest mr-2 uppercase">Critical</span>'
+                        : '<span class="bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded text-[8px] font-black tracking-widest mr-2 uppercase">Warning</span>';
+                    
+                    let targetStr = "Route-Wide";
+                    if (item.stations && item.stations.length === 2) targetStr = `${item.stations[0].replace(' STATION', '')} - ${item.stations[1].replace(' STATION', '')}`;
+                    else if (item.stations && item.stations.length === 1) targetStr = item.stations[0].replace(' STATION', '');
+
+                    const expStr = item.expiresAt ? new Date(item.expiresAt).toLocaleDateString() : 'Never';
+                    const expColor = isExpired ? 'text-red-500 font-bold' : 'text-gray-400';
+
+                    const row = document.createElement('div');
+                    row.className = `flex flex-col bg-gray-50 dark:bg-gray-900 p-2.5 rounded-lg text-xs border border-gray-100 dark:border-gray-700 ${isExpired ? 'opacity-60' : ''}`;
+                    row.innerHTML = `
+                        <div class="flex justify-between items-center mb-1.5">
+                            <div class="flex items-center min-w-0 pr-2">
+                                ${badgeHtml}
+                                <span class="font-bold text-gray-800 dark:text-gray-200 truncate">${targetStr}</span>
+                            </div>
+                            <button class="text-xs font-bold text-blue-500 hover:text-blue-700 focus:outline-none" onclick="Admin.deleteDisruption('${rId}', '${id}')">Resolve</button>
+                        </div>
+                        <div class="text-[10px] text-gray-500 dark:text-gray-400 truncate mb-1">"${item.message || item.longExplanation || ''}"</div>
+                        <div class="text-[8px] ${expColor} font-mono uppercase tracking-widest">Expires: ${expStr}</div>
+                    `;
+                    listDiv.appendChild(row);
+                });
+            } catch (e) {
+                listDiv.innerHTML = `<div class="text-xs text-red-500">Error loading list.</div>`;
+            }
+        };
+
+        saveBtn.onclick = async () => {
+            const rId = routeSelect.value;
+            const tier = tierSelect.value;
+            const statA = statASelect.value;
+            const statB = statBSelect.value;
+            const btnText = btnTextInput.value.trim() || (tier === 'CRITICAL' ? 'Severance Advisory' : 'Delay Advisory');
+            const msg = msgInput.value.trim();
+            const expiryTs = expiryInput.value ? new Date(expiryInput.value).getTime() : Date.now() + (48 * 3600 * 1000);
+
+            if (!rId) { if (typeof showToast === 'function') showToast("Select a route.", "error"); return; }
+            if (!msg) { if (typeof showToast === 'function') showToast("Explanation required.", "error"); return; }
+            
+            const secret = await Admin.getAuthKey(); 
+            if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
+
+            const stations = [statA, statB].filter(Boolean);
+
+            const payload = {
+                id: Date.now().toString(),
+                routeId: rId,
+                tier: tier,
+                stations: stations,
+                buttonText: btnText,
+                message: msg.replace(/\n/g, "<br>"),
+                postedAt: Date.now(),
+                expiresAt: expiryTs
+            };
+
+            try {
+                saveBtn.textContent = `Deploying...`;
+                saveBtn.disabled = true;
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                
+                const url = `${dynamicEndpoint}disruptions/${rId}/${payload.id}.json?auth=${secret}`;
+                // GUARDIAN PHASE 4: Admin Shield - Wraps raw fetch in guardianFetch to prevent deadlocks
+                const res = await window.guardianFetch(url, { method: 'PUT', body: JSON.stringify(payload) }, 10000);
+
+                if (res.ok) {
+                    if (typeof showToast === 'function') showToast(`Incident Deployed!`, "success");
+                    msgInput.value = '';
+                    btnTextInput.value = '';
+                    statASelect.value = '';
+                    statBSelect.value = '';
+                    Admin.fetchDisruptions(rId);
+                } else {
+                    if (typeof showToast === 'function') showToast("Deployment failed. Check Session.", "error");
+                }
+            } catch (e) {
+                if (typeof showToast === 'function') showToast("Network Error: " + e.message, "error");
+            } finally {
+                saveBtn.textContent = "Deploy Incident";
+                saveBtn.disabled = false;
+            }
+        };
+
+        Admin.deleteDisruption = async function(rId, id) {
+            const confirmed = await Admin.secureConfirm("Resolve Incident", `Remove this incident from the live network?`);
+            if (!confirmed) return;
+
+            const secret = await Admin.getAuthKey(); 
+            if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
+            
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const url = `${dynamicEndpoint}disruptions/${rId}/${id}.json?auth=${secret}`;
+                const res = await fetch(url, { method: 'DELETE' });
+                
+                if (res.ok) {
+                    if (typeof showToast === 'function') showToast("Incident resolved.", "success");
+                    Admin.fetchDisruptions(rId);
+                } else { 
+                    if (typeof showToast === 'function') showToast("Delete failed.", "error"); 
+                }
+            } catch(e) { 
+                if (typeof showToast === 'function') showToast(e.message, "error"); 
+            }
+        };
+    },
+
     // --- 5. EXCLUSION MANAGER ---
     setupExclusionManager: () => {
         const alertPanel = document.getElementById('alert-panel');
@@ -1513,13 +1826,22 @@ const Admin = {
                     </select>
                 </div>
 
-                <div class="flex space-x-2">
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <label class="block text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase mb-1">Route-Wide Grid Notice</label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="excl-grid-notice" class="w-full h-10 px-3 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-xs text-gray-900 dark:text-white outline-none" placeholder="e.g. Trains 9116 & 9118 cancelled due to maintenance...">
+                        <button id="excl-save-notice-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 rounded-lg shadow-sm transition-colors text-xs whitespace-nowrap focus:outline-none">Save</button>
+                    </div>
+                    <p class="text-[9px] text-blue-600 dark:text-blue-400 mt-1">Displays a banner directly inside the full timetable grid.</p>
+                </div>
+
+                <div class="flex space-x-2 mt-2">
                     <select id="excl-schedule-type" class="w-2/3 h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs outline-none text-gray-900 dark:text-white">
                         <option value="weekday">Weekday Schedule</option>
                         <option value="saturday">Saturday Schedule</option>
                         <option value="sunday">Sunday Schedule</option>
                     </select>
-                    <button id="excl-load-trains-btn" class="w-1/3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold rounded-lg text-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors">Load</button>
+                    <button id="excl-load-trains-btn" class="w-1/3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold rounded-lg text-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors focus:outline-none">Load</button>
                 </div>
 
                 <div id="excl-train-picker" class="hidden border border-gray-200 dark:border-gray-700 rounded-lg p-2 bg-gray-50 dark:bg-gray-900">
@@ -1529,7 +1851,7 @@ const Admin = {
 
                 <input id="excl-train-manual" type="text" placeholder="Or type manually (e.g. 4401)" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none hidden">
                 
-                <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700">
+                <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 mt-2">
                     <span class="text-xs font-bold text-gray-500 mr-2">Apply To:</span>
                     <div class="flex space-x-1" id="excl-days-container"></div>
                 </div>
@@ -1553,11 +1875,11 @@ const Admin = {
                     <p class="text-[9px] text-gray-400 mt-1">If set, the train will automatically reappear on the schedule after this date.</p>
                 </div>
                 
-                <button id="excl-save-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors text-xs uppercase tracking-wide">
+                <button id="excl-save-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors text-xs uppercase tracking-wide focus:outline-none">
                     Apply Exceptions
                 </button>
 
-                <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+                <div class="pt-2 border-t border-gray-200 dark:border-gray-700 mt-3">
                     <p class="text-[10px] text-gray-400 uppercase font-bold mb-2">Active Exceptions:</p>
                     <div id="excl-list" class="space-y-1 max-h-40 overflow-y-auto pr-1 custom-scrollbar"></div>
                 </div>
@@ -1569,6 +1891,10 @@ const Admin = {
         const chevron = document.getElementById('excl-chevron');
         const routeSelect = document.getElementById('excl-route');
         const dirSelect = document.getElementById('excl-direction');
+        
+        const noticeInput = document.getElementById('excl-grid-notice');
+        const noticeSaveBtn = document.getElementById('excl-save-notice-btn');
+
         const schedTypeSelect = document.getElementById('excl-schedule-type');
         const loadTrainsBtn = document.getElementById('excl-load-trains-btn');
         const trainGrid = document.getElementById('excl-train-grid');
@@ -1704,19 +2030,78 @@ const Admin = {
             pickerContainer.classList.remove('hidden');
         };
 
+        // 🛡️ GUARDIAN Phase 3: Added Notice Save Button Logic
+        noticeSaveBtn.onclick = async () => {
+            const rId = routeSelect.value;
+            const text = noticeInput.value.trim();
+            const secret = await Admin.getAuthKey();
+            if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
+
+            noticeSaveBtn.textContent = "...";
+            noticeSaveBtn.disabled = true;
+
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                
+                if (text === "") {
+                    await fetch(`${dynamicEndpoint}exclusions/${rId}/_grid_notice.json?auth=${secret}`, { method: 'DELETE' });
+                } else {
+                    await window.guardianFetch(`${dynamicEndpoint}exclusions/${rId}/_grid_notice.json?auth=${secret}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ text: text, updatedAt: Date.now() })
+                    }, 10000);
+                }
+
+                // 🛡️ GUARDIAN FIX: Cache Purge
+                try {
+                    await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                        method: 'POST', 
+                        headers: {'Authorization': `Bearer ${secret}`} 
+                    });
+                } catch(pe) { console.warn("Purge failed", pe); }
+
+                if (typeof showToast === 'function') showToast("Grid Notice updated!", "success");
+                
+                // Fetch to sync memory immediately
+                fetchExclusions();
+                
+                // If the user has a grid open, re-render it so it picks up the new exclusions JSON
+                if (typeof loadAllSchedules === 'function') {
+                    // Small delay to allow the network flush to finish
+                    setTimeout(() => { loadAllSchedules(); }, 500); 
+                }
+            } catch (e) {
+                if (typeof showToast === 'function') showToast("Network Error: " + e.message, "error");
+            } finally {
+                noticeSaveBtn.textContent = "Save";
+                noticeSaveBtn.disabled = false;
+            }
+        };
+
         async function fetchExclusions() {
             const rId = routeSelect.value;
             listDiv.innerHTML = '<div class="text-xs text-gray-400 italic">Loading...</div>';
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const res = await fetch(`${dynamicEndpoint}exclusions/${rId}.json?t=${Date.now()}`);
+                const res = await window.guardianFetch(`${dynamicEndpoint}exclusions/${rId}.json?t=${Date.now()}`, {}, 6000);
                 const data = await res.json();
+                
+                // 🛡️ GUARDIAN Phase 3: Extract Grid Notice Text natively
+                if (data && data._grid_notice) {
+                    noticeInput.value = data._grid_notice.text || "";
+                } else {
+                    noticeInput.value = "";
+                }
+
                 listDiv.innerHTML = '';
-                if (!data) {
+                if (!data || (Object.keys(data).length === 1 && data._grid_notice)) {
                     listDiv.innerHTML = '<div class="text-xs text-gray-400 italic">No active exceptions.</div>';
                     return;
                 }
+                
                 Object.keys(data).forEach(trainNum => {
+                    if (trainNum === '_grid_notice') return; // Skip rendering the grid notice block here
+                    
                     const item = data[trainNum];
                     const dayLabels = item.days.map(d => days[d]).join('');
                     
@@ -1752,7 +2137,7 @@ const Admin = {
                             <div class="text-[9px] text-gray-400 mt-0.5">${item.reason || 'No reason specified'}</div>
                             ${expiryHtml}
                         </div>
-                        <button class="text-gray-400 hover:text-white hover:bg-red-500 rounded px-1.5 py-0.5 transition-colors font-bold" onclick="Admin.deleteExclusion('${rId}', '${trainNum}')">✕</button>
+                        <button class="text-gray-400 hover:text-white hover:bg-red-500 rounded px-1.5 py-0.5 transition-colors font-bold focus:outline-none" onclick="Admin.deleteExclusion('${rId}', '${trainNum}')">✕</button>
                     `;
                     listDiv.appendChild(row);
                 });
@@ -1805,7 +2190,8 @@ const Admin = {
                 
                 const promises = selectedTrains.map(tNum => {
                     const url = `${dynamicEndpoint}exclusions/${rId}/${tNum}.json?auth=${secret}`;
-                    return fetch(url, { method: 'PUT', body: JSON.stringify(updates[tNum]) });
+                    // GUARDIAN PHASE 4: Admin Shield Wrap
+                    return window.guardianFetch(url, { method: 'PUT', body: JSON.stringify(updates[tNum]) }, 10000);
                 });
                 await Promise.all(promises);
 
@@ -1959,10 +2345,11 @@ const Admin = {
 
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const res = await fetch(`${dynamicEndpoint}config/special_event.json?auth=${secret}`, {
+                // GUARDIAN PHASE 4: Admin Shield Wrap
+                const res = await window.guardianFetch(`${dynamicEndpoint}config/special_event.json?auth=${secret}`, {
                     method: 'PUT',
                     body: JSON.stringify(payload)
-                });
+                }, 10000);
                 
                 if (res.ok) {
                     if (typeof showToast === 'function') showToast("Special Event Updated!", "success");
@@ -2056,6 +2443,10 @@ const Admin = {
                     Object.values(ROUTES).forEach(route => {
                         if (!route.isActive || route.id === 'special_event') return;
                         
+                        // 🛡️ GUARDIAN PHASE 4: Regional Shield
+                        // Stop the scanner from crashing/flagging missing tables for regions not loaded in memory
+                        if (typeof currentRegion !== 'undefined' && route.region !== currentRegion) return;
+                        
                         totalRoutes++;
                         let routeHealthy = true;
                         let missingSheets = [];
@@ -2095,9 +2486,10 @@ const Admin = {
                     });
                 }
 
+                // GUARDIAN PHASE 4: Clarified explicitly that this only runs against the loaded region
                 const summary = `
                     <div class="flex justify-between bg-gray-50 dark:bg-gray-700/50 p-3 rounded-xl mb-4 border border-gray-100 dark:border-gray-600">
-                        <div class="text-center flex-1 border-r border-gray-200 dark:border-gray-600"><span class="block text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-0.5">Active</span><span class="text-lg font-black text-gray-800 dark:text-gray-200 leading-none">${totalRoutes}</span></div>
+                        <div class="text-center flex-1 border-r border-gray-200 dark:border-gray-600"><span class="block text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-0.5">Active (Current Region)</span><span class="text-lg font-black text-gray-800 dark:text-gray-200 leading-none">${totalRoutes}</span></div>
                         <div class="text-center flex-1 border-r border-gray-200 dark:border-gray-600"><span class="block text-[9px] text-green-600 uppercase font-bold tracking-widest mb-0.5">Healthy</span><span class="text-lg font-black text-green-600 leading-none">${healthyCount}</span></div>
                         <div class="text-center flex-1"><span class="block text-[9px] text-red-600 uppercase font-bold tracking-widest mb-0.5">Errors</span><span class="text-lg font-black text-red-600 leading-none">${brokenCount}</span></div>
                     </div>
@@ -2184,10 +2576,12 @@ const Admin = {
             const newState = toggle.checked;
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const res = await fetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
+                // GUARDIAN PHASE 4: Admin Shield Wrap
+                const res = await window.guardianFetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
                     method: 'PUT',
                     body: JSON.stringify(newState)
-                });
+                }, 10000);
+                
                 if(res.ok) {
                     if (typeof showToast === 'function') showToast(`Maintenance Mode: ${newState ? "ON" : "OFF"}`, newState ? "warning" : "success");
                 } else {
@@ -2262,7 +2656,8 @@ const Admin = {
                 const url = `${dynamicEndpoint}config/killswitch.json?auth=${secret}`;
                 const payload = { timestamp: Date.now(), triggeredBy: Admin.currentUser ? Admin.currentUser.email : 'Admin' };
                 
-                const res = await fetch(url, { method: 'PUT', body: JSON.stringify(payload) });
+                // GUARDIAN PHASE 4: Admin Shield Wrap
+                const res = await window.guardianFetch(url, { method: 'PUT', body: JSON.stringify(payload) }, 10000);
                 if (res.ok) {
                     // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key
                     try {

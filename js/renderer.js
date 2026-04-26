@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.21 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.26 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -15,6 +15,12 @@
  * * GUARDIAN PHASE 21 (BUGFIX): Variable shadowing (th) resolved in export engine to prevent older Android WebView crashes.
  * * GUARDIAN PHASE 22: Export Visual Cues. Injected HTML2Canvas HEX mapping for Banned/Special trains and Amended Timetable badge.
  * * GUARDIAN PHASE 23: Grid Typography Polish. Absolute positioning for Exception tags to preserve Train ID baseline alignment. Strikethroughs removed.
+ * * GUARDIAN PHASE 5: Live Board Disruption Evaluator. Force-terminates direct trips and injects dynamic advisories.
+ * * GUARDIAN BUGFIX: Normalized Index Matching for Live Board Disruptions to prevent string-suffix mismatch.
+ * * GUARDIAN PHASE 1 TRIAGE: Replaced naked localStorage in renderRouteMenu to prevent WebView fatal crash.
+ * * GUARDIAN PHASE 2C: Injected globalDisruptions checks into after-hours empty-state cards.
+ * * GUARDIAN PHASE 4 (CONTEXT ENGINE): Injected Route-Wide Grid Notices into Live Grid UI and Offline Canvas Exports.
+ * * GROWTH MODE PHASE 4: Cross-Corridor Disruption Engine injected into Live Boards & Empty States via getTripDisruptions().
  */
 
 const Renderer = {
@@ -79,7 +85,9 @@ const Renderer = {
             `;
         }
 
-        const savedDefault = localStorage.getItem('defaultRoute_' + (typeof currentRegion !== 'undefined' ? currentRegion : 'GP'));
+        // GUARDIAN BUGFIX (PHASE 1 TRIAGE): Route localStorage safely through safeStorage to prevent WebView Access Denied crashes
+        const savedDefault = typeof safeStorage !== 'undefined' ? safeStorage.getItem('defaultRoute_' + (typeof currentRegion !== 'undefined' ? currentRegion : 'GP')) : null;
+        
         if (savedDefault && routes[savedDefault] && savedDefault !== 'special_event') {
             const r = routes[savedDefault];
             const isActive = r.id === activeRouteId;
@@ -310,9 +318,48 @@ const Renderer = {
         let dayText = nextDayInfo.name;
         if (dayText !== "Tomorrow") dayText = `on ${dayText}`;
 
+        // --- GUARDIAN PHASE 4: CROSS-CORRIDOR LIVE BOARD DISRUPTION EVALUATOR ---
+        let disruptionHtml = '';
+        if (typeof window.getTripDisruptions === 'function' && typeof currentRouteId !== 'undefined') {
+            let stopsArray = [];
+            const origin = (typeof stationSelect !== 'undefined' && stationSelect) ? stationSelect.value : "";
+            if (origin && typeof allStations !== 'undefined' && allStations.length > 0) {
+                const oIdx = allStations.findIndex(s => normalizeStationName(s) === normalizeStationName(origin));
+                const dIdx = allStations.findIndex(s => normalizeStationName(s) === normalizeStationName(destination));
+                if (oIdx !== -1 && dIdx !== -1) {
+                    const start = Math.min(oIdx, dIdx);
+                    const end = Math.max(oIdx, dIdx);
+                    for (let i = start; i <= end; i++) stopsArray.push({ station: allStations[i] });
+                } else {
+                    stopsArray = [{ station: origin }, { station: destination }];
+                }
+            } else {
+                stopsArray = [{ station: origin || "" }, { station: destination }];
+            }
+
+            const activeDisruptions = window.getTripDisruptions(currentRouteId, stopsArray);
+            if (activeDisruptions && activeDisruptions.length > 0) {
+                const routeDisruption = activeDisruptions.find(d => d.tier === 'CRITICAL') || activeDisruptions[0];
+                const btnClass = routeDisruption.tier === 'CRITICAL' 
+                    ? 'bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700' 
+                    : 'bg-yellow-100 dark:bg-yellow-900/50 hover:bg-yellow-200 dark:hover:bg-yellow-800 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-700';
+                const icon = routeDisruption.tier === 'CRITICAL' ? '🔴' : '🟡';
+                const labelText = routeDisruption.buttonText ? escapeHTML(routeDisruption.buttonText) : (routeDisruption.tier === 'CRITICAL' ? 'Line Severed' : 'Expect Delays');
+                
+                disruptionHtml = `
+                    <div class="mt-1 flex justify-center w-full px-2">
+                        <button type="button" onclick="openDisruptionModal('${routeDisruption.id}')" class="${btnClass} px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border transition-colors shadow-sm flex items-center animate-pulse truncate max-w-full focus:outline-none">
+                            <span class="mr-1">${icon}</span> <span class="truncate">${labelText}</span>
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
         element.innerHTML = `
             <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 animate-fade-in-up">
                 <div class="text-sm font-bold text-gray-600 dark:text-gray-400">No service today</div>
+                ${disruptionHtml}
                 <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${dayText} is at:</p>
                 <div class="text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md transition-all mt-1 w-3/4 shadow-sm border border-gray-100 dark:border-gray-800">
                     ${timeHTML}
@@ -337,9 +384,48 @@ const Renderer = {
         let dayText = dayName;
         if (dayText !== "Tomorrow") dayText = `on ${dayText}`;
 
+        // --- GUARDIAN PHASE 4: CROSS-CORRIDOR LIVE BOARD DISRUPTION EVALUATOR ---
+        let disruptionHtml = '';
+        if (typeof window.getTripDisruptions === 'function' && typeof currentRouteId !== 'undefined') {
+            let stopsArray = [];
+            const origin = (typeof stationSelect !== 'undefined' && stationSelect) ? stationSelect.value : "";
+            if (origin && typeof allStations !== 'undefined' && allStations.length > 0) {
+                const oIdx = allStations.findIndex(s => normalizeStationName(s) === normalizeStationName(origin));
+                const dIdx = allStations.findIndex(s => normalizeStationName(s) === normalizeStationName(destination));
+                if (oIdx !== -1 && dIdx !== -1) {
+                    const start = Math.min(oIdx, dIdx);
+                    const end = Math.max(oIdx, dIdx);
+                    for (let i = start; i <= end; i++) stopsArray.push({ station: allStations[i] });
+                } else {
+                    stopsArray = [{ station: origin }, { station: destination }];
+                }
+            } else {
+                stopsArray = [{ station: origin || "" }, { station: destination }];
+            }
+
+            const activeDisruptions = window.getTripDisruptions(currentRouteId, stopsArray);
+            if (activeDisruptions && activeDisruptions.length > 0) {
+                const routeDisruption = activeDisruptions.find(d => d.tier === 'CRITICAL') || activeDisruptions[0];
+                const btnClass = routeDisruption.tier === 'CRITICAL' 
+                    ? 'bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700' 
+                    : 'bg-yellow-100 dark:bg-yellow-900/50 hover:bg-yellow-200 dark:hover:bg-yellow-800 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-700';
+                const icon = routeDisruption.tier === 'CRITICAL' ? '🔴' : '🟡';
+                const labelText = routeDisruption.buttonText ? escapeHTML(routeDisruption.buttonText) : (routeDisruption.tier === 'CRITICAL' ? 'Line Severed' : 'Expect Delays');
+                
+                disruptionHtml = `
+                    <div class="mt-1 flex justify-center w-full px-2">
+                        <button type="button" onclick="openDisruptionModal('${routeDisruption.id}')" class="${btnClass} px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border transition-colors shadow-sm flex items-center animate-pulse truncate max-w-full focus:outline-none">
+                            <span class="mr-1">${icon}</span> <span class="truncate">${labelText}</span>
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
         element.innerHTML = `
             <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 animate-fade-in-up">
                 <div class="text-sm font-bold text-gray-600 dark:text-gray-400">No more trains today</div>
+                ${disruptionHtml}
                 <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${dayText} is at:</p>
                 <div class="text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md transition-all mt-1 w-3/4 shadow-sm border border-gray-100 dark:border-gray-800">
                     <div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
@@ -371,13 +457,14 @@ const Renderer = {
         if (timeDiffStr) timeDiffStr = timeDiffStr.replace(/(\d+)h\s(\d+)m/, '$1 hr $2 min').replace(/(\d+)m\)/, '$1 min)');
         
         const safeDestForClick = safeDest.replace(/&#39;/g, "\\'"); 
-        const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[9px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-lg transition-colors truncate">See Upcoming Trains</button>`;
+        const buttonHtml = `<button onclick="openScheduleModal('${safeDestForClick}')" class="absolute bottom-0 left-0 w-full text-[9px] uppercase tracking-wide font-bold py-1 bg-black bg-opacity-10 hover:bg-opacity-20 dark:bg-white dark:bg-opacity-10 dark:hover:bg-opacity-20 rounded-b-lg transition-colors truncate focus:outline-none">See Upcoming Trains</button>`;
 
         let sharedTag = "";
         if (journey.isShared && journey.sourceRoute) {
              let rawName = journey.sourceRoute.replace("Route", "").trim();
              let routeName = rawName;
              
+             // GUARDIAN V6.04.14 FIX: Universal String Split for region-agnostic formatting
              if (rawName.includes('<->')) {
                  routeName = rawName.split('<->')[1].trim();
              } else if (rawName.includes('↔')) {
@@ -392,8 +479,89 @@ const Renderer = {
              }
         }
 
+        // --- GUARDIAN PHASE 4: CROSS-CORRIDOR LIVE BOARD DISRUPTION EVALUATOR ---
+        let disruptionHtml = '';
+        let isForceTerminated = false;
+        let overrideActualDest = null;
+        
+        if (typeof window.getTripDisruptions === 'function' && typeof currentRouteId !== 'undefined') {
+            let stopsArray = [];
+            const origin = (typeof stationSelect !== 'undefined' && stationSelect) ? stationSelect.value : "";
+            if (origin && typeof allStations !== 'undefined' && allStations.length > 0) {
+                const oIdx = allStations.findIndex(s => normalizeStationName(s) === normalizeStationName(origin));
+                const dIdx = allStations.findIndex(s => normalizeStationName(s) === normalizeStationName(destination));
+                if (oIdx !== -1 && dIdx !== -1) {
+                    const start = Math.min(oIdx, dIdx);
+                    const end = Math.max(oIdx, dIdx);
+                    for (let i = start; i <= end; i++) stopsArray.push({ station: allStations[i] });
+                } else {
+                    stopsArray = [{ station: origin }, { station: destination }];
+                }
+            } else {
+                stopsArray = [{ station: origin || "" }, { station: destination }];
+            }
+
+            const activeDisruptions = window.getTripDisruptions(currentRouteId, stopsArray);
+            if (activeDisruptions && activeDisruptions.length > 0) {
+                // Priority: CRITICAL first, then WARNING
+                const routeDisruption = activeDisruptions.find(d => d.tier === 'CRITICAL') || activeDisruptions[0];
+                
+                const btnClass = routeDisruption.tier === 'CRITICAL' 
+                    ? 'bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700' 
+                    : 'bg-yellow-100 dark:bg-yellow-900/50 hover:bg-yellow-200 dark:hover:bg-yellow-800 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-700';
+                const icon = routeDisruption.tier === 'CRITICAL' ? '🔴' : '🟡';
+                const labelText = routeDisruption.buttonText ? escapeHTML(routeDisruption.buttonText) : (routeDisruption.tier === 'CRITICAL' ? 'Line Severed' : 'Expect Delays');
+                
+                disruptionHtml = `
+                    <div class="mt-1.5 flex justify-center w-full px-1">
+                        <button type="button" onclick="openDisruptionModal('${routeDisruption.id}')" class="${btnClass} px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border transition-colors shadow-sm flex items-center animate-pulse truncate max-w-full focus:outline-none">
+                            <span class="mr-1">${icon}</span> <span class="truncate">${labelText}</span>
+                        </button>
+                    </div>
+                `;
+
+                // Terminal Truncation Logic for CRITICAL Severances
+                if (routeDisruption.tier === 'CRITICAL' && routeDisruption.stations && routeDisruption.stations.length >= 2) {
+                    if (origin && typeof allStations !== 'undefined' && allStations.length > 0) {
+                        
+                        const getNormalizedIdx = (station) => {
+                            if (!station) return -1;
+                            const normTarget = normalizeStationName(station);
+                            return allStations.findIndex(s => normalizeStationName(s) === normTarget);
+                        };
+
+                        const originIdx = getNormalizedIdx(origin);
+                        const cutAIdx = getNormalizedIdx(routeDisruption.stations[0]);
+                        const cutBIdx = getNormalizedIdx(routeDisruption.stations[1]);
+                        const destIdx = getNormalizedIdx(destination);
+
+                        if (originIdx !== -1 && destIdx !== -1 && cutAIdx !== -1 && cutBIdx !== -1) {
+                            const minCut = Math.min(cutAIdx, cutBIdx);
+                            const maxCut = Math.max(cutAIdx, cutBIdx);
+                            const minTrip = Math.min(originIdx, destIdx);
+                            const maxTrip = Math.max(originIdx, destIdx);
+
+                            // If trip originates on one side of the cut and destination is on the other
+                            if (minTrip <= minCut && maxTrip >= maxCut) {
+                                const distA = Math.abs(cutAIdx - originIdx);
+                                const distB = Math.abs(cutBIdx - originIdx);
+                                const terminalStation = distA < distB ? routeDisruption.stations[0] : routeDisruption.stations[1];
+                                
+                                overrideActualDest = terminalStation;
+                                isForceTerminated = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // ---------------------------------------------------------
+
         if (journey.type === 'direct') {
-            const actualDest = journey.actualDestination ? Renderer._applyUIIntercepts(normalizeStationName(journey.actualDestination)) : '';
+            let actualDest = journey.actualDestination ? Renderer._applyUIIntercepts(normalizeStationName(journey.actualDestination)) : '';
+            if (isForceTerminated && overrideActualDest) {
+                actualDest = Renderer._applyUIIntercepts(normalizeStationName(overrideActualDest));
+            }
             const normDest = Renderer._applyUIIntercepts(normalizeStationName(destination));
             
             let trainTitle = `Direct Train ${safeTrainName}`;
@@ -409,13 +577,13 @@ const Renderer = {
 
             if (actualDest && normDest && actualDest !== normDest) {
                 detailLine = `Terminates at ${actualDest}`;
-                detailColor = "text-orange-700 dark:text-orange-400 font-bold";
+                detailColor = isForceTerminated ? "text-red-600 dark:text-red-400 font-black" : "text-orange-700 dark:text-orange-400 font-bold";
             }
 
             element.innerHTML = `
-                <div class="flex flex-row items-center w-full space-x-3">
+                <div class="flex flex-row items-stretch w-full space-x-3">
                     <!-- TIME BOX -->
-                    <div class="relative w-1/2 h-24 flex flex-col justify-center items-center text-center p-1 pb-5 ${timeClass} rounded-lg shadow-sm flex-shrink-0">
+                    <div class="relative w-1/2 h-auto min-h-[96px] flex flex-col justify-center items-center text-center p-1 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0 self-stretch">
                         <div class="text-2xl font-black text-gray-900 dark:text-white leading-tight">${safeDepTime}</div>
                         <div class="text-xs text-gray-700 dark:text-gray-300 font-bold">${timeDiffStr}</div>
                         ${sharedTag}
@@ -423,13 +591,14 @@ const Renderer = {
                     </div>
                     
                     <!-- DESCRIPTION BOX -->
-                    <div class="w-1/2 h-24 flex flex-col justify-center items-center text-center p-1 bg-gray-50 dark:bg-gray-800/50 rounded-lg overflow-hidden">
+                    <div class="w-1/2 h-auto min-h-[96px] flex flex-col justify-center items-center text-center p-1.5 bg-gray-50 dark:bg-gray-800/50 rounded-lg overflow-hidden self-stretch">
                         <div class="text-[11px] font-bold ${titleColor} leading-tight mb-1 uppercase tracking-wide truncate w-full px-1 min-w-0" title="${trainTitle}">
                             ${trainTitle}
                         </div>
-                        <div class="text-[10px] ${detailColor} font-medium leading-tight truncate w-full px-1 min-w-0" title="${detailLine}">
+                        <div class="text-[10px] ${detailColor} leading-tight truncate w-full px-1 min-w-0" title="${detailLine}">
                             ${detailLine}
                         </div>
+                        ${disruptionHtml}
                     </div>
                 </div>
             `;
@@ -477,9 +646,9 @@ const Renderer = {
             }
             
             element.innerHTML = `
-                <div class="flex flex-row items-center w-full space-x-3">
+                <div class="flex flex-row items-stretch w-full space-x-3">
                     <!-- TIME BOX -->
-                    <div class="relative w-1/2 h-auto min-h-[110px] flex flex-col justify-center items-center text-center p-1 pb-5 ${timeClass} rounded-lg shadow-sm flex-shrink-0 self-stretch">
+                    <div class="relative w-1/2 h-auto min-h-[110px] flex flex-col justify-center items-center text-center p-1 pb-6 ${timeClass} rounded-lg shadow-sm flex-shrink-0 self-stretch">
                         <div class="text-2xl font-black text-gray-900 dark:text-white leading-tight">${safeDepTime}</div>
                         <div class="text-xs text-gray-700 dark:text-gray-300 font-bold">${timeDiffStr}</div>
                         ${sharedTag}
@@ -487,12 +656,13 @@ const Renderer = {
                     </div>
                     
                     <!-- DESCRIPTION BOX -->
-                    <div class="w-1/2 flex flex-col justify-center items-center text-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg h-full min-h-[110px] overflow-hidden">
+                    <div class="w-1/2 flex flex-col justify-center items-center text-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg h-full min-h-[110px] overflow-hidden self-stretch">
                         <div class="border-b border-gray-200 dark:border-gray-700 pb-2 mb-2 w-full min-w-0">
                             <div class="text-[11px] font-black ${titleColor} uppercase tracking-wide mb-0.5 truncate w-full px-1" title="Shuttle ${train1Label}">Shuttle ${train1Label}</div>
                             <div class="text-[9px] text-gray-600 dark:text-gray-400 font-bold truncate w-full px-1" title="To ${displayDest} (Arr ${arrivalAtTransfer})">To ${displayDest} <span class="font-normal opacity-80">(Arr ${arrivalAtTransfer})</span></div>
                         </div>
                         ${bottomBlock}
+                        ${disruptionHtml}
                     </div>
                 </div>
             `;
@@ -696,7 +866,26 @@ const Renderer = {
         let tbodyClass = isExport ? '' : 'bg-white dark:bg-gray-900';
         let stickyCellClass = isExport ? '' : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white';
 
+        // GUARDIAN Phase 4 (Context Engine): Inject UI Grid Notice from memory
+        let gridNoticeHtml = '';
+        if (!isExport && typeof globalExclusions !== 'undefined' && globalExclusions[routeId] && globalExclusions[routeId]['_grid_notice']) {
+            const noticeText = globalExclusions[routeId]['_grid_notice'].text;
+            if (noticeText && noticeText.trim() !== '') {
+                const cleanText = typeof escapeHTML === 'function' ? escapeHTML(noticeText) : noticeText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                gridNoticeHtml = `
+                    <div class="bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500 p-3 mx-3 my-4 text-[11px] sm:text-xs text-blue-800 dark:text-blue-300 font-medium shadow-sm rounded-r flex items-start">
+                        <span class="mr-2 text-sm leading-none">ℹ️</span>
+                        <div>
+                            <b class="font-black uppercase tracking-wider block mb-0.5">Service Update</b>
+                            <span class="leading-relaxed">${cleanText}</span>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
         let html = `
+            ${gridNoticeHtml}
             <table class="w-full ${fontSizeClass} text-left border-collapse ${tableClass}">
                 <thead class="text-[10px] uppercase ${theadClass} sticky top-0 z-20 shadow-sm">
                     <tr>
@@ -905,6 +1094,24 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
         effectiveDateText = schedA.lastUpdated.replace(/^last updated[:\s-]*/i, '').trim();
     }
     
+    // GUARDIAN Phase 4: Inject Export-Friendly Grid Notice
+    let exportGridNoticeHtml = '';
+    if (typeof globalExclusions !== 'undefined' && globalExclusions[currentRouteId] && globalExclusions[currentRouteId]['_grid_notice']) {
+        const noticeText = globalExclusions[currentRouteId]['_grid_notice'].text;
+        if (noticeText && noticeText.trim() !== '') {
+            const cleanText = typeof escapeHTML === 'function' ? escapeHTML(noticeText) : noticeText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            exportGridNoticeHtml = `
+                <div style="background-color: #eff6ff; border-left: 5px solid ${accentColor}; padding: 12px 16px; margin-bottom: 24px; font-size: 14px; color: #1e3a8a; border-radius: 0 6px 6px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: flex; align-items: flex-start;">
+                    <span style="margin-right: 10px; font-size: 18px; line-height: 1;">ℹ️</span>
+                    <div>
+                        <div style="font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-size: 12px;">Service Update</div>
+                        <div style="font-weight: 600; line-height: 1.4;">${cleanText}</div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
     const htmlA = schedA 
         ? Renderer._buildGridHTML(schedA, route.sheetKeys[keyA], currentRouteId, dummyDayIdx, false, true) 
         : `<div class="p-8 text-center italic border rounded" style="color:${mutedColor}; border-color:${borderColor}">No service scheduled for this direction.</div>`;
@@ -926,6 +1133,8 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
                 </div>
             </div>
         </div>
+
+        ${exportGridNoticeHtml}
 
         <div class="mb-8">
             <div class="p-2 mb-0 border-l-4" style="background-color: ${tableHeaderBg}; border-color: ${accentColor}">

@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.04.21 - Route Visibility Patch F2"; // BUMPED: Force cache clear for route visibility
+const APP_VERSION = "V6.04.26 - Guardian Edition"; // BUMPED: April 26 Update - Map optimizations & UI Polish
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -584,31 +584,41 @@ const DEFAULT_EXCLUSIONS = {
 
 // 7. CHANGELOG 
 // This drives the "What's New" modal.
+// GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
     {
-        version: "Version 6.04 (Guardian Edition)",
-        date: "April 2026",
+        version: "V6.04.26 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Guardian Edition</span>",
+        date: "26 Apr 2026",
         features: [
-            "<b>Western Cape Expansion:</b> The Next Train network now officially supports the Western Cape, bringing offline-first schedules to Cape Town corridors.",
-            "<b>The App Hub:</b> Settings, preferences, and offline syncing have been consolidated into a unified, swipeable navigation drawer for a premium native feel.",
-            "<b>State Preservation:</b> Modals and routing now respect native Android/iOS back-button gestures, eliminating accidental app exits."
+            "<b>Smart Weekend & Holiday Routing:</b> The Trip Planner now intelligently predicts Public Holidays. If you search on a Sunday, it automatically skips forward to find the next available working train.",
+            "<b>Clearer Disruption Alerts:</b> Redesigned the 'Line Severed' warning blocks to be instantly readable at a glance, so you know exactly where the train terminates.",
+            "<b>Sleeker Look & Feel:</b> Upgraded the time selection menus, fixed text clipping on smaller screens, and smoothed out the overall app experience."
         ]
     },
     {
-        version: "Version 5.0 — The Resilience Engine",
-        date: "",
+        version: "V6.00 <br><span class='text-[13px] text-blue-600 dark:text-blue-400'>Western Cape Launch</span>",
+        date: "Apr 2026",
         features: [
-            "<b>Full Timetable Grid:</b> Introduced the comprehensive schedule matrix, allowing commuters to visualize the entire day's train flow at a glance.",
-            "<b>Deep Linking:</b> Trip Planner routes and schedules can now be shared seamlessly via WhatsApp or SMS, opening directly in-app for the recipient.",
-            "<b>Offline Telemetry:</b> The app now intelligently caches your session history while underground, ensuring your recent searches are always available."
+            "<b>Cape Town is Here!:</b> Metrorail Next Train now fully supports Western Cape routes. You can check schedules and plan trips for Cape Town completely offline.",
+            "<b>All-New App Menu:</b> We've combined all your settings, offline syncing, and region selection into a clean, easy-to-use side menu.",
+            "<b>Better Navigation:</b> Swiping back or using your phone's back button now cleanly closes popups instead of accidentally exiting the app."
         ]
     },
     {
-        version: "Version 4.0 — Intelligent Routing",
-        date: "",
+        version: "V5.0 <br><span class='text-[13px] text-blue-600 dark:text-blue-400'>The Timetable Update</span>",
+        date: "Mar 2026",
         features: [
-            "<b>The Trip Planner:</b> Launched the core routing engine, automatically calculating direct trips, hub transfers, and complex bridge connections.",
-            "<b>Smart Fares:</b> Integrated a dynamic fare calculator that adapts to off-peak hours and selected passenger profiles."
+            "<b>Full Daily Timetables:</b> You can now view the entire day's train schedule at a glance, just like the printed station boards.",
+            "<b>Share Your Trip:</b> Easily send your planned routes and train times to friends or family via WhatsApp with a single tap.",
+            "<b>Offline Memory:</b> The app now remembers your most recent searches, making it easy to find your usual trains even when underground."
+        ]
+    },
+    {
+        version: "V4.0 <br><span class='text-[13px] text-blue-600 dark:text-blue-400'>The Trip Planner</span>",
+        date: "Feb 2026",
+        features: [
+            "<b>Smart Trip Planner:</b> Enter where you are and where you want to go, and the app will calculate the fastest route, including transfers between different lines.",
+            "<b>Fare Calculator:</b> See exactly how much your trip will cost, with built-in discounts for Scholars, Pensioners, and Off-Peak travel."
         ]
     }
 ];

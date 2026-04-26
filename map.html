@@ -174,6 +174,14 @@
         .leaflet-tooltip.tooltip-halo::before {
             display: none !important; /* Removes the ugly pointer arrow */
         }
+        
+        /* Disruption Overlays */
+        .disruption-line-overlay {
+            animation: dashPulse 1.5s linear infinite;
+        }
+        @keyframes dashPulse {
+            to { stroke-dashoffset: -22; }
+        }
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
@@ -197,7 +205,7 @@
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-4 font-mono">Syncing Regional Data...</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-4 font-mono">Syncing Regional Data & Live Status...</p>
         </div>
     </div>
 
@@ -556,21 +564,45 @@
             if (!rawDb) throw new Error("No Local Database Cached");
             const mergedDb = unwrapDatabase(rawDb, currentRegion);
 
+            // 🛡️ GUARDIAN PHASE 2: Fetch Live Disruptions for Global Map Overlay
+            let globalDisruptions = {};
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const disrResp = await fetch(`${dynamicEndpoint}disruptions.json?t=${Date.now()}`);
+                if (disrResp.ok) {
+                    const disrData = await disrResp.json();
+                    if (disrData) {
+                        const now = Date.now();
+                        Object.keys(disrData).forEach(routeKey => {
+                            const routeObj = disrData[routeKey];
+                            if (routeObj && typeof routeObj === 'object') {
+                                Object.values(routeObj).forEach(d => {
+                                    if (d && (!d.expiresAt || d.expiresAt > now)) {
+                                        if (!globalDisruptions[d.routeId]) globalDisruptions[d.routeId] = [];
+                                        globalDisruptions[d.routeId].push(d);
+                                    }
+                                });
+                            }
+                        });
+                    }
+                }
+            } catch(e) { console.warn("Disruptions fetch failed."); }
+
             // --- DYNAMIC ROUTE & STATION EXTRACTOR ---
             const colorMap = {
                 'text-green-500': '#22c55e',
-                'text-lime-500': '#84cc16', // GUARDIAN: Malmesbury Glow
+                'text-lime-500': '#84cc16', 
                 'text-orange-500': '#f97316',
                 'text-purple-500': '#a855f7',
                 'text-indigo-500': '#6366f1',
                 'text-blue-500': '#3b82f6',
-                'text-yellow-600': '#ca8a04', // GUARDIAN: Cape Flats Glow
+                'text-yellow-600': '#ca8a04', 
                 'text-yellow-500': '#eab308',
                 'text-red-500': '#ef4444'
             };
 
             const globalStations = {}; // { name: {lat, lon, origName, routes: Set()} }
-            const drawnRoutes = []; // { name, color, isActive, coords: [] }
+            const drawnRoutes = []; // { routeId, name, color, isActive, coords: [], validStops: [] }
             const hubs = new Set();
             const ends = new Set();
 
@@ -592,6 +624,7 @@
                 }
 
                 let routeCoords = [];
+                let validStops = [];
                 let extractedDynamically = false;
 
                 if (sheetData && Array.isArray(sheetData)) {
@@ -600,7 +633,6 @@
                     let startIndex = 0;
 
                     // 🛡️ GUARDIAN FIX: Universal Format Detector
-                    // Safely handles both legacy array format (GP) and modern object array format (WC)
                     let foundHeader = false;
                     for (let i = 0; i < Math.min(sheetData.length, 5); i++) {
                         const row = sheetData[i];
@@ -626,7 +658,6 @@
                         if (sNameOrig.toLowerCase().includes('last updated') || sNameOrig.toLowerCase().includes('inter-station')) continue;
 
                         // 🛡️ GUARDIAN FIX: Ghost Row Pruning
-                        // Only process this station if it actually has active train times on this sheet!
                         const hasData = Object.keys(row).some(k => k !== stationKey && k !== coordKey && k !== 'KM_MARK' && k !== 'row_index' && row[k] && String(row[k]).trim() !== "" && String(row[k]).trim() !== "-");
                         if (!hasData) continue;
 
@@ -641,13 +672,11 @@
                             }
                         }
 
-                        // Rescue missing coordinates using hardcoded dictionary
+                        // Rescue missing coordinates
                         if (lat === null && STATION_COORDINATES[sName]) {
                             lat = STATION_COORDINATES[sName][0];
                             lon = STATION_COORDINATES[sName][1];
                         }
-
-                        // Rescue missing coordinates from previously mapped sheets
                         if (lat === null && globalStations[sName]) {
                             lat = globalStations[sName].lat;
                             lon = globalStations[sName].lon;
@@ -655,6 +684,7 @@
 
                         if (lat !== null && lon !== null) {
                             routeCoords.push([lat, lon]);
+                            validStops.push({ name: sName, lat: lat, lon: lon });
                             if (!globalStations[sName]) {
                                 globalStations[sName] = { lat, lon, origName: sNameOrig, routes: new Set() };
                             }
@@ -667,9 +697,10 @@
                     }
                 }
 
-                // 🛡️ GUARDIAN HYBRID FALLBACK: Force static definitions for Western Cape template sheets
-                if (!extractedDynamically || currentRegion === 'WC') {
+                // 🛡️ GUARDIAN HYBRID FALLBACK: Force static definitions
+                if (!extractedDynamically) {
                     routeCoords = [];
+                    validStops = [];
                     if (STATIC_ROUTE_PATHS[route.id]) {
                         STATIC_ROUTE_PATHS[route.id].forEach(sName => {
                             let lat = null, lon = null;
@@ -683,6 +714,7 @@
 
                             if (lat !== null && lon !== null) {
                                 routeCoords.push([lat, lon]);
+                                validStops.push({ name: sName, lat: lat, lon: lon });
                                 if (!globalStations[sName]) {
                                     globalStations[sName] = { lat, lon, origName: sName, routes: new Set() };
                                 }
@@ -694,10 +726,12 @@
 
                 if (routeCoords.length > 1) {
                      drawnRoutes.push({
+                         routeId: route.id,
                          name: route.name.replace(/<->/g, '↔'),
                          color: colorMap[route.colorClass] || '#9ca3af',
                          isActive: route.isActive,
-                         coords: routeCoords
+                         coords: routeCoords,
+                         validStops: validStops
                      });
                 }
             });
@@ -709,7 +743,7 @@
                 return; // Stop drawing Leaflet elements
             }
 
-            // --- DRAW ROUTES ---
+            // --- DRAW BASE ROUTES ---
             drawnRoutes.forEach(r => {
                 L.polyline(r.coords, {
                     color: r.isActive ? r.color : '#9ca3af',
@@ -720,6 +754,110 @@
                     lineJoin: 'round',
                     smoothFactor: 1
                 }).addTo(map).bindPopup(`<b class="uppercase text-sm">${r.name}</b><br>${r.isActive ? '<span class="text-green-600 font-bold text-xs">Active Service</span>' : '<span class="text-red-500 font-bold text-xs">Suspended</span>'}`);
+            });
+
+            // --- 🛡️ GUARDIAN PHASE 2: DRAW DYNAMIC DISRUPTION OVERLAYS ---
+            const drawnIncidentIds = new Set();
+            
+            drawnRoutes.forEach(routeObj => {
+                Object.values(globalDisruptions).flat().forEach(d => {
+                    // Prevent duplicate draws per route-incident pair
+                    if (drawnIncidentIds.has(d.id + '_' + routeObj.routeId)) return;
+                    
+                    const isCritical = d.tier === 'CRITICAL';
+                    const color = isCritical ? '#ef4444' : '#eab308';
+                    const currentValidStops = routeObj.validStops;
+                    const currentPath = routeObj.coords;
+
+                    const iconHtml = `<div class="flex items-center justify-center bg-white rounded-full shadow-lg border-2 border-white ${isCritical ? 'animate-pulse' : ''}" style="width: 22px; height: 22px; background-color: ${color};"><span class="text-[11px] text-white font-black">${isCritical ? '✕' : '!'}</span></div>`;
+                    const alertIcon = L.divIcon({ className: 'custom-map-dot z-50', html: iconHtml, iconSize: [22, 22], iconAnchor: [11, 11] });
+                    const invisibleIcon = L.divIcon({ className: '', html: '', iconSize: [0,0], iconAnchor: [0,0] });
+
+                    // 1. Route-Wide Disruption
+                    if (!d.stations || d.stations.length === 0) {
+                        if (d.routeId === routeObj.routeId) {
+                            drawnIncidentIds.add(d.id + '_' + routeObj.routeId);
+                            L.polyline(currentPath, {
+                                color: color, weight: 10, opacity: 0.8, dashArray: '10, 12', lineCap: 'round', lineJoin: 'round', className: 'disruption-line-overlay'
+                            }).addTo(map);
+                            
+                            const startIdx = 0;
+                            const endIdx = currentPath.length - 1;
+                            
+                            L.marker(currentPath[startIdx], { icon: alertIcon }).addTo(map);
+                            L.marker(currentPath[endIdx], { icon: alertIcon }).addTo(map);
+
+                            const midIndexExact = (startIdx + endIdx) / 2;
+                            let midLat = 0, midLon = 0;
+                            if (midIndexExact % 1 === 0) {
+                                midLat = currentPath[midIndexExact][0];
+                                midLon = currentPath[midIndexExact][1];
+                            } else {
+                                const f = Math.floor(midIndexExact);
+                                const c = Math.ceil(midIndexExact);
+                                midLat = (currentPath[f][0] + currentPath[c][0]) / 2;
+                                midLon = (currentPath[f][1] + currentPath[c][1]) / 2;
+                            }
+
+                            L.marker([midLat, midLon], { icon: invisibleIcon, interactive: false })
+                                .bindTooltip(`<b>${isCritical ? 'LINE SEVERED' : 'EXPECT DELAYS'}</b>`, { permanent: true, direction: 'center', className: 'font-bold text-[10px] text-gray-900 z-50 tooltip-dynamic tooltip-halo' })
+                                .addTo(map);
+                        }
+                    } 
+                    // 2. Specific Station Disruption (Cross-Corridor Logic)
+                    else {
+                        const normStations = d.stations.map(s => s.replace(/ STATION/gi, '').trim().toUpperCase());
+                        const routeStationNames = currentValidStops.map(s => s.name);
+                        
+                        // 2A. Segment Blockade (2 stations)
+                        if (normStations.length >= 2) {
+                            if (routeStationNames.includes(normStations[0]) && routeStationNames.includes(normStations[1])) {
+                                const idx1 = routeStationNames.indexOf(normStations[0]);
+                                const idx2 = routeStationNames.indexOf(normStations[1]);
+                                
+                                drawnIncidentIds.add(d.id + '_' + routeObj.routeId);
+                                const start = Math.min(idx1, idx2);
+                                const end = Math.max(idx1, idx2);
+                                const segment = currentPath.slice(start, end + 1);
+                                
+                                L.polyline(segment, {
+                                    color: color, weight: 10, opacity: 0.8, dashArray: '10, 12', lineCap: 'round', lineJoin: 'round', className: 'disruption-line-overlay'
+                                }).addTo(map);
+
+                                L.marker(currentPath[start], { icon: alertIcon }).addTo(map);
+                                L.marker(currentPath[end], { icon: alertIcon }).addTo(map);
+
+                                const midIndexExact = (start + end) / 2;
+                                let midLat = 0, midLon = 0;
+                                if (midIndexExact % 1 === 0) {
+                                    midLat = currentPath[midIndexExact][0];
+                                    midLon = currentPath[midIndexExact][1];
+                                } else {
+                                    const f = Math.floor(midIndexExact);
+                                    const c = Math.ceil(midIndexExact);
+                                    midLat = (currentPath[f][0] + currentPath[c][0]) / 2;
+                                    midLon = (currentPath[f][1] + currentPath[c][1]) / 2;
+                                }
+
+                                L.marker([midLat, midLon], { icon: invisibleIcon, interactive: false })
+                                    .bindTooltip(`<b>${isCritical ? 'LINE SEVERED' : 'EXPECT DELAYS'}</b>`, { permanent: true, direction: 'center', className: 'font-bold text-[10px] text-gray-900 z-50 tooltip-dynamic tooltip-halo' })
+                                    .addTo(map);
+                            }
+                        } 
+                        // 2B. Single Station Point
+                        else if (normStations.length === 1) {
+                            if (routeStationNames.includes(normStations[0])) {
+                                const idx1 = routeStationNames.indexOf(normStations[0]);
+                                drawnIncidentIds.add(d.id + '_' + routeObj.routeId);
+                                const s1 = currentValidStops[idx1];
+                                
+                                L.marker([s1.lat, s1.lon], { icon: alertIcon })
+                                    .bindTooltip(`<b>${isCritical ? 'STATION INCIDENT' : 'STATION DELAYS'}</b>`, { permanent: true, direction: 'top', offset: [0, -12], className: 'font-bold text-[10px] text-gray-900 z-50 tooltip-dynamic tooltip-halo' })
+                                    .addTo(map);
+                            }
+                        }
+                    }
+                });
             });
 
             // --- DRAW MARKERS (WITH NAKED HALO TOOLTIPS) ---
@@ -750,16 +888,52 @@
                   });
             });
 
-            // --- BUILD LEGEND ---
+            // --- BUILD DYNAMIC LEGEND ---
             const legendContent = document.getElementById('legend-content');
             if (legendContent) {
                 legendContent.innerHTML = ''; 
                 drawnRoutes.forEach(item => {
+                    
+                    // Evaluate Dynamic Route Status for the Legend
+                    let routeStatus = item.isActive ? 'LIVE' : 'DOWN';
+                    let badgeColor = item.isActive ? 'bg-green-500' : 'bg-gray-500';
+
+                    let isCritical = false;
+                    let isWarning = false;
+                    
+                    Object.values(globalDisruptions).flat().forEach(d => {
+                        if (!d.stations || d.stations.length === 0) {
+                            if (d.routeId === item.routeId) {
+                                if (d.tier === 'CRITICAL') isCritical = true;
+                                else if (d.tier === 'WARNING') isWarning = true;
+                            }
+                        } else if (d.stations.length >= 1) {
+                            const normStations = d.stations.map(s => s.replace(/ STATION/gi, '').trim().toUpperCase());
+                            const routeStationNames = item.validStops.map(s => s.name);
+                            if (normStations.length >= 2) {
+                                if (routeStationNames.includes(normStations[0]) && routeStationNames.includes(normStations[1])) {
+                                    if (d.tier === 'CRITICAL') isCritical = true;
+                                    else if (d.tier === 'WARNING') isWarning = true;
+                                }
+                            } else if (normStations.length === 1) {
+                                if (routeStationNames.includes(normStations[0])) {
+                                    if (d.tier === 'CRITICAL') isCritical = true;
+                                    else if (d.tier === 'WARNING') isWarning = true;
+                                }
+                            }
+                        }
+                    });
+
+                    if (item.isActive) {
+                        if (isCritical) { routeStatus = 'SEVERED'; badgeColor = 'bg-red-500'; } 
+                        else if (isWarning) { routeStatus = 'DELAYS'; badgeColor = 'bg-yellow-500'; }
+                    }
+
                     legendContent.innerHTML += `
                         <div class="legend-item">
                             <span class="color-dot" style="background-color: ${item.color}"></span>
-                            <span class="text-gray-700 dark:text-gray-200">${item.name}</span>
-                            <span class="status-badge ${item.isActive ? 'bg-green-500' : 'bg-red-500'}">${item.isActive ? 'LIVE' : 'DOWN'}</span>
+                            <span class="text-gray-700 dark:text-gray-200 mr-2">${item.name}</span>
+                            <span class="status-badge ${badgeColor}">${routeStatus}</span>
                         </div>
                     `;
                 });

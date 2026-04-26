@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V6.04.21 (Guardian Edition - UI/UX Polish)
+  Metrorail Next Train V6.04.26 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -18,6 +18,9 @@
   - GUARDIAN MOBILE OPTIMIZATION: Stripped vertical bloat from Sidenav. Injected "Region Coming Soon" interceptor modal to prevent dead-ends.
   - GROWTH MODE PHASE 3: Identity Bridge Polish (Clarity Synchronized Natively) & Sidenav Region Header Tightened.
   - GUARDIAN SECURITY PHASE 1 & 2: Sentry Quota Throttled to 5%. Identity Bridge URL Stripper Hardened. GA4 Deduplication Enforced.
+  - GUARDIAN GROWTH PHASE 3: Purged 8-second brute-force render fallback. Redesigned Estimated Fare UI skeleton.
+  - GUARDIAN PHASE 2.1: Anti-CLS Ad Scaffolding injected (Top Banner & Inline Slots).
+  - GROWTH MODE PHASE 4: Global Puppeteer Pattern for custom Region Dropdowns + CSS Linting Cleanup.
 -->
 <html lang="en" class="dark">
 
@@ -47,7 +50,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules and route maps for Gauteng (Pretoria, Johannesburg) and Western Cape (Cape Town). Download timetable images for offline use.",
-      "softwareVersion": "6.04.21",
+      "softwareVersion": "6.04.26",
       "featureList": "Offline Access, Full Timetable, Fare Calculator, Trip Planner, Network Map, Download Timetable Images",
       "url": "https://nexttrain.co.za/"
     }
@@ -163,8 +166,8 @@
                 dsn: "https://ae241b469e4c06ae7644f55c2a796782@o4511038845222912.ingest.us.sentry.io/4511039214518272", 
                 
                 // 🛡️ GUARDIAN SECURITY PHASE 1: Quota Exhaustion Protection
-                // Dropped from 1.0 (100%) to 0.05 (5%) to preserve limits while still catching true errors.
-                sampleRate: 0.05, 
+                // Dropped from 1.0 (100%) to 0.3 (30%) to preserve limits while still catching true errors.
+                sampleRate: 0.3, 
                 
                 // Filter out non-actionable browser noise
                 ignoreErrors: [
@@ -344,30 +347,66 @@
     <!-- APP HUB SIDENAV (Flat Native UI Edition - Vertical Compression) -->
     <div id="sidenav" class="fixed inset-y-0 left-0 w-[90vw] sm:w-96 shadow-2xl bg-white dark:bg-gray-900 flex flex-col h-full z-[100]">
         
-        <!-- 4-Region Native Selector (Interceptor Bindings) - GROWTH MODE PHASE 3 TIGHTENED -->
-        <div class="px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 shrink-0">
+        <!-- 4-Region Native Selector (Interceptor Bindings) - GROWTH MODE PHASE 4 (PUPPETEER PATTERN) -->
+        <div class="px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 shrink-0" id="sidenav-region-container">
             <label class="block text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1 px-1">Active Region</label>
-            <div class="relative shadow-sm rounded-lg">
-                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <div class="relative shadow-sm rounded-lg cursor-pointer group" onclick="document.getElementById('sidenav-region-list').classList.toggle('hidden'); document.getElementById('sidenav-region-chevron').classList.toggle('rotate-180');">
+                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none z-10">
                     <span class="text-sm">🌍</span>
                 </div>
-                <select id="app-hub-region-select" class="block w-full appearance-none bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 py-2 pl-9 pr-9 rounded-lg text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors shadow-sm" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); window.location.reload(); }">
+                
+                <!-- Hidden Native Select (The Puppet) -->
+                <select id="app-hub-region-select" class="hidden" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { try { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); } catch(e) {} window.location.reload(); }">
                     <option value="GP">Gauteng</option>
                     <option value="WC">Western Cape</option>
                     <option value="KZN">KwaZulu-Natal (Soon)</option>
                     <option value="EC">Eastern Cape (Soon)</option>
                 </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 dark:text-gray-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                
+                <!-- Fake Select Display -->
+                <div class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 py-2 pl-9 pr-9 rounded-lg text-sm font-bold text-gray-900 dark:text-white transition-colors shadow-sm group-hover:border-blue-400 dark:group-hover:border-blue-500 flex items-center justify-between">
+                    <span id="sidenav-region-display" class="truncate">Gauteng</span>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 dark:text-gray-400">
+                        <svg id="sidenav-region-chevron" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
                 </div>
+
+                <!-- Custom Dropdown List -->
+                <ul id="sidenav-region-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-hidden text-left">
+                    <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Gauteng'; const sel=document.getElementById('app-hub-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Gauteng</li>
+                    <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Western Cape'; const sel=document.getElementById('app-hub-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Western Cape</li>
+                    <li onclick="event.stopPropagation(); const sel=document.getElementById('app-hub-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors border-b border-gray-100 dark:border-gray-700">KwaZulu-Natal (Soon)</li>
+                    <li onclick="event.stopPropagation(); const sel=document.getElementById('app-hub-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors">Eastern Cape (Soon)</li>
+                </ul>
             </div>
+            
             <!-- Script to sync initial state instantly -->
             <script>
                 document.addEventListener('DOMContentLoaded', () => {
                     const sel = document.getElementById('app-hub-region-select');
+                    const disp = document.getElementById('sidenav-region-display');
                     if (sel) {
-                        try { sel.value = (typeof safeStorage !== 'undefined' ? safeStorage.getItem('userRegion') : localStorage.getItem('userRegion')) || 'GP'; } catch(e) { sel.value = 'GP'; }
+                        try { 
+                            const reg = (typeof safeStorage !== 'undefined' ? safeStorage.getItem('userRegion') : localStorage.getItem('userRegion')) || 'GP';
+                            sel.value = reg; 
+                            if (disp) {
+                                if(reg === 'GP') disp.textContent = 'Gauteng';
+                                else if(reg === 'WC') disp.textContent = 'Western Cape';
+                            }
+                        } catch(e) { sel.value = 'GP'; if(disp) disp.textContent = 'Gauteng'; }
                     }
+                    
+                    // Close dropdown on outside click
+                    document.addEventListener('click', (e) => {
+                        if (!e.target.closest('#sidenav-region-container')) {
+                            const list = document.getElementById('sidenav-region-list');
+                            const chevron = document.getElementById('sidenav-region-chevron');
+                            if (list && !list.classList.contains('hidden')) {
+                                list.classList.add('hidden');
+                                if (chevron) chevron.classList.remove('rotate-180');
+                            }
+                        }
+                    });
                 });
             </script>
         </div>
@@ -537,6 +576,11 @@
             </button>
         </div>
 
+        <!-- GUARDIAN PHASE 2.1: ANTI-CLS AD SCAFFOLDING (GLOBAL TOP BANNER) -->
+        <div id="ad-wrapper-top" class="w-full hidden bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 shrink-0">
+            <div id="ad-slot-top" class="w-full min-h-[50px] flex items-center justify-center overflow-hidden mx-auto"></div>
+        </div>
+
         <!-- VIEW 1: NEXT TRAIN -->
         <div id="view-next-train" class="view-section active p-4 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
             
@@ -598,17 +642,25 @@
                 </button>
             </div>
 
-            <!-- GUARDIAN PHASE 7: Re-styled Fare Box (pr-14 fixes overlap, adult label clean text, matching heights) -->
-            <div id="fare-container" class="mb-6 p-3.5 bg-blue-50 dark:bg-gray-800 rounded-xl flex items-center justify-between shadow-sm border border-blue-100 dark:border-gray-700 hidden min-h-[58px] pr-14 relative">
+            <!-- GUARDIAN PHASE 3: Re-architected Fare Box -->
+            <div id="fare-container" class="mb-6 p-3.5 bg-blue-50 dark:bg-gray-800 rounded-xl flex items-center justify-between shadow-sm border border-blue-100 dark:border-gray-700 hidden min-h-[58px] pr-10 relative">
                 <div class="flex flex-col items-start justify-center">
-                    <span class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider mb-0.5">Estimated Fare</span>
-                    <span id="passenger-type-label" class="text-[11px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Adult</span>
+                    <div class="flex items-center space-x-1 mb-1">
+                        <span class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Estimated</span>
+                        <span id="passenger-type-label" class="text-[10px] text-blue-500 dark:text-blue-400 uppercase font-black tracking-widest">Adult</span>
+                        <span class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Fare</span>
+                    </div>
+                    <span id="fare-type" class="hidden text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full mt-0.5"></span>
                 </div>
                 <div class="text-right flex flex-col items-end justify-center">
-                    <span id="fare-type" class="hidden text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full mb-1"></span>
                     <span id="fare-amount" class="text-2xl font-black text-gray-900 dark:text-white leading-none">R--.--</span>
                     <span class="text-[9px] text-gray-400 dark:text-gray-500 italic mt-1">Prices may vary</span>
                 </div>
+            </div>
+
+            <!-- GUARDIAN PHASE 2.1: ANTI-CLS AD SCAFFOLDING (INLINE MREC) -->
+            <div id="ad-wrapper-inline-1" class="w-full hidden mb-6 shrink-0">
+                <div id="ad-slot-inline-1" class="w-full min-h-[250px] flex items-center justify-center bg-gray-100 dark:bg-gray-800/80 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 mx-auto"></div>
             </div>
 
             <div class="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
@@ -701,6 +753,11 @@
                     <div class="w-8 flex-shrink-0"></div>
                 </div>
                 <div id="planner-results-list" class="space-y-4"></div>
+
+                <!-- GUARDIAN PHASE 2.1: ANTI-CLS AD SCAFFOLDING (INLINE MREC PLANNER) -->
+                <div id="ad-wrapper-inline-2" class="w-full hidden mt-6 shrink-0">
+                    <div id="ad-slot-inline-2" class="w-full min-h-[250px] flex items-center justify-center bg-gray-100 dark:bg-gray-800/80 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 mx-auto"></div>
+                </div>
             </div>
             
             <div class="mt-auto border-t border-gray-200 dark:border-gray-700 pt-4">
@@ -756,38 +813,75 @@
                 </button>
             </div>
             
-            <!-- Distinct Region Selector Strip (Interceptor Bindings) -->
-            <div class="p-3 bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 shrink-0 z-10 relative">
-                <div class="relative shadow-sm rounded-lg">
-                    <div class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
+            <!-- Distinct Region Selector Strip (Interceptor Bindings) - GROWTH MODE PHASE 4 (PUPPETEER PATTERN) -->
+            <div class="p-3 bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 shrink-0 z-10 relative" id="route-modal-region-container">
+                <div class="relative shadow-sm rounded-lg cursor-pointer group" onclick="document.getElementById('route-modal-region-list').classList.toggle('hidden'); document.getElementById('route-modal-region-chevron').classList.toggle('rotate-180');">
+                    <div class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none z-10">
                         <span class="text-base">🌍</span>
                     </div>
-                    <select id="route-modal-region-select" style="-webkit-appearance: none; -moz-appearance: none;" class="block w-full appearance-none bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 py-2.5 pl-10 pr-10 rounded-lg text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors shadow-sm" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); window.location.reload(); }">
+                    
+                    <!-- Hidden Native Select (The Puppet) -->
+                    <!-- LINTING FIX: Removed inline appearance styles -->
+                    <select id="route-modal-region-select" class="hidden" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { try { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); } catch(e) {} window.location.reload(); }">
                         <option value="GP">Region: Gauteng</option>
                         <option value="WC">Region: Western Cape</option>
                         <option value="KZN">Region: KwaZulu-Natal (Soon)</option>
                         <option value="EC">Region: Eastern Cape (Soon)</option>
                     </select>
-                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 dark:text-gray-400">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    
+                    <!-- Fake Select Display -->
+                    <div class="block w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 py-2.5 pl-10 pr-10 rounded-lg text-sm font-bold text-gray-900 dark:text-white transition-colors shadow-sm group-hover:border-blue-400 dark:group-hover:border-blue-500 flex items-center justify-between">
+                        <span id="route-modal-region-display" class="truncate">Region: Gauteng</span>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 dark:text-gray-400">
+                            <svg id="route-modal-region-chevron" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Scrollable Route List -->
-            <div class="p-4 overflow-y-auto flex-grow bg-gray-50 dark:bg-gray-900/50 w-full custom-scrollbar rounded-b-xl">
+                    <!-- Custom Dropdown List -->
+                    <ul id="route-modal-region-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl hidden mt-1 flex-col overflow-hidden text-left">
+                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Gauteng'; const sel=document.getElementById('route-modal-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: Gauteng</li>
+                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Western Cape'; const sel=document.getElementById('route-modal-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: Western Cape</li>
+                        <li onclick="event.stopPropagation(); const sel=document.getElementById('route-modal-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors border-b border-gray-100 dark:border-gray-700">Region: KwaZulu-Natal (Soon)</li>
+                        <li onclick="event.stopPropagation(); const sel=document.getElementById('route-modal-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors">Region: Eastern Cape (Soon)</li>
+                    </ul>
+                </div>
+                
                 <!-- Mini script to set initial Region state without UI flash -->
                 <script>
                     document.addEventListener('DOMContentLoaded', () => {
                         const sel = document.getElementById('route-modal-region-select');
+                        const disp = document.getElementById('route-modal-region-display');
                         if (sel) {
                             try {
-                                sel.value = (typeof safeStorage !== 'undefined' ? safeStorage.getItem('userRegion') : localStorage.getItem('userRegion')) || 'GP';
-                            } catch(e) { sel.value = 'GP'; }
+                                const reg = (typeof safeStorage !== 'undefined' ? safeStorage.getItem('userRegion') : localStorage.getItem('userRegion')) || 'GP';
+                                sel.value = reg;
+                                if (disp) {
+                                    if (reg === 'GP') disp.textContent = 'Region: Gauteng';
+                                    else if (reg === 'WC') disp.textContent = 'Region: Western Cape';
+                                }
+                            } catch(e) { 
+                                sel.value = 'GP'; 
+                                if(disp) disp.textContent = 'Region: Gauteng';
+                            }
                         }
+                        
+                        // Close dropdown on outside click
+                        document.addEventListener('click', (e) => {
+                            if (!e.target.closest('#route-modal-region-container')) {
+                                const list = document.getElementById('route-modal-region-list');
+                                const chevron = document.getElementById('route-modal-region-chevron');
+                                if (list && !list.classList.contains('hidden')) {
+                                    list.classList.add('hidden');
+                                    if (chevron) chevron.classList.remove('rotate-180');
+                                }
+                            }
+                        });
                     });
                 </script>
+            </div>
 
+            <!-- Scrollable Route List -->
+            <div class="p-4 overflow-y-auto flex-grow bg-gray-50 dark:bg-gray-900/50 w-full custom-scrollbar rounded-b-xl">
                 <ul id="route-list" class="space-y-2">
                     <!-- DYNAMIC CONTENT (Renderer.js) -->
                 </ul>
@@ -796,7 +890,7 @@
     </div>
 
     <!-- WELCOME MODAL -->
-    <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-center p-6 transition-opacity duration-300 relative">
+    <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-center p-6 transition-opacity duration-300">
         
         <!-- Welcome Screen Theme Toggle -->
         <button id="welcome-theme-toggle" class="absolute top-6 right-6 px-3 py-2 rounded-full flex items-center space-x-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 shadow-md border border-gray-200 dark:border-gray-700 focus:outline-none transition-transform hover:scale-105" aria-label="Toggle Theme">
@@ -1221,7 +1315,7 @@
             </div>
 
             <p class="mt-8 text-[10px] text-gray-400 font-mono">
-                Version 6.04.21 (Guardian Edition)
+                Version 6.04.26 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -1399,6 +1493,60 @@
         </div>
     </div>
 
+    <!-- TIERED INCIDENT MODAL (GUARDIAN PHASE 1) -->
+    <div id="disruption-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[130] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-0 transform transition-all scale-100 border-l-4 border-red-500 flex flex-col max-h-[90vh] overflow-hidden" id="disruption-modal-card">
+            
+            <!-- Header -->
+            <div class="p-5 border-b border-gray-100 dark:border-gray-700/50 flex justify-between items-center shrink-0">
+                <div class="flex items-center text-gray-900 dark:text-white">
+                    <svg class="w-5 h-5 mr-2 text-red-500" id="disruption-icon-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <h3 class="text-lg font-bold tracking-tight">NEXT TRAIN ADVISORY</h3>
+                </div>
+                <button onclick="closeSmoothModal('disruption-modal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors focus:outline-none p-1 bg-gray-100 dark:bg-gray-700/50 rounded-full">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <!-- Scrollable Body -->
+            <div class="p-5 overflow-y-auto custom-scrollbar flex-grow space-y-4">
+                <div class="font-black text-xs tracking-widest uppercase text-gray-900 dark:text-white" id="disruption-modal-source">
+                    🚨 Please Note:
+                </div>
+                
+                <h4 class="font-bold text-gray-900 dark:text-white text-base" id="disruption-modal-stations">
+                    Loading stations...
+                </h4>
+                
+                <div class="text-gray-700 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap" id="disruption-modal-body">
+                    Loading incident details...
+                </div>
+
+                <div class="pt-4 mt-2 border-t border-gray-100 dark:border-gray-700/50">
+                    <div id="disruption-modal-tier-badge" class="w-full text-center text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 py-2.5 rounded-lg border border-red-200 dark:border-red-800/50">
+                        🔴 CRITICAL SERVICE DISRUPTION
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="p-5 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50 dark:bg-gray-800/50 shrink-0">
+                <div class="text-[10px] text-gray-400 dark:text-gray-500 font-mono mb-4 px-1" id="disruption-modal-timestamp">
+                    Posted: --:--, --/--/----
+                </div>
+                <div class="flex space-x-3">
+                    <button onclick="closeSmoothModal('disruption-modal')" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-bold py-3 rounded-xl shadow-sm transition-colors focus:outline-none text-sm">
+                        Close
+                    </button>
+                    <button onclick="closeSmoothModal('disruption-modal'); document.getElementById('feedback-btn').click();" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors focus:outline-none text-sm flex items-center justify-center">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                        Reply
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- FIREBASE SDK & AUTHENTICATION BOOTSTRAP (GUARDIAN Phase 9 Offline Fallback) -->
     <script type="module">
         (async () => {
@@ -1509,41 +1657,23 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=6.04.21"></script>
-    <script src="js/renderer.js?v=6.04.21"></script>
+    <script src="js/grid-order.js?v=6.04.26"></script>
+    <script src="js/renderer.js?v=6.04.26"></script>
     
-    <script src="js/utils.js?v=6.04.21"></script>
-    <script src="js/config.js?v=6.04.21"></script>
-    <script src="js/logic.js?v=6.04.21"></script>
+    <script src="js/utils.js?v=6.04.26"></script>
+    <script src="js/config.js?v=6.04.26"></script>
+    <script src="js/logic.js?v=6.04.26"></script>
 
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=6.04.21"></script>
+    <script src="js/admin.js?v=6.04.26"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=6.04.21"></script>
-    <script src="js/planner-ui.js?v=6.04.21"></script>
+    <script src="js/planner-core.js?v=6.04.26"></script>
+    <script src="js/planner-ui.js?v=6.04.26"></script>
     
-    <script src="js/map-viewer.js?v=6.04.21"></script> 
+    <script src="js/map-viewer.js?v=6.04.26"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=6.04.21"></script>
-
-    <!-- Fail-Safe Script: Prevents infinite reloading loops -->
-    <script>
-        setTimeout(() => {
-            const content = document.getElementById('main-content');
-            const welcomeModal = document.getElementById('welcome-modal');
-            
-            if (welcomeModal && !welcomeModal.classList.contains('hidden')) {
-                return;
-            }
-            
-            if (content && content.style.display === 'none') {
-                console.warn("App load timeout - Forcing display.");
-                content.classList.remove('hidden');
-                content.style.display = 'block';
-            }
-        }, 8000); 
-    </script>
+    <script src="js/ui.js?v=6.04.26"></script>
 </body>
 </html>
