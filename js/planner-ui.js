@@ -197,7 +197,11 @@ window._selectHeaderDay = function(e, value, text) {
     }
 };
 
-document.addEventListener('click', (e) => {
+// 🛡️ GUARDIAN MEMORY PATCH: Managed Global Listener
+if (window._plannerOutsideClickListener) {
+    document.removeEventListener('click', window._plannerOutsideClickListener);
+}
+window._plannerOutsideClickListener = (e) => {
     // Dismiss all custom popups cleanly on outside clicks
     const tList = document.getElementById('custom-time-list');
     if (tList && !tList.classList.contains('hidden') && !e.target.closest('#custom-time-dropdown-container')) {
@@ -219,7 +223,8 @@ document.addEventListener('click', (e) => {
         const chevron = document.getElementById('header-day-chevron');
         if (chevron) chevron.classList.remove('rotate-180');
     }
-});
+};
+document.addEventListener('click', window._plannerOutsideClickListener);
 
 
 // GUARDIAN Phase 10: App Router Parity
@@ -458,15 +463,15 @@ const PlannerRenderer = {
                         locationText = `Between ${cleanStr(r.destA.replace(' STATION', ''))} & ${cleanStr(r.destB.replace(' STATION', ''))}`;
                     }
 
+                    // 🛡️ GUARDIAN UX UPGRADE: Flexbox Decoupling
                     if (d.tier === 'CRITICAL') {
                         const justSevered = !isSevered;
                         isSevered = true; // State flips! Mathematical severance propagates downward.
                         
                         const termStationName = cleanStr(fullValidStops[idx].station.replace(' STATION', '')).toUpperCase();
                         
-                        // GUARDIAN PHASE 6: UI Flexbox Flipped for Actionable Termination Priority
                         let terminationTag = justSevered 
-                            ? `<div class="font-bold uppercase tracking-wide mb-1 text-[10px] text-red-800 dark:text-red-300">🚆 TRAIN TERMINATES @ ${termStationName}</div>` 
+                            ? `<div class="font-bold uppercase tracking-wide mb-1.5 text-[10px] text-red-800 dark:text-red-300">🚆 TRAIN TERMINATES @ ${termStationName}</div>` 
                             : ``;
 
                         inj += `
@@ -474,32 +479,35 @@ const PlannerRenderer = {
                                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-red-500 ring-4 ring-red-100 dark:ring-red-900 z-10"></div>
                                 <div class="mt-1 text-xs text-red-800 dark:text-red-300 bg-red-50 dark:bg-red-900/30 p-2 rounded border-l-4 border-red-500 shadow-sm flex flex-col">
                                     ${terminationTag}
-                                    <div class="flex justify-between items-end w-full ${justSevered ? 'mt-1.5 pt-1.5 border-t border-red-200 dark:border-red-800/50' : ''}">
-                                        <div class="text-red-700 dark:text-red-400 leading-snug">
-                                            <span class="font-bold text-red-900 dark:text-white text-[10px]">❌ LINE SEVERED</span><br>
+                                    <div class="w-full ${justSevered ? 'mt-1 pt-1.5 border-t border-red-200 dark:border-red-800/50' : ''}">
+                                        <div class="flex justify-between items-start w-full">
+                                            <span class="font-bold text-red-900 dark:text-white text-[10px] leading-none mt-1">❌ LINE SEVERED</span>
+                                            <button type="button" onclick="openDisruptionModal('${d.id}')" class="shrink-0 bg-white dark:bg-gray-800 hover:bg-red-100 dark:hover:bg-gray-700 text-red-700 dark:text-red-400 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border border-red-200 dark:border-red-800 transition-colors shadow-sm focus:outline-none ml-2">
+                                                ${safeBtnText}
+                                            </button>
+                                        </div>
+                                        <div class="text-red-700 dark:text-red-400 leading-snug mt-1.5">
                                             &bull; <span class="font-bold text-red-600 dark:text-red-400 text-[9px]">${locationText}</span>
                                         </div>
-                                        <button type="button" onclick="openDisruptionModal('${d.id}')" class="shrink-0 bg-white dark:bg-gray-800 hover:bg-red-100 dark:hover:bg-gray-700 text-red-700 dark:text-red-400 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border border-red-200 dark:border-red-800 transition-colors shadow-sm focus:outline-none mb-0.5">
-                                            ${safeBtnText}
-                                        </button>
                                     </div>
                                 </div>
                             </div>
                         `;
                     } else {
-                        // Matching the WARNING block exactly to the new TRANSFER and CRITICAL flexbox alignments
                         inj += `
                             <div class="relative pl-6 py-1 z-20 my-2 ml-2">
                                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900 z-10"></div>
                                 <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500 shadow-sm flex flex-col">
-                                    <div class="flex justify-between items-end w-full">
-                                        <div class="text-yellow-700 dark:text-yellow-400 leading-snug">
-                                            <span class="font-bold text-yellow-900 dark:text-white text-[10px]">⚠️ EXPECT DELAYS</span><br>
+                                    <div class="w-full">
+                                        <div class="flex justify-between items-start w-full">
+                                            <span class="font-bold text-yellow-900 dark:text-white text-[10px] leading-none mt-1">⚠️ EXPECT DELAYS</span>
+                                            <button type="button" onclick="openDisruptionModal('${d.id}')" class="shrink-0 bg-white dark:bg-gray-800 hover:bg-yellow-100 dark:hover:bg-gray-700 text-yellow-700 dark:text-yellow-400 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border border-yellow-200 dark:border-yellow-800 transition-colors shadow-sm focus:outline-none ml-2">
+                                                ${safeBtnText}
+                                            </button>
+                                        </div>
+                                        <div class="text-yellow-700 dark:text-yellow-400 leading-snug mt-1.5">
                                             &bull; <span class="font-bold text-yellow-700 dark:text-yellow-400 text-[9px]">${locationText}</span>
                                         </div>
-                                        <button type="button" onclick="openDisruptionModal('${d.id}')" class="shrink-0 bg-white dark:bg-gray-800 hover:bg-yellow-100 dark:hover:bg-gray-700 text-yellow-700 dark:text-yellow-400 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border border-yellow-200 dark:border-yellow-800 transition-colors shadow-sm focus:outline-none mb-0.5">
-                                            ${safeBtnText}
-                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -883,7 +891,7 @@ const PlannerRenderer = {
                 const hubName = PlannerRenderer.applyUIIntercepts(leg.to);
                 const trainDest = PlannerRenderer.applyUIIntercepts(nextLeg.actualDestination || nextLeg.route.destB);
 
-                const isExtended = waitMins > 120;
+                const isExtended = waitMins >= 240; // 🛡️ GUARDIAN PHASE 2: Bumped threshold to 4 hours
                 if (isExtended && !renderedAlerts.has('excessive_layover')) {
                     renderedAlerts.add('excessive_layover');
                     if (typeof trackAnalyticsEvent === 'function') {
@@ -936,7 +944,7 @@ const PlannerRenderer = {
         const leg1Result = PlannerRenderer.renderLegTimeline(step.leg1, step.from, step.transferStation, `stops-leg1-${step.train}`, false, renderedAlerts, false);
         const transferOpacity = leg1Result.isSevered ? "opacity-50 grayscale" : "";
 
-        const isExtended = waitMins > 120;
+        const isExtended = waitMins >= 240; // 🛡️ GUARDIAN PHASE 2: Bumped threshold to 4 hours
         if (isExtended && !renderedAlerts.has('excessive_layover')) {
             renderedAlerts.add('excessive_layover');
             if (typeof trackAnalyticsEvent === 'function') {
@@ -1002,7 +1010,7 @@ const PlannerRenderer = {
         const leg1Result = PlannerRenderer.renderLegTimeline(step.leg1, step.from, step.hub1, `l1-${step.train}`, false, renderedAlerts, false);
         const transferOpacity1 = leg1Result.isSevered ? "opacity-50 grayscale" : "";
 
-        const isExtended1 = wait1Mins > 120;
+        const isExtended1 = wait1Mins >= 240; // 🛡️ GUARDIAN PHASE 2: Bumped threshold to 4 hours
         if (isExtended1 && !renderedAlerts.has('excessive_layover')) {
             renderedAlerts.add('excessive_layover');
             if (typeof trackAnalyticsEvent === 'function') {
@@ -1038,7 +1046,7 @@ const PlannerRenderer = {
         const leg2Result = PlannerRenderer.renderLegTimeline(step.leg2, step.hub1, step.hub2, `l2-${step.train}`, false, renderedAlerts, leg1Result.isSevered);
         const transferOpacity2 = leg2Result.isSevered ? "opacity-50 grayscale" : "";
 
-        const isExtended2 = wait2Mins > 120;
+        const isExtended2 = wait2Mins >= 240; // 🛡️ GUARDIAN PHASE 2: Bumped threshold to 4 hours
         if (isExtended2 && !renderedAlerts.has('excessive_layover')) {
             renderedAlerts.add('excessive_layover');
             if (typeof trackAnalyticsEvent === 'function') {
@@ -2175,8 +2183,9 @@ window.openTripMapRenderer = async function(routeData) {
 
     // 🛡️ GUARDIAN PHASE 3: The Mutex Lock
     // Prevents "Map container is already initialized" crashes on rapid double-taps
-    if (window._isMapInitializing) {
-        console.warn("🛡️ Guardian: Suppressed rapid map initialization (Mutex Lock active).");
+    // GUARDIAN PHASE 2: Also prevents Leaflet from fighting html2canvas
+    if (window._isMapInitializing || window._isRenderingHeavy) {
+        console.warn("🛡️ Guardian: Suppressed rapid map initialization (Mutex Lock or Canvas Render active).");
         return;
     }
     window._isMapInitializing = true;

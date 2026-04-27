@@ -8,57 +8,56 @@ let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regi
 window.regionCheckPromise = Promise.resolve(); // Default resolved state
 
 if (!safeStorage.getItem('userRegion')) {
-    const fetchGeo = fetch('https://nexttrain-telemetry.enock.workers.dev/region')
-        .then(r => r.json())
-        .then(data => {
-            if (data && data.region && (data.region === 'WC' || data.region === 'GP')) {
-                currentRegion = data.region;
-                console.log(`🛡️ Guardian: Silent IP Geolocation successfully bound to ${currentRegion}`);
-                
-                // If the UI has already rendered the Welcome Screen by the time this resolves, update it in-place
-                if (typeof document !== 'undefined') {
-                    const gpBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Gauteng'));
-                    const wcBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Western Cape'));
+    if (!navigator.onLine) {
+        console.log("🛡️ Guardian: Offline state detected. IP Geolocation bypassed.");
+    } else {
+        const geoController = new AbortController();
+        const geoTimerId = setTimeout(() => geoController.abort(), 1500); // 1.5s network abort fast-fail
+
+        const fetchGeo = fetch('https://nexttrain-telemetry.enock.workers.dev/region', { signal: geoController.signal })
+            .then(r => { clearTimeout(geoTimerId); return r.json(); })
+            .then(data => {
+                if (data && data.region && (data.region === 'WC' || data.region === 'GP')) {
+                    currentRegion = data.region;
+                    console.log(`🛡️ Guardian: Silent IP Geolocation successfully bound to ${currentRegion}`);
                     
-                    if (gpBtn && wcBtn) {
-                        if (currentRegion === 'WC') {
-                            wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
-                            gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
-                        } else {
-                            gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
-                            wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
-                        }
+                    // If the UI has already rendered the Welcome Screen by the time this resolves, update it in-place
+                    if (typeof document !== 'undefined') {
+                        const gpBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Gauteng'));
+                        const wcBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Western Cape'));
                         
-                        // Re-render the route list with the new region seamlessly
-                        if (typeof Renderer !== 'undefined' && typeof getRoutesForCurrentRegion === 'function' && typeof selectWelcomeRoute === 'function') {
-                            Renderer.renderWelcomeList('welcome-route-list', getRoutesForCurrentRegion(), selectWelcomeRoute);
+                        if (gpBtn && wcBtn) {
+                            if (currentRegion === 'WC') {
+                                wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
+                                gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
+                            } else {
+                                gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
+                                wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
+                            }
+                            
+                            // Re-render the route list with the new region seamlessly
+                            if (typeof Renderer !== 'undefined' && typeof getRoutesForCurrentRegion === 'function' && typeof selectWelcomeRoute === 'function') {
+                                Renderer.renderWelcomeList('welcome-route-list', getRoutesForCurrentRegion(), selectWelcomeRoute);
+                            }
                         }
+
+                        // Sync Sidenav & Route Modal Puppeteer displays
+                        const sideDisp = document.getElementById('sidenav-region-display');
+                        const modalDisp = document.getElementById('route-modal-region-display');
+                        const sideSel = document.getElementById('app-hub-region-select');
+                        const modalSel = document.getElementById('route-modal-region-select');
+
+                        if (sideDisp) sideDisp.textContent = currentRegion === 'WC' ? 'Western Cape' : 'Gauteng';
+                        if (modalDisp) modalDisp.textContent = currentRegion === 'WC' ? 'Region: Western Cape' : 'Region: Gauteng';
+                        if (sideSel) sideSel.value = currentRegion;
+                        if (modalSel) modalSel.value = currentRegion;
                     }
-
-                    // Sync Sidenav & Route Modal Puppeteer displays
-                    const sideDisp = document.getElementById('sidenav-region-display');
-                    const modalDisp = document.getElementById('route-modal-region-display');
-                    const sideSel = document.getElementById('app-hub-region-select');
-                    const modalSel = document.getElementById('route-modal-region-select');
-
-                    if (sideDisp) sideDisp.textContent = currentRegion === 'WC' ? 'Western Cape' : 'Gauteng';
-                    if (modalDisp) modalDisp.textContent = currentRegion === 'WC' ? 'Region: Western Cape' : 'Region: Gauteng';
-                    if (sideSel) sideSel.value = currentRegion;
-                    if (modalSel) modalSel.value = currentRegion;
                 }
-            }
-        })
-        .catch(e => console.log("🛡️ Guardian: IP Geolocation bypassed (AdBlocker or Offline)"));
+            })
+            .catch(e => console.log("🛡️ Guardian: IP Geolocation bypassed (AdBlocker, Timeout, or Offline)"));
 
-    // 🛡️ GUARDIAN PHASE 1: Fast-Fail Timeout Lock
-    const geoTimeout = new Promise(resolve => {
-        setTimeout(() => {
-            console.log("🛡️ Guardian: IP Geolocation timed out (1500ms). Proceeding with default region.");
-            resolve();
-        }, 1500);
-    });
-
-    window.regionCheckPromise = Promise.race([fetchGeo, geoTimeout]);
+        window.regionCheckPromise = fetchGeo;
+    }
 }
 
 let globalStationIndex = {}; 
@@ -517,14 +516,24 @@ window.getTripDisruptions = function(routeId, stopsArray) {
 
                     let firstContactIdx = -1;
                     
-                    // Trace the commuter's physical trip to find the very first point of entry into the Danger Zone
-                    for (let i = 0; i < stopsArray.length; i++) {
-                        const stopNorm = normalizeStationName(stopsArray[i].station);
-                        const stopMasterIdx = currentRouteMasterStations.indexOf(stopNorm);
+                    // 🛡️ GUARDIAN PHASE 1 (VECTOR MATH): Trace the commuter's physical trip 
+                    // to see if the directional vector CROSSES the Danger Zone, granting 
+                    // immunity to trains moving away from the segment.
+                    for (let i = 0; i < stopsArray.length - 1; i++) {
+                        const stop1Idx = currentRouteMasterStations.indexOf(normalizeStationName(stopsArray[i].station));
+                        const stop2Idx = currentRouteMasterStations.indexOf(normalizeStationName(stopsArray[i+1].station));
                         
-                        if (stopMasterIdx >= minZone && stopMasterIdx <= maxZone) {
-                            firstContactIdx = i;
-                            break;
+                        if (stop1Idx !== -1 && stop2Idx !== -1) {
+                            // Forward Traversal Check
+                            if (stop1Idx <= minZone && stop2Idx >= maxZone) {
+                                firstContactIdx = i;
+                                break;
+                            }
+                            // Backward Traversal Check
+                            if (stop1Idx >= maxZone && stop2Idx <= minZone) {
+                                firstContactIdx = i;
+                                break;
+                            }
                         }
                     }
 
@@ -596,12 +605,20 @@ function initDB(retryCount = 0) {
     });
 }
 
-async function saveToLocalCache(key, data) {
+// 🛡️ GUARDIAN PHASE 1: AbortController Injection stops stale cache bleeding into RAM
+async function saveToLocalCache(key, data, signal = null) {
+    if (signal && signal.aborted) {
+        console.warn(`🛡️ Guardian: Cache write aborted for ${key}.`);
+        return false;
+    }
+
     const cacheEntry = { timestamp: Date.now(), data: data };
     memoryFallbackCache[key] = cacheEntry;
 
     try {
         const db = await initDB();
+        if (signal && signal.aborted) return false;
+        
         return new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_NAME, 'readwrite');
             const store = tx.objectStore(STORE_NAME);
@@ -610,16 +627,21 @@ async function saveToLocalCache(key, data) {
             tx.onerror = () => reject(tx.error);
         });
     } catch (e) {
+        if (signal && signal.aborted) return false;
         console.warn("🛡️ Guardian: IndexedDB Save Failed (Possible Disk Full). Falling back...", e);
         try { 
             safeStorage.setItem(key, JSON.stringify(cacheEntry)); 
         } catch(ex) {
             console.warn("🛡️ Guardian: LocalStorage also failed. Operating strictly in RAM mode.");
         }
+        return false;
     }
 }
 
-async function loadFromLocalCache(key) {
+// 🛡️ GUARDIAN PHASE 1: AbortController Injection
+async function loadFromLocalCache(key, signal = null) {
+    if (signal && signal.aborted) return null;
+    
     if (memoryFallbackCache[key]) {
         console.log("🛡️ Guardian: Serving schedule from RAM cache.");
         return memoryFallbackCache[key];
@@ -627,11 +649,15 @@ async function loadFromLocalCache(key) {
 
     try {
         const db = await initDB();
+        if (signal && signal.aborted) return null;
+        
         return new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_NAME, 'readonly');
             const store = tx.objectStore(STORE_NAME);
             const request = store.get(key);
             request.onsuccess = () => {
+                if (signal && signal.aborted) return resolve(null);
+                
                 if (request.result) {
                     memoryFallbackCache[key] = request.result; 
                     resolve(request.result);
@@ -642,7 +668,7 @@ async function loadFromLocalCache(key) {
                             const parsed = JSON.parse(lsItem);
                             memoryFallbackCache[key] = parsed; 
                             resolve(parsed);
-                            saveToLocalCache(key, parsed.data); 
+                            saveToLocalCache(key, parsed.data, signal); 
                             safeStorage.removeItem(key); 
                         } else {
                             resolve(null);
@@ -653,6 +679,7 @@ async function loadFromLocalCache(key) {
             request.onerror = () => reject(request.error);
         });
     } catch (e) {
+        if (signal && signal.aborted) return null;
         console.warn("🛡️ Guardian: IndexedDB Load Failed (Disk IO Error). Checking LocalStorage...", e);
         try { 
             const item = safeStorage.getItem(key); 
@@ -1076,7 +1103,7 @@ async function loadAllSchedules(force = false) {
         // --- 1. EAGER RENDER CACHE LOAD ---
         // Instantly parse IndexedDB and paint the DOM before doing any network checks
         const cacheKey = `full_db_${currentRegion}`;
-        const cachedDB = await loadFromLocalCache(cacheKey);
+        const cachedDB = await loadFromLocalCache(cacheKey, fetchSignal);
 
         if (fetchSignal.aborted || currentRouteId !== requestedRouteId) {
             console.log("🛡️ Guardian: Route swapped during local cache load. Aborting stale render.");
@@ -1224,7 +1251,7 @@ async function loadAllSchedules(force = false) {
                     schedules = proposedSchedules;
                     globalStationIndex = proposedStationIndex;
                     
-                    await saveToLocalCache(cacheKey, newDatabase); 
+                    await saveToLocalCache(cacheKey, newDatabase, fetchSignal); 
                     
                     buildMasterStationList();
                     updateLastUpdatedText();
