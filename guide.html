@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <!-- SEO: Canonical Tag & Meta -->
+    <title>User Guide & FAQ | Metrorail Next Train</title>
+    <link rel="canonical" href="https://nexttrain.co.za/guide.html">
+    <meta name="description" content="Learn how to use Metrorail Next Train. Understand our routing algorithm, the 4-hour layover limit, and how we crowdsource PRASA train schedules.">
+    
+    <!-- FAVICONS -->
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=6">
+    <link rel="apple-touch-icon" href="icons/icon-192.png?v=6">
+
+    <!-- CRITICAL: Google Analytics 4 (Measurement ID: G-JM5DH6ERVX) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        var gaConfig = {};
+        var isDevAnalytics = false;
+        try { isDevAnalytics = localStorage.getItem('analytics_ignore') === 'true'; } catch(e) {}
+        if (isDevAnalytics) gaConfig['traffic_type'] = 'internal'; 
+        gtag('config', 'G-JM5DH6ERVX', gaConfig);
+    </script>
+
+    <!-- MICROSOFT CLARITY TRACKING CODE -->
+    <script type="text/javascript">
+        var blockClarity = false;
+        try { blockClarity = localStorage.getItem('analytics_ignore') === 'true'; } catch(e) {}
+        if (!blockClarity) {
+            (function(c,l,a,r,i,t,y){
+                c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+                t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            })(window, document, "clarity", "script", "v1aj19921i");
+        }
+    </script>
+
+    <!-- GUARDIAN: Local Tailwind & Config for Offline Support -->
+    <script src="js/tailwind.js"></script>
+    <script>
+        try {
+            if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch(e) {}
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/custom.css">
+
+    <style>
+        body, html { min-height: 100%; background-color: #f8fafc; }
+        .dark body, .dark html { background-color: #111827; }
+        .prose-custom p { margin-bottom: 1rem; line-height: 1.6; }
+        .prose-custom ul { margin-bottom: 1.5rem; list-style-type: disc; padding-left: 1.25rem; }
+        .prose-custom li { margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body class="text-gray-800 dark:text-gray-200 transition-colors duration-300 antialiased font-['Inter'] selection:bg-blue-200 selection:text-blue-900">
+
+    <!-- Back Button Overlay -->
+    <div class="fixed top-4 left-4 z-50">
+        <a href="index.html" class="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-800 dark:text-white font-bold py-2.5 px-4 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg flex items-center transition-transform transform active:scale-95 text-sm backdrop-blur-md bg-opacity-90 dark:bg-opacity-90">
+            <svg class="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7-7h18"></path></svg>
+            Home
+        </a>
+    </div>
+
+    <!-- Main Content Container -->
+    <main class="max-w-3xl mx-auto px-5 pt-24 pb-16">
+        
+        <!-- Hero Header -->
+        <header class="text-center mb-12 animate-fade-in-up">
+            <div class="w-20 h-20 bg-white dark:bg-gray-800 rounded-full shadow-xl ring-4 ring-blue-50 dark:ring-gray-700 mx-auto flex items-center justify-center mb-6 p-3">
+                <img src="icons/loading-logo.png" class="w-full h-full object-contain" alt="Logo">
+            </div>
+            <h1 class="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white tracking-tight mb-3">Commuter Guide & FAQ</h1>
+            <p class="text-gray-500 dark:text-gray-400 text-base sm:text-lg max-w-xl mx-auto">Everything you need to know about how Metrorail Next Train routes your trips, processes data, and keeps you moving.</p>
+        </header>
+
+        <!-- Article Sections -->
+        <article class="space-y-12">
+            
+            <!-- Section 1: Introduction -->
+            <section class="bg-white dark:bg-gray-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center mb-4">
+                    <span class="text-3xl mr-3">👋🏾</span>
+                    <h2 class="text-xl font-black text-gray-900 dark:text-white">Built by Commuters, for Commuters</h2>
+                </div>
+                <div class="prose-custom text-sm sm:text-base text-gray-600 dark:text-gray-300">
+                    <p>Metrorail Next Train is an <strong>independent, unofficial tool</strong>. We are not affiliated with PRASA or Metrorail. This app was built because commuters deserve clear, accessible, and digital transit information.</p>
+                    <p>Currently, the app relies on crowdsourced schedules and official PRASA timetable releases. <strong>The app tells you where the train <em>should</em> be based on the schedule, not its live GPS location.</strong> While true live-tracking is our ultimate architectural goal, for now, we rely on the community to report delays and missing routes.</p>
+                </div>
+            </section>
+
+            <!-- Section 2: How Routing Works -->
+            <section class="bg-white dark:bg-gray-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center mb-4">
+                    <span class="text-3xl mr-3">🧠</span>
+                    <h2 class="text-xl font-black text-gray-900 dark:text-white">Understanding the Algorithm</h2>
+                </div>
+                <div class="prose-custom text-sm sm:text-base text-gray-600 dark:text-gray-300">
+                    <h3 class="font-bold text-gray-900 dark:text-white mt-6 mb-2">1. Directional Naming (e.g., "Train to Kempton Park")</h3>
+                    <p>When the app says <em>"Next train to Kempton Park,"</em> it is indicating the <strong>direction</strong> the train is heading, based on its final destination. If you are traveling from Pretoria to Centurion, you will board the "Train to Kempton Park" because Centurion is a stop along that specific corridor.</p>
+
+                    <h3 class="font-bold text-gray-900 dark:text-white mt-6 mb-2">2. Why are some trains hidden? (Smart Filtering)</h3>
+                    <p>Our routing engine is designed to find you the fastest path home. We use a mathematical filter (Pareto dominance) to drop inferior train options from your results.</p>
+                    <p><strong>Example:</strong> If Train A requires two transfers and takes 3 hours, but Train B leaves slightly later, is direct, and gets you there in 1 hour, the engine will hide Train A. It assumes you would rather wait on the platform for a faster, simpler ride than spend hours bouncing between stations.</p>
+                </div>
+            </section>
+
+            <!-- Section 3: Layover Rules -->
+            <section class="bg-white dark:bg-gray-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center mb-4">
+                    <span class="text-3xl mr-3">⏱️</span>
+                    <h2 class="text-xl font-black text-gray-900 dark:text-white">Transfers & The 4-Hour Rule</h2>
+                </div>
+                <div class="prose-custom text-sm sm:text-base text-gray-600 dark:text-gray-300">
+                    <p>We actively calculate multi-leg journeys across shared corridors (e.g., transferring at Germiston or Koedoespoort). However, we enforce a strict <strong>4-Hour Maximum Layover limit</strong>.</p>
+                    <p>If a trip requires you to wait at a transfer hub for more than 4 hours for your connecting train, the engine considers the timetable "too sparse" and will declare the route mathematically impossible for that day. This often happens on weekends when service is drastically reduced.</p>
+                </div>
+            </section>
+
+            <!-- Section 4: FAQ -->
+            <section class="bg-white dark:bg-gray-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center mb-6">
+                    <span class="text-3xl mr-3">❓</span>
+                    <h2 class="text-xl font-black text-gray-900 dark:text-white">Frequently Asked Questions</h2>
+                </div>
+                
+                <div class="space-y-6">
+                    <!-- Q1 -->
+                    <div>
+                        <h3 class="font-bold text-gray-900 dark:text-white text-base mb-1">Does this app work offline?</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">Yes! Once you open the app while connected to the internet, it saves the schedules to your device. You can check times while underground or during loadshedding without using data.</p>
+                    </div>
+                    
+                    <!-- Q2 -->
+                    <div>
+                        <h3 class="font-bold text-gray-900 dark:text-white text-base mb-1">Are you expanding to other provinces?</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">Absolutely. We are currently actively mapping out the corridors for <strong>KwaZulu-Natal (KZN)</strong> and the <strong>Eastern Cape (EC)</strong>. We track demand, so be sure to vote for your region in the App Hub!</p>
+                    </div>
+
+                    <!-- Q3 -->
+                    <div>
+                        <h3 class="font-bold text-gray-900 dark:text-white text-base mb-1">How can I help improve the app?</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">As a crowdsourced tool, we rely on commuters like you. If you notice a missing train, or if you have a photo of a new timetable at your local station, please use the <strong>Feedback</strong> button in the app to send it to us so we can update the database.</p>
+                    </div>
+
+                    <!-- Q4 -->
+                    <div>
+                        <h3 class="font-bold text-gray-900 dark:text-white text-base mb-1">Why is my route showing "No Physical Connection"?</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-300">If the Trip Planner fails to find a route, it means our system currently doesn't have a known transfer hub connecting your Origin and Destination. If you know a valid transfer route, please hit the "Report Missing Route" button to let us know!</p>
+                    </div>
+                </div>
+            </section>
+
+        </article>
+
+        <!-- Footer -->
+        <footer class="mt-16 text-center border-t border-gray-200 dark:border-gray-700 pt-8">
+            <p class="text-xs text-gray-500 dark:text-gray-400 font-mono">Metrorail Next Train • Unofficial Guide</p>
+            <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-2">&copy; 2026 Kazembe CodeWorks.</p>
+        </footer>
+    </main>
+
+</body>
+</html>
