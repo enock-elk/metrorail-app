@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.27 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.29 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -14,6 +14,9 @@
  * 10. Live Telemetry Bridge & Snapshot Export
  * 11. User Feedback Manager (Inbox & Archive Protocol Tabs)
  * 12. Growth & Promo Manager (QR Codes)
+ * * GROWTH SPRINT PHASE 5: Grid/Drill-Down UI injected. Silent Dead-End Telemetry Dashboard built.
+ * * Alerts UI Decluttered (Advanced Toggle). 7-Day Telemetry Bar Chart scaffolding added.
+ * * DOM Duplication bug absolutely eradicated via Singleton render locks.
  */
 
 const Admin = {
@@ -102,6 +105,10 @@ const Admin = {
     currentUser: null,
     telemetryInterval: null, 
     clockInterval: null,
+    
+    // GROWTH MODE: Grid/Drill-Down State
+    isGridMode: true,
+    _modulesRendered: false,
 
     // --- 0.2 TELEMETRY REFRESH ENGINE & EXPORT ---
     refreshTelemetry: async () => {
@@ -111,6 +118,7 @@ const Admin = {
         const statAllTime = document.getElementById('stat-alltime');
         const statErrors = document.getElementById('stat-errors');
         const syncEl = document.getElementById('telemetry-last-sync');
+        const trendContainer = document.getElementById('tel-trend-bars');
         
         const devModal = document.getElementById('dev-modal');
         if (devModal && devModal.classList.contains('hidden')) {
@@ -151,6 +159,25 @@ const Admin = {
                     const now = new Date();
                     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
                     syncEl.textContent = `synced: ${timeStr}`;
+                }
+
+                // GROWTH SPRINT PHASE 5: 7-Day Telemetry Trend Chart rendering
+                if (trendContainer) {
+                    // PENDING WORKER UPDATE: Using mock data array until Worker API supports 7-day historical array
+                    const mockData = [112, 134, 98, 180, 205, 140, 220]; 
+                    const max = Math.max(...mockData, 1);
+                    trendContainer.innerHTML = mockData.map((val, idx) => {
+                        const height = Math.max((val / max) * 100, 10);
+                        const daysAgo = 6 - idx;
+                        const label = daysAgo === 0 ? 'Tdy' : `-${daysAgo}d`;
+                        return `
+                            <div class="flex flex-col justify-end items-center h-full w-full group relative">
+                                <div class="absolute -top-6 bg-gray-800 text-white text-[8px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">${val}</div>
+                                <div class="w-full bg-blue-500 rounded-t-sm transition-all duration-500 hover:bg-blue-400 cursor-pointer" style="height: ${height}%"></div>
+                                <span class="text-[8px] text-gray-400 font-bold mt-1 uppercase">${label}</span>
+                            </div>
+                        `;
+                    }).join('');
                 }
 
                 [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
@@ -501,9 +528,36 @@ const Admin = {
         // GUARDIAN: Inject Export Button dynamically if it doesn't exist
         const telBody = document.getElementById('telemetry-body');
         if (telBody && !document.getElementById('tel-export-btn')) {
+            // GROWTH SPRINT PHASE 5: 7-Day Graph Implementation (Awaiting Worker Upgrade)
+            const trendWrapper = document.createElement('div');
+            trendWrapper.className = "mt-4 border-t border-gray-100 dark:border-gray-700 pt-3";
+            trendWrapper.innerHTML = `
+                <button id="tel-trend-toggle" class="text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center justify-between w-full focus:outline-none mb-1">
+                    <span>📈 7-Day Trend (Beta)</span>
+                    <svg id="tel-trend-chevron" class="w-3 h-3 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="tel-trend-container" class="hidden mt-3 h-28 flex items-end justify-between space-x-1.5 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 pt-6">
+                    <div id="tel-trend-bars" class="w-full h-full flex items-end justify-between space-x-1"></div>
+                </div>
+            `;
+            
+            telBody.appendChild(trendWrapper);
+            
+            const trendToggle = document.getElementById('tel-trend-toggle');
+            const trendContainer = document.getElementById('tel-trend-container');
+            const trendChev = document.getElementById('tel-trend-chevron');
+            
+            if (trendToggle) {
+                trendToggle.onclick = () => {
+                    trendContainer.classList.toggle('hidden');
+                    if (trendContainer.classList.contains('hidden')) trendChev.classList.add('-rotate-90');
+                    else trendChev.classList.remove('-rotate-90');
+                };
+            }
+
             const exportBtn = document.createElement('button');
             exportBtn.id = 'tel-export-btn';
-            exportBtn.className = "w-full mt-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-800/50 border border-indigo-200 dark:border-indigo-800 font-bold py-2.5 rounded-lg transition-colors text-xs flex items-center justify-center focus:outline-none";
+            exportBtn.className = "w-full mt-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-800/50 border border-indigo-200 dark:border-indigo-800 font-bold py-2.5 rounded-lg transition-colors text-xs flex items-center justify-center focus:outline-none";
             exportBtn.innerHTML = `<span class="mr-2 text-base">📸</span> Export Telemetry Snapshot`;
             exportBtn.onclick = Admin.exportTelemetry;
             telBody.appendChild(exportBtn);
@@ -597,6 +651,13 @@ const Admin = {
 
     // --- HELPER: RENDER ALL DYNAMIC MODULES ---
     renderAdminModules: () => {
+        // 🛡️ GUARDIAN UX FIX: Singleton rendering lock absolutely eradicates the module duplication bug
+        if (Admin._modulesRendered) {
+            Admin.initGridView(); // Ensure grid is bound if re-opened
+            return;
+        }
+        Admin._modulesRendered = true;
+
         // 1. Inject Live Clock (Guardian UX Upgrade) precisely above Telemetry
         let clockContainer = document.getElementById('admin-live-clock');
         if (!clockContainer) {
@@ -623,6 +684,7 @@ const Admin = {
         // Setup Execution Order
         Admin.setupTelemetry();
         Admin.setupFeedbackManager(); 
+        Admin.setupDeadEndsManager(); // GROWTH SPRINT PHASE 5: Silent Routing Failures Tracker
         Admin.setupServiceAlertsManager();
         Admin.setupDisruptionsManager(); // GUARDIAN PHASE 6: Transit Incident Manager Injected Here
         Admin.setupExclusionManager();
@@ -631,6 +693,135 @@ const Admin = {
         Admin.setupDiagnosticsManager(); 
         Admin.setupGrowthManager(); 
         Admin.setupNuclearManager(); 
+
+        // 🛡️ GROWTH SPRINT PHASE 5: Transform Dev Hub into native Grid / Drill-Down Dashboard
+        Admin.initGridView();
+    },
+
+    // --- 2.8 GROWTH SPRINT PHASE 5: THE DRILL-DOWN DASHBOARD ENGINE ---
+    initGridView: () => {
+        const container = document.getElementById('admin-modules-container');
+        if (!container) return;
+
+        // Ensure Telemetry is neatly packed inside the wrapper so it grids perfectly
+        const telPanel = document.getElementById('telemetry-panel');
+        if (telPanel && telPanel.parentNode !== container) {
+            container.insertBefore(telPanel, container.firstElementChild);
+        }
+
+        const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6');
+        if (devHeaderRow && !document.getElementById('grid-view-toggle')) {
+            
+            // Inject Grid Toggle Button
+            const toggleBtn = document.createElement('button');
+            toggleBtn.id = 'grid-view-toggle';
+            toggleBtn.className = "ml-auto mr-3 p-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 hover:text-blue-500 transition-colors focus:outline-none shadow-sm flex items-center";
+            toggleBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>`;
+            
+            const closeBtn = devHeaderRow.querySelector('button[aria-label="Close Dev Modal"]');
+            if (closeBtn) {
+                devHeaderRow.insertBefore(toggleBtn, closeBtn);
+            } else {
+                devHeaderRow.appendChild(toggleBtn);
+            }
+
+            // Inject Custom Layout CSS
+            if (!document.getElementById('admin-grid-styles')) {
+                const style = document.createElement('style');
+                style.id = 'admin-grid-styles';
+                style.innerHTML = `
+                    .admin-grid-view { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; padding-bottom: 20px; }
+                    .admin-grid-view > div { margin-bottom: 0 !important; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; height: 110px; display: flex; flex-direction: column; justify-content: center; }
+                    .admin-grid-view > div:hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #3b82f6; }
+                    .admin-grid-view > div [id$="-body"] { display: none !important; }
+                    .admin-grid-view > div button[id$="-header-btn"] { flex-direction: column; justify-content: center; height: 100%; align-items: center; text-align: center; margin-bottom: 0 !important; }
+                    .admin-grid-view > div button[id$="-header-btn"] > span { flex-direction: column; align-items: center; width: 100%; }
+                    .admin-grid-view > div button[id$="-header-btn"] > span > span:first-child { margin-right: 0 !important; margin-bottom: 8px; font-size: 28px; display: block; }
+                    .admin-grid-view > div button[id$="-header-btn"] svg[id$="-chevron"] { display: none !important; }
+                    .admin-grid-view > div button[id$="-header-btn"] span[id$="-last-sync"],
+                    .admin-grid-view > div button[id$="-header-btn"] span[id$="-unread-badge"] { display: none !important; }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // Bind Toggle Action
+            toggleBtn.onclick = () => {
+                Admin.isGridMode = !Admin.isGridMode;
+                if (Admin.isGridMode) {
+                    container.classList.add('admin-grid-view');
+                    container.querySelectorAll('[id$="-body"]').forEach(b => b.classList.add('hidden'));
+                } else {
+                    container.classList.remove('admin-grid-view');
+                }
+            };
+
+            // Global Interceptor: The Drill-Down Engine
+            container.addEventListener('click', (e) => {
+                if (!Admin.isGridMode) return;
+                
+                const card = e.target.closest('.admin-grid-view > div');
+                if (!card || card.id === 'admin-live-clock') return;
+                
+                // Trigger Drill Down
+                Admin.isGridMode = false;
+                container.classList.remove('admin-grid-view');
+                
+                // Hide sibling cards
+                Array.from(container.children).forEach(child => {
+                    if (child !== card && child.id !== 'admin-live-clock') {
+                        child.style.display = 'none';
+                    }
+                });
+                
+                // Expand targeted body
+                const body = card.querySelector('[id$="-body"]');
+                if (body) body.classList.remove('hidden');
+                const chev = card.querySelector('[id$="-chevron"]');
+                if (chev) chev.classList.remove('-rotate-90');
+                
+                // Morph Modal Header
+                const titleH3 = devHeaderRow.querySelector('h3');
+                devHeaderRow.dataset.originalHtml = titleH3.innerHTML;
+                
+                // Strip emojis safely
+                let cardTitle = card.querySelector('button span').innerText.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '').trim();
+                
+                titleH3.innerHTML = `
+                    <button id="drill-back-btn" class="mr-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors focus:outline-none shadow-sm">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <span class="truncate flex-grow text-lg">${cardTitle}</span>
+                `;
+                
+                toggleBtn.style.display = 'none';
+                
+                // Bind the Drill Back Action
+                document.getElementById('drill-back-btn').onclick = (evt) => {
+                    evt.stopPropagation();
+                    Admin.isGridMode = true;
+                    container.classList.add('admin-grid-view');
+                    titleH3.innerHTML = devHeaderRow.dataset.originalHtml;
+                    toggleBtn.style.display = '';
+                    
+                    Array.from(container.children).forEach(child => {
+                        child.style.display = '';
+                        const b = child.querySelector('[id$="-body"]');
+                        if (b) b.classList.add('hidden');
+                    });
+                };
+                
+                // Auto-Fetch data upon drill-down
+                if (card.id === 'feedback-panel') Admin.fetchFeedback();
+                if (card.id === 'deadends-panel') Admin.fetchDeadEnds();
+                if (card.id === 'alert-panel') {
+                    const targetEl = document.getElementById('alert-target');
+                    if (targetEl) targetEl.dispatchEvent(new Event('change'));
+                }
+            });
+
+            // Engage
+            if (Admin.isGridMode) container.classList.add('admin-grid-view');
+        }
     },
 
     // --- 2.9 GROWTH & PROMO MANAGER (QR CODE) ---
@@ -642,14 +833,7 @@ const Admin = {
         if (!growthPanel) {
             growthPanel = document.createElement('div');
             growthPanel.id = 'growth-panel';
-            
-            // GUARDIAN: Insert strictly before Nuclear Cache Wipe
-            const nukePanel = document.getElementById('nuke-panel');
-            if (nukePanel) {
-                adminContainer.insertBefore(growthPanel, nukePanel);
-            } else {
-                adminContainer.appendChild(growthPanel);
-            }
+            adminContainer.appendChild(growthPanel);
         }
 
         if (growthPanel.dataset.adminLoaded === "true") return;
@@ -679,6 +863,7 @@ const Admin = {
         const chevron = document.getElementById('growth-chevron');
 
         header.onclick = () => {
+            if (Admin.isGridMode) return; // Prevent accordion action when in grid
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
                 chevron.classList.add('-rotate-90');
@@ -721,6 +906,126 @@ const Admin = {
         } catch (e) {
             console.warn("🛡️ Could not sync unread feedback count.");
         }
+    },
+
+    // --- GROWTH SPRINT PHASE 5: SILENT ROUTING FAILURES TRACKER (DEAD ENDS) ---
+    setupDeadEndsManager: () => {
+        const adminContainer = document.getElementById('admin-modules-container');
+        if (!adminContainer) return;
+
+        let dePanel = document.getElementById('deadends-panel');
+        if (!dePanel) {
+            dePanel = document.createElement('div');
+            dePanel.id = 'deadends-panel';
+            adminContainer.appendChild(dePanel);
+        }
+
+        if (dePanel.dataset.adminLoaded === "true") return;
+        dePanel.dataset.adminLoaded = "true";
+
+        dePanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+        
+        dePanel.innerHTML = `
+            <button id="de-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
+                <span class="flex items-center"><span class="mr-2">🛑</span> Dead Ends & Fails</span>
+                <svg id="de-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <div id="de-body" class="hidden mt-4 space-y-3">
+                <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1">Silent Routing Telemetry</span>
+                    <button id="de-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
+                        Refresh Data
+                    </button>
+                </div>
+                <div id="de-list" class="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar"></div>
+            </div>
+        `;
+        
+        const header = document.getElementById('de-header-btn');
+        const body = document.getElementById('de-body');
+        const chevron = document.getElementById('de-chevron');
+        const refreshBtn = document.getElementById('de-refresh-btn');
+        const listDiv = document.getElementById('de-list');
+
+        header.onclick = () => {
+            if (Admin.isGridMode) return;
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+                header.classList.remove('mb-4');
+            } else {
+                chevron.classList.remove('-rotate-90');
+                header.classList.add('mb-4');
+                Admin.fetchDeadEnds();
+            }
+        };
+
+        refreshBtn.onclick = () => Admin.fetchDeadEnds();
+
+        Admin.fetchDeadEnds = async () => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+            
+            listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Scanning telemetry...</div>';
+            
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await window.guardianFetch(`${dynamicEndpoint}telemetry/dead_ends.json?auth=${secret}`, {}, 10000);
+                
+                if (!res.ok) throw new Error("Fetch failed");
+                const data = await res.json();
+                
+                if (!data) {
+                    listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">No routing failures recorded.</div>';
+                    return;
+                }
+                
+                // Aggregate heavily by Origin|Dest|Reason to create a powerful heatmap
+                const heatMap = {};
+                Object.values(data).forEach(entry => {
+                    if (!entry.origin || !entry.destination) return;
+                    const key = `${entry.origin}|${entry.destination}|${entry.reason || 'UNKNOWN'}`;
+                    if (!heatMap[key]) {
+                        heatMap[key] = { origin: entry.origin, dest: entry.destination, reason: entry.reason, count: 0, lastSeen: 0 };
+                    }
+                    heatMap[key].count++;
+                    if (entry.timestamp > heatMap[key].lastSeen) heatMap[key].lastSeen = entry.timestamp;
+                });
+                
+                const sorted = Object.values(heatMap).sort((a, b) => b.count - a.count);
+                listDiv.innerHTML = '';
+                
+                sorted.forEach(item => {
+                    const dateStr = new Date(item.lastSeen).toLocaleDateString([], { month: 'short', day: 'numeric' });
+                    const card = document.createElement('div');
+                    card.className = "bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between transition-colors hover:border-blue-300";
+                    
+                    let reasonBadge = "bg-gray-100 text-gray-600";
+                    let reasonText = "Unknown";
+                    if (item.reason === 'ERR_TIMETABLE_MISMATCH') { reasonBadge = "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400"; reasonText = "Sparse Schedule (>4h)"; }
+                    else if (item.reason === 'ERR_DISCONNECTED_GRAPH') { reasonBadge = "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400"; reasonText = "No Physical Link"; }
+                    else if (item.reason === 'ERR_CROSS_REGION') { reasonBadge = "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400"; reasonText = "Cross Region"; }
+                    else if (item.reason === 'ERR_ACTIVE_SUSPENSION') { reasonBadge = "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400"; reasonText = "Line Severed"; }
+
+                    card.innerHTML = `
+                        <div class="min-w-0 flex-1 pr-2">
+                            <div class="text-xs font-bold text-gray-900 dark:text-white truncate">${item.origin} <span class="text-gray-400 mx-1">→</span> ${item.dest}</div>
+                            <div class="flex items-center mt-1.5 space-x-2">
+                                <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${reasonBadge}">${reasonText}</span>
+                                <span class="text-[9px] text-gray-400 font-mono">Last: ${dateStr}</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg p-2 min-w-[44px]">
+                            <span class="text-[9px] text-gray-400 uppercase font-bold mb-0.5">Hits</span>
+                            <span class="text-sm font-black text-gray-700 dark:text-gray-300 leading-none">${item.count}</span>
+                        </div>
+                    `;
+                    listDiv.appendChild(card);
+                });
+            } catch(e) {
+                listDiv.innerHTML = '<div class="text-xs text-red-500 text-center py-4">Failed to load telemetry.</div>';
+            }
+        };
     },
 
     // --- 3.5 FEEDBACK MANAGER (GUARDIAN INBOX & ARCHIVE PROTOCOL) ---
@@ -781,6 +1086,7 @@ const Admin = {
         const inboxCountSpan = document.getElementById('fb-inbox-count');
 
         header.onclick = () => {
+            if (Admin.isGridMode) return; // Prevent accordion action when in grid
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
                 chevron.classList.add('-rotate-90');
@@ -1067,28 +1373,34 @@ const Admin = {
                     </div>
                 </div>
 
-                <!-- 🛡️ SUPERCHARGED: Rich Media Inputs with Live Preview -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    <div class="sm:col-span-2">
-                        <div class="flex items-center justify-between mb-1">
-                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">Hero Image URL</label>
-                            <label for="alert-image-file" class="cursor-pointer text-[9px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded font-bold hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors shadow-sm focus:outline-none">📸 Upload</label>
-                            <input type="file" id="alert-image-file" class="hidden" accept="image/*">
+                <!-- 🛡️ SUPERCHARGED: Rich Media Inputs with Live Preview (HIDDEN IN ADVANCED TOGGLE) -->
+                <div class="mt-2 border-t border-gray-100 dark:border-gray-700 pt-3">
+                    <button type="button" id="alert-advanced-toggle-btn" class="w-full text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center justify-between focus:outline-none">
+                        <span>➕ Add Media & Links (Advanced)</span>
+                        <svg id="alert-advanced-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="alert-advanced-body" class="hidden mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50/50 dark:bg-gray-900/30 p-3 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-inner">
+                        <div class="sm:col-span-2">
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">Hero Image URL</label>
+                                <label for="alert-image-file" class="cursor-pointer text-[9px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded font-bold hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors shadow-sm focus:outline-none">📸 Upload</label>
+                                <input type="file" id="alert-image-file" class="hidden" accept="image/*">
+                            </div>
+                            <input type="text" id="alert-image-url" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" placeholder="https://... or click Upload">
+                            
+                            <div id="alert-image-preview-container" class="hidden mt-3 border border-gray-200 dark:border-gray-700 rounded-lg p-2 bg-white dark:bg-gray-800 shadow-inner text-center">
+                                <p class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Live Image Preview</p>
+                                <img id="alert-image-preview" src="" class="max-h-32 w-auto mx-auto rounded-md object-contain border border-gray-100 dark:border-gray-700 shadow-sm" onerror="this.parentElement.classList.add('hidden')">
+                            </div>
                         </div>
-                        <input type="text" id="alert-image-url" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://... or click Upload">
-                        
-                        <div id="alert-image-preview-container" class="hidden mt-3 border border-gray-200 dark:border-gray-700 rounded-lg p-2 bg-white dark:bg-gray-800 shadow-inner text-center">
-                            <p class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Live Image Preview</p>
-                            <img id="alert-image-preview" src="" class="max-h-32 w-auto mx-auto rounded-md object-contain border border-gray-100 dark:border-gray-700 shadow-sm" onerror="this.parentElement.classList.add('hidden')">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">CTA Button Text</label>
+                            <input type="text" id="alert-cta-text" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" placeholder="e.g. Read Statement">
                         </div>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">CTA Button Text</label>
-                        <input type="text" id="alert-cta-text" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="e.g. Read Statement">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">CTA Button Link</label>
-                        <input type="text" id="alert-cta-url" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none" placeholder="https://...">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">CTA Button Link</label>
+                            <input type="text" id="alert-cta-url" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" placeholder="https://...">
+                        </div>
                     </div>
                 </div>
 
@@ -1154,9 +1466,14 @@ const Admin = {
         const imageUrlInput = document.getElementById('alert-image-url');
         const imagePreviewContainer = document.getElementById('alert-image-preview-container');
         const imagePreview = document.getElementById('alert-image-preview');
-        const imageFileInput = document.getElementById('alert-image-file'); // GUARDIAN: Native Image Uploader Add
+        const imageFileInput = document.getElementById('alert-image-file'); 
         const ctaUrlInput = document.getElementById('alert-cta-url');
         const ctaTextInput = document.getElementById('alert-cta-text');
+        
+        const advToggleBtn = document.getElementById('alert-advanced-toggle-btn');
+        const advBody = document.getElementById('alert-advanced-body');
+        const advChevron = document.getElementById('alert-advanced-chevron');
+
         const pollToggle = document.getElementById('alert-poll-toggle');
         const pollContainer = document.getElementById('alert-poll-container');
         const pollQuestion = document.getElementById('alert-poll-question');
@@ -1164,6 +1481,7 @@ const Admin = {
         const pollOptB = document.getElementById('alert-poll-opt-b');
 
         header.onclick = () => {
+            if (Admin.isGridMode) return; // Prevent accordion action when in grid
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
                 chevron.classList.add('-rotate-90');
@@ -1173,6 +1491,14 @@ const Admin = {
                 header.classList.add('mb-4');
             }
         };
+
+        if (advToggleBtn) {
+            advToggleBtn.onclick = () => {
+                advBody.classList.toggle('hidden');
+                if (advBody.classList.contains('hidden')) advChevron.classList.add('-rotate-90');
+                else advChevron.classList.remove('-rotate-90');
+            };
+        }
 
         if (imageUrlInput) {
             imageUrlInput.addEventListener('input', () => {
@@ -1227,6 +1553,9 @@ const Admin = {
                                         imageUrlInput.dispatchEvent(new Event('input')); // Triggers preview automatically
                                     }
                                     if (typeof showToast === 'function') showToast("Upload complete!", "success");
+                                    
+                                    // Auto-expand advanced options if uploaded
+                                    if (advBody && advBody.classList.contains('hidden')) advToggleBtn.click();
                                 } catch(e) {
                                     if (typeof showToast === 'function') showToast("Failed to get image link", "error");
                                 }
@@ -1278,16 +1607,26 @@ const Admin = {
                     if (data.forcePopup !== undefined) forcePopupToggle.checked = data.forcePopup;
                     else forcePopupToggle.checked = (data.severity === 'critical');
 
-                    if (data.imageUrl) {
-                        imageUrlInput.value = data.imageUrl;
-                        imageUrlInput.dispatchEvent(new Event('input')); 
+                    if (data.imageUrl || data.ctaUrl || data.ctaText) {
+                        if (advBody && advBody.classList.contains('hidden')) advToggleBtn.click();
+                        
+                        if (data.imageUrl) {
+                            imageUrlInput.value = data.imageUrl;
+                            imageUrlInput.dispatchEvent(new Event('input')); 
+                        } else {
+                            imageUrlInput.value = "";
+                            if (imagePreviewContainer) imagePreviewContainer.classList.add('hidden');
+                        }
+
+                        if (data.ctaUrl) ctaUrlInput.value = data.ctaUrl; else ctaUrlInput.value = "";
+                        if (data.ctaText) ctaTextInput.value = data.ctaText; else ctaTextInput.value = "";
                     } else {
+                        if (advBody && !advBody.classList.contains('hidden')) advToggleBtn.click();
                         imageUrlInput.value = "";
                         if (imagePreviewContainer) imagePreviewContainer.classList.add('hidden');
+                        ctaUrlInput.value = "";
+                        ctaTextInput.value = "";
                     }
-
-                    if (data.ctaUrl) ctaUrlInput.value = data.ctaUrl; else ctaUrlInput.value = "";
-                    if (data.ctaText) ctaTextInput.value = data.ctaText; else ctaTextInput.value = "";
                     
                     if (data.poll && data.poll.active) {
                         pollToggle.checked = true;
@@ -1476,6 +1815,7 @@ const Admin = {
                     pollQuestion.value = "";
                     pollOptA.value = "";
                     pollOptB.value = "";
+                    if (advBody && !advBody.classList.contains('hidden')) advToggleBtn.click();
                     
                     sendBtn.textContent = "Post Alert";
                     if (typeof checkServiceAlerts === 'function') setTimeout(checkServiceAlerts, 500); 
@@ -1585,6 +1925,7 @@ const Admin = {
         const listDiv = document.getElementById('disr-list');
 
         header.onclick = () => {
+            if (Admin.isGridMode) return; // Prevent accordion action when in grid
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
                 chevron.classList.add('-rotate-90');
@@ -1904,6 +2245,7 @@ const Admin = {
         const daysContainer = document.getElementById('excl-days-container');
 
         header.onclick = () => {
+            if (Admin.isGridMode) return; // Prevent accordion action when in grid
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
                 chevron.classList.add('-rotate-90');
@@ -2311,6 +2653,7 @@ const Admin = {
         const saveBtn = document.getElementById('event-save-btn');
 
         header.onclick = () => {
+            if (Admin.isGridMode) return; // Prevent accordion action when in grid
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
                 chevron.classList.add('-rotate-90');
@@ -2415,6 +2758,7 @@ const Admin = {
         const resultsDiv = document.getElementById('diag-results');
 
         header.onclick = () => {
+            if (Admin.isGridMode) return; // Prevent accordion action when in grid
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
                 chevron.classList.add('-rotate-90');
@@ -2545,6 +2889,7 @@ const Admin = {
         const toggle = document.getElementById('maint-toggle');
 
         header.onclick = () => {
+            if (Admin.isGridMode) return; // Prevent accordion action when in grid
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
                 chevron.classList.add('-rotate-90');
@@ -2631,6 +2976,7 @@ const Admin = {
         const fireBtn = document.getElementById('nuke-fire-btn');
 
         header.onclick = () => {
+            if (Admin.isGridMode) return; // Prevent accordion action when in grid
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
                 chevron.classList.add('-rotate-90');

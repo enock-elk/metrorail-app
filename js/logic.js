@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V6.04.27 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V6.04.29 - Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -1415,7 +1415,8 @@ function resolveZoneForRoute(routeId) {
     return null;
 }
 
-function getRouteFare(sheetKey, departureTimeStr) {
+// 🛡️ GUARDIAN PHASE 1: REFACTORED FARE ENGINE (Train-Time Dependency Purged)
+function getRouteFare(sheetKey) {
     let zoneCode = null;
     if (sheetKey) {
         const zoneKey = sheetKey + "_zone";
@@ -1659,8 +1660,9 @@ function findNextTrains() {
 
         const nowInSeconds = timeToSeconds(currentTime);
         const upcoming = mergedJourneys.find(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
+        // GUARDIAN PHASE 1: Replaced Train-Time Dependency with Current Time hook
         if (upcoming) {
-             if(typeof updateFareDisplay === 'function') updateFareDisplay(currentSheetKey, upcoming.departureTime || upcoming.train1.departureTime);
+             if(typeof updateFareDisplay === 'function') updateFareDisplay(currentSheetKey, currentTime);
         } else {
              if(typeof updateFareDisplay === 'function') updateFareDisplay(primarySheetKey, currentTime);
         }
@@ -2215,6 +2217,16 @@ function updateTime() {
         if (lastRenderedMinute !== currentMinute || simActive) {
             lastRenderedMinute = currentMinute;
             if (typeof findNextTrains === 'function') findNextTrains();
+            
+            // 🛡️ GUARDIAN PHASE 1: Real-time fare badge flipping synchronized with the clock
+            // This guarantees the Off-Peak badge changes state right at 09:30 or 14:30 without needing user interaction.
+            if (typeof updateFareDisplay === 'function') {
+                let sKey = null;
+                if (currentRouteId && ROUTES[currentRouteId]) {
+                    sKey = currentDayType === 'weekday' ? ROUTES[currentRouteId].sheetKeys.weekday_to_a : ROUTES[currentRouteId].sheetKeys.saturday_to_a;
+                }
+                updateFareDisplay(sKey, currentTime);
+            }
         }
 
     } catch(e) { console.error("Error in updateTime", e); }

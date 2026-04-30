@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.27 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.29 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -27,6 +27,7 @@
  * * GUARDIAN BUGFIX: Link Bug Exterminator. Legacy URL regex removed from Service Alerts parser.
  * * GUARDIAN PHASE 2 (GRID UX): Button micro-copy trimmed and responsive classes injected to prevent horizontal wrapping on narrow screens.
  * * GROWTH MODE PHASE 2 (PHASE 1 POLISH): Crash Modal Feedback Hook, Alert Spam Suppression, Variable Scoping Fix, and AbortError Checks.
+ * * GROWTH MODE PHASE 3: The Haptics Diet. Purged vibrations from tabs, swipes, and closures. Unread badge logic injected for Changelog.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -442,7 +443,7 @@ function renderPlaceholder() {
     if(pienaarspoortTimeEl) pienaarspoortTimeEl.innerHTML = placeholderHTML;
 
     if (typeof updateFareDisplay === 'function') {
-        updateFareDisplay(null, null);
+        updateFareDisplay(null);
     }
     
     updateNextTrainView();
@@ -562,7 +563,7 @@ function renderNextAvailableTrain(element, destination) {
     }
 }
 
-function updateFareDisplay(sheetKey, nextTrainTimeStr) {
+function updateFareDisplay(sheetKey) {
     // GUARDIAN Phase 1: Scoped variables to prevent node cloning/DOM collision bugs
     const localFareContainer = document.getElementById('fare-container');
     const localPassengerTypeLabel = document.getElementById('passenger-type-label');
@@ -570,7 +571,10 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
     // GUARDIAN Phase 4: Protect against detached nodes
     if (!localFareContainer || !localFareContainer.parentNode) return; 
 
-    if (localPassengerTypeLabel) localPassengerTypeLabel.textContent = currentUserProfile;
+    // RESTORED: Classic UI layout ("Estimated [Adult] Fare")
+    if (localPassengerTypeLabel) {
+        localPassengerTypeLabel.textContent = currentUserProfile;
+    }
 
     const newFareContainer = localFareContainer.cloneNode(true);
     localFareContainer.parentNode.replaceChild(newFareContainer, localFareContainer);
@@ -581,7 +585,7 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
 
     activeFareContainer.className = "mb-6 p-3.5 rounded-xl flex items-center justify-between shadow-sm min-h-[58px] pr-10 relative transition-colors group";
 
-    const fareData = getRouteFare(sheetKey, nextTrainTimeStr);
+    const fareData = typeof getRouteFare === 'function' ? getRouteFare(sheetKey) : null; 
     const detailed = typeof getDetailedFare === 'function' ? getDetailedFare(sheetKey) : null;
     
     if (detailed && detailed.prices) {
@@ -608,31 +612,23 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
         
         if(activeFareAmount) activeFareAmount.className = "text-2xl font-black text-gray-900 dark:text-white leading-none";
 
-        if (nextTrainTimeStr) {
-            if (fareData.isPromo) {
-                if(activeFareType) {
-                    activeFareType.textContent = fareData.discountLabel || "Discounted";
-                    activeFareType.className = "text-[9px] font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded uppercase tracking-wide whitespace-nowrap inline-block mt-1 shadow-sm border border-purple-200 dark:border-purple-800/50";
-                }
-            } else if (fareData.isOffPeak) {
-                if(activeFareType) {
-                    activeFareType.textContent = "Off-Peak • 40% Off until 14:30"; 
-                    activeFareType.className = "text-[9px] font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap inline-block mt-1 shadow-sm border border-green-200 dark:border-green-800/50";
-                }
-            } else {
-                if(activeFareType) {
-                    activeFareType.textContent = "Standard Fare";
-                    activeFareType.className = "text-[9px] font-bold text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap inline-block mt-1 shadow-sm border border-gray-300 dark:border-gray-600";
-                }
+        // GUARDIAN FIX: Unconditional peak/off-peak mapping decoupled from train times
+        if (fareData.isPromo) {
+            if(activeFareType) {
+                activeFareType.textContent = fareData.discountLabel || "Discounted";
+                activeFareType.className = "text-[9px] font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded uppercase tracking-wide whitespace-nowrap inline-block mt-1 shadow-sm border border-purple-200 dark:border-purple-800/50";
             }
-        } 
-        else {
+        } else if (fareData.isOffPeak) {
+            if(activeFareType) {
+                activeFareType.textContent = "Off-Peak • 40% Off until 14:30"; 
+                activeFareType.className = "text-[9px] font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap inline-block mt-1 shadow-sm border border-green-200 dark:border-green-800/50";
+            }
+        } else {
             if(activeFareType) {
                 activeFareType.textContent = "Standard Fare";
                 activeFareType.className = "text-[9px] font-bold text-gray-600 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap inline-block mt-1 shadow-sm border border-gray-300 dark:border-gray-600";
             }
         }
-        
     } else {
         activeFareContainer.classList.add('bg-blue-50', 'dark:bg-gray-800', 'border', 'border-blue-100', 'dark:border-gray-700');
         if(activeFareAmount) {
@@ -653,6 +649,8 @@ function updateFareDisplay(sheetKey, nextTrainTimeStr) {
 }
 
 window.openFareModal = function(fareDetails) {
+    triggerHaptic();
+    
     if (!fareDetails) return;
     
     // GROWTH MODE: Track Fare Modal Interactions (Monetization Hook)
@@ -838,6 +836,7 @@ window.selectProfile = function(profileType) {
 };
 
 window.resetProfile = function() {
+    triggerHaptic();
     if(profileModal) {
         history.pushState({ modal: 'profile' }, '', '#profile');
         window.closeAppHub(); 
@@ -1475,7 +1474,6 @@ function setupModalButtons() {
 }
 
 function switchTab(tab) {
-    triggerHaptic();
     if (tab === 'trip-planner') {
         if (location.hash !== '#planner') history.pushState({ tab: 'planner' }, '', '#planner');
     } else {
@@ -2290,7 +2288,6 @@ function setupFeatureButtons() {
         routeList.addEventListener('click', (e) => { 
             const routeLink = e.target.closest('a'); 
             if (routeLink && routeLink.dataset.routeId) { 
-                triggerHaptic();
                 const routeId = routeLink.dataset.routeId; 
                 
                 if (routeId === currentRouteId) { 
@@ -2320,8 +2317,6 @@ window.lastClickedFutureRegion = null;
 
 // GUARDIAN Phase 1 (UX Polish): Refactored to stop reloading and instead trigger seamless SPA state wipe
 window.handleRegionChange = function(newRegion, selectElement) {
-    triggerHaptic();
-    
     if (newRegion === currentRegion) return;
 
     // 1. THE INTERCEPTOR: Trap KZN and EC safely to prevent blank screens
@@ -2381,7 +2376,6 @@ window.handleRegionChange = function(newRegion, selectElement) {
         setTimeout(() => { openSmoothModal('region-confirm-modal'); }, 50);
 
         const confirmAction = () => {
-            triggerHaptic();
             safeStorage.setItem('userRegion', newRegion);
             
             if (location.hash === '#regionconfirm') history.back();
@@ -2470,9 +2464,8 @@ function setupSettingsHub() {
     if (helpBtn) helpBtn.addEventListener('click', () => { 
         triggerHaptic();
         trackAnalyticsEvent('view_user_guide', { location: 'settings' }); 
-        history.pushState({ modal: 'help' }, '', '#help'); 
         window.closeAppHub(true);
-        if(helpModal) { setTimeout(() => { openSmoothModal('help-modal'); }, 50); }
+        setTimeout(() => { window.location.href = 'guide.html'; }, 150);
     });
     
     if (aboutBtn) aboutBtn.addEventListener('click', () => { 
@@ -2485,15 +2478,28 @@ function setupSettingsHub() {
 
     const verEl = document.getElementById('settings-app-version');
     if (verEl && typeof APP_VERSION !== 'undefined') {
+        const currentVersionStr = APP_VERSION.split(' - ')[0];
         const versionSpan = verEl.querySelector('span.font-mono');
         if (versionSpan) {
-            versionSpan.textContent = APP_VERSION.split(' - ')[0]; 
+            versionSpan.textContent = currentVersionStr; 
         } else {
             verEl.textContent = APP_VERSION;
+        }
+
+        // GROWTH MODE PHASE 3: What's New Unread Badge Logic
+        const seenVersion = safeStorage.getItem('seen_changelog_version');
+        const badge = document.getElementById('whats-new-badge');
+        if (seenVersion !== currentVersionStr) {
+            if (badge) badge.classList.remove('hidden');
+        } else {
+            if (badge) badge.classList.add('hidden');
         }
         
         verEl.onclick = () => {
             triggerHaptic();
+            safeStorage.setItem('seen_changelog_version', currentVersionStr);
+            if (badge) badge.classList.add('hidden');
+            
             if (typeof Renderer !== 'undefined' && Renderer.renderChangelogModal) {
                 history.pushState({ modal: 'changelog' }, '', '#changelog');
                 window.closeAppHub(true);
@@ -2568,6 +2574,7 @@ function selectWelcomeRoute(routeId) {
 }
 
 window.openLegal = function(type) {
+    triggerHaptic();
     trackAnalyticsEvent('view_legal_doc', { type: type });
     history.pushState({ modal: 'legal' }, '', '#legal');
     if (legalTitle) legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
@@ -3165,9 +3172,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if(openHelpBtn) openHelpBtn.addEventListener('click', () => { 
         triggerHaptic(); trackAnalyticsEvent('view_user_guide', { location: 'sidebar' }); 
-        history.pushState({ modal: 'help' }, '', '#help'); 
         window.closeAppHub(true); 
-        if(helpModal) { setTimeout(() => { openSmoothModal('help-modal'); }, 50); } 
+        setTimeout(() => { window.location.href = 'guide.html'; }, 150); 
     });
     
     if(openAboutBtn) openAboutBtn.addEventListener('click', () => { 
@@ -3232,7 +3238,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (stationSelect) {
         stationSelect.addEventListener('change', () => { 
-            triggerHaptic();
             trackAnalyticsEvent('select_station', { station: stationSelect.value, route_id: currentRouteId });
             syncPlannerFromMain(stationSelect.value); 
             
@@ -3257,7 +3262,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (pinRouteBtn) {
         pinRouteBtn.addEventListener('click', () => { 
-            triggerHaptic();
             const regionKey = 'defaultRoute_' + currentRegion;
             let savedDefault = null;
             try { savedDefault = safeStorage.getItem(regionKey); } catch(e) {}

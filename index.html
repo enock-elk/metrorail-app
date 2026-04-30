@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V6.04.27 (Guardian Edition - UI/UX Polish)
+  Metrorail Next Train V6.04.28 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -21,6 +21,8 @@
   - GUARDIAN GROWTH PHASE 3: Purged 8-second brute-force render fallback. Redesigned Estimated Fare UI skeleton.
   - GUARDIAN PHASE 2.1: Anti-CLS Ad Scaffolding injected (Top Banner & Inline Slots).
   - GROWTH MODE PHASE 4: Global Puppeteer Pattern for custom Region Dropdowns + CSS Linting Cleanup.
+  - GROWTH MODE PHASE 4 (UI): Welcome Dark Mode toggle purged. Sidenav Unread Badge injected. Cloudflare IP Auto-Select hooked to Welcome screen.
+  - GROWTH MODE PHASE 5: Clever Ads Sticky Footer Integration & UI Safe Zone (pb-24).
 -->
 <html lang="en" class="dark">
 
@@ -50,7 +52,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules and route maps for Gauteng (Pretoria, Johannesburg) and Western Cape (Cape Town). Download timetable images for offline use.",
-      "softwareVersion": "6.04.27",
+      "softwareVersion": "6.04.28",
       "featureList": "Offline Access, Full Timetable, Fare Calculator, Trip Planner, Network Map, Download Timetable Images",
       "url": "https://nexttrain.co.za/"
     }
@@ -155,6 +157,47 @@
         } else {
             console.log("🛡️ Clarity: Tracking blocked for Developer Session.");
         }
+    </script>
+
+    <!-- GUARDIAN PHASE 4: Cloudflare IP Geolocation Auto-Select Hook -->
+    <script>
+        (function() {
+            try {
+                if (!localStorage.getItem('userRegion') && navigator.onLine) {
+                    fetch('https://nexttrain-telemetry.enock.workers.dev/region')
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data && data.region && ['GP', 'WC', 'KZN', 'EC'].includes(data.region)) {
+                                if (!localStorage.getItem('userRegion')) {
+                                    localStorage.setItem('userRegion', data.region);
+                                    if (typeof currentRegion !== 'undefined') currentRegion = data.region;
+                                    
+                                    // Instantly update Welcome Modal UI if it's currently on screen
+                                    if (typeof document !== 'undefined') {
+                                        const gpBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Gauteng'));
+                                        const wcBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Western Cape'));
+                                        
+                                        if (gpBtn && wcBtn) {
+                                            if (data.region === 'WC') {
+                                                wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
+                                                gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
+                                            } else {
+                                                gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
+                                                wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
+                                            }
+                                        }
+                                        
+                                        // Silently re-render the route list dynamically
+                                        if (typeof Renderer !== 'undefined' && typeof getRoutesForCurrentRegion === 'function' && typeof selectWelcomeRoute === 'function') {
+                                            Renderer.renderWelcomeList('welcome-route-list', getRoutesForCurrentRegion(), selectWelcomeRoute);
+                                        }
+                                    }
+                                }
+                            }
+                        }).catch(e => console.warn("🛡️ Cloudflare Region check bypassed", e));
+                }
+            } catch(e) {}
+        })();
     </script>
     
     <!-- GUARDIAN: SENTRY ERROR TRACKING (Defensive Offline Config) -->
@@ -340,7 +383,8 @@
     </style>
 </head>
 
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-start justify-center min-h-screen p-2 sm:p-4 pt-4 sm:pt-12 transition-colors duration-300">
+<!-- GUARDIAN PHASE 5: pb-24 injected to protect bottom UI from the Sticky Ad overlay -->
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-start justify-center min-h-screen p-2 sm:p-4 pt-4 sm:pt-12 pb-24 transition-colors duration-300">
 
     <div id="sidenav-overlay"></div>
     
@@ -356,6 +400,7 @@
                 </div>
                 
                 <!-- Hidden Native Select (The Puppet) -->
+                <!-- LINTING FIX: Removed inline appearance styles -->
                 <select id="app-hub-region-select" class="hidden" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { try { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); } catch(e) {} window.location.reload(); }">
                     <option value="GP">Gauteng</option>
                     <option value="WC">Western Cape</option>
@@ -519,6 +564,7 @@
                     <button id="settings-app-version" class="w-full flex justify-between items-center py-3 px-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors focus:outline-none group">
                         <span class="text-sm font-bold text-gray-900 dark:text-white">What's New</span>
                         <div class="flex items-center space-x-2">
+                            <span id="whats-new-badge" class="hidden w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-sm mr-1"></span>
                             <span class="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded group-hover:bg-blue-100 dark:group-hover:bg-blue-800 transition-colors">v6.1.0</span>
                             <svg class="w-4 h-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                         </div>
@@ -892,13 +938,6 @@
     <!-- WELCOME MODAL -->
     <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-center p-6 transition-opacity duration-300">
         
-        <!-- Welcome Screen Theme Toggle -->
-        <button id="welcome-theme-toggle" class="absolute top-6 right-6 px-3 py-2 rounded-full flex items-center space-x-2 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 shadow-md border border-gray-200 dark:border-gray-700 focus:outline-none transition-transform hover:scale-105" aria-label="Toggle Theme">
-            <span id="welcome-theme-text" class="text-xs font-bold">Theme</span>
-            <svg id="welcome-theme-dark-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
-            <svg id="welcome-theme-light-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 13a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm6.293-8.707a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 15.586a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM15.586 4.414a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM4.414 5.828A1 1 0 003 4.414l-.707.707a1 1 0 001.414 1.414l.707-.707z"></path></svg>
-        </button>
-
         <div class="w-full max-w-sm flex flex-col items-center animate-fade-in-up mt-8">
             <div class="relative w-24 h-24 mb-6 shrink-0">
                 <div class="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-ping"></div>
@@ -1315,7 +1354,7 @@
             </div>
 
             <p class="mt-8 text-[10px] text-gray-400 font-mono">
-                Version 6.04.27 (Guardian Edition)
+                Version 6.04.29 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -1657,23 +1696,51 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=6.04.27"></script>
-    <script src="js/renderer.js?v=6.04.27"></script>
+    <script src="js/grid-order.js?v=6.04.29"></script>
+    <script src="js/renderer.js?v=6.04.29"></script>
     
-    <script src="js/utils.js?v=6.04.27"></script>
-    <script src="js/config.js?v=6.04.27"></script>
-    <script src="js/logic.js?v=6.04.27"></script>
+    <script src="js/utils.js?v=6.04.29"></script>
+    <script src="js/config.js?v=6.04.29"></script>
+    <script src="js/logic.js?v=6.04.29"></script>
 
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=6.04.27"></script>
+    <script src="js/admin.js?v=6.04.29"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=6.04.27"></script>
-    <script src="js/planner-ui.js?v=6.04.27"></script>
+    <script src="js/planner-core.js?v=6.04.29"></script>
+    <script src="js/planner-ui.js?v=6.04.29"></script>
     
-    <script src="js/map-viewer.js?v=6.04.27"></script> 
+    <script src="js/map-viewer.js?v=6.04.29"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=6.04.27"></script>
+    <script src="js/ui.js?v=6.04.29"></script>
+    
+    <!-- CLEVER ADVERTISING SCRIPT -->
+    <script data-cfasync="false" type="text/javascript" id="clever-core">
+    /* <![CDATA[ */
+        (function (document, window) {
+            var a, c = document.createElement("script"), f = window.frameElement;
+
+            c.id = "CleverCoreLoader103008";
+            c.src = "https://scripts.cleverwebserver.com/a399a0d9cfe9817e0ccd10f89b4e320a.js";
+
+            c.async = !0;
+            c.type = "text/javascript";
+            c.setAttribute("data-target", window.name || (f && f.getAttribute("id")));
+            c.setAttribute("data-callback", "put-your-callback-function-here");
+            c.setAttribute("data-callback-url-click", "put-your-click-macro-here");
+            c.setAttribute("data-callback-url-view", "put-your-view-macro-here");
+
+            try {
+                a = parent.document.getElementsByTagName("script")[0] || document.getElementsByTagName("script")[0];
+            } catch (e) {
+                a = !1;
+            }
+
+            a || (a = document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]);
+            a.parentNode.insertBefore(c, a);
+        })(document, window);
+    /* ]]> */
+    </script>
 </body>
 </html>

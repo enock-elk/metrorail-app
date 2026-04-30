@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.27 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.29 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -21,6 +21,7 @@
  * * GUARDIAN PHASE 2C: Injected globalDisruptions checks into after-hours empty-state cards.
  * * GUARDIAN PHASE 4 (CONTEXT ENGINE): Injected Route-Wide Grid Notices into Live Grid UI and Offline Canvas Exports.
  * * GROWTH MODE PHASE 4: Cross-Corridor Disruption Engine injected into Live Boards & Empty States via getTripDisruptions().
+ * * GROWTH MODE PHASE 2 (GRID UX): Buttons aggressively shrunk horizontally. Text wrapping prevented. Text restored for Download/Share. Image export footer balanced.
  */
 
 const Renderer = {
@@ -1160,13 +1161,15 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             </div>
         </div>
 
-        <div class="mt-8 p-5 rounded-lg flex justify-between items-center" style="background-color: ${tableHeaderBg}; border: 1px solid ${borderColor}">
-            <div class="flex flex-col space-y-1.5">
+        <div class="mt-8 p-5 rounded-lg flex justify-between items-end" style="background-color: ${tableHeaderBg}; border: 1px solid ${borderColor}">
+            <div class="flex flex-col space-y-1.5 text-left">
                 <span class="text-xs font-mono font-bold" style="color: #4b5563">GENERATED: ${dateText}</span>
                 <span class="font-black text-sm" style="color: #374151">Data Source: PRASA / Metrorail Facebook</span>
-                <span class="text-xs font-bold uppercase tracking-wider" style="color: #6b7280">Unofficial Guide • Not affiliated with PRASA</span>
             </div>
-            <span class="font-black text-2xl tracking-tight" style="color: ${accentColor}">NextTrain.co.za</span>
+            <div class="flex flex-col text-right">
+                <span class="font-black text-2xl tracking-tight leading-none mb-1.5" style="color: ${accentColor}">NextTrain.co.za</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider mt-1" style="color: #6b7280">Unofficial Guide • Not affiliated with PRASA</span>
+            </div>
         </div>
     `;
 

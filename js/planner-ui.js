@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.27 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.29 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -27,6 +27,7 @@
  * * GROWTH MODE PHASE 7: History bubble-up bug fixed. Excessive Layover (>2hrs) warning cards and targeted analytics trackers injected.
  * * GUARDIAN PHASE 14 (DYNAMIC ERROR CARDS): Replaced generic NO_PATH black box with heuristic-driven contextual error cards and embedded Feedback hooks.
  * * GUARDIAN PHASE 6 (ERROR CARD REFINEMENT): Consumed rich error payloads to inject specific disruption buttons into Suspended cards, Map CTA upgraded.
+ * * GROWTH MODE PHASE 8: Disruption UX alignment. Flexbox baseline matching, typography sync for Incident cards, orange layovers, and silent dead-end beacon.
  */
 
 // --- GUARDIAN PHASE 1: ROUTER BLEED & GREY SCREEN INTERCEPTOR ---
@@ -471,7 +472,7 @@ const PlannerRenderer = {
                         const termStationName = cleanStr(fullValidStops[idx].station.replace(' STATION', '')).toUpperCase();
                         
                         let terminationTag = justSevered 
-                            ? `<div class="font-bold uppercase tracking-wide mb-1.5 text-[10px] text-red-800 dark:text-red-300">🚆 TRAIN TERMINATES @ ${termStationName}</div>` 
+                            ? `<div class="font-bold uppercase tracking-wide mb-1 text-red-800 dark:text-red-300">TRAIN TERMINATES @ ${termStationName}</div>` 
                             : ``;
 
                         inj += `
@@ -479,10 +480,10 @@ const PlannerRenderer = {
                                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-red-500 ring-4 ring-red-100 dark:ring-red-900 z-10"></div>
                                 <div class="mt-1 text-xs text-red-800 dark:text-red-300 bg-red-50 dark:bg-red-900/30 p-2 rounded border-l-4 border-red-500 shadow-sm flex flex-col">
                                     ${terminationTag}
-                                    <div class="w-full ${justSevered ? 'mt-1 pt-1.5 border-t border-red-200 dark:border-red-800/50' : ''}">
-                                        <div class="flex justify-between items-start w-full">
+                                    <div class="w-full ${justSevered ? 'mt-1' : ''}">
+                                        <div class="flex justify-between items-center w-full">
                                             <span class="font-bold text-red-900 dark:text-white text-[10px] leading-none mt-1">❌ LINE SEVERED</span>
-                                            <button type="button" onclick="openDisruptionModal('${d.id}')" class="shrink-0 bg-white dark:bg-gray-800 hover:bg-red-100 dark:hover:bg-gray-700 text-red-700 dark:text-red-400 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border border-red-200 dark:border-red-800 transition-colors shadow-sm focus:outline-none ml-2">
+                                            <button type="button" onclick="openDisruptionModal('${d.id}')" class="shrink-0 min-w-0 truncate max-w-[50%] bg-white dark:bg-gray-800 hover:bg-red-100 dark:hover:bg-gray-700 text-red-700 dark:text-red-400 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border border-red-200 dark:border-red-800 transition-colors shadow-sm focus:outline-none ml-2">
                                                 ${safeBtnText}
                                             </button>
                                         </div>
@@ -905,12 +906,12 @@ const PlannerRenderer = {
                 }
 
                 const c = isExtended 
-                    ? { dot: 'bg-red-500 ring-4 ring-red-100 dark:ring-red-900', box: 'text-red-800 dark:text-red-300 bg-red-50 dark:bg-red-900/30 border-red-500' } 
+                    ? { dot: 'bg-orange-500 ring-4 ring-orange-100 dark:ring-orange-900', box: 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' } 
                     : colors[i % colors.length];
                 
                 const transferOpacity = currentSevered ? "opacity-50 grayscale" : "";
                 const titleText = isExtended ? `⚠️ EXTENDED LAYOVER: ${waitStr} Wait` : `TRANSFER ${i+1} @ ${hubName}`;
-                const waitTextHtml = isExtended ? `<span class="font-bold text-red-600 dark:text-red-400">⏱ <b>${waitStr}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Wait</span>`;
+                const waitTextHtml = isExtended ? `<span class="font-bold text-orange-600 dark:text-orange-400">⏱ <b>${waitStr}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Wait</span>`;
 
                 html += `
                     <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
@@ -957,10 +958,10 @@ const PlannerRenderer = {
             }
         }
 
-        const dotClass = isExtended ? 'bg-red-500 ring-4 ring-red-100 dark:ring-red-900' : 'bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900';
-        const boxClass = isExtended ? 'text-red-800 dark:text-red-300 bg-red-50 dark:bg-red-900/30 border-red-500' : 'text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500';
+        const dotClass = isExtended ? 'bg-orange-500 ring-4 ring-orange-100 dark:ring-orange-900' : 'bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900';
+        const boxClass = isExtended ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500';
         const titleText = isExtended ? `⚠️ EXTENDED LAYOVER: ${waitStr} Wait` : `TRANSFER REQUIRED`;
-        const waitTextHtml = isExtended ? `<span class="font-bold text-red-600 dark:text-red-400">⏱ <b>${waitStr}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Wait</span>`;
+        const waitTextHtml = isExtended ? `<span class="font-bold text-orange-600 dark:text-orange-400">⏱ <b>${waitStr}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Wait</span>`;
 
         const standardTransferBlock = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
@@ -1023,10 +1024,10 @@ const PlannerRenderer = {
             }
         }
 
-        const dot1Class = isExtended1 ? 'bg-red-500 ring-4 ring-red-100 dark:ring-red-900' : 'bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900';
-        const box1Class = isExtended1 ? 'text-red-800 dark:text-red-300 bg-red-50 dark:bg-red-900/30 border-red-500' : 'text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500';
+        const dot1Class = isExtended1 ? 'bg-orange-500 ring-4 ring-orange-100 dark:ring-orange-900' : 'bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900';
+        const box1Class = isExtended1 ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500';
         const title1Text = isExtended1 ? `⚠️ EXTENDED LAYOVER: ${wait1Str} Wait` : `TRANSFER 1 @ ${hub1Name}`;
-        const wait1TextHtml = isExtended1 ? `<span class="font-bold text-red-600 dark:text-red-400">⏱ <b>${wait1Str}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait1Str}</b> Wait</span>`;
+        const wait1TextHtml = isExtended1 ? `<span class="font-bold text-orange-600 dark:text-orange-400">⏱ <b>${wait1Str}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait1Str}</b> Wait</span>`;
 
         const transferBlock1 = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity1}">
@@ -1059,10 +1060,10 @@ const PlannerRenderer = {
             }
         }
 
-        const dot2Class = isExtended2 ? 'bg-red-500 ring-4 ring-red-100 dark:ring-red-900' : 'bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900';
-        const box2Class = isExtended2 ? 'text-red-800 dark:text-red-300 bg-red-50 dark:bg-red-900/30 border-red-500' : 'text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 border-purple-500';
+        const dot2Class = isExtended2 ? 'bg-orange-500 ring-4 ring-orange-100 dark:ring-orange-900' : 'bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900';
+        const box2Class = isExtended2 ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 border-purple-500';
         const title2Text = isExtended2 ? `⚠️ EXTENDED LAYOVER: ${wait2Str} Wait` : `TRANSFER 2 @ ${hub2Name}`;
-        const wait2TextHtml = isExtended2 ? `<span class="font-bold text-red-600 dark:text-red-400">⏱ <b>${wait2Str}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait2Str}</b> Wait</span>`;
+        const wait2TextHtml = isExtended2 ? `<span class="font-bold text-orange-600 dark:text-orange-400">⏱ <b>${wait2Str}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait2Str}</b> Wait</span>`;
 
 
         const transferBlock2 = `
@@ -1764,6 +1765,23 @@ function executeTripPlan(origin, dest, preferredTime = null) {
             startPlannerPulse(nextTripIndex);
 
         } else {
+            // GUARDIAN PHASE 1: Silent Beacon for Dead Ends (Telemetry ping for admin analysis)
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const failPayload = {
+                    origin: origin.replace(/ STATION/gi, '').trim(),
+                    destination: dest.replace(/ STATION/gi, '').trim(),
+                    dayType: selectedPlannerDay || (typeof currentDayType !== 'undefined' ? currentDayType : 'unknown'),
+                    timeOfSearch: typeof currentTime !== 'undefined' ? currentTime : new Date().toLocaleTimeString(),
+                    timestamp: Date.now(),
+                    reason: currentPlannerStatus
+                };
+                fetch(`${dynamicEndpoint}telemetry/dead_ends.json`, {
+                    method: 'POST',
+                    body: JSON.stringify(failPayload)
+                }).catch(() => {}); // Fire and forget
+            } catch(e) {}
+
             // GUARDIAN PHASE 14: Track the EXACT heuristic failure reason dynamically
             if (typeof trackAnalyticsEvent === 'function') {
                 trackAnalyticsEvent('planner_no_result', { 
@@ -1825,7 +1843,7 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                         <div class="text-left space-y-2 mt-2">
                             <p>A physical path exists, but the connecting trains have layovers exceeding 4 hours.</p>
                             <ul class="list-disc pl-5 space-y-1 text-xs">
-                                <li>Due to sparse timetables, this trip is practically impossible without an unreasonable wait.</li>
+                                <li>We couldn't find a viable connection on today's schedule (Max 4-hour layover limit reached).</li>
                                 <li>If you know a better way to make this trip, please report it below.</li>
                             </ul>
                         </div>
@@ -1837,9 +1855,9 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                     errorTitle = "No Physical Connection";
                     errorMsg = `
                         <div class="text-left space-y-2 mt-2">
-                            <p>We currently do not have a mapped transfer hub connecting these specific lines.</p>
+                            <p>We couldn't find a viable connection on today's schedule.</p>
                             <ul class="list-disc pl-5 space-y-1 text-xs">
-                                <li>The stations might be on disconnected corridors.</li>
+                                <li>The stations might be on disconnected corridors or require a layover exceeding 4 hours.</li>
                                 <li>Check the <strong>Network Map</strong> to visualize active lines.</li>
                                 <li>If a connection does exist, please report it to us below.</li>
                             </ul>
