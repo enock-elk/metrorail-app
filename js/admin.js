@@ -1248,14 +1248,18 @@ const Admin = {
                 const titleH3 = devHeaderRow.querySelector('h3');
                 devHeaderRow.dataset.originalHtml = titleH3.innerHTML;
                 
-                // Strip emojis safely
-                let cardTitle = card.querySelector('button span').innerText.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '').trim();
+                // Isolate the title by removing trailing badges/timestamps before extracting text
+                let titleClone = card.querySelector('button span').cloneNode(true);
+                titleClone.querySelectorAll('span[id$="-last-sync"], span[id$="-unread-badge"]').forEach(el => el.remove());
+                
+                // Strip emojis safely using textContent (innerText behaves unpredictably on unattached clones)
+                let cardTitle = titleClone.textContent.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '').trim();
                 
                 titleH3.innerHTML = `
-                    <button id="drill-back-btn" class="mr-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors focus:outline-none shadow-sm">
+                    <button id="drill-back-btn" class="mr-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors focus:outline-none shadow-sm shrink-0">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                     </button>
-                    <span class="truncate flex-grow text-lg">${cardTitle}</span>
+                    <span class="truncate flex-grow text-lg min-w-0">${cardTitle}</span>
                 `;
                 
                 toggleBtn.style.display = 'none';
