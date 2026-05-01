@@ -22,6 +22,7 @@
  * * GROWTH MODE PHASE 7: Core Transfer Tolerance expanded from 3 hours to 4 hours to accommodate sparser weekend/holiday schedules natively.
  * * GUARDIAN PHASE 14 (HEURISTIC PROBE): Replaced blind NO_PATH failures with precise analytical probes (Cross-Region, Graph Severance, Schedule Desert) for exact UI rendering.
  * * GUARDIAN PHASE 5: The Heuristic Payload Injection. Upgraded ERR_ACTIVE_SUSPENSION to bubble up rich disruption objects.
+ * * GUARDIAN PHASE 15 (SECURITY PATCH): The Recursion Guard & Unified Loop Limiter injected to prevent Maximum Call Stack crashes on conflicting schedules.
  */
 
 function getNextTransitDay(baseDayType, dayIdx) {
@@ -94,6 +95,13 @@ function planDirectTrip(origin, dest, dayType, isRollover = false, context = {})
 
     // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
     if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
+        
+        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
+        if ((context.recursionDepth || 0) > 7) {
+            console.warn("🛡️ Guardian: Recursion limit reached in planDirectTrip. Bailing out.");
+            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
+        }
+
         const nowSec = timeToSeconds(currentTime);
         if (bestTrips.length > 0) {
             const latestDep = Math.max(...bestTrips.map(t => timeToSeconds(t.depTime)));
@@ -101,7 +109,9 @@ function planDirectTrip(origin, dest, dayType, isRollover = false, context = {})
                 // All trains have departed today. Roll over to tomorrow.
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
                 context.rolloverDayIdx = nextTransit.idx;
+                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
                 const rolloverResult = planDirectTrip(origin, dest, nextTransit.type, true, context);
+                context.recursionDepth--; // 🛡️ RESTORE GUARD
                 context.rolloverDayIdx = null; // Clean up
                 if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
                     rolloverResult.trips.forEach(t => {
@@ -115,7 +125,9 @@ function planDirectTrip(origin, dest, dayType, isRollover = false, context = {})
             // No scheduled service for today at all (e.g., a Sunday). Jump to next transit day.
             const nextTransit = getNextTransitDay(dayType, currentDayIndex);
             context.rolloverDayIdx = nextTransit.idx;
+            context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
             const nextResult = planDirectTrip(origin, dest, nextTransit.type, true, context);
+            context.recursionDepth--; // 🛡️ RESTORE GUARD
             context.rolloverDayIdx = null;
             if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
                 nextResult.trips.forEach(t => {
@@ -222,13 +234,22 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false, context 
 
     // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
     if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
+        
+        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
+        if ((context.recursionDepth || 0) > 7) {
+            console.warn("🛡️ Guardian: Recursion limit reached in planHubTransferTrip. Bailing out.");
+            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
+        }
+
         const nowSec = timeToSeconds(currentTime);
         if (unique.length > 0) {
             const latestDep = Math.max(...unique.map(t => timeToSeconds(t.depTime)));
             if (nowSec > latestDep) {
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
                 context.rolloverDayIdx = nextTransit.idx;
+                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
                 const rolloverResult = planHubTransferTrip(origin, dest, nextTransit.type, true, context);
+                context.recursionDepth--; // 🛡️ RESTORE GUARD
                 context.rolloverDayIdx = null;
                 if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
                     rolloverResult.trips.forEach(t => {
@@ -241,7 +262,9 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false, context 
         } else {
             const nextTransit = getNextTransitDay(dayType, currentDayIndex);
             context.rolloverDayIdx = nextTransit.idx;
+            context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
             const nextResult = planHubTransferTrip(origin, dest, nextTransit.type, true, context);
+            context.recursionDepth--; // 🛡️ RESTORE GUARD
             context.rolloverDayIdx = null;
             if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
                 nextResult.trips.forEach(t => {
@@ -328,13 +351,22 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false, contex
 
     // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
     if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
+        
+        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
+        if ((context.recursionDepth || 0) > 7) {
+            console.warn("🛡️ Guardian: Recursion limit reached in planRelayTransferTrip. Bailing out.");
+            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
+        }
+
         const nowSec = timeToSeconds(currentTime);
         if (allRelayTrips.length > 0) {
             const latestDep = Math.max(...allRelayTrips.map(t => timeToSeconds(t.depTime)));
             if (nowSec > latestDep) {
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
                 context.rolloverDayIdx = nextTransit.idx;
+                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
                 const rolloverResult = planRelayTransferTrip(origin, dest, nextTransit.type, true, context);
+                context.recursionDepth--; // 🛡️ RESTORE GUARD
                 context.rolloverDayIdx = null;
                 if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
                     rolloverResult.trips.forEach(t => {
@@ -347,7 +379,9 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false, contex
         } else {
             const nextTransit = getNextTransitDay(dayType, currentDayIndex);
             context.rolloverDayIdx = nextTransit.idx;
+            context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
             const nextResult = planRelayTransferTrip(origin, dest, nextTransit.type, true, context);
+            context.recursionDepth--; // 🛡️ RESTORE GUARD
             context.rolloverDayIdx = null;
             if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
                 nextResult.trips.forEach(t => {
@@ -431,13 +465,22 @@ function planMacroCorridorTrip(origin, dest, dayType, isRollover = false, contex
     
     // GUARDIAN & P13: Handle Universal Midnight Rollover Protocol for Macro Corridor
     if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
+        
+        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
+        if ((context.recursionDepth || 0) > 7) {
+            console.warn("🛡️ Guardian: Recursion limit reached in planMacroCorridorTrip. Bailing out.");
+            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
+        }
+
         const nowSec = timeToSeconds(currentTime);
         if (trips.length > 0) {
             const latestDep = Math.max(...trips.map(t => timeToSeconds(t.depTime)));
             if (nowSec > latestDep) {
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
                 context.rolloverDayIdx = nextTransit.idx;
+                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
                 const rolloverResult = planMacroCorridorTrip(origin, dest, nextTransit.type, true, context);
+                context.recursionDepth--; // 🛡️ RESTORE GUARD
                 context.rolloverDayIdx = null;
                 if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
                     rolloverResult.trips.forEach(t => {
@@ -499,13 +542,22 @@ function planDoubleTransferTrip(origin, dest, dayType, isRollover = false, conte
 
     // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
     if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
+        
+        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
+        if ((context.recursionDepth || 0) > 7) {
+            console.warn("🛡️ Guardian: Recursion limit reached in planDoubleTransferTrip. Bailing out.");
+            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
+        }
+
         const nowSec = timeToSeconds(currentTime);
         if (potentialTrips.length > 0) {
             const latestDep = Math.max(...potentialTrips.map(t => timeToSeconds(t.depTime)));
             if (nowSec > latestDep) {
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
                 context.rolloverDayIdx = nextTransit.idx;
+                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
                 const rolloverResult = planDoubleTransferTrip(origin, dest, nextTransit.type, true, context);
+                context.recursionDepth--; // 🛡️ RESTORE GUARD
                 context.rolloverDayIdx = null;
                 if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
                     rolloverResult.trips.forEach(t => {
@@ -518,7 +570,9 @@ function planDoubleTransferTrip(origin, dest, dayType, isRollover = false, conte
         } else {
             const nextTransit = getNextTransitDay(dayType, currentDayIndex);
             context.rolloverDayIdx = nextTransit.idx;
+            context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
             const nextResult = planDoubleTransferTrip(origin, dest, nextTransit.type, true, context);
+            context.recursionDepth--; // 🛡️ RESTORE GUARD
             context.rolloverDayIdx = null;
             if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
                 nextResult.trips.forEach(t => {
@@ -1344,13 +1398,22 @@ function planDijkstraTrip(origin, dest, dayType, isRolloverLoop = false, context
     // Growth Mode Phase 2: If isRolloverLoop is true, the outer 7-day scanner is running. 
     // Do NOT trigger this inner 1-day rollover to prevent infinite recursion collisions.
     if (!isRolloverLoop && dayType === currentDayType && !context.zeroHourProbeActive) {
+        
+        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
+        if ((context.recursionDepth || 0) > 7) {
+            console.warn("🛡️ Guardian: Recursion limit reached in planDijkstraTrip. Bailing out.");
+            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
+        }
+
         const nowSec = timeToSeconds(currentTime);
         if (allTrips.length > 0) {
             const latestDep = Math.max(...allTrips.map(t => timeToSeconds(t.depTime)));
             if (nowSec > latestDep) {
                 const nextTransit = getNextTransitDay(dayType, currentDayIndex);
                 context.rolloverDayIdx = nextTransit.idx;
+                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
                 const rollover = planDijkstraTrip(origin, dest, nextTransit.type, true, context);
+                context.recursionDepth--; // 🛡️ RESTORE GUARD
                 context.rolloverDayIdx = null;
                 if (rollover?.trips?.length > 0) {
                     rollover.trips.forEach(t => {
@@ -1363,7 +1426,9 @@ function planDijkstraTrip(origin, dest, dayType, isRolloverLoop = false, context
         } else {
             const nextTransit = getNextTransitDay(dayType, currentDayIndex);
             context.rolloverDayIdx = nextTransit.idx;
+            context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
             const nextResult = planDijkstraTrip(origin, dest, nextTransit.type, true, context);
+            context.recursionDepth--; // 🛡️ RESTORE GUARD
             context.rolloverDayIdx = null;
             if (nextResult?.trips?.length > 0) {
                 nextResult.trips.forEach(t => {
@@ -1582,7 +1647,8 @@ function runHeuristicFailureProbe(origin, dest) {
 function planUnifiedTrip(origin, dest, dayType) {
     console.log(`[GUARDIAN] Running Unified Trip Planner for ${origin} -> ${dest} (Requested: ${dayType})`);
 
-    const context = { rolloverDayIdx: null, zeroHourProbeActive: false };
+    // 🛡️ GUARDIAN PHASE 15: Added explicit initialization of recursionDepth
+    const context = { rolloverDayIdx: null, zeroHourProbeActive: false, recursionDepth: 0 };
 
     // GUARDIAN PHASE 13: Universal Raw Fetch Helper
     // Refactored to seamlessly supply both the live engine and the Zero-Hour Probe.
@@ -1777,8 +1843,18 @@ function planUnifiedTrip(origin, dest, dayType) {
     // If it's a strict manual override, we DO NOT loop. We query exactly once.
     const maxOffset = isExplicitOverride ? startOffset : startOffset + 7;
     
+    // 🛡️ GUARDIAN PHASE 15: Failsafe Loop Limiter
+    let executionCounter = 0;
+
     // We scan up to 7 days ahead from the natively requested start offset
     for (let offset = startOffset; offset <= maxOffset; offset++) {
+        
+        // 🛡️ GUARDIAN PHASE 15: Hard execution ceiling to prevent infinite loops causing browser hang
+        if (executionCounter++ > 14) {
+            console.warn("🛡️ Guardian: Unified Trip loop threshold exceeded. Breaking to prevent browser crash.");
+            break;
+        }
+
         const evalResult = evaluateDay(offset);
         
         // Capture the exact reason why the route failed on the very first attempted day

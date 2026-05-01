@@ -23,12 +23,21 @@
   - GROWTH MODE PHASE 4: Global Puppeteer Pattern for custom Region Dropdowns + CSS Linting Cleanup.
   - GROWTH MODE PHASE 4 (UI): Welcome Dark Mode toggle purged. Sidenav Unread Badge injected. Cloudflare IP Auto-Select hooked to Welcome screen.
   - GROWTH MODE PHASE 5: Clever Ads Sticky Footer Integration & UI Safe Zone (pb-24).
+  - GROWTH MODE PHASE 5.1 (MONETIZATION FIX): Purged static ad script from footer to prevent 20-Hour Rule race condition burn.
 -->
 <html lang="en" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
+
+    <!-- GUARDIAN PHASE 6: Legacy WebView Crash Shield (Polyfill for globalThis) -->
+    <!-- Prevents older Facebook/Instagram Android WebViews from fatally crashing when loading modern scripts like html2canvas -->
+    <script>
+        if (typeof globalThis === 'undefined') {
+            window.globalThis = window;
+        }
+    </script>
 
     <!-- SEO: Freshness Signal -->
     <title>Metrorail Next Train | 2026 Schedules for Gauteng & Cape Town</title>
@@ -831,7 +840,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Ghost Div to prevent ui.js crashes before Phase 2 update -->
     <div id="settings-modal" class="hidden"></div>
 
@@ -1105,7 +1114,7 @@
                 <button onclick="closeSmoothModal('feedback-modal')" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3.5 rounded-xl transition-colors focus:outline-none text-sm">Cancel</button>
                 <button id="feedback-submit-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors focus:outline-none text-sm flex items-center justify-center">
                     <span id="feedback-submit-text">Submit</span>
-                    <svg id="feedback-spinner" class="w-4 h-4 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <svg id="feedback-spinner" class="w-4 h-4 ml-2 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                 </button>
             </div>
         </div>
@@ -1354,7 +1363,7 @@
             </div>
 
             <p class="mt-8 text-[10px] text-gray-400 font-mono">
-                Version 6.04.29 (Guardian Edition)
+                Version 6.05.01 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -1696,51 +1705,24 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=6.04.29"></script>
-    <script src="js/renderer.js?v=6.04.29"></script>
+    <script src="js/grid-order.js?v=6.05.01"></script>
+    <script src="js/renderer.js?v=6.05.01"></script>
     
-    <script src="js/utils.js?v=6.04.29"></script>
-    <script src="js/config.js?v=6.04.29"></script>
-    <script src="js/logic.js?v=6.04.29"></script>
+    <script src="js/utils.js?v=6.05.01"></script>
+    <script src="js/config.js?v=6.05.01"></script>
+    <script src="js/logic.js?v=6.05.01"></script>
 
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=6.04.29"></script>
+    <script src="js/admin.js?v=6.05.01"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=6.04.29"></script>
-    <script src="js/planner-ui.js?v=6.04.29"></script>
+    <script src="js/planner-core.js?v=6.05.01"></script>
+    <script src="js/planner-ui.js?v=6.05.01"></script>
     
-    <script src="js/map-viewer.js?v=6.04.29"></script> 
+    <script src="js/map-viewer.js?v=6.05.01"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=6.04.29"></script>
+    <script src="js/ui.js?v=6.05.01"></script>
     
-    <!-- CLEVER ADVERTISING SCRIPT -->
-    <script data-cfasync="false" type="text/javascript" id="clever-core">
-    /* <![CDATA[ */
-        (function (document, window) {
-            var a, c = document.createElement("script"), f = window.frameElement;
-
-            c.id = "CleverCoreLoader103008";
-            c.src = "https://scripts.cleverwebserver.com/a399a0d9cfe9817e0ccd10f89b4e320a.js";
-
-            c.async = !0;
-            c.type = "text/javascript";
-            c.setAttribute("data-target", window.name || (f && f.getAttribute("id")));
-            c.setAttribute("data-callback", "put-your-callback-function-here");
-            c.setAttribute("data-callback-url-click", "put-your-click-macro-here");
-            c.setAttribute("data-callback-url-view", "put-your-view-macro-here");
-
-            try {
-                a = parent.document.getElementsByTagName("script")[0] || document.getElementsByTagName("script")[0];
-            } catch (e) {
-                a = !1;
-            }
-
-            a || (a = document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]);
-            a.parentNode.insertBefore(c, a);
-        })(document, window);
-    /* ]]> */
-    </script>
 </body>
 </html>

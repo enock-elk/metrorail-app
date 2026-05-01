@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.04.29 - Guardian Edition F1"; // BUMPED: April 26 Update - Map optimizations & UI Polish
+const APP_VERSION = "V6.05.01 - Growth Edition"; // BUMPED: May 1 Update - Ads rollout & UI Polish
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -587,7 +587,15 @@ const DEFAULT_EXCLUSIONS = {
 // GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
     {
-        version: "V6.04.29 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Guardian Edition</span>",
+        version: "V6.05.01 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Growth Edition</span>",
+        date: "1 May 2026",
+        features: [
+            "<b>Server Support Ads:</b> To help cover our growing server costs and keep the app 100% free, we've introduced small, non-intrusive advertisements. Thank you for supporting the project!",
+            "<b>UI Polish:</b> Smarter timetable auto-scrolling, cleaner action buttons, and better legibility for delayed or severed train routes."
+        ]
+    },
+    {
+        version: "V6.04.26 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Guardian Edition</span>",
         date: "26 Apr 2026",
         features: [
             "<b>Smart Weekend & Holiday Routing:</b> The Trip Planner now intelligently predicts Public Holidays. If you search on a Sunday, it automatically skips forward to find the next available working train.",

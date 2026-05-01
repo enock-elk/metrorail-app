@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.04.29 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.05.01 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -17,6 +17,11 @@
  * * GROWTH SPRINT PHASE 5: Grid/Drill-Down UI injected. Silent Dead-End Telemetry Dashboard built.
  * * Alerts UI Decluttered (Advanced Toggle). 7-Day Telemetry Bar Chart scaffolding added.
  * * DOM Duplication bug absolutely eradicated via Singleton render locks.
+ * * GROWTH SPRINT PHASE 6: 7-Day Graph Pagination, Fixed S-S Axis, & Snapshot Export Engine.
+ * * GROWTH SPRINT PHASE 7: Safe Mode Crash Analytics Dashboard & Firehose Clear Protocol.
+ * * GUARDIAN UI OVERHAUL: Replaced inline Bar Chart with Premium Full-Screen SVG Line Graph (Y-Axis + Fixed S-S Axis).
+ * * GROWTH SPRINT PHASE 8: Dynamic Telemetry Cycling (DAU/WAU/MAU/ALL) & Commuter Reply Inbox Protocol.
+ * * GROWTH SPRINT PHASE 9: Landscape Telemetry CSS Armor, SVG Tooltips & Unified Range Cycling.
  */
 
 const Admin = {
@@ -104,13 +109,243 @@ const Admin = {
 
     currentUser: null,
     telemetryInterval: null, 
+    telemetryWeeksAgo: 0, // GUARDIAN PHASE D: 7-Day Graph Pagination State
+    telemetryRange: 'DAU', // GROWTH PHASE 8: DAU, WAU, MAU, ALL
     clockInterval: null,
     
     // GROWTH MODE: Grid/Drill-Down State
     isGridMode: true,
+    gridCols: 2, // GUARDIAN PHASE 4: Grid Layout Toggle State
     _modulesRendered: false,
 
+    // --- GROWTH SPRINT PHASE 9: UNIFIED RANGE CYCLER ---
+    cycleTelemetryRange: () => {
+        const ranges = ['DAU', 'WAU', 'MAU', 'ALL'];
+        Admin.telemetryRange = ranges[(ranges.indexOf(Admin.telemetryRange) + 1) % ranges.length];
+        
+        const cycleBtn = document.getElementById('trend-cycle-btn');
+        if (cycleBtn) cycleBtn.innerHTML = `📈 ${Admin.telemetryRange} Trend`;
+        
+        const modalCycleBtn = document.getElementById('modal-trend-cycle');
+        if (modalCycleBtn) modalCycleBtn.innerHTML = `📈 ${Admin.telemetryRange}`;
+        
+        Admin.telemetryWeeksAgo = 0; // Reset pagination context
+        
+        const paginationControls = document.getElementById('modal-pagination-controls');
+        if (paginationControls) {
+            if (Admin.telemetryRange === 'DAU' || Admin.telemetryRange === 'WAU') {
+                paginationControls.classList.remove('hidden');
+                paginationControls.classList.add('flex');
+            } else {
+                paginationControls.classList.add('hidden');
+                paginationControls.classList.remove('flex');
+            }
+        }
+        
+        Admin.refreshTelemetry();
+    },
+
     // --- 0.2 TELEMETRY REFRESH ENGINE & EXPORT ---
+    setupTelemetry: () => {
+        const telPanel = document.getElementById('telemetry-panel');
+        if (!telPanel) return;
+
+        // GUARDIAN: Inject HTML elements dynamically if they don't exist
+        const telBody = document.getElementById('telemetry-body');
+        if (telBody && !document.getElementById('tel-export-btn')) {
+            // GROWTH SPRINT PHASE 6 & 8: Fully Dynamic SVG Line Graph & Range Toggles
+            const trendWrapper = document.createElement('div');
+            trendWrapper.className = "mt-4 border-t border-gray-100 dark:border-gray-700 pt-3";
+            trendWrapper.innerHTML = `
+                <div class="flex items-center justify-between mb-2 px-1">
+                    <button id="trend-cycle-btn" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest focus:outline-none hover:text-blue-800 dark:hover:text-blue-200 transition-colors bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded">📈 DAU Trend</button>
+                    <div class="flex space-x-2">
+                        <button id="trend-expand-btn" class="text-sm text-gray-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Full Screen">⛶</button>
+                        <button id="trend-inline-export-btn" class="text-sm text-gray-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Export">📸</button>
+                    </div>
+                </div>
+                <div id="tel-trend-container" class="h-28 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
+                    <span class="text-xs text-gray-400 italic">Loading Graph...</span>
+                </div>
+            `;
+            telBody.appendChild(trendWrapper);
+            
+            // Build the Full-Screen Chart Modal if it doesn't exist
+            // GROWTH SPRINT PHASE 9: Added Landscape armor (landscape:h-[95vh]) and the modal-trend-cycle button
+            let chartModal = document.getElementById('telemetry-chart-modal');
+            if (!chartModal) {
+                chartModal = document.createElement('div');
+                chartModal.id = 'telemetry-chart-modal';
+                chartModal.className = 'fixed inset-0 bg-black/90 z-[160] hidden flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300';
+                chartModal.innerHTML = `
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl h-[85vh] landscape:h-[95vh] flex flex-col transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
+                        <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-2xl shrink-0">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-2xl">📈</span>
+                                <div>
+                                    <h3 class="text-lg font-black text-gray-900 dark:text-white tracking-tight leading-none" id="modal-trend-title">Loading...</h3>
+                                    <p class="text-[9px] text-gray-500 uppercase tracking-widest font-bold mt-1 landscape:hidden">Live Analytics Engine</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button id="modal-trend-cycle" class="px-2 py-1.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors focus:outline-none text-[10px] font-bold uppercase tracking-widest border border-blue-200 dark:border-blue-800 shadow-sm">📈 DAU</button>
+                                <button id="modal-trend-export" class="p-2 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors focus:outline-none" title="Export Chart">📸</button>
+                                <button onclick="closeSmoothModal('telemetry-chart-modal')" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors focus:outline-none">✖</button>
+                            </div>
+                        </div>
+                        <div id="modal-pagination-controls" class="p-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-center items-center space-x-4 shrink-0 shadow-inner">
+                            <button id="modal-trend-prev" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none transition-transform active:scale-95">◀</button>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest w-24 text-center">Navigate</span>
+                            <button id="modal-trend-next" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none transition-transform active:scale-95 disabled:opacity-30">▶</button>
+                        </div>
+                        <div class="flex-grow p-2 md:p-6 flex items-center justify-center relative bg-white dark:bg-gray-800 min-h-0" id="modal-chart-svg-container">
+                            <!-- High-Res SVG Line Graph gets injected here -->
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(chartModal);
+
+                // Bind Modal Pagination & Unified Toggle
+                document.getElementById('modal-trend-prev').onclick = () => { Admin.telemetryWeeksAgo++; Admin.refreshTelemetry(); };
+                document.getElementById('modal-trend-next').onclick = () => { if(Admin.telemetryWeeksAgo > 0) { Admin.telemetryWeeksAgo--; Admin.refreshTelemetry(); } };
+                document.getElementById('modal-trend-export').onclick = () => Admin.exportTrendGraph();
+                document.getElementById('modal-trend-cycle').onclick = Admin.cycleTelemetryRange;
+            }
+
+            const cycleBtn = document.getElementById('trend-cycle-btn');
+            if (cycleBtn) {
+                cycleBtn.onclick = Admin.cycleTelemetryRange;
+            }
+
+            const expandBtn = document.getElementById('trend-expand-btn');
+            const inlineExportBtn = document.getElementById('trend-inline-export-btn');
+            const inlineContainer = document.getElementById('tel-trend-container');
+
+            if (expandBtn) expandBtn.onclick = () => openSmoothModal('telemetry-chart-modal');
+            if (inlineContainer) inlineContainer.onclick = () => openSmoothModal('telemetry-chart-modal');
+            if (inlineExportBtn) inlineExportBtn.onclick = () => Admin.exportTrendGraph();
+
+            // Main Global Export Button (Raw Data Snapshot)
+            const exportBtn = document.createElement('button');
+            exportBtn.id = 'tel-export-btn';
+            exportBtn.className = "w-full mt-4 bg-transparent text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold py-2 rounded-lg transition-colors text-[10px] flex items-center justify-center border border-gray-200 dark:border-gray-700 focus:outline-none shadow-sm uppercase tracking-wider";
+            exportBtn.innerHTML = `<span class="mr-1 text-sm">📸</span> Full Snapshot`;
+            exportBtn.onclick = Admin.exportTelemetry;
+            telBody.appendChild(exportBtn);
+        }
+
+        if (telPanel.dataset.adminLoaded === "true") {
+            if (!Admin.telemetryInterval) {
+                Admin.telemetryInterval = setInterval(Admin.refreshTelemetry, 10000);
+            }
+            Admin.refreshTelemetry();
+            return;
+        }
+        telPanel.dataset.adminLoaded = "true";
+
+        Admin.refreshTelemetry();
+        if (Admin.telemetryInterval) clearInterval(Admin.telemetryInterval);
+        Admin.telemetryInterval = setInterval(Admin.refreshTelemetry, 10000);
+    },
+
+    // --- DYNAMIC SVG LINE GRAPH BUILDER (GROWTH PHASE 8: SCALE AWARE) ---
+    _buildLineGraphSVG: (dataArray, labelsArray, title, isTodayIdx, isMini = false) => {
+        const numPoints = Math.max(1, dataArray.length);
+        
+        // SVG dimensions
+        const w = 600; 
+        const h = isMini ? 150 : 300;
+        const pl = isMini ? 15 : 50; 
+        const pr = isMini ? 15 : 30; 
+        const pt = isMini ? 25 : 30; 
+        const pb = isMini ? 15 : 35;
+        const uw = w - pl - pr;
+        const uh = h - pt - pb;
+        
+        // Exaggerated Y-Axis scale logic to defeat "Zero-Baseline Compression"
+        const validData = dataArray.filter(v => v > 0);
+        const maxVal = validData.length > 0 ? Math.max(...validData) : 10;
+        const minVal = validData.length > 0 ? Math.min(...validData) : 0;
+        
+        const spread = maxVal - minVal;
+        const yMax = Math.ceil(maxVal + (spread > 0 ? spread * 0.2 : maxVal * 0.2));
+        const yMin = Math.max(0, Math.floor(minVal - (spread > 0 ? spread * 0.2 : minVal * 0.5)));
+        const yRange = yMax - yMin || 10;
+
+        const getX = (i) => pl + (i * (uw / Math.max(1, numPoints - 1)));
+        const getY = (v) => pt + uh - (((v - yMin) / yRange) * uh);
+        
+        // Start Path
+        let pathD = `M ${getX(0)} ${getY(dataArray[0])}`;
+        for(let i=1; i<numPoints; i++) {
+            pathD += ` L ${getX(i)} ${getY(dataArray[i])}`;
+        }
+        
+        // Area Fill Path
+        let areaD = pathD + ` L ${getX(numPoints - 1)} ${pt+uh} L ${getX(0)} ${pt+uh} Z`;
+        
+        // Colors & Theme Independence (hardcoded hex for perfect exportability)
+        const lineColor = '#3b82f6';
+        const todayColor = '#f97316';
+        const gridColor = '#e2e8f0';
+        const labelColor = '#94a3b8';
+
+        let svg = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="display:block; max-height:100%;">`;
+        
+        // Defs for gradient
+        svg += `<defs><linearGradient id="lineGrad_${isMini ? 'mini' : 'full'}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${lineColor}" stop-opacity="0.3"/><stop offset="100%" stop-color="${lineColor}" stop-opacity="0.0"/></linearGradient></defs>`;
+        
+        // Background Grid & Y-Axis (Only in full view)
+        if (!isMini) {
+            [0, 0.5, 1].forEach(tick => {
+                const y = pt + uh - (tick * uh);
+                const val = Math.round(yMin + (yRange * tick));
+                svg += `<line x1="${pl}" y1="${y}" x2="${w-pr}" y2="${y}" stroke="${gridColor}" stroke-dasharray="4" stroke-width="1.5" />`;
+                svg += `<text x="${pl-12}" y="${y+4}" font-family="sans-serif" font-size="12" font-weight="800" fill="${labelColor}" text-anchor="end">${val}</text>`;
+            });
+        }
+        
+        // Fill Area & Stroke Line (Hide area if only 1 point exists)
+        if (numPoints > 1) {
+            svg += `<path d="${areaD}" fill="url(#lineGrad_${isMini ? 'mini' : 'full'})" />`;
+            svg += `<path d="${pathD}" fill="none" stroke="${lineColor}" stroke-width="${isMini ? '3' : '4'}" stroke-linecap="round" stroke-linejoin="round" />`;
+        }
+        
+        // Points and X-Axis
+        for(let i=0; i<numPoints; i++) {
+            const val = dataArray[i];
+            const vx = getX(i);
+            const vy = getY(val);
+            const isToday = (i === isTodayIdx);
+            
+            const pColor = isToday ? todayColor : lineColor;
+            const radius = isToday ? (isMini ? 5 : 7) : (isMini ? 3 : 5);
+            
+            // Value Labels (Hide zero values in mini view for cleanliness)
+            const displayVal = (val === 0 && !isToday && isMini) ? '' : val;
+            if (displayVal !== '') {
+                svg += `<text x="${vx}" y="${vy - (isMini ? 10 : 14)}" font-family="sans-serif" font-size="${isMini ? '10' : '14'}" font-weight="900" fill="${pColor}" text-anchor="middle">${displayVal}</text>`;
+            }
+            
+            // Marker Dot (GUARDIAN PHASE 9: Injected Tooltip Title for native desktop hover tracking)
+            const tooltipText = `${val} Active Users (${labelsArray[i] || 'Current'})`;
+            svg += `
+                <circle cx="${vx}" cy="${vy}" r="${radius}" fill="#ffffff" stroke="${pColor}" stroke-width="${isMini ? '2' : '3'}">
+                    <title>${tooltipText}</title>
+                </circle>
+            `;
+            
+            // X-Axis Labels (Dynamic formatting from worker)
+            if (!isMini && labelsArray[i]) {
+                const dayColor = isToday ? todayColor : labelColor;
+                svg += `<text x="${vx}" y="${pt+uh+20}" font-family="sans-serif" font-size="11" font-weight="800" fill="${dayColor}" text-anchor="middle">${labelsArray[i]}</text>`;
+            }
+        }
+        
+        svg += `</svg>`;
+        return svg;
+    },
+
     refreshTelemetry: async () => {
         const stat5m = document.getElementById('stat-5m');
         const stat30m = document.getElementById('stat-30m');
@@ -118,7 +353,6 @@ const Admin = {
         const statAllTime = document.getElementById('stat-alltime');
         const statErrors = document.getElementById('stat-errors');
         const syncEl = document.getElementById('telemetry-last-sync');
-        const trendContainer = document.getElementById('tel-trend-bars');
         
         const devModal = document.getElementById('dev-modal');
         if (devModal && devModal.classList.contains('hidden')) {
@@ -140,8 +374,12 @@ const Admin = {
         const CLOUDFLARE_WORKER_URL = 'https://nexttrain-telemetry.enock.workers.dev/';
         
         try {
-            // GUARDIAN PHASE 4: Admin Shield - Wraps raw fetch in guardianFetch to prevent deadlocks
-            const res = await window.guardianFetch(CLOUDFLARE_WORKER_URL, {
+            // GUARDIAN PHASE 4 & 8: Dynamic Range Payload for Edge Workers
+            const fetchUrl = new URL(CLOUDFLARE_WORKER_URL);
+            fetchUrl.searchParams.set('weeksAgo', Admin.telemetryWeeksAgo);
+            fetchUrl.searchParams.set('range', Admin.telemetryRange || 'DAU');
+
+            const res = await window.guardianFetch(fetchUrl.toString(), {
                 headers: { 'Authorization': `Bearer ${secret}` }
             }, 6000);
             
@@ -161,24 +399,86 @@ const Admin = {
                     syncEl.textContent = `synced: ${timeStr}`;
                 }
 
-                // GROWTH SPRINT PHASE 5: 7-Day Telemetry Trend Chart rendering
-                if (trendContainer) {
-                    // PENDING WORKER UPDATE: Using mock data array until Worker API supports 7-day historical array
-                    const mockData = [112, 134, 98, 180, 205, 140, 220]; 
-                    const max = Math.max(...mockData, 1);
-                    trendContainer.innerHTML = mockData.map((val, idx) => {
-                        const height = Math.max((val / max) * 100, 10);
-                        const daysAgo = 6 - idx;
-                        const label = daysAgo === 0 ? 'Tdy' : `-${daysAgo}d`;
-                        return `
-                            <div class="flex flex-col justify-end items-center h-full w-full group relative">
-                                <div class="absolute -top-6 bg-gray-800 text-white text-[8px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">${val}</div>
-                                <div class="w-full bg-blue-500 rounded-t-sm transition-all duration-500 hover:bg-blue-400 cursor-pointer" style="height: ${height}%"></div>
-                                <span class="text-[8px] text-gray-400 font-bold mt-1 uppercase">${label}</span>
-                            </div>
-                        `;
-                    }).join('');
+                // GROWTH SPRINT PHASE 8: Dynamic Multi-Range Scalable SVG Line Graph Engine
+                let activeCountsArray = data.chartData && data.chartData.length > 0 ? data.chartData : (data.sevenDayTrend || []);
+                let labelsArray = data.chartLabels || [];
+                
+                let displayLabels = [];
+                if (Admin.telemetryRange === 'DAU' || !Admin.telemetryRange) {
+                    displayLabels = labelsArray.map(lbl => {
+                        if (lbl && lbl.length === 8) {
+                            const d = new Date(lbl.substring(0,4), parseInt(lbl.substring(4,6))-1, lbl.substring(6,8));
+                            return ['S','M','T','W','T','F','S'][d.getDay()];
+                        }
+                        return lbl;
+                    });
+                } else if (Admin.telemetryRange === 'WAU') {
+                    // GROWTH SPRINT PHASE 9: Date conversion helper for WAU (e.g. "W15" -> "08 Apr")
+                    displayLabels = labelsArray.map(lbl => {
+                        if (lbl && lbl.length === 6) {
+                            const y = parseInt(lbl.substring(0,4));
+                            const w = parseInt(lbl.substring(4,6));
+                            const d = new Date(y, 0, 1 + (w - 1) * 7);
+                            d.setDate(d.getDate() + (1 - d.getDay())); 
+                            return `${d.getDate()} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]}`;
+                        }
+                        return lbl ? 'W' + lbl.substring(4) : '';
+                    });
+                } else {
+                    displayLabels = labelsArray.map(lbl => {
+                        if (lbl && lbl.length === 6) {
+                            return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][parseInt(lbl.substring(4,6))-1];
+                        }
+                        return lbl;
+                    });
                 }
+                
+                // Absolute structural fallback to prevent zero-array SVG generation crashes
+                if (activeCountsArray.length === 0) {
+                    activeCountsArray = [0];
+                    displayLabels = ['-'];
+                }
+
+                let titleStr = "";
+                if (Admin.telemetryRange === 'DAU' || !Admin.telemetryRange) {
+                    const endDate = new Date();
+                    endDate.setDate(endDate.getDate() - (Admin.telemetryWeeksAgo * 7));
+                    const endDay = endDate.getDay(); 
+                    const satDate = new Date(endDate);
+                    satDate.setDate(satDate.getDate() + (6 - endDay));
+                    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                    titleStr = `DAU for week ending ${satDate.getDate()} ${monthNames[satDate.getMonth()]} (Sat)`;
+                } else if (Admin.telemetryRange === 'WAU') {
+                    titleStr = `Weekly Active Users (WAU)`;
+                } else if (Admin.telemetryRange === 'MAU') {
+                    titleStr = `Monthly Active Users (MAU)`;
+                } else {
+                    titleStr = `All-Time Active Users`;
+                }
+                
+                const modalTitleEl = document.getElementById('modal-trend-title');
+                if (modalTitleEl) modalTitleEl.textContent = titleStr;
+                
+                const nextBtn = document.getElementById('modal-trend-next');
+                const inlineNextBtn = document.getElementById('trend-next-btn');
+                
+                [nextBtn, inlineNextBtn].forEach(btn => {
+                    if (btn) {
+                        if (Admin.telemetryWeeksAgo === 0) btn.classList.add('opacity-30', 'cursor-not-allowed');
+                        else btn.classList.remove('opacity-30', 'cursor-not-allowed');
+                    }
+                });
+
+                // Lock the orange "Today" indicator to the final edge if we are viewing current active metrics
+                const isTodayIdx = (Admin.telemetryWeeksAgo === 0 || Admin.telemetryRange === 'MAU' || Admin.telemetryRange === 'ALL') ? activeCountsArray.length - 1 : -1;
+                
+                // Render Inline Miniature SVG
+                const inlineContainer = document.getElementById('tel-trend-container');
+                if (inlineContainer) inlineContainer.innerHTML = Admin._buildLineGraphSVG(activeCountsArray, displayLabels, titleStr, isTodayIdx, true);
+                
+                // Render Full-Screen Modal SVG
+                const modalSvgContainer = document.getElementById('modal-chart-svg-container');
+                if (modalSvgContainer) modalSvgContainer.innerHTML = Admin._buildLineGraphSVG(activeCountsArray, displayLabels, titleStr, isTodayIdx, false);
 
                 [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
                     if(el) el.classList.remove('animate-pulse');
@@ -322,6 +622,77 @@ const Admin = {
         } catch (e) {
             console.error(e);
             if (typeof showToast === 'function') showToast("Snapshot failed.", "error");
+            if(document.body.contains(exportContainer)) document.body.removeChild(exportContainer);
+        }
+    },
+
+    // GROWTH SPRINT PHASE 6: Dynamic 7-Day Chart Snapshot Engine (SVG Clone Method)
+    exportTrendGraph: async () => {
+        if (typeof showToast === 'function') showToast("Generating Chart Snapshot...", "info", 2000);
+        
+        if (typeof html2canvas === 'undefined') {
+            try {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+            } catch(e) {
+                if (typeof showToast === 'function') showToast("Failed to load snapshot engine.", "error");
+                return;
+            }
+        }
+
+        const titleText = document.getElementById('modal-trend-title')?.textContent || '7-Day DAU Trend';
+        const rawSvgNode = document.querySelector('#modal-chart-svg-container svg');
+        if (!rawSvgNode) return;
+
+        const exportContainer = document.createElement('div');
+        exportContainer.style.position = 'fixed';
+        exportContainer.style.left = '-9999px';
+        exportContainer.style.top = '0';
+        exportContainer.style.width = '700px';
+        exportContainer.style.backgroundColor = '#ffffff'; 
+        exportContainer.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+        exportContainer.style.padding = '40px';
+        exportContainer.style.borderRadius = '16px';
+        
+        exportContainer.innerHTML = `
+            <div style="border-bottom: 3px solid #3b82f6; padding-bottom: 15px; margin-bottom: 30px;">
+                <h1 style="font-size: 26px; font-weight: 900; margin: 0; color: #1e3a8a; letter-spacing: -0.5px;">${titleText}</h1>
+                <p style="font-size: 12px; font-weight: 800; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Metrorail Next Train Telemetry</p>
+            </div>
+            <div id="export-svg-slot" style="height: 350px; margin-bottom: 20px;"></div>
+            <div style="text-align: right; font-size: 11px; font-weight: 800; color: #94a3b8;">Data via Google Analytics 4 | Snapshot generated: ${new Date().toLocaleString('en-ZA')}</div>
+        `;
+        
+        // Deep clone the SVG into the export container to preserve all exact vector points
+        exportContainer.querySelector('#export-svg-slot').appendChild(rawSvgNode.cloneNode(true));
+        document.body.appendChild(exportContainer);
+
+        try {
+            await new Promise(r => setTimeout(r, 150)); 
+            const canvas = await html2canvas(exportContainer, { scale: 2, backgroundColor: '#ffffff', logging: false });
+            
+            canvas.toBlob(async (blob) => {
+                const timestampStr = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 12); 
+                const fileName = `NextTrain_LineChart_${timestampStr}.png`;
+                const file = new File([blob], fileName, { type: "image/png" });
+                const blobUrl = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = blobUrl;
+                link.click();
+                
+                if (typeof showToast === 'function') showToast("Chart saved to device!", "success", 4000);
+                document.body.removeChild(exportContainer);
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 60000); 
+            });
+        } catch (e) {
+            if (typeof showToast === 'function') showToast("Chart snapshot failed.", "error");
             if(document.body.contains(exportContainer)) document.body.removeChild(exportContainer);
         }
     },
@@ -515,69 +886,66 @@ const Admin = {
                 dateInput.value = `${yyyy}-${mm}-${dd}`;
             }
         }
-        
-        // Note: We NO LONGER activate the simulation globally just by opening the hub!
-        // The user must press 'Apply' to hijack the system clock.
     },
 
-    // --- 2.9 LIVE TELEMETRY (CLOUD WORKER BRIDGE) ---
-    setupTelemetry: () => {
-        const telPanel = document.getElementById('telemetry-panel');
-        if (!telPanel) return;
-
-        // GUARDIAN: Inject Export Button dynamically if it doesn't exist
-        const telBody = document.getElementById('telemetry-body');
-        if (telBody && !document.getElementById('tel-export-btn')) {
-            // GROWTH SPRINT PHASE 5: 7-Day Graph Implementation (Awaiting Worker Upgrade)
-            const trendWrapper = document.createElement('div');
-            trendWrapper.className = "mt-4 border-t border-gray-100 dark:border-gray-700 pt-3";
-            trendWrapper.innerHTML = `
-                <button id="tel-trend-toggle" class="text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center justify-between w-full focus:outline-none mb-1">
-                    <span>📈 7-Day Trend (Beta)</span>
-                    <svg id="tel-trend-chevron" class="w-3 h-3 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                </button>
-                <div id="tel-trend-container" class="hidden mt-3 h-28 flex items-end justify-between space-x-1.5 bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 pt-6">
-                    <div id="tel-trend-bars" class="w-full h-full flex items-end justify-between space-x-1"></div>
-                </div>
-            `;
-            
-            telBody.appendChild(trendWrapper);
-            
-            const trendToggle = document.getElementById('tel-trend-toggle');
-            const trendContainer = document.getElementById('tel-trend-container');
-            const trendChev = document.getElementById('tel-trend-chevron');
-            
-            if (trendToggle) {
-                trendToggle.onclick = () => {
-                    trendContainer.classList.toggle('hidden');
-                    if (trendContainer.classList.contains('hidden')) trendChev.classList.add('-rotate-90');
-                    else trendChev.classList.remove('-rotate-90');
-                };
-            }
-
-            const exportBtn = document.createElement('button');
-            exportBtn.id = 'tel-export-btn';
-            exportBtn.className = "w-full mt-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-800/50 border border-indigo-200 dark:border-indigo-800 font-bold py-2.5 rounded-lg transition-colors text-xs flex items-center justify-center focus:outline-none";
-            exportBtn.innerHTML = `<span class="mr-2 text-base">📸</span> Export Telemetry Snapshot`;
-            exportBtn.onclick = Admin.exportTelemetry;
-            telBody.appendChild(exportBtn);
-        }
-
-        if (telPanel.dataset.adminLoaded === "true") {
-            if (!Admin.telemetryInterval) {
-                Admin.telemetryInterval = setInterval(Admin.refreshTelemetry, 10000);
-            }
-            Admin.refreshTelemetry();
+    // --- HELPER: RENDER ALL DYNAMIC MODULES ---
+    renderAdminModules: () => {
+        // 🛡️ GUARDIAN UX FIX: Singleton rendering lock absolutely eradicates the module duplication bug
+        if (Admin._modulesRendered) {
+            Admin.initGridView(); // Ensure grid is bound if re-opened
             return;
         }
-        telPanel.dataset.adminLoaded = "true";
+        Admin._modulesRendered = true;
 
-        Admin.refreshTelemetry();
-        if (Admin.telemetryInterval) clearInterval(Admin.telemetryInterval);
-        Admin.telemetryInterval = setInterval(Admin.refreshTelemetry, 10000);
+        // 🛡️ GUARDIAN UX FIX: Dynamically inject landscape safeties into Dev Modal to preserve screen space
+        const devModalCard = document.querySelector('#dev-modal > div');
+        if (devModalCard && !devModalCard.classList.contains('landscape:max-h-[95vh]')) {
+            devModalCard.classList.add('landscape:max-h-[95vh]', 'landscape:overflow-y-auto', 'flex', 'flex-col');
+        }
+
+        // 1. Inject Live Clock (Guardian UX Upgrade) precisely above Telemetry
+        let clockContainer = document.getElementById('admin-live-clock');
+        if (!clockContainer) {
+            const telPanel = document.getElementById('telemetry-panel');
+            if (telPanel) {
+                clockContainer = document.createElement('div');
+                clockContainer.id = 'admin-live-clock';
+                clockContainer.className = 'text-center mb-4 shrink-0';
+                clockContainer.innerHTML = `<span class="text-xs font-mono font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/80 px-3.5 py-1.5 rounded-full shadow-inner border border-gray-200 dark:border-gray-700"></span>`;
+                telPanel.parentNode.insertBefore(clockContainer, telPanel);
+            }
+        }
+
+        if (!Admin.clockInterval) {
+            Admin.clockInterval = setInterval(() => {
+                const devModal = document.getElementById('dev-modal');
+                if (devModal && !devModal.classList.contains('hidden') && clockContainer) {
+                    const now = new Date();
+                    clockContainer.querySelector('span').textContent = now.toLocaleString('en-ZA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                }
+            }, 1000);
+        }
+
+        // Setup Execution Order
+        Admin.setupTelemetry();
+        Admin.setupFeedbackManager(); 
+        Admin.setupDeadEndsManager(); 
+        Admin.setupCrashReportsManager(); 
+        Admin.setupSimulationControls(); // 🛡️ GUARDIAN RESTORED
+        Admin.setupServiceAlertsManager();
+        Admin.setupDisruptionsManager(); 
+        Admin.setupExclusionManager();
+        Admin.setupMaintenanceManager();
+        Admin.setupSpecialEventManager(); 
+        Admin.setupDiagnosticsManager(); 
+        Admin.setupGrowthManager(); 
+        Admin.setupNuclearManager(); 
+
+        // 🛡️ GROWTH SPRINT PHASE 5: Transform Dev Hub into native Grid / Drill-Down Dashboard
+        Admin.initGridView();
     },
 
-    // --- 3. SIMULATION CONTROLS ---
+    // --- 3. SIMULATION CONTROLS (RESTORED) ---
     setupSimulationControls: () => {
         const simApplyBtn = document.getElementById('sim-apply-btn');
         const simExitBtn = document.getElementById('sim-exit-btn');
@@ -649,53 +1017,144 @@ const Admin = {
         }
     },
 
-    // --- HELPER: RENDER ALL DYNAMIC MODULES ---
-    renderAdminModules: () => {
-        // 🛡️ GUARDIAN UX FIX: Singleton rendering lock absolutely eradicates the module duplication bug
-        if (Admin._modulesRendered) {
-            Admin.initGridView(); // Ensure grid is bound if re-opened
-            return;
-        }
-        Admin._modulesRendered = true;
+    // --- GROWTH SPRINT PHASE 7: CRASH REPORTS DASHBOARD ---
+    setupCrashReportsManager: () => {
+        const adminContainer = document.getElementById('admin-modules-container');
+        if (!adminContainer) return;
 
-        // 1. Inject Live Clock (Guardian UX Upgrade) precisely above Telemetry
-        let clockContainer = document.getElementById('admin-live-clock');
-        if (!clockContainer) {
-            const telPanel = document.getElementById('telemetry-panel');
-            if (telPanel) {
-                clockContainer = document.createElement('div');
-                clockContainer.id = 'admin-live-clock';
-                clockContainer.className = 'text-center mb-4';
-                clockContainer.innerHTML = `<span class="text-xs font-mono font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/80 px-3.5 py-1.5 rounded-full shadow-inner border border-gray-200 dark:border-gray-700"></span>`;
-                telPanel.parentNode.insertBefore(clockContainer, telPanel);
+        let crashPanel = document.getElementById('crashes-panel');
+        if (!crashPanel) {
+            crashPanel = document.createElement('div');
+            crashPanel.id = 'crashes-panel';
+            adminContainer.appendChild(crashPanel); 
+        }
+
+        if (crashPanel.dataset.adminLoaded === "true") return;
+        crashPanel.dataset.adminLoaded = "true";
+
+        crashPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+
+        crashPanel.innerHTML = `
+            <button id="crash-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
+                <span class="flex items-center"><span class="mr-2">🔥</span> Crash Analytics</span>
+                <svg id="crash-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <div id="crash-body" class="hidden mt-4 space-y-3">
+                <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1">Safe Mode Triage</span>
+                    <div class="space-x-2 flex">
+                        <button id="crash-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
+                            Refresh
+                        </button>
+                        <button id="crash-clear-btn" class="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800 border border-red-200 dark:border-red-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
+                            Clear DB
+                        </button>
+                    </div>
+                </div>
+                <div id="crash-list" class="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar"></div>
+            </div>
+        `;
+        
+        const header = document.getElementById('crash-header-btn');
+        const body = document.getElementById('crash-body');
+        const chevron = document.getElementById('crash-chevron');
+        const refreshBtn = document.getElementById('crash-refresh-btn');
+        const clearBtn = document.getElementById('crash-clear-btn');
+        const listDiv = document.getElementById('crash-list');
+
+        header.onclick = () => {
+            if (Admin.isGridMode) return;
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+                header.classList.remove('mb-4');
+            } else {
+                chevron.classList.remove('-rotate-90');
+                header.classList.add('mb-4');
+                Admin.fetchCrashes();
             }
-        }
+        };
 
-        if (!Admin.clockInterval) {
-            Admin.clockInterval = setInterval(() => {
-                const devModal = document.getElementById('dev-modal');
-                if (devModal && !devModal.classList.contains('hidden') && clockContainer) {
-                    const now = new Date();
-                    clockContainer.querySelector('span').textContent = now.toLocaleString('en-ZA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        refreshBtn.onclick = () => Admin.fetchCrashes();
+
+        Admin.fetchCrashes = async () => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+            
+            listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Fetching crash logs...</div>';
+            
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await window.guardianFetch(`${dynamicEndpoint}metrics/crashes.json?auth=${secret}`, {}, 10000);
+                
+                if (!res.ok) throw new Error("Fetch HTTP Error: " + res.status);
+                const data = await res.json();
+                
+                if (!data) {
+                    listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-8">No crashes recorded. System is perfectly stable! 🛡️</div>';
+                    return;
                 }
-            }, 1000);
-        }
+                
+                // Convert object to array and sort descending by timestamp
+                const crashes = Object.keys(data).map(key => ({ id: key, ...data[key] })).sort((a, b) => b.timestamp - a.timestamp);
+                listDiv.innerHTML = '';
+                
+                crashes.forEach(crash => {
+                    const dateStr = new Date(crash.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+                    const card = document.createElement('div');
+                    card.className = "bg-white dark:bg-gray-900 p-3 rounded-lg border border-red-200 dark:border-red-900/50 shadow-sm flex flex-col space-y-2 mb-2 transition-colors";
+                    
+                    const safeErr = typeof escapeHTML === 'function' ? escapeHTML(crash.error) : crash.error;
+                    const safeRoute = crash.routeId || "Global";
+                    const safeOS = typeof escapeHTML === 'function' ? escapeHTML(crash.userAgent).substring(0, 45) + '...' : "Unknown OS";
+                    
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">FATAL DUMP</span>
+                            <span class="text-[9px] text-gray-400 font-mono">${dateStr}</span>
+                        </div>
+                        <div class="text-[10px] font-mono text-gray-800 dark:text-gray-200 break-words bg-gray-50 dark:bg-gray-800 p-2 rounded border border-gray-100 dark:border-gray-700 leading-snug">
+                            ${safeErr}
+                        </div>
+                        <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-800 pt-2">
+                            <div class="flex flex-col">
+                                <span class="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">Route: <span class="text-blue-500">${safeRoute}</span></span>
+                                <span class="text-[8px] text-gray-400 font-mono truncate max-w-[200px]">${safeOS}</span>
+                            </div>
+                        </div>
+                    `;
+                    listDiv.appendChild(card);
+                });
+            } catch(e) {
+                console.error("Crash logs fetch error:", e);
+                listDiv.innerHTML = `<div class="text-xs text-red-500 text-center py-4">Failed to load crash logs.<br><span class="text-[9px] text-gray-500">Check Firebase rules or data.</span></div>`;
+            }
+        };
 
-        // Setup Execution Order
-        Admin.setupTelemetry();
-        Admin.setupFeedbackManager(); 
-        Admin.setupDeadEndsManager(); // GROWTH SPRINT PHASE 5: Silent Routing Failures Tracker
-        Admin.setupServiceAlertsManager();
-        Admin.setupDisruptionsManager(); // GUARDIAN PHASE 6: Transit Incident Manager Injected Here
-        Admin.setupExclusionManager();
-        Admin.setupMaintenanceManager();
-        Admin.setupSpecialEventManager(); 
-        Admin.setupDiagnosticsManager(); 
-        Admin.setupGrowthManager(); 
-        Admin.setupNuclearManager(); 
+        Admin.clearCrashes = async () => {
+            const confirmed = await Admin.secureConfirm("Clear Logs", "Permanently delete all crash reports from the server?");
+            if (!confirmed) return;
+            
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+            
+            clearBtn.disabled = true;
+            clearBtn.textContent = "Clearing...";
 
-        // 🛡️ GROWTH SPRINT PHASE 5: Transform Dev Hub into native Grid / Drill-Down Dashboard
-        Admin.initGridView();
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                await window.guardianFetch(`${dynamicEndpoint}metrics/crashes.json?auth=${secret}`, { method: 'DELETE' }, 10000);
+                if (typeof showToast === 'function') showToast("Crash logs wiped clean.", "success");
+                Admin.fetchCrashes();
+            } catch (e) {
+                if (typeof showToast === 'function') showToast("Failed to clear logs", "error");
+            } finally {
+                clearBtn.disabled = false;
+                clearBtn.textContent = "Clear DB";
+            }
+        };
+        
+        clearBtn.onclick = () => Admin.clearCrashes();
     },
 
     // --- 2.8 GROWTH SPRINT PHASE 5: THE DRILL-DOWN DASHBOARD ENGINE ---
@@ -730,7 +1189,7 @@ const Admin = {
                 const style = document.createElement('style');
                 style.id = 'admin-grid-styles';
                 style.innerHTML = `
-                    .admin-grid-view { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; padding-bottom: 20px; }
+                    .admin-grid-view { display: grid; gap: 12px; align-items: start; padding-bottom: 20px; transition: grid-template-columns 0.3s ease; }
                     .admin-grid-view > div { margin-bottom: 0 !important; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; height: 110px; display: flex; flex-direction: column; justify-content: center; }
                     .admin-grid-view > div:hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #3b82f6; }
                     .admin-grid-view > div [id$="-body"] { display: none !important; }
@@ -744,14 +1203,19 @@ const Admin = {
                 document.head.appendChild(style);
             }
 
-            // Bind Toggle Action
+            // Bind Toggle Action (GUARDIAN Phase 4: Dynamic Column Cycling 1, 2, 3)
             toggleBtn.onclick = () => {
-                Admin.isGridMode = !Admin.isGridMode;
-                if (Admin.isGridMode) {
-                    container.classList.add('admin-grid-view');
-                    container.querySelectorAll('[id$="-body"]').forEach(b => b.classList.add('hidden'));
+                if (!Admin.isGridMode) return; 
+                
+                Admin.gridCols = Admin.gridCols === 1 ? 2 : (Admin.gridCols === 2 ? 3 : 1);
+                container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
+                
+                if (Admin.gridCols === 1) {
+                    toggleBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>`;
+                } else if (Admin.gridCols === 2) {
+                    toggleBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>`;
                 } else {
-                    container.classList.remove('admin-grid-view');
+                    toggleBtn.innerHTML = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 5h4v14H4zM10 5h4v14h-4zM16 5h4v14h-4z"></path></svg>`;
                 }
             };
 
@@ -765,6 +1229,7 @@ const Admin = {
                 // Trigger Drill Down
                 Admin.isGridMode = false;
                 container.classList.remove('admin-grid-view');
+                container.style.gridTemplateColumns = ''; // Clear inline styles
                 
                 // Hide sibling cards
                 Array.from(container.children).forEach(child => {
@@ -800,6 +1265,7 @@ const Admin = {
                     evt.stopPropagation();
                     Admin.isGridMode = true;
                     container.classList.add('admin-grid-view');
+                    container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
                     titleH3.innerHTML = devHeaderRow.dataset.originalHtml;
                     toggleBtn.style.display = '';
                     
@@ -813,6 +1279,7 @@ const Admin = {
                 // Auto-Fetch data upon drill-down
                 if (card.id === 'feedback-panel') Admin.fetchFeedback();
                 if (card.id === 'deadends-panel') Admin.fetchDeadEnds();
+                if (card.id === 'crashes-panel') Admin.fetchCrashes(); // 🛡️ GUARDIAN PHASE 7
                 if (card.id === 'alert-panel') {
                     const targetEl = document.getElementById('alert-target');
                     if (targetEl) targetEl.dispatchEvent(new Event('change'));
@@ -820,7 +1287,10 @@ const Admin = {
             });
 
             // Engage
-            if (Admin.isGridMode) container.classList.add('admin-grid-view');
+            if (Admin.isGridMode) {
+                container.classList.add('admin-grid-view');
+                container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
+            }
         }
     },
 
@@ -933,9 +1403,14 @@ const Admin = {
             <div id="de-body" class="hidden mt-4 space-y-3">
                 <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
                     <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1">Silent Routing Telemetry</span>
-                    <button id="de-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
-                        Refresh Data
-                    </button>
+                    <div class="flex space-x-2">
+                        <button id="de-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
+                            Refresh
+                        </button>
+                        <button id="de-clear-btn" class="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800 border border-red-200 dark:border-red-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
+                            Clear DB
+                        </button>
+                    </div>
                 </div>
                 <div id="de-list" class="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar"></div>
             </div>
@@ -945,6 +1420,7 @@ const Admin = {
         const body = document.getElementById('de-body');
         const chevron = document.getElementById('de-chevron');
         const refreshBtn = document.getElementById('de-refresh-btn');
+        const clearBtn = document.getElementById('de-clear-btn');
         const listDiv = document.getElementById('de-list');
 
         header.onclick = () => {
@@ -970,9 +1446,9 @@ const Admin = {
             
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const res = await window.guardianFetch(`${dynamicEndpoint}telemetry/dead_ends.json?auth=${secret}`, {}, 10000);
+                const res = await window.guardianFetch(`${dynamicEndpoint}metrics/routing_fails.json?auth=${secret}`, {}, 10000);
                 
-                if (!res.ok) throw new Error("Fetch failed");
+                if (!res.ok) throw new Error("HTTP " + res.status);
                 const data = await res.json();
                 
                 if (!data) {
@@ -1023,7 +1499,27 @@ const Admin = {
                     listDiv.appendChild(card);
                 });
             } catch(e) {
-                listDiv.innerHTML = '<div class="text-xs text-red-500 text-center py-4">Failed to load telemetry.</div>';
+                console.error("Dead Ends fetch error:", e);
+                listDiv.innerHTML = `<div class="text-xs text-red-500 text-center py-4">Failed to load telemetry.<br><span class="text-[9px] text-gray-500">Check Firebase rules or data.</span></div>`;
+            }
+        };
+
+        clearBtn.onclick = async () => {
+            const confirmed = await Admin.secureConfirm("Clear Telemetry", "Permanently delete all Dead End logs from the server?");
+            if (!confirmed) return;
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+            
+            clearBtn.disabled = true;
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                await window.guardianFetch(`${dynamicEndpoint}metrics/routing_fails.json?auth=${secret}`, { method: 'DELETE' }, 10000);
+                if (typeof showToast === 'function') showToast("Dead End logs wiped.", "success");
+                Admin.fetchDeadEnds();
+            } catch (e) {
+                if (typeof showToast === 'function') showToast("Failed to clear logs", "error");
+            } finally {
+                clearBtn.disabled = false;
             }
         };
     },
@@ -1171,8 +1667,13 @@ const Admin = {
                     ? `<a href="${safeAttachUrl}" target="_blank" class="flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-[10px] font-bold"><span class="mr-1">📎</span> View File</a>`
                     : `<div></div>`;
 
+                // GROWTH SPRINT PHASE 8: Commuter Reply Logic
+                const deviceId = item.device_id || item.deviceId || '';
                 const actionHtml = isInbox 
-                    ? `<button class="text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${item.id}')">Resolve</button>`
+                    ? `<div class="flex space-x-2">
+                         ${deviceId ? `<button class="text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${item.id}', '${deviceId}')">Reply</button>` : ''}
+                         <button class="text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${item.id}')">Resolve</button>
+                       </div>`
                     : `<span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived</span>`;
 
                 const card = document.createElement('div');
@@ -1241,9 +1742,11 @@ const Admin = {
         };
 
         // GUARDIAN: The Archive Protocol
-        Admin.resolveFeedback = async (id) => {
-            const confirmed = await Admin.secureConfirm("Resolve Feedback", "Mark this feedback as resolved and sweep it to the Archive Tab?");
-            if (!confirmed) return;
+        Admin.resolveFeedback = async (id, skipConfirm = false) => {
+            if (!skipConfirm) {
+                const confirmed = await Admin.secureConfirm("Resolve Feedback", "Mark this feedback as resolved and sweep it to the Archive Tab?");
+                if (!confirmed) return;
+            }
             
             const secret = await Admin.getAuthKey();
             if (!secret) return;
@@ -1258,7 +1761,7 @@ const Admin = {
                 });
 
                 if (res.ok) {
-                    if (typeof showToast === 'function') showToast("Feedback resolved and archived!", "success");
+                    if (!skipConfirm && typeof showToast === 'function') showToast("Feedback resolved and archived!", "success");
                     Admin.fetchFeedback(); 
                 } else {
                     throw new Error("Failed to archive feedback");
@@ -1269,6 +1772,85 @@ const Admin = {
         };
         
         Admin.checkUnreadFeedback();
+    },
+
+    // --- GROWTH SPRINT PHASE 8: ADMIN REPLY INBOX PROTOCOL ---
+    openReplyModal: (feedbackId, deviceId) => {
+        if (!deviceId) {
+            if (typeof showToast === 'function') showToast("No device ID linked to this feedback.", "error");
+            return;
+        }
+        
+        let modal = document.getElementById('admin-reply-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'admin-reply-modal';
+            modal.className = 'fixed inset-0 bg-black/80 z-[200] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
+                    <h3 class="text-lg font-black text-gray-900 dark:text-white mb-2 tracking-tight flex items-center"><span class="mr-2">💬</span> Reply to Commuter</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Message will be delivered to their personal inbox upon next app launch.</p>
+                    <textarea id="admin-reply-text" rows="4" class="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all resize-none" placeholder="Type your response..."></textarea>
+                    <div class="flex space-x-3 mt-4">
+                        <button id="reply-cancel" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors focus:outline-none text-sm">Cancel</button>
+                        <button id="reply-send" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none text-sm">Send Reply</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        document.getElementById('admin-reply-text').value = '';
+        modal.classList.remove('hidden');
+        void modal.offsetWidth; // Trigger reflow
+        modal.firstElementChild.classList.remove('scale-95');
+        modal.firstElementChild.classList.add('scale-100');
+
+        const cleanup = () => {
+            modal.classList.add('hidden');
+            modal.firstElementChild.classList.remove('scale-100');
+            modal.firstElementChild.classList.add('scale-95');
+        };
+
+        document.getElementById('reply-cancel').onclick = cleanup;
+        document.getElementById('reply-send').onclick = async () => {
+            const text = document.getElementById('admin-reply-text').value.trim();
+            if (!text) return;
+            
+            const btn = document.getElementById('reply-send');
+            btn.textContent = "Sending...";
+            btn.disabled = true;
+
+            try {
+                const secret = await Admin.getAuthKey();
+                if (!secret) throw new Error("Auth missing");
+
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                
+                // Push to inbox array via POST
+                const url = `${dynamicEndpoint}inbox/${deviceId}.json?auth=${secret}`;
+                const payload = {
+                    message: text,
+                    timestamp: Date.now(),
+                    feedbackId: feedbackId,
+                    read: false
+                };
+
+                const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
+                if (!res.ok) throw new Error("Failed to send");
+                
+                // Auto-resolve the feedback item
+                await Admin.resolveFeedback(feedbackId, true); 
+                
+                if (typeof showToast === 'function') showToast("Reply sent & archived!", "success");
+                cleanup();
+            } catch(e) {
+                if (typeof showToast === 'function') showToast("Failed to send reply.", "error");
+            } finally {
+                btn.textContent = "Send Reply";
+                btn.disabled = false;
+            }
+        };
     },
 
     // --- RICH TEXT FORMATTING HELPER ---
@@ -2889,7 +3471,7 @@ const Admin = {
         const toggle = document.getElementById('maint-toggle');
 
         header.onclick = () => {
-            if (Admin.isGridMode) return; // Prevent accordion action when in grid
+            if (Admin.isGridMode) return;
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
                 chevron.classList.add('-rotate-90');
@@ -2921,7 +3503,6 @@ const Admin = {
             const newState = toggle.checked;
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                // GUARDIAN PHASE 4: Admin Shield Wrap
                 const res = await window.guardianFetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
                     method: 'PUT',
                     body: JSON.stringify(newState)
@@ -2976,7 +3557,7 @@ const Admin = {
         const fireBtn = document.getElementById('nuke-fire-btn');
 
         header.onclick = () => {
-            if (Admin.isGridMode) return; // Prevent accordion action when in grid
+            if (Admin.isGridMode) return;
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
                 chevron.classList.add('-rotate-90');
@@ -3002,16 +3583,13 @@ const Admin = {
                 const url = `${dynamicEndpoint}config/killswitch.json?auth=${secret}`;
                 const payload = { timestamp: Date.now(), triggeredBy: Admin.currentUser ? Admin.currentUser.email : 'Admin' };
                 
-                // GUARDIAN PHASE 4: Admin Shield Wrap
                 const res = await window.guardianFetch(url, { method: 'PUT', body: JSON.stringify(payload) }, 10000);
                 if (res.ok) {
-                    // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key
                     try {
-                        const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                        await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
                             headers: {'Authorization': `Bearer ${secret}`} 
                         });
-                        if (purgeRes.ok) console.log("🛡️ Cloudflare Edge Cache Purged.");
                     } catch(pe) { console.warn("Purge failed", pe); }
 
                     if (typeof showToast === 'function') showToast("Nuclear Wipe Triggered Globally!", "success", 5000);

@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.04.29 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.05.01 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -804,29 +804,49 @@ const Renderer = {
             sortedCols = colStats.map(c => c.id);
         }
 
-        let activeColIndex = -1;
-        
-        if (highlightNextTrain && !isExport && typeof currentTime !== 'undefined') {
-             const nowSec = timeToSeconds(currentTime);
-             for (let i = 0; i < sortedCols.length; i++) {
-                 let firstTimeSec = 0;
-                 for (const row of schedule.rows) {
-                     const val = row[sortedCols[i]];
-                     if (val && val !== "-" && /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim())) {
-                         firstTimeSec = timeToSeconds(val);
-                         break;
-                     }
-                 }
-                 if (firstTimeSec >= nowSec) { activeColIndex = i; break; }
-             }
-        }
-
         let selectedStation = "";
         if (!isExport && typeof document !== 'undefined') {
             const selectEl = document.getElementById('station-select');
             if (selectEl && selectEl.value) {
                 selectedStation = selectEl.value;
             }
+        }
+
+        let activeColIndex = -1;
+        
+        if (highlightNextTrain && !isExport && typeof currentTime !== 'undefined') {
+             const nowSec = timeToSeconds(currentTime);
+             for (let i = 0; i < sortedCols.length; i++) {
+                 let targetTimeSec = 0;
+                 let foundTime = false;
+
+                 // If we have a selected station, look specifically at that row's time
+                 if (selectedStation) {
+                     const targetRow = schedule.rows.find(r => r.STATION === selectedStation);
+                     if (targetRow) {
+                         const val = targetRow[sortedCols[i]];
+                         if (val && val !== "-" && /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim())) {
+                             targetTimeSec = timeToSeconds(val);
+                             foundTime = true;
+                         }
+                     }
+                 }
+                 
+                 // If no selected station, or the selected station is skipped by this train (-),
+                 // fallback to the train's very first valid departure time (origin).
+                 if (!foundTime) {
+                     for (const row of schedule.rows) {
+                         const val = row[sortedCols[i]];
+                         if (val && val !== "-" && /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(String(val).trim())) {
+                             targetTimeSec = timeToSeconds(val);
+                             foundTime = true;
+                             break;
+                         }
+                     }
+                 }
+
+                 if (foundTime && targetTimeSec >= nowSec) { activeColIndex = i; break; }
+             }
         }
 
         // GUARDIAN PHASE 15 & 16: Right-Side Anchor Dictionary & Ultra-Compact Matrix Mode (EXPORT ONLY)
@@ -1312,5 +1332,33 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
         console.error(e);
         showToast("Snapshot failed.", "error");
         if(document.body.contains(exportContainer)) document.body.removeChild(exportContainer);
+    }
+};
+
+// --- GUARDIAN: SHARE ENGINE INJECTION (Fixes 2.46% crash rate) ---
+window.triggerNoticeShare = async function() {
+    if (typeof triggerHaptic === 'function') triggerHaptic();
+    
+    if (window._pendingShareFile && window._pendingShareText) {
+        try {
+            const data = {
+                title: 'Next Train Schedule',
+                text: window._pendingShareText,
+                files: [window._pendingShareFile]
+            };
+            if (navigator.canShare && navigator.canShare(data)) {
+                await navigator.share(data);
+            } else {
+                if (typeof showToast === 'function') showToast("Sharing files not supported on this browser.", "error");
+            }
+        } catch (e) {
+            // AbortError happens when the user clicks 'Cancel' on the system share sheet. We ignore it.
+            if (e.name !== 'AbortError') {
+                console.error("Share failed:", e);
+                if (typeof showToast === 'function') showToast("Share failed.", "error");
+            }
+        }
+    } else {
+        if (typeof showToast === 'function') showToast("No image to share. Please take a new snapshot.", "error");
     }
 };

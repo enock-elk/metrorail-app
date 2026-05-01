@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.04.29 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.05.01 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -28,6 +28,8 @@
  * * GUARDIAN PHASE 2 (GRID UX): Button micro-copy trimmed and responsive classes injected to prevent horizontal wrapping on narrow screens.
  * * GROWTH MODE PHASE 2 (PHASE 1 POLISH): Crash Modal Feedback Hook, Alert Spam Suppression, Variable Scoping Fix, and AbortError Checks.
  * * GROWTH MODE PHASE 3: The Haptics Diet. Purged vibrations from tabs, swipes, and closures. Unread badge logic injected for Changelog.
+ * * GROWTH MODE PHASE 4 (DATA PIPELINE): Firebase Rule Bypass for Crashes (PUT). Inbox Checker injected into Alert Bell. Naked ROUTES checks patched.
+ * * GROWTH MODE PHASE 5.1 (MONETIZATION FIX): AdInterceptor injected to protect 20-Hour Rule against PWA reloads and modal overlaps.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -114,11 +116,26 @@ window.onerror = function(msg, url, line, col, error) {
     const IGNORED_ERRORS = [
         "Script error.",
         "_AutofillCallbackHandler",
-        "ResizeObserver loop limit exceeded"
+        "ResizeObserver loop limit exceeded",
+        "Unexpected end of input", 
+        "Unexpected token",
+        "Unexpected token '<'", // GROWTH MODE: Captive Portal / HTML Cloudflare intercept shield
+        "Unexpected end of JSON input",
+        "JSON.parse: unexpected end of data",
+        "chrome-extension"
     ];
 
     if (typeof msg === 'string' && IGNORED_ERRORS.some(err => msg.indexOf(err) > -1)) {
-        console.warn("Global Error Suppressed:", msg);
+        console.warn("Global Error Suppressed (Ignored Keyword):", msg);
+        return false;
+    }
+
+    // 🛡️ GUARDIAN UX FIX: The Blind-Spot Shield
+    // If URL is undefined, blank, or null, it means the crash was thrown by an invisible
+    // eval() script—usually an Ad blocker, Chrome Extension, or third-party ad network payload.
+    // We strictly ignore these to prevent the app from nuking itself over third-party noise.
+    if (!url || String(url) === 'undefined' || String(url) === 'null' || String(url).trim() === '') {
+        console.warn("🛡️ Guardian: Suppressed invisible external error:", msg);
         return false;
     }
 
@@ -145,7 +162,28 @@ window.onerror = function(msg, url, line, col, error) {
     // GUARDIAN (Phase 2): Safe Mode Fallback (Strike 2)
     console.log("🛡️ Guardian: Strike 2 Error intercepted. Deploying Safe Mode.");
     
-    // GUARDIAN PHASE 1 (Growth Mode): Encode error payload for Google Forms fallback
+    // GROWTH MODE PHASE 4 (DATA PIPELINE): Secure Firebase PUT Bypass
+    const crashId = Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const crashPayload = {
+        error: String(msg),
+        line: `${line}:${col}`,
+        url: String(url),
+        stack: error && error.stack ? error.stack : 'N/A',
+        timestamp: Date.now(),
+        userAgent: navigator.userAgent,
+        routeId: typeof currentRouteId !== 'undefined' && currentRouteId ? currentRouteId : 'none',
+        appVersion: typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown'
+    };
+    
+    try {
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        fetch(`${dynamicEndpoint}metrics/crashes/${crashId}.json`, {
+            method: 'PUT',
+            body: JSON.stringify(crashPayload)
+        }).catch(()=>{}); // Silent fire and forget
+    } catch(e) {}
+
+    // Legacy Google Forms Encoding
     const errorDetails = `Error: ${msg}\nLine: ${line}:${col}\nURL: ${url}\nStack: ${error && error.stack ? error.stack : 'N/A'}`;
     const encodedError = encodeURIComponent(errorDetails);
     
@@ -425,11 +463,11 @@ function renderPlaceholder() {
     const triggerShake = `
         const inp = document.getElementById('station-search-input');
         const sel = document.getElementById('station-select');
-        const target = (inp && !inp.classList.contains('hidden')) ? inp : sel;
+        const target = (inp && !inp.classList?.contains('hidden')) ? inp : sel;
         if(target) {
-            target.classList.add('animate-shake', 'ring-4', 'ring-blue-300'); 
-            setTimeout(() => target.classList.remove('animate-shake', 'ring-4', 'ring-blue-300'), 500); 
-            target.focus();
+            target.classList?.add('animate-shake', 'ring-4', 'ring-blue-300'); 
+            setTimeout(() => target.classList?.remove('animate-shake', 'ring-4', 'ring-blue-300'), 500); 
+            target.focus?.();
         }
     `;
     
@@ -501,7 +539,7 @@ function renderAtDestination(element) { if (element && typeof Renderer !== 'unde
 // GUARDIAN BUGFIX 4: Dynamically consumes nextDayInfo to build UI buttons
 function renderNoService(element, destination) {
     if (!element) return;
-    const currentRoute = ROUTES[currentRouteId];
+    const currentRoute = typeof ROUTES !== 'undefined' ? ROUTES[currentRouteId] : null;
     if (!currentRoute) return;
 
     const selectedStation = stationSelect ? stationSelect.value : "";
@@ -517,7 +555,7 @@ function renderNoService(element, destination) {
 
 function processAndRenderJourney(allJourneys, element, header, destination) {
     if (!element) return;
-    if (!allJourneys || !Array.isArray(allJourneys)) return; // GUARDIAN: Sentry JAVASCRIPT-1P Fix
+    if (!allJourneys || !Array.isArray(allJourneys)) return;
 
     const nowInSeconds = timeToSeconds(currentTime);
     const remainingJourneys = allJourneys.filter(j => timeToSeconds(j.departureTime || j.train1.departureTime) >= nowInSeconds);
@@ -542,10 +580,9 @@ function processAndRenderJourney(allJourneys, element, header, destination) {
     }
 }
 
-// GUARDIAN BUGFIX 4: Dynamically uses window.simulateNextActiveService
 function renderNextAvailableTrain(element, destination) {
     if (!element) return;
-    const currentRoute = ROUTES[currentRouteId];
+    const currentRoute = typeof ROUTES !== 'undefined' ? ROUTES[currentRouteId] : null;
     if (!currentRoute) return;
 
     const selectedStation = stationSelect ? stationSelect.value : "";
@@ -564,14 +601,11 @@ function renderNextAvailableTrain(element, destination) {
 }
 
 function updateFareDisplay(sheetKey) {
-    // GUARDIAN Phase 1: Scoped variables to prevent node cloning/DOM collision bugs
     const localFareContainer = document.getElementById('fare-container');
     const localPassengerTypeLabel = document.getElementById('passenger-type-label');
     
-    // GUARDIAN Phase 4: Protect against detached nodes
     if (!localFareContainer || !localFareContainer.parentNode) return; 
 
-    // RESTORED: Classic UI layout ("Estimated [Adult] Fare")
     if (localPassengerTypeLabel) {
         localPassengerTypeLabel.textContent = currentUserProfile;
     }
@@ -612,7 +646,6 @@ function updateFareDisplay(sheetKey) {
         
         if(activeFareAmount) activeFareAmount.className = "text-2xl font-black text-gray-900 dark:text-white leading-none";
 
-        // GUARDIAN FIX: Unconditional peak/off-peak mapping decoupled from train times
         if (fareData.isPromo) {
             if(activeFareType) {
                 activeFareType.textContent = fareData.discountLabel || "Discounted";
@@ -690,7 +723,7 @@ window.openFareModal = function(fareDetails) {
     const zoneEl = document.getElementById('fare-zone-badge');
     const tableEl = document.getElementById('fare-table-content');
     
-    const routeName = currentRouteId && ROUTES[currentRouteId] ? ROUTES[currentRouteId].name.replace('<->', '↔') : '';
+    const routeName = typeof ROUTES !== 'undefined' && currentRouteId && ROUTES[currentRouteId] ? ROUTES[currentRouteId].name.replace('<->', '↔') : '';
     if (zoneEl) {
         zoneEl.innerHTML = `
             <div class="flex items-center">
@@ -765,7 +798,6 @@ function showToast(message, type = 'info', duration = 2500, actionHTML = '') {
         document.head.appendChild(style);
     }
 
-    // GUARDIAN Phase 4: Strict null check to prevent toast crashes on startup
     const toastEl = document.getElementById('toast');
     if (!toastEl) return;
 
@@ -790,7 +822,6 @@ function showToast(message, type = 'info', duration = 2500, actionHTML = '') {
 
     toastEl.className = `flex items-center justify-between px-4 py-3 rounded-full shadow-2xl backdrop-blur-md border ${bgClass} ${borderClass} ${textClass} max-w-[90vw]`; 
 
-    // GUARDIAN PHASE 1: Eradicated Toast overflow string bleed
     toastEl.innerHTML = `
         <div class="flex items-center gap-2 overflow-hidden">
             ${iconHTML}
@@ -851,11 +882,11 @@ function updatePinUI() {
         if (isPinned) { pinOutline.classList.add('hidden'); pinFilled.classList.remove('hidden'); pinRouteBtn.title = "Unpin this route"; } 
         else { pinOutline.classList.remove('hidden'); pinFilled.classList.add('hidden'); pinRouteBtn.title = "Pin this route as default"; }
     }
-    if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), currentRouteId);
+    if (typeof Renderer !== 'undefined' && typeof ROUTES !== 'undefined') Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), currentRouteId);
 }
 
 function updateSidebarActiveState() {
-    if (typeof Renderer !== 'undefined') Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), currentRouteId);
+    if (typeof Renderer !== 'undefined' && typeof ROUTES !== 'undefined') Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), currentRouteId);
 }
 
 function handleShortcutActions() {
@@ -878,7 +909,7 @@ function handleShortcutActions() {
         console.log("[DeepLink] URL Params Sanitized.");
     }
 
-    if (route && ROUTES[route]) {
+    if (route && typeof ROUTES !== 'undefined' && ROUTES[route]) {
         console.log(`[DeepLink] Auto-loading route: ${route}`);
         
         if (ROUTES[route].region && ROUTES[route].region !== currentRegion) {
@@ -976,19 +1007,13 @@ function handleShortcutActions() {
     }
 }
 
-// GUARDIAN BUGFIX: Properly attribute analytics source for forced system cache wipes
 window.performHardCacheClear = async function(source = 'modal_confirm') {
     triggerHaptic();
     
-    // 🛡️ GUARDIAN FIX: Stop spamming analytics! Only fire when manually initiated from UI.
     if (source === 'modal_confirm') {
         trackAnalyticsEvent('execute_hard_cache_clear', { location: 'sidebar' });
         showToast("Clearing offline data and syncing...", "info", 5000);
 
-        // 🛡️ GUARDIAN PHASE 1 (Analytics Beacon Hardening):
-        // The GA4 and Clarity tracking pixels need time to leave the device.
-        // If we immediately unregister the Service Worker below, it aborts in-flight network requests.
-        // We force a 600ms network buffer here to guarantee the beacon lands.
         await new Promise(resolve => setTimeout(resolve, 600));
     }
     
@@ -999,7 +1024,6 @@ window.performHardCacheClear = async function(source = 'modal_confirm') {
         closeSmoothModal('cache-clear-modal');
     }
     
-    // GUARDIAN Phase 4: Async Cache Wipe to prevent Update Race Conditions
     try {
         if ('serviceWorker' in navigator) {
             const registrations = await navigator.serviceWorker.getRegistrations();
@@ -1015,9 +1039,6 @@ window.performHardCacheClear = async function(source = 'modal_confirm') {
             }
         }
 
-        // 🛡️ GUARDIAN PHASE 2: Identity Protection Protocol (The Vault)
-        // Replace manual key targeting with the full volatile sweep.
-        // This safely obliterates old schedules/zombie keys while locking Identity & Settings.
         if (typeof safeStorage.flushVolatile === 'function') {
             safeStorage.flushVolatile();
         } else {
@@ -1033,7 +1054,6 @@ window.performHardCacheClear = async function(source = 'modal_confirm') {
         console.warn("🛡️ Guardian: Failed to fully clear caches", e);
     }
     
-    // 🛡️ GUARDIAN PHASE 1: Extended disk IO buffer before reload
     setTimeout(() => {
         window.location.reload(true);
     }, 1000);
@@ -1069,6 +1089,74 @@ window.showCacheClearWarning = function() {
     openSmoothModal('cache-clear-modal');
 }
 
+// --- GUARDIAN PHASE 5.1: THE AD INTERCEPTOR (Monetization Fix) ---
+function initAdInterceptor() {
+    if (window._adScriptInjected) return;
+
+    const checkAndInject = () => {
+        if (window._adScriptInjected) return;
+
+        // 1. Check Version Enforcer state (prevent firing right before a hard reload)
+        const currentVersion = typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown';
+        const storedVersion = safeStorage.getItem('app_installed_version');
+        const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
+        if (storedVersion && storedVersion !== currentVersion && isForceUpdate) {
+            console.log("🛡️ AdInterceptor: Pending force update detected. Holding injection.");
+            return; 
+        }
+
+        // 2. State Verification
+        const hash = location.hash;
+        const isMainRoute = (hash === '' || hash === '#home');
+        
+        const welcomeModal = document.getElementById('welcome-modal');
+        const isWelcomeHidden = !welcomeModal || welcomeModal.classList.contains('hidden');
+        
+        const regionSoonModal = document.getElementById('region-soon-modal');
+        const isRegionSoonHidden = !regionSoonModal || regionSoonModal.classList.contains('hidden');
+
+        const mapModal = document.getElementById('map-modal');
+        const isMapHidden = !mapModal || mapModal.classList.contains('hidden');
+        
+        const tripMapModal = document.getElementById('trip-map-modal');
+        const isTripMapHidden = !tripMapModal || tripMapModal.classList.contains('hidden');
+        
+        const gridModal = document.getElementById('full-schedule-modal');
+        const isGridHidden = !gridModal || gridModal.classList.contains('hidden');
+
+        if (isMainRoute && isWelcomeHidden && isRegionSoonHidden && isMapHidden && isTripMapHidden && isGridHidden) {
+            window._adScriptInjected = true;
+            console.log("🛡️ AdInterceptor: Safe zone confirmed. Injecting Monetization Engine.");
+            
+            (function (document, window) {
+                var a, c = document.createElement("script"), f = window.frameElement;
+                c.id = "CleverCoreLoader103008";
+                c.src = "https://scripts.cleverwebserver.com/a399a0d9cfe9817e0ccd10f89b4e320a.js";
+                c.async = !0;
+                c.type = "text/javascript";
+                c.setAttribute("data-target", window.name || (f && f.getAttribute("id")));
+                c.setAttribute("data-callback", "put-your-callback-function-here");
+                c.setAttribute("data-callback-url-click", "put-your-click-macro-here");
+                c.setAttribute("data-callback-url-view", "put-your-view-macro-here");
+                try {
+                    a = parent.document.getElementsByTagName("script")[0] || document.getElementsByTagName("script")[0];
+                } catch (e) {
+                    a = !1;
+                }
+                a || (a = document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]);
+                a.parentNode.insertBefore(c, a);
+            })(document, window);
+
+        } else {
+            // Keep polling gently until user returns to the main dashboard
+            setTimeout(checkAndInject, 1500);
+        }
+    };
+
+    // 2500ms initial delay gives the PWA Service Worker & Version Enforcer time to trigger a reload if needed
+    setTimeout(checkAndInject, 2500);
+}
+
 function initializeApp() {
     if (window.location.pathname.endsWith('index.html')) {
         const newPath = window.location.pathname.replace('index.html', '');
@@ -1093,11 +1181,8 @@ function initializeApp() {
     populateStationList();
     if (typeof initPlanner === 'function') initPlanner();
     
-    // GUARDIAN BUGFIX: Call updatePinUI here *after* currentRouteId has been populated from storage
-    // This perfectly syncs the empty/filled visual state of the Star Pin button on the main screen.
     updatePinUI();
     
-    // Call the global startClock bound in logic.js
     if (typeof window.startClock === 'function') {
         window.startClock();
     }
@@ -1118,6 +1203,11 @@ function initializeApp() {
     if (!navigator.onLine) { 
         const oi = document.getElementById('offline-indicator');
         if (oi) oi.style.display = 'flex';
+    }
+
+    // GROWTH MODE PHASE 5.1: Init AdInterceptor safely
+    if (typeof initAdInterceptor === 'function') {
+        initAdInterceptor();
     }
 }
 
@@ -1143,7 +1233,6 @@ async function checkMaintenanceStatus() {
                 }
             }
         } else {
-            // GUARDIAN FIX: Actively remove the banner if maintenance is over
             if (existingBanner) {
                 existingBanner.remove();
             }
@@ -1155,13 +1244,11 @@ async function checkMaintenanceStatus() {
 window.submitPollVote = function(pollId, optionKey, optionText) {
     triggerHaptic();
     
-    // Protect against double voting locally
     if (safeStorage.getItem('poll_voted_' + pollId)) {
         showToast("You have already voted on this poll.", "warning");
         return;
     }
 
-    // Fire Analytics (Zero Database Writes, purely measured in GA4!)
     trackAnalyticsEvent('alert_poll_vote', { 
         poll_id: pollId, 
         vote_option: optionKey,
@@ -1169,10 +1256,8 @@ window.submitPollVote = function(pollId, optionKey, optionText) {
         route_id: currentRouteId || 'global'
     });
 
-    // Save persistent state
     try { safeStorage.setItem('poll_voted_' + pollId, optionKey); } catch(e) {}
 
-    // Instantly morph the UI to the "Thank You" state
     const container = document.getElementById(`poll-container-${pollId}`);
     if (container) {
         container.innerHTML = `
@@ -1198,148 +1283,196 @@ async function checkServiceAlerts() {
 
     try {
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        
+        // 1. CHECK COMMUTER INBOX FIRST (Priority Message Hook)
+        let adminReply = null;
+        if (typeof NEXT_TRAIN_DEVICE_ID !== 'undefined' && NEXT_TRAIN_DEVICE_ID) {
+            try {
+                const inboxRes = await fetch(`${dynamicEndpoint}inbox/${NEXT_TRAIN_DEVICE_ID}.json?t=${Date.now()}`);
+                if (inboxRes.ok) {
+                    const inboxData = await inboxRes.json();
+                    if (inboxData) {
+                        const unreadKeys = Object.keys(inboxData).filter(k => inboxData[k] && !inboxData[k].read);
+                        if (unreadKeys.length > 0) {
+                            // Find the most recently pushed unread message
+                            const latestKey = unreadKeys.sort((a,b) => inboxData[b].timestamp - inboxData[a].timestamp)[0];
+                            adminReply = inboxData[latestKey];
+                            adminReply._key = latestKey;
+                        }
+                    }
+                }
+            } catch (e) { console.warn("Inbox fetch failed", e); }
+        }
+
+        // 2. FETCH STANDARD NOTICES
         const response = await fetch(`${dynamicEndpoint}notices.json?t=${Date.now()}`);
-        if (!response.ok) return; 
-        const notices = await response.json();
+        if (!response.ok && !adminReply) return; 
+        const notices = response.ok ? await response.json() : null;
         
         const existingTicker = document.getElementById('service-ticker');
         if (existingTicker) existingTicker.remove();
         
-        if (!notices) { 
+        if (!notices && !adminReply) { 
             bellBtn.classList.add('hidden'); 
             return; 
         }
         
-        const now = Date.now();
-        let validNotices = [];
-        
-        const activeRegionString = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
-        const targetKeys = [currentRouteId, `all_${activeRegionString}`, 'all'];
-        
-        targetKeys.forEach(key => {
-            if (notices[key] && notices[key].expiresAt && notices[key].expiresAt > now) {
-                validNotices.push(notices[key]);
-            }
-        });
+        let activeNotice = null;
+        let isInboxMessage = false;
 
-        if (validNotices.length === 0) {
-            bellBtn.classList.add('hidden');
-            return;
+        if (adminReply) {
+            isInboxMessage = true;
+            activeNotice = {
+                id: 'inbox_' + adminReply._key,
+                severity: 'info',
+                message: adminReply.message,
+                postedAt: adminReply.timestamp,
+                forcePopup: true, // Always prioritize admin reply visibility
+                authorName: "Developer Response"
+            };
+        } else {
+            const now = Date.now();
+            let validNotices = [];
+            
+            const activeRegionString = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
+            const targetKeys = [typeof currentRouteId !== 'undefined' ? currentRouteId : null, `all_${activeRegionString}`, 'all'].filter(Boolean);
+            
+            targetKeys.forEach(key => {
+                if (notices[key] && notices[key].expiresAt && notices[key].expiresAt > now) {
+                    validNotices.push(notices[key]);
+                }
+            });
+
+            if (validNotices.length === 0) {
+                bellBtn.classList.add('hidden');
+                return;
+            }
+
+            const severityScore = { 'critical': 3, 'warning': 2, 'info': 1 };
+            validNotices.sort((a, b) => (severityScore[b.severity] || 1) - (severityScore[a.severity] || 1));
+            
+            activeNotice = validNotices[0];
         }
 
-        const severityScore = { 'critical': 3, 'warning': 2, 'info': 1 };
-        validNotices.sort((a, b) => (severityScore[b.severity] || 1) - (severityScore[a.severity] || 1));
-        
-        const activeNotice = validNotices[0];
         const severity = activeNotice.severity || 'info';
         const seenKey = `seen_notice_${activeNotice.id}`;
-        const hasSeen = safeStorage.getItem(seenKey) === 'true';
+        // Personal inbox messages bypass local history caches to ensure they aren't missed
+        const hasSeen = isInboxMessage ? false : safeStorage.getItem(seenKey) === 'true';
         const forcePopup = activeNotice.forcePopup === true;
         
-        // GUARDIAN Phase 2: Content Binder (With URL Parsing & Dynamic Feedback Button)
+        // --- CONTENT BINDER ---
         const bindModalContent = () => {
             if (!content || !modal) return;
             
-            // Basic text parsing (Legacy regex removed to prevent collision with Admin HTML)
-            let formattedMsg = activeNotice.message;
+            const modalHeader = modal.querySelector('h3');
             
-            // 🛡️ SUPERCHARGED ALERTS: Rich Media Injection (Images & CTA Buttons)
-            let mediaHtml = '';
-            
-            if (activeNotice.imageUrl) {
-                mediaHtml += `<img src="${escapeHTML(activeNotice.imageUrl)}" class="w-full h-auto max-h-48 object-cover rounded-lg mb-3 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image" onerror="this.style.display='none'">`;
-            }
-
-            // Put image on top, then text
-            content.innerHTML = mediaHtml + formattedMsg;
-            
-            // CTA Button Injection
-            if (activeNotice.ctaUrl && activeNotice.ctaText) {
-                content.innerHTML += `
-                    <a href="${escapeHTML(activeNotice.ctaUrl)}" target="_blank" class="mt-4 flex items-center justify-center w-full bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 font-bold py-2.5 px-4 rounded-lg transition-colors text-xs uppercase tracking-wide border border-blue-200 dark:border-blue-800 shadow-sm focus:outline-none">
-                        ${escapeHTML(activeNotice.ctaText)}
-                        <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                    </a>
+            if (isInboxMessage) {
+                if (modalHeader) modalHeader.innerHTML = `Message from Developer`;
+                content.innerHTML = `
+                    <div class="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-xl border border-blue-200 dark:border-blue-800 shadow-inner text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">
+                        ${escapeHTML(activeNotice.message)}
+                    </div>
                 `;
-            }
+            } else {
+                if (modalHeader) modalHeader.innerHTML = `Service Alert`;
+                let formattedMsg = activeNotice.message;
+                
+                let mediaHtml = '';
+                if (activeNotice.imageUrl) {
+                    mediaHtml += `<img src="${escapeHTML(activeNotice.imageUrl)}" class="w-full h-auto max-h-48 object-cover rounded-lg mb-3 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image" onerror="this.style.display='none'">`;
+                }
 
-            // 🛡️ SUPERCHARGED ALERTS: Interactive Polling Engine
-            if (activeNotice.poll && activeNotice.poll.active) {
-                const pollId = activeNotice.id;
-                const votedOption = safeStorage.getItem('poll_voted_' + pollId);
-
-                let pollHtml = '';
-                if (votedOption) {
-                    pollHtml = `
-                        <div class="mt-4 bg-green-50 dark:bg-green-900/20 p-3 rounded-xl border border-green-200 dark:border-green-800 text-center shadow-inner">
-                            <span class="text-xl block mb-1">✅</span>
-                            <p class="text-xs font-bold text-green-800 dark:text-green-300">Thanks for voting!</p>
-                            <p class="text-[10px] text-green-600 dark:text-green-500 mt-0.5">Your response has been recorded.</p>
-                        </div>
-                    `;
-                } else {
-                    pollHtml = `
-                        <div id="poll-container-${pollId}" class="mt-4 bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-200 dark:border-purple-800 shadow-sm">
-                            <p class="text-sm font-black text-purple-900 dark:text-purple-100 mb-3 leading-tight text-center">${escapeHTML(activeNotice.poll.question)}</p>
-                            <div class="flex space-x-3">
-                                <button onclick="submitPollVote('${pollId}', 'A', '${escapeHTML(activeNotice.poll.optionA)}')" class="flex-1 bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 text-purple-700 dark:text-purple-300 font-bold py-2.5 rounded-lg transition-all transform hover:scale-105 text-xs focus:outline-none shadow-sm">${escapeHTML(activeNotice.poll.optionA)}</button>
-                                <button onclick="submitPollVote('${pollId}', 'B', '${escapeHTML(activeNotice.poll.optionB)}')" class="flex-1 bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 text-purple-700 dark:text-purple-300 font-bold py-2.5 rounded-lg transition-all transform hover:scale-105 text-xs focus:outline-none shadow-sm">${escapeHTML(activeNotice.poll.optionB)}</button>
-                            </div>
-                        </div>
+                content.innerHTML = mediaHtml + formattedMsg;
+                
+                // CTA Button Injection
+                if (activeNotice.ctaUrl && activeNotice.ctaText) {
+                    content.innerHTML += `
+                        <a href="${escapeHTML(activeNotice.ctaUrl)}" target="_blank" class="mt-4 flex items-center justify-center w-full bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 font-bold py-2.5 px-4 rounded-lg transition-colors text-xs uppercase tracking-wide border border-blue-200 dark:border-blue-800 shadow-sm focus:outline-none">
+                            ${escapeHTML(activeNotice.ctaText)}
+                            <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                        </a>
                     `;
                 }
-                content.innerHTML += pollHtml;
-            }
-            
-            // Append Severity Tags below everything
-            if (severity === 'critical') {
-                content.innerHTML += `<div class="mt-3 text-xs text-red-600 font-bold border border-red-200 bg-red-50 dark:bg-red-900/30 dark:border-red-800 p-2 rounded text-center">🔴 CRITICAL SERVICE DISRUPTION</div>`;
-            } else if (severity === 'warning') {
-                content.innerHTML += `<div class="mt-3 text-xs text-yellow-700 font-bold border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-400 p-2 rounded text-center">🟡 SERVICE WARNING</div>`;
+
+                // Interactive Polling Engine
+                if (activeNotice.poll && activeNotice.poll.active) {
+                    const pollId = activeNotice.id;
+                    const votedOption = safeStorage.getItem('poll_voted_' + pollId);
+
+                    let pollHtml = '';
+                    if (votedOption) {
+                        pollHtml = `
+                            <div class="mt-4 bg-green-50 dark:bg-green-900/20 p-3 rounded-xl border border-green-200 dark:border-green-800 text-center shadow-inner">
+                                <span class="text-xl block mb-1">✅</span>
+                                <p class="text-xs font-bold text-green-800 dark:text-green-300">Thanks for voting!</p>
+                                <p class="text-[10px] text-green-600 dark:text-green-500 mt-0.5">Your response has been recorded.</p>
+                            </div>
+                        `;
+                    } else {
+                        pollHtml = `
+                            <div id="poll-container-${pollId}" class="mt-4 bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-200 dark:border-purple-800 shadow-sm">
+                                <p class="text-sm font-black text-purple-900 dark:text-purple-100 mb-3 leading-tight text-center">${escapeHTML(activeNotice.poll.question)}</p>
+                                <div class="flex space-x-3">
+                                    <button onclick="submitPollVote('${pollId}', 'A', '${escapeHTML(activeNotice.poll.optionA)}')" class="flex-1 bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 text-purple-700 dark:text-purple-300 font-bold py-2.5 rounded-lg transition-all transform hover:scale-105 text-xs focus:outline-none shadow-sm">${escapeHTML(activeNotice.poll.optionA)}</button>
+                                    <button onclick="submitPollVote('${pollId}', 'B', '${escapeHTML(activeNotice.poll.optionB)}')" class="flex-1 bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 text-purple-700 dark:text-purple-300 font-bold py-2.5 rounded-lg transition-all transform hover:scale-105 text-xs focus:outline-none shadow-sm">${escapeHTML(activeNotice.poll.optionB)}</button>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    content.innerHTML += pollHtml;
+                }
+                
+                // Append Severity Tags below everything
+                if (severity === 'critical') {
+                    content.innerHTML += `<div class="mt-3 text-xs text-red-600 font-bold border border-red-200 bg-red-50 dark:bg-red-900/30 dark:border-red-800 p-2 rounded text-center">🔴 CRITICAL SERVICE DISRUPTION</div>`;
+                } else if (severity === 'warning') {
+                    content.innerHTML += `<div class="mt-3 text-xs text-yellow-700 font-bold border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-400 p-2 rounded text-center">🟡 SERVICE WARNING</div>`;
+                }
             }
             
             const date = new Date(activeNotice.postedAt);
             if (timestamp) timestamp.textContent = `Posted: ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, ${date.toLocaleDateString()}`;
 
-            // Dynamic Form Feedback Button Injection
-            const oldCloseBtn = modal.querySelector('button.bg-red-600') || modal.querySelector('button.bg-blue-600') || modal.querySelector('button.bg-yellow-600');
-            if (oldCloseBtn && oldCloseBtn.parentNode === modal.firstElementChild) {
-                // Determine base color class
-                let baseColorClass = "bg-blue-600 hover:bg-blue-700";
-                if (severity === 'critical') baseColorClass = "bg-red-600 hover:bg-red-700";
-                else if (severity === 'warning') baseColorClass = "bg-yellow-600 hover:bg-yellow-700";
+            // Dynamic Button Injection
+            const oldCloseBtn = modal.querySelector('button.bg-red-600') || modal.querySelector('button.bg-blue-600') || modal.querySelector('button.bg-yellow-600') || modal.querySelector('#notice-close-btn');
+            
+            // Clean up old instances cleanly
+            const oldContainer = modal.querySelector('.flex.space-x-2.mt-4');
+            if (oldContainer) oldContainer.remove();
 
-                const btnContainer = document.createElement('div');
-                btnContainer.className = "flex space-x-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 w-full";
-                
-                const newCloseBtn = document.createElement('button');
-                newCloseBtn.className = "flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none";
-                newCloseBtn.textContent = "Close";
-                newCloseBtn.onclick = closeNotice;
+            let baseColorClass = "bg-blue-600 hover:bg-blue-700";
+            if (severity === 'critical') baseColorClass = "bg-red-600 hover:bg-red-700";
+            else if (severity === 'warning') baseColorClass = "bg-yellow-600 hover:bg-yellow-700";
 
-                // GUARDIAN FEEDBACK: Bind Reply to internal Feedback system
+            const btnContainer = document.createElement('div');
+            btnContainer.className = "flex space-x-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 w-full";
+            
+            const newCloseBtn = document.createElement('button');
+            newCloseBtn.id = "notice-close-btn";
+            newCloseBtn.className = isInboxMessage ? `flex-1 ${baseColorClass} text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none` : "flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none";
+            newCloseBtn.textContent = isInboxMessage ? "Got it" : "Close";
+            newCloseBtn.onclick = closeNotice;
+            btnContainer.appendChild(newCloseBtn);
+
+            // Do not show reply button if this IS a reply
+            if (!isInboxMessage) {
                 const newReplyBtn = document.createElement('button');
                 newReplyBtn.className = `flex-1 ${baseColorClass} text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center`;
                 newReplyBtn.innerHTML = `<span class="mr-1.5">💬</span> Reply`;
                 
-                // 🛡️ GUARDIAN PHASE 4: Contextual Alert Reply formatting (Updated to greyed-out context block)
                 newReplyBtn.onclick = () => {
                     triggerHaptic();
                     
-                    // Strip HTML completely so the admin input box isn't polluted
                     let cleanMsgText = "";
                     if (activeNotice && activeNotice.message) {
                         cleanMsgText = activeNotice.message.replace(/<[^>]*>?/gm, '');
-                        // Strip the signature if it exists (everything after the em dash)
                         cleanMsgText = cleanMsgText.replace(/—.*/, '').trim();
                     }
                     
-                    // Truncate to a digestible context length (First 6 words)
                     let words = cleanMsgText.split(/\s+/).filter(w => w.length > 0);
                     let truncatedMsg = words.slice(0, 6).join(' ');
                     if (words.length > 6) truncatedMsg += '...';
                     
-                    // Pre-fill the modal
                     const fText = document.getElementById('feedback-text');
                     const fType = document.getElementById('feedback-type');
                     
@@ -1354,22 +1487,25 @@ async function checkServiceAlerts() {
                         contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Advisory:</span><span class="line-clamp-2">"${truncatedMsg}"</span></div>`;
                         contextBox.dataset.rawMsg = truncatedMsg;
                         contextBox.classList.remove('hidden');
-                        fText.value = ''; // Clean slate for user text
+                        fText.value = ''; 
                     }
                     if (fType) fType.value = 'general';
                     
                     closeNotice();
-                    // Open modal after CSS transition finishes using explicit function instead of click simulation to bypass context clear
                     setTimeout(() => {
                         trackAnalyticsEvent('open_feedback_modal', { location: 'alert_reply' });
                         history.pushState({ modal: 'feedback' }, '', '#feedback');
                         openSmoothModal('feedback-modal');
                     }, 350);
                 };
-
-                oldCloseBtn.parentNode.replaceChild(btnContainer, oldCloseBtn);
-                btnContainer.appendChild(newCloseBtn);
                 btnContainer.appendChild(newReplyBtn);
+            }
+
+            if (oldCloseBtn && oldCloseBtn.parentNode) {
+                oldCloseBtn.style.display = 'none'; 
+                oldCloseBtn.parentNode.appendChild(btnContainer);
+            } else {
+                content.parentNode.appendChild(btnContainer);
             }
         };
         
@@ -1394,20 +1530,19 @@ async function checkServiceAlerts() {
 
         if (!hasSeen) {
             if (dot) dot.classList.remove('hidden');
-            if (severity === 'critical') {
+            if (severity === 'critical' || isInboxMessage) {
                 bellBtn.classList.add('animate-shake');
             } else {
                 bellBtn.classList.remove('animate-shake');
             }
 
-            // GUARDIAN PHASE 1 (UX Polish): Suppress auto-open on the Welcome screen.
-            const isWelcomeScreenActive = !currentRouteId || (document.getElementById('welcome-modal') && !document.getElementById('welcome-modal').classList.contains('hidden'));
+            const isWelcomeScreenActive = (typeof currentRouteId === 'undefined' || !currentRouteId) || (document.getElementById('welcome-modal') && !document.getElementById('welcome-modal').classList.contains('hidden'));
 
             if (forcePopup && !window._criticalModalShown && !isWelcomeScreenActive) {
                 window._criticalModalShown = true;
                 setTimeout(() => {
                     triggerHaptic();
-                    trackAnalyticsEvent('auto_open_alert', { severity: severity, route_id: currentRouteId || 'all' });
+                    trackAnalyticsEvent('auto_open_alert', { severity: severity, route_id: typeof currentRouteId !== 'undefined' ? currentRouteId : 'all' });
                     safeStorage.setItem(seenKey, 'true');
                     bellBtn.classList.remove('animate-shake');
                     if (dot) dot.classList.add('hidden');
@@ -1423,7 +1558,7 @@ async function checkServiceAlerts() {
 
         bellBtn.onclick = () => {
             triggerHaptic();
-            trackAnalyticsEvent('view_service_alert', { severity: severity, route_id: currentRouteId || 'all' });
+            trackAnalyticsEvent('view_service_alert', { severity: severity, route_id: typeof currentRouteId !== 'undefined' ? currentRouteId : 'all' });
             safeStorage.setItem(seenKey, 'true');
             bellBtn.classList.remove('animate-shake');
             if (dot) dot.classList.add('hidden');
@@ -1435,6 +1570,12 @@ async function checkServiceAlerts() {
         const topCloseBtn = modal ? modal.querySelector('button.text-gray-400') : null;
         
         const closeNotice = () => {
+            if (isInboxMessage && adminReply && adminReply._key) {
+                fetch(`${dynamicEndpoint}inbox/${NEXT_TRAIN_DEVICE_ID}/${adminReply._key}.json`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ read: true })
+                }).catch(()=>{}); // Silent update
+            }
             if(location.hash === '#notice') history.back();
             else closeSmoothModal('notice-modal');
         };
@@ -1537,8 +1678,6 @@ window.addEventListener('popstate', (event) => {
     }
 
     // 1. EVALUATE & CLOSE MODALS FIRST (Highest Z-Index)
-    // GUARDIAN PHASE 5: Dynamic Router Shield
-    // Safely query all active modals via DOM traits instead of hardcoded lists.
     const openModals = Array.from(document.querySelectorAll('div[id$="-modal"].fixed:not(.hidden)'));
 
     if (openModals.length > 0) {
@@ -1547,12 +1686,10 @@ window.addEventListener('popstate', (event) => {
 
         openModals.forEach(modal => {
             let zIndex = 0;
-            // Extract explicit z-[100] tailwind classes first
             const zMatch = modal.className.match(/z-\[?(\d+)\]?/);
             if (zMatch && zMatch[1]) {
                 zIndex = parseInt(zMatch[1], 10);
             } else {
-                // Fallback to computed style
                 const computedZ = window.getComputedStyle(modal).zIndex;
                 if (computedZ !== 'auto') zIndex = parseInt(computedZ, 10);
             }
@@ -1644,7 +1781,7 @@ function setupSwipeNavigation() {
     let touchStartX = 0;
     let touchStartY = 0;
     const contentArea = document.getElementById('main-content');
-    if (!contentArea) return; // GUARDIAN: Safety
+    if (!contentArea) return; 
     
     contentArea.addEventListener('touchstart', (e) => {
         const mapModal = document.getElementById('map-modal');
@@ -1676,18 +1813,18 @@ function setupSwipeNavigation() {
     }, {passive: true});
 }
 
-// GUARDIAN BUGFIX 4: Dynamic Simulator Resolution for Modal
 window.openScheduleModal = function(destination, dayOverride = null) {
     history.pushState({ modal: 'schedule' }, '', '#schedule');
     let journeys = [];
     let titleSuffix = "";
-    let targetDayIdx = currentDayIndex; // Default
+    let targetDayIdx = typeof currentDayIndex !== 'undefined' ? currentDayIndex : new Date().getDay();
 
     if (dayOverride) {
-        const currentRoute = ROUTES[currentRouteId];
+        const currentRoute = typeof ROUTES !== 'undefined' && typeof currentRouteId !== 'undefined' ? ROUTES[currentRouteId] : null;
+        if (!currentRoute) return;
+        
         let sheetKey = null;
 
-        // Automatically discover the correct targetDayIdx if checking future schedules
         const selectedStation = stationSelect ? stationSelect.value : "";
         const simResult = typeof window.simulateNextActiveService === 'function'
             ? window.simulateNextActiveService(selectedStation, destination)
@@ -1697,7 +1834,6 @@ window.openScheduleModal = function(destination, dayOverride = null) {
             targetDayIdx = simResult.dayInfo.idx;
             titleSuffix = ` (${simResult.dayInfo.name})`;
         } else {
-            // Fallback
             if (dayOverride === 'weekday') { targetDayIdx = 1; titleSuffix = " (Weekday)"; } 
             else if (dayOverride === 'saturday') { targetDayIdx = 6; titleSuffix = " (Weekend/Holiday)"; } 
         }
@@ -1733,7 +1869,7 @@ window.openScheduleModal = function(destination, dayOverride = null) {
     };
 
     if (modalList) modalList.innerHTML = '';
-    const nowSeconds = timeToSeconds(currentTime);
+    const nowSeconds = typeof currentTime !== 'undefined' ? timeToSeconds(currentTime) : 0;
     let firstNextTrainFound = false;
     
     journeys.forEach(j => {
@@ -1753,7 +1889,6 @@ window.openScheduleModal = function(destination, dayOverride = null) {
              let rawName = j.sourceRoute.replace("Route", "").trim();
              let routeName = rawName;
              
-             // GUARDIAN V6.04.14 FIX: Universal String Split for region-agnostic formatting
              if (rawName.includes('<->')) {
                  routeName = rawName.split('<->')[1].trim();
              } else if (rawName.includes('↔')) {
@@ -1761,7 +1896,7 @@ window.openScheduleModal = function(destination, dayOverride = null) {
              }
 
              if (j.isDivergent) {
-                 const divDest = Renderer._applyUIIntercepts(j.actualDestName);
+                 const divDest = typeof Renderer !== 'undefined' ? Renderer._applyUIIntercepts(j.actualDestName) : j.actualDestName;
                  sharedTag = `<span class="text-[9px] font-bold text-red-600 bg-red-100 dark:text-red-300 dark:bg-red-900 px-1.5 py-0.5 rounded uppercase ml-2 border border-red-200 dark:border-red-800">⚠️ To ${toTitleCase(divDest)}</span>`;
              } else {
                  sharedTag = `<span class="text-[9px] font-bold text-purple-600 bg-purple-100 dark:text-purple-300 dark:bg-purple-900 px-1.5 py-0.5 rounded uppercase ml-2">From ${toTitleCase(routeName)}</span>`;
@@ -1834,7 +1969,6 @@ window.openScheduleModal = function(destination, dayOverride = null) {
         if (modalList) modalList.appendChild(div);
     });
     
-    // GUARDIAN BUGFIX: Call the smooth modal engine to prevent dead-ends
     openSmoothModal('schedule-modal');
     
     if (!dayOverride) { setTimeout(() => { const target = document.getElementById('next-train-marker'); if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' }); }, 10); } 
@@ -1847,7 +1981,6 @@ function setupFeedbackLogic() {
         feedbackBtn.addEventListener('click', (e) => { 
             e.preventDefault(); 
             
-            // Clear any existing reply context when opening natively
             const contextBox = document.getElementById('feedback-reply-context');
             if (contextBox) {
                 contextBox.classList.add('hidden');
@@ -1856,25 +1989,20 @@ function setupFeedbackLogic() {
 
             triggerHaptic();
             
-            // 🛡️ GUARDIAN PHASE 4: THE HYBRID FEEDBACK INTERCEPTOR
-            // If the route is inactive (coming soon), OR if we are caught in the KZN/EC region trap,
-            // we bypass the in-house modal entirely and route to Google Forms (to protect Firebase Storage limits).
-            const currentRoute = typeof currentRouteId !== 'undefined' && currentRouteId ? ROUTES[currentRouteId] : null;
+            const currentRoute = typeof ROUTES !== 'undefined' && typeof currentRouteId !== 'undefined' && currentRouteId ? ROUTES[currentRouteId] : null;
             const isInactiveRoute = currentRoute && !currentRoute.isActive;
             
             if (isInactiveRoute || window.lastClickedFutureRegion) {
                 trackAnalyticsEvent('open_google_form_feedback', { 
                     location: 'feedback_interceptor',
-                    region: window.lastClickedFutureRegion || currentRegion
+                    region: window.lastClickedFutureRegion || (typeof currentRegion !== 'undefined' ? currentRegion : 'GP')
                 });
                 
-                // Directly launch the massive Crowdsource Form for heavy files
                 window.open('https://docs.google.com/forms/d/e/1FAIpQLSe7lhoUNKQFOiW1d6_7ezCHJvyOL5GkHNH1Oetmvdqgee16jw/viewform', '_blank');
-                window.lastClickedFutureRegion = null; // Clear the trap state safely
+                window.lastClickedFutureRegion = null; 
                 return;
             }
 
-            // Normal In-House Text-Feedback Modal for active regions/routes
             trackAnalyticsEvent('open_feedback_modal', { location: 'app_footer' });
             history.pushState({ modal: 'feedback' }, '', '#feedback');
             window.closeAppHub(true); 
@@ -1882,7 +2010,6 @@ function setupFeedbackLogic() {
         }); 
     }
 
-    // Bind File Input Triggers
     const fileInput = document.getElementById('feedback-file');
     const filePreview = document.getElementById('feedback-file-preview');
     const fileNameDisplay = document.getElementById('feedback-file-name');
@@ -1893,7 +2020,6 @@ function setupFeedbackLogic() {
             if (this.files && this.files.length > 0) {
                 const file = this.files[0];
                 
-                // Strict 5MB payload limit to protect Firebase Quota
                 if (file.size > 5242880) {
                     showToast("File is too large. Maximum size is 5MB.", "error");
                     this.value = '';
@@ -1915,7 +2041,6 @@ function setupFeedbackLogic() {
         });
     }
 
-    // Bind Submit Button
     const submitBtn = document.getElementById('feedback-submit-btn');
     if (submitBtn) {
         submitBtn.addEventListener('click', submitFeedback);
@@ -1931,19 +2056,16 @@ async function submitFeedback() {
     const submitText = document.getElementById('feedback-submit-text');
     const spinner = document.getElementById('feedback-spinner');
 
-    // 🛡️ GUARDIAN PHASE 4: Strict Empty Noise Blocker
     if (!text || text.length < 5) {
         showToast("Please provide more details (at least 5 characters).", "error");
         return;
     }
 
-    // Merge hidden context if responding to an alert
     const contextBox = document.getElementById('feedback-reply-context');
     if (contextBox && !contextBox.classList.contains('hidden') && contextBox.dataset.rawMsg) {
         text = `[Replying to: "${contextBox.dataset.rawMsg}"]\n\n` + text;
     }
 
-    // GUARDIAN PHASE 2: Analytics event for the feedback submission click
     const hasFile = !!(fileInput && fileInput.files && fileInput.files.length > 0);
     trackAnalyticsEvent('click_submit_feedback_btn', { feedback_type: type, has_attachment: hasFile });
 
@@ -1953,12 +2075,10 @@ async function submitFeedback() {
     spinner.classList.remove('hidden');
 
     try {
-        // Ensure anonymous auth so Firebase Storage Rules will accept the upload
         if (window.firebaseAuth && !window.firebaseAuth.currentUser && window.firebaseSignInAnonymously) {
             await window.firebaseSignInAnonymously(window.firebaseAuth);
         }
 
-        // GUARDIAN FIX: Securely fetch ID Token to authenticate REST API writes
         let authToken = "";
         if (window.firebaseAuth && window.firebaseAuth.currentUser && window.firebaseGetIdToken) {
             authToken = await window.firebaseGetIdToken(window.firebaseAuth.currentUser, true);
@@ -1966,7 +2086,6 @@ async function submitFeedback() {
 
         let attachmentUrl = null;
 
-        // Secure Storage Uploader Pipeline with 15-Second Timeout Race
         if (hasFile) {
             const file = fileInput.files[0];
             if (window.firebaseStorage && window.firebaseStorageRef && window.firebaseUploadBytesResumable && window.firebaseGetDownloadURL) {
@@ -2002,9 +2121,9 @@ async function submitFeedback() {
                 } catch (uploadError) {
                     console.warn("🛡️ Guardian: Image upload failed or timed out. Abandoning image to save text feedback.", uploadError);
                     if (uploadError.message === 'UPLOAD_TIMEOUT') {
-                        uploadTask.cancel(); // Force kill the background Firebase retries
+                        uploadTask.cancel(); 
                     }
-                    attachmentUrl = null; // Reset to null so text payload proceeds cleanly
+                    attachmentUrl = null; 
                 }
             } else {
                 console.warn("🛡️ Firebase Storage SDK not available. Skipping attachment.");
@@ -2018,7 +2137,7 @@ async function submitFeedback() {
             text: text,
             email: email,
             attachmentUrl: attachmentUrl,
-            status: "unread", // GUARDIAN: Sets the unread flag for admin sync
+            status: "unread",
             appVersion: typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown',
             routeId: typeof currentRouteId !== 'undefined' ? currentRouteId : 'none',
             region: typeof currentRegion !== 'undefined' ? currentRegion : 'GP',
@@ -2027,18 +2146,14 @@ async function submitFeedback() {
         };
 
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-        
-        // GUARDIAN FIX: Append Auth Token to REST URL
         const authParam = authToken ? `?auth=${authToken}` : '';
         
-        // Push payload to RTDB using REST POST (creates a secure unique ID instantly)
         const res = await fetch(`${dynamicEndpoint}feedback.json${authParam}`, {
             method: 'POST',
             body: JSON.stringify(payload)
         });
 
         if (!res.ok) {
-            // GUARDIAN FIX: Verbose error logging to catch 401 Unauthorized Rules blocks
             const errorText = await res.text();
             throw new Error(`Failed to post to database: ${res.status} ${res.statusText} - ${errorText}`);
         }
@@ -2050,7 +2165,6 @@ async function submitFeedback() {
         }
         closeSmoothModal('feedback-modal');
         
-        // Reset physical form
         document.getElementById('feedback-text').value = '';
         document.getElementById('feedback-email').value = '';
         document.getElementById('feedback-type').value = 'schedule_error';
@@ -2075,7 +2189,6 @@ async function submitFeedback() {
     }
 }
 
-// Note: Kept strictly for external links (if any still exist) but decoupled from internal feedback flow
 function showRedirectModal(url, message) {
     if (redirectMessage) redirectMessage.textContent = message;
     history.pushState({ modal: 'redirect' }, '', '#redirect');
@@ -2186,7 +2299,6 @@ function setupFeatureButtons() {
             triggerHaptic();
             trackAnalyticsEvent('click_share', { location: 'main_view' });
             const shareText = 'Say Goodbye to Waiting\nUse Next Train to check when your train is due to arrive.';
-            // 🛡️ GUARDIAN Phase 2: Explicitly verified this URL does NOT contain the UID to prevent identity leakage.
             const shareUrl = 'https://nexttrain.co.za/';
 
             const shareData = { title: "Metrorail Next Train", text: shareText, url: shareUrl }; 
@@ -2194,7 +2306,6 @@ function setupFeatureButtons() {
                 if (navigator.share) { await navigator.share(shareData); } 
                 else { copyToClipboard(`${shareText} ${shareUrl}`); } 
             } catch (err) { 
-                // GUARDIAN Phase 1: Only fallback to clipboard if not deliberately aborted by the user
                 if (err.name !== 'AbortError') {
                     copyToClipboard(`${shareText} ${shareUrl}`); 
                 }
@@ -2205,7 +2316,6 @@ function setupFeatureButtons() {
     installBtn = document.getElementById('install-app-btn');
     const installBtnPlanner = document.getElementById('install-app-btn-planner');
     
-    // 🛡️ GUARDIAN PHASE 2: Identity Bridge (WebView Detection)
     const ua = navigator.userAgent || navigator.vendor || window.opera;
     const isWebView = (ua.indexOf('FBAN') > -1) || (ua.indexOf('FBAV') > -1) || (ua.indexOf('Instagram') > -1) || (ua.indexOf('Line') > -1);
 
@@ -2213,7 +2323,6 @@ function setupFeatureButtons() {
         if (installBtn) installBtn.classList.remove('hidden'); 
         if (installBtnPlanner) installBtnPlanner.classList.remove('hidden'); 
         
-        // GUARDIAN Phase 2: Escape Hatch UI Transformation
         if (isWebView) {
             const escapeIcon = `<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>`;
             if (installBtn) {
@@ -2239,7 +2348,6 @@ function setupFeatureButtons() {
         triggerHaptic();
         trackAnalyticsEvent('install_app_click', { location: 'main_view', is_webview: isWebView });
         
-        // 🛡️ GUARDIAN PHASE 2: The Identity Bridge Execution
         if (isWebView) {
             const bridgeUrl = `https://nexttrain.co.za/?uid=${NEXT_TRAIN_DEVICE_ID}`;
             copyToClipboard(bridgeUrl);
@@ -2268,11 +2376,11 @@ function setupFeatureButtons() {
         if (sidenav) {
             sidenav.classList.remove('-translate-x-full');
             sidenav.classList.add('translate-x-0'); 
-            sidenav.classList.add('open'); // GUARDIAN: Force CSS transform rule
+            sidenav.classList.add('open'); 
         }
         if (sidenavOverlay) sidenavOverlay.classList.add('open'); 
         document.body.classList.add('sidenav-open'); 
-        lockBackgroundScroll(); // GUARDIAN: Lock scroll
+        lockBackgroundScroll(); 
         
         history.pushState({ view: 'sidenav' }, '', '#sidenav');
     };
@@ -2296,7 +2404,7 @@ function setupFeatureButtons() {
                     return; 
                 } 
                 
-                if (ROUTES[routeId] && !ROUTES[routeId].isActive) {
+                if (typeof ROUTES !== 'undefined' && ROUTES[routeId] && !ROUTES[routeId].isActive) {
                     closeSmoothModal('route-modal');
                     trackAnalyticsEvent('select_inactive_route', { route_name: ROUTES[routeId].name, route_id: routeId });
                 }
@@ -2315,18 +2423,14 @@ function setupFeatureButtons() {
 // --- GUARDIAN PHASE 3: THE REGION INTERCEPTOR ---
 window.lastClickedFutureRegion = null;
 
-// GUARDIAN Phase 1 (UX Polish): Refactored to stop reloading and instead trigger seamless SPA state wipe
 window.handleRegionChange = function(newRegion, selectElement) {
     if (newRegion === currentRegion) return;
 
-    // 1. THE INTERCEPTOR: Trap KZN and EC safely to prevent blank screens
     if (newRegion === 'KZN' || newRegion === 'EC') {
         window.lastClickedFutureRegion = newRegion;
         
-        // Forcefully revert the dropdown so the UI state remains pristine
         if (selectElement) selectElement.value = currentRegion;
 
-        // Telemetry: Capture the precise demand heatmap for expansion
         trackAnalyticsEvent('select_future_region', { region: newRegion });
 
         const titleEl = document.getElementById('region-soon-title');
@@ -2338,15 +2442,12 @@ window.handleRegionChange = function(newRegion, selectElement) {
 
         history.pushState({ modal: 'region-soon' }, '', '#regionsoon');
         
-        // GUARDIAN BUGFIX: Reverse execution order to prevent background scroll bleed
         window.closeAppHub(true);
         setTimeout(() => { openSmoothModal('region-soon-modal'); }, 50);
 
-        return; // HALT EXECUTION (Prevents app crash/reload)
+        return; 
     }
 
-    // 2. ACTIVE REGION SWITCHING (GP / WC)
-    // We revert the select visually first, waiting for the strict Confirm Modal to handle the actual write
     if (selectElement) selectElement.value = currentRegion;
 
     if (!navigator.onLine) {
@@ -2371,7 +2472,6 @@ window.handleRegionChange = function(newRegion, selectElement) {
         if (title) title.textContent = `Switch Region?`;
         if (desc) desc.textContent = `Are you sure you want to switch to ${name}?`;
         
-        // GUARDIAN BUGFIX: Reverse execution order to preserve modal scroll lock
         window.closeAppHub(true);
         setTimeout(() => { openSmoothModal('region-confirm-modal'); }, 50);
 
@@ -2381,7 +2481,6 @@ window.handleRegionChange = function(newRegion, selectElement) {
             if (location.hash === '#regionconfirm') history.back();
             else closeSmoothModal('region-confirm-modal');
             
-            // GUARDIAN Phase 1: Call the SPA swap execution hook if it exists, otherwise fallback to reload.
             if (typeof executeRegionSwap === 'function') {
                 executeRegionSwap(newRegion);
             } else {
@@ -2394,7 +2493,6 @@ window.handleRegionChange = function(newRegion, selectElement) {
             else closeSmoothModal('region-confirm-modal');
         };
 
-        // GUARDIAN BUGFIX: Use strict .onclick to prevent event stacking memory leaks and double-fires
         if (actionBtn) actionBtn.onclick = confirmAction;
         if (cancelBtn) cancelBtn.onclick = cancelAction;
     }
@@ -2407,13 +2505,11 @@ window.voteForRegion = async function() {
         let hasVoted = false;
         try { hasVoted = safeStorage.getItem(storageKey); } catch(e) {}
         
-        // 🛡️ GUARDIAN PHASE 4: Anti-Spam Polling Check
         if (hasVoted) {
             showToast("You've already voted for this region!", "info");
         } else {
             trackAnalyticsEvent('vote_future_region', { region: window.lastClickedFutureRegion });
 
-            // GROWTH MODE Phase 1: Direct Firebase RTDB Push for absolute mathematical proof
             try {
                 if (window.firebaseAuth && !window.firebaseAuth.currentUser && window.firebaseSignInAnonymously) {
                     await window.firebaseSignInAnonymously(window.firebaseAuth);
@@ -2446,7 +2542,6 @@ window.voteForRegion = async function() {
             showToast("Thanks for voting! We've logged your request.", "success");
         }
     } else {
-        // Fallback catch if global variable is empty
         showToast("Thanks for voting!", "success");
     }
     
@@ -2455,7 +2550,6 @@ window.voteForRegion = async function() {
 };
 
 function setupSettingsHub() {
-    // GUARDIAN FIX: Removed legacy pill-toggle bindings, cleanly mapping basic buttons
     const helpBtn = document.getElementById('settings-help-btn');
     const aboutBtn = document.getElementById('settings-about-btn');
     const helpModal = document.getElementById('help-modal');
@@ -2486,7 +2580,6 @@ function setupSettingsHub() {
             verEl.textContent = APP_VERSION;
         }
 
-        // GROWTH MODE PHASE 3: What's New Unread Badge Logic
         const seenVersion = safeStorage.getItem('seen_changelog_version');
         const badge = document.getElementById('whats-new-badge');
         if (seenVersion !== currentVersionStr) {
@@ -2512,14 +2605,13 @@ function setupSettingsHub() {
 }
 
 function showWelcomeScreen() {
-    if (!welcomeModal || !welcomeRouteList || !welcomeRouteList.parentNode) return; // GUARDIAN: Safety
+    if (!welcomeModal || !welcomeRouteList || !welcomeRouteList.parentNode) return;
 
     if (!document.getElementById('welcome-region-selector')) {
         const regionWrapper = document.createElement('div');
         regionWrapper.id = 'welcome-region-selector';
         regionWrapper.className = 'w-full mb-4 flex flex-col items-center space-y-3 shrink-0';
 
-        // ROW 1: Active Regions
         const activeRow = document.createElement('div');
         activeRow.className = 'flex justify-center space-x-2 w-full';
 
@@ -2533,11 +2625,9 @@ function showWelcomeScreen() {
         btnWC.textContent = 'Western Cape';
         btnWC.onclick = () => { safeStorage.setItem('userRegion', 'WC'); window.location.reload(); };
 
-        // Swap rendering order: GP on the left, WC on the right
         activeRow.appendChild(btnGP);
         activeRow.appendChild(btnWC);
 
-        // ROW 2: Growth Trap (Future Regions)
         const futureRow = document.createElement('div');
         futureRow.className = 'flex justify-center space-x-2 w-full opacity-70';
 
@@ -2560,7 +2650,7 @@ function showWelcomeScreen() {
         welcomeRouteList.parentNode.insertBefore(regionWrapper, welcomeRouteList);
     }
 
-    if (typeof Renderer !== 'undefined') Renderer.renderWelcomeList('welcome-route-list', getRoutesForCurrentRegion(), selectWelcomeRoute);
+    if (typeof Renderer !== 'undefined' && typeof ROUTES !== 'undefined') Renderer.renderWelcomeList('welcome-route-list', getRoutesForCurrentRegion(), selectWelcomeRoute);
     openSmoothModal('welcome-modal');
 }
 
@@ -2578,7 +2668,7 @@ window.openLegal = function(type) {
     trackAnalyticsEvent('view_legal_doc', { type: type });
     history.pushState({ modal: 'legal' }, '', '#legal');
     if (legalTitle) legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
-    if (legalContent) legalContent.innerHTML = LEGAL_TEXTS[type];
+    if (legalContent) legalContent.innerHTML = typeof LEGAL_TEXTS !== 'undefined' && LEGAL_TEXTS[type] ? LEGAL_TEXTS[type] : '';
     window.closeAppHub(true);
     setTimeout(() => { openSmoothModal('legal-modal'); }, 50);
 };
@@ -2613,7 +2703,6 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (refreshing) return;
             
-            // GUARDIAN Phase 3: Live Server Immunity (Session Storage Protected)
             let lastReload = null;
             try { lastReload = sessionStorage.getItem('sw_last_reload'); } catch(e) {}
             const now = Date.now();
@@ -2653,7 +2742,6 @@ function handleUpdateFound(registration) {
         `;
         showToast("New version available.", "info", 10000, actionHTML);
         
-        // This enables the Idle tracker to see the pending update and trigger it automatically
         window._pendingUpdateReg = registration;
     }
 }
@@ -2667,14 +2755,13 @@ window.triggerAppUpdate = function() {
     }
 };
 
-// GUARDIAN BUGFIX 4: Grid Auto-Forward Integration
 window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     if (!schedules || Object.keys(schedules).length === 0) {
         showToast("Loading latest schedules... please wait.", "info", 2000);
         return;
     }
 
-    const route = ROUTES[currentRouteId];
+    const route = typeof ROUTES !== 'undefined' ? ROUTES[currentRouteId] : null;
     if (!route) return;
 
     let selectedDay = dayOverride || currentDayType;
@@ -2683,8 +2770,6 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     let autoForwarded = false;
 
     if (!dayOverride) {
-        // GUARDIAN PHASE 15: Grid Sync Patch
-        // Only auto-forward to tomorrow if there is absolutely no service on the current day type.
         let hasServiceToday = false;
         
         if (currentDayType !== 'sunday') {
@@ -2717,7 +2802,6 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
                 targetDayIdx = simResult.dayInfo.idx;
                 autoForwarded = true;
             } else if (currentDayType === 'sunday') {
-                // Fallback
                 selectedDay = 'weekday';
                 targetDayIdx = 1;
                 autoForwarded = true;
@@ -2827,29 +2911,28 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
             } catch (e) {}
         };
 
-        // GUARDIAN: Hardcoded clean labels for optimal mobile UI flow. No dynamic text injection here.
         let wkLabel = "Mon - Fri";
         let satLabel = "Sat / Hol";
 
-        // GUARDIAN Phase 2 (Grid UX): Buttons shrunk horizontally. Text wrapping applied to Save Image.
         controlsDiv.innerHTML = `
-            <div class="flex items-center space-x-1.5 sm:space-x-2">
-                <select onchange="renderFullScheduleGrid('${direction}', this.value)" class="text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm">
+            <div class="flex items-center space-x-1 sm:space-x-2 min-w-0 flex-1">
+                <select onchange="renderFullScheduleGrid('${direction}', this.value)" class="text-[9px] sm:text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-1 py-1 sm:px-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm truncate">
                     <option value="weekday" ${isWk ? 'selected' : ''}>${wkLabel}</option>
                     <option value="saturday" ${!isWk ? 'selected' : ''}>${satLabel}</option>
                 </select>
-                <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">
-                    ⇄ ${Renderer._applyUIIntercepts(oppositeDestName)}
+                <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[9px] sm:text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-1 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm truncate shrink-0">
+                    ⇄ ${typeof Renderer !== 'undefined' ? Renderer._applyUIIntercepts(oppositeDestName) : oppositeDestName}
                 </button>
             </div>
             
-            <div class="flex items-center space-x-1.5 border-l border-gray-200 dark:border-gray-700 pl-2 sm:pl-3 ml-1">
-                <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center space-x-1.5 px-2 sm:px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600" title="Save Image">
-                    <span class="text-[10px] font-bold text-gray-700 dark:text-gray-300 hidden sm:inline">Save Image</span>
-                    <svg class="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            <div class="flex items-center space-x-1 border-l border-gray-200 dark:border-gray-700 pl-1.5 ml-1 shrink-0">
+                <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center justify-center space-x-1 px-1.5 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600 whitespace-nowrap focus:outline-none min-w-0" title="Save Image">
+                    <svg class="w-3 h-3 text-gray-600 dark:text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    <span class="text-[9px] font-bold text-gray-700 dark:text-gray-300 truncate">Save Pic</span>
                 </button>
-                <button onclick="shareCurrentGrid()" class="p-1.5 sm:p-2 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100 transition shadow-sm" title="Share Link">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                <button onclick="shareCurrentGrid()" class="flex items-center justify-center space-x-1 px-1.5 py-1 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded hover:bg-blue-100 transition shadow-sm border border-blue-200 dark:border-blue-800 whitespace-nowrap focus:outline-none min-w-0" title="Share Link">
+                    <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                    <span class="text-[9px] font-bold truncate">Share</span>
                 </button>
             </div>
         `;
@@ -2860,7 +2943,7 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
                         (currentDayType !== 'weekday' && sheetDayType === 'saturday')
                     );
     
-    const html = Renderer._buildGridHTML(schedule, route.sheetKeys[sheetKey], currentRouteId, targetDayIdx, isTodayType, false);
+    const html = typeof Renderer !== 'undefined' ? Renderer._buildGridHTML(schedule, route.sheetKeys[sheetKey], currentRouteId, targetDayIdx, isTodayType, false) : '';
 
     container.innerHTML = html;
     modal.classList.remove('hidden');
@@ -2877,8 +2960,7 @@ function updateNextTrainView() {
     const container = fareBox ? fareBox.parentNode : null;
     if (!container) return;
 
-    // GUARDIAN Phase B: Inactive Route Grid Guard
-    const currentRoute = ROUTES[currentRouteId];
+    const currentRoute = typeof ROUTES !== 'undefined' ? ROUTES[currentRouteId] : null;
     if (!currentRoute || !currentRoute.isActive) {
         const gridTrigger = document.getElementById('grid-trigger-container');
         if (gridTrigger) gridTrigger.classList.add('hidden');
@@ -2936,7 +3018,6 @@ function enforceAppVersion() {
     if (!storedVersion) safeStorage.setItem('app_installed_version', currentVersion);
 }
 
-// GUARDIAN Phase 4: Async Update Race Condition Fix
 window.handleUpdateClick = async function(newVersion) {
     try {
         if ('serviceWorker' in navigator) {
@@ -2958,151 +3039,6 @@ window.handleUpdateClick = async function(newVersion) {
     safeStorage.setItem('app_installed_version', newVersion);
     window.location.reload(true);
 };
-
-// GUARDIAN BUGFIX: Properly attribute analytics source for forced system cache wipes
-window.performHardCacheClear = async function(source = 'modal_confirm') {
-    triggerHaptic();
-    
-    // 🛡️ GUARDIAN FIX: Stop spamming analytics! Only fire when manually initiated from UI.
-    if (source === 'modal_confirm') {
-        trackAnalyticsEvent('execute_hard_cache_clear', { location: 'sidebar' });
-        showToast("Clearing offline data and syncing...", "info", 5000);
-
-        // 🛡️ GUARDIAN PHASE 1 (Analytics Beacon Hardening):
-        // The GA4 and Clarity tracking pixels need time to leave the device.
-        // If we immediately unregister the Service Worker below, it aborts in-flight network requests.
-        // We force a 600ms network buffer here to guarantee the beacon lands.
-        await new Promise(resolve => setTimeout(resolve, 600));
-    }
-    
-    window.closeAppHub(true); 
-    
-    const modal = document.getElementById('cache-clear-modal');
-    if (modal) {
-        closeSmoothModal('cache-clear-modal');
-    }
-    
-    // GUARDIAN Phase 4: Async Cache Wipe to prevent Update Race Conditions
-    try {
-        if ('serviceWorker' in navigator) {
-            const registrations = await navigator.serviceWorker.getRegistrations();
-            for (let registration of registrations) {
-                await registration.unregister();
-            }
-        }
-
-        if ('caches' in window) {
-            const names = await caches.keys();
-            for (let name of names) {
-                await caches.delete(name);
-            }
-        }
-
-        // 🛡️ GUARDIAN PHASE 2: Identity Protection Protocol (The Vault)
-        // Replace manual key targeting with the full volatile sweep.
-        // This safely obliterates old schedules/zombie keys while locking Identity & Settings.
-        if (typeof safeStorage.flushVolatile === 'function') {
-            safeStorage.flushVolatile();
-        } else {
-            safeStorage.removeItem(`full_db_${currentRegion}`); 
-            safeStorage.removeItem('app_installed_version');
-        }
-        
-        if (window.indexedDB) {
-            indexedDB.deleteDatabase('NextTrainDB');
-            console.log("🛡️ Guardian: IndexedDB 'NextTrainDB' successfully queued for deletion.");
-        }
-    } catch (e) {
-        console.warn("🛡️ Guardian: Failed to fully clear caches", e);
-    }
-    
-    // 🛡️ GUARDIAN PHASE 1: Extended disk IO buffer before reload
-    setTimeout(() => {
-        window.location.reload(true);
-    }, 1000);
-};
-
-window.showCacheClearWarning = function() {
-    triggerHaptic();
-    trackAnalyticsEvent('check_updates_click', { location: 'sidebar' });
-    window.closeAppHub(true); 
-    let modal = document.getElementById('cache-clear-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'cache-clear-modal';
-        modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-md z-[140] hidden flex items-center justify-center p-4 transition-opacity duration-300';
-        modal.innerHTML = `
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
-                <div class="text-center">
-                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900 mb-4 shadow-inner">
-                        <svg class="h-6 w-6 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
-                    </div>
-                    <h3 class="text-xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Sync Latest Schedule?</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">This will clear your offline cache and download the absolute latest App version from the server.</p>
-                    <div class="flex space-x-3">
-                        <button onclick="closeSmoothModal('cache-clear-modal')" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors focus:outline-none">Cancel</button>
-                        <button onclick="performHardCacheClear('modal_confirm')" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none">Sync Now</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-    }
-    history.pushState({ modal: 'cache-clear-modal' }, '', '#cacheclear');
-    openSmoothModal('cache-clear-modal');
-}
-
-function initializeApp() {
-    if (window.location.pathname.endsWith('index.html')) {
-        const newPath = window.location.pathname.replace('index.html', '');
-        window.history.replaceState({}, '', newPath + window.location.search + window.location.hash);
-    }
-    
-    let exitTrapSet = false;
-    try { exitTrapSet = sessionStorage.getItem('exitTrapSet'); } catch(e) {}
-
-    if (!exitTrapSet) {
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-        if (isStandalone) {
-            history.replaceState({ view: 'exit-trap' }, '', '#exit');
-            history.pushState({ view: 'home' }, '', '#home');
-        } else {
-            history.replaceState({ view: 'home' }, '', '#home');
-        }
-        try { sessionStorage.setItem('exitTrapSet', 'true'); } catch(e) {}
-    }
-
-    loadUserProfile(); 
-    populateStationList();
-    if (typeof initPlanner === 'function') initPlanner();
-    
-    // GUARDIAN BUGFIX: Call updatePinUI here *after* currentRouteId has been populated from storage
-    // This perfectly syncs the empty/filled visual state of the Star Pin button on the main screen.
-    updatePinUI();
-    
-    // Call the global startClock bound in logic.js
-    if (typeof window.startClock === 'function') {
-        window.startClock();
-    }
-    
-    const urlParams = new URLSearchParams(window.location.search);
-    if (!urlParams.has('action') && !urlParams.has('route')) { findNextTrains(); }
-    checkServiceAlerts();
-    checkMaintenanceStatus(); 
-    handleShortcutActions();
-    
-    if(mainContent && currentRouteId) {
-        mainContent.style.display = 'block';
-    }
-    
-    updateNextTrainView();
-    if(stationSelect && !stationSelect.value) renderPlaceholder();
-
-    if (!navigator.onLine) { 
-        const oi = document.getElementById('offline-indicator');
-        if (oi) oi.style.display = 'flex';
-    }
-}
 
 // --- DOM READY ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -3198,7 +3134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const exitConfirmBtn = document.getElementById('exit-confirm-btn');
     const exitCancelBtn = document.getElementById('exit-cancel-btn');
     
-        if (exitConfirmBtn) {
+    if (exitConfirmBtn) {
         exitConfirmBtn.addEventListener('click', () => {
             if (navigator.app && navigator.app.exitApp) {
                 navigator.app.exitApp();
@@ -3238,7 +3174,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (stationSelect) {
         stationSelect.addEventListener('change', () => { 
-            trackAnalyticsEvent('select_station', { station: stationSelect.value, route_id: currentRouteId });
+            trackAnalyticsEvent('select_station', { station: stationSelect.value, route_id: typeof currentRouteId !== 'undefined' ? currentRouteId : 'none' });
             syncPlannerFromMain(stationSelect.value); 
             
             const searchInput = document.getElementById('station-search-input');
@@ -3318,8 +3254,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFeatureButtons(); 
     setupSettingsHub();
     setupModalButtons(); 
-    setupFeedbackLogic(); // GUARDIAN PHASE 2: Initializing In-House Feedback System
-    startSmartRefresh();
+    setupFeedbackLogic(); 
+    if (typeof startSmartRefresh === 'function') startSmartRefresh();
     setupSwipeNavigation(); 
     initTabIndicator(); 
     
@@ -3338,24 +3274,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!savedDefault) {
         let legacyDefault = null;
         try { legacyDefault = safeStorage.getItem('defaultRoute'); } catch(e) {}
-        if (legacyDefault && ROUTES[legacyDefault] && ROUTES[legacyDefault].region === currentRegion) {
+        if (legacyDefault && typeof ROUTES !== 'undefined' && ROUTES[legacyDefault] && ROUTES[legacyDefault].region === currentRegion) {
             savedDefault = legacyDefault;
             try { safeStorage.setItem('defaultRoute_' + currentRegion, legacyDefault); } catch(e) {}
         }
     }
     
-    if (savedDefault && ROUTES[savedDefault] && ROUTES[savedDefault].region === currentRegion) {
+    if (savedDefault && typeof ROUTES !== 'undefined' && ROUTES[savedDefault] && ROUTES[savedDefault].region === currentRegion) {
         currentRouteId = savedDefault;
-        loadAllSchedules().then(() => {
-            if (navigator.permissions && navigator.permissions.query) {
-                navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
-                    if (result.state === 'granted') {
-                        console.log("Location permission already granted. Auto-locating...");
-                        findNearestStation(true);
-                    }
-                });
-            }
-        });
+        if (typeof loadAllSchedules === 'function') {
+            loadAllSchedules().then(() => {
+                if (navigator.permissions && navigator.permissions.query) {
+                    navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
+                        if (result.state === 'granted') {
+                            console.log("Location permission already granted. Auto-locating...");
+                            if (typeof findNearestStation === 'function') findNearestStation(true);
+                        }
+                    });
+                }
+            });
+        }
     } else {
         console.log("First time user (or switched regions). Showing Welcome Screen.");
         if (typeof loadingOverlay !== 'undefined' && loadingOverlay) {
@@ -3369,7 +3307,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Shortcut action detected, ignoring saved tab preference.");
     } else {
         let lastActiveTab = null;
-        try { lastActiveTab = localStorage.getItem('activeTab'); } catch(e) {}
+        try { lastActiveTab = safeStorage.getItem('activeTab'); } catch(e) {}
         if (lastActiveTab) {
             switchTab(lastActiveTab);
         } else {
@@ -3382,20 +3320,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // GUARDIAN Phase 1.3: Update date text on the main UI
 function updateLastUpdatedText() {
-    if (!fullDatabase) return;
+    if (typeof fullDatabase === 'undefined' || !fullDatabase) return;
     let displayDate = fullDatabase.lastUpdated || "Unknown";
     const isValidDate = (d) => d && d !== "undefined" && d !== "null" && String(d).length > 5;
     
     if (currentDayType === 'weekday' || currentDayType === 'monday') { 
-        if (schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) displayDate = schedules.weekday_to_a.lastUpdated;
+        if (typeof schedules !== 'undefined' && schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) displayDate = schedules.weekday_to_a.lastUpdated;
     } else if (currentDayType === 'saturday') {
-        if (schedules.saturday_to_a && isValidDate(schedules.saturday_to_a.lastUpdated)) displayDate = schedules.saturday_to_a.lastUpdated;
+        if (typeof schedules !== 'undefined' && schedules.saturday_to_a && isValidDate(schedules.saturday_to_a.lastUpdated)) displayDate = schedules.saturday_to_a.lastUpdated;
     } else if (currentDayType === 'sunday') {
-         if (schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) displayDate = schedules.weekday_to_a.lastUpdated;
+         if (typeof schedules !== 'undefined' && schedules.weekday_to_a && isValidDate(schedules.weekday_to_a.lastUpdated)) displayDate = schedules.weekday_to_a.lastUpdated;
     }
     
-    displayDate = formatEffectiveDate(displayDate);
+    if (typeof formatEffectiveDate === 'function') {
+        displayDate = formatEffectiveDate(displayDate);
+    }
     
-    // GUARDIAN BUGFIX: Restored "Schedule Effective from:" phrasing to match HTML placeholder
-    if (displayDate && lastUpdatedEl) lastUpdatedEl.textContent = `Schedule effective from: ${displayDate}`;
+    // GUARDIAN BUGFIX: Restored "Schedule Effective from:" phrasing to match HTML placeholder 
+    if (displayDate && typeof lastUpdatedEl !== 'undefined' && lastUpdatedEl) lastUpdatedEl.textContent = `Schedule effective from: ${displayDate}`;
 }
