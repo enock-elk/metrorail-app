@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-v6.05.01-Growth-Phase-4'; // BUMPED: Growth Mode Phase 3 (Force UI cache refresh)
+const CACHE_NAME = 'metrorail-next-train-v6.05.02-Growth-Phase-1'; // BUMPED: Growth Mode Phase 1 (Force UI cache refresh)
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.

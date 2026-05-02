@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.05.01 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.05.02 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -30,6 +30,7 @@
  * * GROWTH MODE PHASE 3: The Haptics Diet. Purged vibrations from tabs, swipes, and closures. Unread badge logic injected for Changelog.
  * * GROWTH MODE PHASE 4 (DATA PIPELINE): Firebase Rule Bypass for Crashes (PUT). Inbox Checker injected into Alert Bell. Naked ROUTES checks patched.
  * * GROWTH MODE PHASE 5.1 (MONETIZATION FIX): AdInterceptor injected to protect 20-Hour Rule against PWA reloads and modal overlaps.
+ * * GROWTH MODE PHASE 6: AdBlocker Evasion & Inbox Banner. Migrated `/metrics/` to `/sys_logs/` and built persistent Developer Reply banner.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -162,7 +163,7 @@ window.onerror = function(msg, url, line, col, error) {
     // GUARDIAN (Phase 2): Safe Mode Fallback (Strike 2)
     console.log("🛡️ Guardian: Strike 2 Error intercepted. Deploying Safe Mode.");
     
-    // GROWTH MODE PHASE 4 (DATA PIPELINE): Secure Firebase PUT Bypass
+    // GROWTH MODE PHASE 4 & 6 (DATA PIPELINE): Secure Firebase PUT Bypass to /sys_logs/ to evade AdBlockers
     const crashId = Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const crashPayload = {
         error: String(msg),
@@ -177,7 +178,7 @@ window.onerror = function(msg, url, line, col, error) {
     
     try {
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-        fetch(`${dynamicEndpoint}metrics/crashes/${crashId}.json`, {
+        fetch(`${dynamicEndpoint}sys_logs/crashes/${crashId}.json`, {
             method: 'PUT',
             body: JSON.stringify(crashPayload)
         }).catch(()=>{}); // Silent fire and forget
@@ -198,7 +199,7 @@ window.onerror = function(msg, url, line, col, error) {
             <h2 class="text-2xl font-black text-white mb-2 tracking-tight">App Crashed (Safe Mode)</h2>
             <p class="text-gray-400 text-sm mb-8 max-w-xs leading-relaxed">A fatal data error occurred. Please clear your offline cache to resync the latest schedules.</p>
             <div class="w-full max-w-xs space-y-3">
-                <button onclick="try{ if(typeof safeStorage !== 'undefined') safeStorage.flushVolatile(); else { localStorage.clear(); sessionStorage.clear(); } }catch(e){} if(window.indexedDB) indexedDB.deleteDatabase('NextTrainDB'); if(window.caches) { caches.keys().then(k => Promise.all(k.map(n => caches.delete(n)))).finally(() => window.location.reload(true)) } else { window.location.reload(true); }" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg transition-colors w-full focus:outline-none">
+                <button onclick="try{ if(typeof safeStorage !== 'undefined') safeStorage.flushVolatile(); else { localStorage.clear(); sessionStorage.clear(); } }catch(e){} if(window.indexedDB) indexedDB.deleteDatabase('NextTrainDB'); if(window.caches) { caches.keys().then(k => Promise.all(k.map(n => caches.delete(n)))).finally(() => window.location.href = window.location.pathname + '?v=' + Date.now()) } else { window.location.href = window.location.pathname + '?v=' + Date.now(); }" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg transition-colors w-full focus:outline-none">
                     Clear Cache & Restart
                 </button>
                 <a href="${feedbackUrl}" target="_blank" class="flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3.5 px-6 rounded-xl shadow-lg transition-colors w-full border border-gray-700 focus:outline-none text-sm">
@@ -1047,7 +1048,14 @@ window.performHardCacheClear = async function(source = 'modal_confirm') {
         }
         
         if (window.indexedDB) {
-            indexedDB.deleteDatabase('NextTrainDB');
+            await new Promise((resolve) => {
+                try {
+                    const req = indexedDB.deleteDatabase('NextTrainDB');
+                    req.onsuccess = resolve;
+                    req.onerror = resolve;
+                    req.onblocked = resolve;
+                } catch(e) { resolve(); }
+            });
             console.log("🛡️ Guardian: IndexedDB 'NextTrainDB' successfully queued for deletion.");
         }
     } catch (e) {
@@ -1055,8 +1063,8 @@ window.performHardCacheClear = async function(source = 'modal_confirm') {
     }
     
     setTimeout(() => {
-        window.location.reload(true);
-    }, 1000);
+        window.location.href = window.location.pathname + '?v=' + Date.now();
+    }, 500);
 };
 
 window.showCacheClearWarning = function() {
@@ -1304,60 +1312,95 @@ async function checkServiceAlerts() {
             } catch (e) { console.warn("Inbox fetch failed", e); }
         }
 
+        // --- INBOX BANNER LOGIC ---
+        const replyBanner = document.getElementById('developer-reply-banner');
+        const viewReplyBtn = document.getElementById('view-reply-btn');
+        
+        if (adminReply && replyBanner) {
+            replyBanner.classList.remove('hidden');
+            
+            if (viewReplyBtn) {
+                viewReplyBtn.onclick = () => {
+                    if (typeof triggerHaptic === 'function') triggerHaptic();
+                    
+                    const replyContent = document.getElementById('developer-reply-content');
+                    const markReadBtn = document.getElementById('mark-reply-read-btn');
+                    
+                    if (replyContent) replyContent.textContent = adminReply.message;
+                    
+                    if (markReadBtn) {
+                        markReadBtn.onclick = async () => {
+                            if (typeof triggerHaptic === 'function') triggerHaptic();
+                            markReadBtn.disabled = true;
+                            markReadBtn.textContent = "Marking...";
+                            try {
+                                await fetch(`${dynamicEndpoint}inbox/${NEXT_TRAIN_DEVICE_ID}/${adminReply._key}.json`, {
+                                    method: 'PATCH',
+                                    body: JSON.stringify({ read: true })
+                                });
+                            } catch(e) {}
+                            
+                            closeSmoothModal('developer-reply-modal');
+                            replyBanner.classList.add('hidden');
+                        };
+                    }
+                    
+                    history.pushState({ modal: 'devreply' }, '', '#devreply');
+                    openSmoothModal('developer-reply-modal');
+                };
+            }
+            
+            const devReplyCloseTop = document.querySelector('#developer-reply-modal button.text-gray-400');
+            if (devReplyCloseTop) {
+                devReplyCloseTop.onclick = (e) => {
+                    e.preventDefault();
+                    if (location.hash === '#devreply') history.back();
+                    else closeSmoothModal('developer-reply-modal');
+                };
+            }
+        } else if (replyBanner) {
+            replyBanner.classList.add('hidden');
+        }
+
         // 2. FETCH STANDARD NOTICES
         const response = await fetch(`${dynamicEndpoint}notices.json?t=${Date.now()}`);
-        if (!response.ok && !adminReply) return; 
-        const notices = response.ok ? await response.json() : null;
+        if (!response.ok) return; 
+        const notices = await response.json();
         
         const existingTicker = document.getElementById('service-ticker');
         if (existingTicker) existingTicker.remove();
         
-        if (!notices && !adminReply) { 
+        if (!notices) { 
             bellBtn.classList.add('hidden'); 
             return; 
         }
         
         let activeNotice = null;
-        let isInboxMessage = false;
-
-        if (adminReply) {
-            isInboxMessage = true;
-            activeNotice = {
-                id: 'inbox_' + adminReply._key,
-                severity: 'info',
-                message: adminReply.message,
-                postedAt: adminReply.timestamp,
-                forcePopup: true, // Always prioritize admin reply visibility
-                authorName: "Developer Response"
-            };
-        } else {
-            const now = Date.now();
-            let validNotices = [];
-            
-            const activeRegionString = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
-            const targetKeys = [typeof currentRouteId !== 'undefined' ? currentRouteId : null, `all_${activeRegionString}`, 'all'].filter(Boolean);
-            
-            targetKeys.forEach(key => {
-                if (notices[key] && notices[key].expiresAt && notices[key].expiresAt > now) {
-                    validNotices.push(notices[key]);
-                }
-            });
-
-            if (validNotices.length === 0) {
-                bellBtn.classList.add('hidden');
-                return;
+        const now = Date.now();
+        let validNotices = [];
+        
+        const activeRegionString = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
+        const targetKeys = [typeof currentRouteId !== 'undefined' ? currentRouteId : null, `all_${activeRegionString}`, 'all'].filter(Boolean);
+        
+        targetKeys.forEach(key => {
+            if (notices[key] && notices[key].expiresAt && notices[key].expiresAt > now) {
+                validNotices.push(notices[key]);
             }
+        });
 
-            const severityScore = { 'critical': 3, 'warning': 2, 'info': 1 };
-            validNotices.sort((a, b) => (severityScore[b.severity] || 1) - (severityScore[a.severity] || 1));
-            
-            activeNotice = validNotices[0];
+        if (validNotices.length === 0) {
+            bellBtn.classList.add('hidden');
+            return;
         }
+
+        const severityScore = { 'critical': 3, 'warning': 2, 'info': 1 };
+        validNotices.sort((a, b) => (severityScore[b.severity] || 1) - (severityScore[a.severity] || 1));
+        
+        activeNotice = validNotices[0];
 
         const severity = activeNotice.severity || 'info';
         const seenKey = `seen_notice_${activeNotice.id}`;
-        // Personal inbox messages bypass local history caches to ensure they aren't missed
-        const hasSeen = isInboxMessage ? false : safeStorage.getItem(seenKey) === 'true';
+        const hasSeen = safeStorage.getItem(seenKey) === 'true';
         const forcePopup = activeNotice.forcePopup === true;
         
         // --- CONTENT BINDER ---
@@ -1365,69 +1408,59 @@ async function checkServiceAlerts() {
             if (!content || !modal) return;
             
             const modalHeader = modal.querySelector('h3');
+            if (modalHeader) modalHeader.innerHTML = `Service Alert`;
             
-            if (isInboxMessage) {
-                if (modalHeader) modalHeader.innerHTML = `Message from Developer`;
-                content.innerHTML = `
-                    <div class="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-xl border border-blue-200 dark:border-blue-800 shadow-inner text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">
-                        ${escapeHTML(activeNotice.message)}
-                    </div>
-                `;
-            } else {
-                if (modalHeader) modalHeader.innerHTML = `Service Alert`;
-                let formattedMsg = activeNotice.message;
-                
-                let mediaHtml = '';
-                if (activeNotice.imageUrl) {
-                    mediaHtml += `<img src="${escapeHTML(activeNotice.imageUrl)}" class="w-full h-auto max-h-48 object-cover rounded-lg mb-3 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image" onerror="this.style.display='none'">`;
-                }
+            let formattedMsg = activeNotice.message;
+            let mediaHtml = '';
+            if (activeNotice.imageUrl) {
+                mediaHtml += `<img src="${escapeHTML(activeNotice.imageUrl)}" class="w-full h-auto max-h-48 object-cover rounded-lg mb-3 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image" onerror="this.style.display='none'">`;
+            }
 
-                content.innerHTML = mediaHtml + formattedMsg;
-                
-                // CTA Button Injection
-                if (activeNotice.ctaUrl && activeNotice.ctaText) {
-                    content.innerHTML += `
-                        <a href="${escapeHTML(activeNotice.ctaUrl)}" target="_blank" class="mt-4 flex items-center justify-center w-full bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 font-bold py-2.5 px-4 rounded-lg transition-colors text-xs uppercase tracking-wide border border-blue-200 dark:border-blue-800 shadow-sm focus:outline-none">
-                            ${escapeHTML(activeNotice.ctaText)}
-                            <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                        </a>
+            content.innerHTML = mediaHtml + formattedMsg;
+            
+            // CTA Button Injection
+            if (activeNotice.ctaUrl && activeNotice.ctaText) {
+                content.innerHTML += `
+                    <a href="${escapeHTML(activeNotice.ctaUrl)}" target="_blank" class="mt-4 flex items-center justify-center w-full bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 font-bold py-2.5 px-4 rounded-lg transition-colors text-xs uppercase tracking-wide border border-blue-200 dark:border-blue-800 shadow-sm focus:outline-none">
+                        ${escapeHTML(activeNotice.ctaText)}
+                        <svg class="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    </a>
+                `;
+            }
+
+            // Interactive Polling Engine
+            if (activeNotice.poll && activeNotice.poll.active) {
+                const pollId = activeNotice.id;
+                const votedOption = safeStorage.getItem('poll_voted_' + pollId);
+
+                let pollHtml = '';
+                if (votedOption) {
+                    pollHtml = `
+                        <div class="mt-4 bg-green-50 dark:bg-green-900/20 p-3 rounded-xl border border-green-200 dark:border-green-800 text-center shadow-inner">
+                            <span class="text-xl block mb-1">✅</span>
+                            <p class="text-xs font-bold text-green-800 dark:text-green-300">Thanks for voting!</p>
+                            <p class="text-[10px] text-green-600 dark:text-green-500 mt-0.5">Your response has been recorded.</p>
+                        </div>
+                    `;
+                } else {
+                    pollHtml = `
+                        <div id="poll-container-${pollId}" class="mt-4 bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-200 dark:border-purple-800 shadow-sm">
+                            <p class="text-sm font-black text-purple-900 dark:text-purple-100 mb-3 leading-tight text-center">${escapeHTML(activeNotice.poll.question)}</p>
+                            <div class="flex space-x-3">
+                                <button onclick="submitPollVote('${pollId}', 'A', '${escapeHTML(activeNotice.poll.optionA)}')" class="flex-1 bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 text-purple-700 dark:text-purple-300 font-bold py-2.5 rounded-lg transition-all transform hover:scale-105 text-xs focus:outline-none shadow-sm">${escapeHTML(activeNotice.poll.optionA)}</button>
+                                <button onclick="submitPollVote('${pollId}', 'B', '${escapeHTML(activeNotice.poll.optionB)}')" class="flex-1 bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 text-purple-700 dark:text-purple-300 font-bold py-2.5 rounded-lg transition-all transform hover:scale-105 text-xs focus:outline-none shadow-sm">${escapeHTML(activeNotice.poll.optionB)}</button>
+                            </div>
+                        </div>
                     `;
                 }
-
-                // Interactive Polling Engine
-                if (activeNotice.poll && activeNotice.poll.active) {
-                    const pollId = activeNotice.id;
-                    const votedOption = safeStorage.getItem('poll_voted_' + pollId);
-
-                    let pollHtml = '';
-                    if (votedOption) {
-                        pollHtml = `
-                            <div class="mt-4 bg-green-50 dark:bg-green-900/20 p-3 rounded-xl border border-green-200 dark:border-green-800 text-center shadow-inner">
-                                <span class="text-xl block mb-1">✅</span>
-                                <p class="text-xs font-bold text-green-800 dark:text-green-300">Thanks for voting!</p>
-                                <p class="text-[10px] text-green-600 dark:text-green-500 mt-0.5">Your response has been recorded.</p>
-                            </div>
-                        `;
-                    } else {
-                        pollHtml = `
-                            <div id="poll-container-${pollId}" class="mt-4 bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-200 dark:border-purple-800 shadow-sm">
-                                <p class="text-sm font-black text-purple-900 dark:text-purple-100 mb-3 leading-tight text-center">${escapeHTML(activeNotice.poll.question)}</p>
-                                <div class="flex space-x-3">
-                                    <button onclick="submitPollVote('${pollId}', 'A', '${escapeHTML(activeNotice.poll.optionA)}')" class="flex-1 bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 text-purple-700 dark:text-purple-300 font-bold py-2.5 rounded-lg transition-all transform hover:scale-105 text-xs focus:outline-none shadow-sm">${escapeHTML(activeNotice.poll.optionA)}</button>
-                                    <button onclick="submitPollVote('${pollId}', 'B', '${escapeHTML(activeNotice.poll.optionB)}')" class="flex-1 bg-white dark:bg-gray-800 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 text-purple-700 dark:text-purple-300 font-bold py-2.5 rounded-lg transition-all transform hover:scale-105 text-xs focus:outline-none shadow-sm">${escapeHTML(activeNotice.poll.optionB)}</button>
-                                </div>
-                            </div>
-                        `;
-                    }
-                    content.innerHTML += pollHtml;
-                }
-                
-                // Append Severity Tags below everything
-                if (severity === 'critical') {
-                    content.innerHTML += `<div class="mt-3 text-xs text-red-600 font-bold border border-red-200 bg-red-50 dark:bg-red-900/30 dark:border-red-800 p-2 rounded text-center">🔴 CRITICAL SERVICE DISRUPTION</div>`;
-                } else if (severity === 'warning') {
-                    content.innerHTML += `<div class="mt-3 text-xs text-yellow-700 font-bold border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-400 p-2 rounded text-center">🟡 SERVICE WARNING</div>`;
-                }
+                content.innerHTML += pollHtml;
+            }
+            
+            // Append Severity Tags below everything
+            if (severity === 'critical') {
+                content.innerHTML += `<div class="mt-3 text-xs text-red-600 font-bold border border-red-200 bg-red-50 dark:bg-red-900/30 dark:border-red-800 p-2 rounded text-center">🔴 CRITICAL SERVICE DISRUPTION</div>`;
+            } else if (severity === 'warning') {
+                content.innerHTML += `<div class="mt-3 text-xs text-yellow-700 font-bold border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-400 p-2 rounded text-center">🟡 SERVICE WARNING</div>`;
             }
             
             const date = new Date(activeNotice.postedAt);
@@ -1449,57 +1482,54 @@ async function checkServiceAlerts() {
             
             const newCloseBtn = document.createElement('button');
             newCloseBtn.id = "notice-close-btn";
-            newCloseBtn.className = isInboxMessage ? `flex-1 ${baseColorClass} text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none` : "flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none";
-            newCloseBtn.textContent = isInboxMessage ? "Got it" : "Close";
+            newCloseBtn.className = "flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none";
+            newCloseBtn.textContent = "Close";
             newCloseBtn.onclick = closeNotice;
             btnContainer.appendChild(newCloseBtn);
 
-            // Do not show reply button if this IS a reply
-            if (!isInboxMessage) {
-                const newReplyBtn = document.createElement('button');
-                newReplyBtn.className = `flex-1 ${baseColorClass} text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center`;
-                newReplyBtn.innerHTML = `<span class="mr-1.5">💬</span> Reply`;
+            const newReplyBtn = document.createElement('button');
+            newReplyBtn.className = `flex-1 ${baseColorClass} text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center`;
+            newReplyBtn.innerHTML = `<span class="mr-1.5">💬</span> Reply`;
+            
+            newReplyBtn.onclick = () => {
+                triggerHaptic();
                 
-                newReplyBtn.onclick = () => {
-                    triggerHaptic();
-                    
-                    let cleanMsgText = "";
-                    if (activeNotice && activeNotice.message) {
-                        cleanMsgText = activeNotice.message.replace(/<[^>]*>?/gm, '');
-                        cleanMsgText = cleanMsgText.replace(/—.*/, '').trim();
+                let cleanMsgText = "";
+                if (activeNotice && activeNotice.message) {
+                    cleanMsgText = activeNotice.message.replace(/<[^>]*>?/gm, '');
+                    cleanMsgText = cleanMsgText.replace(/—.*/, '').trim();
+                }
+                
+                let words = cleanMsgText.split(/\s+/).filter(w => w.length > 0);
+                let truncatedMsg = words.slice(0, 6).join(' ');
+                if (words.length > 6) truncatedMsg += '...';
+                
+                const fText = document.getElementById('feedback-text');
+                const fType = document.getElementById('feedback-type');
+                
+                if (fText) {
+                    let contextBox = document.getElementById('feedback-reply-context');
+                    if (!contextBox) {
+                        contextBox = document.createElement('div');
+                        contextBox.id = 'feedback-reply-context';
+                        contextBox.className = 'mb-3 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 italic flex items-start hidden shadow-inner';
+                        fText.parentNode.insertBefore(contextBox, fText);
                     }
-                    
-                    let words = cleanMsgText.split(/\s+/).filter(w => w.length > 0);
-                    let truncatedMsg = words.slice(0, 6).join(' ');
-                    if (words.length > 6) truncatedMsg += '...';
-                    
-                    const fText = document.getElementById('feedback-text');
-                    const fType = document.getElementById('feedback-type');
-                    
-                    if (fText) {
-                        let contextBox = document.getElementById('feedback-reply-context');
-                        if (!contextBox) {
-                            contextBox = document.createElement('div');
-                            contextBox.id = 'feedback-reply-context';
-                            contextBox.className = 'mb-3 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 italic flex items-start hidden shadow-inner';
-                            fText.parentNode.insertBefore(contextBox, fText);
-                        }
-                        contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Advisory:</span><span class="line-clamp-2">"${truncatedMsg}"</span></div>`;
-                        contextBox.dataset.rawMsg = truncatedMsg;
-                        contextBox.classList.remove('hidden');
-                        fText.value = ''; 
-                    }
-                    if (fType) fType.value = 'general';
-                    
-                    closeNotice();
-                    setTimeout(() => {
-                        trackAnalyticsEvent('open_feedback_modal', { location: 'alert_reply' });
-                        history.pushState({ modal: 'feedback' }, '', '#feedback');
-                        openSmoothModal('feedback-modal');
-                    }, 350);
-                };
-                btnContainer.appendChild(newReplyBtn);
-            }
+                    contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Advisory:</span><span class="line-clamp-2">"${truncatedMsg}"</span></div>`;
+                    contextBox.dataset.rawMsg = truncatedMsg;
+                    contextBox.classList.remove('hidden');
+                    fText.value = ''; 
+                }
+                if (fType) fType.value = 'general';
+                
+                closeNotice();
+                setTimeout(() => {
+                    trackAnalyticsEvent('open_feedback_modal', { location: 'alert_reply' });
+                    history.pushState({ modal: 'feedback' }, '', '#feedback');
+                    openSmoothModal('feedback-modal');
+                }, 350);
+            };
+            btnContainer.appendChild(newReplyBtn);
 
             if (oldCloseBtn && oldCloseBtn.parentNode) {
                 oldCloseBtn.style.display = 'none'; 
@@ -1530,7 +1560,7 @@ async function checkServiceAlerts() {
 
         if (!hasSeen) {
             if (dot) dot.classList.remove('hidden');
-            if (severity === 'critical' || isInboxMessage) {
+            if (severity === 'critical') {
                 bellBtn.classList.add('animate-shake');
             } else {
                 bellBtn.classList.remove('animate-shake');
@@ -1570,12 +1600,6 @@ async function checkServiceAlerts() {
         const topCloseBtn = modal ? modal.querySelector('button.text-gray-400') : null;
         
         const closeNotice = () => {
-            if (isInboxMessage && adminReply && adminReply._key) {
-                fetch(`${dynamicEndpoint}inbox/${NEXT_TRAIN_DEVICE_ID}/${adminReply._key}.json`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ read: true })
-                }).catch(()=>{}); // Silent update
-            }
             if(location.hash === '#notice') history.back();
             else closeSmoothModal('notice-modal');
         };
@@ -2928,7 +2952,7 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
             <div class="flex items-center space-x-1 border-l border-gray-200 dark:border-gray-700 pl-1.5 ml-1 shrink-0">
                 <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center justify-center space-x-1 px-1.5 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600 whitespace-nowrap focus:outline-none min-w-0" title="Save Image">
                     <svg class="w-3 h-3 text-gray-600 dark:text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    <span class="text-[9px] font-bold text-gray-700 dark:text-gray-300 truncate">Save Pic</span>
+                    <span class="text-[9px] font-bold text-gray-700 dark:text-gray-300 truncate">Download</span>
                 </button>
                 <button onclick="shareCurrentGrid()" class="flex items-center justify-center space-x-1 px-1.5 py-1 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded hover:bg-blue-100 transition shadow-sm border border-blue-200 dark:border-blue-800 whitespace-nowrap focus:outline-none min-w-0" title="Share Link">
                     <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>

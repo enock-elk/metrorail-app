@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V6.04.28 (Guardian Edition - UI/UX Polish)
+  Metrorail Next Train V6.05.02 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -24,6 +24,7 @@
   - GROWTH MODE PHASE 4 (UI): Welcome Dark Mode toggle purged. Sidenav Unread Badge injected. Cloudflare IP Auto-Select hooked to Welcome screen.
   - GROWTH MODE PHASE 5: Clever Ads Sticky Footer Integration & UI Safe Zone (pb-24).
   - GROWTH MODE PHASE 5.1 (MONETIZATION FIX): Purged static ad script from footer to prevent 20-Hour Rule race condition burn.
+  - GROWTH MODE PHASE 6: Sidenav Active Region aesthetics flattened & Developer Reply Inbox scaffolds injected.
 -->
 <html lang="en" class="dark">
 
@@ -400,79 +401,74 @@
     <!-- APP HUB SIDENAV (Flat Native UI Edition - Vertical Compression) -->
     <div id="sidenav" class="fixed inset-y-0 left-0 w-[90vw] sm:w-96 shadow-2xl bg-white dark:bg-gray-900 flex flex-col h-full z-[100]">
         
-        <!-- 4-Region Native Selector (Interceptor Bindings) - GROWTH MODE PHASE 4 (PUPPETEER PATTERN) -->
-        <div class="px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 shrink-0" id="sidenav-region-container">
-            <label class="block text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1 px-1">Active Region</label>
-            <div class="relative shadow-sm rounded-lg cursor-pointer group" onclick="document.getElementById('sidenav-region-list').classList.toggle('hidden'); document.getElementById('sidenav-region-chevron').classList.toggle('rotate-180');">
-                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none z-10">
-                    <span class="text-sm">🌍</span>
-                </div>
-                
-                <!-- Hidden Native Select (The Puppet) -->
-                <!-- LINTING FIX: Removed inline appearance styles -->
-                <select id="app-hub-region-select" class="hidden" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { try { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); } catch(e) {} window.location.reload(); }">
-                    <option value="GP">Gauteng</option>
-                    <option value="WC">Western Cape</option>
-                    <option value="KZN">KwaZulu-Natal (Soon)</option>
-                    <option value="EC">Eastern Cape (Soon)</option>
-                </select>
-                
-                <!-- Fake Select Display -->
-                <div class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 py-2 pl-9 pr-9 rounded-lg text-sm font-bold text-gray-900 dark:text-white transition-colors shadow-sm group-hover:border-blue-400 dark:group-hover:border-blue-500 flex items-center justify-between">
-                    <span id="sidenav-region-display" class="truncate">Gauteng</span>
-                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 dark:text-gray-400">
-                        <svg id="sidenav-region-chevron" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </div>
-                </div>
-
-                <!-- Custom Dropdown List -->
-                <ul id="sidenav-region-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-hidden text-left">
-                    <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Gauteng'; const sel=document.getElementById('app-hub-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Gauteng</li>
-                    <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Western Cape'; const sel=document.getElementById('app-hub-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Western Cape</li>
-                    <li onclick="event.stopPropagation(); const sel=document.getElementById('app-hub-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors border-b border-gray-100 dark:border-gray-700">KwaZulu-Natal (Soon)</li>
-                    <li onclick="event.stopPropagation(); const sel=document.getElementById('app-hub-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors">Eastern Cape (Soon)</li>
-                </ul>
-            </div>
-            
-            <!-- Script to sync initial state instantly -->
-            <script>
-                document.addEventListener('DOMContentLoaded', () => {
-                    const sel = document.getElementById('app-hub-region-select');
-                    const disp = document.getElementById('sidenav-region-display');
-                    if (sel) {
-                        try { 
-                            const reg = (typeof safeStorage !== 'undefined' ? safeStorage.getItem('userRegion') : localStorage.getItem('userRegion')) || 'GP';
-                            sel.value = reg; 
-                            if (disp) {
-                                if(reg === 'GP') disp.textContent = 'Gauteng';
-                                else if(reg === 'WC') disp.textContent = 'Western Cape';
-                            }
-                        } catch(e) { sel.value = 'GP'; if(disp) disp.textContent = 'Gauteng'; }
-                    }
-                    
-                    // Close dropdown on outside click
-                    document.addEventListener('click', (e) => {
-                        if (!e.target.closest('#sidenav-region-container')) {
-                            const list = document.getElementById('sidenav-region-list');
-                            const chevron = document.getElementById('sidenav-region-chevron');
-                            if (list && !list.classList.contains('hidden')) {
-                                list.classList.add('hidden');
-                                if (chevron) chevron.classList.remove('rotate-180');
-                            }
-                        }
-                    });
-                });
-            </script>
-        </div>
-        
         <!-- Content Area: Edge-to-Edge Lists (Vertically Optimized) -->
-        <div class="flex-grow overflow-y-auto w-full custom-scrollbar pb-8">
+        <div class="flex-grow overflow-y-auto w-full custom-scrollbar pb-8 pt-0">
 
             <!-- PREFERENCES GROUP -->
-            <div class="pt-5">
+            <div>
                 <h3 class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-5 mb-2">Preferences</h3>
                 <div class="flex flex-col border-t border-gray-100 dark:border-gray-800">
                     
+                    <!-- Region Selector (Moved & Flattened) -->
+                    <div class="relative" id="sidenav-region-wrapper">
+                        <button class="w-full flex justify-between items-center py-3 px-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800 focus:outline-none group" id="sidenav-region-container" onclick="document.getElementById('sidenav-region-list').classList.toggle('hidden'); document.getElementById('sidenav-region-chevron').classList.toggle('rotate-180');">
+                            <div class="flex items-center space-x-4">
+                                <svg class="w-5 h-5 text-green-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <div class="text-left">
+                                    <p class="text-sm font-bold text-gray-900 dark:text-white leading-tight">Active Region</p>
+                                    <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5" id="sidenav-region-display">Gauteng</p>
+                                </div>
+                            </div>
+                            <svg id="sidenav-region-chevron" class="w-4 h-4 text-gray-300 dark:text-gray-600 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        
+                        <!-- Hidden Native Select (The Puppet) -->
+                        <select id="app-hub-region-select" class="hidden" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { try { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); } catch(e) {} window.location.reload(); }">
+                            <option value="GP">Gauteng</option>
+                            <option value="WC">Western Cape</option>
+                            <option value="KZN">KwaZulu-Natal (Soon)</option>
+                            <option value="EC">Eastern Cape (Soon)</option>
+                        </select>
+
+                        <!-- Custom Dropdown List -->
+                        <ul id="sidenav-region-list" class="absolute z-[200] w-[calc(100%-2rem)] left-4 top-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden flex-col overflow-hidden text-left mt-1">
+                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Gauteng'; const sel=document.getElementById('app-hub-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Gauteng</li>
+                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Western Cape'; const sel=document.getElementById('app-hub-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Western Cape</li>
+                            <li onclick="event.stopPropagation(); const sel=document.getElementById('app-hub-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors border-b border-gray-100 dark:border-gray-700">KwaZulu-Natal (Soon)</li>
+                            <li onclick="event.stopPropagation(); const sel=document.getElementById('app-hub-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors">Eastern Cape (Soon)</li>
+                        </ul>
+                        
+                        <!-- Script to sync initial state instantly -->
+                        <script>
+                            document.addEventListener('DOMContentLoaded', () => {
+                                const sel = document.getElementById('app-hub-region-select');
+                                const disp = document.getElementById('sidenav-region-display');
+                                if (sel) {
+                                    try { 
+                                        const reg = (typeof safeStorage !== 'undefined' ? safeStorage.getItem('userRegion') : localStorage.getItem('userRegion')) || 'GP';
+                                        sel.value = reg; 
+                                        if (disp) {
+                                            if(reg === 'GP') disp.textContent = 'Gauteng';
+                                            else if(reg === 'WC') disp.textContent = 'Western Cape';
+                                        }
+                                    } catch(e) { sel.value = 'GP'; if(disp) disp.textContent = 'Gauteng'; }
+                                }
+                                
+                                // Close dropdown on outside click
+                                document.addEventListener('click', (e) => {
+                                    if (!e.target.closest('#sidenav-region-wrapper')) {
+                                        const list = document.getElementById('sidenav-region-list');
+                                        const chevron = document.getElementById('sidenav-region-chevron');
+                                        if (list && !list.classList.contains('hidden')) {
+                                            list.classList.add('hidden');
+                                            if (chevron) chevron.classList.remove('rotate-180');
+                                        }
+                                    }
+                                });
+                            });
+                        </script>
+                    </div>
+
                     <!-- Profile -->
                     <button class="w-full flex justify-between items-center py-3 px-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800 focus:outline-none group" onclick="resetProfile()">
                         <div class="flex items-center space-x-4">
@@ -629,6 +625,20 @@
             <button id="tab-trip-planner" class="tab-btn">
                 Trip Planner
             </button>
+        </div>
+
+        <!-- INBOX BANNER SCAFFOLD -->
+        <div id="developer-reply-banner" class="hidden bg-blue-600 dark:bg-blue-700 text-white w-full shadow-md z-20 shrink-0 relative transition-all duration-300">
+            <div class="flex items-center justify-between p-3 px-4">
+                <div class="flex items-center space-x-3 min-w-0">
+                    <span class="text-xl flex-shrink-0 animate-bounce">💬</span>
+                    <div class="flex flex-col min-w-0">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-blue-200 dark:text-blue-300">Developer Reply</span>
+                        <span class="text-sm font-bold truncate">You have a new message!</span>
+                    </div>
+                </div>
+                <button id="view-reply-btn" class="flex-shrink-0 bg-white dark:bg-gray-900 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-800 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm focus:outline-none">Read</button>
+            </div>
         </div>
 
         <!-- GUARDIAN PHASE 2.1: ANTI-CLS AD SCAFFOLDING (GLOBAL TOP BANNER) -->
@@ -1515,6 +1525,27 @@
             <!-- GUARDIAN PHASE 9: SECURE SIGN OUT (Safely Isolated at Absolute Bottom) -->
             <div id="admin-signout-container"></div>
             
+        </div>
+    </div>
+
+    <!-- DEVELOPER REPLY MODAL -->
+    <div id="developer-reply-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[140] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-blue-200 dark:border-blue-900/50">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center space-x-2">
+                    <span class="text-2xl">💬</span>
+                    <h3 class="text-lg font-black text-gray-900 dark:text-white tracking-tight">Message from Developer</h3>
+                </div>
+                <button onclick="closeSmoothModal('developer-reply-modal')" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div id="developer-reply-content" class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800 text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap mb-6">
+                Loading message...
+            </div>
+            <button id="mark-reply-read-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors focus:outline-none">
+                Mark as Read
+            </button>
         </div>
     </div>
 

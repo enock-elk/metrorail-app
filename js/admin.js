@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.05.01 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.05.02 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -22,6 +22,7 @@
  * * GUARDIAN UI OVERHAUL: Replaced inline Bar Chart with Premium Full-Screen SVG Line Graph (Y-Axis + Fixed S-S Axis).
  * * GROWTH SPRINT PHASE 8: Dynamic Telemetry Cycling (DAU/WAU/MAU/ALL) & Commuter Reply Inbox Protocol.
  * * GROWTH SPRINT PHASE 9: Landscape Telemetry CSS Armor, SVG Tooltips & Unified Range Cycling.
+ * * GROWTH SPRINT PHASE 10: AdBlocker Evasion & Crash Metadata Upgrade. Endpoints shifted to /sys_logs/.
  */
 
 const Admin = {
@@ -1085,7 +1086,7 @@ const Admin = {
             
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const res = await window.guardianFetch(`${dynamicEndpoint}metrics/crashes.json?auth=${secret}`, {}, 10000);
+                const res = await window.guardianFetch(`${dynamicEndpoint}sys_logs/crashes.json?auth=${secret}`, {}, 10000);
                 
                 if (!res.ok) throw new Error("Fetch HTTP Error: " + res.status);
                 const data = await res.json();
@@ -1107,6 +1108,7 @@ const Admin = {
                     const safeErr = typeof escapeHTML === 'function' ? escapeHTML(crash.error) : crash.error;
                     const safeRoute = crash.routeId || "Global";
                     const safeOS = typeof escapeHTML === 'function' ? escapeHTML(crash.userAgent).substring(0, 45) + '...' : "Unknown OS";
+                    const safeAppVersion = typeof escapeHTML === 'function' ? escapeHTML(crash.appVersion || 'Unknown') : (crash.appVersion || 'Unknown');
                     
                     card.innerHTML = `
                         <div class="flex justify-between items-start">
@@ -1119,7 +1121,7 @@ const Admin = {
                         <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-800 pt-2">
                             <div class="flex flex-col">
                                 <span class="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">Route: <span class="text-blue-500">${safeRoute}</span></span>
-                                <span class="text-[8px] text-gray-400 font-mono truncate max-w-[200px]">${safeOS}</span>
+                                <span class="text-[8px] text-gray-400 font-mono truncate max-w-[200px]">App: ${safeAppVersion} | OS: ${safeOS}</span>
                             </div>
                         </div>
                     `;
@@ -1143,7 +1145,7 @@ const Admin = {
 
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                await window.guardianFetch(`${dynamicEndpoint}metrics/crashes.json?auth=${secret}`, { method: 'DELETE' }, 10000);
+                await window.guardianFetch(`${dynamicEndpoint}sys_logs/crashes.json?auth=${secret}`, { method: 'DELETE' }, 10000);
                 if (typeof showToast === 'function') showToast("Crash logs wiped clean.", "success");
                 Admin.fetchCrashes();
             } catch (e) {
@@ -1450,7 +1452,7 @@ const Admin = {
             
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const res = await window.guardianFetch(`${dynamicEndpoint}metrics/routing_fails.json?auth=${secret}`, {}, 10000);
+                const res = await window.guardianFetch(`${dynamicEndpoint}sys_logs/routing_fails.json?auth=${secret}`, {}, 10000);
                 
                 if (!res.ok) throw new Error("HTTP " + res.status);
                 const data = await res.json();
@@ -1517,7 +1519,7 @@ const Admin = {
             clearBtn.disabled = true;
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                await window.guardianFetch(`${dynamicEndpoint}metrics/routing_fails.json?auth=${secret}`, { method: 'DELETE' }, 10000);
+                await window.guardianFetch(`${dynamicEndpoint}sys_logs/routing_fails.json?auth=${secret}`, { method: 'DELETE' }, 10000);
                 if (typeof showToast === 'function') showToast("Dead End logs wiped.", "success");
                 Admin.fetchDeadEnds();
             } catch (e) {

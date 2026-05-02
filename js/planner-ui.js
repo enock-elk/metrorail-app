@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.04.29 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.05.02 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -1554,8 +1554,8 @@ function renderPlannerHistory() {
     let validHistory = rawHistory;
     if (typeof MASTER_STATION_LIST !== 'undefined' && MASTER_STATION_LIST.length > 0) {
         validHistory = rawHistory.filter(item =>
-            MASTER_STATION_LIST.includes(item.fullFrom) &&
-            MASTER_STATION_LIST.includes(item.fullTo)
+            MASTER_STATION_LIST.includes(item.from ? item.from.toUpperCase() : '') &&
+            MASTER_STATION_LIST.includes(item.to ? item.to.toUpperCase() : '')
         );
     } else if (typeof MASTER_STATION_LIST !== 'undefined' && MASTER_STATION_LIST.length === 0) {
         container.classList.add('hidden');
@@ -1793,7 +1793,7 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                 const failId = Date.now() + '_' + Math.random().toString(36).substr(2, 5);
                 
                 // Renamed endpoint to bypass ad-blocker 'telemetry' keyword blocks
-                fetch(`${dynamicEndpoint}metrics/routing_fails/${failId}.json`, {
+                fetch(`${dynamicEndpoint}sys_logs/routing_fails/${failId}.json`, {
                     method: 'PUT',
                     body: JSON.stringify(failPayload)
                 }).catch(() => {}); // Fire and forget
