@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.05.02 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.05.03 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -361,7 +361,7 @@ const Renderer = {
             <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 animate-fade-in-up">
                 <div class="text-sm font-bold text-gray-600 dark:text-gray-400">No service today</div>
                 ${disruptionHtml}
-                <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${dayText} is at:</p>
+                <p class="text-[10px] text-gray-400 dark:text-gray-50 mt-1">First train ${dayText} is at:</p>
                 <div class="text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md transition-all mt-1 w-3/4 shadow-sm border border-gray-100 dark:border-gray-800">
                     ${timeHTML}
                 </div>

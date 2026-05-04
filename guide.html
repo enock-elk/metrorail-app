@@ -9,6 +9,63 @@
     <link rel="canonical" href="https://nexttrain.co.za/guide.html">
     <meta name="description" content="Learn how to use Metrorail Next Train. Understand our routing algorithm, the 4-hour layover limit, and how we crowdsource PRASA train schedules.">
     
+    <!-- SEO: JSON-LD Structured Data for FAQ AI Overviews -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Does this app work offline?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes! Once you open the app while connected to the internet, it saves the schedules to your device. You can check times while underground or during loadshedding without using data."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Are you expanding to other provinces?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Absolutely. We are currently actively mapping out the corridors for KwaZulu-Natal (KZN) and the Eastern Cape (EC). We track demand, so be sure to vote for your region in the App Hub!"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How can I help improve the app?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "As a crowdsourced tool, we rely on commuters like you. If you notice a missing train, or if you have a photo of a new timetable at your local station, please use the Feedback button in the app to send it to us so we can update the database."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why is my route showing \"No Physical Connection\"?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "If the Trip Planner fails to find a route, it means our system currently doesn't have a known transfer hub connecting your Origin and Destination. If you know a valid transfer route, please hit the \"Report Missing Route\" button to let us know!"
+          }
+        }
+      ]
+    }
+    </script>
+
+    <!-- SOCIAL MEDIA META TAGS -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://nexttrain.co.za/guide.html">
+    <meta property="og:title" content="User Guide & FAQ | Metrorail Next Train">
+    <meta property="og:description" content="Learn how to use Metrorail Next Train. Understand our routing algorithm, the 4-hour layover limit, and how we crowdsource PRASA train schedules.">
+    <meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+
+    <!-- TWITTER CARD -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="User Guide & FAQ | Metrorail Next Train">
+    <meta name="twitter:description" content="Learn how to use Metrorail Next Train. Understand our routing algorithm, the 4-hour layover limit, and how we crowdsource PRASA train schedules.">
+    <meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png">
+
     <!-- FAVICONS -->
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=6">
@@ -44,6 +101,9 @@
     <!-- GUARDIAN: Local Tailwind & Config for Offline Support -->
     <script src="js/tailwind.js"></script>
     <script>
+        if (typeof tailwind !== 'undefined') {
+            tailwind.config = { darkMode: 'class' };
+        }
         try {
             if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');

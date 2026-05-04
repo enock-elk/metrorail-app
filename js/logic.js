@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V6.05.02 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V6.05.03 - Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -1417,6 +1417,9 @@ function resolveZoneForRoute(routeId) {
 
 // 🛡️ GUARDIAN PHASE 1: REFACTORED FARE ENGINE (Train-Time Dependency Purged)
 function getRouteFare(sheetKey) {
+    // 🛡️ GUARDIAN BUGFIX: Race condition patch to prevent null access during initial load
+    if (!fullDatabase) return null;
+    
     let zoneCode = null;
     if (sheetKey) {
         const zoneKey = sheetKey + "_zone";

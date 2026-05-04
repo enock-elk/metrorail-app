@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.05.02 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.05.03 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -31,6 +31,7 @@
  * * GROWTH MODE PHASE 4 (DATA PIPELINE): Firebase Rule Bypass for Crashes (PUT). Inbox Checker injected into Alert Bell. Naked ROUTES checks patched.
  * * GROWTH MODE PHASE 5.1 (MONETIZATION FIX): AdInterceptor injected to protect 20-Hour Rule against PWA reloads and modal overlaps.
  * * GROWTH MODE PHASE 6: AdBlocker Evasion & Inbox Banner. Migrated `/metrics/` to `/sys_logs/` and built persistent Developer Reply banner.
+ * * GROWTH MODE PHASE 7: isPWA diagnostic flag injected into Feedback Payload for enhanced Admin debugging. Scroll locks eradicated from Autocomplete.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -374,13 +375,11 @@ window._renderNextTrainList = function() {
                 const event = new Event('change');
                 select.dispatchEvent(event);
                 list.classList.add('hidden');
-                unlockBackgroundScroll(); // GUARDIAN: Release scroll when selection made
             };
             list.appendChild(li);
         });
     }
     list.classList.remove('hidden');
-    lockBackgroundScroll(); // GUARDIAN: Lock scroll while dropdown is open
 };
 
 function setupNextTrainAutocomplete() {
@@ -408,7 +407,8 @@ function setupNextTrainAutocomplete() {
     if (!list && input.parentNode) {
         list = document.createElement('ul');
         list.id = 'next-train-autocomplete-list';
-        list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0 custom-scrollbar";
+        // 🛡️ GUARDIAN UX FIX: overscroll-contain and touch-pan-y injected to fix mobile scroll freezing
+        list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0 custom-scrollbar overscroll-contain touch-pan-y";
         input.parentNode.appendChild(list);
         
         input.addEventListener('click', (e) => { 
@@ -417,7 +417,6 @@ function setupNextTrainAutocomplete() {
                 window._renderNextTrainList(); 
             } else {
                 list.classList.add('hidden');
-                unlockBackgroundScroll();
             }
         });
         
@@ -428,7 +427,6 @@ function setupNextTrainAutocomplete() {
                     window._renderNextTrainList();
                 } else {
                     list.classList.add('hidden');
-                    unlockBackgroundScroll(); 
                 }
             });
         }
@@ -437,13 +435,11 @@ function setupNextTrainAutocomplete() {
             if (!input.contains(e.target) && !list.contains(e.target) && (!chevron || !chevron.contains(e.target))) {
                 if (!list.classList.contains('hidden')) {
                     list.classList.add('hidden');
-                    unlockBackgroundScroll(); 
                 }
             } 
         });
     }
 }
-
 // --- RENDERER BRIDGES ---
 
 function getRoutesForCurrentRegion() {
@@ -1068,6 +1064,10 @@ window.performHardCacheClear = async function(source = 'modal_confirm') {
 };
 
 window.showCacheClearWarning = function() {
+    if (!navigator.onLine) {
+        showToast("You must be online to check for updates.", "warning");
+        return;
+    }
     triggerHaptic();
     trackAnalyticsEvent('check_updates_click', { location: 'sidebar' });
     window.closeAppHub(true); 
@@ -2156,6 +2156,8 @@ async function submitFeedback() {
 
         submitText.textContent = "Saving...";
 
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
+
         const payload = {
             type: type,
             text: text,
@@ -2166,7 +2168,9 @@ async function submitFeedback() {
             routeId: typeof currentRouteId !== 'undefined' ? currentRouteId : 'none',
             region: typeof currentRegion !== 'undefined' ? currentRegion : 'GP',
             timestamp: Date.now(),
-            userAgent: navigator.userAgent
+            userAgent: navigator.userAgent,
+            deviceId: typeof NEXT_TRAIN_DEVICE_ID !== 'undefined' ? NEXT_TRAIN_DEVICE_ID : 'unknown',
+            isPWA: isStandalone
         };
 
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -2879,13 +2883,13 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         modal.innerHTML = `
             <div class="bg-white dark:bg-gray-900 rounded-none shadow-2xl w-full h-full flex flex-col transform transition-transform duration-300 scale-100 overflow-hidden relative">
                 <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800 z-20 relative">
-                    <h3 class="flex-grow min-w-0 pr-2"></h3>
-                    <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition flex-shrink-0" aria-label="Close Grid">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
+                <h3 class="flex-grow min-w-0 pr-2"></h3>
+                <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition flex-shrink-0" aria-label="Close Grid">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                 </button>
                 </div>
                 <div id="grid-controls" class="px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shadow-sm z-20 relative"></div>
-                <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative"></div>
+                <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative pb-32"></div>
                 <div class="p-2.5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
                     <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-md transition-colors text-sm">Close Timetable</button>
                 </div>
@@ -2938,23 +2942,44 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         let wkLabel = "Mon - Fri";
         let satLabel = "Sat / Hol";
 
+        // 🛡️ GUARDIAN UX: Outside click listener for the custom Grid Dropdown
+        if (!window._gridOutsideClickListener) {
+            window._gridOutsideClickListener = (e) => {
+                const list = document.getElementById('grid-day-list');
+                const chevron = document.getElementById('grid-day-chevron');
+                if (list && !list.classList.contains('hidden') && !e.target.closest('#grid-day-dropdown-container')) {
+                    list.classList.add('hidden');
+                    if (chevron) chevron.classList.remove('rotate-180');
+                }
+            };
+            document.addEventListener('click', window._gridOutsideClickListener);
+        }
+
         controlsDiv.innerHTML = `
-            <div class="flex items-center space-x-1 sm:space-x-2 min-w-0 flex-1">
-                <select onchange="renderFullScheduleGrid('${direction}', this.value)" class="text-[9px] sm:text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-1 py-1 sm:px-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm truncate">
-                    <option value="weekday" ${isWk ? 'selected' : ''}>${wkLabel}</option>
-                    <option value="saturday" ${!isWk ? 'selected' : ''}>${satLabel}</option>
-                </select>
-                <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[9px] sm:text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-1 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm truncate shrink-0">
+            <div class="flex items-center space-x-1 sm:space-x-2 min-w-0 flex-1 relative" id="grid-day-dropdown-container">
+                <!-- Custom Dropdown Trigger -->
+                <button onclick="document.getElementById('grid-day-list').classList.toggle('hidden'); document.getElementById('grid-day-chevron').classList.toggle('rotate-180');" class="flex justify-between items-center text-[9px] sm:text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm min-w-[85px] sm:min-w-[95px]">
+                    <span id="grid-day-display" class="truncate mr-1">${isWk ? wkLabel : satLabel}</span>
+                    <svg id="grid-day-chevron" class="w-3 h-3 text-gray-500 transform transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                
+                <!-- Hidden Dropdown List -->
+                <ul id="grid-day-list" class="absolute z-[100] top-[110%] left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden flex-col overflow-hidden text-left min-w-[120px]">
+                    <li onclick="document.getElementById('grid-day-list').classList.add('hidden'); renderFullScheduleGrid('${direction}', 'weekday')" class="px-3 py-2.5 text-[10px] sm:text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 ${isWk ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">${wkLabel}</li>
+                    <li onclick="document.getElementById('grid-day-list').classList.add('hidden'); renderFullScheduleGrid('${direction}', 'saturday')" class="px-3 py-2.5 text-[10px] sm:text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors ${!isWk ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">${satLabel}</li>
+                </ul>
+
+                <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[9px] sm:text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm truncate shrink-0 ml-1 sm:ml-2">
                     ⇄ ${typeof Renderer !== 'undefined' ? Renderer._applyUIIntercepts(oppositeDestName) : oppositeDestName}
                 </button>
             </div>
             
             <div class="flex items-center space-x-1 border-l border-gray-200 dark:border-gray-700 pl-1.5 ml-1 shrink-0">
-                <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center justify-center space-x-1 px-1.5 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600 whitespace-nowrap focus:outline-none min-w-0" title="Save Image">
+                <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center justify-center space-x-1 px-1.5 py-1.5 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600 whitespace-nowrap focus:outline-none min-w-0" title="Save Image">
                     <svg class="w-3 h-3 text-gray-600 dark:text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     <span class="text-[9px] font-bold text-gray-700 dark:text-gray-300 truncate">Download</span>
                 </button>
-                <button onclick="shareCurrentGrid()" class="flex items-center justify-center space-x-1 px-1.5 py-1 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded hover:bg-blue-100 transition shadow-sm border border-blue-200 dark:border-blue-800 whitespace-nowrap focus:outline-none min-w-0" title="Share Link">
+                <button onclick="shareCurrentGrid()" class="flex items-center justify-center space-x-1 px-1.5 py-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded hover:bg-blue-100 transition shadow-sm border border-blue-200 dark:border-blue-800 whitespace-nowrap focus:outline-none min-w-0" title="Share Link">
                     <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                     <span class="text-[9px] font-bold truncate">Share</span>
                 </button>
