@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.05.03 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.05.06 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -29,6 +29,7 @@
  * * GUARDIAN PHASE 6 (ERROR CARD REFINEMENT): Consumed rich error payloads to inject specific disruption buttons into Suspended cards, Map CTA upgraded.
  * * GROWTH MODE PHASE 8: Disruption UX alignment. Flexbox baseline matching, typography sync for Incident cards, orange layovers, and silent dead-end beacon.
  * * GROWTH MODE PHASE 9 (DATA PIPELINE): Upgraded Dead Ends telemetry beacon to bypass Firebase Rules trap using dynamic PUT requests & AdBlocker evasion.
+ * * GUARDIAN PHASE 4.1: Deterministic Leaflet Teardown & Dynamic Contextual Reply injection for Disruption Modals.
  */
 
 // --- GUARDIAN PHASE 1: ROUTER BLEED & GREY SCREEN INTERCEPTOR ---
@@ -299,6 +300,48 @@ window.openDisruptionModal = function(id) {
         timeEl.textContent = `Posted: ${timeStr}, ${dateStr}`;
     } else {
         timeEl.textContent = "Posted: Recently";
+    }
+
+    // 🛡️ GUARDIAN PHASE 4: Contextual Reply Binding
+    // Automatically binds the specific advisory payload to the feedback context
+    const modalCard = document.getElementById('disruption-modal-card');
+    if (modalCard) {
+        const replyBtn = Array.from(modalCard.querySelectorAll('button')).find(b => b.textContent.includes('Reply'));
+        if (replyBtn) {
+            replyBtn.onclick = (e) => {
+                e.preventDefault();
+                if (typeof triggerHaptic === 'function') triggerHaptic();
+
+                let shortLocation = locationText.replace(/<[^>]*>?/gm, ''); // Strip HTML tags cleanly
+                let advisoryTitle = targetDisruption.buttonText || (targetDisruption.tier === 'CRITICAL' ? 'Line Severed' : 'Expect Delays');
+                let rawMsg = `${advisoryTitle} - ${shortLocation}`;
+
+                const fText = document.getElementById('feedback-text');
+                const fType = document.getElementById('feedback-type');
+
+                if (fText) {
+                    let contextBox = document.getElementById('feedback-reply-context');
+                    if (!contextBox) {
+                        contextBox = document.createElement('div');
+                        contextBox.id = 'feedback-reply-context';
+                        contextBox.className = 'mb-3 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 italic flex items-start hidden shadow-inner';
+                        fText.parentNode.insertBefore(contextBox, fText);
+                    }
+                    contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Advisory:</span><span class="line-clamp-2">"${rawMsg}"</span></div>`;
+                    contextBox.dataset.rawMsg = rawMsg;
+                    contextBox.classList.remove('hidden');
+                    fText.value = ''; 
+                }
+                if (fType) fType.value = 'general';
+
+                closeSmoothModal('disruption-modal');
+                setTimeout(() => {
+                    if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('open_feedback_modal', { location: 'planner_disruption_reply' });
+                    history.pushState({ modal: 'feedback' }, '', '#feedback');
+                    openSmoothModal('feedback-modal');
+                }, 350);
+            };
+        }
     }
     
     if (typeof openSmoothModal === 'function') openSmoothModal('disruption-modal');
@@ -1170,9 +1213,9 @@ function initPlanner() {
                 <svg id="main-day-chevron" class="w-5 h-5 text-gray-500 shrink-0 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             <ul id="main-day-list" class="absolute z-[100] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl hidden mt-2 flex-col overflow-hidden text-left">
-                <li onclick="window._selectMainDay(event, 'weekday', 'Weekday (Mon-Fri)')" class="p-4 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 ${selDay === 'weekday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Weekday (Mon-Fri)</li>
-                <li onclick="window._selectMainDay(event, 'saturday', 'Saturday / Public Holiday')" class="p-4 text-sm font-bold border-t border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 ${selDay === 'saturday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Saturday / Public Holiday</li>
-                <li onclick="window._selectMainDay(event, 'sunday', 'Sunday')" class="p-4 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors ${selDay === 'sunday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Sunday</li>
+                <li onclick="window._selectMainDay(event, 'weekday', 'Weekday (Mon-Fri)')" class="p-4 text-sm font-bold hover:bg-blue-50 dark:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 ${selDay === 'weekday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Weekday (Mon-Fri)</li>
+                <li onclick="window._selectMainDay(event, 'saturday', 'Saturday / Public Holiday')" class="p-4 text-sm font-bold border-t border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 ${selDay === 'saturday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Saturday / Public Holiday</li>
+                <li onclick="window._selectMainDay(event, 'sunday', 'Sunday')" class="p-4 text-sm font-bold hover:bg-blue-50 dark:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors ${selDay === 'sunday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Sunday</li>
             </ul>
         `;
         inputSection.insertBefore(daySelectDiv, searchBtn);
@@ -2337,27 +2380,24 @@ window.openTripMapRenderer = async function(routeData) {
             if (location.hash === '#trip-map') history.back();
             else closeSmoothModal('trip-map-modal');
             
-            // GUARDIAN PHASE 3: Clear any pending initialization to avoid race conditions
-            if (tripMapInitTimeout) {
-                clearTimeout(tripMapInitTimeout);
-            }
-            if (tripMapDestroyTimeout) {
-                clearTimeout(tripMapDestroyTimeout);
-            }
+            if (tripMapInitTimeout) clearTimeout(tripMapInitTimeout);
+            if (tripMapDestroyTimeout) clearTimeout(tripMapDestroyTimeout);
 
-            // Delay map destruction to allow CSS transition to finish
-            tripMapDestroyTimeout = setTimeout(() => {
-                if (tripMapInstance) {
-                    try {
-                        tripMapInstance.stopLocate(); // GUARDIAN: Stop background GPS polling
-                        tripMapInstance.off();
-                        tripMapInstance.remove();
-                    } catch(e) {}
-                    tripMapInstance = null;
-                }
-                // GUARDIAN PHASE 3: Mutex Release Failsafe
-                window._isMapInitializing = false;
-            }, 350);
+            // 🛡️ GUARDIAN PHASE 4: Synchronous Deterministic Map Teardown
+            // Eliminates the 350ms race condition entirely. The map is instantly ripped out
+            // of memory the millisecond the user closes it, preventing "already initialized" errors.
+            if (tripMapInstance) {
+                try {
+                    tripMapInstance.stopLocate();
+                    tripMapInstance.off();
+                    tripMapInstance.remove();
+                } catch(e) {}
+                tripMapInstance = null;
+            }
+            const mapCanvas = document.getElementById('trip-map-canvas');
+            if (mapCanvas) mapCanvas.innerHTML = '';
+            
+            window._isMapInitializing = false;
         };
 
         const closeBtn1 = document.getElementById('close-trip-map-btn');
@@ -2372,7 +2412,6 @@ window.openTripMapRenderer = async function(routeData) {
     openSmoothModal('trip-map-modal');
 
     // 4. Initialize Leaflet Canvas
-    // GUARDIAN PHASE 3: Clear pending destruction locks to gracefully handle rapid double-taps
     if (tripMapInitTimeout) clearTimeout(tripMapInitTimeout);
     if (tripMapDestroyTimeout) clearTimeout(tripMapDestroyTimeout);
 

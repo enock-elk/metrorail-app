@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V6.05.03 - Guardian Hybrid Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V6.05.06 - Guardian Hybrid Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -22,34 +22,8 @@
  * * GROWTH MODE PHASE 7: Core Transfer Tolerance expanded from 3 hours to 4 hours to accommodate sparser weekend/holiday schedules natively.
  * * GUARDIAN PHASE 14 (HEURISTIC PROBE): Replaced blind NO_PATH failures with precise analytical probes (Cross-Region, Graph Severance, Schedule Desert) for exact UI rendering.
  * * GUARDIAN PHASE 5: The Heuristic Payload Injection. Upgraded ERR_ACTIVE_SUSPENSION to bubble up rich disruption objects.
- * * GUARDIAN PHASE 15 (SECURITY PATCH): The Recursion Guard & Unified Loop Limiter injected to prevent Maximum Call Stack crashes on conflicting schedules.
+ * * GUARDIAN PHASE 15 (SECURITY PATCH): Recursion blocks fully eradicated. Flat outer 7-day loop architecture deployed to stop Call Stack explosions.
  */
-
-function getNextTransitDay(baseDayType, dayIdx) {
-    // GUARDIAN PHASE 2 & D: Smart Calendar Sync with Mathematical Offsets
-    // Look ahead using the physical calendar to bypass public holidays seamlessly.
-    let daysAhead = 1;
-    if (dayIdx === 6) daysAhead = 2; // Saturday -> skip Sunday -> Monday
-    // Note: Sunday (0) natively steps 1 day ahead to Monday.
-
-    if (typeof window.getLookaheadDayInfo === 'function') {
-        const info = window.getLookaheadDayInfo(daysAhead);
-        return { type: info.type, name: info.name, idx: info.idx, offset: daysAhead };
-    }
-    
-    // Legacy Fallback (If logic.js somehow failed to load)
-    if (baseDayType === 'weekday') {
-        // If today is Friday (5), tomorrow is Saturday (6). Otherwise, it's just the next weekday.
-        if (dayIdx === 5) return { type: 'saturday', name: 'Saturday', idx: 6, offset: 1 };
-        return { type: 'weekday', name: 'Tomorrow', idx: (dayIdx + 1) % 7, offset: 1 };
-    } else if (baseDayType === 'saturday') {
-        // Assuming no Sunday service, jump straight to Monday (1)
-        return { type: 'weekday', name: 'Monday', idx: 1, offset: 2 };
-    } else if (baseDayType === 'sunday') {
-        return { type: 'weekday', name: 'Monday', idx: 1, offset: 1 };
-    }
-    return { type: 'weekday', name: 'Tomorrow', idx: 1, offset: 1 };
-}
 
 // --- 1. LEGACY CORE ALGORITHMS (Preserved for Safety & Exhaustive Fallbacks) ---
 
@@ -89,52 +63,6 @@ function planDirectTrip(origin, dest, dayType, isRollover = false, context = {})
                         )];
                     }
                 }
-            }
-        }
-    }
-
-    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
-    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
-        
-        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
-        if ((context.recursionDepth || 0) > 7) {
-            console.warn("🛡️ Guardian: Recursion limit reached in planDirectTrip. Bailing out.");
-            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
-        }
-
-        const nowSec = timeToSeconds(currentTime);
-        if (bestTrips.length > 0) {
-            const latestDep = Math.max(...bestTrips.map(t => timeToSeconds(t.depTime)));
-            if (nowSec > latestDep) {
-                // All trains have departed today. Roll over to tomorrow.
-                const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                context.rolloverDayIdx = nextTransit.idx;
-                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
-                const rolloverResult = planDirectTrip(origin, dest, nextTransit.type, true, context);
-                context.recursionDepth--; // 🛡️ RESTORE GUARD
-                context.rolloverDayIdx = null; // Clean up
-                if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
-                    rolloverResult.trips.forEach(t => {
-                        t.dayLabel = nextTransit.name;
-                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
-                    });
-                    return rolloverResult;
-                }
-            }
-        } else {
-            // No scheduled service for today at all (e.g., a Sunday). Jump to next transit day.
-            const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-            context.rolloverDayIdx = nextTransit.idx;
-            context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
-            const nextResult = planDirectTrip(origin, dest, nextTransit.type, true, context);
-            context.recursionDepth--; // 🛡️ RESTORE GUARD
-            context.rolloverDayIdx = null;
-            if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
-                nextResult.trips.forEach(t => {
-                    t.dayLabel = nextTransit.name;
-                    t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
-                });
-                return { status: pathFoundToday ? 'NO_MORE_TODAY' : 'NO_SERVICE_TODAY_FUTURE_FOUND', trips: nextResult.trips };
             }
         }
     }
@@ -232,50 +160,6 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false, context 
         });
     }
 
-    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
-    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
-        
-        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
-        if ((context.recursionDepth || 0) > 7) {
-            console.warn("🛡️ Guardian: Recursion limit reached in planHubTransferTrip. Bailing out.");
-            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
-        }
-
-        const nowSec = timeToSeconds(currentTime);
-        if (unique.length > 0) {
-            const latestDep = Math.max(...unique.map(t => timeToSeconds(t.depTime)));
-            if (nowSec > latestDep) {
-                const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                context.rolloverDayIdx = nextTransit.idx;
-                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
-                const rolloverResult = planHubTransferTrip(origin, dest, nextTransit.type, true, context);
-                context.recursionDepth--; // 🛡️ RESTORE GUARD
-                context.rolloverDayIdx = null;
-                if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
-                    rolloverResult.trips.forEach(t => {
-                        t.dayLabel = nextTransit.name;
-                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
-                    });
-                    return rolloverResult;
-                }
-            }
-        } else {
-            const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-            context.rolloverDayIdx = nextTransit.idx;
-            context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
-            const nextResult = planHubTransferTrip(origin, dest, nextTransit.type, true, context);
-            context.recursionDepth--; // 🛡️ RESTORE GUARD
-            context.rolloverDayIdx = null;
-            if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
-                nextResult.trips.forEach(t => {
-                    t.dayLabel = nextTransit.name;
-                    t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
-                });
-                return nextResult;
-            }
-        }
-    }
-
     if (unique.length > 0) return { status: 'FOUND', trips: unique };
     return { status: 'NO_PATH', trips: [] };
 }
@@ -349,50 +233,6 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false, contex
         });
     }
 
-    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
-    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
-        
-        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
-        if ((context.recursionDepth || 0) > 7) {
-            console.warn("🛡️ Guardian: Recursion limit reached in planRelayTransferTrip. Bailing out.");
-            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
-        }
-
-        const nowSec = timeToSeconds(currentTime);
-        if (allRelayTrips.length > 0) {
-            const latestDep = Math.max(...allRelayTrips.map(t => timeToSeconds(t.depTime)));
-            if (nowSec > latestDep) {
-                const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                context.rolloverDayIdx = nextTransit.idx;
-                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
-                const rolloverResult = planRelayTransferTrip(origin, dest, nextTransit.type, true, context);
-                context.recursionDepth--; // 🛡️ RESTORE GUARD
-                context.rolloverDayIdx = null;
-                if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
-                    rolloverResult.trips.forEach(t => {
-                        t.dayLabel = nextTransit.name;
-                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
-                    });
-                    return rolloverResult;
-                }
-            }
-        } else {
-            const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-            context.rolloverDayIdx = nextTransit.idx;
-            context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
-            const nextResult = planRelayTransferTrip(origin, dest, nextTransit.type, true, context);
-            context.recursionDepth--; // 🛡️ RESTORE GUARD
-            context.rolloverDayIdx = null;
-            if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
-                nextResult.trips.forEach(t => {
-                    t.dayLabel = nextTransit.name;
-                    t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
-                });
-                return nextResult;
-            }
-        }
-    }
-
     return { trips: allRelayTrips };
 }
 
@@ -462,36 +302,6 @@ function planMacroCorridorTrip(origin, dest, dayType, isRollover = false, contex
     }
     
     if (!matchedAny || trips.length === 0) return { trips: [] };
-    
-    // GUARDIAN & P13: Handle Universal Midnight Rollover Protocol for Macro Corridor
-    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
-        
-        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
-        if ((context.recursionDepth || 0) > 7) {
-            console.warn("🛡️ Guardian: Recursion limit reached in planMacroCorridorTrip. Bailing out.");
-            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
-        }
-
-        const nowSec = timeToSeconds(currentTime);
-        if (trips.length > 0) {
-            const latestDep = Math.max(...trips.map(t => timeToSeconds(t.depTime)));
-            if (nowSec > latestDep) {
-                const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                context.rolloverDayIdx = nextTransit.idx;
-                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
-                const rolloverResult = planMacroCorridorTrip(origin, dest, nextTransit.type, true, context);
-                context.recursionDepth--; // 🛡️ RESTORE GUARD
-                context.rolloverDayIdx = null;
-                if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
-                    rolloverResult.trips.forEach(t => {
-                        t.dayLabel = nextTransit.name;
-                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
-                    });
-                    return rolloverResult;
-                }
-            }
-        }
-    }
 
     if (trips.length > 0) trips.sort((a,b) => timeToSeconds(a.arrTime) - timeToSeconds(b.arrTime));
     return { trips };
@@ -538,50 +348,6 @@ function planDoubleTransferTrip(origin, dest, dayType, isRollover = false, conte
 
     if (potentialTrips.length > 0) {
         potentialTrips.sort((a,b) => timeToSeconds(a.arrTime) - timeToSeconds(b.arrTime));
-    }
-
-    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol (Bypassed if Probe is Active)
-    if (!isRollover && dayType === currentDayType && !context.zeroHourProbeActive) {
-        
-        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
-        if ((context.recursionDepth || 0) > 7) {
-            console.warn("🛡️ Guardian: Recursion limit reached in planDoubleTransferTrip. Bailing out.");
-            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
-        }
-
-        const nowSec = timeToSeconds(currentTime);
-        if (potentialTrips.length > 0) {
-            const latestDep = Math.max(...potentialTrips.map(t => timeToSeconds(t.depTime)));
-            if (nowSec > latestDep) {
-                const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                context.rolloverDayIdx = nextTransit.idx;
-                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
-                const rolloverResult = planDoubleTransferTrip(origin, dest, nextTransit.type, true, context);
-                context.recursionDepth--; // 🛡️ RESTORE GUARD
-                context.rolloverDayIdx = null;
-                if (rolloverResult && rolloverResult.trips && rolloverResult.trips.length > 0) {
-                    rolloverResult.trips.forEach(t => {
-                        t.dayLabel = nextTransit.name;
-                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
-                    });
-                    return rolloverResult;
-                }
-            }
-        } else {
-            const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-            context.rolloverDayIdx = nextTransit.idx;
-            context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
-            const nextResult = planDoubleTransferTrip(origin, dest, nextTransit.type, true, context);
-            context.recursionDepth--; // 🛡️ RESTORE GUARD
-            context.rolloverDayIdx = null;
-            if (nextResult && nextResult.trips && nextResult.trips.length > 0) {
-                nextResult.trips.forEach(t => {
-                    t.dayLabel = nextTransit.name;
-                    t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
-                });
-                return nextResult;
-            }
-        }
     }
 
     if (potentialTrips.length > 0) return { status: 'FOUND', trips: potentialTrips };
@@ -854,66 +620,6 @@ function findAllLegsBetween(stationA, stationB, routeSet, dayType, context = {})
     return legs;
 }
 
-// GUARDIAN: Legacy function preserved to prevent silent deletions and maintain external API contracts.
-function findNextDayTrips(routeConfig, origin, dest, baseDay) {
-    let dayName = 'Tomorrow', nextDayType = 'weekday', offset = 1;
-    
-    // GUARDIAN GHOST PROTOCOL (V4.60.82): 
-    let nextDayIdx = (currentDayIndex + 1) % 7; 
-
-    if (baseDay === 'weekday') { 
-        nextDayType = 'weekday'; 
-        dayName = 'Tomorrow'; 
-        offset = 1;
-    } else if (baseDay === 'saturday') { 
-        nextDayType = 'weekday'; 
-        dayName = 'Monday'; 
-        nextDayIdx = 1; // Force check against Monday rules
-        offset = 2; // Saturday -> Monday offset
-    } else if (baseDay === 'sunday') { 
-        nextDayType = 'weekday'; 
-        dayName = 'Monday'; 
-        nextDayIdx = 1; // Force check against Monday rules
-        offset = 1; // Sunday -> Monday offset
-    }
-
-    let allNextDayTrains = [];
-    getDirectionsForRoute(routeConfig, nextDayType).forEach(dir => {
-         if (!fullDatabase || !fullDatabase[dir.key]) return;
-         const schedule = parseJSONSchedule(fullDatabase[dir.key]);
-         const originRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(origin));
-         const destRow = schedule.rows.find(r => normalizeStationName(r.STATION) === normalizeStationName(dest));
-         if (originRow && destRow && schedule.rows.indexOf(originRow) < schedule.rows.indexOf(destRow)) {
-             schedule.headers.slice(1).forEach(tName => {
-                 
-                 // GUARDIAN: Check Exclusions for the *Next* Day
-                 if (isTrainExcluded(tName, routeConfig.id, nextDayIdx)) return;
-
-                 const dTime = originRow[tName], aTime = destRow[tName];
-                 if(dTime && aTime) {
-                     allNextDayTrains.push({ 
-                        trainName: tName, 
-                        depTime: dTime, 
-                        arrTime: aTime,
-                        schedule: schedule, 
-                        originIdx: schedule.rows.indexOf(originRow),
-                        destIdx: schedule.rows.indexOf(destRow)
-                     });
-                 }
-             });
-         }
-    });
-    
-    return allNextDayTrains.map(info => {
-        const trip = createTripObject(
-            routeConfig, info, info.schedule, info.originIdx, info.destIdx, origin, dest
-        ); 
-        trip.dayLabel = dayName;
-        trip.dayOffset = offset; // GUARDIAN PHASE D
-        return trip;
-    });
-}
-
 function getDirectionsForRoute(route, dayType) {
     if (dayType === 'weekday') return [{ key: route.sheetKeys.weekday_to_a }, { key: route.sheetKeys.weekday_to_b }];
     if (dayType === 'saturday') return [{ key: route.sheetKeys.saturday_to_a }, { key: route.sheetKeys.saturday_to_b }];
@@ -937,17 +643,14 @@ function createTripObject(route, trainInfo, schedule, startIdx, endIdx, origin, 
 }
 
 function findUpcomingTrainsForLeg(schedule, originRow, destRow, dayType, allowPast = false, routeId = null, context = {}) {
-    // Only check current time if we are planning for the CURRENT day type
-    const isToday = (dayType === currentDayType && context.rolloverDayIdx === null);
+    const isToday = (dayType === currentDayType);
     
     // GUARDIAN P13: Zero-Hour Probe explicitly bypasses `currentTime` constraints, simulating a 00:00 start
     const nowSeconds = (isToday && !allowPast && !context.zeroHourProbeActive) ? timeToSeconds(currentTime) : 0; 
     
-    // GUARDIAN GHOST PROTOCOL (V4.60.82): Determine Day Index
-    // If context.rolloverDayIdx is set, use it. Otherwise default to currentDayIndex if it's today.
     let exclusionDayIdx = 1; // Default Monday
-    if (context.rolloverDayIdx !== null) {
-        exclusionDayIdx = context.rolloverDayIdx;
+    if (context.targetDayIdx !== undefined) {
+        exclusionDayIdx = context.targetDayIdx;
     } else if (isToday) {
         exclusionDayIdx = currentDayIndex;
     } else {
@@ -1352,13 +1055,13 @@ function planDijkstraTrip(origin, dest, dayType, isRolloverLoop = false, context
 
     if (normOrigin === normDest || !fullDatabase) return { status: 'NO_PATH', trips: [] };
 
-    const dayIdx = context.rolloverDayIdx !== null ? context.rolloverDayIdx
+    const dayIdx = context.targetDayIdx !== undefined ? context.targetDayIdx
                  : (dayType === currentDayType ? currentDayIndex
                  : (dayType === 'saturday' ? 6 : 1));
 
     // GUARDIAN P13: Zero-Hour Probe overrides startSec to 0 to find mathematically valid historical paths for today
     // GUARDIAN PHASE 2 (GROWTH MODE): isRolloverLoop overrides to 0 so we check entire future day.
-    const startSec = (!isRolloverLoop && dayType === currentDayType && context.rolloverDayIdx === null && !context.zeroHourProbeActive)
+    const startSec = (!isRolloverLoop && dayType === currentDayType && !context.zeroHourProbeActive)
                    ? timeToSeconds(currentTime) : 0;
 
     const baseGraph       = buildTransitGraph(dayType, dayIdx);
@@ -1390,52 +1093,6 @@ function planDijkstraTrip(origin, dest, dayType, isRolloverLoop = false, context
         } else {
             for (let i = 0; i < mergedLegs.length - 1; i++) {
                 bannedEdges.add(`HUB:${normalizeStationName(mergedLegs[i].to)}`);
-            }
-        }
-    }
-
-    // GUARDIAN V6.2 & P13: Universal Midnight Rollover Protocol
-    // Growth Mode Phase 2: If isRolloverLoop is true, the outer 7-day scanner is running. 
-    // Do NOT trigger this inner 1-day rollover to prevent infinite recursion collisions.
-    if (!isRolloverLoop && dayType === currentDayType && !context.zeroHourProbeActive) {
-        
-        // 🛡️ GUARDIAN PHASE 15: The Recursion Guard
-        if ((context.recursionDepth || 0) > 7) {
-            console.warn("🛡️ Guardian: Recursion limit reached in planDijkstraTrip. Bailing out.");
-            return { status: 'IMPOSSIBLE_TODAY', trips: [] };
-        }
-
-        const nowSec = timeToSeconds(currentTime);
-        if (allTrips.length > 0) {
-            const latestDep = Math.max(...allTrips.map(t => timeToSeconds(t.depTime)));
-            if (nowSec > latestDep) {
-                const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-                context.rolloverDayIdx = nextTransit.idx;
-                context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
-                const rollover = planDijkstraTrip(origin, dest, nextTransit.type, true, context);
-                context.recursionDepth--; // 🛡️ RESTORE GUARD
-                context.rolloverDayIdx = null;
-                if (rollover?.trips?.length > 0) {
-                    rollover.trips.forEach(t => {
-                        t.dayLabel = nextTransit.name;
-                        t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
-                    });
-                    return rollover;
-                }
-            }
-        } else {
-            const nextTransit = getNextTransitDay(dayType, currentDayIndex);
-            context.rolloverDayIdx = nextTransit.idx;
-            context.recursionDepth = (context.recursionDepth || 0) + 1; // 🛡️ INJECT GUARD
-            const nextResult = planDijkstraTrip(origin, dest, nextTransit.type, true, context);
-            context.recursionDepth--; // 🛡️ RESTORE GUARD
-            context.rolloverDayIdx = null;
-            if (nextResult?.trips?.length > 0) {
-                nextResult.trips.forEach(t => {
-                    t.dayLabel = nextTransit.name;
-                    t.dayOffset = nextTransit.offset; // GUARDIAN PHASE D
-                });
-                return nextResult;
             }
         }
     }
@@ -1647,8 +1304,8 @@ function runHeuristicFailureProbe(origin, dest) {
 function planUnifiedTrip(origin, dest, dayType) {
     console.log(`[GUARDIAN] Running Unified Trip Planner for ${origin} -> ${dest} (Requested: ${dayType})`);
 
-    // 🛡️ GUARDIAN PHASE 15: Added explicit initialization of recursionDepth
-    const context = { rolloverDayIdx: null, zeroHourProbeActive: false, recursionDepth: 0 };
+    // 🛡️ GUARDIAN PHASE 15: Removed internal recursive state objects and replaced with flat target day metadata
+    const context = { zeroHourProbeActive: false, targetDayIdx: undefined };
 
     // GUARDIAN PHASE 13: Universal Raw Fetch Helper
     // Refactored to seamlessly supply both the live engine and the Zero-Hour Probe.
@@ -1723,20 +1380,24 @@ function planUnifiedTrip(origin, dest, dayType) {
     const evaluateDay = (offset) => {
         let targetDayType = dayType;
         let targetDayLabel = null;
+        let targetDayIdx = currentDayIndex;
         let isFutureOffset = offset > startOffset; // Anything past the requested day is a "future" rollover
         
         if (isExplicitOverride) {
             // BLIND OVERRIDE: Do not interrogate the calendar.
             targetDayType = dayType;
             targetDayLabel = null; // Let UI handle it.
+            targetDayIdx = (dayType === 'saturday') ? 6 : (dayType === 'sunday' ? 0 : 1);
         } else if (offset > 0) {
             if (typeof window.getLookaheadDayInfo === 'function') {
                 const info = window.getLookaheadDayInfo(offset);
                 targetDayType = info.type;
                 targetDayLabel = info.name;
+                targetDayIdx = info.idx;
             } else {
                 targetDayType = 'weekday';
                 targetDayLabel = 'Future Day';
+                targetDayIdx = 1;
             }
         }
 
@@ -1745,10 +1406,19 @@ function planUnifiedTrip(origin, dest, dayType) {
             return { status: 'SUNDAY_SKIP', trips: [] };
         }
 
+        context.targetDayIdx = targetDayIdx; // Propagate exact day geometry to the Ghost Train filtering engine
+
         let allRawTrips = fetchRawTrips(origin, dest, targetDayType, isFutureOffset, context);
 
-        let rawTrips = [], rawNextDayTrips = [];
-        allRawTrips.forEach(t => (t.dayLabel ? rawNextDayTrips : rawTrips).push(t));
+        // 🛡️ GUARDIAN TIME FILTER: Accurately strips past trains for the present day ONLY. 
+        // Eliminates the need for engines to internally verify schedules against real-time.
+        if (offset === 0 && !isExplicitOverride && !context.zeroHourProbeActive) {
+            const nowSec = timeToSeconds(currentTime);
+            allRawTrips = allRawTrips.filter(t => {
+                const dep = timeToSeconds(t.depTime || (t.leg1 ? t.leg1.depTime : "00:00"));
+                return dep >= nowSec;
+            });
+        }
 
         // Enforce strict layover guardrails
         const hasValidLayovers = (trip) => {
@@ -1777,12 +1447,10 @@ function planUnifiedTrip(origin, dest, dayType) {
             return true;
         };
 
-        rawTrips        = rawTrips.filter(hasValidLayovers);
-        rawNextDayTrips = rawNextDayTrips.filter(hasValidLayovers);
+        const validTrips = allRawTrips.filter(hasValidLayovers);
 
         // Apply Pareto Dominance Filter
-        const optimalTrips        = filterDominatedTrips(rawTrips);
-        const optimalNextDayTrips = filterDominatedTrips(rawNextDayTrips);
+        const optimalTrips = filterDominatedTrips(validTrips);
 
         const masterSort = (a, b) => {
             const getDep   = t => timeToSeconds(t.depTime || (t.leg1?.depTime  || "00:00"));
@@ -1796,15 +1464,12 @@ function planUnifiedTrip(origin, dest, dayType) {
         };
 
         optimalTrips.sort(masterSort);
-        optimalNextDayTrips.sort(masterSort);
 
-        let finalStatus = optimalTrips.length > 0        ? 'FOUND'
-                        : optimalNextDayTrips.length > 0 ? 'NO_MORE_TODAY'
-                        : 'NO_PATH';
+        let finalStatus = optimalTrips.length > 0 ? 'FOUND' : 'NO_PATH';
 
         // --- GUARDIAN PHASE 13: THE ZERO-HOUR PROBE ---
         // Probe ONLY if it's the natively requested day (not a future rollover) and we missed the trains.
-        if (finalStatus === 'NO_MORE_TODAY' && !isFutureOffset) {
+        if (finalStatus === 'NO_PATH' && !isFutureOffset && !isExplicitOverride) {
             console.log("[GUARDIAN] Commencing Zero-Hour Probe...");
             context.zeroHourProbeActive = true;
             const probeTripsRaw = fetchRawTrips(origin, dest, targetDayType, false, context);
@@ -1817,12 +1482,10 @@ function planUnifiedTrip(origin, dest, dayType) {
             }
         }
 
-        const trips = optimalTrips.length > 0 ? optimalTrips : optimalNextDayTrips;
-        
         // Inject the manual offset label if we calculated a trip on a future day
         // This includes offset === startOffset if the user searched for a future day from the dropdown
-        if (offset > 0 && trips.length > 0) {
-            trips.forEach(t => {
+        if (offset > 0 && optimalTrips.length > 0) {
+            optimalTrips.forEach(t => {
                 if (!t.dayLabel) t.dayLabel = targetDayLabel;
                 
                 // We only apply dayOffset to physical time math.
@@ -1831,7 +1494,7 @@ function planUnifiedTrip(origin, dest, dayType) {
             });
         }
 
-        return { status: finalStatus, trips: trips, targetDayLabel };
+        return { status: finalStatus, trips: optimalTrips, targetDayLabel };
     };
 
     // THE 7-DAY INFINITE ROLLOVER LOOP
@@ -1866,8 +1529,9 @@ function planUnifiedTrip(origin, dest, dayType) {
         }
 
         // The moment we find a valid trip block, we capture and break
-        if (evalResult.status === 'FOUND' || evalResult.status === 'NO_MORE_TODAY') {
-            loopStatus = evalResult.status;
+        if (evalResult.status === 'FOUND') {
+            // If we found it on a subsequent day loop, the commuters missed all trains for the origin day.
+            loopStatus = (offset > startOffset) ? 'NO_MORE_TODAY' : 'FOUND';
             loopTrips = evalResult.trips;
             break; 
         }

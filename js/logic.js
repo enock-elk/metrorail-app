@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V6.05.03 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V6.05.06 - Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -613,12 +613,15 @@ async function saveToLocalCache(key, data, signal = null) {
     }
 
     const cacheEntry = { timestamp: Date.now(), data: data };
-    memoryFallbackCache[key] = cacheEntry;
 
     try {
         const db = await initDB();
         if (signal && signal.aborted) return false;
         
+        // 🛡️ GUARDIAN PHASE 2: Lock RAM cache injection behind the async boundary 
+        // and AbortController to prevent zombie state resurrection
+        memoryFallbackCache[key] = cacheEntry;
+
         return new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_NAME, 'readwrite');
             const store = tx.objectStore(STORE_NAME);
@@ -628,6 +631,9 @@ async function saveToLocalCache(key, data, signal = null) {
         });
     } catch (e) {
         if (signal && signal.aborted) return false;
+        
+        memoryFallbackCache[key] = cacheEntry;
+
         console.warn("🛡️ Guardian: IndexedDB Save Failed (Possible Disk Full). Falling back...", e);
         try { 
             safeStorage.setItem(key, JSON.stringify(cacheEntry)); 
@@ -1082,7 +1088,8 @@ async function loadAllSchedules(force = false) {
 
         // GUARDIAN PHASE B: EAGER ROUTE GUARD (Stop Grid Crashes)
         if (!currentRoute.isActive) {
-            if (typeof renderComingSoon === 'function') renderComingSoon(currentRoute.name);
+            const targetEl = typeof pretoriaTimeEl !== 'undefined' && pretoriaTimeEl ? pretoriaTimeEl : document.getElementById('pretoria-time');
+            if (typeof renderComingSoon === 'function') renderComingSoon(targetEl, currentRoute.name);
             if(mainContent) mainContent.style.display = 'block';
             if(loadingOverlay) loadingOverlay.style.display = 'none';
             
@@ -1529,7 +1536,8 @@ function findNextTrains() {
     // If the route is inactive, we destroy the UI and halt immediately.
     // This stops the R9.50 state bleed and removes ghost buttons.
     if (!currentRoute.isActive) { 
-        if(typeof renderComingSoon === 'function') renderComingSoon(currentRoute.name); 
+        const targetEl = typeof pretoriaTimeEl !== 'undefined' && pretoriaTimeEl ? pretoriaTimeEl : document.getElementById('pretoria-time');
+        if(typeof renderComingSoon === 'function') renderComingSoon(targetEl, currentRoute.name); 
         
         const fContainer = document.getElementById('fare-container');
         if (fContainer) fContainer.classList.add('hidden');
@@ -2103,9 +2111,9 @@ function populateStationList() {
 }
 
 // GUARDIAN V6.1: Helper added to strictly handle Coming Soon visual state without bleeding into logic
-function renderComingSoon(routeName) {
+function renderComingSoon(element, routeName) {
     if (typeof Renderer !== 'undefined') {
-        if(pretoriaTimeEl) Renderer.renderComingSoon(pretoriaTimeEl, routeName);
+        if(element) Renderer.renderComingSoon(element, routeName);
     }
     if(stationSelect) {
         stationSelect.innerHTML = '<option>Coming Soon</option>';

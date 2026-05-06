@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.05.03 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.05.06 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -32,6 +32,7 @@
  * * GROWTH MODE PHASE 5.1 (MONETIZATION FIX): AdInterceptor injected to protect 20-Hour Rule against PWA reloads and modal overlaps.
  * * GROWTH MODE PHASE 6: AdBlocker Evasion & Inbox Banner. Migrated `/metrics/` to `/sys_logs/` and built persistent Developer Reply banner.
  * * GROWTH MODE PHASE 7: isPWA diagnostic flag injected into Feedback Payload for enhanced Admin debugging. Scroll locks eradicated from Autocomplete.
+ * * GROWTH MODE PHASE 8: Frictionless WebView Breakout (Android Intent / iOS Silent VIP) & ct-kraai Trapdoor Fix.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -407,8 +408,8 @@ function setupNextTrainAutocomplete() {
     if (!list && input.parentNode) {
         list = document.createElement('ul');
         list.id = 'next-train-autocomplete-list';
-        // 🛡️ GUARDIAN UX FIX: overscroll-contain and touch-pan-y injected to fix mobile scroll freezing
-        list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0 custom-scrollbar overscroll-contain touch-pan-y";
+        // 🛡️ GROWTH MODE PHASE 7: Removed scroll-locks (overscroll-contain touch-pan-y) to fix mobile scroll freezing
+        list.className = "absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl max-h-60 overflow-y-auto hidden mt-1 left-0 custom-scrollbar text-left";
         input.parentNode.appendChild(list);
         
         input.addEventListener('click', (e) => { 
@@ -2346,8 +2347,17 @@ function setupFeatureButtons() {
     
     const ua = navigator.userAgent || navigator.vendor || window.opera;
     const isWebView = (ua.indexOf('FBAN') > -1) || (ua.indexOf('FBAV') > -1) || (ua.indexOf('Instagram') > -1) || (ua.indexOf('Line') > -1);
+    const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    const isAndroid = /android/i.test(ua);
 
     const showInstallButton = () => { 
+        // 🛡️ GUARDIAN iOS FRICTIONLESS ENTRY: Hide buttons entirely for iOS WebViews
+        if (isWebView && isIOS) {
+            if (installBtn) installBtn.classList.add('hidden');
+            if (installBtnPlanner) installBtnPlanner.classList.add('hidden');
+            return;
+        }
+
         if (installBtn) installBtn.classList.remove('hidden'); 
         if (installBtnPlanner) installBtnPlanner.classList.remove('hidden'); 
         
@@ -2377,9 +2387,12 @@ function setupFeatureButtons() {
         trackAnalyticsEvent('install_app_click', { location: 'main_view', is_webview: isWebView });
         
         if (isWebView) {
-            const bridgeUrl = `https://nexttrain.co.za/?uid=${NEXT_TRAIN_DEVICE_ID}`;
-            copyToClipboard(bridgeUrl);
-            showToast("Bridge Link Copied! Paste into Safari/Chrome to continue.", "success", 6000);
+            if (isAndroid) {
+                // 🛡️ GUARDIAN ANDROID 1-TAP MAGIC BULLET
+                window.location.href = `intent://nexttrain.co.za/?uid=${NEXT_TRAIN_DEVICE_ID}#Intent;scheme=https;package=com.android.chrome;end;`;
+                return;
+            }
+            // If somehow they hit this on a non-Android/non-iOS WebView, just do nothing or fallback
             return;
         }
 
@@ -2435,6 +2448,7 @@ function setupFeatureButtons() {
                 if (typeof ROUTES !== 'undefined' && ROUTES[routeId] && !ROUTES[routeId].isActive) {
                     closeSmoothModal('route-modal');
                     trackAnalyticsEvent('select_inactive_route', { route_name: ROUTES[routeId].name, route_id: routeId });
+                    return; // 🛡️ GUARDIAN TRAPDOOR FIX: Halt execution!
                 }
                 
                 currentRouteId = routeId;

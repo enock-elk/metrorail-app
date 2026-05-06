@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.05.03 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.05.06 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -23,6 +23,8 @@
  * * GROWTH SPRINT PHASE 8: Dynamic Telemetry Cycling (DAU/WAU/MAU/ALL) & Commuter Reply Inbox Protocol.
  * * GROWTH SPRINT PHASE 9: Landscape Telemetry CSS Armor, SVG Tooltips & Unified Range Cycling.
  * * GROWTH SPRINT PHASE 10: AdBlocker Evasion & Crash Metadata Upgrade. Endpoints shifted to /sys_logs/.
+ * * GUARDIAN PHASE 11 (ERGONOMICS): Full-Screen App Architecture, Dynamic Red-Dot Notification Engine, & Contextual Reply bindings for Crashes.
+ * * GUARDIAN PHASE 12: Notification "Seen" Protocol via safeStorage. DOM Erasure (0 New) Bug Fixed. Firebase DDoS Network Loop Eradicated.
  */
 
 const Admin = {
@@ -110,14 +112,80 @@ const Admin = {
 
     currentUser: null,
     telemetryInterval: null, 
-    telemetryWeeksAgo: 0, // GUARDIAN PHASE D: 7-Day Graph Pagination State
-    telemetryRange: 'DAU', // GROWTH PHASE 8: DAU, WAU, MAU, ALL
+    telemetryWeeksAgo: 0, 
+    telemetryRange: 'DAU', 
     clockInterval: null,
     
-    // GROWTH MODE: Grid/Drill-Down State
     isGridMode: true,
-    gridCols: 2, // GUARDIAN PHASE 4: Grid Layout Toggle State
+    gridCols: 2, 
     _modulesRendered: false,
+
+    // --- GUARDIAN PHASE 11 & 12: MASTER NOTIFICATION ENGINE (SEEN PROTOCOL) ---
+    syncAllBadges: async () => {
+        const secret = await Admin.getAuthKey();
+        if (!secret) return;
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+
+        try {
+            // 1. Fetch Feedback
+            const fbRes = await window.guardianFetch(`${dynamicEndpoint}feedback.json?auth=${secret}`, {}, 6000);
+            if (fbRes.ok) {
+                const fbData = await fbRes.json();
+                let fbUnread = 0;
+                // Read from local storage to check when admin last viewed this tab
+                const lastChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('fb_last_checked') || '0') : '0');
+                
+                if (fbData && typeof fbData === 'object') {
+                    Object.values(fbData).forEach(i => { if (i.timestamp > lastChecked) fbUnread++; });
+                }
+                
+                const fbBadge = document.getElementById('fb-unread-badge');
+                if (fbBadge) {
+                    fbBadge.textContent = `${fbUnread} New`;
+                    // 🛡️ GUARDIAN FIX: Safely toggle 'hidden' without destroying Tailwind utility classes
+                    fbBadge.classList.toggle('hidden', fbUnread === 0);
+                }
+            }
+
+            // 2. Fetch Crashes
+            const crRes = await window.guardianFetch(`${dynamicEndpoint}sys_logs/crashes.json?auth=${secret}`, {}, 6000);
+            if (crRes.ok) {
+                const crData = await crRes.json();
+                let crUnread = 0;
+                const lastChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('crash_last_checked') || '0') : '0');
+                
+                if (crData && typeof crData === 'object') {
+                    Object.values(crData).forEach(i => { if (i.timestamp > lastChecked) crUnread++; });
+                }
+                
+                const crBadge = document.getElementById('crash-unread-badge');
+                if (crBadge) {
+                    crBadge.textContent = `${crUnread} New`;
+                    crBadge.classList.toggle('hidden', crUnread === 0);
+                }
+            }
+
+            // 3. Fetch Dead Ends
+            const deRes = await window.guardianFetch(`${dynamicEndpoint}sys_logs/routing_fails.json?auth=${secret}`, {}, 6000);
+            if (deRes.ok) {
+                const deData = await deRes.json();
+                const lastChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('de_last_checked') || '0') : '0');
+                let deUnread = 0;
+                
+                if (deData && typeof deData === 'object') {
+                    Object.values(deData).forEach(i => { if (i.timestamp > lastChecked) deUnread++; });
+                }
+                
+                const deBadge = document.getElementById('de-unread-badge');
+                if (deBadge) {
+                    deBadge.textContent = `${deUnread} New`;
+                    deBadge.classList.toggle('hidden', deUnread === 0);
+                }
+            }
+        } catch(e) {
+            console.warn("🛡️ Guardian: Badge sync failed", e);
+        }
+    },
 
     // --- GROWTH SPRINT PHASE 9: UNIFIED RANGE CYCLER ---
     cycleTelemetryRange: () => {
@@ -171,36 +239,38 @@ const Admin = {
             `;
             telBody.appendChild(trendWrapper);
             
-            // Build the Full-Screen Chart Modal if it doesn't exist
-            // GROWTH SPRINT PHASE 9: Added Landscape armor (landscape:h-[95vh]) and the modal-trend-cycle button
+            // 🛡️ GUARDIAN PHASE 11: Reordered Title Below Graph for interactive airspace
             let chartModal = document.getElementById('telemetry-chart-modal');
             if (!chartModal) {
                 chartModal = document.createElement('div');
                 chartModal.id = 'telemetry-chart-modal';
                 chartModal.className = 'fixed inset-0 bg-black/90 z-[160] hidden flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300';
                 chartModal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl h-[85vh] landscape:h-[95vh] flex flex-col transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] landscape:h-[95vh] flex flex-col transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
                         <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-2xl shrink-0">
-                            <div class="flex items-center space-x-3">
-                                <span class="text-2xl">📈</span>
-                                <div>
-                                    <h3 class="text-lg font-black text-gray-900 dark:text-white tracking-tight leading-none" id="modal-trend-title">Loading...</h3>
-                                    <p class="text-[9px] text-gray-500 uppercase tracking-widest font-bold mt-1 landscape:hidden">Live Analytics Engine</p>
-                                </div>
-                            </div>
                             <div class="flex items-center space-x-2">
                                 <button id="modal-trend-cycle" class="px-2 py-1.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors focus:outline-none text-[10px] font-bold uppercase tracking-widest border border-blue-200 dark:border-blue-800 shadow-sm">📈 DAU</button>
+                            </div>
+                            <div class="flex items-center space-x-2">
                                 <button id="modal-trend-export" class="p-2 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors focus:outline-none" title="Export Chart">📸</button>
                                 <button onclick="closeSmoothModal('telemetry-chart-modal')" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors focus:outline-none">✖</button>
                             </div>
                         </div>
+                        
                         <div id="modal-pagination-controls" class="p-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-center items-center space-x-4 shrink-0 shadow-inner">
                             <button id="modal-trend-prev" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none transition-transform active:scale-95">◀</button>
                             <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest w-24 text-center">Navigate</span>
                             <button id="modal-trend-next" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none transition-transform active:scale-95 disabled:opacity-30">▶</button>
                         </div>
-                        <div class="flex-grow p-2 md:p-6 flex items-center justify-center relative bg-white dark:bg-gray-800 min-h-0" id="modal-chart-svg-container">
-                            <!-- High-Res SVG Line Graph gets injected here -->
+                        
+                        <div class="flex-grow p-2 md:p-6 flex flex-col items-center justify-center relative bg-white dark:bg-gray-800 min-h-0">
+                            <div id="modal-chart-svg-container" class="w-full flex-grow mb-4">
+                                <!-- High-Res SVG Line Graph gets injected here -->
+                            </div>
+                            <div class="text-center shrink-0 pb-4">
+                                <h3 class="text-lg md:text-xl font-black text-gray-900 dark:text-white tracking-tight leading-none" id="modal-trend-title">Loading...</h3>
+                                <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-1">Live Analytics Engine</p>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -243,6 +313,12 @@ const Admin = {
             return;
         }
         telPanel.dataset.adminLoaded = "true";
+
+        // Force header redesign for grid badges
+        const telHeader = document.getElementById('telemetry-header-btn');
+        if (telHeader) {
+            telHeader.classList.add('relative');
+        }
 
         Admin.refreshTelemetry();
         if (Admin.telemetryInterval) clearInterval(Admin.telemetryInterval);
@@ -728,6 +804,7 @@ const Admin = {
                 try { localStorage.setItem('analytics_ignore', 'true'); } catch(e){}
                 Admin.currentUser = user;
                 
+                // Fallback Sign-out Injection for absolute safety
                 if (signoutContainer) {
                     signoutContainer.innerHTML = `
                         <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -737,18 +814,20 @@ const Admin = {
                             </button>
                         </div>
                     `;
-                    document.getElementById('admin-signout-btn').addEventListener('click', () => {
-                        window.firebaseSignOut(window.firebaseAuth).then(() => {
-                            if (typeof showToast === 'function') showToast("Signed out successfully.", "success");
-                            if (location.hash === '#dev') history.back();
-                            else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
+                    const signOutBtn = document.getElementById('admin-signout-btn');
+                    if (signOutBtn) {
+                        signOutBtn.addEventListener('click', () => {
+                            window.firebaseSignOut(window.firebaseAuth).then(() => {
+                                if (typeof showToast === 'function') showToast("Signed out successfully.", "success");
+                                if (location.hash === '#dev') history.back();
+                                else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
+                            });
                         });
-                    });
+                    }
                 }
-
-                if (Admin.checkUnreadFeedback) {
-                    Admin.checkUnreadFeedback();
-                }
+                
+                // Fetch universal badges upon auth
+                Admin.syncAllBadges();
 
             } else {
                 console.log("🛡️ Guardian: Admin Logged Out. Analytics restored.");
@@ -898,10 +977,39 @@ const Admin = {
         }
         Admin._modulesRendered = true;
 
-        // 🛡️ GUARDIAN UX FIX: Dynamically inject landscape safeties into Dev Modal to preserve screen space
+        // 🛡️ GUARDIAN PHASE 11 (UX FIX): Convert Modal to Native Full-Screen App Architecture
         const devModalCard = document.querySelector('#dev-modal > div');
-        if (devModalCard && !devModalCard.classList.contains('landscape:max-h-[95vh]')) {
-            devModalCard.classList.add('landscape:max-h-[95vh]', 'landscape:overflow-y-auto', 'flex', 'flex-col');
+        if (devModalCard) {
+            devModalCard.className = "bg-gray-50 dark:bg-gray-900 w-full min-h-screen max-w-5xl mx-auto p-4 sm:p-6 flex flex-col relative transition-all duration-300";
+        }
+        const devModalContainer = document.getElementById('dev-modal');
+        if (devModalContainer) {
+            devModalContainer.classList.remove('p-4', 'items-center');
+            devModalContainer.classList.add('p-0', 'items-start', 'overflow-y-auto');
+        }
+
+        // Inject Sign Out Icon into Header explicitly
+        const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6');
+        if (devHeaderRow && !document.getElementById('header-signout-btn')) {
+            const btnGroup = document.createElement('div');
+            btnGroup.className = "flex items-center space-x-3 ml-auto mr-3";
+            btnGroup.innerHTML = `
+                <button id="header-signout-btn" class="p-2 rounded-full bg-red-50 dark:bg-red-900/30 text-red-500 hover:bg-red-100 transition-colors focus:outline-none shadow-sm" title="Secure Sign Out">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                </button>
+            `;
+            const closeBtn = devHeaderRow.querySelector('button[aria-label="Close Dev Modal"]');
+            if (closeBtn) {
+                devHeaderRow.insertBefore(btnGroup, closeBtn);
+            }
+            
+            document.getElementById('header-signout-btn').onclick = () => {
+                window.firebaseSignOut(window.firebaseAuth).then(() => {
+                    if (typeof showToast === 'function') showToast("Signed out successfully.", "success");
+                    if (location.hash === '#dev') history.back();
+                    else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
+                });
+            };
         }
 
         // 1. Inject Live Clock (Guardian UX Upgrade) precisely above Telemetry
@@ -912,7 +1020,7 @@ const Admin = {
                 clockContainer = document.createElement('div');
                 clockContainer.id = 'admin-live-clock';
                 clockContainer.className = 'text-center mb-4 shrink-0';
-                clockContainer.innerHTML = `<span class="text-xs font-mono font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/80 px-3.5 py-1.5 rounded-full shadow-inner border border-gray-200 dark:border-gray-700"></span>`;
+                clockContainer.innerHTML = `<span class="text-xs font-mono font-bold text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3.5 py-1.5 rounded-full shadow-sm border border-gray-200 dark:border-gray-700"></span>`;
                 telPanel.parentNode.insertBefore(clockContainer, telPanel);
             }
         }
@@ -932,7 +1040,7 @@ const Admin = {
         Admin.setupFeedbackManager(); 
         Admin.setupDeadEndsManager(); 
         Admin.setupCrashReportsManager(); 
-        Admin.setupSimulationControls(); // 🛡️ GUARDIAN RESTORED
+        Admin.setupSimulationControls(); 
         Admin.setupServiceAlertsManager();
         Admin.setupDisruptionsManager(); 
         Admin.setupExclusionManager();
@@ -944,6 +1052,9 @@ const Admin = {
 
         // 🛡️ GROWTH SPRINT PHASE 5: Transform Dev Hub into native Grid / Drill-Down Dashboard
         Admin.initGridView();
+        
+        // Final Universal Sync
+        Admin.syncAllBadges();
     },
 
     // --- 3. SIMULATION CONTROLS (RESTORED) ---
@@ -1032,27 +1143,34 @@ const Admin = {
 
         if (crashPanel.dataset.adminLoaded === "true") return;
         crashPanel.dataset.adminLoaded = "true";
+        
+        Admin.cachedCrashData = [];
+        Admin.currentCrashTab = 'inbox';
 
         crashPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         crashPanel.innerHTML = `
-            <button id="crash-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center"><span class="mr-2">🔥</span> Crash Analytics</span>
-                <svg id="crash-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <button id="crash-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    <span class="text-2xl mb-2">🔥</span> 
+                    <span>Crash Analytics</span>
+                </span>
+                <span id="crash-unread-badge" class="hidden absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-black tracking-normal animate-pulse">0 New</span>
+                <svg id="crash-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             <div id="crash-body" class="hidden mt-4 space-y-3">
+                <div class="flex border-b border-gray-200 dark:border-gray-700 mb-2">
+                    <button id="crash-tab-inbox" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 transition-colors focus:outline-none tracking-wider">Inbox (<span id="crash-inbox-count">0</span>)</button>
+                    <button id="crash-tab-archive" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-transparent text-gray-400 hover:text-gray-600 transition-colors focus:outline-none tracking-wider">Archive</button>
+                </div>
                 <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
-                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1">Safe Mode Triage</span>
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="crash-status-display">Syncing...</span>
                     <div class="space-x-2 flex">
-                        <button id="crash-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
-                            Refresh
-                        </button>
-                        <button id="crash-clear-btn" class="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800 border border-red-200 dark:border-red-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
-                            Clear DB
-                        </button>
+                        <button id="crash-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">Refresh</button>
+                        <button id="crash-clear-btn" class="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">Clear DB</button>
                     </div>
                 </div>
-                <div id="crash-list" class="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar"></div>
+                <div id="crash-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar"></div>
             </div>
         `;
         
@@ -1062,6 +1180,8 @@ const Admin = {
         const refreshBtn = document.getElementById('crash-refresh-btn');
         const clearBtn = document.getElementById('crash-clear-btn');
         const listDiv = document.getElementById('crash-list');
+        const tabInbox = document.getElementById('crash-tab-inbox');
+        const tabArchive = document.getElementById('crash-tab-archive');
 
         header.onclick = () => {
             if (Admin.isGridMode) return;
@@ -1078,10 +1198,112 @@ const Admin = {
 
         refreshBtn.onclick = () => Admin.fetchCrashes();
 
+        const switchTab = (tab) => {
+            Admin.currentCrashTab = tab;
+            if (tab === 'inbox') {
+                tabInbox.classList.replace('border-transparent', 'border-blue-500');
+                tabInbox.classList.replace('text-gray-400', 'text-blue-600');
+                tabArchive.classList.replace('border-blue-500', 'border-transparent');
+                tabArchive.classList.replace('text-blue-600', 'text-gray-400');
+            } else {
+                tabArchive.classList.replace('border-transparent', 'border-blue-500');
+                tabArchive.classList.replace('text-gray-400', 'text-blue-600');
+                tabInbox.classList.replace('border-blue-500', 'border-transparent');
+                tabInbox.classList.replace('text-blue-600', 'text-gray-400');
+            }
+            Admin.renderCrashList();
+        };
+
+        tabInbox.onclick = () => switchTab('inbox');
+        tabArchive.onclick = () => switchTab('archive');
+
+        Admin.renderCrashList = () => {
+            listDiv.innerHTML = '';
+            const isInbox = Admin.currentCrashTab === 'inbox';
+            const targetData = Admin.cachedCrashData.filter(c => isInbox ? c.status !== 'resolved' : c.status === 'resolved');
+            document.getElementById('crash-status-display').textContent = isInbox ? `Active Crashes: ${targetData.length}` : `Archived Crashes: ${targetData.length}`;
+            
+            if (targetData.length === 0) {
+                listDiv.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${isInbox ? 'No new crashes! 🎉' : 'Archive empty.'}</div>`;
+                return;
+            }
+
+            // Group by deviceId
+            const groups = {};
+            targetData.forEach(crash => {
+                const did = crash.deviceId || crash.device_id || 'Anonymous / Legacy';
+                if (!groups[did]) groups[did] = [];
+                groups[did].push(crash);
+            });
+
+            Object.keys(groups).forEach(did => {
+                const groupCrashes = groups[did];
+                const groupCard = document.createElement('div');
+                groupCard.className = "bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mb-3";
+                
+                const latestDate = new Date(groupCrashes[0].timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+                
+                let groupHTML = `
+                    <button class="w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none border-b border-transparent" onclick="this.nextElementSibling.classList.toggle('hidden'); this.classList.toggle('border-gray-200'); this.classList.toggle('dark:border-gray-700'); this.querySelector('svg').classList.toggle('rotate-180')">
+                        <div class="flex flex-col items-start">
+                            <span class="text-xs font-bold text-gray-900 dark:text-white">Device: <span class="text-blue-600">${did.substring(0,15)}${did.length>15?'...':''}</span></span>
+                            <span class="text-[9px] text-gray-500 font-mono mt-0.5">${groupCrashes.length} Crash${groupCrashes.length > 1 ? 'es' : ''} | Last: ${latestDate}</span>
+                        </div>
+                        <svg class="w-4 h-4 text-gray-400 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div class="hidden divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                `;
+                
+                groupCrashes.forEach(crash => {
+                    const dateStr = new Date(crash.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+                    const safeErr = typeof escapeHTML === 'function' ? escapeHTML(crash.error) : crash.error;
+                    const safeRoute = crash.routeId || "Global";
+                    const safeOS = typeof escapeHTML === 'function' ? escapeHTML(crash.userAgent) : "Unknown OS";
+                    const safeAppVersion = typeof escapeHTML === 'function' ? escapeHTML(crash.appVersion || 'Unknown') : (crash.appVersion || 'Unknown');
+                    
+                    const actionHtml = isInbox 
+                        ? `<div class="flex space-x-2 w-full mt-3">
+                             ${did !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${crash.id}', '${did}')">Reply</button>` : ''}
+                             <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveCrash('${crash.id}')">Resolve</button>
+                           </div>`
+                        : `<div class="flex justify-between items-center w-full mt-3">
+                             <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived</span>
+                             <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteCrash('${crash.id}')">Delete</button>
+                           </div>`;
+
+                    groupHTML += `
+                        <div class="p-3.5 flex flex-col">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">FATAL DUMP</span>
+                                <span class="text-[9px] text-gray-400 font-mono">${dateStr}</span>
+                            </div>
+                            <div class="text-[10px] font-mono text-gray-800 dark:text-gray-200 break-words bg-gray-50 dark:bg-gray-800 p-2 rounded border border-gray-100 dark:border-gray-700 leading-snug mb-2">
+                                ${safeErr}
+                            </div>
+                            <div class="flex flex-col space-y-1 bg-gray-50 dark:bg-gray-800/50 p-2 rounded border border-gray-100 dark:border-gray-700">
+                                <span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider">Route: <span class="text-blue-500">${safeRoute}</span></span>
+                                <span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider">App: <span class="text-gray-800 dark:text-gray-200">${safeAppVersion}</span></span>
+                                <span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider leading-tight">OS: <span class="text-gray-800 dark:text-gray-200 whitespace-normal break-words">${safeOS}</span></span>
+                            </div>
+                            ${actionHtml}
+                        </div>
+                    `;
+                });
+                groupHTML += `</div>`;
+                groupCard.innerHTML = groupHTML;
+                listDiv.appendChild(groupCard);
+            });
+        };
+
         Admin.fetchCrashes = async () => {
             const secret = await Admin.getAuthKey();
             if (!secret) return;
             
+            // GUARDIAN PHASE 11: Mark as seen instantly to clear UI state
+            try { safeStorage.setItem('crash_last_checked', Date.now().toString()); } catch(e){}
+            const badge = document.getElementById('crash-unread-badge');
+            if (badge) badge.classList.add('hidden');
+
             listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Fetching crash logs...</div>';
             
             try {
@@ -1091,45 +1313,47 @@ const Admin = {
                 if (!res.ok) throw new Error("Fetch HTTP Error: " + res.status);
                 const data = await res.json();
                 
-                if (!data) {
-                    listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-8">No crashes recorded. System is perfectly stable! 🛡️</div>';
-                    return;
-                }
+                Admin.cachedCrashData = (data && typeof data === 'object') ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+                Admin.cachedCrashData.sort((a, b) => b.timestamp - a.timestamp);
                 
-                // Convert object to array and sort descending by timestamp
-                const crashes = Object.keys(data).map(key => ({ id: key, ...data[key] })).sort((a, b) => b.timestamp - a.timestamp);
-                listDiv.innerHTML = '';
-                
-                crashes.forEach(crash => {
-                    const dateStr = new Date(crash.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-                    const card = document.createElement('div');
-                    card.className = "bg-white dark:bg-gray-900 p-3 rounded-lg border border-red-200 dark:border-red-900/50 shadow-sm flex flex-col space-y-2 mb-2 transition-colors";
-                    
-                    const safeErr = typeof escapeHTML === 'function' ? escapeHTML(crash.error) : crash.error;
-                    const safeRoute = crash.routeId || "Global";
-                    const safeOS = typeof escapeHTML === 'function' ? escapeHTML(crash.userAgent).substring(0, 45) + '...' : "Unknown OS";
-                    const safeAppVersion = typeof escapeHTML === 'function' ? escapeHTML(crash.appVersion || 'Unknown') : (crash.appVersion || 'Unknown');
-                    
-                    card.innerHTML = `
-                        <div class="flex justify-between items-start">
-                            <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">FATAL DUMP</span>
-                            <span class="text-[9px] text-gray-400 font-mono">${dateStr}</span>
-                        </div>
-                        <div class="text-[10px] font-mono text-gray-800 dark:text-gray-200 break-words bg-gray-50 dark:bg-gray-800 p-2 rounded border border-gray-100 dark:border-gray-700 leading-snug">
-                            ${safeErr}
-                        </div>
-                        <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-800 pt-2">
-                            <div class="flex flex-col">
-                                <span class="text-[9px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">Route: <span class="text-blue-500">${safeRoute}</span></span>
-                                <span class="text-[8px] text-gray-400 font-mono truncate max-w-[200px]">App: ${safeAppVersion} | OS: ${safeOS}</span>
-                            </div>
-                        </div>
-                    `;
-                    listDiv.appendChild(card);
-                });
+                const activeCount = Admin.cachedCrashData.filter(c => c.status !== 'resolved').length;
+                const crInboxCountSpan = document.getElementById('crash-inbox-count');
+                if (crInboxCountSpan) crInboxCountSpan.textContent = activeCount;
+
+                Admin.renderCrashList();
             } catch(e) {
                 console.error("Crash logs fetch error:", e);
                 listDiv.innerHTML = `<div class="text-xs text-red-500 text-center py-4">Failed to load crash logs.<br><span class="text-[9px] text-gray-500">Check Firebase rules or data.</span></div>`;
+            }
+        };
+
+        Admin.resolveCrash = async (id) => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                await fetch(`${dynamicEndpoint}sys_logs/crashes/${id}.json?auth=${secret}`, {
+                    method: 'PATCH', body: JSON.stringify({ status: 'resolved', resolvedAt: Date.now() })
+                });
+                if (typeof showToast === 'function') showToast("Crash archived!", "success");
+                Admin.fetchCrashes();
+            } catch (e) {
+                if (typeof showToast === 'function') showToast("Error resolving crash.", "error");
+            }
+        };
+
+        Admin.deleteCrash = async (id) => {
+            const confirmed = await Admin.secureConfirm("Delete Crash", "Permanently delete this crash log?");
+            if (!confirmed) return;
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                await fetch(`${dynamicEndpoint}sys_logs/crashes/${id}.json?auth=${secret}`, { method: 'DELETE' });
+                if (typeof showToast === 'function') showToast("Crash deleted.", "success");
+                Admin.fetchCrashes();
+            } catch (e) {
+                if (typeof showToast === 'function') showToast("Error deleting crash.", "error");
             }
         };
 
@@ -1195,12 +1419,12 @@ const Admin = {
                     .admin-grid-view > div { margin-bottom: 0 !important; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; height: 110px; display: flex; flex-direction: column; justify-content: center; }
                     .admin-grid-view > div:hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #3b82f6; }
                     .admin-grid-view > div [id$="-body"] { display: none !important; }
-                    .admin-grid-view > div button[id$="-header-btn"] { flex-direction: column; justify-content: center; height: 100%; align-items: center; text-align: center; margin-bottom: 0 !important; }
+                    .admin-grid-view > div button[id$="-header-btn"] { flex-direction: column; justify-content: center; height: 100%; align-items: center; text-align: center; margin-bottom: 0 !important; position: relative; }
                     .admin-grid-view > div button[id$="-header-btn"] > span { flex-direction: column; align-items: center; width: 100%; }
                     .admin-grid-view > div button[id$="-header-btn"] > span > span:first-child { margin-right: 0 !important; margin-bottom: 8px; font-size: 28px; display: block; }
                     .admin-grid-view > div button[id$="-header-btn"] svg[id$="-chevron"] { display: none !important; }
-                    .admin-grid-view > div button[id$="-header-btn"] span[id$="-last-sync"],
-                    .admin-grid-view > div button[id$="-header-btn"] span[id$="-unread-badge"] { display: none !important; }
+                    .admin-grid-view > div button[id$="-header-btn"] span[id$="-last-sync"] { display: none !important; }
+                    .admin-grid-view > div button[id$="-header-btn"] span[id$="-unread-badge"]:not(.hidden) { display: block !important; }
                 `;
                 document.head.appendChild(style);
             }
@@ -1280,6 +1504,9 @@ const Admin = {
                         const b = child.querySelector('[id$="-body"]');
                         if (b) b.classList.add('hidden');
                     });
+                    
+                    // 🛡️ GUARDIAN UX FIX: Recalculate and clear badges locally when returning to grid
+                    Admin.syncAllBadges();
                 };
                 
                 // Auto-Fetch data upon drill-down
@@ -1318,9 +1545,9 @@ const Admin = {
         growthPanel.className = "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl shadow-md border border-blue-200 dark:border-indigo-800 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         growthPanel.innerHTML = `
-            <button id="growth-header-btn" class="w-full text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center"><span class="mr-2">🚀</span> Growth & Promo</span>
-                <svg id="growth-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <button id="growth-header-btn" class="w-full text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center"><span class="text-2xl mb-2">🚀</span> <span>Growth & Promo</span></span>
+                <svg id="growth-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             
             <div id="growth-body" class="hidden mt-4">
@@ -1351,39 +1578,6 @@ const Admin = {
         };
     },
 
-    // --- GUARDIAN UX: UNREAD FEEDBACK BADGE CHECKER ---
-    checkUnreadFeedback: async () => {
-        const secret = await Admin.getAuthKey();
-        if (!secret) return;
-
-        try {
-            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-            // GUARDIAN PHASE 4: Admin Shield - Wraps raw fetch in guardianFetch to prevent deadlocks
-            const fullRes = await window.guardianFetch(`${dynamicEndpoint}feedback.json?auth=${secret}`, {}, 6000);
-            if (!fullRes.ok) return;
-            const fullData = await fullRes.json();
-            
-            let unreadCount = 0;
-            if (fullData) {
-                Object.values(fullData).forEach(item => {
-                    if (item.status !== 'resolved') unreadCount++;
-                });
-            }
-
-            const badge = document.getElementById('fb-unread-badge');
-            if (badge) {
-                if (unreadCount > 0) {
-                    badge.textContent = `${unreadCount} New`;
-                    badge.classList.remove('hidden');
-                } else {
-                    badge.classList.add('hidden');
-                }
-            }
-        } catch (e) {
-            console.warn("🛡️ Could not sync unread feedback count.");
-        }
-    },
-
     // --- GROWTH SPRINT PHASE 5: SILENT ROUTING FAILURES TRACKER (DEAD ENDS) ---
     setupDeadEndsManager: () => {
         const adminContainer = document.getElementById('admin-modules-container');
@@ -1402,9 +1596,13 @@ const Admin = {
         dePanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
         
         dePanel.innerHTML = `
-            <button id="de-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center"><span class="mr-2">🛑</span> Dead Ends & Fails</span>
-                <svg id="de-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <button id="de-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    <span class="text-2xl mb-2">🛑</span>
+                    <span>Dead Ends & Fails</span>
+                </span>
+                <span id="de-unread-badge" class="hidden absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-black tracking-normal animate-pulse">0 New</span>
+                <svg id="de-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             <div id="de-body" class="hidden mt-4 space-y-3">
                 <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
@@ -1418,7 +1616,7 @@ const Admin = {
                         </button>
                     </div>
                 </div>
-                <div id="de-list" class="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar"></div>
+                <div id="de-list" class="space-y-2 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar"></div>
             </div>
         `;
         
@@ -1447,6 +1645,11 @@ const Admin = {
         Admin.fetchDeadEnds = async () => {
             const secret = await Admin.getAuthKey();
             if (!secret) return;
+            
+            // Mark as checked to clear the red dot locally
+            try { safeStorage.setItem('de_last_checked', Date.now().toString()); } catch(e){}
+            const badge = document.getElementById('de-unread-badge');
+            if (badge) badge.classList.add('hidden');
             
             listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Scanning telemetry...</div>';
             
@@ -1489,9 +1692,10 @@ const Admin = {
                     else if (item.reason === 'ERR_CROSS_REGION') { reasonBadge = "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400"; reasonText = "Cross Region"; }
                     else if (item.reason === 'ERR_ACTIVE_SUSPENSION') { reasonBadge = "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400"; reasonText = "Line Severed"; }
 
+                    // GUARDIAN PHASE 11: Decoupled whitespace for long route names so they wrap dynamically instead of truncating
                     card.innerHTML = `
                         <div class="min-w-0 flex-1 pr-2">
-                            <div class="text-xs font-bold text-gray-900 dark:text-white truncate">${item.origin} <span class="text-gray-400 mx-1">→</span> ${item.dest}</div>
+                            <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${item.origin} <span class="text-gray-400 mx-1">→</span> ${item.dest}</div>
                             <div class="flex items-center mt-1.5 space-x-2">
                                 <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${reasonBadge}">${reasonText}</span>
                                 <span class="text-[9px] text-gray-400 font-mono">Last: ${dateStr}</span>
@@ -1552,12 +1756,13 @@ const Admin = {
         fbPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         fbPanel.innerHTML = `
-            <button id="fb-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center">
-                    <span class="mr-2">💬</span> Commuter Feedback
-                    <span id="fb-unread-badge" class="hidden bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full ml-2 shadow-sm font-black tracking-normal animate-pulse">New</span>
+            <button id="fb-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    <span class="text-2xl mb-2">💬</span> 
+                    <span>Commuter Feedback</span>
                 </span>
-                <svg id="fb-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                <span id="fb-unread-badge" class="hidden absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-black tracking-normal animate-pulse">0 New</span>
+                <svg id="fb-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             
             <div id="fb-body" class="hidden mt-4 space-y-3">
@@ -1573,7 +1778,7 @@ const Admin = {
                     </button>
                 </div>
                 
-                <div id="fb-list" class="space-y-3 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar"></div>
+                <div id="fb-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar"></div>
             </div>
         `;
 
@@ -1673,25 +1878,22 @@ const Admin = {
                     ? `<a href="${safeAttachUrl}" target="_blank" class="flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-[10px] font-bold"><span class="mr-1">📎</span> View File</a>`
                     : `<div></div>`;
 
-                // GROWTH SPRINT PHASE 8: Commuter Reply Logic
+                // GROWTH SPRINT PHASE 8: Commuter Reply Logic & Archive Extermination
                 const deviceId = item.device_id || item.deviceId || '';
                 const actionHtml = isInbox 
                     ? `<div class="flex space-x-2">
                          ${deviceId ? `<button class="text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${item.id}', '${deviceId}')">Reply</button>` : ''}
                          <button class="text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${item.id}')">Resolve</button>
                        </div>`
-                    : `<span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived</span>`;
+                    : `<div class="flex justify-between items-center w-full mt-3">
+                         <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived</span>
+                         <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm ml-2" onclick="Admin.deleteFeedback('${item.id}')">Delete</button>
+                       </div>`;
 
                 const card = document.createElement('div');
                 card.className = "bg-white dark:bg-gray-900 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col transition-all hover:border-blue-300 dark:hover:border-blue-500";
-                card.innerHTML = `
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border ${badgeClass}">${typeLabel}</span>
-                        <span class="text-[9px] text-gray-400 dark:text-gray-500 font-mono">${dateStr}</span>
-                    </div>
-                    
-                    <p class="text-xs text-gray-800 dark:text-gray-200 mb-3 leading-relaxed whitespace-pre-wrap">${safeText}</p>
-                    
+                
+                let lowerCardHtml = isInbox ? `
                     <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-800 pt-2 mt-auto">
                         <div class="flex flex-col">
                             <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium mb-0.5">${emailDisplay}</span>
@@ -1701,7 +1903,26 @@ const Admin = {
                             ${attachmentHtml}
                             ${actionHtml}
                         </div>
+                    </div>` : `
+                    <div class="flex flex-col border-t border-gray-100 dark:border-gray-800 pt-2 mt-auto">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium mb-0.5">${emailDisplay}</span>
+                                <span class="text-[8px] text-gray-400 dark:text-gray-600 font-mono">App: ${safeAppVersion} | Route: ${safeRouteId}</span>
+                            </div>
+                            ${attachmentHtml}
+                        </div>
+                        ${actionHtml}
                     </div>
+                `;
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border ${badgeClass}">${typeLabel}</span>
+                        <span class="text-[9px] text-gray-400 dark:text-gray-500 font-mono">${dateStr}</span>
+                    </div>
+                    <p class="text-xs text-gray-800 dark:text-gray-200 mb-3 leading-relaxed whitespace-pre-wrap">${safeText}</p>
+                    ${lowerCardHtml}
                 `;
                 listContainer.appendChild(card);
             });
@@ -1710,6 +1931,11 @@ const Admin = {
         Admin.fetchFeedback = async () => {
             const secret = await Admin.getAuthKey();
             if (!secret) return;
+
+            // GUARDIAN PHASE 11: Mark as seen instantly to clear UI state
+            try { safeStorage.setItem('fb_last_checked', Date.now().toString()); } catch(e){}
+            const badge = document.getElementById('fb-unread-badge');
+            if (badge) badge.classList.add('hidden');
 
             listContainer.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Synchronizing database...</div>';
             statusDisplay.textContent = "Syncing Network...";
@@ -1722,21 +1948,11 @@ const Admin = {
                 if (!res.ok) throw new Error("Failed to fetch feedback");
                 const data = await res.json();
 
-                Admin.cachedFeedbackData = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+                Admin.cachedFeedbackData = (data && typeof data === 'object') ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
                 Admin.cachedFeedbackData.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
                 const activeCount = Admin.cachedFeedbackData.filter(f => f.status !== 'resolved').length;
-                if(inboxCountSpan) inboxCountSpan.textContent = activeCount;
-
-                const badge = document.getElementById('fb-unread-badge');
-                if (badge) {
-                    if (activeCount > 0) {
-                        badge.textContent = `${activeCount} New`;
-                        badge.classList.remove('hidden');
-                    } else {
-                        badge.classList.add('hidden');
-                    }
-                }
+                if (inboxCountSpan) inboxCountSpan.textContent = activeCount;
 
                 Admin.renderFeedbackList();
 
@@ -1776,8 +1992,22 @@ const Admin = {
                 if (typeof showToast === 'function') showToast("Error resolving feedback.", "error");
             }
         };
-        
-        Admin.checkUnreadFeedback();
+
+        // GUARDIAN PHASE 11: Permanent Feed Deletion
+        Admin.deleteFeedback = async (id) => {
+            const confirmed = await Admin.secureConfirm("Delete Feedback", "Permanently delete this feedback entry?");
+            if (!confirmed) return;
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                await fetch(`${dynamicEndpoint}feedback/${id}.json?auth=${secret}`, { method: 'DELETE' });
+                if (typeof showToast === 'function') showToast("Feedback deleted.", "success");
+                Admin.fetchFeedback();
+            } catch (e) {
+                if (typeof showToast === 'function') showToast("Error deleting feedback.", "error");
+            }
+        };
     },
 
     // --- GROWTH SPRINT PHASE 8: ADMIN REPLY INBOX PROTOCOL ---
@@ -1907,9 +2137,12 @@ const Admin = {
         alertPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         alertPanel.innerHTML = `
-            <button id="alert-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center"><span class="mr-2">📢</span> Service Alerts Manager</span>
-                <svg id="alert-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <button id="alert-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    <span class="text-2xl mb-2">📢</span> 
+                    <span>Service Alerts Manager</span>
+                </span>
+                <svg id="alert-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             
             <div id="alert-body" class="hidden mt-4 space-y-4">
@@ -2381,9 +2614,8 @@ const Admin = {
 
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
-                    // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key
                     try {
-                        const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                        await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
                             headers: {'Authorization': `Bearer ${secret}`} 
                         });
@@ -2430,9 +2662,12 @@ const Admin = {
         disrPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         disrPanel.innerHTML = `
-            <button id="disr-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center"><span class="mr-2">🚧</span> Transit Incident Manager</span>
-                <svg id="disr-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <button id="disr-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    <span class="text-2xl mb-2">🚧</span> 
+                    <span>Transit Incident Manager</span>
+                </span>
+                <svg id="disr-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             
             <div id="disr-body" class="hidden mt-4 space-y-3">
@@ -2739,9 +2974,12 @@ const Admin = {
         exclPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         exclPanel.innerHTML = `
-            <button id="excl-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center"><span class="mr-2">⛔</span> Schedule Exceptions</span>
-                <svg id="excl-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <button id="excl-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    <span class="text-2xl mb-2">⛔</span> 
+                    <span>Schedule Exceptions</span>
+                </span>
+                <svg id="excl-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             
             <div id="excl-body" class="hidden mt-4 space-y-3">
@@ -3192,9 +3430,12 @@ const Admin = {
         eventPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         eventPanel.innerHTML = `
-            <button id="event-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center"><span class="mr-2">⭐</span> Special Event Route</span>
-                <svg id="event-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <button id="event-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    <span class="text-2xl mb-2">⭐</span> 
+                    <span>Special Event Route</span>
+                </span>
+                <svg id="event-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
 
             <div id="event-body" class="hidden mt-4 space-y-4">
@@ -3323,9 +3564,12 @@ const Admin = {
         diagPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         diagPanel.innerHTML = `
-            <button id="diag-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center"><span class="mr-2">🩺</span> System Health Diagnostics</span>
-                <svg id="diag-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <button id="diag-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    <span class="text-2xl mb-2">🩺</span> 
+                    <span>System Health Diagnostics</span>
+                </span>
+                <svg id="diag-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
 
             <div id="diag-body" class="hidden mt-4 space-y-4">
@@ -3432,7 +3676,7 @@ const Admin = {
         };
     },
 
-    // --- 8. MAINTENANCE MODE MANAGER ---
+// --- 8. MAINTENANCE MODE MANAGER ---
     setupMaintenanceManager: () => {
         const exclusionPanel = document.getElementById('exclusion-panel');
         if (!exclusionPanel || !exclusionPanel.parentNode) return;
@@ -3450,9 +3694,12 @@ const Admin = {
         maintPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         maintPanel.innerHTML = `
-            <button id="maint-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center"><span class="mr-2">🛠️</span> System Controls</span>
-                <svg id="maint-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <button id="maint-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    <span class="text-2xl mb-2">🛠️</span> 
+                    <span>System Controls</span>
+                </span>
+                <svg id="maint-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             
             <div id="maint-body" class="hidden mt-4">
@@ -3544,9 +3791,12 @@ const Admin = {
         nukePanel.className = "bg-red-50 dark:bg-red-900/20 rounded-xl shadow-md border border-red-200 dark:border-red-800 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         nukePanel.innerHTML = `
-            <button id="nuke-header-btn" class="w-full text-left text-xs font-bold text-red-500 dark:text-red-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                <span class="flex items-center"><span class="mr-2">☢️</span> Nuclear Cache Wipe</span>
-                <svg id="nuke-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            <button id="nuke-header-btn" class="w-full text-left text-xs font-bold text-red-500 dark:text-red-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    <span class="text-2xl mb-2">☢️</span> 
+                    <span>Nuclear Cache Wipe</span>
+                </span>
+                <svg id="nuke-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             <div id="nuke-body" class="hidden mt-4 space-y-3">
                 <p class="text-[11px] text-red-600 dark:text-red-300 font-bold leading-snug">WARNING: This will instantly force ALL users globally to wipe their caches and hard-reload the app on their next boot.</p>
