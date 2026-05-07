@@ -1,41 +1,14 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: DuckDuckBot
-Allow: /
-
-User-agent: GPTBot
-Allow: /
-
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: CCBot
-Allow: /
-
-User-agent: Anthropic-AI
-Allow: /
-
-User-agent: Claude-Web
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
---- GENERAL RULES ---
+# --- GENERAL RULES ---
 
 User-agent: *
 Allow: /
 
-Keep system pages hidden from search results
+# Keep system pages hidden from search results
 
 Disallow: /404.html
 Disallow: /offline.html
 Disallow: /cdn-cgi/
 
-Point to the Sitemap
+# Point to the Sitemap
 
 Sitemap: https://nexttrain.co.za/sitemap.xml
