@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.05.06 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.05.07 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -2517,17 +2517,26 @@ window.handleRegionChange = function(newRegion, selectElement) {
         window.closeAppHub(true);
         setTimeout(() => { openSmoothModal('region-confirm-modal'); }, 50);
 
+        // --- AFTER ---
         const confirmAction = () => {
             safeStorage.setItem('userRegion', newRegion);
             
-            if (location.hash === '#regionconfirm') history.back();
-            else closeSmoothModal('region-confirm-modal');
-            
-            if (typeof executeRegionSwap === 'function') {
-                executeRegionSwap(newRegion);
-            } else {
-                window.location.reload();
+            // 🛡️ GUARDIAN UX FIX: Bypass async history.back() which gets trapped by the Router Bleed Lock.
+            // Directly close the modal and clean the URL hash manually to guarantee execution.
+            closeSmoothModal('region-confirm-modal');
+            if (location.hash === '#regionconfirm') {
+                history.replaceState({ view: 'home' }, '', '#home');
             }
+            
+            // Delay execution to allow the modal to smoothly animate away
+            // before the heavy region-swap logic wipes the DOM and causes a visual freeze.
+            setTimeout(() => {
+                if (typeof executeRegionSwap === 'function') {
+                    executeRegionSwap(newRegion);
+                } else {
+                    window.location.reload();
+                }
+            }, 350);
         };
 
         const cancelAction = () => {
@@ -2902,8 +2911,9 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                  </button>
                 </div>
-                <div id="grid-controls" class="px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shadow-sm z-20 relative"></div>
-                <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative pb-32"></div>
+                <!-- 🛡️ GUARDIAN FIX: Elevated z-index to z-[60] so dropdown completely escapes table stacking context -->
+                <div id="grid-controls" class="px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shadow-sm z-[60] relative"></div>
+                <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative pb-32 z-10"></div>
                 <div class="p-2.5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
                     <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-md transition-colors text-sm">Close Timetable</button>
                 </div>

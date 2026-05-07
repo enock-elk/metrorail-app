@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.05.06 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.05.07 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -22,6 +22,7 @@
  * * GUARDIAN PHASE 4 (CONTEXT ENGINE): Injected Route-Wide Grid Notices into Live Grid UI and Offline Canvas Exports.
  * * GROWTH MODE PHASE 4: Cross-Corridor Disruption Engine injected into Live Boards & Empty States via getTripDisruptions().
  * * GROWTH MODE PHASE 2 (GRID UX): Buttons aggressively shrunk horizontally. Text wrapping prevented. Text restored for Download/Share. Image export footer balanced.
+ * * GUARDIAN UX (GRID POLISH): Bulked up dropdown buttons for touch targets and resolved clipping text.
  */
 
 const Renderer = {

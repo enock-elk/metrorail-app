@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.05.06 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.05.07 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -2089,42 +2089,32 @@ const Admin = {
         };
     },
 
-    // --- RICH TEXT FORMATTING HELPER ---
+// --- RICH TEXT FORMATTING HELPER ---
     formatAlertText: (tag) => {
-        const textarea = document.getElementById('alert-msg');
-        if (!textarea) return;
+        const editor = document.getElementById('alert-msg');
+        if (!editor) return;
         
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const text = textarea.value;
-        let prefix = '', suffix = '';
+        editor.focus();
         
-        // 🛡️ GUARDIAN UX FIX: Swapped hardcoded 'example.com' with native prompt() injection.
         if (tag === 'bold') { 
-            prefix = '*'; suffix = '*'; 
+            document.execCommand('bold', false, null);
         } else if (tag === 'italic') { 
-            prefix = '<i>'; suffix = '</i>'; 
+            document.execCommand('italic', false, null);
         } else if (tag === 'link') { 
-            const url = prompt("Enter the full URL (e.g., https://nexttrain.co.za):", "https://");
+            const url = prompt("Enter the full URL (e.g., [https://nexttrain.co.za](https://nexttrain.co.za)):", "https://");
             if (!url) return;
-            prefix = `<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline underline-offset-2">`; suffix = '</a>'; 
+            const selection = window.getSelection();
+            const selectedText = selection.toString() || "Link";
+            const html = `<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline underline-offset-2">${selectedText}</a>`;
+            document.execCommand('insertHTML', false, html);
         } else if (tag === 'image') {
             const url = prompt("Enter the image URL:", "https://");
             if (!url) return;
-            prefix = `<img src="${url}" class="w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image">`; suffix = '';
-        }
-
-        textarea.value = text.substring(0, start) + prefix + text.substring(start, end) + suffix + text.substring(end);
-        textarea.focus();
-        
-        if (start === end && suffix) {
-            textarea.selectionStart = start + prefix.length;
-            textarea.selectionEnd = end + prefix.length;
-        } else {
-            textarea.selectionStart = end + prefix.length + suffix.length;
-            textarea.selectionEnd = end + prefix.length + suffix.length;
+            const html = `<img src="${url}" class="w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image">`;
+            document.execCommand('insertHTML', false, html);
         }
     },
+
 
     // --- 4. SERVICE ALERTS MANAGER ---
     setupServiceAlertsManager: () => {
@@ -2190,9 +2180,10 @@ const Admin = {
                             <button type="button" onclick="Admin.formatAlertText('link')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Add Custom Link">🔗 Link</button>
                             <button type="button" onclick="Admin.formatAlertText('image')" class="px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Insert Image via HTML tag">📸 Img Tag</button>
                         </div>
-                        <textarea id="alert-msg" rows="6" class="w-full p-3 bg-gray-50 dark:bg-gray-900 border-0 text-gray-900 dark:text-white text-xs focus:ring-0 outline-none resize-y" placeholder="e.g. Delays of 45min due to cable theft..."></textarea>
+                        <div contenteditable="true" id="alert-msg" class="w-full min-h-[120px] max-h-[300px] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 border-0 text-gray-900 dark:text-white text-xs focus:ring-0 outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="e.g. Delays of 45min due to cable theft..."></div>
                     </div>
                 </div>
+
 
                 <!-- 🛡️ SUPERCHARGED: Rich Media Inputs with Live Preview (HIDDEN IN ADVANCED TOGGLE) -->
                 <div class="mt-2 border-t border-gray-100 dark:border-gray-700 pt-3">
@@ -2301,7 +2292,17 @@ const Admin = {
         const pollOptA = document.getElementById('alert-poll-opt-a');
         const pollOptB = document.getElementById('alert-poll-opt-b');
 
+        // 🛡️ GUARDIAN WYSIWYG FIX: Strip formatting on paste to prevent CSS corruption
+        if (alertMsg) {
+            alertMsg.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+                document.execCommand('insertText', false, text);
+            });
+        }
+
         header.onclick = () => {
+
             if (Admin.isGridMode) return; // Prevent accordion action when in grid
             body.classList.toggle('hidden');
             if (body.classList.contains('hidden')) {
@@ -2410,9 +2411,9 @@ const Admin = {
                     let cleanedMsg = data.message;
                     cleanedMsg = cleanedMsg.replace(/(<br\s*\/?>\s*){1,2}<span[^>]*>.*?<\/span>\s*$/i, '');
                     cleanedMsg = cleanedMsg.replace(/<span[^>]*>.*?<\/span>\s*$/i, '');
-                    cleanedMsg = cleanedMsg.replace(/<br\s*\/?>/gi, "\n").replace(/<b>/gi, "*").replace(/<\/b>/gi, "*");
                     
-                    alertMsg.value = cleanedMsg.trim();
+                    alertMsg.innerHTML = cleanedMsg.trim();
+
                     
                     if(data.expiresAt && dateInput) {
                         const expiryDate = new Date(data.expiresAt);
@@ -2465,8 +2466,9 @@ const Admin = {
 
                     sendBtn.textContent = "Update Alert"; 
                 } else {
-                    alertMsg.value = "";
+                    alertMsg.innerHTML = "";
                     if(severitySelect) severitySelect.value = 'info';
+
                     signoffInput.value = "Next Train Ops";
                     forcePopupToggle.checked = false;
                     
@@ -2534,7 +2536,7 @@ const Admin = {
         if(dateInput) dateInput.value = now.toISOString().slice(0, 16);
 
         sendBtn.onclick = async () => {
-            let msg = alertMsg.value.trim();
+            let msg = alertMsg.innerHTML.trim();
             const target = alertTarget.value;
             const severity = severitySelect.value;
             
@@ -2543,11 +2545,11 @@ const Admin = {
             
             const secret = await Admin.getAuthKey();
             
-            if (!msg) { if (typeof showToast === 'function') showToast("Message required!", "error"); return; }
+            if (!msg || msg === '<br>') { if (typeof showToast === 'function') showToast("Message required!", "error"); return; }
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required! Sign in again.", "error"); return; }
 
-            msg = msg.replace(/\n/g, "<br>").replace(/\*(.*?)\*/g, "<b>$1</b>");
             msg += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">— ${signoff}</span>`;
+
 
             let expiresAtVal = dateInput && dateInput.value ? new Date(dateInput.value).getTime() : Date.now() + (2 * 3600 * 1000);
 
@@ -2623,7 +2625,7 @@ const Admin = {
 
                     if (typeof showToast === 'function') showToast("Cleared & Archived!", "info");
                     
-                    alertMsg.value = "";
+                    alertMsg.innerHTML = "";
                     signoffInput.value = "Next Train Ops";
                     forcePopupToggle.checked = false;
                     imageUrlInput.value = "";
