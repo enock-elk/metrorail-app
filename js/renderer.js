@@ -23,6 +23,7 @@
  * * GROWTH MODE PHASE 4: Cross-Corridor Disruption Engine injected into Live Boards & Empty States via getTripDisruptions().
  * * GROWTH MODE PHASE 2 (GRID UX): Buttons aggressively shrunk horizontally. Text wrapping prevented. Text restored for Download/Share. Image export footer balanced.
  * * GUARDIAN UX (GRID POLISH): Bulked up dropdown buttons for touch targets and resolved clipping text.
+ * * GUARDIAN UX (GRID PREMIUM): Premium Tailwind styling (shadow-md, border-2, py-2.5, px-4) injected into Timetable Grid controls.
  */
 
 const Renderer = {
@@ -428,7 +429,7 @@ const Renderer = {
             <div class="flex flex-col justify-center items-center w-full py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 animate-fade-in-up">
                 <div class="text-sm font-bold text-gray-600 dark:text-gray-400">No more trains today</div>
                 ${disruptionHtml}
-                <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1">First train ${dayText} is at:</p>
+                <p class="text-[10px] text-gray-400 dark:text-gray-50 mt-1">First train ${dayText} is at:</p>
                 <div class="text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-md transition-all mt-1 w-3/4 shadow-sm border border-gray-100 dark:border-gray-800">
                     <div class="text-xl font-bold text-gray-900 dark:text-white">${departureTime}</div>
                     <div class="text-xs text-gray-700 dark:text-gray-300 font-medium">${timeDiffStr}</div>

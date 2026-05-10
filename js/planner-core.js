@@ -23,6 +23,7 @@
  * * GUARDIAN PHASE 14 (HEURISTIC PROBE): Replaced blind NO_PATH failures with precise analytical probes (Cross-Region, Graph Severance, Schedule Desert) for exact UI rendering.
  * * GUARDIAN PHASE 5: The Heuristic Payload Injection. Upgraded ERR_ACTIVE_SUSPENSION to bubble up rich disruption objects.
  * * GUARDIAN PHASE 15 (SECURITY PATCH): Recursion blocks fully eradicated. Flat outer 7-day loop architecture deployed to stop Call Stack explosions.
+ * * GROWTH MODE PHASE 10 (UX SYNC): Time filters stripped to expose departed trains to the UI dropdown, NO_PATH rollover hardened via hasUpcoming logic.
  */
 
 // --- 1. LEGACY CORE ALGORITHMS (Preserved for Safety & Exhaustive Fallbacks) ---
@@ -1059,10 +1060,8 @@ function planDijkstraTrip(origin, dest, dayType, isRolloverLoop = false, context
                  : (dayType === currentDayType ? currentDayIndex
                  : (dayType === 'saturday' ? 6 : 1));
 
-    // GUARDIAN P13: Zero-Hour Probe overrides startSec to 0 to find mathematically valid historical paths for today
-    // GUARDIAN PHASE 2 (GROWTH MODE): isRolloverLoop overrides to 0 so we check entire future day.
-    const startSec = (!isRolloverLoop && dayType === currentDayType && !context.zeroHourProbeActive)
-                   ? timeToSeconds(currentTime) : 0;
+    // GUARDIAN PHASE 1 (Growth Update): Always map full day templates (startSec = 0) so departed trips are preserved in UI dropdown.
+    const startSec = 0;
 
     const baseGraph       = buildTransitGraph(dayType, dayIdx);
     const bannedEdges     = new Set();
@@ -1410,15 +1409,9 @@ function planUnifiedTrip(origin, dest, dayType) {
 
         let allRawTrips = fetchRawTrips(origin, dest, targetDayType, isFutureOffset, context);
 
-        // 🛡️ GUARDIAN TIME FILTER: Accurately strips past trains for the present day ONLY. 
-        // Eliminates the need for engines to internally verify schedules against real-time.
-        if (offset === 0 && !isExplicitOverride && !context.zeroHourProbeActive) {
-            const nowSec = timeToSeconds(currentTime);
-            allRawTrips = allRawTrips.filter(t => {
-                const dep = timeToSeconds(t.depTime || (t.leg1 ? t.leg1.depTime : "00:00"));
-                return dep >= nowSec;
-            });
-        }
+        // 🛡️ GUARDIAN TIME FILTER REMOVED 
+        // We no longer strip past trains here. We want them in the UI dropdown so they can be greyed out.
+        // allRawTrips remains untouched, holding the full day's schedule from 00:00.
 
         // Enforce strict layover guardrails
         const hasValidLayovers = (trip) => {
@@ -1466,6 +1459,22 @@ function planUnifiedTrip(origin, dest, dayType) {
         optimalTrips.sort(masterSort);
 
         let finalStatus = optimalTrips.length > 0 ? 'FOUND' : 'NO_PATH';
+
+        // 🛡️ GUARDIAN PHASE 1: NO_PATH ROLLOVER LOGIC (Dropdown Preservation)
+        // We preserve all departed trips in optimalTrips so the UI dropdown can render them.
+        // However, if ALL trips are in the past, we must mathematically force a rollover to tomorrow.
+        if (finalStatus === 'FOUND' && offset === 0 && !isExplicitOverride && !context.zeroHourProbeActive) {
+            const nowSec = timeToSeconds(currentTime);
+            const hasUpcoming = optimalTrips.some(t => {
+                const dep = timeToSeconds(t.depTime || (t.leg1 ? t.leg1.depTime : "00:00"));
+                return dep >= nowSec;
+            });
+            
+            if (!hasUpcoming) {
+                console.log("[GUARDIAN] All trips today have departed. Forcing rollover to tomorrow.");
+                finalStatus = 'NO_PATH';
+            }
+        }
 
         // --- GUARDIAN PHASE 13: THE ZERO-HOUR PROBE ---
         // Probe ONLY if it's the natively requested day (not a future rollover) and we missed the trains.

@@ -30,6 +30,7 @@
  * * GROWTH MODE PHASE 8: Disruption UX alignment. Flexbox baseline matching, typography sync for Incident cards, orange layovers, and silent dead-end beacon.
  * * GROWTH MODE PHASE 9 (DATA PIPELINE): Upgraded Dead Ends telemetry beacon to bypass Firebase Rules trap using dynamic PUT requests & AdBlocker evasion.
  * * GUARDIAN PHASE 4.1: Deterministic Leaflet Teardown & Dynamic Contextual Reply injection for Disruption Modals.
+ * * GROWTH MODE PHASE 10 (UX FIX): Dropped length <= 1 block on renderOptionsSelector to guarantee uniform dropdown visibility.
  */
 
 // --- GUARDIAN PHASE 1: ROUTER BLEED & GREY SCREEN INTERCEPTOR ---
@@ -822,7 +823,7 @@ const PlannerRenderer = {
     },
 
     renderOptionsSelector: (allOptions, selectedIndex, isNextDay) => {
-        if (!allOptions || allOptions.length <= 1) return '';
+        if (!allOptions || allOptions.length === 0) return '';
         const nowSec = timeToSeconds(currentTime);
         const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
         const midnightRollover = PlannerRenderer.isMidnightRollover();

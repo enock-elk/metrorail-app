@@ -125,6 +125,7 @@ const Admin = {
         const secret = await Admin.getAuthKey();
         if (!secret) return;
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        let totalUnread = 0; // GUARDIAN PHASE 11: Accumulator for PWA Badge
 
         try {
             // 1. Fetch Feedback
@@ -139,6 +140,7 @@ const Admin = {
                     Object.values(fbData).forEach(i => { if (i.timestamp > lastChecked) fbUnread++; });
                 }
                 
+                totalUnread += fbUnread;
                 const fbBadge = document.getElementById('fb-unread-badge');
                 if (fbBadge) {
                     fbBadge.textContent = `${fbUnread} New`;
@@ -158,6 +160,7 @@ const Admin = {
                     Object.values(crData).forEach(i => { if (i.timestamp > lastChecked) crUnread++; });
                 }
                 
+                totalUnread += crUnread;
                 const crBadge = document.getElementById('crash-unread-badge');
                 if (crBadge) {
                     crBadge.textContent = `${crUnread} New`;
@@ -176,11 +179,18 @@ const Admin = {
                     Object.values(deData).forEach(i => { if (i.timestamp > lastChecked) deUnread++; });
                 }
                 
+                totalUnread += deUnread;
                 const deBadge = document.getElementById('de-unread-badge');
                 if (deBadge) {
                     deBadge.textContent = `${deUnread} New`;
                     deBadge.classList.toggle('hidden', deUnread === 0);
                 }
+            }
+            
+            // GUARDIAN 2.4.1: Native PWA App Icon Badging
+            if ('setAppBadge' in navigator) {
+                if (totalUnread > 0) navigator.setAppBadge(totalUnread);
+                else navigator.clearAppBadge();
             }
         } catch(e) {
             console.warn("🛡️ Guardian: Badge sync failed", e);
@@ -468,7 +478,7 @@ const Admin = {
                 if(statToday) statToday.textContent = data.todayUsers !== undefined ? data.todayUsers : '--';
                 if(statAllTime) statAllTime.textContent = data.allTimeUsers !== undefined ? data.allTimeUsers : '--';
                 if(statErrors) statErrors.textContent = data.todayErrors !== undefined ? data.todayErrors : '--';
-                
+
                 if (syncEl) {
                     syncEl.classList.remove('hidden');
                     const now = new Date();
@@ -1457,6 +1467,9 @@ const Admin = {
                 container.classList.remove('admin-grid-view');
                 container.style.gridTemplateColumns = ''; // Clear inline styles
                 
+                // 🛡️ GUARDIAN PHASE 11: Admin Router Bug Fix
+                history.pushState({ adminPanel: card.id }, '', `#dev-${card.id}`);
+                
                 // Hide sibling cards
                 Array.from(container.children).forEach(child => {
                     if (child !== card && child.id !== 'admin-live-clock') {
@@ -1493,6 +1506,25 @@ const Admin = {
                 // Bind the Drill Back Action
                 document.getElementById('drill-back-btn').onclick = (evt) => {
                     evt.stopPropagation();
+                    
+                    // 🛡️ GUARDIAN PHASE 1: The UI.js Blindfold & Router Lock
+                    // Temporarily rename the modal ID so ui.js's popstate listener doesn't see it
+                    // and close it during the asynchronous history.back() event.
+                    window._adminDrillBackLock = true;
+                    
+                    if (location.hash.startsWith('#dev-')) {
+                        const devModal = document.getElementById('dev-modal');
+                        if (devModal) devModal.id = 'dev-panel-temp';
+                        
+                        history.back(); // Pops the state cleanly
+                        
+                        setTimeout(() => { 
+                            const tempModal = document.getElementById('dev-panel-temp');
+                            if (tempModal) tempModal.id = 'dev-modal';
+                            window._adminDrillBackLock = false; 
+                        }, 150); // 150ms is plenty for popstate to fire and miss it
+                    }
+                    
                     Admin.isGridMode = true;
                     container.classList.add('admin-grid-view');
                     container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
@@ -1734,7 +1766,7 @@ const Admin = {
         };
     },
 
-    // --- 3.5 FEEDBACK MANAGER (GUARDIAN INBOX & ARCHIVE PROTOCOL) ---
+// --- 3.5 FEEDBACK MANAGER (GUARDIAN INBOX & ARCHIVE PROTOCOL) ---
     setupFeedbackManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
@@ -1855,76 +1887,133 @@ const Admin = {
                 });
             };
 
+            // Group by deviceId
+            const groups = {};
             targetData.forEach(item => {
-                const date = new Date(item.timestamp || Date.now());
-                const dateStr = `${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                const did = item.device_id || item.deviceId || 'Anonymous / Legacy';
+                if (!groups[did]) groups[did] = [];
+                groups[did].push(item);
+            });
+
+            const sortedDids = Object.keys(groups).sort((a, b) => {
+                return Math.max(...groups[b].map(i => i.timestamp || 0)) - Math.max(...groups[a].map(i => i.timestamp || 0));
+            });
+
+            sortedDids.forEach(did => {
+                const groupItems = groups[did];
+                const groupCard = document.createElement('div');
+                groupCard.className = "bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mb-3 transition-colors hover:border-blue-300 dark:hover:border-blue-500";
                 
-                let badgeClass = "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600";
-                let typeLabel = "General";
+                const latestDate = new Date(Math.max(...groupItems.map(i => i.timestamp || 0))).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
                 
-                if (item.type === 'schedule_error') { badgeClass = "bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"; typeLabel = "⏱️ Schedule Error"; }
-                else if (item.type === 'bug') { badgeClass = "bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800"; typeLabel = "🐛 App Bug"; }
-                else if (item.type === 'suggestion') { badgeClass = "bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800"; typeLabel = "💡 Suggestion"; }
-
-                // 🛡️ GUARDIAN FIX: XSS Sanitization injected
-                const safeEmail = secureEscape(item.email);
-                const safeText = item.text ? secureEscape(item.text).replace(/\n/g, "<br>") : "No content";
-                const safeAppVersion = secureEscape(item.appVersion || 'Unknown');
-                const safeRouteId = secureEscape(item.routeId || 'None');
-                const safeAttachUrl = item.attachmentUrl ? secureEscape(item.attachmentUrl) : null;
-
-                const emailDisplay = safeEmail ? `<a href="mailto:${safeEmail}" class="text-blue-500 dark:text-blue-400 hover:underline">${safeEmail}</a>` : "Anonymous User";
-                const attachmentHtml = safeAttachUrl 
-                    ? `<a href="${safeAttachUrl}" target="_blank" class="flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-[10px] font-bold"><span class="mr-1">📎</span> View File</a>`
-                    : `<div></div>`;
-
-                // GROWTH SPRINT PHASE 8: Commuter Reply Logic & Archive Extermination
-                const deviceId = item.device_id || item.deviceId || '';
-                const actionHtml = isInbox 
-                    ? `<div class="flex space-x-2">
-                         ${deviceId ? `<button class="text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${item.id}', '${deviceId}')">Reply</button>` : ''}
-                         <button class="text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${item.id}')">Resolve</button>
-                       </div>`
-                    : `<div class="flex justify-between items-center w-full mt-3">
-                         <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived</span>
-                         <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm ml-2" onclick="Admin.deleteFeedback('${item.id}')">Delete</button>
-                       </div>`;
-
-                const card = document.createElement('div');
-                card.className = "bg-white dark:bg-gray-900 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col transition-all hover:border-blue-300 dark:hover:border-blue-500";
-                
-                let lowerCardHtml = isInbox ? `
-                    <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-800 pt-2 mt-auto">
-                        <div class="flex flex-col">
-                            <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium mb-0.5">${emailDisplay}</span>
-                            <span class="text-[8px] text-gray-400 dark:text-gray-600 font-mono">App: ${safeAppVersion} | Route: ${safeRouteId}</span>
+                let groupHTML = `
+                    <button class="w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none border-b border-transparent" onclick="this.nextElementSibling.classList.toggle('hidden'); this.classList.toggle('border-gray-200'); this.classList.toggle('dark:border-gray-700'); this.querySelector('svg').classList.toggle('rotate-180')">
+                        <div class="flex flex-col items-start">
+                            <span class="text-xs font-bold text-gray-900 dark:text-white">Commuter: <span class="text-blue-600">${did === 'Anonymous / Legacy' ? did : did.substring(0,15) + '...'}</span></span>
+                            <span class="text-[9px] text-gray-500 font-mono mt-0.5">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} | Last: ${latestDate}</span>
                         </div>
-                        <div class="flex items-center space-x-2">
-                            ${attachmentHtml}
-                            ${actionHtml}
-                        </div>
-                    </div>` : `
-                    <div class="flex flex-col border-t border-gray-100 dark:border-gray-800 pt-2 mt-auto">
-                        <div class="flex justify-between items-start mb-2">
+                        <svg class="w-4 h-4 text-gray-400 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div class="hidden divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900 p-2 space-y-2">
+                `;
+
+                groupItems.forEach(item => {
+                    const date = new Date(item.timestamp || Date.now());
+                    const dateStr = `${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                    
+                    let badgeClass = "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600";
+                    let typeLabel = "General";
+                    
+                    if (item.type === 'schedule_error') { badgeClass = "bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"; typeLabel = "⏱️ Schedule Error"; }
+                    else if (item.type === 'bug') { badgeClass = "bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800"; typeLabel = "🐛 App Bug"; }
+                    else if (item.type === 'suggestion') { badgeClass = "bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800"; typeLabel = "💡 Suggestion"; }
+
+                    // 🛡️ GUARDIAN FIX: XSS Sanitization injected
+                    const safeEmail = secureEscape(item.email);
+                    const safeText = item.text ? secureEscape(item.text).replace(/\n/g, "<br>") : "No content";
+                    const safeAppVersion = secureEscape(item.appVersion || 'Unknown');
+                    const safeRouteId = secureEscape(item.routeId || 'None');
+                    const safeAttachUrl = item.attachmentUrl ? secureEscape(item.attachmentUrl) : null;
+
+                    const emailDisplay = safeEmail ? `<a href="mailto:${safeEmail}" class="text-blue-500 dark:text-blue-400 hover:underline">${safeEmail}</a>` : "Anonymous User";
+                    const attachmentHtml = safeAttachUrl 
+                        ? `<a href="${safeAttachUrl}" target="_blank" class="flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-[10px] font-bold"><span class="mr-1">📎</span> View File</a>`
+                        : `<div></div>`;
+
+                    // 🛡️ GUARDIAN PHASE 11: Read Receipts & "Replied" Badges
+                    let archiveBadgeHtml = `<span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived</span>`;
+                    
+                    if (!isInbox) {
+                        if (item.hasAdminReply) {
+                            let readReceipt = "";
+                            if (item.readAt) {
+                                const readDate = new Date(item.readAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                                readReceipt = `<span class="text-[9px] text-blue-500 ml-1.5 font-bold tracking-tight">✓✓ Seen ${readDate}</span>`;
+                            } else {
+                                readReceipt = `<span class="text-[9px] text-gray-400 ml-1.5 tracking-tight font-medium">✓ Delivered</span>`;
+                            }
+                            archiveBadgeHtml = `
+                                <div class="flex items-center">
+                                    <span class="text-[9px] font-bold text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded uppercase tracking-wider">💬 Replied</span>
+                                    ${readReceipt}
+                                </div>
+                            `;
+                        }
+                    }
+
+                    // GROWTH SPRINT PHASE 8: Commuter Reply Logic & Archive Extermination
+                    const deviceId = item.device_id || item.deviceId || '';
+                    const actionHtml = isInbox 
+                        ? `<div class="flex space-x-2">
+                             ${deviceId ? `<button class="text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${item.id}', '${deviceId}')">Reply</button>` : ''}
+                             <button class="text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${item.id}')">Resolve</button>
+                           </div>`
+                        : `<div class="flex justify-between items-center w-full mt-3">
+                             ${archiveBadgeHtml}
+                             <div class="flex space-x-2">
+                                 <button class="text-blue-600 hover:text-white hover:bg-blue-600 text-[10px] font-bold px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-blue-200 shadow-sm" onclick="Admin.restoreFeedback('${item.id}')">Restore</button>
+                                 <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteFeedback('${item.id}')">Delete</button>
+                             </div>
+                           </div>`;
+
+                    let lowerCardHtml = isInbox ? `
+                        <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-800 pt-2 mt-auto">
                             <div class="flex flex-col">
                                 <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium mb-0.5">${emailDisplay}</span>
                                 <span class="text-[8px] text-gray-400 dark:text-gray-600 font-mono">App: ${safeAppVersion} | Route: ${safeRouteId}</span>
                             </div>
-                            ${attachmentHtml}
+                            <div class="flex items-center space-x-2">
+                                ${attachmentHtml}
+                                ${actionHtml}
+                            </div>
+                        </div>` : `
+                        <div class="flex flex-col border-t border-gray-100 dark:border-gray-800 pt-2 mt-auto">
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="flex flex-col">
+                                    <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium mb-0.5">${emailDisplay}</span>
+                                    <span class="text-[8px] text-gray-400 dark:text-gray-600 font-mono">App: ${safeAppVersion} | Route: ${safeRouteId}</span>
+                                </div>
+                                ${attachmentHtml}
+                            </div>
+                            ${actionHtml}
                         </div>
-                        ${actionHtml}
-                    </div>
-                `;
+                    `;
 
-                card.innerHTML = `
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border ${badgeClass}">${typeLabel}</span>
-                        <span class="text-[9px] text-gray-400 dark:text-gray-500 font-mono">${dateStr}</span>
-                    </div>
-                    <p class="text-xs text-gray-800 dark:text-gray-200 mb-3 leading-relaxed whitespace-pre-wrap">${safeText}</p>
-                    ${lowerCardHtml}
-                `;
-                listContainer.appendChild(card);
+                    groupHTML += `
+                        <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col transition-colors">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border ${badgeClass}">${typeLabel}</span>
+                                <span class="text-[9px] text-gray-400 dark:text-gray-500 font-mono">${dateStr}</span>
+                            </div>
+                            <p class="text-xs text-gray-800 dark:text-gray-200 mb-3 leading-relaxed whitespace-pre-wrap">${safeText}</p>
+                            ${lowerCardHtml}
+                        </div>
+                    `;
+                });
+                
+                groupHTML += `</div>`;
+                groupCard.innerHTML = groupHTML;
+                listContainer.appendChild(groupCard);
             });
         };
 
@@ -1993,6 +2082,23 @@ const Admin = {
             }
         };
 
+        // 🛡️ GUARDIAN PHASE 11: Restore from Archive
+        Admin.restoreFeedback = async (id) => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                await fetch(`${dynamicEndpoint}feedback/${id}.json?auth=${secret}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: 'unread', resolvedAt: null })
+                });
+                if (typeof showToast === 'function') showToast("Restored to Inbox", "success");
+                Admin.fetchFeedback();
+            } catch (e) {
+                if (typeof showToast === 'function') showToast("Error restoring feedback.", "error");
+            }
+        };
+
         // GUARDIAN PHASE 11: Permanent Feed Deletion
         Admin.deleteFeedback = async (id) => {
             const confirmed = await Admin.secureConfirm("Delete Feedback", "Permanently delete this feedback entry?");
@@ -2026,7 +2132,16 @@ const Admin = {
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
                     <h3 class="text-lg font-black text-gray-900 dark:text-white mb-2 tracking-tight flex items-center"><span class="mr-2">💬</span> Reply to Commuter</h3>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Message will be delivered to their personal inbox upon next app launch.</p>
-                    <textarea id="admin-reply-text" rows="4" class="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all resize-none" placeholder="Type your response..."></textarea>
+                    
+                    <div class="border border-gray-300 dark:border-gray-600 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+                        <div class="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 p-1.5 border-b border-gray-300 dark:border-gray-600">
+                            <button type="button" onclick="document.execCommand('link', false, prompt('Enter URL:','https://'))" class="px-3 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded shadow-sm text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none">
+                                🔗 Insert Link
+                            </button>
+                        </div>
+                        <div contenteditable="true" id="admin-reply-text" class="w-full min-h-[120px] p-3 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="Type your response..."></div>
+                    </div>
+
                     <div class="flex space-x-3 mt-4">
                         <button id="reply-cancel" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors focus:outline-none text-sm">Cancel</button>
                         <button id="reply-send" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none text-sm">Send Reply</button>
@@ -2036,7 +2151,7 @@ const Admin = {
             document.body.appendChild(modal);
         }
         
-        document.getElementById('admin-reply-text').value = '';
+        document.getElementById('admin-reply-text').innerHTML = '';
         modal.classList.remove('hidden');
         void modal.offsetWidth; // Trigger reflow
         modal.firstElementChild.classList.remove('scale-95');
@@ -2050,8 +2165,11 @@ const Admin = {
 
         document.getElementById('reply-cancel').onclick = cleanup;
         document.getElementById('reply-send').onclick = async () => {
-            const text = document.getElementById('admin-reply-text').value.trim();
-            if (!text) return;
+            const text = document.getElementById('admin-reply-text').innerHTML.trim();
+            if (!text || text === '<br>') {
+                if (typeof showToast === 'function') showToast("Please enter a message.", "error");
+                return;
+            }
             
             const btn = document.getElementById('reply-send');
             btn.textContent = "Sending...";
@@ -2075,6 +2193,12 @@ const Admin = {
                 const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
                 if (!res.ok) throw new Error("Failed to send");
                 
+                // Flag the original ticket as replied to
+                await fetch(`${dynamicEndpoint}feedback/${feedbackId}.json?auth=${secret}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ hasAdminReply: true })
+                });
+
                 // Auto-resolve the feedback item
                 await Admin.resolveFeedback(feedbackId, true); 
                 

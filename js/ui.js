@@ -175,7 +175,8 @@ window.onerror = function(msg, url, line, col, error) {
         timestamp: Date.now(),
         userAgent: navigator.userAgent,
         routeId: typeof currentRouteId !== 'undefined' && currentRouteId ? currentRouteId : 'none',
-        appVersion: typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown'
+        appVersion: typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown',
+        deviceId: typeof NEXT_TRAIN_DEVICE_ID !== 'undefined' ? NEXT_TRAIN_DEVICE_ID : 'unknown' // 🛡️ GUARDIAN FIX: Admin Reply Bridge
     };
     
     try {
@@ -1133,9 +1134,17 @@ function initAdInterceptor() {
         const gridModal = document.getElementById('full-schedule-modal');
         const isGridHidden = !gridModal || gridModal.classList.contains('hidden');
 
-        if (isMainRoute && isWelcomeHidden && isRegionSoonHidden && isMapHidden && isTripMapHidden && isGridHidden) {
+        // 🛡️ GUARDIAN FIX: Also ensure database has hydrated (meaning initial syncs/reloads are done)
+        const isDbReady = typeof fullDatabase !== 'undefined' && fullDatabase !== null;
+
+        if (isDbReady && isMainRoute && isWelcomeHidden && isRegionSoonHidden && isMapHidden && isTripMapHidden && isGridHidden) {
             window._adScriptInjected = true;
-            console.log("🛡️ AdInterceptor: Safe zone confirmed. Injecting Monetization Engine.");
+            console.log("🛡️ AdInterceptor: Safe zone & stable state confirmed. Injecting Monetization Engine.");
+            
+            // Track the impression internally
+            if (typeof trackAnalyticsEvent === 'function') {
+                trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard' });
+            }
             
             (function (document, window) {
                 var a, c = document.createElement("script"), f = window.frameElement;
@@ -1330,6 +1339,7 @@ async function checkServiceAlerts() {
                     if (replyContent) replyContent.textContent = adminReply.message;
                     
                     if (markReadBtn) {
+                        markReadBtn.textContent = "Got it, Thanks!";
                         markReadBtn.onclick = async () => {
                             if (typeof triggerHaptic === 'function') triggerHaptic();
                             markReadBtn.disabled = true;
@@ -1337,12 +1347,54 @@ async function checkServiceAlerts() {
                             try {
                                 await fetch(`${dynamicEndpoint}inbox/${NEXT_TRAIN_DEVICE_ID}/${adminReply._key}.json`, {
                                     method: 'PATCH',
-                                    body: JSON.stringify({ read: true })
+                                    body: JSON.stringify({ read: true, readAt: Date.now() }) // 🛡️ Adds Read Receipt Timestamp
                                 });
                             } catch(e) {}
                             
                             closeSmoothModal('developer-reply-modal');
                             replyBanner.classList.add('hidden');
+                        };
+
+                        // 🛡️ GUARDIAN PHASE 1: Threaded Commuter Reply Button
+                        let replyToAdminBtn = document.getElementById('reply-to-admin-btn');
+                        if (!replyToAdminBtn) {
+                            replyToAdminBtn = document.createElement('button');
+                            replyToAdminBtn.id = 'reply-to-admin-btn';
+                            replyToAdminBtn.className = "w-full bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-2 border-blue-600 dark:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 font-bold py-3 rounded-xl shadow-sm transition-colors focus:outline-none mt-3 flex items-center justify-center text-sm";
+                            replyToAdminBtn.innerHTML = `<span class="mr-2">💬</span> Reply to Admin`;
+                            markReadBtn.parentNode.insertBefore(replyToAdminBtn, markReadBtn.nextSibling);
+                        }
+                        
+                        replyToAdminBtn.onclick = () => {
+                            if (typeof triggerHaptic === 'function') triggerHaptic();
+                            
+                            const fText = document.getElementById('feedback-text');
+                            const fType = document.getElementById('feedback-type');
+                            
+                            if (fText) {
+                                let contextBox = document.getElementById('feedback-reply-context');
+                                if (!contextBox) {
+                                    contextBox = document.createElement('div');
+                                    contextBox.id = 'feedback-reply-context';
+                                    contextBox.className = 'mb-3 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 italic flex items-start hidden shadow-inner';
+                                    fText.parentNode.insertBefore(contextBox, fText);
+                                }
+                                
+                                let truncatedAdminMsg = adminReply.message.split(/\\s+/).slice(0, 8).join(' ') + '...';
+                                
+                                contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Admin:</span><span class="line-clamp-2">"${escapeHTML(truncatedAdminMsg)}"</span></div>`;
+                                contextBox.dataset.rawMsg = `[REPLY TO ADMIN: ${adminReply._key}] ${truncatedAdminMsg}`;
+                                contextBox.classList.remove('hidden');
+                                fText.value = ''; 
+                            }
+                            if (fType) fType.value = 'general';
+                            
+                            closeSmoothModal('developer-reply-modal');
+                            setTimeout(() => {
+                                trackAnalyticsEvent('open_feedback_modal', { location: 'admin_inbox_reply' });
+                                history.pushState({ modal: 'feedback' }, '', '#feedback');
+                                openSmoothModal('feedback-modal');
+                            }, 350);
                         };
                     }
                     
@@ -1674,6 +1726,17 @@ window.addEventListener('popstate', (event) => {
         console.log("🛡️ Guardian: Suppressed popstate router bleed during modal animation.");
         history.pushState(null, '', location.href || '#home'); 
         return;
+    }
+
+    // 🛡️ GUARDIAN PHASE 11: Admin Router Bug Fix (The Back-Button Trap)
+    // If the admin is drilled down into a specific panel (e.g. Service Alerts), intercept the back button 
+    // and click the "drill-back-btn" to return them to the Admin Grid, rather than dropping them to the home screen.
+    if (window.Admin && window.Admin.isGridMode === false) {
+        const drillBackBtn = document.getElementById('drill-back-btn');
+        if (drillBackBtn) {
+            drillBackBtn.click();
+            return; // Halt popstate cascade!
+        }
     }
 
     const hash = location.hash;
@@ -2193,6 +2256,19 @@ async function submitFeedback() {
             showToast("Feedback sent! Thank you.", "success");
         }
         closeSmoothModal('feedback-modal');
+        
+        // 🛡️ GUARDIAN 2.4: Smart Polling (20s for 10mins) to catch instant admin replies
+        if (window._smartPollInterval) clearInterval(window._smartPollInterval);
+        if (window._smartPollTimeout) clearTimeout(window._smartPollTimeout);
+
+        window._smartPollInterval = setInterval(() => {
+            if (typeof checkServiceAlerts === 'function') checkServiceAlerts();
+        }, 20000);
+        
+        window._smartPollTimeout = setTimeout(() => {
+            if (window._smartPollInterval) clearInterval(window._smartPollInterval);
+            console.log("🛡️ Guardian: 10-minute smart polling window closed.");
+        }, 600000); // 10 minutes
         
         document.getElementById('feedback-text').value = '';
         document.getElementById('feedback-email').value = '';
@@ -2942,74 +3018,85 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
     }
 
     if (controlsDiv) {
-        const isWk = sheetDayType === 'weekday';
-        const shareUrl = `https://nexttrain.co.za/?action=route&route=${currentRouteId}&view=grid&dir=${direction}&day=${selectedDay}`;
-        const shareText = `Check out the ${sheetDayType} schedule to ${destName}`;
-        
-        window.shareCurrentGrid = async () => {
-            if (typeof triggerHaptic === 'function') triggerHaptic(); 
-            const data = { title: 'Next Train Schedule', text: shareText, url: shareUrl };
-            try {
-                if (navigator.share) await navigator.share(data);
-                else {
-                    const textArea = document.createElement('textarea');
-                    textArea.value = shareUrl;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textArea);
-                    alert('Schedule link copied to clipboard!');
-                }
-            } catch (e) {}
-        };
+            // GUARDIAN UX FIX: Dynamically update parent container layout to wrap safely if fat buttons exceed mobile bounds
+            controlsDiv.className = "px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-3 justify-between items-center shadow-md z-[60] relative";
 
-        let wkLabel = "Mon - Fri";
-        let satLabel = "Sat / Hol";
-
-        // 🛡️ GUARDIAN UX: Outside click listener for the custom Grid Dropdown
-        if (!window._gridOutsideClickListener) {
-            window._gridOutsideClickListener = (e) => {
-                const list = document.getElementById('grid-day-list');
-                const chevron = document.getElementById('grid-day-chevron');
-                if (list && !list.classList.contains('hidden') && !e.target.closest('#grid-day-dropdown-container')) {
-                    list.classList.add('hidden');
-                    if (chevron) chevron.classList.remove('rotate-180');
-                }
-            };
-            document.addEventListener('click', window._gridOutsideClickListener);
-        }
-
-        controlsDiv.innerHTML = `
-            <div class="flex items-center space-x-1 sm:space-x-2 min-w-0 flex-1 relative" id="grid-day-dropdown-container">
-                <!-- Custom Dropdown Trigger -->
-                <button onclick="document.getElementById('grid-day-list').classList.toggle('hidden'); document.getElementById('grid-day-chevron').classList.toggle('rotate-180');" class="flex justify-between items-center text-[9px] sm:text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm min-w-[85px] sm:min-w-[95px]">
-                    <span id="grid-day-display" class="truncate mr-1">${isWk ? wkLabel : satLabel}</span>
-                    <svg id="grid-day-chevron" class="w-3 h-3 text-gray-500 transform transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                </button>
-                
-                <!-- Hidden Dropdown List -->
-                <ul id="grid-day-list" class="absolute z-[100] top-[110%] left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden flex-col overflow-hidden text-left min-w-[120px]">
-                    <li onclick="document.getElementById('grid-day-list').classList.add('hidden'); renderFullScheduleGrid('${direction}', 'weekday')" class="px-3 py-2.5 text-[10px] sm:text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 ${isWk ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">${wkLabel}</li>
-                    <li onclick="document.getElementById('grid-day-list').classList.add('hidden'); renderFullScheduleGrid('${direction}', 'saturday')" class="px-3 py-2.5 text-[10px] sm:text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors ${!isWk ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">${satLabel}</li>
-                </ul>
-
-                <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[9px] sm:text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm truncate shrink-0 ml-1 sm:ml-2">
-                    ⇄ ${typeof Renderer !== 'undefined' ? Renderer._applyUIIntercepts(oppositeDestName) : oppositeDestName}
-                </button>
-            </div>
+            const isWk = sheetDayType === 'weekday';
+            const shareUrl = `https://nexttrain.co.za/?action=route&route=${currentRouteId}&view=grid&dir=${direction}&day=${selectedDay}`;
+            const shareText = `Check out the ${sheetDayType} schedule to ${destName}`;
             
-            <div class="flex items-center space-x-1 border-l border-gray-200 dark:border-gray-700 pl-1.5 ml-1 shrink-0">
-                <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center justify-center space-x-1 px-1.5 py-1.5 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600 whitespace-nowrap focus:outline-none min-w-0" title="Save Image">
-                    <svg class="w-3 h-3 text-gray-600 dark:text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    <span class="text-[9px] font-bold text-gray-700 dark:text-gray-300 truncate">Download</span>
-                </button>
-                <button onclick="shareCurrentGrid()" class="flex items-center justify-center space-x-1 px-1.5 py-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded hover:bg-blue-100 transition shadow-sm border border-blue-200 dark:border-blue-800 whitespace-nowrap focus:outline-none min-w-0" title="Share Link">
-                    <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
-                    <span class="text-[9px] font-bold truncate">Share</span>
-                </button>
-            </div>
-        `;
-    }
+            window.shareCurrentGrid = async () => {
+                if (typeof triggerHaptic === 'function') triggerHaptic(); 
+                const data = { title: 'Next Train Schedule', text: shareText, url: shareUrl };
+                try {
+                    if (navigator.share) await navigator.share(data);
+                    else {
+                        const textArea = document.createElement('textarea');
+                        textArea.value = shareUrl;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        alert('Schedule link copied to clipboard!');
+                    }
+                } catch (e) {}
+            };
+
+            let wkLabel = "Mon - Fri";
+            let satLabel = "Sat / Hol";
+
+            // 🛡️ GUARDIAN UX: Outside click listener for the custom Grid Dropdown
+            if (!window._gridOutsideClickListener) {
+                window._gridOutsideClickListener = (e) => {
+                    const list = document.getElementById('grid-day-list');
+                    const chevron = document.getElementById('grid-day-chevron');
+                    if (list && !list.classList.contains('hidden') && !e.target.closest('#grid-day-dropdown-container')) {
+                        list.classList.add('hidden');
+                        if (chevron) chevron.classList.remove('rotate-180');
+                    }
+                };
+                document.addEventListener('click', window._gridOutsideClickListener);
+            }
+
+            controlsDiv.innerHTML = `
+                <div class="flex items-center space-x-1 sm:space-x-2 min-w-0 flex-1 relative" id="grid-day-dropdown-container">
+                    <!-- Custom Dropdown Trigger (Reverted to Compact) -->
+                    <button onclick="document.getElementById('grid-day-list').classList.toggle('hidden'); document.getElementById('grid-day-chevron').classList.toggle('rotate-180');" class="flex justify-between items-center text-[9px] sm:text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm min-w-[85px] sm:min-w-[95px]">
+                        <span id="grid-day-display" class="truncate mr-1">${isWk ? wkLabel : satLabel}</span>
+                        <svg id="grid-day-chevron" class="w-3 h-3 text-gray-500 transform transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    
+                    <!-- Hidden Dropdown List (Premium UI Retained & Scaled Up) -->
+                    <ul id="grid-day-list" class="absolute z-[100] top-[115%] left-0 mt-1 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl hidden flex-col overflow-hidden text-left min-w-[170px]">
+                        <li onclick="document.getElementById('grid-day-list').classList.add('hidden'); renderFullScheduleGrid('${direction}', 'weekday')" class="px-4 py-4 text-sm sm:text-base font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 flex items-center ${isWk ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">
+                            <svg class="w-5 h-5 mr-3 shrink-0 ${isWk ? 'text-blue-500' : 'text-gray-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            ${wkLabel}
+                        </li>
+                        <li onclick="document.getElementById('grid-day-list').classList.add('hidden'); renderFullScheduleGrid('${direction}', 'saturday')" class="px-4 py-4 text-sm sm:text-base font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors flex items-center ${!isWk ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">
+                            <svg class="w-5 h-5 mr-3 shrink-0 ${!isWk ? 'text-blue-500' : 'text-gray-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            ${satLabel}
+                        </li>
+                    </ul>
+
+                    <!-- Swap Button (Reverted to Compact) -->
+                    <button onclick="renderFullScheduleGrid('${direction === 'A' ? 'B' : 'A'}', '${selectedDay}')" class="text-[9px] sm:text-[10px] font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm truncate shrink-0 ml-1 sm:ml-2">
+                        ⇄ ${typeof Renderer !== 'undefined' ? Renderer._applyUIIntercepts(oppositeDestName) : oppositeDestName}
+                    </button>
+                </div>
+                
+                <!-- Actions Container & Buttons (Reverted to Compact) -->
+                <div class="flex items-center space-x-1 border-l border-gray-200 dark:border-gray-700 pl-1.5 ml-1 shrink-0">
+                    <button onclick="takeGridSnapshot('${direction}', '${selectedDay}')" class="flex items-center justify-center space-x-1 px-1.5 py-1.5 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 transition shadow-sm border border-gray-200 dark:border-gray-600 whitespace-nowrap focus:outline-none min-w-0" title="Save Image">
+                        <svg class="w-3 h-3 text-gray-600 dark:text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        <span class="text-[9px] font-bold text-gray-700 dark:text-gray-300 truncate">Download</span>
+                    </button>
+                    <button onclick="shareCurrentGrid()" class="flex items-center justify-center space-x-1 px-1.5 py-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded hover:bg-blue-100 transition shadow-sm border border-blue-200 dark:border-blue-800 whitespace-nowrap focus:outline-none min-w-0" title="Share Link">
+                        <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                        <span class="text-[9px] font-bold truncate">Share</span>
+                    </button>
+                </div>
+            `;
+        }
 
     const isTodayType = !autoForwarded && (
                         (currentDayType === 'weekday' && sheetDayType === 'weekday') || 
