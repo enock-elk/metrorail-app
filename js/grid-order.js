@@ -2,8 +2,8 @@
  * METRORAIL NEXT TRAIN - GRID ORDER CONFIG
  * ---------------------------------------------------
  * This file defines the explicit column order for the Full Schedule Grid.
- * Generated from: NextTrain GP-Schedules - 30 Apr.xlsx, NextTrain WC-Schedules - 22 April.xlsx
- * Date: 2026-04-30
+ * Generated from: NextTrain EC-Schedules - 02 May.xlsx, NextTrain GP-Schedules - 30 Apr.xlsx, NextTrain KZN-Schedules - 02 May.xlsx, NextTrain WC-Schedules - 22 April.xlsx
+ * Date: 2026-05-12
  */
 
 const MANUAL_GRID_ORDER = {
@@ -767,6 +767,52 @@ const MANUAL_GRID_ORDER = {
         "6547",
         "6551",
         "6555"
+    ],
+    "durbn-to-umlaz_weekday": [
+        "9110",
+        "9130",
+        "9140",
+        "9150",
+        "9160",
+        "9170",
+        "9180",
+        "9190",
+        "9210",
+        "9220",
+        "9230",
+        "9240",
+        "9244",
+        "9250"
+    ],
+    "umlaz-to-durbn_weekday": [
+        "9113",
+        "9119",
+        "9123",
+        "9133",
+        "9139",
+        "9143",
+        "9153",
+        "9163",
+        "9173",
+        "9183",
+        "9203",
+        "9213",
+        "9223",
+        "9233",
+        "9243",
+        "9253",
+        "9277",
+        "9287"
+    ],
+    "durbn-to-umlaz_sat": [
+        "4400",
+        "4402",
+        "4420"
+    ],
+    "umlaz-to-durbn_sat": [
+        "4400",
+        "4402",
+        "4420"
     ],
     "ctcen_in_weekday": [
         "9400",

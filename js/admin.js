@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V6.05.12 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7-05.12 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -2620,14 +2620,19 @@ const Admin = {
                 <option value="all">🌍 Entire Network (All Regions)</option>
                 <option value="all_GP">📍 Gauteng Only</option>
                 <option value="all_WC">📍 Western Cape Only</option>
+                <option value="all_KZN">📍 KwaZulu-Natal Only</option>
+                <option value="all_EC">📍 Eastern Cape Only</option>
             `;
             alertTarget.appendChild(globalGroup);
 
             const gpGroup = document.createElement('optgroup');
             gpGroup.label = "Gauteng Routes";
-            
             const wcGroup = document.createElement('optgroup');
             wcGroup.label = "Western Cape Routes";
+            const kznGroup = document.createElement('optgroup');
+            kznGroup.label = "KwaZulu-Natal Routes";
+            const ecGroup = document.createElement('optgroup');
+            ecGroup.label = "Eastern Cape Routes";
 
             if (typeof ROUTES !== 'undefined') {
                 Object.values(ROUTES).forEach(r => {
@@ -2637,12 +2642,16 @@ const Admin = {
                         opt.textContent = `🚂 ${r.name}`;
                         if (r.region === 'GP') gpGroup.appendChild(opt);
                         if (r.region === 'WC') wcGroup.appendChild(opt);
+                        if (r.region === 'KZN') kznGroup.appendChild(opt);
+                        if (r.region === 'EC') ecGroup.appendChild(opt);
                     }
                 });
             }
 
             alertTarget.appendChild(gpGroup);
             alertTarget.appendChild(wcGroup);
+            alertTarget.appendChild(kznGroup);
+            alertTarget.appendChild(ecGroup);
             
             const defOpt = typeof currentRegion !== 'undefined' ? `all_${currentRegion}` : 'all_GP';
             const optionToSelect = alertTarget.querySelector(`option[value="${defOpt}"]`);
@@ -2892,6 +2901,10 @@ const Admin = {
             gpGroup.label = "Gauteng Routes";
             const wcGroup = document.createElement('optgroup');
             wcGroup.label = "Western Cape Routes";
+            const kznGroup = document.createElement('optgroup');
+            kznGroup.label = "KwaZulu-Natal Routes";
+            const ecGroup = document.createElement('optgroup');
+            ecGroup.label = "Eastern Cape Routes";
 
             Object.values(ROUTES).forEach(r => {
                 if (r.isActive && r.id !== 'special_event') {
@@ -2900,10 +2913,14 @@ const Admin = {
                     opt.textContent = r.name;
                     if (r.region === 'GP') gpGroup.appendChild(opt);
                     if (r.region === 'WC') wcGroup.appendChild(opt);
+                    if (r.region === 'KZN') kznGroup.appendChild(opt);
+                    if (r.region === 'EC') ecGroup.appendChild(opt);
                 }
             });
             routeSelect.appendChild(gpGroup);
             routeSelect.appendChild(wcGroup);
+            routeSelect.appendChild(kznGroup);
+            routeSelect.appendChild(ecGroup);
             
             if (typeof currentRouteId !== 'undefined' && currentRouteId) {
                 routeSelect.value = currentRouteId;
@@ -3211,9 +3228,12 @@ const Admin = {
         if (typeof ROUTES !== 'undefined') {
             const gpGroup = document.createElement('optgroup');
             gpGroup.label = "Gauteng Routes";
-            
             const wcGroup = document.createElement('optgroup');
             wcGroup.label = "Western Cape Routes";
+            const kznGroup = document.createElement('optgroup');
+            kznGroup.label = "KwaZulu-Natal Routes";
+            const ecGroup = document.createElement('optgroup');
+            ecGroup.label = "Eastern Cape Routes";
 
             Object.values(ROUTES).forEach(r => {
                 if (r.isActive && r.id !== 'special_event') {
@@ -3222,11 +3242,15 @@ const Admin = {
                     opt.textContent = r.name;
                     if (r.region === 'GP') gpGroup.appendChild(opt);
                     if (r.region === 'WC') wcGroup.appendChild(opt);
+                    if (r.region === 'KZN') kznGroup.appendChild(opt);
+                    if (r.region === 'EC') ecGroup.appendChild(opt);
                 }
             });
             
             routeSelect.appendChild(gpGroup);
             routeSelect.appendChild(wcGroup);
+            routeSelect.appendChild(kznGroup);
+            routeSelect.appendChild(ecGroup);
             
             if (typeof currentRouteId !== 'undefined' && currentRouteId) {
                 routeSelect.value = currentRouteId;

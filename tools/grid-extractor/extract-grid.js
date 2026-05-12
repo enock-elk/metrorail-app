@@ -1,10 +1,12 @@
 /**
- * 🚅 METRORAIL NEXT TRAIN - GRID ORDER EXTRACTOR (GUARDIAN V3.2 - AUTO-SEEKER)
+ * 🚅 METRORAIL NEXT TRAIN - GRID ORDER EXTRACTOR (GUARDIAN V3.3 - AUTO-SEEKER)
  * --------------------------------------------------------------
  * USAGE: node extract-grid.js
+ * * UPDATES (V3.3):
+ * 1. Region Expansion: Expanded the regex and file-grouping logic to natively support KZN and EC regions.
  * * UPDATES (V3.2):
  * 1. Auto-Seeker Logic: Scans the first 5 rows to automatically find the Train Numbers, ignoring the manual config row number.
- * 2. Batch Processing: Scans for BOTH 'GP' and 'WC' schedule files simultaneously.
+ * 2. Batch Processing: Scans for ALL schedule files simultaneously.
  * 3. Smart Parsing: Automatically handles data pasted into Column A as comma-separated strings (no need for Text-to-Columns).
  * 4. Merges extracted data from all regions into a single config.
  */
@@ -25,13 +27,13 @@ const TARGET_DIRECTORIES = [
     './'                         // 4. Fallback (Current folder)
 ];
 
-// --- HELPER: Find ALL latest Schedule Files (GP & WC) ---
+// --- HELPER: Find ALL latest Schedule Files (GP, WC, KZN, EC) ---
 function findAllScheduleFiles() {
     const files = fs.readdirSync(process.cwd());
     
-    // Match any variation of NextTrain Schedules (GP, WC, or generic)
+    // 🛡️ GUARDIAN V3.3 FIX: Expanded regex to catch KZN and EC files
     const scheduleFiles = files.filter(file => 
-        /^(Next)?Train\s*(GP|WC)?-?Schedules.*\.xlsx$/i.test(file) && !file.startsWith('~$')
+        /^(Next)?Train\s*(GP|WC|KZN|EC)?-?Schedules.*\.xlsx$/i.test(file) && !file.startsWith('~$')
     );
 
     if (scheduleFiles.length === 0) return [];
@@ -43,6 +45,8 @@ function findAllScheduleFiles() {
         let region = 'GENERAL';
         if (file.toLowerCase().includes('gp-')) region = 'GP';
         if (file.toLowerCase().includes('wc-')) region = 'WC';
+        if (file.toLowerCase().includes('kzn-')) region = 'KZN';
+        if (file.toLowerCase().includes('ec-')) region = 'EC';
         
         const stats = fs.statSync(file);
         
@@ -66,7 +70,7 @@ function colToIndex(colStr) {
 // --- MAIN EXECUTION ---
 function run() {
     console.log("==============================================");
-    console.log(" 🚅 NEXT TRAIN GRID EXTRACTOR (AUTO-SEEKER V3.2)");
+    console.log(" 🚅 NEXT TRAIN GRID EXTRACTOR (AUTO-SEEKER V3.3)");
     console.log("==============================================");
 
     const sourceFiles = findAllScheduleFiles();

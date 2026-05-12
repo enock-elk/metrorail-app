@@ -429,7 +429,44 @@
             "WINTEVOGEL": [-33.629563, 18.669953], 
             "KALBASKRAAL": [-33.572554, 18.647601],
             "ABBOTSDALE": [-33.492604, 18.681903],
-            "MALMESBURY": [-33.467954, 18.722366]
+            "MALMESBURY": [-33.467954, 18.722366],
+
+            // --- KWAZULU-NATAL ---
+            "DURBAN YARD": [-29.839174, 31.024453],
+            "DURBAN": [-29.844818, 31.022411],
+            "BEREA ROAD": [-29.857146, 31.012251],
+            "DALBRIDGE": [-29.868007, 31.006317],
+            "CONGELLA": [-29.877804, 30.996696],
+            "UMBILO": [-29.890408, 30.984596],
+            "ROSSBURGH": [-29.899434, 30.980499],
+            "CLAIRWOOD": [-29.915127, 30.977414],
+            "MONTCLAIR": [-29.911973, 30.974899],
+            "MEREBANK": [-29.943867, 30.958701],
+            "REUNION": [-29.963225, 30.941094],
+            "ZWELETHU": [-29.963504, 30.916932],
+            "KWAMNYANDU": [-29.972439, 30.904182],
+            "LINDOKUHLE": [-29.959340, 30.888758],
+            "UMLAZI": [-29.953969, 30.866029],
+
+            // --- EASTERN CAPE ---
+            "EAST LONDON": [-33.016726, 27.907383],
+            "SOUTHERNWOOD": [-33.009440, 27.903611],
+            "PANMURE": [-32.998249, 27.890089],
+            "CHISELHURST": [-32.986610, 27.894308],
+            "VINCENT": [-32.978699, 27.898983],
+            "CAMBRIDGE": [-32.972495, 27.891111],
+            "HIGHGATE": [-32.971087, 27.876836],
+            "HORSESHOE": [-32.966563, 27.841427],
+            "DAWN": [-32.964754, 27.833460],
+            "WILSONIA": [-32.966970, 27.821683],
+            "ARNOLDTON": [-32.964989, 27.803070],
+            "MTSOTSO": [-32.947780, 27.786397],
+            "MDANTSANE": [-32.930547, 27.784716],
+            "MOUNT RUTH": [-32.922115, 27.758430],
+            "EGERTON": [-32.920332, 27.725769],
+            "FORT JACKSON": [-32.920712, 27.699508],
+            "LONETREE": [-32.898053, 27.643079],
+            "BERLIN": [-32.881959, 27.583001]
         };
 
         // 🛡️ GUARDIAN PHASE 3: STATIC PATH DEFINITIONS
@@ -457,7 +494,13 @@
             // GUARDIAN: Western Cape Expansion Paths
             'ct-malm': ["CAPE TOWN", "ESPLANADE", "YSTERPLAAT", "CENTURY CITY", "MONTE VISTA", "AVONDALE", "OOSTERZEE", "BELLVILLE", "STIKLAND", "BRACKENFELL", "EIKENFONTEIN", "KRAAIFONTEIN", "FISANTKRAAL", "MELLISH", "MIKPUNT", "KLIPHEUWEL", "WINTEVOGEL", "KALBASKRAAL", "ABBOTSDALE", "MALMESBURY"],
             'ct-flats': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "NDABENI", "PINELANDS", "HAZENDAL", "ATHLONE", "CRAWFORD", "LANSDOWNE", "WETTON", "OTTERY", "SOUTHFIELD", "HEATHFIELD", "RETREAT"],
-            'ct-nolu': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "NDABENI", "PINELANDS", "ESPLANADE", "YSTERPLAAT", "MUTUAL", "LANGA", "BONTEHEUWEL", "NYANGA", "PHILIPPI", "LENTEGEUR", "MITCHELL'S PLAIN", "KAPTEINSKLIP", "STOCK ROAD", "MANDALAY", "NOLUNGILE"]
+            'ct-nolu': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "NDABENI", "PINELANDS", "ESPLANADE", "YSTERPLAAT", "MUTUAL", "LANGA", "BONTEHEUWEL", "NYANGA", "PHILIPPI", "LENTEGEUR", "MITCHELL'S PLAIN", "KAPTEINSKLIP", "STOCK ROAD", "MANDALAY", "NOLUNGILE"],
+
+            // --- KWAZULU-NATAL ---
+            'kzn-umlazi': ["DURBAN YARD", "DURBAN", "BEREA ROAD", "DALBRIDGE", "CONGELLA", "UMBILO", "ROSSBURGH", "CLAIRWOOD", "MONTCLAIR", "MEREBANK", "REUNION", "ZWELETHU", "KWAMNYANDU", "LINDOKUHLE", "UMLAZI"],
+            
+            // --- EASTERN CAPE ---
+            'ec-berlin': ["EAST LONDON", "SOUTHERNWOOD", "PANMURE", "CHISELHURST", "VINCENT", "CAMBRIDGE", "HIGHGATE", "HORSESHOE", "DAWN", "WILSONIA", "ARNOLDTON", "MTSOTSO", "MDANTSANE", "MOUNT RUTH", "EGERTON", "FORT JACKSON", "LONETREE", "BERLIN"]
         };
 
         // --- MAP LOGIC (Dynamic Region & DB Sync) ---
@@ -548,6 +591,10 @@
             let initLat = -26.00, initLon = 28.10, initZoom = 10;
             if (currentRegion === 'WC') {
                 initLat = -33.95; initLon = 18.50; initZoom = 11;
+            } else if (currentRegion === 'KZN') {
+                initLat = -29.85; initLon = 30.95; initZoom = 11;
+            } else if (currentRegion === 'EC') {
+                initLat = -32.95; initLon = 27.75; initZoom = 11;
             }
 
             // 🛡️ GUARDIAN UX: Disabled Leaflet's rigid zoom control for horizontal bar layout

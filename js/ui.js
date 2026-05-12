@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V6.05.12 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7-05.12 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -1121,9 +1121,6 @@ function initAdInterceptor() {
         
         const welcomeModal = document.getElementById('welcome-modal');
         const isWelcomeHidden = !welcomeModal || welcomeModal.classList.contains('hidden');
-        
-        const regionSoonModal = document.getElementById('region-soon-modal');
-        const isRegionSoonHidden = !regionSoonModal || regionSoonModal.classList.contains('hidden');
 
         const mapModal = document.getElementById('map-modal');
         const isMapHidden = !mapModal || mapModal.classList.contains('hidden');
@@ -1137,7 +1134,7 @@ function initAdInterceptor() {
         // 🛡️ GUARDIAN FIX: Also ensure database has hydrated (meaning initial syncs/reloads are done)
         const isDbReady = typeof fullDatabase !== 'undefined' && fullDatabase !== null;
 
-        if (isDbReady && isMainRoute && isWelcomeHidden && isRegionSoonHidden && isMapHidden && isTripMapHidden && isGridHidden) {
+        if (isDbReady && isMainRoute && isWelcomeHidden && isMapHidden && isTripMapHidden && isGridHidden) {
             window._adScriptInjected = true;
             console.log("🛡️ AdInterceptor: Safe zone & stable state confirmed. Injecting Monetization Engine.");
             
@@ -2544,36 +2541,20 @@ window.lastClickedFutureRegion = null;
 window.handleRegionChange = function(newRegion, selectElement) {
     if (newRegion === currentRegion) return;
 
-    if (newRegion === 'KZN' || newRegion === 'EC') {
-        window.lastClickedFutureRegion = newRegion;
-        
-        if (selectElement) selectElement.value = currentRegion;
-
-        trackAnalyticsEvent('select_future_region', { region: newRegion });
-
-        const titleEl = document.getElementById('region-soon-title');
-        const descEl = document.getElementById('region-soon-desc');
-        const regionName = newRegion === 'KZN' ? 'KwaZulu-Natal' : 'Eastern Cape';
-        
-        if (titleEl) titleEl.textContent = `${newRegion} is Next!`;
-        if (descEl) descEl.textContent = `We are currently mapping out the corridors for ${regionName}. We need your help to launch faster!`;
-
-        history.pushState({ modal: 'region-soon' }, '', '#regionsoon');
-        
-        window.closeAppHub(true);
-        setTimeout(() => { openSmoothModal('region-soon-modal'); }, 50);
-
-        return; 
-    }
-
     if (selectElement) selectElement.value = currentRegion;
+
+    const getRegionName = (code) => {
+        if (code === 'WC') return 'Western Cape';
+        if (code === 'KZN') return 'KwaZulu-Natal';
+        if (code === 'EC') return 'Eastern Cape';
+        return 'Gauteng';
+    };
 
     if (!navigator.onLine) {
         const cacheKey = `full_db_${newRegion}`;
         const cachedData = safeStorage.getItem(cacheKey);
         if (!cachedData) {
-            const name = newRegion === 'GP' ? 'Gauteng' : 'Western Cape';
-            showToast(`Internet required to download ${name} schedules for the first time.`, "error", 4000);
+            showToast(`Internet required to download ${getRegionName(newRegion)} schedules for the first time.`, "error", 4000);
             return;
         }
     }
@@ -2586,9 +2567,8 @@ window.handleRegionChange = function(newRegion, selectElement) {
 
     if (confirmModal) {
         history.pushState({ modal: 'region-confirm' }, '', '#regionconfirm');
-        const name = newRegion === 'GP' ? 'Gauteng' : 'Western Cape';
         if (title) title.textContent = `Switch Region?`;
-        if (desc) desc.textContent = `Are you sure you want to switch to ${name}?`;
+        if (desc) desc.textContent = `Are you sure you want to switch to ${getRegionName(newRegion)}?`;
         
         window.closeAppHub(true);
         setTimeout(() => { openSmoothModal('region-confirm-modal'); }, 50);
@@ -2740,39 +2720,22 @@ function showWelcomeScreen() {
         regionWrapper.className = 'w-full mb-4 flex flex-col items-center space-y-3 shrink-0';
 
         const activeRow = document.createElement('div');
-        activeRow.className = 'flex justify-center space-x-2 w-full';
+        activeRow.className = 'flex flex-wrap justify-center gap-2 w-full';
 
-        const btnGP = document.createElement('button');
-        btnGP.className = `px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors ${currentRegion === 'GP' ? 'bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300'}`;
-        btnGP.textContent = 'Gauteng';
-        btnGP.onclick = () => { safeStorage.setItem('userRegion', 'GP'); window.location.reload(); };
+        const createBtn = (code, name) => {
+            const btn = document.createElement('button');
+            btn.className = `px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors ${currentRegion === code ? 'bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300'}`;
+            btn.textContent = name;
+            btn.onclick = () => { safeStorage.setItem('userRegion', code); window.location.reload(); };
+            return btn;
+        };
 
-        const btnWC = document.createElement('button');
-        btnWC.className = `px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors ${currentRegion === 'WC' ? 'bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300'}`;
-        btnWC.textContent = 'Western Cape';
-        btnWC.onclick = () => { safeStorage.setItem('userRegion', 'WC'); window.location.reload(); };
-
-        activeRow.appendChild(btnGP);
-        activeRow.appendChild(btnWC);
-
-        const futureRow = document.createElement('div');
-        futureRow.className = 'flex justify-center space-x-2 w-full opacity-70';
-
-        const btnKZN = document.createElement('button');
-        btnKZN.className = 'px-3 py-1.5 rounded-full text-[10px] font-bold border border-gray-300 dark:border-gray-600 text-gray-500 bg-gray-50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center shadow-sm focus:outline-none';
-        btnKZN.innerHTML = 'KwaZulu-Natal <span class="text-[8px] uppercase text-yellow-600 dark:text-yellow-500 ml-1.5 font-black bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">Soon</span>';
-        btnKZN.onclick = () => { window.lastClickedFutureRegion = 'KZN'; history.pushState({ modal: 'region-soon' }, '', '#regionsoon'); openSmoothModal('region-soon-modal'); window.closeAppHub(true); };
-
-        const btnEC = document.createElement('button');
-        btnEC.className = 'px-3 py-1.5 rounded-full text-[10px] font-bold border border-gray-300 dark:border-gray-600 text-gray-500 bg-gray-50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center shadow-sm focus:outline-none';
-        btnEC.innerHTML = 'Eastern Cape <span class="text-[8px] uppercase text-yellow-600 dark:text-yellow-500 ml-1.5 font-black bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">Soon</span>';
-        btnEC.onclick = () => { window.lastClickedFutureRegion = 'EC'; history.pushState({ modal: 'region-soon' }, '', '#regionsoon'); openSmoothModal('region-soon-modal'); window.closeAppHub(true); };
-
-        futureRow.appendChild(btnKZN);
-        futureRow.appendChild(btnEC);
+        activeRow.appendChild(createBtn('GP', 'Gauteng'));
+        activeRow.appendChild(createBtn('WC', 'Western Cape'));
+        activeRow.appendChild(createBtn('KZN', 'KwaZulu-Natal'));
+        activeRow.appendChild(createBtn('EC', 'Eastern Cape'));
 
         regionWrapper.appendChild(activeRow);
-        regionWrapper.appendChild(futureRow);
 
         welcomeRouteList.parentNode.insertBefore(regionWrapper, welcomeRouteList);
     }
@@ -3425,7 +3388,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const mapImageEl = document.getElementById('map-image');
     if (mapImageEl) {
-        mapImageEl.src = currentRegion === 'WC' ? 'images/network-map_wc.png' : 'images/network-map.png';
+        if (currentRegion === 'WC') mapImageEl.src = 'images/network-map_wc.png';
+        else if (currentRegion === 'KZN') mapImageEl.src = 'images/network-map_kzn.png';
+        else if (currentRegion === 'EC') mapImageEl.src = 'images/network-map_ec.png';
+        else mapImageEl.src = 'images/network-map.png';
     }
 
     let savedDefault = null;

@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V6.05.12 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7-05.12 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -47,7 +47,11 @@ const Renderer = {
             "WC_SOUTHERN": "Cape Town Southern Line",
             "WC_FLATS": "Cape Flats Line",
             "WC_NORTHERN": "Cape Town Northern Line",
-            "WC_REGIONAL": "Cape Town Regional"
+            "WC_REGIONAL": "Cape Town Regional",
+            "KZN_NORTH": "KwaZulu-Natal North", // GUARDIAN: Bridge City / KwaMashu
+            "KZN_SOUTH": "KwaZulu-Natal South", // GUARDIAN: Umlazi / South Coast
+            "KZN_WEST": "KwaZulu-Natal Inland",  // GUARDIAN: Cato Ridge / Pinetown
+            "EC_CENTRAL": "Eastern Cape Central"
         };
 
         const categoryOrder = [
@@ -58,7 +62,11 @@ const Renderer = {
             "Cape Town Southern Line",
             "Cape Flats Line",
             "Cape Town Northern Line",
-            "Cape Town Regional"
+            "Cape Town Regional",
+            "KwaZulu-Natal North",
+            "KwaZulu-Natal South",
+            "KwaZulu-Natal Inland",
+            "Eastern Cape Central"
         ];
         const groups = {};
         Object.values(routes).forEach(route => {

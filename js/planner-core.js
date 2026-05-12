@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V6.05.12 - Guardian Hybrid Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7-05.12 - Guardian Hybrid Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -239,6 +239,9 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false, contex
 
 // GUARDIAN PHASE 2 & 5: The Hardcoded Multi-Corridor Engine
 function planMacroCorridorTrip(origin, dest, dayType, isRollover = false, context = {}) {
+    // 🛡️ GUARDIAN PHASE 2 (CPU Optimizer): This engine is highly specialized for Gauteng hub geometries.
+    if (typeof currentRegion !== 'undefined' && currentRegion !== 'GP') return { trips: [] };
+
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     
@@ -309,6 +312,9 @@ function planMacroCorridorTrip(origin, dest, dayType, isRollover = false, contex
 }
 
 function planDoubleTransferTrip(origin, dest, dayType, isRollover = false, context = {}) {
+    // 🛡️ GUARDIAN PHASE 2 (CPU Optimizer): Deep double-bridge traversal is currently only viable/necessary in the dense GP network.
+    if (typeof currentRegion !== 'undefined' && currentRegion !== 'GP') return { status: 'NO_PATH', trips: [] };
+
     const originRoutes = globalStationIndex[normalizeStationName(origin)]?.routes || new Set();
     const destRoutes = globalStationIndex[normalizeStationName(dest)]?.routes || new Set();
     

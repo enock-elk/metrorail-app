@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V6.05.12 - Bug Fixes v1"; // BUMPED: May 12 Update - Bug Fixes
+const APP_VERSION = "V7-05.12 - National Coverage v1"; // BUMPED: May 12 Update - Bug Fixes
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -34,6 +34,14 @@ const REGIONS = {
     'WC': { 
         dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'full-database.json' : 'schedules/westerncape.json', 
         name: 'Western Cape' 
+    },
+    'KZN': { 
+        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'full-database.json' : 'schedules/kzn.json', 
+        name: 'KwaZulu-Natal' 
+    },
+    'EC': { 
+        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'full-database.json' : 'schedules/easterncape.json', 
+        name: 'Eastern Cape' 
     }
 };
 const MAX_RADIUS_KM = 6; 
@@ -535,6 +543,116 @@ const ROUTES = {
             weekday_to_b: 'ct_to_malm_weekday', 
             saturday_to_a: 'malm_to_ct_sat', 
             saturday_to_b: 'ct_to_malm_sat' 
+        } 
+    },
+
+    // ==========================================
+    // 🛡️ KWAZULU-NATAL ROUTES (V6 EXPANSION)
+    // ==========================================
+    'kzn-umlazi': { 
+        id: 'kzn-umlazi', 
+        name: 'Durban <-> Umlazi', 
+        corridorId: 'KZN_SOUTH', 
+        region: 'KZN', 
+        colorClass: 'text-blue-500', 
+        isActive: true, 
+        destA: 'DURBAN YARD STATION', 
+        destB: 'UMLAZI STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'umlaz_to_durbn_weekday', 
+            weekday_to_b: 'durbn_to_umlaz_weekday', 
+            saturday_to_a: 'umlaz_to_durbn_sat', 
+            saturday_to_b: 'durbn_to_umlaz_sat' 
+        } 
+    },
+    'kzn-bridgecity': { 
+        id: 'kzn-bridgecity', 
+        name: 'Berea Road <-> Bridge City', 
+        corridorId: 'KZN_NORTH', 
+        region: 'KZN', 
+        colorClass: 'text-green-500', 
+        isActive: false, 
+        destA: 'BEREA ROAD STATION', 
+        destB: 'BRIDGE CITY STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'brdg_to_berea_weekday', 
+            weekday_to_b: 'berea_to_brdg_weekday', 
+            saturday_to_a: 'brdg_to_berea_sat', 
+            saturday_to_b: 'berea_to_brdg_sat' 
+        } 
+    },
+    'kzn-winklespruit': { 
+        id: 'kzn-winklespruit', 
+        name: 'Durban <-> Winklespruit', 
+        corridorId: 'KZN_SOUTH', 
+        region: 'KZN', 
+        colorClass: 'text-orange-500', 
+        isActive: false, 
+        destA: 'DURBAN YARD STATION', 
+        destB: 'WINKLESPRUIT STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'wink_to_durbn_weekday', 
+            weekday_to_b: 'durbn_to_wink_weekday', 
+            saturday_to_a: 'wink_to_durbn_sat', 
+            saturday_to_b: 'durbn_to_wink_sat' 
+        } 
+    },
+    'kzn-catoridge': { 
+        id: 'kzn-catoridge', 
+        name: 'Durban <-> Cato Ridge', 
+        corridorId: 'KZN_WEST', 
+        region: 'KZN', 
+        colorClass: 'text-purple-500', 
+        isActive: false, 
+        destA: 'DURBAN YARD STATION', 
+        destB: 'CATO RIDGE STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'cato_to_durbn_weekday', 
+            weekday_to_b: 'durbn_to_cato_weekday', 
+            saturday_to_a: 'cato_to_durbn_sat', 
+            saturday_to_b: 'durbn_to_cato_sat' 
+        } 
+    },
+    'kzn-pinetown': { 
+        id: 'kzn-pinetown', 
+        name: 'Durban <-> Pinetown', 
+        corridorId: 'KZN_WEST', 
+        region: 'KZN', 
+        colorClass: 'text-yellow-600', 
+        isActive: false, 
+        destA: 'DURBAN YARD STATION', 
+        destB: 'PINETOWN STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'pine_to_durbn_weekday', 
+            weekday_to_b: 'durbn_to_pine_weekday', 
+            saturday_to_a: 'pine_to_durbn_sat', 
+            saturday_to_b: 'durbn_to_pine_sat' 
+        } 
+    },
+
+    // ==========================================
+    // 🛡️ EASTERN CAPE ROUTES (V6 EXPANSION)
+    // ==========================================
+    'ec-berlin': { 
+        id: 'ec-berlin', 
+        name: 'East London <-> Berlin', 
+        corridorId: 'EC_CENTRAL', 
+        region: 'EC', 
+        colorClass: 'text-red-500', 
+        isActive: true, 
+        destA: 'EAST LONDON STATION', 
+        destB: 'BERLIN STATION', 
+        transferStation: null, 
+        sheetKeys: { 
+            weekday_to_a: 'berln_to_eastl_weekday', 
+            weekday_to_b: 'eastl_to_berln_weekday', 
+            saturday_to_a: 'berln_to_eastl_sat', 
+            saturday_to_b: 'eastl_to_berln_sat' 
         } 
     }
 };

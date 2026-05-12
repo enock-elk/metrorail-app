@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V6.05.12 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7-05.12 - Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -17,7 +17,7 @@ if (!safeStorage.getItem('userRegion')) {
         const fetchGeo = fetch('https://nexttrain-telemetry.enock.workers.dev/region', { signal: geoController.signal })
             .then(r => { clearTimeout(geoTimerId); return r.json(); })
             .then(data => {
-                if (data && data.region && (data.region === 'WC' || data.region === 'GP')) {
+                if (data && data.region && ['GP', 'WC', 'KZN', 'EC'].includes(data.region)) {
                     currentRegion = data.region;
                     console.log(`🛡️ Guardian: Silent IP Geolocation successfully bound to ${currentRegion}`);
                     
@@ -25,15 +25,17 @@ if (!safeStorage.getItem('userRegion')) {
                     if (typeof document !== 'undefined') {
                         const gpBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Gauteng'));
                         const wcBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Western Cape'));
+                        const kznBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('KwaZulu-Natal'));
+                        const ecBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Eastern Cape'));
                         
-                        if (gpBtn && wcBtn) {
-                            if (currentRegion === 'WC') {
-                                wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
-                                gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
-                            } else {
-                                gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
-                                wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
-                            }
+                        if (gpBtn && wcBtn && kznBtn && ecBtn) {
+                            const resetClass = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
+                            const activeClass = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
+
+                            gpBtn.className = currentRegion === 'GP' ? activeClass : resetClass;
+                            wcBtn.className = currentRegion === 'WC' ? activeClass : resetClass;
+                            kznBtn.className = currentRegion === 'KZN' ? activeClass : resetClass;
+                            ecBtn.className = currentRegion === 'EC' ? activeClass : resetClass;
                             
                             // Re-render the route list with the new region seamlessly
                             if (typeof Renderer !== 'undefined' && typeof getRoutesForCurrentRegion === 'function' && typeof selectWelcomeRoute === 'function') {
@@ -47,8 +49,9 @@ if (!safeStorage.getItem('userRegion')) {
                         const sideSel = document.getElementById('app-hub-region-select');
                         const modalSel = document.getElementById('route-modal-region-select');
 
-                        if (sideDisp) sideDisp.textContent = currentRegion === 'WC' ? 'Western Cape' : 'Gauteng';
-                        if (modalDisp) modalDisp.textContent = currentRegion === 'WC' ? 'Region: Western Cape' : 'Region: Gauteng';
+                        const regionNames = { 'GP': 'Gauteng', 'WC': 'Western Cape', 'KZN': 'KwaZulu-Natal', 'EC': 'Eastern Cape' };
+                        if (sideDisp) sideDisp.textContent = regionNames[currentRegion] || 'Gauteng';
+                        if (modalDisp) modalDisp.textContent = 'Region: ' + (regionNames[currentRegion] || 'Gauteng');
                         if (sideSel) sideSel.value = currentRegion;
                         if (modalSel) modalSel.value = currentRegion;
                     }
@@ -712,8 +715,13 @@ window.clearScheduleCache = async function() {
             tx.onerror = () => resolve();
         });
     } catch(e) {} finally {
-        safeStorage.removeItem(`full_db_GP`);
-        safeStorage.removeItem(`full_db_WC`);
+        if (typeof REGIONS !== 'undefined') {
+            Object.keys(REGIONS).forEach(regionCode => {
+                safeStorage.removeItem(`full_db_${regionCode}`);
+            });
+        } else {
+            ['GP', 'WC', 'KZN', 'EC'].forEach(r => safeStorage.removeItem(`full_db_${r}`));
+        }
     }
 };
 
@@ -1057,12 +1065,18 @@ async function loadAllSchedules(force = false) {
                 regionalData = db.gauteng;
             } else if (region === 'WC' && db.westerncape) {
                 regionalData = db.westerncape;
+            } else if (region === 'KZN' && db.kzn) { // GUARDIAN: KZN Extraction
+                regionalData = db.kzn;
+            } else if (region === 'EC' && db.easterncape) { // GUARDIAN: EC Extraction
+                regionalData = db.easterncape;
             } else if (region === 'GP' && db.schedules && !db.gauteng) {
                 regionalData = db.schedules;
             }
             const mergedDb = { ...db, ...regionalData };
             delete mergedDb.gauteng;
             delete mergedDb.westerncape;
+            delete mergedDb.kzn;
+            delete mergedDb.easterncape;
             delete mergedDb.schedules;
             return mergedDb;
         };

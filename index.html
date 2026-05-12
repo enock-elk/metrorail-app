@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V6.05.12 (Guardian Edition - UI/UX Polish)
+  Metrorail Next Train V7-05.12 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -41,12 +41,12 @@
     </script>
 
     <!-- SEO: Freshness Signal -->
-    <title>Metrorail Next Train | 2026 Schedules for Gauteng & Cape Town</title>
+    <title>Metrorail Next Train | 2026 Train Schedules for South Africa</title>
     
     <!-- SEO: Canonical Tag -->
     <link rel="canonical" href="https://nexttrain.co.za/">
 
-    <meta name="description" content="Check live train schedules, download offline timetables, and calculate fares for Metrorail Gauteng (Pretoria, JHB) and Western Cape (Cape Town).">
+    <meta name="description" content="Check live train schedules, download offline timetables Images, and check fares for Metrorail South Africa.">
     
     <!-- SEO: JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -72,7 +72,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nexttrain.co.za/">
     <meta property="og:title" content="Metrorail Next Train | Updated Schedules">
-    <meta property="og:description" content="Stop guessing. Get accurate train times, ticket prices, and updates for Gauteng and Cape Town lines. Download timetables and check live updates offline!">
+    <meta property="og:description" content="Stop guessing. Get accurate train times, ticket prices, and updates for Gauteng, Cape Town, KZN, and Eastern Cape. Download timetables and check live updates offline!">
     <meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png">
     <meta property="og:image:width" content="512">
     <meta property="og:image:height" content="512">
@@ -186,15 +186,17 @@
                                     if (typeof document !== 'undefined') {
                                         const gpBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Gauteng'));
                                         const wcBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Western Cape'));
+                                        const kznBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('KwaZulu-Natal'));
+                                        const ecBtn = Array.from(document.querySelectorAll('#welcome-region-selector button')).find(b => b.textContent.includes('Eastern Cape'));
                                         
-                                        if (gpBtn && wcBtn) {
-                                            if (data.region === 'WC') {
-                                                wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
-                                                gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
-                                            } else {
-                                                gpBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
-                                                wcBtn.className = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
-                                            }
+                                        if (gpBtn && wcBtn && kznBtn && ecBtn) {
+                                            const resetClass = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
+                                            const activeClass = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
+
+                                            gpBtn.className = data.region === 'GP' ? activeClass : resetClass;
+                                            wcBtn.className = data.region === 'WC' ? activeClass : resetClass;
+                                            kznBtn.className = data.region === 'KZN' ? activeClass : resetClass;
+                                            ecBtn.className = data.region === 'EC' ? activeClass : resetClass;
                                         }
                                         
                                         // Silently re-render the route list dynamically
@@ -426,16 +428,16 @@
                         <select id="app-hub-region-select" class="hidden" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { try { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); } catch(e) {} window.location.reload(); }">
                             <option value="GP">Gauteng</option>
                             <option value="WC">Western Cape</option>
-                            <option value="KZN">KwaZulu-Natal (Soon)</option>
-                            <option value="EC">Eastern Cape (Soon)</option>
+                            <option value="KZN">KwaZulu-Natal</option>
+                            <option value="EC">Eastern Cape</option>
                         </select>
 
                         <!-- Custom Dropdown List -->
                         <ul id="sidenav-region-list" class="absolute z-[200] w-[calc(100%-2rem)] left-4 top-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden flex-col overflow-hidden text-left mt-1">
                             <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Gauteng'; const sel=document.getElementById('app-hub-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Gauteng</li>
                             <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Western Cape'; const sel=document.getElementById('app-hub-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Western Cape</li>
-                            <li onclick="event.stopPropagation(); const sel=document.getElementById('app-hub-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors border-b border-gray-100 dark:border-gray-700">KwaZulu-Natal (Soon)</li>
-                            <li onclick="event.stopPropagation(); const sel=document.getElementById('app-hub-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors">Eastern Cape (Soon)</li>
+                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='KwaZulu-Natal'; const sel=document.getElementById('app-hub-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">KwaZulu-Natal</li>
+                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Eastern Cape'; const sel=document.getElementById('app-hub-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors">Eastern Cape</li>
                         </ul>
                         
                         <!-- Script to sync initial state instantly -->
@@ -450,6 +452,8 @@
                                         if (disp) {
                                             if(reg === 'GP') disp.textContent = 'Gauteng';
                                             else if(reg === 'WC') disp.textContent = 'Western Cape';
+                                            else if(reg === 'KZN') disp.textContent = 'KwaZulu-Natal';
+                                            else if(reg === 'EC') disp.textContent = 'Eastern Cape';
                                         }
                                     } catch(e) { sel.value = 'GP'; if(disp) disp.textContent = 'Gauteng'; }
                                 }
@@ -789,7 +793,7 @@
                 <!-- SWAP BUTTON -->
                 <div class="flex justify-center -my-3 relative z-10">
                     <button id="planner-swap-btn" class="bg-blue-100 dark:bg-blue-900 p-2 rounded-full text-blue-600 dark:text-blue-400 border-4 border-gray-50 dark:border-gray-900 shadow-md hover:scale-110 transition-transform focus:outline-none" aria-label="Swap Stations">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path></svg>
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4-4l-4-4"></path></svg>
                     </button>
                 </div>
 
@@ -890,8 +894,8 @@
                     <select id="route-modal-region-select" class="hidden" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { try { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); } catch(e) {} window.location.reload(); }">
                         <option value="GP">Region: Gauteng</option>
                         <option value="WC">Region: Western Cape</option>
-                        <option value="KZN">Region: KwaZulu-Natal (Soon)</option>
-                        <option value="EC">Region: Eastern Cape (Soon)</option>
+                        <option value="KZN">Region: KwaZulu-Natal</option>
+                        <option value="EC">Region: Eastern Cape</option>
                     </select>
                     
                     <!-- Fake Select Display -->
@@ -906,8 +910,8 @@
                     <ul id="route-modal-region-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl hidden mt-1 flex-col overflow-hidden text-left">
                         <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Gauteng'; const sel=document.getElementById('route-modal-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: Gauteng</li>
                         <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Western Cape'; const sel=document.getElementById('route-modal-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: Western Cape</li>
-                        <li onclick="event.stopPropagation(); const sel=document.getElementById('route-modal-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors border-b border-gray-100 dark:border-gray-700">Region: KwaZulu-Natal (Soon)</li>
-                        <li onclick="event.stopPropagation(); const sel=document.getElementById('route-modal-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition-colors">Region: Eastern Cape (Soon)</li>
+                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: KwaZulu-Natal'; const sel=document.getElementById('route-modal-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: KwaZulu-Natal</li>
+                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Eastern Cape'; const sel=document.getElementById('route-modal-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors">Region: Eastern Cape</li>
                     </ul>
                 </div>
                 
@@ -923,6 +927,8 @@
                                 if (disp) {
                                     if (reg === 'GP') disp.textContent = 'Region: Gauteng';
                                     else if (reg === 'WC') disp.textContent = 'Region: Western Cape';
+                                    else if (reg === 'KZN') disp.textContent = 'Region: KwaZulu-Natal';
+                                    else if (reg === 'EC') disp.textContent = 'Region: Eastern Cape';
                                 }
                             } catch(e) { 
                                 sel.value = 'GP'; 
@@ -1147,31 +1153,7 @@
         </div>
     </div>
     
-    <!-- REGION COMING SOON MODAL (Interceptor) -->
-    <div id="region-soon-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[140] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-8 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
-            <div class="text-center">
-                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-4 shadow-inner">
-                    <span class="text-3xl">🚂</span>
-                </div>
-                <h3 id="region-soon-title" class="text-2xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">KZN is Next!</h3>
-                <p id="region-soon-desc" class="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">We are currently mapping out the corridors for this region. We need your help to launch faster!</p>
-                
-                <div class="space-y-3">
-                    <button onclick="document.getElementById('feedback-btn').click(); closeSmoothModal('region-soon-modal'); return false;" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center shadow-md transition-colors focus:outline-none text-sm">
-                        <span class="mr-2 text-lg">📸</span> Upload Timetables
-                    </button>
-                    <button onclick="if(typeof window.voteForRegion === 'function') window.voteForRegion();" class="w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center transition-colors focus:outline-none text-sm">
-                        <span class="mr-2 text-lg">🗳️</span> Vote for this Region
-                    </button>
-                </div>
-                
-                <button onclick="closeSmoothModal('region-soon-modal')" class="mt-5 text-[10px] font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors focus:outline-none uppercase tracking-widest p-2">
-                    Go Back
-                </button>
-            </div>
-        </div>
-    </div>
+    <!-- REGION COMING SOON MODAL PURGED - ALL REGIONS LIVE -->
 
     <!-- EXIT APP MODAL (App Router) -->
     <div id="exit-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[140] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
@@ -1373,7 +1355,7 @@
             </div>
 
             <p class="mt-8 text-[10px] text-gray-400 font-mono">
-                Version 6.05.12 (Guardian Edition)
+                Version 7-05.12 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -1736,24 +1718,24 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=6.05.12"></script>
-    <script src="js/renderer.js?v=6.05.12"></script>
+    <script src="js/grid-order.js?v=7-05.12"></script>
+    <script src="js/renderer.js?v=7-05.12"></script>
     
-    <script src="js/utils.js?v=6.05.12"></script>
-    <script src="js/config.js?v=6.05.12"></script>
-    <script src="js/logic.js?v=6.05.12"></script>
+    <script src="js/utils.js?v=7-05.12"></script>
+    <script src="js/config.js?v=7-05.12"></script>
+    <script src="js/logic.js?v=7-05.12"></script>
 
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=6.05.12"></script>
+    <script src="js/admin.js?v=7-05.12"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=6.05.12"></script>
-    <script src="js/planner-ui.js?v=6.05.12"></script>
+    <script src="js/planner-core.js?v=7-05.12"></script>
+    <script src="js/planner-ui.js?v=7-05.12"></script>
     
-    <script src="js/map-viewer.js?v=6.05.12"></script> 
+    <script src="js/map-viewer.js?v=7-05.12"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=6.05.12"></script>
+    <script src="js/ui.js?v=7-05.12"></script>
     
 </body>
 </html>
