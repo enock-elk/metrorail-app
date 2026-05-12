@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V6.05.07 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V6.05.12 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -777,7 +777,7 @@ const PlannerRenderer = {
                         ${countdown}
                     </div>
                     <button onclick="if(typeof window._plannerCurrentTripIndex !== 'undefined') window._selectCustomTrip(window._plannerCurrentTripIndex + 1);" class="text-xs text-blue-500 font-bold underline hover:text-blue-600 transition-colors focus:outline-none">
-                        Missed it? Show Next Train &rarr;
+                        Show Next Train? &rarr;
                     </button>
                 </div>
             `;
