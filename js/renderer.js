@@ -46,7 +46,8 @@ const Renderer = {
             "WC_CENTRAL": "Cape Town Central Line",
             "WC_SOUTHERN": "Cape Town Southern Line",
             "WC_FLATS": "Cape Flats Line",
-            "WC_NORTHERN": "Cape Town Northern Line"
+            "WC_NORTHERN": "Cape Town Northern Line",
+            "WC_REGIONAL": "Cape Town Regional"
         };
 
         const categoryOrder = [
@@ -56,7 +57,8 @@ const Renderer = {
             "Cape Town Central Line",
             "Cape Town Southern Line",
             "Cape Flats Line",
-            "Cape Town Northern Line"
+            "Cape Town Northern Line",
+            "Cape Town Regional"
         ];
         const groups = {};
         Object.values(routes).forEach(route => {
