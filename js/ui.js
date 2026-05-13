@@ -2748,6 +2748,12 @@ function showWelcomeScreen() {
                 
                 if (typeof executeRegionSwap === 'function') {
                     executeRegionSwap(code);
+                    
+                    // 🛡️ GUARDIAN BUGFIX: Force Welcome Screen list to re-render instantly, 
+                    // bypassing the savedDefault trap in executeRegionSwap.
+                    if (typeof Renderer !== 'undefined' && typeof getRoutesForCurrentRegion === 'function') {
+                        Renderer.renderWelcomeList('welcome-route-list', getRoutesForCurrentRegion(), selectWelcomeRoute);
+                    }
                 } else {
                     window.location.reload();
                 }

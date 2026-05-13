@@ -961,17 +961,17 @@
     </div>
 
     <!-- WELCOME MODAL -->
-    <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-center p-6 transition-opacity duration-300">
+    <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-start pt-16 sm:pt-24 px-6 pb-6 transition-opacity duration-300">
         
         <div class="w-full max-w-sm flex flex-col items-center animate-fade-in-up mt-8">
             <div class="relative w-24 h-24 mb-6 shrink-0">
                 <div class="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-ping"></div>
                 <div class="relative bg-white dark:bg-gray-800 p-4 rounded-full shadow-xl ring-4 ring-blue-50 dark:ring-gray-700">
-                    <img src="icons/loading-logo.png" class="w-full h-full object-contain" alt="Logo" onerror="this.style.display='none'">
-                </div>
+                <img src="icons/loading-logo.png" class="w-full h-full object-contain" alt="Logo" onerror="this.style.display='none'">
             </div>
-            <h1 class="text-3xl font-black text-gray-900 dark:text-white text-center mb-2 shrink-0">Next Train</h1>
-            <p class="text-gray-500 dark:text-gray-400 text-center mb-8 px-4 shrink-0">Select your regular route to get started.</p>
+        </div>
+        <h2 class="text-3xl font-black text-gray-900 dark:text-white text-center mb-2 shrink-0">Next Train</h2>
+        <p class="text-gray-500 dark:text-gray-400 text-center mb-8 px-4 shrink-0">Select your regular route to get started.</p>
             <div id="welcome-route-list" class="w-full space-y-3 overflow-y-auto max-h-[55vh] pr-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"></div>
             <p class="text-xs text-gray-400 dark:text-gray-600 mt-8 text-center shrink-0">You can change this later in the menu.</p>
         </div>
