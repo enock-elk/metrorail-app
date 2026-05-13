@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7-05.12 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7 05.13 - Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -1097,8 +1097,11 @@ async function loadAllSchedules(force = false) {
             routeSubtitleText.className = `text-base sm:text-lg font-medium ${mappedColor} group-hover:opacity-80 transition-colors truncate w-full px-1 min-w-0 text-center`;
         }
         
-        if(pretoriaHeader) pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
-        if(pienaarspoortHeader) pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
+        const uiDestA = typeof Renderer !== 'undefined' ? Renderer._applyUIIntercepts(currentRoute.destA).toUpperCase() : currentRoute.destA.replace(' STATION', '').toUpperCase();
+        const uiDestB = typeof Renderer !== 'undefined' ? Renderer._applyUIIntercepts(currentRoute.destB).toUpperCase() : currentRoute.destB.replace(' STATION', '').toUpperCase();
+
+        if(pretoriaHeader) pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${uiDestA}</span>`;
+        if(pienaarspoortHeader) pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${uiDestB}</span>`;
 
         // GUARDIAN PHASE B: EAGER ROUTE GUARD (Stop Grid Crashes)
         if (!currentRoute.isActive) {
@@ -1570,9 +1573,12 @@ function findNextTrains() {
 
     if (selectedStation === "FIND_NEAREST") { findNearestStation(false); return; }
     
+    const uiDestA = typeof Renderer !== 'undefined' ? Renderer._applyUIIntercepts(currentRoute.destA).toUpperCase() : currentRoute.destA.replace(' STATION', '').toUpperCase();
+    const uiDestB = typeof Renderer !== 'undefined' ? Renderer._applyUIIntercepts(currentRoute.destB).toUpperCase() : currentRoute.destB.replace(' STATION', '').toUpperCase();
+
     pretoriaTimeEl.innerHTML = ""; pienaarspoortTimeEl.innerHTML = "";
-    pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destA.replace(' STATION', '')}</span>`;
-    pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${currentRoute.destB.replace(' STATION', '')}</span>`;
+    pretoriaHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${uiDestA}</span>`;
+    pienaarspoortHeader.innerHTML = `Next train to <span class="text-blue-500 dark:text-blue-400">${uiDestB}</span>`;
     
     if (!selectedStation) { if(typeof renderPlaceholder === 'function') renderPlaceholder(); return; }
     

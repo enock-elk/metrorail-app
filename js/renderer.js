@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7-05.12 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7 05.13 - Guardian Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -705,10 +705,21 @@ const Renderer = {
 
     _applyUIIntercepts: (stationName) => {
         if (!stationName) return '';
-        let name = stationName.replace(/ STATION/gi, '');
-        if (name.toUpperCase() === 'ELANDSFONTEIN' || name.toUpperCase() === 'RHODESFIELD') {
+        
+        // 1. Strip the redundant "STATION" suffix
+        let name = stationName.replace(/ STATION/gi, '').trim();
+        const upperName = name.toUpperCase();
+
+        // 2. Perform Operational -> Commuter Intercepts
+        if (upperName === 'ELANDSFONTEIN' || upperName === 'RHODESFIELD') {
             return 'Kempton Park';
         }
+        
+        if (upperName === 'DURBAN YARD') {
+            return 'Durban';
+        }
+
+        // 3. Default to Title Case for standard display
         return Renderer._toTitleCase(name);
     },
 
@@ -1114,8 +1125,8 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     
     exportContainer.classList.remove('dark');
 
-    const destAName = route.destA.replace(' STATION', '');
-    const destBName = route.destB.replace(' STATION', '');
+    const destAName = Renderer._applyUIIntercepts(route.destA).toUpperCase();
+    const destBName = Renderer._applyUIIntercepts(route.destB).toUpperCase();
     const dateText = new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
     const scheduleTypeLabel = selectedDay === 'weekday' ? 'WEEKDAY' : 'WEEKEND';
     const finalScheduleTypeLabel = hasExceptions ? `AMENDED ${scheduleTypeLabel}` : scheduleTypeLabel;

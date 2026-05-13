@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7-05.12 - National Coverage v1"; // BUMPED: May 12 Update - Bug Fixes
+const APP_VERSION = "V7 05.13 - National Coverage v1"; // BUMPED: May 12 Update - Bug Fixes
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -554,7 +554,7 @@ const ROUTES = {
         name: 'Durban <-> Umlazi', 
         corridorId: 'KZN_SOUTH', 
         region: 'KZN', 
-        colorClass: 'text-blue-500', 
+        colorClass: 'text-red-500', 
         isActive: true, 
         destA: 'DURBAN YARD STATION', 
         destB: 'UMLAZI STATION', 
@@ -571,16 +571,16 @@ const ROUTES = {
         name: 'Berea Road <-> Bridge City', 
         corridorId: 'KZN_NORTH', 
         region: 'KZN', 
-        colorClass: 'text-green-500', 
-        isActive: false, 
+        colorClass: 'text-red-500', 
+        isActive: true, 
         destA: 'BEREA ROAD STATION', 
         destB: 'BRIDGE CITY STATION', 
         transferStation: null, 
         sheetKeys: { 
-            weekday_to_a: 'brdg_to_berea_weekday', 
-            weekday_to_b: 'berea_to_brdg_weekday', 
-            saturday_to_a: 'brdg_to_berea_sat', 
-            saturday_to_b: 'berea_to_brdg_sat' 
+            weekday_to_a: 'bridg_to_durbn_weekday', 
+            weekday_to_b: 'durbn_to_bridg_weekday', 
+            saturday_to_a: 'bridg_to_durbn_sat', 
+            saturday_to_b: 'durbn_to_bridg_sat' 
         } 
     },
     'kzn-winklespruit': { 
@@ -588,16 +588,16 @@ const ROUTES = {
         name: 'Durban <-> Winklespruit', 
         corridorId: 'KZN_SOUTH', 
         region: 'KZN', 
-        colorClass: 'text-orange-500', 
-        isActive: false, 
+        colorClass: 'text-blue-500', 
+        isActive: true, 
         destA: 'DURBAN YARD STATION', 
         destB: 'WINKLESPRUIT STATION', 
         transferStation: null, 
         sheetKeys: { 
-            weekday_to_a: 'wink_to_durbn_weekday', 
-            weekday_to_b: 'durbn_to_wink_weekday', 
-            saturday_to_a: 'wink_to_durbn_sat', 
-            saturday_to_b: 'durbn_to_wink_sat' 
+            weekday_to_a: 'winkl_to_durbn_weekday', 
+            weekday_to_b: 'durbn_to_winkl_weekday', 
+            saturday_to_a: 'winkl_to_durbn_sat', 
+            saturday_to_b: 'durbn_to_winkl_sat' 
         } 
     },
     'kzn-catoridge': { 
@@ -605,16 +605,16 @@ const ROUTES = {
         name: 'Durban <-> Cato Ridge', 
         corridorId: 'KZN_WEST', 
         region: 'KZN', 
-        colorClass: 'text-purple-500', 
-        isActive: false, 
+        colorClass: 'text-indigo-500', 
+        isActive: true, 
         destA: 'DURBAN YARD STATION', 
         destB: 'CATO RIDGE STATION', 
         transferStation: null, 
         sheetKeys: { 
-            weekday_to_a: 'cato_to_durbn_weekday', 
-            weekday_to_b: 'durbn_to_cato_weekday', 
-            saturday_to_a: 'cato_to_durbn_sat', 
-            saturday_to_b: 'durbn_to_cato_sat' 
+            weekday_to_a: 'cator_to_durbn_weekday', 
+            weekday_to_b: 'durbn_to_cator_weekday', 
+            saturday_to_a: 'cator_to_durbn_sat', 
+            saturday_to_b: 'durbn_to_cator_sat' 
         } 
     },
     'kzn-pinetown': { 
@@ -622,16 +622,16 @@ const ROUTES = {
         name: 'Durban <-> Pinetown', 
         corridorId: 'KZN_WEST', 
         region: 'KZN', 
-        colorClass: 'text-yellow-600', 
-        isActive: false, 
+        colorClass: 'text-orange-500', 
+        isActive: true, 
         destA: 'DURBAN YARD STATION', 
         destB: 'PINETOWN STATION', 
         transferStation: null, 
         sheetKeys: { 
-            weekday_to_a: 'pine_to_durbn_weekday', 
-            weekday_to_b: 'durbn_to_pine_weekday', 
-            saturday_to_a: 'pine_to_durbn_sat', 
-            saturday_to_b: 'durbn_to_pine_sat' 
+            weekday_to_a: 'pinet_to_durbn_weekday', 
+            weekday_to_b: 'durbn_to_pinet_weekday', 
+            saturday_to_a: 'pinet_to_durbn_sat', 
+            saturday_to_b: 'durbn_to_pinet_sat' 
         } 
     },
 

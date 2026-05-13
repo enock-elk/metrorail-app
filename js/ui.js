@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7-05.12 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7 05.13 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -2596,8 +2596,11 @@ window.handleRegionChange = function(newRegion, selectElement) {
         };
 
         const cancelAction = () => {
-            if (location.hash === '#regionconfirm') history.back();
-            else closeSmoothModal('region-confirm-modal');
+            // 🛡️ GUARDIAN UX FIX: Same bypass applied to Cancel button to prevent Router Bleed Trap
+            closeSmoothModal('region-confirm-modal');
+            if (location.hash === '#regionconfirm') {
+                history.replaceState({ view: 'home' }, '', '#home');
+            }
         };
 
         if (actionBtn) actionBtn.onclick = confirmAction;
@@ -2724,9 +2727,31 @@ function showWelcomeScreen() {
 
         const createBtn = (code, name) => {
             const btn = document.createElement('button');
-            btn.className = `px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors ${currentRegion === code ? 'bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300'}`;
+            const resetClass = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 hover:border-blue-300";
+            const activeClass = "px-4 py-2 rounded-full text-xs font-bold border-2 transition-colors bg-blue-100 dark:bg-blue-900 border-blue-500 text-blue-700 dark:text-blue-300";
+            
+            btn.className = (currentRegion === code) ? activeClass : resetClass;
             btn.textContent = name;
-            btn.onclick = () => { safeStorage.setItem('userRegion', code); window.location.reload(); };
+            
+            btn.onclick = () => { 
+                if (currentRegion === code) return; 
+                if (typeof triggerHaptic === 'function') triggerHaptic();
+                
+                // 🛡️ GUARDIAN UI FIX: Reset all region buttons and highlight the selected one instantly
+                const parentRow = btn.parentElement;
+                if (parentRow) {
+                    Array.from(parentRow.querySelectorAll('button')).forEach(b => b.className = resetClass);
+                }
+                btn.className = activeClass;
+
+                safeStorage.setItem('userRegion', code); 
+                
+                if (typeof executeRegionSwap === 'function') {
+                    executeRegionSwap(code);
+                } else {
+                    window.location.reload();
+                }
+            };
             return btn;
         };
 
@@ -2745,12 +2770,41 @@ function showWelcomeScreen() {
 }
 
 function selectWelcomeRoute(routeId) {
-    currentRouteId = routeId;
+    if (typeof triggerHaptic === 'function') triggerHaptic();
+    
+    // 🛡️ GUARDIAN RELOAD LOCK: Temporarily disable reloads while we settle the state
+    window._suppressReloads = true;
+
+    // 1. Permanently lock the selected Region and Route
+    safeStorage.setItem('userRegion', currentRegion);
     safeStorage.setItem('defaultRoute_' + currentRegion, routeId);
-    closeSmoothModal('welcome-modal'); 
-    setTimeout(() => {
-        updateSidebarActiveState(); updatePinUI(); loadAllSchedules(); checkServiceAlerts(); 
-    }, 300);
+    safeStorage.setItem('welcomeSeen', 'true');
+    
+    currentRouteId = routeId;
+
+    // 2. Clear visual blockers
+    const welcomeModal = document.getElementById('welcome-modal');
+    if (welcomeModal) welcomeModal.classList.add('hidden');
+    
+    const loadingOverlay = document.getElementById('loading-overlay');
+    if (loadingOverlay) loadingOverlay.style.display = 'none';
+
+    // 3. Reveal dashboard
+    if (mainContent) mainContent.style.display = 'block';
+    
+    // 4. Update UI Components without re-triggering init logic
+    updateSidebarActiveState();
+    updatePinUI();
+    
+    // 5. Trigger data hydration
+    if (typeof loadAllSchedules === 'function') {
+        loadAllSchedules().then(() => {
+            // Release reload lock only AFTER schedules are cached to Disk/RAM
+            setTimeout(() => { window._suppressReloads = false; }, 2000);
+        });
+    }
+    
+    if (typeof checkServiceAlerts === 'function') checkServiceAlerts();
 }
 
 window.openLegal = function(type) {
@@ -2926,8 +2980,8 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
         });
     }
 
-    const destName = (direction === 'A' ? route.destA : route.destB).replace(' STATION', '');
-    const oppositeDestName = (direction === 'A' ? route.destB : route.destA).replace(' STATION', '');
+    const destName = Renderer._applyUIIntercepts(direction === 'A' ? route.destA : route.destB).toUpperCase();
+    const oppositeDestName = Renderer._applyUIIntercepts(direction === 'A' ? route.destB : route.destA).toUpperCase();
     
     const sheetKey = `${sheetDayType}_to_${direction.toLowerCase()}`;
     const schedule = schedules[sheetKey];

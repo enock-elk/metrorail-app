@@ -796,15 +796,23 @@
 
             // --- DRAW BASE ROUTES ---
             drawnRoutes.forEach(r => {
+                const isLive = r.isActive;
                 L.polyline(r.coords, {
-                    color: r.isActive ? r.color : '#9ca3af',
-                    weight: r.isActive ? 4 : 2,
-                    opacity: r.isActive ? 0.9 : 0.4,
-                    dashArray: r.isActive ? null : '5, 10',
+                    color: r.color, // 🛡️ Use actual route color for anticipation
+                    weight: isLive ? 4 : 3,
+                    opacity: isLive ? 0.9 : 0.35, // Faded for future routes
+                    dashArray: isLive ? null : '8, 12', // Distinct dashed look for "Soon"
                     lineCap: 'round',
                     lineJoin: 'round',
                     smoothFactor: 1
-                }).addTo(map).bindPopup(`<b class="uppercase text-sm">${r.name}</b><br>${r.isActive ? '<span class="text-green-600 font-bold text-xs">Active Service</span>' : '<span class="text-red-500 font-bold text-xs">Suspended</span>'}`);
+                }).addTo(map).bindPopup(`
+                    <div class="text-center">
+                        <b class="uppercase text-sm">${r.name}</b><br>
+                        ${isLive 
+                            ? '<span class="text-green-600 font-bold text-xs">● Active Service</span>' 
+                            : '<span class="text-blue-500 font-black text-[10px] uppercase tracking-widest animate-pulse">🚧 Launching Soon</span>'}
+                    </div>
+                `);
             });
 
             // --- 🛡️ GUARDIAN PHASE 2: DRAW DYNAMIC DISRUPTION OVERLAYS ---
@@ -978,10 +986,14 @@
                     if (item.isActive) {
                         if (isCritical) { routeStatus = 'SEVERED'; badgeColor = 'bg-red-500'; } 
                         else if (isWarning) { routeStatus = 'DELAYS'; badgeColor = 'bg-yellow-500'; }
+                    } else {
+                        // 🛡️ Future Anticipation Badge
+                        routeStatus = 'SOON'; 
+                        badgeColor = 'bg-blue-600 animate-pulse'; 
                     }
 
                     legendContent.innerHTML += `
-                        <div class="legend-item">
+                        <div class="legend-item ${!item.isActive ? 'opacity-80' : ''}">
                             <span class="color-dot" style="background-color: ${item.color}"></span>
                             <span class="text-gray-700 dark:text-gray-200 mr-2">${item.name}</span>
                             <span class="status-badge ${badgeColor}">${routeStatus}</span>

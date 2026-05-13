@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN UTILITIES (V6.04.15 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN UTILITIES (V7 05.13 - Guardian Edition) ---
 // Pure, stateless helper functions shared across the application.
 
 function pad(num) {
@@ -61,6 +61,13 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
 
 // --- GUARDIAN PHASE 1 & 2: RESILIENT STORAGE WRAPPER ---
 // Protects against SecurityError (Safari Private Mode) AND Apple ITP 7-Day Purge via IndexedDB Mirroring
+// 🛡️ GUARDIAN QUOTA CLEANSER: Nuke legacy 5MB databases from LocalStorage to ensure safeStorage can breathe.
+try {
+    ['GP', 'WC', 'KZN', 'EC'].forEach(region => {
+        localStorage.removeItem(`full_db_${region}`);
+    });
+} catch(e) {}
+
 const safeStorage = {
     memoryFallback: {},
     
@@ -79,7 +86,7 @@ const safeStorage = {
         try {
             localStorage.setItem(key, value);
         } catch (e) {
-            console.warn(`🛡️ Guardian: localStorage.setItem blocked. Using RAM fallback for ${key}.`);
+            console.warn(`🛡️ Guardian: localStorage.setItem blocked (Quota/Privacy). Using RAM fallback for ${key}.`);
             this.memoryFallback[key] = value;
         }
     },
@@ -106,6 +113,8 @@ const safeStorage = {
             'analytics_ignore',
             'defaultRoute_GP',
             'defaultRoute_WC',
+            'defaultRoute_KZN', // 🛡️ GUARDIAN FIX: Protect KZN
+            'defaultRoute_EC',  // 🛡️ GUARDIAN FIX: Protect EC
             'last_killswitch_timestamp', // Protect killswitch memory
             'analytics_queue' // Protect offline events queue
         ];
