@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7 05.13 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7 05.16 - Guardian Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -87,6 +87,8 @@ let memoryFallbackCache = {};
 let lastRenderedMinute = -1;
 // GUARDIAN PHASE 4: Async Route-Swap Bleed Prevention
 let scheduleAbortController = null; 
+// GUARDIAN PHASE 1 (Growth Polish): Region Swap Generation Lock
+let regionSwapGeneration = 0;
 
 // --- SHARED UI REFERENCES (Declared here, Assigned in UI.js) ---
 let stationSelect, locateBtn, pretoriaTimeEl, pienaarspoortTimeEl, pretoriaHeader, pienaarspoortHeader;
@@ -729,6 +731,9 @@ window.clearScheduleCache = async function() {
 window.executeRegionSwap = function(newRegion) {
     console.log(`🛡️ Guardian: Executing seamless SPA region swap to ${newRegion}...`);
 
+    // 0. Increment the generation lock to instantly orphan any in-flight async parsers
+    regionSwapGeneration++;
+
     // 1. Update Region
     currentRegion = newRegion;
 
@@ -789,6 +794,17 @@ window.executeRegionSwap = function(newRegion) {
     // 4. Update the sidebar UI to reflect new region routes
     if (typeof Renderer !== 'undefined' && typeof getRoutesForCurrentRegion === 'function') {
         Renderer.renderRouteMenu('route-list', getRoutesForCurrentRegion(), null);
+    }
+
+    // 4.1 🛡️ GUARDIAN FIX: Hot-swap the static map image to match the newly loaded region
+    if (typeof document !== 'undefined') {
+        const mapImageEl = document.getElementById('map-image');
+        if (mapImageEl) {
+            if (currentRegion === 'WC') mapImageEl.src = 'images/network-map_wc.png';
+            else if (currentRegion === 'KZN') mapImageEl.src = 'images/network-map_kzn.png';
+            else if (currentRegion === 'EC') mapImageEl.src = 'images/network-map_ec.png';
+            else mapImageEl.src = 'images/network-map.png';
+        }
     }
 
     // 5. Look for a saved default route for this new region
@@ -1038,6 +1054,7 @@ async function buildGlobalStationIndexAsync(targetDB) {
 // GUARDIAN PHASE B: EAGER RENDERING PROTOCOL
 async function loadAllSchedules(force = false) {
     let usedCache = false; // 🛡️ GUARDIAN FIX: Hoisted to prevent ReferenceError in catch block
+    const currentGen = regionSwapGeneration; // 🛡️ GUARDIAN: Capture the lock state!
     
     // 🛡️ GUARDIAN PHASE 1: Await Region Synchronization
     if (window.regionCheckPromise) {
@@ -1142,6 +1159,12 @@ async function loadAllSchedules(force = false) {
                 const proposedSchedules = await processRouteDataFromDBAsync(currentRoute, proposedDB);
                 const proposedStationIndex = await buildGlobalStationIndexAsync(proposedDB);
                 
+                // 🛡️ GUARDIAN PHASE 1: Check generation lock before committing
+                if (currentGen !== regionSwapGeneration) {
+                    console.log("🛡️ Guardian: Region swapped during shadow-clone. Aborting stale RAM commit.");
+                    return;
+                }
+
                 // Commit state atomically to prevent UI crashes on malformed data
                 fullDatabase = proposedDB;
                 schedules = proposedSchedules;
@@ -1270,6 +1293,12 @@ async function loadAllSchedules(force = false) {
                     const proposedSchedules = await processRouteDataFromDBAsync(currentRoute, proposedDB);
                     const proposedStationIndex = await buildGlobalStationIndexAsync(proposedDB);
                     
+                    // 🛡️ GUARDIAN PHASE 1: Check generation lock before committing
+                    if (currentGen !== regionSwapGeneration) {
+                        console.log("🛡️ Guardian: Region swapped during network parse. Aborting stale RAM commit.");
+                        return;
+                    }
+
                     // Commit state atomically
                     fullDatabase = proposedDB;
                     schedules = proposedSchedules;

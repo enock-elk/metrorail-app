@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7 05.13 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7 05.16 - Guardian Enterprise Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -68,6 +68,10 @@ if (typeof window.closeSmoothModal === 'function' && !window._patchedCloseSmooth
             clearInterval(window.Admin.telemetryInterval);
             window.Admin.telemetryInterval = null;
         }
+        
+        // 🛡️ GUARDIAN UX: Ensure cinematic scrim is released when ANY modal closes
+        if (window.toggleDropdownScrim) window.toggleDropdownScrim();
+        
         originalCloseSmoothModal(modalId);
     };
     window._patchedCloseSmoothModal = true;
@@ -83,6 +87,132 @@ if (typeof window.openSmoothModal === 'function' && !window._patchedOpenSmoothMo
     window._patchedOpenSmoothModal = true;
 }
 
+// --- GUARDIAN UX: CINEMATIC SCRIM ENGINE ---
+window.toggleDropdownScrim = function(listId = null, chevronId = null) {
+    const scrim = document.getElementById('global-dropdown-scrim');
+    if (!scrim) return;
+
+    const allLists = ['sidenav-region-list', 'route-modal-region-list', 'custom-time-list', 'main-day-list', 'header-day-list', 'grid-day-list'];
+    const allChevrons = ['sidenav-region-chevron', 'route-modal-region-chevron', 'custom-time-chevron', 'main-day-chevron', 'header-day-chevron', 'grid-day-chevron'];
+
+    // 🛡️ GUARDIAN UX FIX: The Deep Z-Index Escape Hatch
+    // Maps each dropdown list to the specific outer wrapper that controls its CSS stacking context
+    const wrapperMap = {
+        'sidenav-region-list': 'sidenav-region-wrapper',
+        'route-modal-region-list': 'route-modal-region-container',
+        'custom-time-list': 'custom-time-dropdown-container',
+        'main-day-list': 'planner-day-select-container',
+        'header-day-list': 'planner-header-badge',
+        'grid-day-list': 'grid-day-dropdown-container'
+    };
+
+    const resetAllWrappers = () => {
+        allLists.forEach((id) => {
+            const wrapperId = wrapperMap[id];
+            const wrapper = wrapperId ? document.getElementById(wrapperId) : null;
+            const el = document.getElementById(id);
+            const targetEl = wrapper || (el ? el.parentElement : null);
+            if (targetEl) {
+                targetEl.classList.remove('z-[160]'); // GUARDIAN: Upgraded to defeat z-[150] body scrim
+                targetEl.classList.add('z-10'); // Restore baseline
+            }
+        });
+    };
+
+    if (listId) {
+        const list = document.getElementById(listId);
+        const chevron = document.getElementById(chevronId);
+        if (!list) return;
+
+        const isOpening = list.classList.contains('hidden');
+
+        // 1. Close all other dropdowns cleanly to prevent overlap
+        allLists.forEach((id, idx) => {
+            const el = document.getElementById(id);
+            const chev = document.getElementById(allChevrons[idx]);
+            if (el && id !== listId) el.classList.add('hidden');
+            if (chev && allChevrons[idx] !== chevronId) chev.classList.remove('rotate-180');
+        });
+
+        // 2. Toggle target and Scrim
+            if (isOpening) {
+                // 🛡️ GUARDIAN UX FIX: Dynamic Stacking Context Injection
+                const container = list.closest('#sidenav') || list.closest('.transform') || list.closest('.view-section') || list.closest('#main-content') || document.body;
+                
+                if (scrim.parentNode !== container) {
+                    container.appendChild(scrim);
+                }
+
+                // Adjust positioning and Dimming levels dynamically
+                scrim.classList.remove('bg-black/20', 'bg-black/40', 'bg-black/60', 'bg-transparent');
+                
+                if (container === document.body) {
+                    scrim.classList.remove('absolute', 'rounded-xl', 'rounded-2xl', 'rounded-lg', 'z-[40]', 'z-[90]');
+                    scrim.classList.add('fixed', 'z-[150]', 'bg-black/40');
+                } else {
+                    scrim.classList.remove('fixed', 'z-[150]');
+                    scrim.classList.add('absolute');
+                    
+                    if (container.id === 'sidenav') {
+                        scrim.classList.add('z-[40]', 'bg-transparent'); // GUARDIAN UX FIX: Transparent for Sidenav to prevent darkening
+                    } else if (container.classList.contains('view-section')) {
+                        scrim.classList.add('z-[40]', 'bg-black/60'); // Localized dim inside active view tab context
+                    } else if (container.id === 'main-content') {
+                        scrim.classList.add('z-[90]', 'bg-black/60'); // Same dim for main app card
+                    } else {
+                        scrim.classList.add('z-[90]', 'bg-black/60'); // Heavier dim for Modals
+                    }
+                    
+                    // Match modal border radius dynamically to prevent visual bleeding
+                    if (container.classList.contains('rounded-xl')) scrim.classList.add('rounded-xl');
+                    else if (container.classList.contains('rounded-2xl')) scrim.classList.add('rounded-2xl');
+                    else if (container.id === 'main-content') scrim.classList.add('rounded-lg');
+                }
+
+            // Elevate active parent wrapper z-index so it floats above the scrim
+            resetAllWrappers();
+            const activeWrapperId = wrapperMap[listId];
+            const activeWrapper = activeWrapperId ? document.getElementById(activeWrapperId) : null;
+            const targetActiveEl = activeWrapper || list.parentElement;
+            
+            if (targetActiveEl) {
+                targetActiveEl.classList.remove('z-10');
+                targetActiveEl.classList.add('z-[160]', 'relative'); // GUARDIAN: Ensure it escapes the stacking context and defeats z-[150]
+            }
+
+            list.classList.remove('hidden');
+            if (chevron) chevron.classList.add('rotate-180');
+            
+            scrim.classList.remove('hidden');
+            void scrim.offsetWidth; // Force DOM Reflow
+            scrim.classList.remove('opacity-0');
+        } else {
+            list.classList.add('hidden');
+            if (chevron) chevron.classList.remove('rotate-180');
+            resetAllWrappers();
+            
+            scrim.classList.add('opacity-0');
+            setTimeout(() => { 
+                if (scrim.classList.contains('opacity-0')) scrim.classList.add('hidden'); 
+            }, 300);
+        }
+    } else {
+        // 3. Force Close All (used when clicking the scrim itself or navigating away)
+        allLists.forEach((id, idx) => {
+            const el = document.getElementById(id);
+            const chev = document.getElementById(allChevrons[idx]);
+            if (el) el.classList.add('hidden');
+            if (chev) chev.classList.remove('rotate-180');
+        });
+        resetAllWrappers();
+        
+        scrim.classList.add('opacity-0');
+        setTimeout(() => { 
+            if (scrim.classList.contains('opacity-0')) scrim.classList.add('hidden'); 
+        }, 300);
+    }
+};
+
 // --- GLOBAL APP HUB CLOSER (GUARDIAN UX FIX) ---
 window.closeAppHub = function(fromPopState = false) {
     const sn = document.getElementById('sidenav');
@@ -93,6 +223,9 @@ window.closeAppHub = function(fromPopState = false) {
         clearInterval(window.Admin.telemetryInterval);
         window.Admin.telemetryInterval = null;
     }
+    
+    // 🛡️ GUARDIAN UX: Ensure cinematic scrim is released if Sidenav closes
+    if (window.toggleDropdownScrim) window.toggleDropdownScrim();
 
     if (sn) {
         sn.classList.remove('translate-x-0');
@@ -1134,9 +1267,12 @@ function initAdInterceptor() {
         // 🛡️ GUARDIAN FIX: Also ensure database has hydrated (meaning initial syncs/reloads are done)
         const isDbReady = typeof fullDatabase !== 'undefined' && fullDatabase !== null;
 
-        if (isDbReady && isMainRoute && isWelcomeHidden && isMapHidden && isTripMapHidden && isGridHidden) {
+        // 🛡️ GUARDIAN PHASE 3.3: Mutex Lock Check to prevent Ad injection during active animations/initializations
+        const isMutexLocked = window._isModalAnimating || window._isMapInitializing;
+
+        if (isDbReady && isMainRoute && isWelcomeHidden && isMapHidden && isTripMapHidden && isGridHidden && !isMutexLocked) {
             window._adScriptInjected = true;
-            console.log("🛡️ AdInterceptor: Safe zone & stable state confirmed. Injecting Monetization Engine.");
+            console.log("🛡️ AdInterceptor: Safe zone, stable state, and Mutex unlocked. Injecting Monetization Engine.");
             
             // Track the impression internally
             if (typeof trackAnalyticsEvent === 'function') {
@@ -3011,7 +3147,7 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
                  </button>
                 </div>
                 <!-- 🛡️ GUARDIAN FIX: Elevated z-index to z-[60] so dropdown completely escapes table stacking context -->
-                <div id="grid-controls" class="px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shadow-sm z-[60] relative"></div>
+                <div id="grid-controls" class="px-4 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shadow-sm relative"></div>
                 <div id="grid-container" class="flex-grow overflow-auto bg-white dark:bg-gray-900 relative pb-32 z-10"></div>
                 <div class="p-2.5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 z-20 relative">
                     <button onclick="if(location.hash === '#grid') { history.back(); } else { const m = document.getElementById('full-schedule-modal'); if(m) m.classList.add('hidden'); }" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-md transition-colors text-sm">Close Timetable</button>
@@ -3042,7 +3178,7 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
 
     if (controlsDiv) {
             // GUARDIAN UX FIX: Dynamically update parent container layout to wrap safely if fat buttons exceed mobile bounds
-            controlsDiv.className = "px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-3 justify-between items-center shadow-md z-[60] relative";
+            controlsDiv.className = "px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-3 justify-between items-center shadow-md relative";
 
             const isWk = sheetDayType === 'weekday';
             const shareUrl = `https://nexttrain.co.za/?action=route&route=${currentRouteId}&view=grid&dir=${direction}&day=${selectedDay}`;
@@ -3074,8 +3210,11 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
                     const list = document.getElementById('grid-day-list');
                     const chevron = document.getElementById('grid-day-chevron');
                     if (list && !list.classList.contains('hidden') && !e.target.closest('#grid-day-dropdown-container')) {
-                        list.classList.add('hidden');
-                        if (chevron) chevron.classList.remove('rotate-180');
+                        if(window.toggleDropdownScrim) window.toggleDropdownScrim();
+                        else {
+                            list.classList.add('hidden');
+                            if (chevron) chevron.classList.remove('rotate-180');
+                        }
                     }
                 };
                 document.addEventListener('click', window._gridOutsideClickListener);
@@ -3084,18 +3223,18 @@ window.renderFullScheduleGrid = function(direction = 'A', dayOverride = null) {
             controlsDiv.innerHTML = `
                 <div class="flex items-center space-x-1 sm:space-x-2 min-w-0 flex-1 relative" id="grid-day-dropdown-container">
                     <!-- Custom Dropdown Trigger (Reverted to Compact) -->
-                    <button onclick="document.getElementById('grid-day-list').classList.toggle('hidden'); document.getElementById('grid-day-chevron').classList.toggle('rotate-180');" class="flex justify-between items-center text-[9px] sm:text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm min-w-[85px] sm:min-w-[95px]">
+                    <button onclick="if(window.toggleDropdownScrim) window.toggleDropdownScrim('grid-day-list', 'grid-day-chevron'); else { document.getElementById('grid-day-list').classList.toggle('hidden'); document.getElementById('grid-day-chevron').classList.toggle('rotate-180'); }" class="flex justify-between items-center text-[9px] sm:text-[10px] font-bold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none shadow-sm min-w-[85px] sm:min-w-[95px]">
                         <span id="grid-day-display" class="truncate mr-1">${isWk ? wkLabel : satLabel}</span>
                         <svg id="grid-day-chevron" class="w-3 h-3 text-gray-500 transform transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     
                     <!-- Hidden Dropdown List (Premium UI Retained & Scaled Up) -->
-                    <ul id="grid-day-list" class="absolute z-[100] top-[115%] left-0 mt-1 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl hidden flex-col overflow-hidden text-left min-w-[170px]">
-                        <li onclick="document.getElementById('grid-day-list').classList.add('hidden'); renderFullScheduleGrid('${direction}', 'weekday')" class="px-4 py-4 text-sm sm:text-base font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 flex items-center ${isWk ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">
+                    <ul id="grid-day-list" class="absolute z-[200] top-[115%] left-0 mt-1 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl hidden flex-col overflow-hidden text-left min-w-[170px]">
+                        <li onclick="if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('grid-day-list').classList.add('hidden'); document.getElementById('grid-day-chevron').classList.remove('rotate-180'); } renderFullScheduleGrid('${direction}', 'weekday')" class="px-4 py-4 text-sm sm:text-base font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 flex items-center ${isWk ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">
                             <svg class="w-5 h-5 mr-3 shrink-0 ${isWk ? 'text-blue-500' : 'text-gray-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                             ${wkLabel}
                         </li>
-                        <li onclick="document.getElementById('grid-day-list').classList.add('hidden'); renderFullScheduleGrid('${direction}', 'saturday')" class="px-4 py-4 text-sm sm:text-base font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors flex items-center ${!isWk ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">
+                        <li onclick="if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('grid-day-list').classList.add('hidden'); document.getElementById('grid-day-chevron').classList.remove('rotate-180'); } renderFullScheduleGrid('${direction}', 'saturday')" class="px-4 py-4 text-sm sm:text-base font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors flex items-center ${!isWk ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">
                             <svg class="w-5 h-5 mr-3 shrink-0 ${!isWk ? 'text-blue-500' : 'text-gray-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             ${satLabel}
                         </li>

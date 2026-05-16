@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7 05.13 - Guardian Enterprise Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7 05.16 - Guardian Enterprise Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -2882,6 +2882,16 @@ const Admin = {
         const saveBtn = document.getElementById('disr-save-btn');
         const listDiv = document.getElementById('disr-list');
 
+        // 🛡️ GUARDIAN PHASE 1: Auto-Expanding Textarea Engine
+        if (msgInput) {
+            msgInput.addEventListener('input', function() {
+                this.style.height = 'auto'; // Reset to recalculate true scrollHeight
+                const newHeight = Math.min(this.scrollHeight, 300); // 300px max height
+                this.style.height = newHeight + 'px';
+                this.style.overflowY = this.scrollHeight > 300 ? 'auto' : 'hidden';
+            });
+        }
+
         header.onclick = () => {
             if (Admin.isGridMode) return; // Prevent accordion action when in grid
             body.classList.toggle('hidden');
@@ -3852,9 +3862,10 @@ const Admin = {
                 <svg id="maint-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             
-            <div id="maint-body" class="hidden mt-4">
+            <div id="maint-body" class="hidden mt-4 space-y-4">
+                <!-- Maintenance Controls -->
                 <div class="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-200 dark:border-orange-800">
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between mb-3">
                         <div>
                             <span class="font-bold text-orange-800 dark:text-orange-200 text-sm">Maintenance Mode</span>
                             <p class="text-[10px] text-orange-600 dark:text-orange-400 mt-0.5">Shows yellow warning banner to online users.</p>
@@ -3862,6 +3873,23 @@ const Admin = {
                         <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
                             <input type="checkbox" name="toggle" id="maint-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
                             <label for="maint-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        </div>
+                    </div>
+                    <div>
+                        <input type="text" id="maint-message" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700/50 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-orange-500 outline-none shadow-sm" placeholder="Optional context (e.g. Adding KZN routes...)">
+                    </div>
+                </div>
+
+                <!-- Ad Killswitch Controls -->
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="font-bold text-blue-800 dark:text-blue-200 text-sm">Enable Third-Party Ads</span>
+                            <p class="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5">Controls CleverAds script injection globally.</p>
+                        </div>
+                        <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                            <input type="checkbox" name="toggle" id="ads-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
+                            <label for="ads-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
                         </div>
                     </div>
                 </div>
@@ -3872,6 +3900,8 @@ const Admin = {
         const body = document.getElementById('maint-body');
         const chevron = document.getElementById('maint-chevron');
         const toggle = document.getElementById('maint-toggle');
+        const maintMsg = document.getElementById('maint-message');
+        const adsToggle = document.getElementById('ads-toggle');
 
         header.onclick = () => {
             if (Admin.isGridMode) return;
@@ -3887,28 +3917,45 @@ const Admin = {
         
         async function checkStatus() {
             try {
-                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const res = await fetch(`${dynamicEndpoint}config/maintenance.json`);
-                const isActive = await res.json();
-                toggle.checked = !!isActive;
-            } catch(e) { console.warn("Failed to check maintenance status"); }
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '[https://metrorail-next-train-default-rtdb.firebaseio.com/](https://metrorail-next-train-default-rtdb.firebaseio.com/)';
+                
+                // Fetch Maintenance Payload
+                const resMaint = await fetch(`${dynamicEndpoint}config/maintenance.json`);
+                const maintData = await resMaint.json();
+                if (maintData !== null && typeof maintData === 'object') {
+                    toggle.checked = !!maintData.active;
+                    if (maintMsg) maintMsg.value = maintData.message || "";
+                } else {
+                    toggle.checked = !!maintData; // Legacy boolean fallback
+                    if (maintMsg) maintMsg.value = "";
+                }
+
+                // Fetch Ads Config
+                const resAds = await fetch(`${dynamicEndpoint}config/ads_enabled.json`);
+                const adsData = await resAds.json();
+                if (adsToggle) adsToggle.checked = adsData === null ? true : !!adsData; // Defaults to true
+                
+            } catch(e) { console.warn("Failed to check system status"); }
         }
         checkStatus();
 
         toggle.addEventListener('change', async () => {
             const secret = await Admin.getAuthKey(); 
             if (!secret) {
-                if (typeof showToast === 'function') showToast("Authentication required to change system status.", "error");
+                if (typeof showToast === 'function') showToast("Authentication required.", "error");
                 toggle.checked = !toggle.checked; 
                 return;
             }
 
             const newState = toggle.checked;
+            const msgText = (maintMsg && maintMsg.value.trim()) ? maintMsg.value.trim() : null;
+            const payload = { active: newState, message: msgText };
+
             try {
-                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '[https://metrorail-next-train-default-rtdb.firebaseio.com/](https://metrorail-next-train-default-rtdb.firebaseio.com/)';
                 const res = await window.guardianFetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
                     method: 'PUT',
-                    body: JSON.stringify(newState)
+                    body: JSON.stringify(payload)
                 }, 10000);
                 
                 if(res.ok) {
@@ -3921,6 +3968,33 @@ const Admin = {
                 toggle.checked = !toggle.checked; 
             }
         });
+
+        if (adsToggle) {
+            adsToggle.addEventListener('change', async () => {
+                const secret = await Admin.getAuthKey(); 
+                if (!secret) {
+                    if (typeof showToast === 'function') showToast("Authentication required.", "error");
+                    adsToggle.checked = !adsToggle.checked; 
+                    return;
+                }
+                try {
+                    const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '[https://metrorail-next-train-default-rtdb.firebaseio.com/](https://metrorail-next-train-default-rtdb.firebaseio.com/)';
+                    const res = await window.guardianFetch(`${dynamicEndpoint}config/ads_enabled.json?auth=${secret}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(adsToggle.checked)
+                    }, 10000);
+                    
+                    if(res.ok) {
+                        if (typeof showToast === 'function') showToast(`Ads: ${adsToggle.checked ? "ENABLED" : "DISABLED"}`, "success");
+                    } else {
+                        throw new Error("Auth failed");
+                    }
+                } catch(e) {
+                    if (typeof showToast === 'function') showToast("Failed to update ad status.", "error");
+                    adsToggle.checked = !adsToggle.checked; 
+                }
+            });
+        }
     },
 
     // --- 9. NUCLEAR CACHE WIPE ---

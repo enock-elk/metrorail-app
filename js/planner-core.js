@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V7 05.13 - Guardian Hybrid Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7 05.16 - Guardian Hybrid Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -1306,11 +1306,12 @@ function runHeuristicFailureProbe(origin, dest) {
     return 'ERR_TIMETABLE_MISMATCH';
 }
 
-function planUnifiedTrip(origin, dest, dayType) {
+function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
     console.log(`[GUARDIAN] Running Unified Trip Planner for ${origin} -> ${dest} (Requested: ${dayType})`);
 
     // 🛡️ GUARDIAN PHASE 15: Removed internal recursive state objects and replaced with flat target day metadata
-    const context = { zeroHourProbeActive: false, targetDayIdx: undefined };
+    // 🛡️ GUARDIAN PHASE 2 (Core): Accepts externalContext to decouple DOM queries
+    const context = { zeroHourProbeActive: false, targetDayIdx: undefined, ...externalContext };
 
     // GUARDIAN PHASE 13: Universal Raw Fetch Helper
     // Refactored to seamlessly supply both the live engine and the Zero-Hour Probe.
@@ -1354,13 +1355,12 @@ function planUnifiedTrip(origin, dest, dayType) {
     // AND the dayType differs from today.
     if (!isExplicitOverride && dayType !== 'sunday' && dayType !== currentDayType) {
         let baseDate = new Date();
-        if (typeof window.isSimMode !== 'undefined' && window.isSimMode) {
-            const dateInput = document.getElementById('sim-date');
-            if (dateInput && dateInput.value) {
-                const parts = dateInput.value.split('-');
-                if(parts.length === 3) baseDate = new Date(parts[0], parts[1] - 1, parts[2]);
-            }
+        // 🛡️ GUARDIAN PHASE 2: Decoupled DOM Query. Base date is now passed purely via Context
+        if (typeof window.isSimMode !== 'undefined' && window.isSimMode && context.simBaseDate) {
+            const parts = context.simBaseDate.split('-');
+            if(parts.length === 3) baseDate = new Date(parts[0], parts[1] - 1, parts[2]);
         }
+        
         for (let i = 1; i <= 7; i++) {
             let checkDate = new Date(baseDate);
             checkDate.setDate(checkDate.getDate() + i);

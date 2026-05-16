@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7 05.13 - National Coverage v2"; // BUMPED: May 13 Update - Bug Fixes
+const APP_VERSION = "V7 05.16 - Western Cape Expansion"; // BUMPED: Western Cape Full Launch & Scrim UI
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -432,7 +432,7 @@ const ROUTES = {
         corridorId: 'WC_NORTHERN', 
         region: 'WC', 
         colorClass: 'text-green-500', 
-        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        isActive: true, // GUARDIAN: Set active due to new data in log
         destA: 'CAPE TOWN STATION', 
         destB: "BELLVILLE STATION", 
         transferStation: null, 
@@ -449,7 +449,7 @@ const ROUTES = {
         corridorId: 'WC_NORTHERN', 
         region: 'WC', 
         colorClass: 'text-green-500', 
-        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        isActive: true, // GUARDIAN: Set active due to new data in log
         destA: 'CAPE TOWN STATION', 
         destB: "KRAAIFONTEIN STATION", 
         transferStation: null, 
@@ -466,7 +466,7 @@ const ROUTES = {
         corridorId: 'WC_NORTHERN', 
         region: 'WC', 
         colorClass: 'text-green-500', 
-        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        isActive: true, // GUARDIAN: Set active due to new data in log
         destA: 'CAPE TOWN STATION', 
         destB: "EERSTE RIVER STATION", 
         transferStation: null, 
@@ -483,7 +483,7 @@ const ROUTES = {
         corridorId: 'WC_NORTHERN', 
         region: 'WC', 
         colorClass: 'text-green-500', 
-        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        isActive: true, // GUARDIAN: Set active due to new data in log
         destA: 'CAPE TOWN STATION', 
         destB: "STRAND STATION", 
         transferStation: null, 
@@ -500,7 +500,7 @@ const ROUTES = {
         corridorId: 'WC_NORTHERN', 
         region: 'WC', 
         colorClass: 'text-green-500', 
-        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        isActive: true, // GUARDIAN: Set active due to new data in log
         destA: 'EERSTE RIVER STATION', 
         destB: "DU TOIT STATION", 
         transferStation: null, 
@@ -517,7 +517,7 @@ const ROUTES = {
         corridorId: 'WC_NORTHERN', 
         region: 'WC', 
         colorClass: 'text-green-500', 
-        isActive: false, // GUARDIAN: Set inactive due to missing data in log
+        isActive: true, // GUARDIAN: Set active due to new data in log
         destA: 'CAPE TOWN STATION', 
         destB: "WELLINGTON STATION", 
         transferStation: null, 
@@ -704,6 +704,22 @@ const DEFAULT_EXCLUSIONS = {
 // This drives the "What's New" modal.
 // GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
+    {
+        version: "V7 05.16 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Western Cape Expansion</span>",
+        date: "16 May 2026",
+        features: [
+            "<b>Cape Town is Complete:</b> Added 6 massive new routes, ensuring full coverage for the Central Line and Northern Line networks.",
+            "<b>Cinematic UI:</b> Dropdown menus now dim the background for a cleaner, native-app feel."
+        ]
+    },
+    {
+        version: "V7 05.12 <br><span class='text-sm text-blue-600 dark:text-blue-400'>KZN & EC Launch</span>",
+        date: "12 May 2026",
+        features: [
+            "<b>National Expansion:</b> Metrorail Next Train has officially launched in KwaZulu-Natal and the Eastern Cape!",
+            "<b>Cross-Region Support:</b> Easily switch between provinces in the main menu to view local timetables."
+        ]
+    },
     {
         version: "V6.05.01 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Growth Edition</span>",
         date: "1 May 2026",

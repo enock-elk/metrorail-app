@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7 05.13 - Guardian Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7 05.16 - Guardian Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -75,56 +75,81 @@ window._plannerCurrentTripIndex = 0;
 window._toggleCustomTimeDropdown = function(e) {
     if (e) e.stopPropagation();
     const list = document.getElementById('custom-time-list');
-    const chevron = document.getElementById('custom-time-chevron');
     if (!list) return;
     
-    list.classList.toggle('hidden');
-    if (!list.classList.contains('hidden')) {
-        if (chevron) chevron.classList.add('rotate-180');
+    const isOpening = list.classList.contains('hidden');
+    
+    if (window.toggleDropdownScrim) {
+        window.toggleDropdownScrim('custom-time-list', 'custom-time-chevron');
+    } else {
+        // Fallback if scrim engine fails
+        const chevron = document.getElementById('custom-time-chevron');
+        list.classList.toggle('hidden');
+        if (!list.classList.contains('hidden')) {
+            if (chevron) chevron.classList.add('rotate-180');
+        } else {
+            if (chevron) chevron.classList.remove('rotate-180');
+        }
+    }
+    
+    // Always preserve auto-scroll behavior for the time-list
+    if (isOpening) {
         setTimeout(() => {
             const selected = list.querySelector('.bg-blue-600');
             if (selected) selected.scrollIntoView({ block: 'nearest' });
         }, 10);
-    } else {
-        if (chevron) chevron.classList.remove('rotate-180');
     }
 };
 
 window._selectCustomTrip = function(idx) {
     if (!currentTripOptions || idx >= currentTripOptions.length) return;
-    const list = document.getElementById('custom-time-list');
-    const chevron = document.getElementById('custom-time-chevron');
-    if (list) list.classList.add('hidden');
-    if (chevron) chevron.classList.remove('rotate-180');
+    
+    if (window.toggleDropdownScrim) {
+        window.toggleDropdownScrim(); // Closes dropdown and fades scrim
+    } else {
+        const list = document.getElementById('custom-time-list');
+        const chevron = document.getElementById('custom-time-chevron');
+        if (list) list.classList.add('hidden');
+        if (chevron) chevron.classList.remove('rotate-180');
+    }
     
     selectPlannerTrip(idx);
 };
 
 window._toggleMainDayDropdown = function(e) {
     if (e) e.stopPropagation();
-    const list = document.getElementById('main-day-list');
-    const chevron = document.getElementById('main-day-chevron');
-    if (!list) return;
-    list.classList.toggle('hidden');
-    if (!list.classList.contains('hidden')) {
-        if (chevron) chevron.classList.add('rotate-180');
+    if (window.toggleDropdownScrim) {
+        window.toggleDropdownScrim('main-day-list', 'main-day-chevron');
     } else {
-        if (chevron) chevron.classList.remove('rotate-180');
+        const list = document.getElementById('main-day-list');
+        const chevron = document.getElementById('main-day-chevron');
+        if (!list) return;
+        list.classList.toggle('hidden');
+        if (!list.classList.contains('hidden')) {
+            if (chevron) chevron.classList.add('rotate-180');
+        } else {
+            if (chevron) chevron.classList.remove('rotate-180');
+        }
     }
 };
 
 window._selectMainDay = function(e, value, text) {
     if (e) e.stopPropagation();
-    const list = document.getElementById('main-day-list');
-    const chevron = document.getElementById('main-day-chevron');
-    const display = document.getElementById('main-day-display');
     
-    if (list) list.classList.add('hidden');
-    if (chevron) chevron.classList.remove('rotate-180');
+    if (window.toggleDropdownScrim) {
+        window.toggleDropdownScrim(); // Closes dropdown and fades scrim
+    } else {
+        const list = document.getElementById('main-day-list');
+        const chevron = document.getElementById('main-day-chevron');
+        if (list) list.classList.add('hidden');
+        if (chevron) chevron.classList.remove('rotate-180');
+    }
 
+    const display = document.getElementById('main-day-display');
     if (display) display.textContent = text;
     selectedPlannerDay = value;
 
+    const list = document.getElementById('main-day-list');
     if (list) {
         list.querySelectorAll('li').forEach(li => {
             li.classList.remove('bg-blue-50', 'dark:bg-gray-700', 'text-blue-600', 'dark:text-blue-400');
@@ -137,23 +162,32 @@ window._selectMainDay = function(e, value, text) {
 
 window._toggleHeaderDayDropdown = function(e) {
     if (e) e.stopPropagation();
-    const list = document.getElementById('header-day-list');
-    const chevron = document.getElementById('header-day-chevron');
-    if (!list) return;
-    list.classList.toggle('hidden');
-    if (!list.classList.contains('hidden')) {
-        if (chevron) chevron.classList.add('rotate-180');
+    if (window.toggleDropdownScrim) {
+        window.toggleDropdownScrim('header-day-list', 'header-day-chevron');
     } else {
-        if (chevron) chevron.classList.remove('rotate-180');
+        const list = document.getElementById('header-day-list');
+        const chevron = document.getElementById('header-day-chevron');
+        if (!list) return;
+        list.classList.toggle('hidden');
+        if (!list.classList.contains('hidden')) {
+            if (chevron) chevron.classList.add('rotate-180');
+        } else {
+            if (chevron) chevron.classList.remove('rotate-180');
+        }
     }
 };
 
 window._selectHeaderDay = function(e, value, text) {
     if (e) e.stopPropagation();
-    const list = document.getElementById('header-day-list');
-    const chevron = document.getElementById('header-day-chevron');
-    if (list) list.classList.add('hidden');
-    if (chevron) chevron.classList.remove('rotate-180');
+    
+    if (window.toggleDropdownScrim) {
+        window.toggleDropdownScrim(); // Closes dropdown and fades scrim
+    } else {
+        const list = document.getElementById('header-day-list');
+        const chevron = document.getElementById('header-day-chevron');
+        if (list) list.classList.add('hidden');
+        if (chevron) chevron.classList.remove('rotate-180');
+    }
 
     if (typeof triggerHaptic === 'function') triggerHaptic();
     selectedPlannerDay = value;
@@ -207,26 +241,21 @@ if (window._plannerOutsideClickListener) {
 }
 window._plannerOutsideClickListener = (e) => {
     // Dismiss all custom popups cleanly on outside clicks
-    const tList = document.getElementById('custom-time-list');
-    if (tList && !tList.classList.contains('hidden') && !e.target.closest('#custom-time-dropdown-container')) {
-        tList.classList.add('hidden');
-        const chevron = document.getElementById('custom-time-chevron');
-        if (chevron) chevron.classList.remove('rotate-180');
-    }
+    const checkList = (listId, containerSelector, chevronId) => {
+        const list = document.getElementById(listId);
+        if (list && !list.classList.contains('hidden') && !e.target.closest(containerSelector)) {
+            if (window.toggleDropdownScrim) window.toggleDropdownScrim();
+            else {
+                list.classList.add('hidden');
+                const chevron = document.getElementById(chevronId);
+                if (chevron) chevron.classList.remove('rotate-180');
+            }
+        }
+    };
 
-    const mList = document.getElementById('main-day-list');
-    if (mList && !mList.classList.contains('hidden') && !e.target.closest('#planner-day-select-container')) {
-        mList.classList.add('hidden');
-        const chevron = document.getElementById('main-day-chevron');
-        if (chevron) chevron.classList.remove('rotate-180');
-    }
-
-    const hList = document.getElementById('header-day-list');
-    if (hList && !hList.classList.contains('hidden') && !e.target.closest('#planner-header-badge')) {
-        hList.classList.add('hidden');
-        const chevron = document.getElementById('header-day-chevron');
-        if (chevron) chevron.classList.remove('rotate-180');
-    }
+    checkList('custom-time-list', '#custom-time-dropdown-container', 'custom-time-chevron');
+    checkList('main-day-list', '#planner-day-select-container', 'main-day-chevron');
+    checkList('header-day-list', '#planner-header-badge', 'header-day-chevron');
 };
 document.addEventListener('click', window._plannerOutsideClickListener);
 
@@ -882,7 +911,7 @@ const PlannerRenderer = {
                     <span id="custom-time-display" class="truncate pr-2">${selectedText}</span>
                     <svg class="w-5 h-5 text-blue-500 dark:text-blue-400 shrink-0 transform transition-transform" id="custom-time-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
-                <ul id="custom-time-list" class="absolute z-[150] w-[calc(100%-2rem)] left-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto hidden mt-1 custom-scrollbar flex flex-col text-left">
+                <ul id="custom-time-list" class="absolute z-[200] w-[calc(100%-2rem)] left-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto hidden mt-1 custom-scrollbar flex flex-col text-left">
                     ${optionsHtml}
                 </ul>
             </div>
@@ -1213,7 +1242,7 @@ function initPlanner() {
                 <span id="main-day-display">${selText}</span>
                 <svg id="main-day-chevron" class="w-5 h-5 text-gray-500 shrink-0 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
-            <ul id="main-day-list" class="absolute z-[100] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl hidden mt-2 flex-col overflow-hidden text-left">
+            <ul id="main-day-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl hidden mt-2 flex-col overflow-hidden text-left">
                 <li onclick="window._selectMainDay(event, 'weekday', 'Weekday (Mon-Fri)')" class="p-4 text-sm font-bold hover:bg-blue-50 dark:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 ${selDay === 'weekday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Weekday (Mon-Fri)</li>
                 <li onclick="window._selectMainDay(event, 'saturday', 'Saturday / Public Holiday')" class="p-4 text-sm font-bold border-t border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 ${selDay === 'saturday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Saturday / Public Holiday</li>
                 <li onclick="window._selectMainDay(event, 'sunday', 'Sunday')" class="p-4 text-sm font-bold hover:bg-blue-50 dark:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors ${selDay === 'sunday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Sunday</li>
@@ -1619,12 +1648,12 @@ function renderPlannerHistory() {
         </div>
         <div class="flex flex-col gap-2">
             ${validHistory.map(item => `
-                <button onclick="restorePlannerSearch('${item.fullFrom}', '${item.fullTo}')" 
+                <button onclick="restorePlannerSearch('${item.fullFrom.replace(/'/g, "\\'")}', '${item.fullTo.replace(/'/g, "\\'")}')" 
                     class="w-full flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 shadow-sm hover:border-blue-50 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group text-left focus:outline-none">
                     <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                         ${item.from} <span class="text-gray-400 mx-1">&rarr;</span> ${item.to}
                     </span>
-                    <svg class="w-3 h-3 text-gray-300 group-hover:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    <svg class="w-3 h-3 text-gray-300 group-hover:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7-7"></path></svg>
                 </button>
             `).join('')}
         </div>
@@ -1772,7 +1801,15 @@ function executeTripPlan(origin, dest, preferredTime = null) {
     setTimeout(() => {
         let plannerResponse = { status: 'NO_PATH', trips: [] };
         if (typeof planUnifiedTrip === 'function') {
-            plannerResponse = planUnifiedTrip(origin, dest, selectedPlannerDay);
+            // 🛡️ GUARDIAN PHASE 2: Decoupled DOM Query Context Passthrough
+            const extContext = {};
+            if (typeof window.isSimMode !== 'undefined' && window.isSimMode) {
+                const dateInput = document.getElementById('sim-date');
+                if (dateInput && dateInput.value) {
+                    extContext.simBaseDate = dateInput.value;
+                }
+            }
+            plannerResponse = planUnifiedTrip(origin, dest, selectedPlannerDay, extContext);
         } else {
             console.error("Critical Error: planUnifiedTrip is undefined.");
         }
@@ -1944,7 +1981,7 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                 const cleanO = origin.replace(/ STATION/gi, '').trim();
                 const cleanD = dest.replace(/ STATION/gi, '').trim();
                 actionBtn += `
-                    <button onclick="window.openFeedbackForMissingRoute('${cleanO}', '${cleanD}')" class="mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full flex items-center justify-center focus:outline-none text-sm">
+                    <button onclick="window.openFeedbackForMissingRoute('${cleanO.replace(/'/g, "\\'")}', '${cleanD.replace(/'/g, "\\'")}')" class="mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full flex items-center justify-center focus:outline-none text-sm">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path></svg>
                         Report Missing Route
                     </button>
@@ -2054,7 +2091,7 @@ function updatePlannerHeader(dayLabel, showShare = true) {
                 <span id="header-day-display" class="truncate font-bold text-[12px] pr-1.5">${selText}</span>
                 <svg id="header-day-chevron" class="w-4 h-4 shrink-0 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 
-                <ul id="header-day-list" class="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl hidden flex-col overflow-hidden z-[160] text-left">
+                <ul id="header-day-list" class="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl hidden flex-col overflow-hidden z-[200] text-left">
                     <li onclick="window._selectHeaderDay(event, 'weekday', 'Mon - Fri')" class="px-4 py-3 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors ${selDay === 'weekday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Mon - Fri</li>
                     <li onclick="window._selectHeaderDay(event, 'saturday', 'Saturday / Hol')" class="px-4 py-3 text-xs font-bold border-t border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors ${selDay === 'saturday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Saturday / Hol</li>
                     <li onclick="window._selectHeaderDay(event, 'sunday', 'Sunday')" class="px-4 py-3 text-xs font-bold border-t border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 transition-colors ${selDay === 'sunday' ? 'bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400' : ''}">Sunday</li>

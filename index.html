@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V7 05.13 (Guardian Edition - UI/UX Polish)
+  Metrorail Next Train V7 05.16 (Guardian Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -398,6 +398,8 @@
 <!-- GUARDIAN PHASE 5: pb-24 injected to protect bottom UI from the Sticky Ad overlay -->
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-start justify-center min-h-screen p-2 sm:p-4 pt-4 sm:pt-12 pb-4 transition-colors duration-300">
 
+    <div id="global-dropdown-scrim" class="fixed inset-0 z-[150] hidden opacity-0 transition-opacity duration-300" onclick="if(window.toggleDropdownScrim) window.toggleDropdownScrim()"></div>
+
     <div id="sidenav-overlay"></div>
     
     <!-- APP HUB SIDENAV (Flat Native UI Edition - Vertical Compression) -->
@@ -413,7 +415,8 @@
                     
                     <!-- Region Selector (Moved & Flattened) -->
                     <div class="relative" id="sidenav-region-wrapper">
-                        <button class="w-full flex justify-between items-center py-3 px-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800 focus:outline-none group" id="sidenav-region-container" onclick="document.getElementById('sidenav-region-list').classList.toggle('hidden'); document.getElementById('sidenav-region-chevron').classList.toggle('rotate-180');">
+                        <!-- GUARDIAN UX FIX: Removed bg-white dark:bg-gray-900 so it blends naturally with Sidenav -->
+                        <button class="w-full flex justify-between items-center py-3 px-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800 focus:outline-none group" id="sidenav-region-container" onclick="if(window.toggleDropdownScrim) window.toggleDropdownScrim('sidenav-region-list', 'sidenav-region-chevron'); else { document.getElementById('sidenav-region-list').classList.toggle('hidden'); document.getElementById('sidenav-region-chevron').classList.toggle('rotate-180'); }">
                             <div class="flex items-center space-x-4">
                                 <svg class="w-5 h-5 text-green-500 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 <div class="text-left">
@@ -432,12 +435,12 @@
                             <option value="EC">Eastern Cape</option>
                         </select>
 
-                        <!-- Custom Dropdown List -->
-                        <ul id="sidenav-region-list" class="absolute z-[200] w-[calc(100%-2rem)] left-4 top-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden flex-col overflow-hidden text-left mt-1">
-                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Gauteng'; const sel=document.getElementById('app-hub-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Gauteng</li>
-                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Western Cape'; const sel=document.getElementById('app-hub-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Western Cape</li>
-                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='KwaZulu-Natal'; const sel=document.getElementById('app-hub-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">KwaZulu-Natal</li>
-                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Eastern Cape'; const sel=document.getElementById('app-hub-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors">Eastern Cape</li>
+                        <!-- Custom Dropdown List (GUARDIAN UX FIX: Moved top-[3.5rem] to top-[2.75rem]) -->
+                        <ul id="sidenav-region-list" class="absolute z-[200] w-[calc(100%-2rem)] left-4 top-[2.75rem] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden flex-col overflow-hidden text-left">
+                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Gauteng'; const sel=document.getElementById('app-hub-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Gauteng</li>
+                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Western Cape'; const sel=document.getElementById('app-hub-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Western Cape</li>
+                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='KwaZulu-Natal'; const sel=document.getElementById('app-hub-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">KwaZulu-Natal</li>
+                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Eastern Cape'; const sel=document.getElementById('app-hub-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors">Eastern Cape</li>
                         </ul>
                         
                         <!-- Script to sync initial state instantly -->
@@ -574,7 +577,7 @@
                         <span class="text-sm font-bold text-gray-900 dark:text-white">What's New</span>
                         <div class="flex items-center space-x-2">
                             <span id="whats-new-badge" class="hidden w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-sm mr-1"></span>
-                            <span class="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded group-hover:bg-blue-100 dark:group-hover:bg-blue-800 transition-colors">v6.1.0</span>
+                            <span class="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded group-hover:bg-blue-100 dark:group-hover:bg-blue-800 transition-colors">v7.05.16</span>
                             <svg class="w-4 h-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                         </div>
                     </button>
@@ -884,7 +887,7 @@
             
             <!-- Distinct Region Selector Strip (Interceptor Bindings) - GROWTH MODE PHASE 4 (PUPPETEER PATTERN) -->
             <div class="p-3 bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 shrink-0 z-10 relative" id="route-modal-region-container">
-                <div class="relative shadow-sm rounded-lg cursor-pointer group" onclick="document.getElementById('route-modal-region-list').classList.toggle('hidden'); document.getElementById('route-modal-region-chevron').classList.toggle('rotate-180');">
+                <div class="relative shadow-sm rounded-lg cursor-pointer group" onclick="if(window.toggleDropdownScrim) window.toggleDropdownScrim('route-modal-region-list', 'route-modal-region-chevron'); else { document.getElementById('route-modal-region-list').classList.toggle('hidden'); document.getElementById('route-modal-region-chevron').classList.toggle('rotate-180'); }">
                     <div class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none z-10">
                         <span class="text-base">🌍</span>
                     </div>
@@ -908,10 +911,10 @@
 
                     <!-- Custom Dropdown List -->
                     <ul id="route-modal-region-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl hidden mt-1 flex-col overflow-hidden text-left">
-                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Gauteng'; const sel=document.getElementById('route-modal-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: Gauteng</li>
-                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Western Cape'; const sel=document.getElementById('route-modal-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: Western Cape</li>
-                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: KwaZulu-Natal'; const sel=document.getElementById('route-modal-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: KwaZulu-Natal</li>
-                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Eastern Cape'; const sel=document.getElementById('route-modal-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180');" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors">Region: Eastern Cape</li>
+                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Gauteng'; const sel=document.getElementById('route-modal-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: Gauteng</li>
+                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Western Cape'; const sel=document.getElementById('route-modal-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: Western Cape</li>
+                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: KwaZulu-Natal'; const sel=document.getElementById('route-modal-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: KwaZulu-Natal</li>
+                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Eastern Cape'; const sel=document.getElementById('route-modal-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors">Region: Eastern Cape</li>
                     </ul>
                 </div>
                 
@@ -961,10 +964,10 @@
     </div>
 
     <!-- WELCOME MODAL -->
-    <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-start pt-16 sm:pt-24 px-6 pb-6 transition-opacity duration-300">
+    <div id="welcome-modal" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[100] hidden flex flex-col items-center justify-start pt-8 sm:pt-12 px-6 pb-6 transition-opacity duration-300">
         
-        <div class="w-full max-w-sm flex flex-col items-center animate-fade-in-up mt-8">
-            <div class="relative w-24 h-24 mb-6 shrink-0">
+        <div class="w-full max-w-sm flex flex-col items-center animate-fade-in-up mt-2 sm:mt-4">
+            <div class="relative w-20 h-20 sm:w-24 sm:h-24 mb-4 sm:mb-6 shrink-0">
                 <div class="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-ping"></div>
                 <div class="relative bg-white dark:bg-gray-800 p-4 rounded-full shadow-xl ring-4 ring-blue-50 dark:ring-gray-700">
                 <img src="icons/loading-logo.png" class="w-full h-full object-contain" alt="Logo" onerror="this.style.display='none'">
@@ -1355,7 +1358,7 @@
             </div>
 
             <p class="mt-8 text-[10px] text-gray-400 font-mono">
-                Version 7 05.13 (Guardian Edition)
+                Version 7 05.16 (Guardian Edition)
             </p>
         </div>
     </div>
@@ -1533,8 +1536,8 @@
 
     <!-- SERVICE ALERT MODAL -->
     <div id="notice-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[110] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 border-l-4 border-red-500">
-            <div class="flex justify-between items-start mb-4">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 border-l-4 border-red-500 flex flex-col max-h-[85vh] overflow-y-auto custom-scrollbar">
+            <div class="flex justify-between items-start mb-4 shrink-0">
                 <div class="flex items-center text-red-600 dark:text-red-400">
                     <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Service Alert</h3>
@@ -1718,24 +1721,24 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=7 05.13"></script>
-    <script src="js/renderer.js?v=7 05.13"></script>
+    <script src="js/grid-order.js?v=7 05.16"></script>
+    <script src="js/renderer.js?v=7 05.16"></script>
     
-    <script src="js/utils.js?v=7 05.13"></script>
-    <script src="js/config.js?v=7 05.13"></script>
-    <script src="js/logic.js?v=7 05.13"></script>
+    <script src="js/utils.js?v=7 05.16"></script>
+    <script src="js/config.js?v=7 05.16"></script>
+    <script src="js/logic.js?v=7 05.16"></script>
 
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=7 05.13"></script>
+    <script src="js/admin.js?v=7 05.16"></script>
     
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=7 05.13"></script>
-    <script src="js/planner-ui.js?v=7 05.13"></script>
+    <script src="js/planner-core.js?v=7 05.16"></script>
+    <script src="js/planner-ui.js?v=7 05.16"></script>
     
-    <script src="js/map-viewer.js?v=7 05.13"></script> 
+    <script src="js/map-viewer.js?v=7 05.16"></script> 
     
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=7 05.13"></script>
+    <script src="js/ui.js?v=7 05.16"></script>
     
 </body>
 </html>
