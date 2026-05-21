@@ -113,7 +113,7 @@ const Admin = {
     currentUser: null,
     telemetryInterval: null, 
     telemetryWeeksAgo: 0, 
-    telemetryRange: 'DAU', 
+    telemetryRange: 'INTRADAY', // GUARDIAN: Set new default view
     clockInterval: null,
     
     isGridMode: true,
@@ -128,13 +128,20 @@ const Admin = {
         let totalUnread = 0; // GUARDIAN PHASE 11: Accumulator for PWA Badge
 
         try {
+            // Fetch Universal Cross-Device Admin State
+            let adminState = { fb_last_checked: 0, crash_last_checked: 0, de_last_checked: 0 };
+            try {
+                const stateRes = await fetch(`${dynamicEndpoint}admin_state/${Admin.currentUser.uid}.json?auth=${secret}`);
+                if (stateRes.ok) adminState = (await stateRes.json()) || adminState;
+            } catch(e){}
+
             // 1. Fetch Feedback
             const fbRes = await window.guardianFetch(`${dynamicEndpoint}feedback.json?auth=${secret}`, {}, 6000);
             if (fbRes.ok) {
                 const fbData = await fbRes.json();
                 let fbUnread = 0;
-                // Read from local storage to check when admin last viewed this tab
-                const lastChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('fb_last_checked') || '0') : '0');
+                // Read from Firebase to check when admin last viewed this tab across any device
+                const lastChecked = parseInt(adminState.fb_last_checked || '0');
                 
                 if (fbData && typeof fbData === 'object') {
                     Object.values(fbData).forEach(i => { if (i.timestamp > lastChecked) fbUnread++; });
@@ -199,7 +206,7 @@ const Admin = {
 
     // --- GROWTH SPRINT PHASE 9: UNIFIED RANGE CYCLER ---
     cycleTelemetryRange: () => {
-        const ranges = ['DAU', 'WAU', 'MAU', 'ALL'];
+        const ranges = ['INTRADAY', 'DAU', 'WAU', 'MAU', 'ALL'];
         Admin.telemetryRange = ranges[(ranges.indexOf(Admin.telemetryRange) + 1) % ranges.length];
         
         const cycleBtn = document.getElementById('trend-cycle-btn');
@@ -237,7 +244,7 @@ const Admin = {
             trendWrapper.className = "mt-4 border-t border-gray-100 dark:border-gray-700 pt-3";
             trendWrapper.innerHTML = `
                 <div class="flex items-center justify-between mb-2 px-1">
-                    <button id="trend-cycle-btn" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest focus:outline-none hover:text-blue-800 dark:hover:text-blue-200 transition-colors bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded">📈 DAU Trend</button>
+                    <button id="trend-cycle-btn" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest focus:outline-none hover:text-blue-800 dark:hover:text-blue-200 transition-colors bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded">📈 INTRADAY Trend</button>
                     <div class="flex space-x-2">
                         <button id="trend-expand-btn" class="text-sm text-gray-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Full Screen">⛶</button>
                         <button id="trend-inline-export-btn" class="text-sm text-gray-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Export">📸</button>
@@ -259,7 +266,7 @@ const Admin = {
                     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] landscape:h-[95vh] flex flex-col transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
                         <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-2xl shrink-0">
                             <div class="flex items-center space-x-2">
-                                <button id="modal-trend-cycle" class="px-2 py-1.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors focus:outline-none text-[10px] font-bold uppercase tracking-widest border border-blue-200 dark:border-blue-800 shadow-sm">📈 DAU</button>
+                                <button id="modal-trend-cycle" class="px-2 py-1.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors focus:outline-none text-[10px] font-bold uppercase tracking-widest border border-blue-200 dark:border-blue-800 shadow-sm">📈 INTRADAY</button>
                             </div>
                             <div class="flex items-center space-x-2">
                                 <button id="modal-trend-export" class="p-2 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors focus:outline-none" title="Export Chart">📸</button>
@@ -406,18 +413,22 @@ const Admin = {
             const isToday = (i === isTodayIdx);
             
             const pColor = isToday ? todayColor : lineColor;
-            const radius = isToday ? (isMini ? 5 : 7) : (isMini ? 3 : 5);
+            // Adjusted radius since numPoints will naturally be 48 (under 50)
+            const radius = isToday ? (isMini ? 3 : 5) : (isMini ? 2 : 4);
             
-            // Value Labels (Hide zero values in mini view for cleanliness)
-            const displayVal = (val === 0 && !isToday && isMini) ? '' : val;
-            if (displayVal !== '') {
-                svg += `<text x="${vx}" y="${vy - (isMini ? 10 : 14)}" font-family="sans-serif" font-size="${isMini ? '10' : '14'}" font-weight="900" fill="${pColor}" text-anchor="middle">${displayVal}</text>`;
+            // Marker Dot (Reconstruct exact time for 48 point INTRADAY tooltips)
+            let hoverLabel = labelsArray[i] || 'Current';
+            if (numPoints === 48) {
+                const hh = Math.floor(i / 2).toString().padStart(2, '0');
+                const mm = ((i % 2) * 30).toString().padStart(2, '0');
+                hoverLabel = `${hh}:${mm}`;
             }
             
-            // Marker Dot (GUARDIAN PHASE 9: Injected Tooltip Title for native desktop hover tracking)
-            const tooltipText = `${val} Active Users (${labelsArray[i] || 'Current'})`;
+            const tooltipText = `${val} Sessions (${hoverLabel})`;
+            
+            // GUARDIAN: Numbers hidden by default to declutter. Click dot to reveal exact stats!
             svg += `
-                <circle cx="${vx}" cy="${vy}" r="${radius}" fill="#ffffff" stroke="${pColor}" stroke-width="${isMini ? '2' : '3'}">
+                <circle cx="${vx}" cy="${vy}" r="${radius}" fill="#ffffff" stroke="${pColor}" stroke-width="${isMini ? '1.5' : '2'}" class="cursor-pointer hover:stroke-[3px] transition-all" onclick="if(typeof showToast === 'function') showToast('${tooltipText}', 'info')">
                     <title>${tooltipText}</title>
                 </circle>
             `;
@@ -463,8 +474,8 @@ const Admin = {
         try {
             // GUARDIAN PHASE 4 & 8: Dynamic Range Payload for Edge Workers
             const fetchUrl = new URL(CLOUDFLARE_WORKER_URL);
-            fetchUrl.searchParams.set('weeksAgo', Admin.telemetryWeeksAgo);
-            fetchUrl.searchParams.set('range', Admin.telemetryRange || 'DAU');
+            fetchUrl.searchParams.set('weeksAgo', Admin.telemetryWeeksAgo); // Acts as 'daysAgo' for INTRADAY
+            fetchUrl.searchParams.set('range', Admin.telemetryRange || 'INTRADAY');
 
             const res = await window.guardianFetch(fetchUrl.toString(), {
                 headers: { 'Authorization': `Bearer ${secret}` }
@@ -491,7 +502,27 @@ const Admin = {
                 let labelsArray = data.chartLabels || [];
                 
                 let displayLabels = [];
-                if (Admin.telemetryRange === 'DAU' || !Admin.telemetryRange) {
+                if (Admin.telemetryRange === 'INTRADAY') {
+                    // Force 48 points for full 24-hour timeline (30-min intervals)
+                    if (activeCountsArray.length !== 48) {
+                        const padded = Array(48).fill(0);
+                        for(let i=0; i<Math.min(activeCountsArray.length, 48); i++) {
+                            padded[i] = activeCountsArray[i] || 0;
+                        }
+                        activeCountsArray = padded;
+                    }
+
+                    // Generate exact 3-hour labels at buckets 0, 6, 12, 18, 24, 30, 36, 42
+                    displayLabels = activeCountsArray.map((_, idx) => {
+                        if (idx % 6 === 0) { 
+                            const hour = Math.floor(idx / 2);
+                            if (hour === 0) return '12AM';
+                            if (hour === 12) return '12PM';
+                            return hour < 12 ? `${hour}AM` : `${hour - 12}PM`;
+                        }
+                        return ''; 
+                    });
+                } else if (Admin.telemetryRange === 'DAU' || !Admin.telemetryRange) {
                     displayLabels = labelsArray.map(lbl => {
                         if (lbl && lbl.length === 8) {
                             const d = new Date(lbl.substring(0,4), parseInt(lbl.substring(4,6))-1, lbl.substring(6,8));
@@ -527,7 +558,18 @@ const Admin = {
                 }
 
                 let titleStr = "";
-                if (Admin.telemetryRange === 'DAU' || !Admin.telemetryRange) {
+                if (Admin.telemetryRange === 'INTRADAY') {
+                    if (Admin.telemetryWeeksAgo === 0) {
+                        titleStr = "Intraday Hourly Trend (Today)";
+                    } else if (Admin.telemetryWeeksAgo === 1) {
+                        titleStr = "Intraday Hourly Trend (Yesterday)";
+                    } else {
+                        const d = new Date();
+                        d.setDate(d.getDate() - Admin.telemetryWeeksAgo);
+                        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                        titleStr = `Intraday Trend (${d.getDate()} ${monthNames[d.getMonth()]})`;
+                    }
+                } else if (Admin.telemetryRange === 'DAU' || !Admin.telemetryRange) {
                     const endDate = new Date();
                     endDate.setDate(endDate.getDate() - (Admin.telemetryWeeksAgo * 7));
                     const endDay = endDate.getDay(); 
@@ -556,8 +598,16 @@ const Admin = {
                     }
                 });
 
-                // Lock the orange "Today" indicator to the final edge if we are viewing current active metrics
-                const isTodayIdx = (Admin.telemetryWeeksAgo === 0 || Admin.telemetryRange === 'MAU' || Admin.telemetryRange === 'ALL') ? activeCountsArray.length - 1 : -1;
+                // Lock the orange "Today" indicator to the correct 30-minute bucket
+                let isTodayIdx = -1;
+                if (Admin.telemetryRange === 'INTRADAY' && Admin.telemetryWeeksAgo === 0) {
+                    const now = new Date();
+                    const h = now.getHours();
+                    const mBucket = Math.floor(now.getMinutes() / 30);
+                    isTodayIdx = (h * 2) + mBucket;
+                } else if (Admin.telemetryRange !== 'INTRADAY' && (Admin.telemetryWeeksAgo === 0 || Admin.telemetryRange === 'MAU' || Admin.telemetryRange === 'ALL')) {
+                    isTodayIdx = activeCountsArray.length - 1;
+                }
                 
                 // Render Inline Miniature SVG
                 const inlineContainer = document.getElementById('tel-trend-container');
@@ -786,16 +836,24 @@ const Admin = {
 
     // --- 1. INITIALIZATION ---
     init: () => {
-        window.addEventListener('firebase-auth-ready', () => {
-            Admin.setupAuthListener();
+        // 🛡️ GUARDIAN FIX: Uncouple UI bindings from Firebase to survive offline/cached race conditions
+        if (!Admin._coreEventsBound) {
             Admin.setupLoginAccess();
             Admin.setupSimulationControls();
+            Admin._coreEventsBound = true;
+        }
+
+        // Firebase Auth strictly handles Auth listeners securely
+        window.addEventListener('firebase-auth-ready', () => {
+            if (!Admin._authListenerBound) {
+                Admin.setupAuthListener();
+                Admin._authListenerBound = true;
+            }
         });
         
-        if (window.firebaseAuth) {
+        if (window.firebaseAuth && !Admin._authListenerBound) {
             Admin.setupAuthListener();
-            Admin.setupLoginAccess();
-            Admin.setupSimulationControls();
+            Admin._authListenerBound = true;
         }
     },
 
@@ -890,14 +948,25 @@ const Admin = {
                     if (typeof showToast === 'function') showToast("Developer Session Active", "info");
                 } else {
                     if (loginModal) {
-                        loginModal.classList.remove('hidden');
-                        if(emailInput) emailInput.focus();
+                        // 🛡️ GUARDIAN FIX: Router-aware Smooth Modal Engine integration
+                        if (location.hash !== '#login') history.pushState({ modal: 'login' }, '', '#login');
+                        if (typeof openSmoothModal === 'function') openSmoothModal('login-modal');
+                        else loginModal.classList.remove('hidden');
+                        
+                        if(emailInput) setTimeout(() => emailInput.focus(), 150); // Delay focus for smooth animation
                     }
                 }
             }
         });
 
-        if (cancelBtn) cancelBtn.addEventListener('click', () => { loginModal.classList.add('hidden'); });
+        // 🛡️ GUARDIAN FIX: Smooth exit via Router/Back Button
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => { 
+                if (location.hash === '#login') history.back();
+                else if (typeof closeSmoothModal === 'function') closeSmoothModal('login-modal');
+                else loginModal.classList.add('hidden');
+            });
+        }
         
         if (passInput) {
             passInput.addEventListener('keypress', (e) => {
@@ -920,7 +989,11 @@ const Admin = {
 
                 window.firebaseSignIn(window.firebaseAuth, email, password)
                     .then((userCredential) => {
-                        loginModal.classList.add('hidden');
+                        // 🛡️ GUARDIAN FIX: Smooth exit via Router
+                        if (location.hash === '#login') history.back();
+                        else if (typeof closeSmoothModal === 'function') closeSmoothModal('login-modal');
+                        else loginModal.classList.add('hidden');
+
                         passInput.value = ''; 
                         if (devModal) {
                             if (location.hash !== '#dev') history.pushState({ modal: 'dev' }, '', '#dev');
@@ -1865,20 +1938,47 @@ const Admin = {
         tabInbox.onclick = () => switchTab('inbox');
         tabArchive.onclick = () => switchTab('archive');
 
-        // Render purely from RAM state based on Active Tab
+        // Render purely from RAM state based on Active Tab (WhatsApp Thread Protocol)
         Admin.renderFeedbackList = () => {
             listContainer.innerHTML = '';
             const isInbox = Admin.currentFeedbackTab === 'inbox';
-            const targetData = Admin.cachedFeedbackData.filter(f => isInbox ? f.status !== 'resolved' : f.status === 'resolved');
             
-            statusDisplay.textContent = isInbox ? `Active Items: ${targetData.length}` : `Archived Items: ${targetData.length}`;
+            // 1. Group ALL data globally by deviceId FIRST
+            const groups = {};
+            Admin.cachedFeedbackData.forEach(item => {
+                const did = item.device_id || item.deviceId || 'Anonymous / Legacy';
+                if (!groups[did]) groups[did] = [];
+                groups[did].push(item);
+            });
 
-            if (targetData.length === 0) {
-                listContainer.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${isInbox ? 'Inbox is completely clean! ✨' : 'No archived feedback yet.'}</div>`;
+            // 2. Filter groups based on Tab
+            const displayGroups = [];
+            Object.keys(groups).forEach(did => {
+                const groupItems = groups[did];
+                // Sort chronologically (oldest top, newest bottom) for the chat flow
+                groupItems.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+                
+                // A thread is "Active" (Inbox) if ANY commuter message is unresolved
+                const isThreadActive = groupItems.some(i => !i.isFromAdmin && i.status !== 'resolved');
+                
+                if (isInbox && isThreadActive) displayGroups.push({ did, items: groupItems });
+                if (!isInbox && !isThreadActive) displayGroups.push({ did, items: groupItems });
+            });
+
+            statusDisplay.textContent = isInbox ? `Active Threads: ${displayGroups.length}` : `Archived Threads: ${displayGroups.length}`;
+
+            if (displayGroups.length === 0) {
+                listContainer.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${isInbox ? 'Inbox is completely clean! ✨' : 'No archived threads yet.'}</div>`;
                 return;
             }
 
-            // GUARDIAN FIX: Global secure fallback for sanitization
+            // 3. Sort threads by the timestamp of their latest message (newest threads on top)
+            displayGroups.sort((a, b) => {
+                const lastA = a.items[a.items.length - 1].timestamp || 0;
+                const lastB = b.items[b.items.length - 1].timestamp || 0;
+                return lastB - lastA;
+            });
+
             const secureEscape = (str) => {
                 if (!str) return '';
                 if (typeof escapeHTML === 'function') return escapeHTML(str);
@@ -1887,131 +1987,192 @@ const Admin = {
                 });
             };
 
-            // Group by deviceId
-            const groups = {};
-            targetData.forEach(item => {
-                const did = item.device_id || item.deviceId || 'Anonymous / Legacy';
-                if (!groups[did]) groups[did] = [];
-                groups[did].push(item);
-            });
+            displayGroups.forEach(group => {
+                const did = group.did;
+                const groupItems = group.items;
+                
+                // For thread actions, we target the latest commuter message
+                const commuterMsgs = groupItems.filter(i => !i.isFromAdmin);
+                const latestCommuterMsg = commuterMsgs.length > 0 ? commuterMsgs[commuterMsgs.length - 1] : groupItems[0];
+                const feedbackId = latestCommuterMsg.id;
+                const unresolvedIds = commuterMsgs.filter(i => i.status !== 'resolved').map(i => i.id).join(',');
 
-            const sortedDids = Object.keys(groups).sort((a, b) => {
-                return Math.max(...groups[b].map(i => i.timestamp || 0)) - Math.max(...groups[a].map(i => i.timestamp || 0));
-            });
-
-            sortedDids.forEach(did => {
-                const groupItems = groups[did];
                 const groupCard = document.createElement('div');
                 groupCard.className = "bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mb-3 transition-colors hover:border-blue-300 dark:hover:border-blue-500";
                 
-                const latestDate = new Date(Math.max(...groupItems.map(i => i.timestamp || 0))).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+                const latestDate = new Date(groupItems[groupItems.length - 1].timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
                 
+                const alias = Admin.cachedAliases && Admin.cachedAliases[did] ? Admin.cachedAliases[did] : null;
+                const displayDid = did === 'Anonymous / Legacy' ? did : did.substring(0,15) + '...';
+                const commuterTitle = alias ? `${alias} <span class="text-gray-400 text-[10px] font-normal">(${displayDid})</span>` : displayDid;
+
                 let groupHTML = `
-                    <button class="w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none border-b border-transparent" onclick="this.nextElementSibling.classList.toggle('hidden'); this.classList.toggle('border-gray-200'); this.classList.toggle('dark:border-gray-700'); this.querySelector('svg').classList.toggle('rotate-180')">
-                        <div class="flex flex-col items-start">
-                            <span class="text-xs font-bold text-gray-900 dark:text-white">Commuter: <span class="text-blue-600">${did === 'Anonymous / Legacy' ? did : did.substring(0,15) + '...'}</span></span>
+                    <div class="w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 border-b border-transparent transition-colors">
+                        <button class="flex-grow flex flex-col items-start focus:outline-none text-left min-w-0 pr-2" onclick="const p = this.parentElement; p.nextElementSibling.classList.toggle('hidden'); p.classList.toggle('border-gray-200'); p.classList.toggle('dark:border-gray-700'); p.querySelector('.chevron-icon').classList.toggle('rotate-180')">
+                            <span class="text-xs font-bold text-gray-900 dark:text-white truncate w-full">Commuter: <span class="text-blue-600">${commuterTitle}</span></span>
                             <span class="text-[9px] text-gray-500 font-mono mt-0.5">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} | Last: ${latestDate}</span>
+                        </button>
+                        <div class="flex items-center space-x-1 sm:space-x-2 shrink-0">
+                            ${did !== 'Anonymous / Legacy' ? `<button onclick="Admin.setCommuterAlias('${did}', '${alias || ''}')" class="p-1.5 bg-white dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-gray-600 text-gray-500 hover:text-blue-600 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm" title="Edit Alias">✏️</button>` : ''}
+                            <button class="focus:outline-none p-1.5" onclick="const p = this.parentElement.parentElement; p.nextElementSibling.classList.toggle('hidden'); p.classList.toggle('border-gray-200'); p.classList.toggle('dark:border-gray-700'); this.querySelector('.chevron-icon').classList.toggle('rotate-180')">
+                                <svg class="chevron-icon w-4 h-4 text-gray-400 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </button>
                         </div>
-                        <svg class="w-4 h-4 text-gray-400 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
-                    <div class="hidden divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900 p-2 space-y-2">
+                    </div>
+                    <div class="hidden bg-white dark:bg-gray-900 p-3">
+                        <div class="space-y-3 mb-2 max-h-[60vh] h-auto min-h-[150px] overflow-y-auto pr-1 custom-scrollbar flex flex-col">
                 `;
+
+                let lastRenderedDate = "";
 
                 groupItems.forEach(item => {
                     const date = new Date(item.timestamp || Date.now());
-                    const dateStr = `${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                    const dateStr = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                     
-                    let badgeClass = "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600";
-                    let typeLabel = "General";
+                    // DATE GROUPING LOGIC (WhatsApp Style)
+                    const msgDateString = date.toDateString();
+                    if (lastRenderedDate !== msgDateString) {
+                        const today = new Date();
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        
+                        let dateDividerText = msgDateString;
+                        if (msgDateString === today.toDateString()) {
+                            dateDividerText = "Today";
+                        } else if (msgDateString === yesterday.toDateString()) {
+                            dateDividerText = "Yesterday";
+                        } else {
+                            dateDividerText = date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+                        }
+                        
+                        groupHTML += `
+                            <div class="flex justify-center w-full my-3">
+                                <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 bg-gray-200/50 dark:bg-gray-800/50 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm border border-gray-200 dark:border-gray-700">
+                                    ${dateDividerText}
+                                </span>
+                            </div>
+                        `;
+                        lastRenderedDate = msgDateString;
+                    }
                     
-                    if (item.type === 'schedule_error') { badgeClass = "bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"; typeLabel = "⏱️ Schedule Error"; }
-                    else if (item.type === 'bug') { badgeClass = "bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800"; typeLabel = "🐛 App Bug"; }
-                    else if (item.type === 'suggestion') { badgeClass = "bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800"; typeLabel = "💡 Suggestion"; }
+                    if (item.isFromAdmin) {
+                        // ADMIN BUBBLE (Right)
+                        let receiptHtml = '<span class="text-[11px] text-gray-400 font-bold ml-1">✓</span>';
+                        if (item.acknowledged) {
+                            receiptHtml = '<span class="text-[11px] text-blue-500 tracking-tighter font-bold ml-1">✓✓</span> <span class="text-[10px] ml-0.5">🙏</span>';
+                        } else if (item.read) {
+                            receiptHtml = '<span class="text-[11px] text-blue-500 tracking-tighter font-bold ml-1">✓✓</span>';
+                        } else if (item.delivered) {
+                            receiptHtml = '<span class="text-[11px] text-gray-400 tracking-tighter font-bold ml-1">✓✓</span>';
+                        }
 
-                    // 🛡️ GUARDIAN FIX: XSS Sanitization injected
-                    const safeEmail = secureEscape(item.email);
-                    const safeText = item.text ? secureEscape(item.text).replace(/\n/g, "<br>") : "No content";
-                    const safeAppVersion = secureEscape(item.appVersion || 'Unknown');
-                    const safeRouteId = secureEscape(item.routeId || 'None');
-                    const safeAttachUrl = item.attachmentUrl ? secureEscape(item.attachmentUrl) : null;
+                        // REGEX: Extract Admin Signoff Name ("— Enock")
+                        let parsedAdminText = item.text || "";
+                        let adminName = "Admin";
+                        const signoffRegex = /(?:<br>|\n)*<span[^>]*>—\s*(.*?)<\/span>$/i;
+                        const fallbackRegex = /(?:<br>|\n)*—\s*([a-zA-Z]+)$/i;
+                        
+                        let match = parsedAdminText.match(signoffRegex) || parsedAdminText.match(fallbackRegex);
+                        if (match) {
+                            adminName = match[1].trim();
+                            parsedAdminText = parsedAdminText.replace(signoffRegex, '').replace(fallbackRegex, '').trim();
+                        }
 
-                    const emailDisplay = safeEmail ? `<a href="mailto:${safeEmail}" class="text-blue-500 dark:text-blue-400 hover:underline">${safeEmail}</a>` : "Anonymous User";
-                    const attachmentHtml = safeAttachUrl 
-                        ? `<a href="${safeAttachUrl}" target="_blank" class="flex items-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-[10px] font-bold"><span class="mr-1">📎</span> View File</a>`
-                        : `<div></div>`;
+                        parsedAdminText = parsedAdminText.replace(/^(?:<br>|\s)+/, '');
 
-                    // 🛡️ GUARDIAN PHASE 11: Read Receipts & "Replied" Badges
-                    let archiveBadgeHtml = `<span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived</span>`;
-                    
-                    if (!isInbox) {
-                        if (item.hasAdminReply) {
-                            let readReceipt = "";
-                            if (item.readAt) {
-                                const readDate = new Date(item.readAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                                readReceipt = `<span class="text-[9px] text-blue-500 ml-1.5 font-bold tracking-tight">✓✓ Seen ${readDate}</span>`;
-                            } else {
-                                readReceipt = `<span class="text-[9px] text-gray-400 ml-1.5 tracking-tight font-medium">✓ Delivered</span>`;
-                            }
-                            archiveBadgeHtml = `
-                                <div class="flex items-center">
-                                    <span class="text-[9px] font-bold text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded uppercase tracking-wider">💬 Replied</span>
-                                    ${readReceipt}
+                        groupHTML += `
+                            <div class="flex flex-col items-end mb-1 pl-12">
+                                <div class="flex flex-col bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 pt-1.5 pb-2 px-3 rounded-2xl rounded-tr-sm shadow-sm border border-blue-200 dark:border-blue-800/50 text-sm leading-relaxed text-left w-fit max-w-[85%] relative">
+                                    <div class="mb-0.5 text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">${adminName}</div>
+                                    <div>${parsedAdminText}</div>
+                                    <div class="flex items-center justify-end mt-1 opacity-80 self-end ml-3">
+                                        <span class="text-[9px] font-mono">${dateStr}</span>
+                                        ${receiptHtml}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        // COMMUTER BUBBLE (Left)
+                        // TRAILING WHITESPACE PURGE: .trim() before replace
+                        let rawText = item.text ? secureEscape(item.text.trim()).replace(/\n/g, "<br>") : "No content";
+                        const safeAppVersion = secureEscape(item.appVersion || 'Unknown');
+                        const safeRouteId = secureEscape(item.routeId || 'None');
+                        const safeAttachUrl = item.attachmentUrl ? secureEscape(item.attachmentUrl) : null;
+
+                        // REGEX: Extract Context Block ("[Replying to: ...]")
+                        let quoteBlockHtml = "";
+                        const quoteRegex = /^\[(.*?)\](?:<br>){1,2}/i;
+                        const quoteMatch = rawText.match(quoteRegex);
+                        let isReply = false;
+                        
+                        if (quoteMatch) {
+                            isReply = true;
+                            const quoteContent = quoteMatch[1].replace(/Replying to:\s*/i, '').replace(/Failed Route Attempt:\s*/i, 'Failed Route: ');
+                            quoteBlockHtml = `
+                                <div class="-mx-1 mb-1.5 mt-1 bg-black/5 dark:bg-white/10 border-l-4 border-gray-400 dark:border-gray-500 py-1 px-2 rounded-r text-[10px] text-gray-700 dark:text-gray-300 italic line-clamp-3 w-full">
+                                    ${quoteContent}
                                 </div>
                             `;
+                            rawText = rawText.replace(quoteRegex, '').trim(); // Remove from main body
                         }
-                    }
 
-                    // GROWTH SPRINT PHASE 8: Commuter Reply Logic & Archive Extermination
-                    const deviceId = item.device_id || item.deviceId || '';
-                    const actionHtml = isInbox 
-                        ? `<div class="flex space-x-2">
-                             ${deviceId ? `<button class="text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${item.id}', '${deviceId}')">Reply</button>` : ''}
-                             <button class="text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${item.id}')">Resolve</button>
-                           </div>`
-                        : `<div class="flex justify-between items-center w-full mt-3">
-                             ${archiveBadgeHtml}
-                             <div class="flex space-x-2">
-                                 <button class="text-blue-600 hover:text-white hover:bg-blue-600 text-[10px] font-bold px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-blue-200 shadow-sm" onclick="Admin.restoreFeedback('${item.id}')">Restore</button>
-                                 <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteFeedback('${item.id}')">Delete</button>
-                             </div>
-                           </div>`;
+                        rawText = rawText.replace(/^(?:<br>|\s)+/, '');
 
-                    let lowerCardHtml = isInbox ? `
-                        <div class="flex justify-between items-end border-t border-gray-100 dark:border-gray-800 pt-2 mt-auto">
-                            <div class="flex flex-col">
-                                <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium mb-0.5">${emailDisplay}</span>
-                                <span class="text-[8px] text-gray-400 dark:text-gray-600 font-mono">App: ${safeAppVersion} | Route: ${safeRouteId}</span>
+                        const attachmentHtml = safeAttachUrl 
+                            ? `<a href="${safeAttachUrl}" target="_blank" class="mt-2 flex items-center justify-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-xs font-bold w-full"><span class="mr-1">📎</span> View Attachment</a>`
+                            : ``;
+
+                        // METADATA: Integrated Bubble Header
+                        let typeLabel = "General";
+                        let typeIcon = "💬";
+                        if (item.type === 'schedule_error') { typeLabel = "Schedule Error"; typeIcon = "⏱️"; }
+                        else if (item.type === 'bug') { typeLabel = "App Bug"; typeIcon = "🐛"; }
+                        else if (item.type === 'suggestion') { typeLabel = "Suggestion"; typeIcon = "💡"; }
+
+                        let headerLabelText = isReply ? `↩️ Commuter Reply` : `${typeIcon} ${typeLabel}`;
+                        let headerColorClass = isReply ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400";
+
+                        const integratedHeaderHtml = `
+                            <div class="text-[9px] font-black ${headerColorClass} uppercase tracking-widest mb-1.5 border-b border-gray-200 dark:border-gray-700 pb-1 flex justify-between items-center w-full">
+                                <span>${headerLabelText}</span>
+                                <span class="font-mono font-medium opacity-60 ml-2">${safeAppVersion.split(' ')[0]} • ${safeRouteId}</span>
                             </div>
-                            <div class="flex items-center space-x-2">
-                                ${attachmentHtml}
-                                ${actionHtml}
-                            </div>
-                        </div>` : `
-                        <div class="flex flex-col border-t border-gray-100 dark:border-gray-800 pt-2 mt-auto">
-                            <div class="flex justify-between items-start mb-2">
-                                <div class="flex flex-col">
-                                    <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium mb-0.5">${emailDisplay}</span>
-                                    <span class="text-[8px] text-gray-400 dark:text-gray-600 font-mono">App: ${safeAppVersion} | Route: ${safeRouteId}</span>
+                        `;
+
+                        groupHTML += `
+                            <div class="flex flex-col items-start mb-1 pr-12">
+                                <div class="flex flex-col bg-gray-100 dark:bg-gray-800/80 text-gray-900 dark:text-gray-100 pt-1.5 pb-2 px-3 rounded-2xl rounded-tl-sm shadow-sm border border-gray-200 dark:border-gray-700 text-sm leading-relaxed text-left w-fit max-w-[85%] relative">
+                                    ${integratedHeaderHtml}
+                                    ${quoteBlockHtml}
+                                    <div>${rawText}</div>
+                                    ${attachmentHtml}
+                                    <div class="text-[9px] text-gray-500 font-mono mt-1 opacity-80 self-end ml-3">
+                                        ${dateStr}
+                                    </div>
                                 </div>
-                                ${attachmentHtml}
                             </div>
-                            ${actionHtml}
-                        </div>
-                    `;
+                        `;
+                } });
+                // Bottom Action Bar (Contextual)
+                const actionHtml = isInbox 
+                    ? `<div class="flex space-x-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                         ${did !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${feedbackId}', '${did}')">Reply</button>` : ''}
+                         <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${unresolvedIds}')">Resolve Thread</button>
+                       </div>`
+                    : `<div class="flex justify-between items-center w-full mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                         <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived Thread</span>
+                         <div class="flex space-x-2">
+                             <button class="text-blue-600 hover:text-white hover:bg-blue-600 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors focus:outline-none uppercase tracking-wide border border-blue-200 shadow-sm" onclick="Admin.restoreFeedback('${feedbackId}')">Restore</button>
+                             <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteFeedback('${feedbackId}')">Delete</button>
+                         </div>
+                       </div>`;
 
-                    groupHTML += `
-                        <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col transition-colors">
-                            <div class="flex justify-between items-start mb-2">
-                                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border ${badgeClass}">${typeLabel}</span>
-                                <span class="text-[9px] text-gray-400 dark:text-gray-500 font-mono">${dateStr}</span>
-                            </div>
-                            <p class="text-xs text-gray-800 dark:text-gray-200 mb-3 leading-relaxed whitespace-pre-wrap">${safeText}</p>
-                            ${lowerCardHtml}
+                groupHTML += `
                         </div>
-                    `;
-                });
-                
-                groupHTML += `</div>`;
+                        ${actionHtml}
+                    </div>
+                `;
                 groupCard.innerHTML = groupHTML;
                 listContainer.appendChild(groupCard);
             });
@@ -2021,8 +2182,11 @@ const Admin = {
             const secret = await Admin.getAuthKey();
             if (!secret) return;
 
-            // GUARDIAN PHASE 11: Mark as seen instantly to clear UI state
-            try { safeStorage.setItem('fb_last_checked', Date.now().toString()); } catch(e){}
+            // GUARDIAN PHASE 11 & 12: Mark as seen instantly in Firebase (Cross-Device Sync)
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                fetch(`${dynamicEndpoint}admin_state/${Admin.currentUser.uid}/fb_last_checked.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(Date.now()) });
+            } catch(e){}
             const badge = document.getElementById('fb-unread-badge');
             if (badge) badge.classList.add('hidden');
 
@@ -2031,16 +2195,51 @@ const Admin = {
 
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                // GUARDIAN PHASE 4: Admin Shield - Wraps raw fetch in guardianFetch to prevent deadlocks
-                const res = await window.guardianFetch(`${dynamicEndpoint}feedback.json?auth=${secret}&orderBy="$key"`, {}, 10000);
+                
+                // Fetch Commuter Messages AND Admin Sent Messages concurrently
+                const [res, inboxRes, aliasesRes] = await Promise.all([
+                    window.guardianFetch(`${dynamicEndpoint}feedback.json?auth=${secret}&orderBy="$key"`, {}, 10000),
+                    window.guardianFetch(`${dynamicEndpoint}inbox.json?auth=${secret}`, {}, 10000),
+                    window.guardianFetch(`${dynamicEndpoint}admin_state/aliases.json?auth=${secret}`, {}, 10000)
+                ]);
                 
                 if (!res.ok) throw new Error("Failed to fetch feedback");
                 const data = await res.json();
+                const inboxData = inboxRes.ok ? await inboxRes.json() : {};
+                Admin.cachedAliases = aliasesRes.ok ? (await aliasesRes.json()) || {} : {};
 
-                Admin.cachedFeedbackData = (data && typeof data === 'object') ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+                let mergedData = (data && typeof data === 'object') ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+
+                // Fold Admin Replies into the Thread Matrix
+                if (inboxData && typeof inboxData === 'object') {
+                    Object.keys(inboxData).forEach(deviceId => {
+                        const deviceMessages = inboxData[deviceId];
+                        Object.keys(deviceMessages).forEach(msgKey => {
+                            const msg = deviceMessages[msgKey];
+                            let parentStatus = 'unread';
+                            // Inherit the archive status of the parent ticket so threads collapse together
+                            if (msg.feedbackId && data && data[msg.feedbackId]) {
+                                parentStatus = data[msg.feedbackId].status || 'unread';
+                            }
+                            mergedData.push({
+                                id: msgKey,
+                                device_id: deviceId, // For Grouping
+                                isFromAdmin: true,
+                                text: msg.message,
+                                timestamp: msg.timestamp,
+                                status: parentStatus,
+                                read: msg.read,
+                                delivered: msg.delivered,
+                                acknowledged: msg.acknowledged
+                            });
+                        });
+                    });
+                }
+
+                Admin.cachedFeedbackData = mergedData;
                 Admin.cachedFeedbackData.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
-                const activeCount = Admin.cachedFeedbackData.filter(f => f.status !== 'resolved').length;
+                const activeCount = Admin.cachedFeedbackData.filter(f => f.status !== 'resolved' && !f.isFromAdmin).length;
                 if (inboxCountSpan) inboxCountSpan.textContent = activeCount;
 
                 Admin.renderFeedbackList();
@@ -2052,10 +2251,10 @@ const Admin = {
             }
         };
 
-        // GUARDIAN: The Archive Protocol
-        Admin.resolveFeedback = async (id, skipConfirm = false) => {
+        // GUARDIAN: The Archive Protocol (Thread-Aware)
+        Admin.resolveFeedback = async (ids, skipConfirm = false) => {
             if (!skipConfirm) {
-                const confirmed = await Admin.secureConfirm("Resolve Feedback", "Mark this feedback as resolved and sweep it to the Archive Tab?");
+                const confirmed = await Admin.secureConfirm("Resolve Thread", "Mark all active messages in this thread as resolved and sweep to the Archive?");
                 if (!confirmed) return;
             }
             
@@ -2065,20 +2264,23 @@ const Admin = {
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 
+                const idArray = ids.split(',').filter(Boolean);
                 const payload = { status: 'resolved', resolvedAt: Date.now() };
-                const res = await fetch(`${dynamicEndpoint}feedback/${id}.json?auth=${secret}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify(payload)
-                });
+                
+                // Bulk patch all unresolved messages in the thread
+                const promises = idArray.map(id => 
+                    fetch(`${dynamicEndpoint}feedback/${id}.json?auth=${secret}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify(payload)
+                    })
+                );
 
-                if (res.ok) {
-                    if (!skipConfirm && typeof showToast === 'function') showToast("Feedback resolved and archived!", "success");
-                    Admin.fetchFeedback(); 
-                } else {
-                    throw new Error("Failed to archive feedback");
-                }
+                await Promise.all(promises);
+
+                if (!skipConfirm && typeof showToast === 'function') showToast("Thread resolved and archived!", "success");
+                Admin.fetchFeedback(); 
             } catch (e) {
-                if (typeof showToast === 'function') showToast("Error resolving feedback.", "error");
+                if (typeof showToast === 'function') showToast("Error resolving thread.", "error");
             }
         };
 
@@ -2114,6 +2316,40 @@ const Admin = {
                 if (typeof showToast === 'function') showToast("Error deleting feedback.", "error");
             }
         };
+
+        // 🛡️ GUARDIAN PHASE 13: Admin Address Book (Commuter Aliases)
+        Admin.setCommuterAlias = async (deviceId, currentAlias) => {
+            const newName = prompt(`Enter a friendly name/alias for Commuter ${deviceId.substring(0,10)}... (Leave blank to remove):`, currentAlias);
+            if (newName === null) return; // Action cancelled by user
+            
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                
+                if (newName.trim() === '') {
+                    // Delete Alias
+                    await fetch(`${dynamicEndpoint}admin_state/aliases/${deviceId}.json?auth=${secret}`, { method: 'DELETE' });
+                    if (Admin.cachedAliases) delete Admin.cachedAliases[deviceId];
+                    if (typeof showToast === 'function') showToast("Alias removed.", "info");
+                } else {
+                    // Save Alias
+                    await fetch(`${dynamicEndpoint}admin_state/aliases/${deviceId}.json?auth=${secret}`, { 
+                        method: 'PUT', 
+                        body: JSON.stringify(newName.trim()) 
+                    });
+                    if (!Admin.cachedAliases) Admin.cachedAliases = {};
+                    Admin.cachedAliases[deviceId] = newName.trim();
+                    if (typeof showToast === 'function') showToast("Alias saved!", "success");
+                }
+                
+                // Re-render local RAM state instantly so the UI updates
+                Admin.renderFeedbackList(); 
+            } catch (e) {
+                if (typeof showToast === 'function') showToast("Error saving alias.", "error");
+            }
+        };
     },
 
     // --- GROWTH SPRINT PHASE 8: ADMIN REPLY INBOX PROTOCOL ---
@@ -2134,12 +2370,13 @@ const Admin = {
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Message will be delivered to their personal inbox upon next app launch.</p>
                     
                     <div class="border border-gray-300 dark:border-gray-600 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 transition-all">
-                        <div class="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 p-1.5 border-b border-gray-300 dark:border-gray-600">
-                            <button type="button" onclick="document.execCommand('link', false, prompt('Enter URL:','https://'))" class="px-3 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded shadow-sm text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none">
-                                🔗 Insert Link
-                            </button>
+                        <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 p-1 border-b border-gray-300 dark:border-gray-600">
+                            <button type="button" onclick="Admin.formatAlertText('bold', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Bold">B</button>
+                            <button type="button" onclick="Admin.formatAlertText('italic', 'admin-reply-text')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Italic">I</button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
+                            <button type="button" onclick="Admin.formatAlertText('link', 'admin-reply-text')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Add Custom Link">🔗 Link</button>
                         </div>
-                        <div contenteditable="true" id="admin-reply-text" class="w-full min-h-[120px] p-3 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="Type your response..."></div>
+                        <div contenteditable="true" id="admin-reply-text" class="w-full min-h-[120px] max-h-[250px] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="Type your response..."></div>
                     </div>
 
                     <div class="flex space-x-3 mt-4">
@@ -2165,11 +2402,16 @@ const Admin = {
 
         document.getElementById('reply-cancel').onclick = cleanup;
         document.getElementById('reply-send').onclick = async () => {
-            const text = document.getElementById('admin-reply-text').innerHTML.trim();
+            let text = document.getElementById('admin-reply-text').innerHTML.trim();
             if (!text || text === '<br>') {
                 if (typeof showToast === 'function') showToast("Please enter a message.", "error");
                 return;
             }
+            
+            // Auto-Signoff Logic
+            const adminEmail = Admin.currentUser?.email || '';
+            const adminName = adminEmail.includes('enock') ? 'Enock' : (adminEmail.includes('thandeka') ? 'Thandeka' : 'Admin');
+            text += `<br><br><span style="color: #9ca3af; font-style: italic;">— ${adminName}</span>`;
             
             const btn = document.getElementById('reply-send');
             btn.textContent = "Sending...";
@@ -2213,9 +2455,9 @@ const Admin = {
         };
     },
 
-// --- RICH TEXT FORMATTING HELPER ---
-    formatAlertText: (tag) => {
-        const editor = document.getElementById('alert-msg');
+// RICH TEXT FORMATTING HELPER ---
+    formatAlertText: (tag, targetId = 'alert-msg') => {
+        const editor = document.getElementById(targetId);
         if (!editor) return;
         
         editor.focus();
@@ -3917,7 +4159,7 @@ const Admin = {
         
         async function checkStatus() {
             try {
-                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '[https://metrorail-next-train-default-rtdb.firebaseio.com/](https://metrorail-next-train-default-rtdb.firebaseio.com/)';
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 
                 // Fetch Maintenance Payload
                 const resMaint = await fetch(`${dynamicEndpoint}config/maintenance.json`);
@@ -3952,7 +4194,7 @@ const Admin = {
             const payload = { active: newState, message: msgText };
 
             try {
-                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '[https://metrorail-next-train-default-rtdb.firebaseio.com/](https://metrorail-next-train-default-rtdb.firebaseio.com/)';
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 const res = await window.guardianFetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
                     method: 'PUT',
                     body: JSON.stringify(payload)
@@ -3978,7 +4220,7 @@ const Admin = {
                     return;
                 }
                 try {
-                    const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '[https://metrorail-next-train-default-rtdb.firebaseio.com/](https://metrorail-next-train-default-rtdb.firebaseio.com/)';
+                    const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                     const res = await window.guardianFetch(`${dynamicEndpoint}config/ads_enabled.json?auth=${secret}`, {
                         method: 'PUT',
                         body: JSON.stringify(adsToggle.checked)

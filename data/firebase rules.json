@@ -1,0 +1,97 @@
+{
+  "rules": {
+    /* GUARDIAN DEFAULT: Deny all reads and writes by default */
+    ".read": false,
+    ".write": false,
+
+    /* 1. PUBLIC READ, ENOCK-ONLY WRITE (The Core Infrastructure) */
+    "config": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email === 'enockelk@gmail.com'"
+    },
+    "schedules": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email === 'enockelk@gmail.com'"
+    },
+    "notices": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email === 'enockelk@gmail.com'"
+    },
+    "exclusions": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email === 'enockelk@gmail.com'"
+    },
+    "disruptions": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+
+    /* 2. MULTI-ADMIN READ, PUBLIC WRITE (The Data Ingestion Pipelines) */
+    "feedback": {
+      // Both Enock and Thandeka can read the feedback list
+      ".read": "auth != null && (auth.token.email === 'enockelk@gmail.com' || auth.token.email === 'thandeka05nxumalo@gmail.com')",
+
+      "$feedbackId": {
+        // App can silently POST feedback without an auth token. Admins can PATCH to resolve.
+        ".write": "!data.exists() || (auth != null && (auth.token.email === 'enockelk@gmail.com' || auth.token.email === 'thandeka05nxumalo@gmail.com'))"
+      }
+    },
+
+    "votes": {
+      // Both Enock and Thandeka can read the votes list
+      ".read": "auth != null && (auth.token.email === 'enockelk@gmail.com' || auth.token.email === 'thandeka05nxumalo@gmail.com')",
+
+      "$voteId": {
+        ".write": "auth != null && !data.exists()",
+        ".validate": "newData.hasChildren(['region', 'timestamp']) && newData.child('region').isString() && newData.child('region').val().length < 10"
+      }
+    },
+
+    /* GUARDIAN PHASE 8: COMMUTER INBOX (Developer Replies) */
+    "inbox": {
+      // Admins can read all inboxes
+      ".read": "auth != null && (auth.token.email === 'enockelk@gmail.com' || auth.token.email === 'thandeka05nxumalo@gmail.com')",
+      // Admins can write to any inbox to post replies
+      ".write": "auth != null && (auth.token.email === 'enockelk@gmail.com' || auth.token.email === 'thandeka05nxumalo@gmail.com')",
+
+      "$deviceId": {
+        // Specific commuter can silently check their own inbox (unguessable ID)
+        ".read": true,
+
+        "$messageId": {
+          // Allow commuter to patch 'read' status to hide the inbox banner
+          ".write": "newData.hasChild('read')"
+        }
+      }
+    },
+
+    /* GUARDIAN PHASE 7 & 10: SILENT TELEMETRY (sys_logs) PIPELINE (AdBlocker Evasion) */
+    "sys_logs": {
+      // Both admins can view the diagnostic dashboards
+      ".read": "auth != null && (auth.token.email === 'enockelk@gmail.com' || auth.token.email === 'thandeka05nxumalo@gmail.com')",
+
+      "crashes": {
+        // Admin can clear the DB
+        ".write": "auth != null && auth.token.email === 'enockelk@gmail.com'",
+        "$crashId": {
+          // App can silently POST logs without an auth token
+          ".write": "!data.exists()"
+        }
+      },
+      "routing_fails": {
+        // Admin can clear the DB
+        ".write": "auth != null && auth.token.email === 'enockelk@gmail.com'",
+        "$deadEndId": {
+          // App can silently POST logs without an auth token
+          ".write": "!data.exists()"
+        }
+      }
+    },
+
+    /* 3. ARCHIVE PROTOCOLS */
+    "notices_archive": {
+      ".read": "auth != null && (auth.token.email === 'enockelk@gmail.com' || auth.token.email === 'thandeka05nxumalo@gmail.com')",
+      ".write": "auth != null && auth.token.email === 'enockelk@gmail.com'"
+    }
+  }
+}

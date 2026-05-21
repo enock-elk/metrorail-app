@@ -1181,6 +1181,7 @@ window.performHardCacheClear = async function(source = 'modal_confirm') {
         if (window.indexedDB) {
             await new Promise((resolve) => {
                 try {
+                    // Only target NextTrainDB. Do NOT loop through and delete all IndexedDBs!
                     const req = indexedDB.deleteDatabase('NextTrainDB');
                     req.onsuccess = resolve;
                     req.onerror = resolve;
@@ -1469,7 +1470,40 @@ async function checkServiceAlerts() {
                     const replyContent = document.getElementById('developer-reply-content');
                     const markReadBtn = document.getElementById('mark-reply-read-btn');
                     
-                    if (replyContent) replyContent.textContent = adminReply.message;
+                    if (replyContent) {
+                        // 🛡️ GUARDIAN PHASE 2: Strict DOMParser XSS Sanitization
+                        const sanitizeHTML = (dirtyHtml) => {
+                            const doc = new DOMParser().parseFromString(dirtyHtml, 'text/html');
+                            const allowedTags = ['B', 'I', 'STRONG', 'EM', 'A', 'BR', 'P', 'SPAN', 'DIV', 'UL', 'OL', 'LI'];
+                            const cleanNode = (node) => {
+                                Array.from(node.childNodes).forEach(child => {
+                                    if (child.nodeType === 1) { // ELEMENT_NODE
+                                        if (!allowedTags.includes(child.tagName)) {
+                                            // Strip the tag but keep its text/children
+                                            child.replaceWith(...Array.from(child.childNodes));
+                                            cleanNode(node); // Re-evaluate flattened children
+                                        } else {
+                                            // Clean attributes (only allow href, target, class, rel)
+                                            Array.from(child.attributes).forEach(attr => {
+                                                const attrName = attr.name.toLowerCase();
+                                                if (attrName === 'href') {
+                                                    // Block javascript: URIs
+                                                    if (!/^(https?|mailto):/i.test(attr.value)) child.removeAttribute(attr.name);
+                                                } else if (!['target', 'class', 'rel'].includes(attrName)) {
+                                                    child.removeAttribute(attr.name);
+                                                }
+                                            });
+                                            cleanNode(child);
+                                        }
+                                    }
+                                });
+                            };
+                            cleanNode(doc.body);
+                            return doc.body.innerHTML;
+                        };
+                        
+                        replyContent.innerHTML = sanitizeHTML(adminReply.message || '');
+                    }
                     
                     if (markReadBtn) {
                         markReadBtn.textContent = "Got it, Thanks!";
