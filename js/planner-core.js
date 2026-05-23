@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V7 05.20 - SuperAdmin Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7 05.23 - Stabilization Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -1308,6 +1308,16 @@ function runHeuristicFailureProbe(origin, dest) {
 
 function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
     console.log(`[GUARDIAN] Running Unified Trip Planner for ${origin} -> ${dest} (Requested: ${dayType})`);
+
+    // 🛡️ GUARDIAN PHASE 2.1: The Core Boomerang Lock
+    // Instantly intercepts identical Origin/Dest queries bypassing the UI (e.g. Deep Links / History)
+    const normOrigin = typeof normalizeStationName === 'function' ? normalizeStationName(origin) : String(origin).trim().toUpperCase();
+    const normDest = typeof normalizeStationName === 'function' ? normalizeStationName(dest) : String(dest).trim().toUpperCase();
+    
+    if (normOrigin === normDest) {
+        console.warn("[GUARDIAN] Boomerang trip detected. Aborting unified calculation.");
+        return { status: 'SAME_STATION', errorPayload: null, trips: [] };
+    }
 
     // 🛡️ GUARDIAN PHASE 15: Removed internal recursive state objects and replaced with flat target day metadata
     // 🛡️ GUARDIAN PHASE 2 (Core): Accepts externalContext to decouple DOM queries

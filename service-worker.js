@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-V7 05.20 v1'; // GUARDIAN: Major Version Bump
+const CACHE_NAME = 'metrorail-next-train-V7 05.23 v1'; // GUARDIAN: Major Version Bump
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.
@@ -21,13 +21,9 @@ const ASSETS_TO_CACHE = [
   './js/admin.js',
   './js/ui.js',
   './js/tailwind.js', 
-  './manifest.json',
+  './manifest.json'
 
-  // 🛡️ GUARDIAN PHASE 6: Mandatory Map Caching (Cross-Region Offline Support)
-  './images/network-map.png',
-  './images/network-map_wc.png',
-  './images/network-map_kzn.png',
-  './images/network-map_ec.png'
+  // 🛡️ GUARDIAN PHASE 6: removed the [Map image Caching (Cross-Region Offline Support)]
 ];
 
 // 1. INSTALL: Cache Core Assets

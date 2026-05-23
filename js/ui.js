@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7 05.20 - SuperAdmin Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7 05.23 - Stabilization Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -146,9 +146,12 @@ window.toggleDropdownScrim = function(listId = null, chevronId = null) {
                 // Adjust positioning and Dimming levels dynamically
                 scrim.classList.remove('bg-black/20', 'bg-black/40', 'bg-black/60', 'bg-transparent');
                 
+                // 🛡️ GUARDIAN PHASE 3: Exclude Trip Planner inline dropdowns from darkening the background
+                const isInlineDropdown = ['main-day-list', 'header-day-list', 'custom-time-list'].includes(listId);
+
                 if (container === document.body) {
                     scrim.classList.remove('absolute', 'rounded-xl', 'rounded-2xl', 'rounded-lg', 'z-[40]', 'z-[90]');
-                    scrim.classList.add('fixed', 'z-[150]', 'bg-black/40');
+                    scrim.classList.add('fixed', 'z-[150]', isInlineDropdown ? 'bg-transparent' : 'bg-black/40');
                 } else {
                     scrim.classList.remove('fixed', 'z-[150]');
                     scrim.classList.add('absolute');
@@ -156,11 +159,11 @@ window.toggleDropdownScrim = function(listId = null, chevronId = null) {
                     if (container.id === 'sidenav') {
                         scrim.classList.add('z-[40]', 'bg-transparent'); // GUARDIAN UX FIX: Transparent for Sidenav to prevent darkening
                     } else if (container.classList.contains('view-section')) {
-                        scrim.classList.add('z-[40]', 'bg-black/60'); // Localized dim inside active view tab context
+                        scrim.classList.add('z-[40]', isInlineDropdown ? 'bg-transparent' : 'bg-black/60'); // Localized dim inside active view tab context
                     } else if (container.id === 'main-content') {
-                        scrim.classList.add('z-[90]', 'bg-black/60'); // Same dim for main app card
+                        scrim.classList.add('z-[90]', isInlineDropdown ? 'bg-transparent' : 'bg-black/60'); // Same dim for main app card
                     } else {
-                        scrim.classList.add('z-[90]', 'bg-black/60'); // Heavier dim for Modals
+                        scrim.classList.add('z-[90]', isInlineDropdown ? 'bg-transparent' : 'bg-black/60'); // Heavier dim for Modals
                     }
                     
                     // Match modal border radius dynamically to prevent visual bleeding
@@ -1374,15 +1377,13 @@ async function checkMaintenanceStatus() {
 
         if (isActive === true) {
             if (!existingBanner) {
-                const mainCard = document.getElementById('main-content');
-                if (mainCard) {
-                    const banner = document.createElement('div');
-                    banner.id = 'maintenance-banner';
-                    banner.style.background = 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 10px, #d97706 10px, #d97706 20px)';
-                    banner.className = "absolute top-0 left-0 w-full z-50 text-white text-[10px] font-bold text-center py-1 shadow-sm";
-                    banner.innerHTML = `⚠️ MAINTENANCE IN PROGRESS`;
-                    mainCard.prepend(banner);
-                }
+                const banner = document.createElement('div');
+                banner.id = 'maintenance-banner';
+                banner.style.background = 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 10px, #d97706 10px, #d97706 20px)';
+                // 🛡️ GUARDIAN FIX: Global fixed positioning with ultra-high z-index to escape all stacking contexts
+                banner.className = "fixed top-0 left-0 w-full z-[9999] text-white text-[11px] font-black uppercase tracking-widest text-center py-1 shadow-lg";
+                banner.innerHTML = `⚠️ MAINTENANCE IN PROGRESS`;
+                document.body.prepend(banner);
             }
         } else {
             if (existingBanner) {
@@ -3399,6 +3400,17 @@ window.handleUpdateClick = async function(newVersion) {
 // --- DOM READY ---
 document.addEventListener('DOMContentLoaded', () => {
     enforceAppVersion();
+    
+    // 🛡️ GUARDIAN UX FIX: Force Local Persistence to prevent PWA session drops
+    window.addEventListener('firebase-auth-ready', async () => {
+        try {
+            const authModule = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+            if (window.firebaseAuth && authModule.setPersistence && authModule.browserLocalPersistence) {
+                await authModule.setPersistence(window.firebaseAuth, authModule.browserLocalPersistence);
+                console.log("🛡️ Guardian: Firebase Auth browserLocalPersistence strictly enforced.");
+            }
+        } catch(e) { console.warn("🛡️ Auth persistence tweak failed:", e); }
+    });
 
     stationSelect = document.getElementById('station-select');
     locateBtn = document.getElementById('locate-btn');

@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7 05.20 - SuperAdmin Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7 05.23 - Stabilization Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -190,7 +190,11 @@ window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
             const offlineToast = document.getElementById('offline-toast');
             if (offlineToast) {
                 offlineToast.classList.remove('translate-y-[150%]', 'opacity-0');
-                setTimeout(() => offlineToast.classList.add('translate-y-[150%]', 'opacity-0'), 4000);
+                // 🛡️ GUARDIAN UX FIX: Persistent tracking to prevent timeout overlaps making the toast stuck
+                if (window._lieFiToastTimeout) clearTimeout(window._lieFiToastTimeout);
+                window._lieFiToastTimeout = setTimeout(() => {
+                    offlineToast.classList.add('translate-y-[150%]', 'opacity-0');
+                }, 4000);
             }
 
             // Priority Clash Fix: Suppress Maintenance Banner if offline
@@ -2098,12 +2102,15 @@ function findNearestStation(isAuto = false) {
             if (!isAuto) {
                 let msg = "Unable to retrieve location.";
                 if (error.code === 1) msg = "Location permission denied.";
+                // 🛡️ GUARDIAN UX FIX: Handle timeout specifically
+                if (error.code === 3) msg = "Location request timed out."; 
                 showToast(msg, "error");
                 stationSelect.value = "";
                 const icon = locateBtn.querySelector('svg');
                 if(icon) icon.classList.remove('spinning');
             }
-        }
+        },
+        { timeout: 8000, enableHighAccuracy: true } // 🛡️ GUARDIAN UX FIX: 8s timeout to stop infinite underground hangs
     );
 }
 
@@ -2155,6 +2162,15 @@ function populateStationList() {
         if (searchInput) {
             searchInput.value = "";
             delete searchInput.dataset.resolvedValue;
+        }
+    }
+    
+    // 🛡️ GUARDIAN UX FIX: Reactive Dropdown Engine
+    // If the user already opened the dropdown while it was "Loading...", refresh it instantly now that data is here.
+    const autocompleteList = document.getElementById('next-train-autocomplete-list');
+    if (autocompleteList && !autocompleteList.classList.contains('hidden')) {
+        if (typeof window._renderNextTrainList === 'function') {
+            window._renderNextTrainList();
         }
     }
 }

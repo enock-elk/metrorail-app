@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7 05.20 - SuperAdmin Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7 05.23 - Stabilization Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -1071,29 +1071,10 @@ const Admin = {
             devModalContainer.classList.add('p-0', 'items-start', 'overflow-y-auto');
         }
 
-        // Inject Sign Out Icon into Header explicitly
+        // --- AFTER ---
+        // 🛡️ GUARDIAN UX FIX: Removed the top "Secure Sign Out" button to prevent accidental 6th-tap clicks. 
+        // Admin will rely purely on the bottom Sign Out button.
         const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6');
-        if (devHeaderRow && !document.getElementById('header-signout-btn')) {
-            const btnGroup = document.createElement('div');
-            btnGroup.className = "flex items-center space-x-3 ml-auto mr-3";
-            btnGroup.innerHTML = `
-                <button id="header-signout-btn" class="p-2 rounded-full bg-red-50 dark:bg-red-900/30 text-red-500 hover:bg-red-100 transition-colors focus:outline-none shadow-sm" title="Secure Sign Out">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                </button>
-            `;
-            const closeBtn = devHeaderRow.querySelector('button[aria-label="Close Dev Modal"]');
-            if (closeBtn) {
-                devHeaderRow.insertBefore(btnGroup, closeBtn);
-            }
-            
-            document.getElementById('header-signout-btn').onclick = () => {
-                window.firebaseSignOut(window.firebaseAuth).then(() => {
-                    if (typeof showToast === 'function') showToast("Signed out successfully.", "success");
-                    if (location.hash === '#dev') history.back();
-                    else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
-                });
-            };
-        }
 
         // 1. Inject Live Clock (Guardian UX Upgrade) precisely above Telemetry
         let clockContainer = document.getElementById('admin-live-clock');
@@ -1713,6 +1694,9 @@ const Admin = {
                 <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
                     <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1">Silent Routing Telemetry</span>
                     <div class="flex space-x-2">
+                        <button id="de-sort-btn" class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
+                            Sort: Hits
+                        </button>
                         <button id="de-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
                             Refresh
                         </button>
@@ -1730,7 +1714,20 @@ const Admin = {
         const chevron = document.getElementById('de-chevron');
         const refreshBtn = document.getElementById('de-refresh-btn');
         const clearBtn = document.getElementById('de-clear-btn');
+        const sortBtn = document.getElementById('de-sort-btn');
         const listDiv = document.getElementById('de-list');
+
+        // 🛡️ GUARDIAN PHASE 2: Dynamic Sorting State
+        Admin._deSortMode = Admin._deSortMode || 'hits'; 
+
+        if (sortBtn) {
+            sortBtn.textContent = Admin._deSortMode === 'hits' ? 'Sort: Hits' : 'Sort: Recent';
+            sortBtn.onclick = () => {
+                Admin._deSortMode = Admin._deSortMode === 'hits' ? 'recent' : 'hits';
+                sortBtn.textContent = Admin._deSortMode === 'hits' ? 'Sort: Hits' : 'Sort: Recent';
+                if (listDiv.innerHTML !== '') Admin.fetchDeadEnds(); // Re-render with new sort
+            };
+        }
 
         header.onclick = () => {
             if (Admin.isGridMode) return;
@@ -1782,7 +1779,12 @@ const Admin = {
                     if (entry.timestamp > heatMap[key].lastSeen) heatMap[key].lastSeen = entry.timestamp;
                 });
                 
-                const sorted = Object.values(heatMap).sort((a, b) => b.count - a.count);
+                // 🛡️ GUARDIAN PHASE 2: Apply dynamic sort selection
+                const sorted = Object.values(heatMap).sort((a, b) => {
+                    if (Admin._deSortMode === 'recent') return b.lastSeen - a.lastSeen;
+                    return b.count - a.count;
+                });
+                
                 listDiv.innerHTML = '';
                 
                 sorted.forEach(item => {
@@ -2002,15 +2004,21 @@ const Admin = {
                 
                 const latestDate = new Date(groupItems[groupItems.length - 1].timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
                 
+                // --- AFTER ---
                 const alias = Admin.cachedAliases && Admin.cachedAliases[did] ? Admin.cachedAliases[did] : null;
                 const displayDid = did === 'Anonymous / Legacy' ? did : did.substring(0,15) + '...';
                 const commuterTitle = alias ? `${alias} <span class="text-gray-400 text-[10px] font-normal">(${displayDid})</span>` : displayDid;
+                
+                // 🛡️ GUARDIAN UX FIX: Extract Commuter Email
+                const commuterEmail = latestCommuterMsg.email ? secureEscape(latestCommuterMsg.email) : null;
+                const emailHtml = commuterEmail ? `<a href="mailto:${commuterEmail}" onclick="event.stopPropagation()" class="block text-[10px] text-blue-500 hover:underline font-mono tracking-tight lowercase truncate mt-0.5 max-w-[220px] sm:max-w-[300px]">✉️ ${commuterEmail}</a>` : '';
 
                 let groupHTML = `
                     <div class="w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 border-b border-transparent transition-colors">
                         <button class="flex-grow flex flex-col items-start focus:outline-none text-left min-w-0 pr-2" onclick="const p = this.parentElement; p.nextElementSibling.classList.toggle('hidden'); p.classList.toggle('border-gray-200'); p.classList.toggle('dark:border-gray-700'); p.querySelector('.chevron-icon').classList.toggle('rotate-180')">
                             <span class="text-xs font-bold text-gray-900 dark:text-white truncate w-full">Commuter: <span class="text-blue-600">${commuterTitle}</span></span>
-                            <span class="text-[9px] text-gray-500 font-mono mt-0.5">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} | Last: ${latestDate}</span>
+                            ${emailHtml}
+                            <span class="text-[9px] text-gray-500 font-mono mt-1">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} | Last: ${latestDate}</span>
                         </button>
                         <div class="flex items-center space-x-1 sm:space-x-2 shrink-0">
                             ${did !== 'Anonymous / Legacy' ? `<button onclick="Admin.setCommuterAlias('${did}', '${alias || ''}')" class="p-1.5 bg-white dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-gray-600 text-gray-500 hover:text-blue-600 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm" title="Edit Alias">✏️</button>` : ''}
@@ -2019,8 +2027,9 @@ const Admin = {
                             </button>
                         </div>
                     </div>
-                    <div class="hidden bg-white dark:bg-gray-900 p-3">
-                        <div class="space-y-3 mb-2 max-h-[60vh] h-auto min-h-[150px] overflow-y-auto pr-1 custom-scrollbar flex flex-col">
+                    <div class="hidden bg-white dark:bg-gray-900 p-2 sm:p-3">
+                        <!-- 🛡️ GUARDIAN UX FIX: Removed max-h-[60vh] and overflow-y-auto to stop double scrollbars -->
+                        <div class="space-y-3 mb-2 h-auto min-h-[50px] flex flex-col">
                 `;
 
                 let lastRenderedDate = "";
@@ -2080,9 +2089,11 @@ const Admin = {
 
                         parsedAdminText = parsedAdminText.replace(/^(?:<br>|\s)+/, '');
 
+                        // --- AFTER ---
+                        // 🛡️ GUARDIAN UX FIX: Widen Admin bubbles too
                         groupHTML += `
-                            <div class="flex flex-col items-end mb-1 pl-12">
-                                <div class="flex flex-col bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 pt-1.5 pb-2 px-3 rounded-2xl rounded-tr-sm shadow-sm border border-blue-200 dark:border-blue-800/50 text-sm leading-relaxed text-left w-fit max-w-[85%] relative">
+                            <div class="flex flex-col items-end mb-1.5 pl-2 sm:pl-4">
+                                <div class="flex flex-col bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 pt-1.5 pb-2 px-3 rounded-2xl rounded-tr-sm shadow-sm border border-blue-200 dark:border-blue-800/50 text-sm leading-relaxed text-left w-fit max-w-[95%] sm:max-w-[90%] relative">
                                     <div class="mb-0.5 text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">${adminName}</div>
                                     <div>${parsedAdminText}</div>
                                     <div class="flex items-center justify-end mt-1 opacity-80 self-end ml-3">
@@ -2100,15 +2111,22 @@ const Admin = {
                         const safeRouteId = secureEscape(item.routeId || 'None');
                         const safeAttachUrl = item.attachmentUrl ? secureEscape(item.attachmentUrl) : null;
 
+                        // --- AFTER ---
                         // REGEX: Extract Context Block ("[Replying to: ...]")
                         let quoteBlockHtml = "";
-                        const quoteRegex = /^\[(.*?)\](?:<br>){1,2}/i;
+                        // 🛡️ GUARDIAN UX FIX: Relaxed regex to catch replies without explicit <br> tags
+                        const quoteRegex = /^\[(.*?)\](?:\s*<br>\s*|\s+)/i;
                         const quoteMatch = rawText.match(quoteRegex);
                         let isReply = false;
                         
                         if (quoteMatch) {
                             isReply = true;
-                            const quoteContent = quoteMatch[1].replace(/Replying to:\s*/i, '').replace(/Failed Route Attempt:\s*/i, 'Failed Route: ');
+                            // 🛡️ GUARDIAN UX FIX: Cleanly formats the ugly internal Reply ID into "Reply to Enock"
+                            const quoteContent = quoteMatch[1]
+                                .replace(/REPLY TO ADMIN:\s*[-a-zA-Z0-9_]+/i, 'Reply to Enock:')
+                                .replace(/Replying to:\s*/i, '')
+                                .replace(/Failed Route Attempt:\s*/i, 'Failed Route: ');
+                                
                             quoteBlockHtml = `
                                 <div class="-mx-1 mb-1.5 mt-1 bg-black/5 dark:bg-white/10 border-l-4 border-gray-400 dark:border-gray-500 py-1 px-2 rounded-r text-[10px] text-gray-700 dark:text-gray-300 italic line-clamp-3 w-full">
                                     ${quoteContent}
@@ -2130,19 +2148,21 @@ const Admin = {
                         else if (item.type === 'bug') { typeLabel = "App Bug"; typeIcon = "🐛"; }
                         else if (item.type === 'suggestion') { typeLabel = "Suggestion"; typeIcon = "💡"; }
 
-                        let headerLabelText = isReply ? `↩️ Commuter Reply` : `${typeIcon} ${typeLabel}`;
+                        // 🛡️ GUARDIAN UX FIX: Shortened "Commuter Reply" to "Reply:" to fit on 1 row
+                        let headerLabelText = isReply ? `↩️ Reply:` : `${typeIcon} ${typeLabel}`;
                         let headerColorClass = isReply ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400";
 
                         const integratedHeaderHtml = `
                             <div class="text-[9px] font-black ${headerColorClass} uppercase tracking-widest mb-1.5 border-b border-gray-200 dark:border-gray-700 pb-1 flex justify-between items-center w-full">
-                                <span>${headerLabelText}</span>
-                                <span class="font-mono font-medium opacity-60 ml-2">${safeAppVersion.split(' ')[0]} • ${safeRouteId}</span>
+                                <span class="whitespace-nowrap">${headerLabelText}</span>
+                                <span class="font-mono font-medium opacity-60 ml-2 truncate">${safeAppVersion.split(' ')[0]} • ${safeRouteId}</span>
                             </div>
                         `;
 
+                        // 🛡️ GUARDIAN UX FIX: Removed extreme padding (pr-12 -> pr-2) and expanded bubble width (max-w-[85%] -> max-w-[95%]) to fix squeezed text.
                         groupHTML += `
-                            <div class="flex flex-col items-start mb-1 pr-12">
-                                <div class="flex flex-col bg-gray-100 dark:bg-gray-800/80 text-gray-900 dark:text-gray-100 pt-1.5 pb-2 px-3 rounded-2xl rounded-tl-sm shadow-sm border border-gray-200 dark:border-gray-700 text-sm leading-relaxed text-left w-fit max-w-[85%] relative">
+                            <div class="flex flex-col items-start mb-1.5 pr-2 sm:pr-4">
+                                <div class="flex flex-col bg-gray-100 dark:bg-gray-800/80 text-gray-900 dark:text-gray-100 pt-1.5 pb-2 px-3 rounded-2xl rounded-tl-sm shadow-sm border border-gray-200 dark:border-gray-700 text-sm leading-relaxed text-left w-fit max-w-[95%] sm:max-w-[90%] relative">
                                     ${integratedHeaderHtml}
                                     ${quoteBlockHtml}
                                     <div>${rawText}</div>
@@ -3976,8 +3996,21 @@ const Admin = {
 
             <div id="diag-body" class="hidden mt-4 space-y-4">
                 <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p class="text-[10px] text-blue-800 dark:text-blue-300 font-medium leading-snug">Scans the active local database to verify if all configured routes have successfully downloaded their train schedules.</p>
+                    <p class="text-[10px] text-blue-800 dark:text-blue-300 font-medium leading-snug">Scans the active local database to verify if all configured routes have successfully downloaded their train schedules and checks for structural anomalies.</p>
                 </div>
+                
+                <!-- 🛡️ GUARDIAN PHASE 2: Region Selector -->
+                <div>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Region</label>
+                    <select id="diag-region-select" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="CURRENT">Active Region Only</option>
+                        <option value="GP">Gauteng</option>
+                        <option value="WC">Western Cape</option>
+                        <option value="KZN">KwaZulu-Natal</option>
+                        <option value="EC">Eastern Cape</option>
+                    </select>
+                </div>
+
                 <button id="diag-run-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors text-xs uppercase tracking-wide focus:outline-none">
                     Run Network Scan
                 </button>
@@ -4012,6 +4045,12 @@ const Admin = {
                     return;
                 }
 
+                // 🛡️ GUARDIAN PHASE 2: Dynamic Region & Probe Engine
+                const regionSelect = document.getElementById('diag-region-select');
+                const scanRegion = regionSelect ? regionSelect.value : 'CURRENT';
+                const activeRegion = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
+                const targetRegion = scanRegion === 'CURRENT' ? activeRegion : scanRegion;
+
                 let html = '';
                 let healthyCount = 0;
                 let brokenCount = 0;
@@ -4021,19 +4060,46 @@ const Admin = {
                     Object.values(ROUTES).forEach(route => {
                         if (!route.isActive || route.id === 'special_event') return;
                         
-                        // 🛡️ GUARDIAN PHASE 4: Regional Shield
-                        // Stop the scanner from crashing/flagging missing tables for regions not loaded in memory
-                        if (typeof currentRegion !== 'undefined' && route.region !== currentRegion) return;
+                        if (route.region !== targetRegion) return;
                         
                         totalRoutes++;
                         let routeHealthy = true;
                         let missingSheets = [];
+                        let structuralErrors = []; 
 
                         if (route.sheetKeys) {
                             Object.entries(route.sheetKeys).forEach(([dayDir, key]) => {
-                                if (!fullDatabase[key] || !Array.isArray(fullDatabase[key]) || fullDatabase[key].length === 0) {
+                                const sheet = fullDatabase[key];
+                                if (!sheet || !Array.isArray(sheet) || sheet.length === 0) {
                                     routeHealthy = false;
                                     missingSheets.push(dayDir);
+                                } else {
+                                    // Deep Probe 1: Are there actually any trains mapped?
+                                    const headers = Object.keys(sheet[0] || {});
+                                    const trainCols = headers.filter(h => /^\d{4}[a-zA-Z]*$/.test(h.trim()));
+                                    if (trainCols.length === 0) {
+                                        routeHealthy = false;
+                                        if (!structuralErrors.includes("0 Trains")) structuralErrors.push(`0 Trains (${dayDir})`);
+                                    }
+                                    
+                                    // Deep Probe 2: Do DestA and DestB physically exist in the timetable?
+                                    const cleanA = route.destA.replace(' STATION', '').trim().toUpperCase();
+                                    const cleanB = route.destB.replace(' STATION', '').trim().toUpperCase();
+                                    
+                                    const stationsInSheet = sheet.map(r => String(r.STATION || '').replace(' STATION', '').trim().toUpperCase());
+                                    const hasA = stationsInSheet.some(s => s.includes(cleanA));
+                                    const hasB = stationsInSheet.some(s => s.includes(cleanB));
+                                    
+                                    if (!hasA) {
+                                        routeHealthy = false;
+                                        const err = `Missing Dest A: ${cleanA}`;
+                                        if (!structuralErrors.includes(err)) structuralErrors.push(err);
+                                    }
+                                    if (!hasB) {
+                                        routeHealthy = false;
+                                        const err = `Missing Dest B: ${cleanB}`;
+                                        if (!structuralErrors.includes(err)) structuralErrors.push(err);
+                                    }
                                 }
                             });
                         } else {
@@ -4046,28 +4112,34 @@ const Admin = {
                             html += `
                                 <div class="flex justify-between items-center bg-green-50 dark:bg-green-900/20 p-2.5 rounded-lg text-xs border border-green-100 dark:border-green-800/50 mt-1.5">
                                     <span class="font-bold text-green-800 dark:text-green-300">${route.name}</span>
-                                    <span class="bg-green-500 text-white px-2 py-0.5 rounded shadow-sm text-[9px] uppercase tracking-wider font-bold">Online</span>
+                                    <span class="bg-green-500 text-white px-2 py-0.5 rounded shadow-sm text-[9px] uppercase tracking-wider font-bold">Healthy</span>
                                 </div>
                             `;
                         } else {
                             brokenCount++;
+                            let errorsHtml = '';
+                            if (missingSheets.length > 0) errorsHtml += `<div class="text-[10px] text-red-600 dark:text-red-400 font-mono bg-red-100/50 dark:bg-red-900/40 p-1.5 rounded mb-1 border border-red-200 dark:border-red-800/50">Missing DB: ${missingSheets.join(', ')}</div>`;
+                            if (structuralErrors.length > 0) errorsHtml += `<div class="text-[10px] text-orange-600 dark:text-orange-400 font-mono bg-orange-100/50 dark:bg-orange-900/40 p-1.5 rounded border border-orange-200 dark:border-orange-800/50">Structure: ${structuralErrors.join(' | ')}</div>`;
+                            
                             html += `
                                 <div class="flex flex-col bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg text-xs border border-red-100 dark:border-red-800/50 mt-1.5">
                                     <div class="flex justify-between items-center mb-1.5">
                                         <span class="font-bold text-red-800 dark:text-red-300">${route.name}</span>
-                                        <span class="bg-red-500 text-white px-2 py-0.5 rounded shadow-sm text-[9px] uppercase tracking-wider font-bold">Missing Data</span>
+                                        <span class="bg-red-500 text-white px-2 py-0.5 rounded shadow-sm text-[9px] uppercase tracking-wider font-bold">Errors Found</span>
                                     </div>
-                                    <div class="text-[10px] text-red-600 dark:text-red-400 font-mono bg-red-100/50 dark:bg-red-900/40 p-1.5 rounded">Failed: ${missingSheets.join(', ')}</div>
+                                    ${errorsHtml}
                                 </div>
                             `;
                         }
                     });
                 }
 
-                // GUARDIAN PHASE 4: Clarified explicitly that this only runs against the loaded region
+                const regionNameMap = { 'GP': 'Gauteng', 'WC': 'Western Cape', 'KZN': 'KwaZulu-Natal', 'EC': 'Eastern Cape' };
+                const displayRegion = regionNameMap[targetRegion] || targetRegion;
+
                 const summary = `
                     <div class="flex justify-between bg-gray-50 dark:bg-gray-700/50 p-3 rounded-xl mb-4 border border-gray-100 dark:border-gray-600">
-                        <div class="text-center flex-1 border-r border-gray-200 dark:border-gray-600"><span class="block text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-0.5">Active (Current Region)</span><span class="text-lg font-black text-gray-800 dark:text-gray-200 leading-none">${totalRoutes}</span></div>
+                        <div class="text-center flex-1 border-r border-gray-200 dark:border-gray-600"><span class="block text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-0.5">${displayRegion} Routes</span><span class="text-lg font-black text-gray-800 dark:text-gray-200 leading-none">${totalRoutes}</span></div>
                         <div class="text-center flex-1 border-r border-gray-200 dark:border-gray-600"><span class="block text-[9px] text-green-600 uppercase font-bold tracking-widest mb-0.5">Healthy</span><span class="text-lg font-black text-green-600 leading-none">${healthyCount}</span></div>
                         <div class="text-center flex-1"><span class="block text-[9px] text-red-600 uppercase font-bold tracking-widest mb-0.5">Errors</span><span class="text-lg font-black text-red-600 leading-none">${brokenCount}</span></div>
                     </div>

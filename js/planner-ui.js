@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7 05.20 - SuperAdmin Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7 05.23 - Stabilization Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -1901,6 +1901,19 @@ function executeTripPlan(origin, dest, preferredTime = null) {
 
             // GUARDIAN PHASE 14 & 6: Map exact failure codes to commuter-friendly UX cards with active Disruption bindings
             switch (currentPlannerStatus) {
+                case 'SAME_STATION':
+                    errorTitle = "Same Station Selected";
+                    errorMsg = `
+                        <div class="text-left space-y-2 mt-2">
+                            <p>You are already at your destination.</p>
+                            <ul class="list-disc pl-5 space-y-1 text-xs">
+                                <li>Your Origin and Destination stations are exactly the same.</li>
+                                <li>Please select a different destination to plan a trip.</li>
+                            </ul>
+                        </div>
+                    `;
+                    showFeedbackBtn = false;
+                    break;
                 case 'ERR_CROSS_REGION':
                     errorTitle = "Cross-Region Travel Not Supported";
                     errorMsg = `
