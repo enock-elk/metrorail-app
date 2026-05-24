@@ -140,8 +140,9 @@ const Admin = {
             if (fbRes.ok) {
                 const fbData = await fbRes.json();
                 let fbUnread = 0;
-                // Read from Firebase to check when admin last viewed this tab across any device
-                const lastChecked = parseInt(adminState.fb_last_checked || '0');
+                // GUARDIAN PHASE 12: Sync local offline state with Firebase cross-device state (Whichever is newest wins)
+                const localFbChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('fb_last_checked') || '0') : '0');
+                const lastChecked = Math.max(localFbChecked, parseInt(adminState.fb_last_checked || '0'));
                 
                 if (fbData && typeof fbData === 'object') {
                     Object.values(fbData).forEach(i => { if (i.timestamp > lastChecked) fbUnread++; });
@@ -161,7 +162,8 @@ const Admin = {
             if (crRes.ok) {
                 const crData = await crRes.json();
                 let crUnread = 0;
-                const lastChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('crash_last_checked') || '0') : '0');
+                const localCrChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('crash_last_checked') || '0') : '0');
+                const lastChecked = Math.max(localCrChecked, parseInt(adminState.crash_last_checked || '0'));
                 
                 if (crData && typeof crData === 'object') {
                     Object.values(crData).forEach(i => { if (i.timestamp > lastChecked) crUnread++; });
@@ -179,7 +181,8 @@ const Admin = {
             const deRes = await window.guardianFetch(`${dynamicEndpoint}sys_logs/routing_fails.json?auth=${secret}`, {}, 6000);
             if (deRes.ok) {
                 const deData = await deRes.json();
-                const lastChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('de_last_checked') || '0') : '0');
+                const localDeChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('de_last_checked') || '0') : '0');
+                const lastChecked = Math.max(localDeChecked, parseInt(adminState.de_last_checked || '0'));
                 let deUnread = 0;
                 
                 if (deData && typeof deData === 'object') {
@@ -1363,8 +1366,12 @@ const Admin = {
             const secret = await Admin.getAuthKey();
             if (!secret) return;
             
-            // GUARDIAN PHASE 11: Mark as seen instantly to clear UI state
-            try { safeStorage.setItem('crash_last_checked', Date.now().toString()); } catch(e){}
+            // GUARDIAN PHASE 11 & 12: Mark as seen instantly in Firebase (Cross-Device Sync) AND Local Storage
+            try { 
+                safeStorage.setItem('crash_last_checked', Date.now().toString()); 
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                fetch(`${dynamicEndpoint}admin_state/${Admin.currentUser.uid}/crash_last_checked.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(Date.now()) });
+            } catch(e){}
             const badge = document.getElementById('crash-unread-badge');
             if (badge) badge.classList.add('hidden');
 
@@ -1748,8 +1755,12 @@ const Admin = {
             const secret = await Admin.getAuthKey();
             if (!secret) return;
             
-            // Mark as checked to clear the red dot locally
-            try { safeStorage.setItem('de_last_checked', Date.now().toString()); } catch(e){}
+            // GUARDIAN PHASE 11 & 12: Mark as seen instantly in Firebase (Cross-Device Sync) AND Local Storage
+            try { 
+                safeStorage.setItem('de_last_checked', Date.now().toString()); 
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                fetch(`${dynamicEndpoint}admin_state/${Admin.currentUser.uid}/de_last_checked.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(Date.now()) });
+            } catch(e){}
             const badge = document.getElementById('de-unread-badge');
             if (badge) badge.classList.add('hidden');
             
@@ -2202,8 +2213,9 @@ const Admin = {
             const secret = await Admin.getAuthKey();
             if (!secret) return;
 
-            // GUARDIAN PHASE 11 & 12: Mark as seen instantly in Firebase (Cross-Device Sync)
+            // GUARDIAN PHASE 11 & 12: Mark as seen instantly in Firebase (Cross-Device Sync) AND Local Storage
             try {
+                safeStorage.setItem('fb_last_checked', Date.now().toString());
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 fetch(`${dynamicEndpoint}admin_state/${Admin.currentUser.uid}/fb_last_checked.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(Date.now()) });
             } catch(e){}
