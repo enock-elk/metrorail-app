@@ -4012,15 +4012,26 @@ const Admin = {
                 </div>
                 
                 <!-- 🛡️ GUARDIAN PHASE 2: Region Selector -->
-                <div>
-                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Region</label>
-                    <select id="diag-region-select" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
-                        <option value="CURRENT">Active Region Only</option>
-                        <option value="GP">Gauteng</option>
-                        <option value="WC">Western Cape</option>
-                        <option value="KZN">KwaZulu-Natal</option>
-                        <option value="EC">Eastern Cape</option>
-                    </select>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Data Source</label>
+                        <select id="diag-source-select" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="RAM">Local Memory (RAM)</option>
+                            <option value="FIREBASE">Firebase (Live)</option>
+                            <option value="GITHUB">GitHub CDN (Live)</option>
+                            <option value="CLOUDFLARE">Cloudflare Edge (Live)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Region</label>
+                        <select id="diag-region-select" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="CURRENT">Active Region Only</option>
+                            <option value="GP">Gauteng</option>
+                            <option value="WC">Western Cape</option>
+                            <option value="KZN">KwaZulu-Natal</option>
+                            <option value="EC">Eastern Cape</option>
+                        </select>
+                    </div>
                 </div>
 
                 <button id="diag-run-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors text-xs uppercase tracking-wide focus:outline-none">
@@ -4048,21 +4059,63 @@ const Admin = {
             }
         };
 
-        runBtn.onclick = () => {
+        runBtn.onclick = async () => {
             resultsDiv.innerHTML = '<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Scanning database...</div>';
             
-            setTimeout(() => {
-                if (typeof fullDatabase === 'undefined' || !fullDatabase) {
-                    resultsDiv.innerHTML = '<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Offline Cache is missing or not fully loaded.</div>';
+            // 🛡️ GUARDIAN PHASE 2: Dynamic Region & Probe Engine
+            const regionSelect = document.getElementById('diag-region-select');
+            const scanRegion = regionSelect ? regionSelect.value : 'CURRENT';
+            const activeRegion = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
+            const targetRegion = scanRegion === 'CURRENT' ? activeRegion : scanRegion;
+
+            const sourceSelect = document.getElementById('diag-source-select');
+            const scanSource = sourceSelect ? sourceSelect.value : 'RAM';
+
+            let dbToScan = null;
+
+            if (scanSource !== 'RAM') {
+                try {
+                    let baseUrl = '';
+                    if (scanSource === 'FIREBASE') baseUrl = 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                    else if (scanSource === 'GITHUB') baseUrl = 'https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/data/';
+                    else if (scanSource === 'CLOUDFLARE') baseUrl = 'https://nexttrain-cache.enock.workers.dev/';
+
+                    const regionPaths = {
+                        'GP': scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/gauteng.json',
+                        'WC': scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/westerncape.json',
+                        'KZN': scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/kzn.json',
+                        'EC': scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/easterncape.json'
+                    };
+                    
+                    const fetchUrl = baseUrl + regionPaths[targetRegion] + '?t=' + Date.now();
+                    resultsDiv.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Downloading ${scanSource} payload...</div>`;
+                    
+                    const res = await fetch(fetchUrl);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    let rawData = await res.json();
+                    
+                    // Unwrap if Firebase or Cloudflare nested format
+                    if (targetRegion === 'GP' && rawData.gauteng) dbToScan = rawData.gauteng;
+                    else if (targetRegion === 'WC' && rawData.westerncape) dbToScan = rawData.westerncape;
+                    else if (targetRegion === 'KZN' && rawData.kzn) dbToScan = rawData.kzn;
+                    else if (targetRegion === 'EC' && rawData.easterncape) dbToScan = rawData.easterncape;
+                    else if (targetRegion === 'GP' && rawData.schedules && !rawData.gauteng) dbToScan = rawData.schedules;
+                    else dbToScan = rawData;
+
+                } catch(e) {
+                    resultsDiv.innerHTML = `<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Failed to fetch from ${scanSource}. ${e.message}</div>`;
                     return;
                 }
+            } else {
+                 if (typeof fullDatabase === 'undefined' || !fullDatabase) {
+                    resultsDiv.innerHTML = '<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Offline Cache (RAM) is missing or not fully loaded.</div>';
+                    return;
+                }
+                dbToScan = fullDatabase;
+            }
 
-                // 🛡️ GUARDIAN PHASE 2: Dynamic Region & Probe Engine
-                const regionSelect = document.getElementById('diag-region-select');
-                const scanRegion = regionSelect ? regionSelect.value : 'CURRENT';
-                const activeRegion = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
-                const targetRegion = scanRegion === 'CURRENT' ? activeRegion : scanRegion;
-
+            // Small delay to allow UI to breathe
+            setTimeout(() => {
                 let html = '';
                 let healthyCount = 0;
                 let brokenCount = 0;
@@ -4081,24 +4134,26 @@ const Admin = {
 
                         if (route.sheetKeys) {
                             Object.entries(route.sheetKeys).forEach(([dayDir, key]) => {
-                                const sheet = fullDatabase[key];
+                                const sheet = dbToScan[key];
                                 if (!sheet || !Array.isArray(sheet) || sheet.length === 0) {
                                     routeHealthy = false;
-                                    missingSheets.push(dayDir);
+                                    missingSheets.push(key); // 🛡️ GUARDIAN FIX: Print actual DB key
                                 } else {
+                                    // 🛡️ GUARDIAN FIX: Pass raw array through the universal parser to bypass metadata rows (Index 0 Trap)
+                                    const parsedSchedule = typeof parseJSONSchedule === 'function' ? parseJSONSchedule(sheet) : null;
+                                    
                                     // Deep Probe 1: Are there actually any trains mapped?
-                                    const headers = Object.keys(sheet[0] || {});
-                                    const trainCols = headers.filter(h => /^\d{4}[a-zA-Z]*$/.test(h.trim()));
-                                    if (trainCols.length === 0) {
+                                    // headers[0] is 'STATION', the rest are actual train numbers.
+                                    if (!parsedSchedule || !parsedSchedule.headers || parsedSchedule.headers.length <= 1) {
                                         routeHealthy = false;
-                                        if (!structuralErrors.includes("0 Trains")) structuralErrors.push(`0 Trains (${dayDir})`);
+                                        if (!structuralErrors.includes("0 Trains")) structuralErrors.push(`0 Trains (${key})`); 
                                     }
                                     
-                                    // Deep Probe 2: Do DestA and DestB physically exist in the timetable?
+                                    // Deep Probe 2: Do DestA and DestB physically exist in the clean timetable?
                                     const cleanA = route.destA.replace(' STATION', '').trim().toUpperCase();
                                     const cleanB = route.destB.replace(' STATION', '').trim().toUpperCase();
                                     
-                                    const stationsInSheet = sheet.map(r => String(r.STATION || '').replace(' STATION', '').trim().toUpperCase());
+                                    const stationsInSheet = parsedSchedule ? parsedSchedule.rows.map(r => String(r.STATION || '').replace(' STATION', '').trim().toUpperCase()) : [];
                                     const hasA = stationsInSheet.some(s => s.includes(cleanA));
                                     const hasB = stationsInSheet.some(s => s.includes(cleanB));
                                     

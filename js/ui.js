@@ -1371,19 +1371,26 @@ async function checkMaintenanceStatus() {
     try {
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
         const res = await fetch(`${dynamicEndpoint}config/maintenance.json?t=${Date.now()}`);
-        const isActive = await res.json();
+        const maintData = await res.json();
         
         const existingBanner = document.getElementById('maintenance-banner');
 
-        if (isActive === true) {
+        // 🛡️ GUARDIAN FIX: Backwards compatibility for boolean vs object payload
+        const isMaintActive = maintData === true || (maintData !== null && typeof maintData === 'object' && maintData.active === true);
+        const customMessage = (maintData !== null && typeof maintData === 'object' && maintData.message) ? maintData.message : 'MAINTENANCE IN PROGRESS';
+
+        if (isMaintActive) {
             if (!existingBanner) {
                 const banner = document.createElement('div');
                 banner.id = 'maintenance-banner';
                 banner.style.background = 'repeating-linear-gradient(45deg, #f59e0b, #f59e0b 10px, #d97706 10px, #d97706 20px)';
                 // 🛡️ GUARDIAN FIX: Global fixed positioning with ultra-high z-index to escape all stacking contexts
                 banner.className = "fixed top-0 left-0 w-full z-[9999] text-white text-[11px] font-black uppercase tracking-widest text-center py-1 shadow-lg";
-                banner.innerHTML = `⚠️ MAINTENANCE IN PROGRESS`;
+                banner.innerHTML = `⚠️ ${customMessage.toUpperCase()}`; // Forced uppercase to retain the emergency aesthetic
                 document.body.prepend(banner);
+            } else {
+                // If the banner is already on-screen but the Admin changed the message, update it live
+                existingBanner.innerHTML = `⚠️ ${customMessage.toUpperCase()}`;
             }
         } else {
             if (existingBanner) {

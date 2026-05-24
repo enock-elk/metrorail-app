@@ -1500,27 +1500,48 @@ window.swapPlannerResults = function() {
         }
     }
 
-    // 1. Unconditional Visual Swap
-    const tempFromVal = fromInput.value;
+    // 1. Unconditional Visual & Data Swap
+    // Save current states
+    const tempFromText = fromInput.value;
+    const tempFromResolved = fromInput.dataset.resolvedValue;
+    
+    // Swap visual text
     fromInput.value = toInput.value;
-    toInput.value = tempFromVal;
+    toInput.value = tempFromText;
 
-    // Clear datasets to force re-resolution based on the strictly new text
-    delete fromInput.dataset.resolvedValue;
-    delete toInput.dataset.resolvedValue;
+    // 🛡️ GUARDIAN FIX: Swap invisible precise data (This prevents the 'amnesia' bug!)
+    if (toInput.dataset.resolvedValue) {
+        fromInput.dataset.resolvedValue = toInput.dataset.resolvedValue;
+    } else {
+        delete fromInput.dataset.resolvedValue;
+    }
+    
+    if (tempFromResolved) {
+        toInput.dataset.resolvedValue = tempFromResolved;
+    } else {
+        delete toInput.dataset.resolvedValue;
+    }
 
-    // 2. Mathematical Resolution Attempt
+    // 2. Mathematical Resolution Attempt (Fallback only if no dataset exists)
     const resolveStation = (inputEl) => {
         if (!inputEl) return "";
+        if (inputEl.dataset.resolvedValue) return inputEl.dataset.resolvedValue; // Use absolute truth first!
+        
         const inputVal = inputEl.value;
         if (!inputVal || typeof MASTER_STATION_LIST === 'undefined') return "";
 
         const cleanInput = inputVal.trim().replace(/\s+/g, ' ').toUpperCase();
         const exact = MASTER_STATION_LIST.find(s => s.replace(' STATION', '').trim().toUpperCase() === cleanInput);
-        if (exact) return exact;
+        if (exact) {
+            inputEl.dataset.resolvedValue = exact;
+            return exact;
+        }
 
         const matches = MASTER_STATION_LIST.filter(s => s.replace(' STATION', '').trim().toUpperCase().includes(cleanInput));
-        if (matches.length === 1) return matches[0];
+        if (matches.length === 1) {
+            inputEl.dataset.resolvedValue = matches[0];
+            return matches[0];
+        }
         
         return "";
     };
