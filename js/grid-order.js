@@ -2,8 +2,8 @@
  * METRORAIL NEXT TRAIN - GRID ORDER CONFIG
  * ---------------------------------------------------
  * This file defines the explicit column order for the Full Schedule Grid.
- * Generated from: NextTrain EC-Schedules - 12 May.xlsx, NextTrain GP-Schedules - 30 Apr.xlsx, NextTrain KZN-Schedules - 12 May.xlsx, NextTrain WC-Schedules - 22 April.xlsx
- * Date: 2026-05-13
+ * Generated from: NextTrain EC-Schedules - 12 May.xlsx, NextTrain GP-Schedules-27 May.xlsx, NextTrain KZN-Schedules - 12 May.xlsx, NextTrain WC-Schedules - 22 April.xlsx
+ * Date: 2026-05-27
  */
 
 const MANUAL_GRID_ORDER = {
@@ -283,16 +283,35 @@ const MANUAL_GRID_ORDER = {
         "0027",
         "0029",
         "0031",
-        "0033",
-        "0035",
-        "0037",
-        "0039",
-        "0041",
         "0043",
+        "0041",
         "0045",
         "0047",
         "0049",
-        "0051"
+        "0051",
+        "0053",
+        "0055",
+        "0059",
+        "0039",
+        "0061",
+        "0063",
+        "0065",
+        "0067",
+        "0069",
+        "0071",
+        "0073",
+        "0075",
+        "0079",
+        "0081",
+        "0083",
+        "0085",
+        "0087",
+        "0089",
+        "0091",
+        "0093",
+        "0095",
+        "0097",
+        "0099"
     ],
     "saul_to_pta_weekday": [
         "0002",
@@ -315,11 +334,30 @@ const MANUAL_GRID_ORDER = {
         "0036",
         "0038",
         "0040",
-        "0042",
         "0044",
         "0046",
         "0048",
-        "0050"
+        "0050",
+        "0052",
+        "0054",
+        "0056",
+        "0058",
+        "0060",
+        "0062",
+        "0072",
+        "0074",
+        "0076",
+        "0078",
+        "0080",
+        "0082",
+        "0084",
+        "0086",
+        "0088",
+        "0090",
+        "0092",
+        "0094",
+        "0096",
+        "0098"
     ],
     "pta_to_saul_sat": [
         "0003",

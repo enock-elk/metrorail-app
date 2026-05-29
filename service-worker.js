@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-V7 05.24 v2'; // GUARDIAN: Major Version Bump
+const CACHE_NAME = 'metrorail-next-train-V7 05.29'; // GUARDIAN: Major Version Bump
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.
@@ -140,14 +140,24 @@ self.addEventListener('fetch', (event) => {
       return fetch(event.request).then((networkResponse) => {
         // Only cache valid OK responses
         if (networkResponse && networkResponse.status === 200) {
-            const responseToCache = networkResponse.clone();
+            // 🛡️ GUARDIAN PHASE 4A: Captive Portal Cache Poisoning Defense
+            const reqUrl = new URL(event.request.url);
+            const contentType = networkResponse.headers.get('content-type') || '';
+            const isCssOrJs = reqUrl.pathname.endsWith('.js') || reqUrl.pathname.endsWith('.css');
             
-            // Dynamically caches images/maps as they are requested!
-            event.waitUntil(
-              caches.open(CACHE_NAME).then((cache) => {
-                 return cache.put(event.request, responseToCache);
-              })
-            );
+            if (isCssOrJs && contentType.includes('text/html')) {
+                console.warn(`🛡️ SW Guardian: Captive Portal interception detected. Blocked poisoned cache write for ${reqUrl.pathname}`);
+                // Do NOT write the HTML login page to the cache over our JS/CSS files!
+            } else {
+                const responseToCache = networkResponse.clone();
+                
+                // Dynamically caches images/maps as they are requested!
+                event.waitUntil(
+                  caches.open(CACHE_NAME).then((cache) => {
+                     return cache.put(event.request, responseToCache);
+                  })
+                );
+            }
         }
         return networkResponse;
       }).catch(() => {
@@ -167,6 +177,10 @@ self.addEventListener('message', (event) => {
     // dispatched from the visibilitychange (Idle Tracker) in ui.js, 
     // allowing the app to upgrade seamlessly while out of focus.
     console.log('SW: Idle Update Protocol / Force Update triggered. Skipping waiting phase.');
-    self.skipWaiting();
+    self.skipWaiting().then(() => {
+        // 🛡️ GUARDIAN PHASE 1 (Zombie PWA Fix): Aggressive Takeover
+        // Violently seize control of all active tabs instantly without waiting for closure
+        return self.clients.claim();
+    });
   }
 });

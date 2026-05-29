@@ -1,46 +1,58 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7 05.24-v2 - Stabilization v2"; // BUMPED: Western Cape Full Launch & Scrim UI
+const APP_VERSION = "V7 05.29 - Stabilization v1"; // BUMPED: Western Cape Full Launch & Scrim UI
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
 const FORCE_UPDATE_REQUIRED = true;
 
-// --- 🛡️ GUARDIAN PHASE 5: INFRASTRUCTURE PIVOT & DATA ROUTING ---
-// Toggle this to instantly switch where the heavy schedule data comes from.
-const DATA_SOURCE_MODE = 'FIREBASE'; // 'GITHUB', 'FIREBASE', or 'CLOUDFLARE'
+// --- 🛡️ GUARDIAN PHASE 5: WATERFALL DATA PIPELINE ---
+// The Data Pipeline Router automatically falls back to backups if the primary endpoint fails.
 
-// 🛡️ GUARDIAN: GitHub via jsDelivr CDN (100% Free, Unlimited Bandwidth)
-const GITHUB_BASE_URL = "https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/data/";
-// Raw Firebase RTDB (Expensive if used for heavy data)
-const FIREBASE_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";
-// 🛡️ GUARDIAN: Cloudflare Edge Cache Shield (100% Free, 24hr Cache, Instant Purge)
-const CLOUDFLARE_BASE_URL = "https://nexttrain-cache.enock.workers.dev/";
+const PIPELINE_SOURCES = {
+    'CLOUDFLARE': {
+        url: "https://nexttrain-cache.enock.workers.dev/",
+        useRootNode: false
+    },
+    'GITHUB': {
+        url: "https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/data/",
+        useRootNode: true // GitHub serves the unified export payload directly
+    },
+    'FIREBASE': {
+        url: "https://metrorail-next-train-default-rtdb.firebaseio.com/",
+        useRootNode: false
+    }
+};
 
-// Heavy Data (Schedules) respects the toggle.
-let SCHEDULE_BASE_URL = FIREBASE_BASE_URL;
-if (DATA_SOURCE_MODE === 'GITHUB') SCHEDULE_BASE_URL = GITHUB_BASE_URL;
-if (DATA_SOURCE_MODE === 'CLOUDFLARE') SCHEDULE_BASE_URL = CLOUDFLARE_BASE_URL;
+// The preferred initial source (can be overridden remotely by Admin in logic.js)
+let PRIMARY_DATA_SOURCE = 'CLOUDFLARE';
+
+// Legacy Reference (Safeguard until logic.js Waterfall is fully injected)
+let SCHEDULE_BASE_URL = PIPELINE_SOURCES[PRIMARY_DATA_SOURCE].url;
 
 // Dynamic Data (Admin Bans, Alerts, Maintenance) ALWAYS uses Firebase for real-time capability.
 const DYNAMIC_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";
 
 const REGIONS = {
     'GP': { 
-        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'full-database.json' : 'schedules/gauteng.json', 
+        dbNode: 'schedules/gauteng.json', 
+        rootNode: 'full-database.json',
         name: 'Gauteng' 
     },
     'WC': { 
-        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'full-database.json' : 'schedules/westerncape.json', 
+        dbNode: 'schedules/westerncape.json', 
+        rootNode: 'full-database.json',
         name: 'Western Cape' 
     },
     'KZN': { 
-        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'full-database.json' : 'schedules/kzn.json', 
+        dbNode: 'schedules/kzn.json', 
+        rootNode: 'full-database.json',
         name: 'KwaZulu-Natal' 
     },
     'EC': { 
-        dbNode: DATA_SOURCE_MODE === 'GITHUB' ? 'full-database.json' : 'schedules/easterncape.json', 
+        dbNode: 'schedules/easterncape.json', 
+        rootNode: 'full-database.json',
         name: 'Eastern Cape' 
     }
 };

@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7 05.23 - Stabilization Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7 05.29 - Stabilization Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -1201,6 +1201,41 @@ async function loadAllSchedules(force = false) {
             return; 
         }
 
+        // 🛡️ GUARDIAN PHASE 4B: The Captive Portal Pre-Flight Check
+        try {
+            const preFlightController = new AbortController();
+            const preFlightTimeout = setTimeout(() => preFlightController.abort(), 2000); // 2-second fast fail
+            
+            // Ping an external lightweight file that should NEVER be HTML
+            const pingRes = await fetch(`https://nexttrain-cache.enock.workers.dev/config/maintenance.json?t=${Date.now()}`, { 
+                signal: preFlightController.signal,
+                cache: 'no-store'
+            });
+            clearTimeout(preFlightTimeout);
+            
+            const contentType = pingRes.headers.get('content-type') || '';
+            if (contentType.includes('text/html')) {
+                console.warn("🛡️ Guardian: Captive Portal detected (HTML returned instead of JSON). Engaging Lie-Fi Offline Mode.");
+                window.isLieFi = true;
+                
+                const oi = document.getElementById('offline-indicator');
+                if (oi) oi.style.display = 'flex';
+                
+                const offlineToast = document.getElementById('offline-toast');
+                if (offlineToast) {
+                    offlineToast.classList.remove('translate-y-[150%]', 'opacity-0');
+                    if (window._lieFiToastTimeout) clearTimeout(window._lieFiToastTimeout);
+                    window._lieFiToastTimeout = setTimeout(() => {
+                        offlineToast.classList.add('translate-y-[150%]', 'opacity-0');
+                    }, 4000);
+                }
+                return; // HALT WATERFALL BEFORE HEAVY DOWNLOADS
+            }
+        } catch (e) {
+            // Ignore fetch errors/timeouts here; the waterfall will handle standard network drops
+            console.log("🛡️ Guardian: Pre-flight check complete or timed out. Proceeding to waterfall.");
+        }
+
         const wasKilled = await checkKillswitch(force);
         if (wasKilled || fetchSignal.aborted || currentRouteId !== requestedRouteId) return; 
 
@@ -1272,16 +1307,61 @@ async function loadAllSchedules(force = false) {
         }
 
         if (needsDownload) {
-            const activeScheduleUrl = typeof SCHEDULE_BASE_URL !== 'undefined' ? SCHEDULE_BASE_URL : FIREBASE_BASE_URL;
-            const regionDbUrl = activeScheduleUrl + REGIONS[currentRegion].dbNode;
-            
-            const response = await window.guardianFetch(regionDbUrl, { signal: fetchSignal }, 10000);
-            
-            if (fetchSignal.aborted || currentRouteId !== requestedRouteId) return; 
+            let newDatabase = null;
+            let fetchSuccess = false;
 
-            if (!response.ok) throw new Error("Schedule Data fetch failed");
-            const newDatabase = await response.json();
-            if (!newDatabase) throw new Error("Empty database");
+            // 🛡️ GUARDIAN PHASE 5: The Waterfall Failover Engine (Hardcoded to protect Firebase Quotas)
+            let sourcesToTry = ['CLOUDFLARE', 'FIREBASE', 'GITHUB'];
+
+            // 🛡️ GUARDIAN PHASE 4 (ADMIN): The Waterfall Override Hook
+            let devForceSource = null;
+            try { devForceSource = sessionStorage.getItem('dev_force_source'); } catch(e){}
+            if (devForceSource && window.isSimMode) {
+                sourcesToTry = [devForceSource];
+                console.warn(`🛡️ Admin Simulator: Bypassing Waterfall. Forcing pipeline -> [${devForceSource}]`);
+            }
+
+            for (const sourceKey of sourcesToTry) {
+                if (fetchSignal.aborted || currentRouteId !== requestedRouteId) return;
+
+                let regionDbUrl = "";
+                if (typeof PIPELINE_SOURCES !== 'undefined' && PIPELINE_SOURCES[sourceKey]) {
+                    const sourceConfig = PIPELINE_SOURCES[sourceKey];
+                    // Route unified Github payload directly to root, else use nested region paths
+                    const nodePath = sourceConfig.useRootNode ? REGIONS[currentRegion].rootNode : REGIONS[currentRegion].dbNode;
+                    regionDbUrl = sourceConfig.url + nodePath;
+                } else {
+                    // Legacy fallback
+                    const activeScheduleUrl = typeof SCHEDULE_BASE_URL !== 'undefined' ? SCHEDULE_BASE_URL : FIREBASE_BASE_URL;
+                    regionDbUrl = activeScheduleUrl + REGIONS[currentRegion].dbNode;
+                }
+
+                try {
+                    console.log(`🛡️ Guardian: Attempting schedule fetch via [${sourceKey}]...`);
+                    
+                    // 🛡️ GUARDIAN FIX: Aggressive 3-second timeout for Cloudflare to ensure instant failover to Firebase
+                    const timeoutMs = sourceKey === 'CLOUDFLARE' ? 3000 : 10000;
+                    const response = await window.guardianFetch(regionDbUrl, { signal: fetchSignal }, timeoutMs);
+                    
+                    if (fetchSignal.aborted || currentRouteId !== requestedRouteId) return; 
+                    
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    newDatabase = await response.json();
+                    
+                    if (!newDatabase) throw new Error("Empty database payload");
+
+                    console.log(`✅ Guardian: Successfully fetched schedule data via [${sourceKey}]`);
+                    fetchSuccess = true;
+                    break; // Exit the waterfall loop on success!
+                } catch (e) {
+                    if (e.name === 'AbortError') throw e; // Pass intentional UI aborts up to the main catch block
+                    console.warn(`⚠️ Guardian: [${sourceKey}] failed (${e.message}). Cascading to next fallback...`);
+                }
+            }
+
+            if (!fetchSuccess || !newDatabase) {
+                throw new Error("All data pipeline endpoints failed (Waterfall Exhausted)");
+            }
 
             const newStr = JSON.stringify(newDatabase);
             const oldStr = cachedDB ? JSON.stringify(cachedDB.data) : "";

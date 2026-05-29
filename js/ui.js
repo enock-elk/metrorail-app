@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7 05.23 - Stabilization Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7 05.29 - Stabilization Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -1236,23 +1236,48 @@ window.showCacheClearWarning = function() {
     openSmoothModal('cache-clear-modal');
 }
 
-// --- GUARDIAN PHASE 5.1: THE AD INTERCEPTOR (Monetization Fix) ---
+// --- GUARDIAN PHASE 5.1: THE AD INTERCEPTOR (Eager Init & Verified Telemetry) ---
 function initAdInterceptor() {
     if (window._adScriptInjected) return;
 
-    const checkAndInject = () => {
-        if (window._adScriptInjected) return;
+    // 1. Check Version Enforcer state (prevent firing right before a hard reload)
+    const currentVersion = typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown';
+    const storedVersion = safeStorage.getItem('app_installed_version');
+    const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
+    if (storedVersion && storedVersion !== currentVersion && isForceUpdate) {
+        console.log("🛡️ AdInterceptor: Pending force update detected. Holding injection.");
+        return; 
+    }
 
-        // 1. Check Version Enforcer state (prevent firing right before a hard reload)
-        const currentVersion = typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown';
-        const storedVersion = safeStorage.getItem('app_installed_version');
-        const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
-        if (storedVersion && storedVersion !== currentVersion && isForceUpdate) {
-            console.log("🛡️ AdInterceptor: Pending force update detected. Holding injection.");
-            return; 
+    window._adScriptInjected = true;
+    console.log("🛡️ AdInterceptor: Eagerly injecting Monetization Engine in background.");
+
+    // ACTION 1: Eager Injection (Pre-load ad payload silently)
+    (function (document, window) {
+        var a, c = document.createElement("script"), f = window.frameElement;
+        c.id = "CleverCoreLoader103008";
+        c.src = "https://scripts.cleverwebserver.com/a399a0d9cfe9817e0ccd10f89b4e320a.js";
+        c.async = !0;
+        c.type = "text/javascript";
+        c.setAttribute("data-target", window.name || (f && f.getAttribute("id")));
+        c.setAttribute("data-callback", "put-your-callback-function-here");
+        c.setAttribute("data-callback-url-click", "put-your-click-macro-here");
+        c.setAttribute("data-callback-url-view", "put-your-view-macro-here");
+        try {
+            a = parent.document.getElementsByTagName("script")[0] || document.getElementsByTagName("script")[0];
+        } catch (e) {
+            a = !1;
         }
+        a || (a = document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]);
+        a.parentNode.insertBefore(c, a);
+    })(document, window);
 
-        // 2. State Verification
+    // ACTION 2 & 3: Safe Unhiding & Verified Telemetry
+    const checkAndUnhide = () => {
+        // Locate the ad container (adjust selector based on your exact HTML structure)
+        const adContainer = document.getElementById('ad-container') || document.querySelector('.clever-core-ad') || document.querySelector('[id^="clever-"]');
+
+        // State Verification
         const hash = location.hash;
         const isMainRoute = (hash === '' || hash === '#home');
         
@@ -1268,48 +1293,46 @@ function initAdInterceptor() {
         const gridModal = document.getElementById('full-schedule-modal');
         const isGridHidden = !gridModal || gridModal.classList.contains('hidden');
 
-        // 🛡️ GUARDIAN FIX: Also ensure database has hydrated (meaning initial syncs/reloads are done)
         const isDbReady = typeof fullDatabase !== 'undefined' && fullDatabase !== null;
-
-        // 🛡️ GUARDIAN PHASE 3.3: Mutex Lock Check to prevent Ad injection during active animations/initializations
         const isMutexLocked = window._isModalAnimating || window._isMapInitializing;
 
-        if (isDbReady && isMainRoute && isWelcomeHidden && isMapHidden && isTripMapHidden && isGridHidden && !isMutexLocked) {
-            window._adScriptInjected = true;
-            console.log("🛡️ AdInterceptor: Safe zone, stable state, and Mutex unlocked. Injecting Monetization Engine.");
-            
-            // Track the impression internally
-            if (typeof trackAnalyticsEvent === 'function') {
-                trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard' });
-            }
-            
-            (function (document, window) {
-                var a, c = document.createElement("script"), f = window.frameElement;
-                c.id = "CleverCoreLoader103008";
-                c.src = "https://scripts.cleverwebserver.com/a399a0d9cfe9817e0ccd10f89b4e320a.js";
-                c.async = !0;
-                c.type = "text/javascript";
-                c.setAttribute("data-target", window.name || (f && f.getAttribute("id")));
-                c.setAttribute("data-callback", "put-your-callback-function-here");
-                c.setAttribute("data-callback-url-click", "put-your-click-macro-here");
-                c.setAttribute("data-callback-url-view", "put-your-view-macro-here");
-                try {
-                    a = parent.document.getElementsByTagName("script")[0] || document.getElementsByTagName("script")[0];
-                } catch (e) {
-                    a = !1;
-                }
-                a || (a = document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]);
-                a.parentNode.insertBefore(c, a);
-            })(document, window);
+        const isSafeZone = isDbReady && isMainRoute && isWelcomeHidden && isMapHidden && isTripMapHidden && isGridHidden && !isMutexLocked;
 
-        } else {
-            // Keep polling gently until user returns to the main dashboard
-            setTimeout(checkAndInject, 1500);
+        if (adContainer) {
+            if (isSafeZone) {
+                adContainer.classList.remove('hidden');
+                
+                // Attach Intersection Observer if telemetry hasn't fired yet
+                if (!window._adTelemetryFired) {
+                    if ('IntersectionObserver' in window) {
+                        const observer = new IntersectionObserver((entries, obs) => {
+                            if (entries[0].isIntersecting) {
+                                window._adTelemetryFired = true;
+                                if (typeof trackAnalyticsEvent === 'function') {
+                                    trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: true });
+                                    console.log("📈 Ad View Verified via IntersectionObserver.");
+                                }
+                                obs.disconnect(); // Detach to ensure we only log the view once per session
+                            }
+                        }, { threshold: 0.5 }); // Requires 50% of the ad to be visible
+                        observer.observe(adContainer);
+                    } else {
+                        // Fallback for ancient browsers
+                        window._adTelemetryFired = true;
+                        if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'fallback' });
+                    }
+                }
+            } else {
+                adContainer.classList.add('hidden');
+            }
         }
+
+        // Keep polling gently to monitor UI state changes (hides ad if a modal opens)
+        setTimeout(checkAndUnhide, 1500);
     };
 
-    // 2500ms initial delay gives the PWA Service Worker & Version Enforcer time to trigger a reload if needed
-    setTimeout(checkAndInject, 2500);
+    // 2500ms initial delay before checking if it's safe to unhide
+    setTimeout(checkAndUnhide, 2500);
 }
 
 function initializeApp() {
@@ -3041,7 +3064,8 @@ if ('serviceWorker' in navigator) {
             try { sessionStorage.setItem('sw_last_reload', now.toString()); } catch(e) {}
 
             refreshing = true;
-            window.location.reload(); 
+            // 🛡️ GUARDIAN PHASE 2: Cache-Busting hard redirect to drop stale HTML
+            window.location.href = window.location.pathname + '?v=' + Date.now(); 
         });
         
         navigator.serviceWorker.addEventListener('message', event => {
@@ -3079,7 +3103,8 @@ window.triggerAppUpdate = function() {
         showToast("Updating...", "success");
         window._pendingUpdateReg.waiting.postMessage({ type: 'SKIP_WAITING' });
     } else {
-        window.location.reload();
+        // 🛡️ GUARDIAN PHASE 2: Cache-Busting hard redirect
+        window.location.href = window.location.pathname + '?v=' + Date.now();
     }
 };
 
@@ -3401,7 +3426,8 @@ window.handleUpdateClick = async function(newVersion) {
     }
     
     safeStorage.setItem('app_installed_version', newVersion);
-    window.location.reload(true);
+    // 🛡️ GUARDIAN PHASE 2: Cache-Busting hard redirect
+    window.location.href = window.location.pathname + '?v=' + Date.now();
 };
 
 // --- DOM READY ---

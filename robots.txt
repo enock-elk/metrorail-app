@@ -9,6 +9,11 @@ Disallow: /404.html
 Disallow: /offline.html
 Disallow: /cdn-cgi/
 
+# Block parameterized SEO routes to prevent index bloat
+
+Disallow: /*?route=
+Disallow: /*?region=
+
 # Point to the Sitemap
 
 Sitemap: https://nexttrain.co.za/sitemap.xml

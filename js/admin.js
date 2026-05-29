@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7 05.23 - Stabilization Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7 05.29 - Stabilization Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -440,6 +440,11 @@ const Admin = {
             if (!isMini && labelsArray[i]) {
                 const dayColor = isToday ? todayColor : labelColor;
                 svg += `<text x="${vx}" y="${pt+uh+20}" font-family="sans-serif" font-size="11" font-weight="800" fill="${dayColor}" text-anchor="middle">${labelsArray[i]}</text>`;
+                
+                // 🛡️ GUARDIAN UX FIX: Restore data counts directly on the graph for macro reports
+                if (Admin.telemetryRange !== 'INTRADAY') {
+                    svg += `<text x="${vx}" y="${vy - 10}" font-family="sans-serif" font-size="11" font-weight="900" fill="${dayColor}" text-anchor="middle">${val}</text>`;
+                }
             }
         }
         
@@ -1128,11 +1133,29 @@ const Admin = {
     setupSimulationControls: () => {
         const simApplyBtn = document.getElementById('sim-apply-btn');
         const simExitBtn = document.getElementById('sim-exit-btn');
+        
+        // 🛡️ GUARDIAN PHASE 4: Inject Pipeline Simulator UI
+        if (simApplyBtn && !document.getElementById('sim-pipeline-override')) {
+            const pipelineHtml = `
+                <div class="mt-4 pt-4 pb-4 border-t border-gray-200 dark:border-gray-700 w-full">
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Data Pipeline Override (Local)</label>
+                    <select id="sim-pipeline-override" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="AUTO">AUTO (Default Waterfall)</option>
+                        <option value="CLOUDFLARE">Force Edge Cache (Cloudflare)</option>
+                        <option value="GITHUB">Force CDN (GitHub)</option>
+                        <option value="FIREBASE">Force Direct (Firebase)</option>
+                    </select>
+                </div>
+            `;
+            simApplyBtn.parentElement.insertAdjacentHTML('beforebegin', pipelineHtml);
+        }
+
         const simEnabledCheckbox = document.getElementById('sim-enabled');
         const simTimeInput = document.getElementById('sim-time');
         const dayDropdown = document.getElementById('sim-day');
         const dateContainer = document.getElementById('sim-date-container');
         const dateInput = document.getElementById('sim-date');
+        const pipelineDropdown = document.getElementById('sim-pipeline-override');
 
         if (dayDropdown && dateContainer && dateInput) {
             dayDropdown.addEventListener('change', () => {
@@ -1154,6 +1177,13 @@ const Admin = {
 
                 window.isSimMode = true;
                 window.simTimeStr = simTimeInput.value + (simTimeInput.value.length === 5 ? ":00" : "");
+                
+                // 🛡️ GUARDIAN PHASE 4: Save Pipeline Override to sessionStorage
+                if (pipelineDropdown && pipelineDropdown.value !== 'AUTO') {
+                    try { sessionStorage.setItem('dev_force_source', pipelineDropdown.value); } catch(e){}
+                } else {
+                    try { sessionStorage.removeItem('dev_force_source'); } catch(e){}
+                }
                 
                 if (dayDropdown && dayDropdown.value === 'specific') {
                     if (dateInput && dateInput.value) {
@@ -1185,6 +1215,11 @@ const Admin = {
                 window.isSimMode = false;
                 if(simEnabledCheckbox) simEnabledCheckbox.checked = false;
                 
+                // 🛡️ GUARDIAN PHASE 4: Clear Pipeline Override on exit
+                try { sessionStorage.removeItem('dev_force_source'); } catch(e){}
+                const pipelineDropdown = document.getElementById('sim-pipeline-override');
+                if (pipelineDropdown) pipelineDropdown.value = 'AUTO';
+
                 if (typeof showToast === 'function') showToast("Exited Developer Mode", "info");
                 
                 if (location.hash === '#dev') history.back();
@@ -1195,7 +1230,6 @@ const Admin = {
             });
         }
     },
-
     // --- GROWTH SPRINT PHASE 7: CRASH REPORTS DASHBOARD ---
     setupCrashReportsManager: () => {
         const adminContainer = document.getElementById('admin-modules-container');
@@ -1349,7 +1383,7 @@ const Admin = {
                             </div>
                             <div class="flex flex-col space-y-1 bg-gray-50 dark:bg-gray-800/50 p-2 rounded border border-gray-100 dark:border-gray-700">
                                 <span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider">Route: <span class="text-blue-500">${safeRoute}</span></span>
-                                <span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider">App: <span class="text-gray-800 dark:text-gray-200">${safeAppVersion}</span></span>
+                                <span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider">App: <span class="text-gray-800 dark:text-gray-200">${safeAppVersion.split(' - ')[0]}</span></span>
                                 <span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider leading-tight">OS: <span class="text-gray-800 dark:text-gray-200 whitespace-normal break-words">${safeOS}</span></span>
                             </div>
                             ${actionHtml}
@@ -1498,6 +1532,28 @@ const Admin = {
                     .admin-grid-view > div button[id$="-header-btn"] span[id$="-unread-badge"]:not(.hidden) { display: block !important; }
                 `;
                 document.head.appendChild(style);
+            }
+
+            // 🛡️ GUARDIAN UX FIX: Drill-Down "X" Interceptor
+            if (closeBtn) {
+                // Remove the inline onclick from index.html that blindly closes the modal
+                closeBtn.removeAttribute('onclick');
+                
+                // Bind intelligent routing logic
+                closeBtn.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    if (!Admin.isGridMode) {
+                        // If drilled down, press the virtual back button
+                        const drillBack = document.getElementById('drill-back-btn');
+                        if (drillBack) drillBack.click();
+                    } else {
+                        // If on the grid, behave normally and close the modal
+                        if (location.hash === '#dev') history.back();
+                        else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
+                    }
+                };
             }
 
             // Bind Toggle Action (GUARDIAN Phase 4: Dynamic Column Cycling 1, 2, 3)
@@ -1725,7 +1781,7 @@ const Admin = {
         const listDiv = document.getElementById('de-list');
 
         // 🛡️ GUARDIAN PHASE 2: Dynamic Sorting State
-        Admin._deSortMode = Admin._deSortMode || 'hits'; 
+        Admin._deSortMode = Admin._deSortMode || 'recent'; 
 
         if (sortBtn) {
             sortBtn.textContent = Admin._deSortMode === 'hits' ? 'Sort: Hits' : 'Sort: Recent';
@@ -1799,7 +1855,7 @@ const Admin = {
                 listDiv.innerHTML = '';
                 
                 sorted.forEach(item => {
-                    const dateStr = new Date(item.lastSeen).toLocaleDateString([], { month: 'short', day: 'numeric' });
+                    const dateStr = new Date(item.lastSeen).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                     const card = document.createElement('div');
                     card.className = "bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between transition-colors hover:border-blue-300";
                     
@@ -2166,7 +2222,7 @@ const Admin = {
                         const integratedHeaderHtml = `
                             <div class="text-[9px] font-black ${headerColorClass} uppercase tracking-widest mb-1.5 border-b border-gray-200 dark:border-gray-700 pb-1 flex justify-between items-center w-full">
                                 <span class="whitespace-nowrap">${headerLabelText}</span>
-                                <span class="font-mono font-medium opacity-60 ml-2 truncate">${safeAppVersion.split(' ')[0]} • ${safeRouteId}</span>
+                                <span class="font-mono font-medium opacity-60 ml-2 truncate">${safeAppVersion.split(' - ')[0]} • ${safeRouteId}</span>
                             </div>
                         `;
 
@@ -2195,7 +2251,7 @@ const Admin = {
                          <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived Thread</span>
                          <div class="flex space-x-2">
                              <button class="text-blue-600 hover:text-white hover:bg-blue-600 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors focus:outline-none uppercase tracking-wide border border-blue-200 shadow-sm" onclick="Admin.restoreFeedback('${feedbackId}')">Restore</button>
-                             <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteFeedback('${feedbackId}')">Delete</button>
+                             <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteFeedback('${feedbackId}', '${did}')">Delete</button>
                          </div>
                        </div>`;
 
@@ -2333,19 +2389,35 @@ const Admin = {
             }
         };
 
-        // GUARDIAN PHASE 11: Permanent Feed Deletion
-        Admin.deleteFeedback = async (id) => {
-            const confirmed = await Admin.secureConfirm("Delete Feedback", "Permanently delete this feedback entry?");
+        // GUARDIAN PHASE 11: Permanent Feed Deletion (Cascading Thread Wipe)
+        Admin.deleteFeedback = async (feedbackId, deviceId) => {
+            const confirmed = await Admin.secureConfirm("Delete Thread", "Permanently delete this entire feedback thread and all admin replies?");
             if (!confirmed) return;
             const secret = await Admin.getAuthKey();
             if (!secret) return;
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                await fetch(`${dynamicEndpoint}feedback/${id}.json?auth=${secret}`, { method: 'DELETE' });
-                if (typeof showToast === 'function') showToast("Feedback deleted.", "success");
+                
+                const promises = [];
+                // 1. Sweep and delete all commuter tickets tied to this device
+                if (deviceId && deviceId !== 'Anonymous / Legacy') {
+                    const related = Admin.cachedFeedbackData.filter(f => !f.isFromAdmin && (f.device_id === deviceId || f.deviceId === deviceId));
+                    related.forEach(f => {
+                        promises.push(fetch(`${dynamicEndpoint}feedback/${f.id}.json?auth=${secret}`, { method: 'DELETE' }));
+                    });
+                    // 2. Cascade delete the orphaned inbox node
+                    promises.push(fetch(`${dynamicEndpoint}inbox/${deviceId}.json?auth=${secret}`, { method: 'DELETE' }));
+                } else {
+                    // Fallback for legacy anonymous tickets
+                    promises.push(fetch(`${dynamicEndpoint}feedback/${feedbackId}.json?auth=${secret}`, { method: 'DELETE' }));
+                }
+                
+                await Promise.all(promises);
+
+                if (typeof showToast === 'function') showToast("Thread deleted.", "success");
                 Admin.fetchFeedback();
             } catch (e) {
-                if (typeof showToast === 'function') showToast("Error deleting feedback.", "error");
+                if (typeof showToast === 'function') showToast("Error deleting thread.", "error");
             }
         };
 
@@ -4034,6 +4106,14 @@ const Admin = {
                     </div>
                 </div>
 
+                <!-- 🛡️ GUARDIAN: Data Pipeline Ping Tool -->
+                <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-600 mt-2 mb-2">
+                    <button id="ping-diagnostics-btn" class="w-full bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 font-bold py-2 rounded-lg shadow-sm transition-colors text-[10px] uppercase tracking-wide focus:outline-none flex justify-center items-center">
+                        <span class="mr-2 text-sm">📡</span> Ping Endpoints
+                    </button>
+                    <div id="ping-results" class="hidden mt-3 space-y-1.5"></div>
+                </div>
+
                 <button id="diag-run-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors text-xs uppercase tracking-wide focus:outline-none">
                     Run Network Scan
                 </button>
@@ -4046,6 +4126,42 @@ const Admin = {
         const chevron = document.getElementById('diag-chevron');
         const runBtn = document.getElementById('diag-run-btn');
         const resultsDiv = document.getElementById('diag-results');
+
+        // --- PIPELINE DIAGNOSTICS LOGIC ---
+        const pingBtn = document.getElementById('ping-diagnostics-btn');
+        const pingResults = document.getElementById('ping-results');
+
+        if (pingBtn) {
+            pingBtn.onclick = async () => {
+                pingResults.classList.remove('hidden');
+                pingResults.innerHTML = '<div class="text-[10px] text-gray-500 italic text-center py-2">Pinging endpoints...</div>';
+                
+                const endpoints = [
+                    { name: 'Cloudflare', url: 'https://nexttrain-cache.enock.workers.dev/config/maintenance.json' },
+                    { name: 'Firebase', url: 'https://metrorail-next-train-default-rtdb.firebaseio.com/config/maintenance.json' },
+                    { name: 'GitHub', url: 'https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/manifest.json' }
+                ];
+
+                let resultsHtml = '';
+                
+                for (const ep of endpoints) {
+                    const start = Date.now();
+                    try {
+                        const res = await fetch(ep.url + '?t=' + Date.now(), { cache: 'no-store' });
+                        const latency = Date.now() - start;
+                        if (res.ok) {
+                            resultsHtml += `<div class="flex justify-between items-center text-[10px] p-2 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-lg border border-green-200 dark:border-green-800/50 shadow-sm"><span class="font-bold">${ep.name}</span> <span class="font-mono bg-green-100 dark:bg-green-800 px-1.5 py-0.5 rounded">${latency}ms (OK)</span></div>`;
+                        } else {
+                            resultsHtml += `<div class="flex justify-between items-center text-[10px] p-2 bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300 rounded-lg border border-orange-200 dark:border-orange-800/50 shadow-sm"><span class="font-bold">${ep.name}</span> <span class="font-mono bg-orange-100 dark:bg-orange-800 px-1.5 py-0.5 rounded">HTTP ${res.status}</span></div>`;
+                        }
+                    } catch(e) {
+                        const latency = Date.now() - start;
+                        resultsHtml += `<div class="flex justify-between items-center text-[10px] p-2 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 rounded-lg border border-red-200 dark:border-red-800/50 shadow-sm"><span class="font-bold">${ep.name}</span> <span class="font-mono bg-red-100 dark:bg-red-800 px-1.5 py-0.5 rounded">Fail (${latency}ms)</span></div>`;
+                    }
+                }
+                pingResults.innerHTML = resultsHtml;
+            };
+        }
 
         header.onclick = () => {
             if (Admin.isGridMode) return; // Prevent accordion action when in grid

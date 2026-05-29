@@ -39,7 +39,7 @@
         <!-- HEADER -->
         <header class="border-b border-gray-700 pb-8 mb-8">
             <h1 class="text-4xl font-black text-white mb-2">Project Handover</h1>
-            <p class="text-xl text-blue-400 font-bold">Metrorail Next Train (Guardian Edition V6.04.05)</p>
+            <p class="text-xl text-blue-400 font-bold">Metrorail Next Train (Guardian Edition V7.05.28)</p>
             <p class="text-gray-400 mt-2">Technical Documentation & Operational Protocols</p>
         </header>
 
@@ -53,10 +53,10 @@
                     <h3 class="font-bold text-lg text-blue-300 mb-3">Core Stack</h3>
                     <ul class="space-y-2 text-sm text-gray-300">
                         <li><strong>Frontend:</strong> Vanilla JS + Tailwind CSS (via CDN).</li>
-                        <li><strong>Data Source:</strong> Firebase Realtime Database (JSON) & GitHub jsDelivr.</li>
+                        <li><strong>Data Pipeline (Waterfall):</strong> Cloudflare Edge (Primary) ➔ GitHub CDN (Fallback) ➔ Firebase RTDB (Failsafe).</li>
                         <li><strong>Local Cache:</strong> IndexedDB (NextTrainDB) with RAM fallback.</li>
-                        <li><strong>Hosting:</strong> GitHub Pages (Enforced HTTPS).</li>
-                        <li><strong>Routing:</strong> Cloudflare DNS (Proxied) + Cloudflare Workers (Telemetry).</li>
+                        <li><strong>Rendering Engine:</strong> SPA currently, transitioning to Astro "Islands" Architecture (Zero-JS SSG for schedules).</li>
+                        <li><strong>Routing:</strong> Cloudflare DNS (Proxied) + Cloudflare Edge Workers (Telemetry & Social Bots).</li>
                     </ul>
                 </div>
                 <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
@@ -65,9 +65,8 @@
                         <li><code class="text-yellow-400">index.html</code>: App shell & Analytics container.</li>
                         <li><code class="text-yellow-400">js/logic.js</code>: Data fetching, state & Holiday logic.</li>
                         <li><code class="text-yellow-400">js/planner-core.js</code>: Trip planning (Dijkstra + Hub Bans).</li>
-                        <li><code class="text-yellow-400">js/config.js</code>: Routes, Regions (GP/WC), Fares & Constants.</li>
+                        <li><code class="text-yellow-400">js/config.js</code>: Routes, Regions (GP/WC/KZN/EC), Fares & Constants.</li>
                         <li><code class="text-yellow-400">map.html</code>: Interactive Map (Hybrid Engine: Dynamic + Static).</li>
-                        <li><code class="text-gray-500 line-through">js/map-data.js</code>: (Deprecated/Merged into map.html).</li>
                         <li><code class="text-yellow-400">status.html</code>: Live system health and roadmap tracker.</li>
                         <li><code class="text-yellow-400">marketing.html</code>: Printable A5 flyers and social assets.</li>
                         <li><code class="text-yellow-400">service-worker.js</code>: Offline caching logic (Cache-First/Stale-While-Revalidate).</li>
@@ -82,7 +81,7 @@
                 <span class="bg-red-900/50 p-2 rounded-lg mr-3 text-xl">🚨</span> Critical Protocols (Non-Negotiable)
             </h2>
             <div class="bg-red-900/20 border border-red-800 rounded-xl p-6">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <h4 class="font-bold text-red-400 mb-2">1. Analytics Inviolability</h4>
                         <p class="text-sm text-gray-300">
@@ -105,7 +104,6 @@
                             <span class="block mt-2 font-bold text-white">DO NOT re-introduce strict directionality checks.</span>
                         </p>
                     </div>
-                    <!-- GUARDIAN PHASE 6 ADDITIONS -->
                     <div>
                         <h4 class="font-bold text-red-400 mb-2">4. Storage Safety (Crash Immunity)</h4>
                         <p class="text-sm text-gray-300">
@@ -127,6 +125,35 @@
                             <span class="block mt-2 font-bold text-white">NEVER bypass the <code>_lastGridTrackTime</code> lock.</span> App Version tags must always append to events.
                         </p>
                     </div>
+                    <!-- GUARDIAN PHASE 1-5 DEEP TECH ADDITIONS -->
+                    <div>
+                        <h4 class="font-bold text-red-400 mb-2">7. Firebase Export Sanitization</h4>
+                        <p class="text-sm text-gray-300">
+                            Raw Firebase JSON exports MUST be scrubbed of <code>admin_state</code>, <code>feedback</code>, <code>sys_logs</code>, and <code>inbox</code> nodes. 
+                            <span class="block mt-2 font-bold text-white">NEVER commit private nodes to public GitHub</span> to prevent massive PII data leaks and RAM bloat.
+                        </p>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-red-400 mb-2">8. Ad-Blocker Evasion</h4>
+                        <p class="text-sm text-gray-300">
+                            Telemetry beacons to Firebase MUST use <code>PUT</code> requests directed to <code>/sys_logs/</code> instead of <code>POST</code> to <code>/telemetry/</code>. 
+                            <span class="block mt-2 font-bold text-white">NEVER use "telemetry" or "analytics" in paths</span> to evade regex filters and restrictive rules.
+                        </p>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-red-400 mb-2">9. WebView Breakouts</h4>
+                        <p class="text-sm text-gray-300">
+                            Use Android <code>intent://</code> links and iOS "Three Dots" UI guides. 
+                            <span class="block mt-2 font-bold text-white">ALWAYS rip users out of Facebook/IG captive browsers</span> to secure the PWA installation natively in Safari/Chrome.
+                        </p>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-red-400 mb-2">10. Lie-Fi Deadlock Guard</h4>
+                        <p class="text-sm text-gray-300">
+                            <code>guardianFetch</code> must use <code>AbortControllers</code>. 
+                            <span class="block mt-2 font-bold text-white">ALWAYS cleanly differentiate deliberate route swaps from genuine network timeouts</span> to prevent permanent offline-state deadlocks.
+                        </p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -140,8 +167,8 @@
                 <table class="w-full text-left text-sm text-gray-300">
                     <thead class="bg-gray-700 text-gray-200">
                         <tr>
-                            <th class="p-4">Action</th>
-                            <th class="p-4">Procedure</th>
+                            <th class="p-4 w-1/4">Action</th>
+                            <th class="p-4 w-3/4">Procedure</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-700">
@@ -151,23 +178,31 @@
                         </tr>
                         <tr>
                             <td class="p-4 font-bold text-white">Deploy Code</td>
-                            <td class="p-4">Commit to <code>main</code> branch. GitHub Pages auto-deploys. Ensure <code>CNAME</code> exists.</td>
+                            <td class="p-4">Commit to <code>main</code> branch. GitHub Pages auto-deploys via Cloudflare Proxy. Ensure <code>CNAME</code> exists.</td>
                         </tr>
                         <tr>
                             <td class="p-4 font-bold text-white">PWA Update</td>
                             <td class="p-4">
-                                Increment <code>CACHE_NAME</code> in <code>service-worker.js</code> (e.g., v4.57 -> v6.04). 
-                                Users get update on next visit.
+                                Increment <code>CACHE_NAME</code> in <code>service-worker.js</code> (e.g., v7.04 -> v7.05). 
+                                Users get background silent update or forced reload via <code>config.js</code>.
                             </td>
                         </tr>
                         <tr>
                             <td class="p-4 font-bold text-white">Add New Route</td>
                             <td class="p-4">
-                                1. Add Sheet to App Script.
-                                2. Add config block to <code>js/config.js</code>.
-                                3. Add static array fallback to <code>map.html</code>.
+                                1. Add Sheet to App Script.<br>
+                                2. Add config block to <code>js/config.js</code>.<br>
+                                3. Add static array fallback to <code>map.html</code>.<br>
                                 4. Add link to Side Nav in <code>index.html</code>.
                             </td>
+                        </tr>
+                        <tr>
+                            <td class="p-4 font-bold text-white">RBAC Management</td>
+                            <td class="p-4">Co-admins are managed via the <code>/admin_roles</code> Firebase node. Editor roles automatically hide destructive actions (e.g., Nuclear Wipe) from the Dev Hub.</td>
+                        </tr>
+                        <tr>
+                            <td class="p-4 font-bold text-white">Sync Social Assets (OG)</td>
+                            <td class="p-4">Trigger the "Sync Social Previews" loop in Admin Hub to auto-snap HTML2Canvas PNGs of all grids and upload to Firebase Storage for WhatsApp/iMessage bot previews.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -177,24 +212,24 @@
         <!-- 4. GROWTH ROADMAP SUMMARY -->
         <section class="mb-12">
             <h2 class="text-2xl font-bold text-white mb-4 flex items-center">
-                <span class="bg-purple-900/50 p-2 rounded-lg mr-3 text-xl">🔮</span> Upcoming Features (Growth Mode)
+                <span class="bg-purple-900/50 p-2 rounded-lg mr-3 text-xl">🔮</span> Upcoming Features (Enterprise Scale)
             </h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                    <div class="text-purple-400 font-bold mb-1">1. Holiday Automation</div>
-                    <p class="text-xs text-gray-400">Algorithmic calculation of Easter/Public Holidays to replace hardcoded lists.</p>
+                    <div class="text-purple-400 font-bold mb-1">1. Astro SSG Migration</div>
+                    <p class="text-xs text-gray-400">Rebuild SPA shell into Astro. Pre-render 500+ physical HTML route pages for absolute SEO dominance.</p>
                 </div>
                 <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                    <div class="text-purple-400 font-bold mb-1">2. "Track My Train"</div>
-                    <p class="text-xs text-gray-400">WhatsApp itinerary generator for viral sharing.</p>
+                    <div class="text-purple-400 font-bold mb-1">2. "Proof of Delay" Gen</div>
+                    <p class="text-xs text-gray-400">Downloadable, timestamped PDF late notes for employers when the Dijkstra engine detects a severed line.</p>
                 </div>
                 <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                    <div class="text-purple-400 font-bold mb-1">3. Live Crowdsourcing</div>
-                    <p class="text-xs text-gray-400">"Report Delay" button to allow users to flag late trains.</p>
+                    <div class="text-purple-400 font-bold mb-1">3. O-D Desire Lines</div>
+                    <p class="text-xs text-gray-400">Aggregating silent "Dead Ends" telemetry to plot a visual heatmap of un-served transit corridors for B2B data licensing.</p>
                 </div>
                 <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                    <div class="text-purple-400 font-bold mb-1">4. Analytics Events</div>
-                    <p class="text-xs text-gray-400">Granular tracking of "Most Searched Routes" in Planner.</p>
+                    <div class="text-purple-400 font-bold mb-1">4. Commuter Pro Tier</div>
+                    <p class="text-xs text-gray-400">A micro-subscription (R15/month) linked to the immutable PWA device ID to disable ads natively.</p>
                 </div>
             </div>
         </section>
@@ -202,7 +237,7 @@
         <!-- FOOTER -->
         <footer class="text-center text-gray-500 text-sm border-t border-gray-700 pt-8">
             <p>Generated by <strong>NextTrain Guardian AI</strong></p>
-            <p class="mt-1">Last Updated: April 2026 (V6.04.05)</p>
+            <p class="mt-1">Last Updated: May 2026 (V7.05.28)</p>
             <a href="index.html" class="inline-block mt-4 text-blue-500 hover:underline">Back to Application</a>
         </footer>
 

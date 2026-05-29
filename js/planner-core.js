@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V7 05.23 - Stabilization Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7 05.29 - Stabilization Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -1496,14 +1496,24 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
         // Probe ONLY if it's the natively requested day (not a future rollover) and we missed the trains.
         if (finalStatus === 'NO_PATH' && !isFutureOffset && !isExplicitOverride) {
             console.log("[GUARDIAN] Commencing Zero-Hour Probe...");
-            context.zeroHourProbeActive = true;
-            const probeTripsRaw = fetchRawTrips(origin, dest, targetDayType, false, context);
-            context.zeroHourProbeActive = false;
             
-            const validProbeTrips = probeTripsRaw.filter(hasValidLayovers);
-            if (validProbeTrips.length === 0) {
-                console.log("[GUARDIAN] Zero-Hour Probe verified 0 valid trips exist from 00:00. Route is IMPOSSIBLE today.");
-                finalStatus = 'IMPOSSIBLE_TODAY';
+            // 🛡️ GUARDIAN PHASE 1: Execution state guard to block infinite recursive probe triggering
+            if (context.zeroHourProbeActive) {
+                console.warn("🛡️ Guardian: Zero-Hour Probe already active! Aborting recursive call.");
+                return { status: 'IMPOSSIBLE_TODAY', trips: [], targetDayLabel };
+            }
+
+            context.zeroHourProbeActive = true;
+            try {
+                const probeTripsRaw = fetchRawTrips(origin, dest, targetDayType, false, context);
+                const validProbeTrips = probeTripsRaw.filter(hasValidLayovers);
+                if (validProbeTrips.length === 0) {
+                    console.log("[GUARDIAN] Zero-Hour Probe verified 0 valid trips exist from 00:00. Route is IMPOSSIBLE today.");
+                    finalStatus = 'IMPOSSIBLE_TODAY';
+                }
+            } finally {
+                // 🛡️ GUARDIAN PHASE 1: Guarantee lock release even if the fetcher crashes
+                context.zeroHourProbeActive = false;
             }
         }
 
@@ -1529,36 +1539,48 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
     let errorPayload = null; // GUARDIAN PHASE 5: Rich Error Payload Container
     
     // If it's a strict manual override, we DO NOT loop. We query exactly once.
-    const maxOffset = isExplicitOverride ? startOffset : startOffset + 7;
+    // 🛡️ GUARDIAN PHASE 1 (Hard Execution Ceiling): Constrain the max offset securely.
+    const MAX_SAFE_ROLLOVER_DAYS = 7;
+    const maxOffset = isExplicitOverride ? startOffset : startOffset + MAX_SAFE_ROLLOVER_DAYS;
     
-    // 🛡️ GUARDIAN PHASE 15: Failsafe Loop Limiter
+    // 🛡️ GUARDIAN PHASE 15 & 1: Failsafe Loop Limiter upgraded to a Hard Execution Ceiling
     let executionCounter = 0;
+    const MAX_EXECUTION_LIMIT = 14;
 
     // We scan up to 7 days ahead from the natively requested start offset
     for (let offset = startOffset; offset <= maxOffset; offset++) {
         
-        // 🛡️ GUARDIAN PHASE 15: Hard execution ceiling to prevent infinite loops causing browser hang
-        if (executionCounter++ > 14) {
-            console.warn("🛡️ Guardian: Unified Trip loop threshold exceeded. Breaking to prevent browser crash.");
+        // 🛡️ GUARDIAN PHASE 1: Absolute hard ceiling to prevent browser freeze or stack explosions
+        // if calendar synchronization logic becomes contradictory.
+        if (executionCounter++ > MAX_EXECUTION_LIMIT) {
+            console.error("🛡️ Guardian: Unified Trip loop threshold critically exceeded. Triggering failsafe abort.");
+            loopStatus = 'ERR_TIMETABLE_MISMATCH'; // Graceful UI fallback
             break;
         }
 
-        const evalResult = evaluateDay(offset);
-        
-        // Capture the exact reason why the route failed on the very first attempted day
-        if (offset === startOffset) {
-            initialStatus = evalResult.status;
-            if (dayType === 'sunday' || evalResult.status === 'SUNDAY_SKIP') {
-                initialStatus = 'SUNDAY_ROLLOVER';
+        try {
+            const evalResult = evaluateDay(offset);
+            
+            // Capture the exact reason why the route failed on the very first attempted day
+            if (offset === startOffset) {
+                initialStatus = evalResult.status;
+                if (dayType === 'sunday' || evalResult.status === 'SUNDAY_SKIP') {
+                    initialStatus = 'SUNDAY_ROLLOVER';
+                }
             }
-        }
 
-        // The moment we find a valid trip block, we capture and break
-        if (evalResult.status === 'FOUND') {
-            // If we found it on a subsequent day loop, the commuters missed all trains for the origin day.
-            loopStatus = (offset > startOffset) ? 'NO_MORE_TODAY' : 'FOUND';
-            loopTrips = evalResult.trips;
-            break; 
+            // The moment we find a valid trip block, we capture and break
+            if (evalResult.status === 'FOUND') {
+                // If we found it on a subsequent day loop, the commuters missed all trains for the origin day.
+                loopStatus = (offset > startOffset) ? 'NO_MORE_TODAY' : 'FOUND';
+                loopTrips = evalResult.trips;
+                break; 
+            }
+        } catch (e) {
+            // 🛡️ GUARDIAN PHASE 1: Catch Maximum Call Stack Exceeded or arbitrary execution failures cleanly
+            console.error("🛡️ Guardian: Fatal execution error during rollover evaluation. Aborting loop.", e);
+            loopStatus = 'ERR_TIMETABLE_MISMATCH';
+            break;
         }
         
         // If it's NO_PATH, IMPOSSIBLE_TODAY, or SUNDAY_SKIP, the loop naturally increments to scan the next day
