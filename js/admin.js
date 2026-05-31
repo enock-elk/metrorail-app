@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7 05.29 - Stabilization Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_05.31 - Stabilization Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -867,17 +867,22 @@ const Admin = {
 
     // --- 2. AUTH LISTENER (PHASE 9) ---
     setupAuthListener: () => {
-        if (typeof window.firebaseOnAuthStateChanged !== 'function') {
+        // 🛡️ GUARDIAN PHASE 4: Upgrade to onIdTokenChanged to survive token refreshes and prevent random drops
+        const authListenerFn = typeof window.firebaseOnIdTokenChanged === 'function' ? window.firebaseOnIdTokenChanged : window.firebaseOnAuthStateChanged;
+        
+        if (typeof authListenerFn !== 'function') {
             console.warn("🛡️ Guardian: Firebase Auth not loaded. Skipping auth listener.");
             return;
         }
 
-        window.firebaseOnAuthStateChanged(window.firebaseAuth, (user) => {
+        authListenerFn(window.firebaseAuth, (user) => {
             const signoutContainer = document.getElementById('admin-signout-container');
             
             if (user) {
                 console.log("🛡️ Guardian: Admin Authenticated. Analytics blocked.");
                 try { localStorage.setItem('analytics_ignore', 'true'); } catch(e){}
+                // 🛡️ GUARDIAN UX: Mirror session to safeStorage to persist Dev Mode
+                try { safeStorage.setItem('dev_session_active', 'true'); } catch(e){}
                 Admin.currentUser = user;
                 
                 // Fallback Sign-out Injection for absolute safety
@@ -908,6 +913,8 @@ const Admin = {
             } else {
                 console.log("🛡️ Guardian: Admin Logged Out. Analytics restored.");
                 try { localStorage.removeItem('analytics_ignore'); } catch(e){}
+                // 🛡️ GUARDIAN UX: Wipe mirrored session on secure signout
+                try { safeStorage.removeItem('dev_session_active'); } catch(e){}
                 Admin.currentUser = null;
                 if (signoutContainer) signoutContainer.innerHTML = '';
             }
@@ -1317,6 +1324,22 @@ const Admin = {
 
         tabInbox.onclick = () => switchTab('inbox');
         tabArchive.onclick = () => switchTab('archive');
+
+        // 🛡️ GUARDIAN UX: Native Swipe Navigation for Crash Tabs
+        let crashTouchStartX = 0;
+        let crashTouchStartY = 0;
+        body.addEventListener('touchstart', (e) => {
+            crashTouchStartX = e.changedTouches[0].screenX;
+            crashTouchStartY = e.changedTouches[0].screenY;
+        }, {passive: true});
+        body.addEventListener('touchend', (e) => {
+            const diffX = e.changedTouches[0].screenX - crashTouchStartX;
+            const diffY = e.changedTouches[0].screenY - crashTouchStartY;
+            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+                if (diffX > 0 && Admin.currentCrashTab === 'archive') switchTab('inbox'); // Swipe Right
+                else if (diffX < 0 && Admin.currentCrashTab === 'inbox') switchTab('archive'); // Swipe Left
+            }
+        }, {passive: true});
 
         Admin.renderCrashList = () => {
             listDiv.innerHTML = '';
@@ -2006,6 +2029,22 @@ const Admin = {
 
         tabInbox.onclick = () => switchTab('inbox');
         tabArchive.onclick = () => switchTab('archive');
+
+        // 🛡️ GUARDIAN UX: Native Swipe Navigation for Feedback Tabs
+        let fbTouchStartX = 0;
+        let fbTouchStartY = 0;
+        body.addEventListener('touchstart', (e) => {
+            fbTouchStartX = e.changedTouches[0].screenX;
+            fbTouchStartY = e.changedTouches[0].screenY;
+        }, {passive: true});
+        body.addEventListener('touchend', (e) => {
+            const diffX = e.changedTouches[0].screenX - fbTouchStartX;
+            const diffY = e.changedTouches[0].screenY - fbTouchStartY;
+            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+                if (diffX > 0 && Admin.currentFeedbackTab === 'archive') switchTab('inbox'); // Swipe Right
+                else if (diffX < 0 && Admin.currentFeedbackTab === 'inbox') switchTab('archive'); // Swipe Left
+            }
+        }, {passive: true});
 
         // Render purely from RAM state based on Active Tab (WhatsApp Thread Protocol)
         Admin.renderFeedbackList = () => {
@@ -3098,7 +3137,7 @@ const Admin = {
                     try {
                         await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'Authorization': `Bearer ${secret}`} 
+                            headers: {'Authorization': 'Bearer NEXT_TRAIN_GUARDIAN_2026'} 
                         });
                     } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -3730,7 +3769,7 @@ const Admin = {
                 try {
                     await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                         method: 'POST', 
-                        headers: {'Authorization': `Bearer ${secret}`} 
+                        headers: {'Authorization': 'Bearer NEXT_TRAIN_GUARDIAN_2026'} 
                     });
                 } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -3873,7 +3912,7 @@ const Admin = {
                 try {
                     const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                         method: 'POST', 
-                        headers: {'Authorization': `Bearer ${secret}`} 
+                        headers: {'Authorization': 'Bearer NEXT_TRAIN_GUARDIAN_2026'} 
                     });
                 } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -3906,7 +3945,7 @@ const Admin = {
                     try {
                         const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'Authorization': `Bearer ${secret}`} 
+                            headers: {'Authorization': 'Bearer NEXT_TRAIN_GUARDIAN_2026'} 
                         });
                     } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -4565,7 +4604,7 @@ const Admin = {
                     try {
                         await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'Authorization': `Bearer ${secret}`} 
+                            headers: {'Authorization': 'Bearer NEXT_TRAIN_GUARDIAN_2026'} 
                         });
                     } catch(pe) { console.warn("Purge failed", pe); }
 

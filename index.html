@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V7 05.29 (Stabilization Edition - UI/UX Polish)
+  Metrorail Next Train V7_05.31 (Stabilization Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -406,7 +406,8 @@
     <div id="sidenav" class="fixed inset-y-0 left-0 w-[90vw] sm:w-96 shadow-2xl bg-white dark:bg-gray-900 flex flex-col h-full z-[100]">
         
         <!-- Content Area: Edge-to-Edge Lists (Vertically Optimized) -->
-        <div class="flex-grow overflow-y-auto w-full custom-scrollbar pb-8 pt-0">
+        <!-- 🛡️ GROWTH MODE PHASE 5: Injected pb-24 to expose bottommost elements on Safari/Chrome mobile -->
+        <div class="flex-grow overflow-y-auto w-full custom-scrollbar pb-24 pt-0">
 
             <!-- PREFERENCES GROUP -->
             <div>
@@ -875,7 +876,8 @@
 
     <!-- GUARDIAN V6.17: ROUTE SELECTOR MODAL RE-ARCHITECTED -->
     <div id="route-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[120] hidden flex items-start justify-center p-2 pt-2 sm:pt-8 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-sm flex flex-col transform transition-all scale-100 max-h-[96vh]">
+        <!-- 🛡️ GROWTH MODE PHASE 5: max-h-[96dvh] dynamic viewport fix -->
+        <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-sm flex flex-col transform transition-all scale-100 max-h-[96dvh]">
             
             <!-- Slim Header -->
             <div class="py-3 px-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-900 rounded-t-xl shadow-sm shrink-0 relative z-20">
@@ -955,7 +957,8 @@
             </div>
 
             <!-- Scrollable Route List -->
-            <div class="p-4 overflow-y-auto flex-grow bg-gray-50 dark:bg-gray-900/50 w-full custom-scrollbar rounded-b-xl">
+            <!-- 🛡️ GROWTH MODE PHASE 5: pb-24 padding added for scroll clearance -->
+            <div class="p-4 pb-24 overflow-y-auto flex-grow bg-gray-50 dark:bg-gray-900/50 w-full custom-scrollbar rounded-b-xl">
                 <ul id="route-list" class="space-y-2">
                     <!-- DYNAMIC CONTENT (Renderer.js) -->
                 </ul>
@@ -975,7 +978,8 @@
         </div>
         <h2 class="text-3xl font-black text-gray-900 dark:text-white text-center mb-2 shrink-0">Next Train</h2>
         <p class="text-gray-500 dark:text-gray-400 text-center mb-8 px-4 shrink-0">Select your regular route to get started.</p>
-            <div id="welcome-route-list" class="w-full space-y-3 overflow-y-auto max-h-[55vh] pr-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"></div>
+            <!-- 🛡️ GROWTH MODE PHASE 5: custom-scrollbar, max-h-[55dvh], and pb-24 injected -->
+            <div id="welcome-route-list" class="w-full space-y-3 overflow-y-auto max-h-[55dvh] pr-2 pb-24 custom-scrollbar"></div>
             <p class="text-xs text-gray-400 dark:text-gray-600 mt-8 text-center shrink-0">You can change this later in the menu.</p>
         </div>
     </div>
@@ -1009,7 +1013,7 @@
 
     <!-- SCHEDULE MODAL -->
     <div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col transform transition-transform duration-300 scale-95" id="modal-content">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[80dvh] flex flex-col transform transition-transform duration-300 scale-95" id="modal-content">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
                 <h3 id="modal-title" class="text-lg font-bold text-gray-900 dark:text-white">Full Schedule</h3>
                 <button id="close-modal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:bg-gray-700 text-gray-50 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Schedule">
@@ -1077,7 +1081,7 @@
 
     <!-- IN-HOUSE FEEDBACK MODAL -->
     <div id="feedback-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[130] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] flex flex-col transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
             <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-2xl shrink-0">
                 <h3 class="text-lg font-black text-gray-900 dark:text-white flex items-center tracking-tight">
                     <span class="mr-2 text-xl">💡</span>
@@ -1177,7 +1181,7 @@
 
     <!-- LEGAL MODAL -->
     <div id="legal-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[120] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col transform transition-transform duration-300 scale-95">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[85dvh] flex flex-col transform transition-transform duration-300 scale-95">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
                 <h3 id="legal-modal-title" class="text-lg font-bold text-gray-900 dark:text-white">Legal</h3>
                 <button id="close-legal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:bg-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition focus:outline-none" aria-label="Close Legal">
@@ -1195,7 +1199,7 @@
 
     <!-- UPGRADED HELP / USER GUIDE MODAL -->
     <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[120] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col transform transition-transform duration-300 scale-95">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[85dvh] flex flex-col transform transition-transform duration-300 scale-95">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
                 <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center">
                     <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
@@ -1536,7 +1540,7 @@
 
     <!-- SERVICE ALERT MODAL -->
     <div id="notice-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[110] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 border-l-4 border-red-500 flex flex-col max-h-[85vh] overflow-y-auto custom-scrollbar">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-100 border-l-4 border-red-500 flex flex-col max-h-[85dvh] overflow-y-auto custom-scrollbar">
             <div class="flex justify-between items-start mb-4 shrink-0">
                 <div class="flex items-center text-red-600 dark:text-red-400">
                     <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
@@ -1559,7 +1563,7 @@
 
     <!-- TIERED INCIDENT MODAL (GUARDIAN PHASE 1) -->
     <div id="disruption-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[130] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-0 transform transition-all scale-100 border-l-4 border-red-500 flex flex-col max-h-[90vh] overflow-hidden" id="disruption-modal-card">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm p-0 transform transition-all scale-100 border-l-4 border-red-500 flex flex-col max-h-[90dvh] overflow-hidden" id="disruption-modal-card">
             
             <!-- Header -->
             <div class="p-5 border-b border-gray-100 dark:border-gray-700/50 flex justify-between items-center shrink-0">
@@ -1721,24 +1725,24 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=7 05.29"></script>
-    <script src="js/renderer.js?v=7 05.29"></script>
+    <script src="js/grid-order.js?v=7_05.31"></script>
+    <script src="js/renderer.js?v=7_05.31"></script>
     
-    <script src="js/utils.js?v=7 05.29"></script>
-    <script src="js/config.js?v=7 05.29"></script>
-    <script src="js/logic.js?v=7 05.29"></script>
+    <script src="js/utils.js?v=7_05.31"></script>
+    <script src="js/config.js?v=7_05.31"></script>
+    <script src="js/logic.js?v=7_05.31"></script>
 
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=7 05.29"></script>
+    <script src="js/admin.js?v=7_05.31"></script>
 
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=7 05.29"></script>
-    <script src="js/planner-ui.js?v=7 05.29"></script>
+    <script src="js/planner-core.js?v=7_05.31"></script>
+    <script src="js/planner-ui.js?v=7_05.31"></script>
 
-    <script src="js/map-viewer.js?v=7 05.29"></script>
+    <script src="js/map-viewer.js?v=7_05.31"></script>
 
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=7 05.29"></script>
+    <script src="js/ui.js?v=7_05.31"></script>
     
 </body>
 </html>

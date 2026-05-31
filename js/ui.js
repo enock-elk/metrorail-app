@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7 05.29 - Stabilization Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7 05.31 - Stabilization Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -57,35 +57,65 @@ function unlockBackgroundScroll() {
 // --- GUARDIAN: OVERRIDE SMOOTH MODAL TO CATCH TELEMETRY LEAKS AND ROUTER BLEED ---
 window._isModalAnimating = false;
 
-if (typeof window.closeSmoothModal === 'function' && !window._patchedCloseSmoothModal) {
-    const originalCloseSmoothModal = window.closeSmoothModal;
-    window.closeSmoothModal = function(modalId) {
-        // Set the lock, but don't block the function itself to allow programmatic syncing
-        window._isModalAnimating = true;
-        setTimeout(() => { window._isModalAnimating = false; }, 350);
+// 🛡️ GROWTH MODE PHASE 3: Spatial Modal Engine
+if (!window._originalCloseSmoothModal && typeof window.closeSmoothModal === 'function') {
+    window._originalCloseSmoothModal = window.closeSmoothModal;
+}
+if (!window._originalOpenSmoothModal && typeof window.openSmoothModal === 'function') {
+    window._originalOpenSmoothModal = window.openSmoothModal;
+}
 
-        if (modalId === 'dev-modal' && window.Admin && window.Admin.telemetryInterval) {
-            clearInterval(window.Admin.telemetryInterval);
-            window.Admin.telemetryInterval = null;
+window.closeSmoothModal = function(modalId) {
+    window._isModalAnimating = true;
+    setTimeout(() => { window._isModalAnimating = false; }, 350);
+
+    if (modalId === 'dev-modal' && window.Admin && window.Admin.telemetryInterval) {
+        clearInterval(window.Admin.telemetryInterval);
+        window.Admin.telemetryInterval = null;
+    }
+    
+    // 🛡️ GUARDIAN UX: Ensure cinematic scrim is released when ANY modal closes
+    if (window.toggleDropdownScrim) window.toggleDropdownScrim();
+    
+    if (typeof window._originalCloseSmoothModal === 'function') {
+        window._originalCloseSmoothModal(modalId);
+    }
+};
+window._patchedCloseSmoothModal = true;
+
+window.openSmoothModal = function(modalId, customOrigin = null) {
+    window._isModalAnimating = true;
+    setTimeout(() => { window._isModalAnimating = false; }, 350);
+
+    const modal = document.getElementById(modalId);
+    if (modal && modal.firstElementChild) {
+        const inner = modal.firstElementChild;
+        // Clean previous origins
+        inner.style.transformOrigin = '';
+        inner.classList.remove('origin-top-right', 'origin-bottom-left', 'origin-center', 'origin-bottom');
+        
+        // Spatial Origin Mapping
+        if (customOrigin === 'top-right' || modalId === 'notice-modal') {
+            inner.classList.add('origin-top-right');
+        } else if (customOrigin === 'dev-banner') {
+            const banner = document.getElementById('developer-reply-banner');
+            if (banner) {
+                const rect = banner.getBoundingClientRect();
+                // Blossom the modal directly out of the center of the blue banner
+                inner.style.transformOrigin = `${rect.left + (rect.width / 2)}px ${rect.top + (rect.height / 2)}px`;
+            } else {
+                inner.classList.add('origin-top');
+            }
+        } else {
+            inner.classList.add('origin-center'); // Default
         }
-        
-        // 🛡️ GUARDIAN UX: Ensure cinematic scrim is released when ANY modal closes
-        if (window.toggleDropdownScrim) window.toggleDropdownScrim();
-        
-        originalCloseSmoothModal(modalId);
-    };
-    window._patchedCloseSmoothModal = true;
-}
+    }
 
-if (typeof window.openSmoothModal === 'function' && !window._patchedOpenSmoothModal) {
-    const originalOpenSmoothModal = window.openSmoothModal;
-    window.openSmoothModal = function(modalId) {
-        window._isModalAnimating = true;
-        setTimeout(() => { window._isModalAnimating = false; }, 350);
-        originalOpenSmoothModal(modalId);
-    };
-    window._patchedOpenSmoothModal = true;
-}
+    if (typeof window._originalOpenSmoothModal === 'function') {
+        window._originalOpenSmoothModal(modalId);
+    }
+};
+window._patchedOpenSmoothModal = true;
 
 // --- GUARDIAN UX: CINEMATIC SCRIM ENGINE ---
 window.toggleDropdownScrim = function(listId = null, chevronId = null) {
@@ -261,7 +291,10 @@ window.onerror = function(msg, url, line, col, error) {
         "Unexpected token '<'", // GROWTH MODE: Captive Portal / HTML Cloudflare intercept shield
         "Unexpected end of JSON input",
         "JSON.parse: unexpected end of data",
-        "chrome-extension"
+        "chrome-extension",
+        "ethereum", // 🛡️ GUARDIAN PHASE 1: Brave Browser / Crypto Wallet noise filter
+        "__firefox__", // 🛡️ GUARDIAN PHASE 1: Extension noise filter
+        "DarkReader" // 🛡️ GUARDIAN PHASE 1: Dark Mode extension noise filter
     ];
 
     if (typeof msg === 'string' && IGNORED_ERRORS.some(err => msg.indexOf(err) > -1)) {
@@ -1253,86 +1286,98 @@ function initAdInterceptor() {
     console.log("🛡️ AdInterceptor: Eagerly injecting Monetization Engine in background.");
 
     // ACTION 1: Eager Injection (Pre-load ad payload silently)
-    (function (document, window) {
-        var a, c = document.createElement("script"), f = window.frameElement;
-        c.id = "CleverCoreLoader103008";
-        c.src = "https://scripts.cleverwebserver.com/a399a0d9cfe9817e0ccd10f89b4e320a.js";
-        c.async = !0;
-        c.type = "text/javascript";
-        c.setAttribute("data-target", window.name || (f && f.getAttribute("id")));
-        c.setAttribute("data-callback", "put-your-callback-function-here");
-        c.setAttribute("data-callback-url-click", "put-your-click-macro-here");
-        c.setAttribute("data-callback-url-view", "put-your-view-macro-here");
         try {
-            a = parent.document.getElementsByTagName("script")[0] || document.getElementsByTagName("script")[0];
-        } catch (e) {
-            a = !1;
-        }
-        a || (a = document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]);
-        a.parentNode.insertBefore(c, a);
-    })(document, window);
-
-    // ACTION 2 & 3: Safe Unhiding & Verified Telemetry
-    const checkAndUnhide = () => {
-        // Locate the ad container (adjust selector based on your exact HTML structure)
-        const adContainer = document.getElementById('ad-container') || document.querySelector('.clever-core-ad') || document.querySelector('[id^="clever-"]');
-
-        // State Verification
-        const hash = location.hash;
-        const isMainRoute = (hash === '' || hash === '#home');
-        
-        const welcomeModal = document.getElementById('welcome-modal');
-        const isWelcomeHidden = !welcomeModal || welcomeModal.classList.contains('hidden');
-
-        const mapModal = document.getElementById('map-modal');
-        const isMapHidden = !mapModal || mapModal.classList.contains('hidden');
-        
-        const tripMapModal = document.getElementById('trip-map-modal');
-        const isTripMapHidden = !tripMapModal || tripMapModal.classList.contains('hidden');
-        
-        const gridModal = document.getElementById('full-schedule-modal');
-        const isGridHidden = !gridModal || gridModal.classList.contains('hidden');
-
-        const isDbReady = typeof fullDatabase !== 'undefined' && fullDatabase !== null;
-        const isMutexLocked = window._isModalAnimating || window._isMapInitializing;
-
-        const isSafeZone = isDbReady && isMainRoute && isWelcomeHidden && isMapHidden && isTripMapHidden && isGridHidden && !isMutexLocked;
-
-        if (adContainer) {
-            if (isSafeZone) {
-                adContainer.classList.remove('hidden');
-                
-                // Attach Intersection Observer if telemetry hasn't fired yet
-                if (!window._adTelemetryFired) {
-                    if ('IntersectionObserver' in window) {
-                        const observer = new IntersectionObserver((entries, obs) => {
-                            if (entries[0].isIntersecting) {
-                                window._adTelemetryFired = true;
-                                if (typeof trackAnalyticsEvent === 'function') {
-                                    trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: true });
-                                    console.log("📈 Ad View Verified via IntersectionObserver.");
-                                }
-                                obs.disconnect(); // Detach to ensure we only log the view once per session
-                            }
-                        }, { threshold: 0.5 }); // Requires 50% of the ad to be visible
-                        observer.observe(adContainer);
-                    } else {
-                        // Fallback for ancient browsers
-                        window._adTelemetryFired = true;
-                        if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'fallback' });
-                    }
+            (function (document, window) {
+                var a, c = document.createElement("script"), f;
+                try { f = window.frameElement; } catch(e) { f = null; } // 🛡️ GUARDIAN FIX: Cross-origin frame shield
+                c.id = "CleverCoreLoader103008";
+                c.src = "https://scripts.cleverwebserver.com/a399a0d9cfe9817e0ccd10f89b4e320a.js";
+                c.async = !0;
+                c.type = "text/javascript";
+                c.setAttribute("data-target", window.name || (f && f.getAttribute("id")));
+                c.setAttribute("data-callback", "put-your-callback-function-here");
+                c.setAttribute("data-callback-url-click", "put-your-click-macro-here");
+                c.setAttribute("data-callback-url-view", "put-your-view-macro-here");
+                try {
+                    a = parent.document.getElementsByTagName("script")[0] || document.getElementsByTagName("script")[0];
+                } catch (e) {
+                    a = !1;
                 }
-            } else {
-                adContainer.classList.add('hidden');
+                a || (a = document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]);
+                a.parentNode.insertBefore(c, a);
+            })(document, window);
+        } catch(e) { console.warn("🛡️ Guardian: Ad script injection safely suppressed.", e); }
+
+        // ACTION 2 & 3: Safe Unhiding & Verified Telemetry
+        const checkAndUnhide = () => {
+            // Locate the ad container (adjust selector based on your exact HTML structure)
+            const adContainer = document.getElementById('ad-container') || document.querySelector('.clever-core-ad') || document.querySelector('[id^="clever-"]');
+
+            // State Verification
+            const hash = location.hash;
+            const isMainRoute = (hash === '' || hash === '#home');
+            
+            // 🛡️ GROWTH MODE PHASE 5.1: Ad Armor - Suppress Ad if Reloading or Welcome Screen is active
+            const isReloadLocked = typeof window._suppressReloads !== 'undefined' && window._suppressReloads;
+            const welcomeModal = document.getElementById('welcome-modal');
+            const isWelcomeHidden = !welcomeModal || welcomeModal.classList.contains('hidden');
+
+            const mapModal = document.getElementById('map-modal');
+            const isMapHidden = !mapModal || mapModal.classList.contains('hidden');
+            
+            const tripMapModal = document.getElementById('trip-map-modal');
+            const isTripMapHidden = !tripMapModal || tripMapModal.classList.contains('hidden');
+            
+            const gridModal = document.getElementById('full-schedule-modal');
+            const isGridHidden = !gridModal || gridModal.classList.contains('hidden');
+
+            const isDbReady = typeof fullDatabase !== 'undefined' && fullDatabase !== null;
+            const isMutexLocked = window._isModalAnimating || window._isMapInitializing;
+
+            // Strict intersection of safe states
+            const isSafeZone = isDbReady && isMainRoute && isWelcomeHidden && !isReloadLocked && isMapHidden && isTripMapHidden && isGridHidden && !isMutexLocked;
+
+            if (adContainer) {
+                if (isSafeZone) {
+                    adContainer.style.display = ''; // 🛡️ GUARDIAN FIX: Release inline lock
+                    adContainer.classList.remove('hidden');
+                    
+                    // Attach Intersection Observer if telemetry hasn't fired yet
+                    if (!window._adTelemetryFired) {
+                        try { // 🛡️ GUARDIAN FIX: IntersectionObserver Sandbox
+                            if ('IntersectionObserver' in window) {
+                                const observer = new IntersectionObserver((entries, obs) => {
+                                    if (entries[0].isIntersecting) {
+                                        window._adTelemetryFired = true;
+                                        if (typeof trackAnalyticsEvent === 'function') {
+                                            trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: true });
+                                            console.log("📈 Ad View Verified via IntersectionObserver.");
+                                        }
+                                        obs.disconnect(); // Detach to ensure we only log the view once per session
+                                    }
+                                }, { threshold: 0.5 }); // Requires 50% of the ad to be visible
+                                observer.observe(adContainer);
+                            } else {
+                                // Fallback for ancient browsers
+                                window._adTelemetryFired = true;
+                                if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'fallback' });
+                            }
+                        } catch (obsError) {
+                            console.warn("🛡️ Guardian: IntersectionObserver blocked by strict WebView sandbox.", obsError);
+                        }
+                    }
+                } else {
+                    adContainer.classList.add('hidden');
+                    adContainer.style.setProperty('display', 'none', 'important'); // 🛡️ GUARDIAN FIX: Brute-force inline lock
+                }
             }
-        }
 
-        // Keep polling gently to monitor UI state changes (hides ad if a modal opens)
-        setTimeout(checkAndUnhide, 1500);
-    };
+            // Keep polling gently to monitor UI state changes (hides ad if a modal opens)
+            setTimeout(checkAndUnhide, 1500);
+        };
 
-    // 2500ms initial delay before checking if it's safe to unhide
-    setTimeout(checkAndUnhide, 2500);
+        // 🛡️ GUARDIAN FIX: Zero-millisecond delay. Intercept instantly.
+        checkAndUnhide();
 }
 
 function initializeApp() {
@@ -1597,7 +1642,8 @@ async function checkServiceAlerts() {
                     }
                     
                     history.pushState({ modal: 'devreply' }, '', '#devreply');
-                    openSmoothModal('developer-reply-modal');
+                    // 🛡️ GUARDIAN UX: Bind Spatial Origin to the Blue Banner
+                    openSmoothModal('developer-reply-modal', 'dev-banner');
                 };
             }
             
@@ -1919,6 +1965,15 @@ function switchTab(tab) {
 
 // GUARDIAN PHASE 1.2: Complete popstate rebuild. Modals check precedes Router Bleed trap.
 window.addEventListener('popstate', (event) => {
+    // 🛡️ GROWTH MODE PHASE 3: The Zombie Lock Garbage Collector
+    // Safely sweep the DOM for open modals after transition delays. If none exist, ruthlessly unlock scrolling.
+    setTimeout(() => {
+        const anyOpenModals = document.querySelectorAll('div[id$="-modal"].fixed:not(.hidden)');
+        if (anyOpenModals.length === 0 && !document.body.classList.contains('sidenav-open')) {
+            unlockBackgroundScroll();
+        }
+    }, 350);
+
     // GUARDIAN Phase 2: Router Bleed Lock
     if (window._isModalAnimating) {
         console.log("🛡️ Guardian: Suppressed popstate router bleed during modal animation.");
@@ -3005,7 +3060,8 @@ function selectWelcomeRoute(routeId) {
     
     // 5. Trigger data hydration
     if (typeof loadAllSchedules === 'function') {
-        loadAllSchedules().then(() => {
+        // 🛡️ GUARDIAN FIX: Pass 'true' to punch through the _suppressReloads lock and fetch the data!
+        loadAllSchedules(true).then(() => {
             // Release reload lock only AFTER schedules are cached to Disk/RAM
             setTimeout(() => { window._suppressReloads = false; }, 2000);
         });

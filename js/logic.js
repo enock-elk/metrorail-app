@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7 05.29 - Stabilization Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_05.31 - Stabilization Edition) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -183,21 +183,28 @@ window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
         }
 
         if (error.name === 'AbortError' || error.message.includes('fetch') || error.message.includes('Network')) {
-            window.isLieFi = true;
-            console.warn(`🛡️ Guardian Lie-Fi Detector: Request to ${url} timed out/failed. Assumed offline.`);
-            
-            // Show Lie-Fi Toast (Phase A UX Integration)
-            const offlineToast = document.getElementById('offline-toast');
-            if (offlineToast) {
-                offlineToast.classList.remove('translate-y-[150%]', 'opacity-0');
-                // 🛡️ GUARDIAN UX FIX: Persistent tracking to prevent timeout overlaps making the toast stuck
-                if (window._lieFiToastTimeout) clearTimeout(window._lieFiToastTimeout);
-                window._lieFiToastTimeout = setTimeout(() => {
-                    offlineToast.classList.add('translate-y-[150%]', 'opacity-0');
-                }, 4000);
-            }
+                window.isLieFi = true;
+                console.warn(`🛡️ Guardian Lie-Fi Detector: Request to ${url} timed out/failed. Assumed offline.`);
+                
+                // Show Lie-Fi Toast (Phase A UX Integration)
+                const offlineToast = document.getElementById('offline-toast');
+                
+                // 🛡️ GUARDIAN PHASE 2: Toast Cooldown Lock (60 seconds)
+                const now = Date.now();
+                const lastToast = window._lastOfflineToastTime || 0;
+                
+                if (offlineToast && (now - lastToast > 60000)) {
+                    window._lastOfflineToastTime = now;
+                    offlineToast.classList.remove('translate-y-[150%]', 'opacity-0');
+                    
+                    // 🛡️ GUARDIAN UX FIX: Persistent tracking to prevent timeout overlaps making the toast stuck
+                    if (window._lieFiToastTimeout) clearTimeout(window._lieFiToastTimeout);
+                    window._lieFiToastTimeout = setTimeout(() => {
+                        offlineToast.classList.add('translate-y-[150%]', 'opacity-0');
+                    }, 4000);
+                }
 
-            // Priority Clash Fix: Suppress Maintenance Banner if offline
+                // Priority Clash Fix: Suppress Maintenance Banner if offline
             const maintBanner = document.getElementById('maintenance-banner');
             if (maintBanner) maintBanner.style.display = 'none'; 
 
@@ -1057,6 +1064,13 @@ async function buildGlobalStationIndexAsync(targetDB) {
 
 // GUARDIAN PHASE B: EAGER RENDERING PROTOCOL
 async function loadAllSchedules(force = false) {
+    // 🛡️ GUARDIAN PHASE 1: UI State Hardening (Welcome Screen Loop Fix)
+    // Prevents background syncs from colliding or wiping RAM while the UI is settling a region swap.
+    if (window._suppressReloads && !force) {
+        console.log("🛡️ Guardian: Background sync bypassed due to active reload lock.");
+        return;
+    }
+
     let usedCache = false; // 🛡️ GUARDIAN FIX: Hoisted to prevent ReferenceError in catch block
     const currentGen = regionSwapGeneration; // 🛡️ GUARDIAN: Capture the lock state!
     
@@ -1312,6 +1326,7 @@ async function loadAllSchedules(force = false) {
 
             // 🛡️ GUARDIAN PHASE 5: The Waterfall Failover Engine (Hardcoded to protect Firebase Quotas)
             let sourcesToTry = ['CLOUDFLARE', 'FIREBASE', 'GITHUB'];
+            //let sourcesToTry = ['FIREBASE', 'CLOUDFLARE', 'GITHUB'];
 
             // 🛡️ GUARDIAN PHASE 4 (ADMIN): The Waterfall Override Hook
             let devForceSource = null;
@@ -1335,6 +1350,11 @@ async function loadAllSchedules(force = false) {
                     const activeScheduleUrl = typeof SCHEDULE_BASE_URL !== 'undefined' ? SCHEDULE_BASE_URL : FIREBASE_BASE_URL;
                     regionDbUrl = activeScheduleUrl + REGIONS[currentRegion].dbNode;
                 }
+
+                // 🛡️ GUARDIAN PHASE 1: Aggressive Cache-Busting
+                // Appends a unique timestamp to physically force edge nodes and Service Workers to fetch fresh data.
+                const separator = regionDbUrl.includes('?') ? '&' : '?';
+                regionDbUrl += `${separator}t=${Date.now()}`;
 
                 try {
                     console.log(`🛡️ Guardian: Attempting schedule fetch via [${sourceKey}]...`);

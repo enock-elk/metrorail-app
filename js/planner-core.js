@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V7 05.29 - Stabilization Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7 05.31 - Stabilization Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -1358,6 +1358,15 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
     // --- GUARDIAN GROWTH MODE PHASE 2 & 3: INFINITE ROLLOVER & SMART CALENDAR SYNC ---
     
     let startOffset = 0;
+
+    // 🛡️ GUARDIAN GROWTH MODE PHASE 4: Manual Rollover Interceptor
+    // Intercepts the UI trigger to skip today's departed trains and instantly start scanning from tomorrow.
+    if (typeof window !== 'undefined' && window._forceManualRollover) {
+        console.log("[GUARDIAN] Manual Rollover Intercepted. Pushing startOffset to 1.");
+        startOffset = 1;
+        window._forceManualRollover = false; // Immediately consume and reset the flag to prevent permanent future-routing
+    }
+
     const isExplicitOverride = (dayType === 'weekday' || dayType === 'saturday') && dayType !== currentDayType;
 
     // Only hunt the physical calendar if it's NOT an explicit manual override, 
@@ -1478,7 +1487,8 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
 
         // 🛡️ GUARDIAN PHASE 1: NO_PATH ROLLOVER LOGIC (Dropdown Preservation)
         // We preserve all departed trips in optimalTrips so the UI dropdown can render them.
-        // However, if ALL trips are in the past, we must mathematically force a rollover to tomorrow.
+        // Instead of mathematically forcing a rollover to tomorrow, we flag it as ALL_DEPARTED
+        // so the UI can display the grayed-out schedule and offer a manual rollover button.
         if (finalStatus === 'FOUND' && offset === 0 && !isExplicitOverride && !context.zeroHourProbeActive) {
             const nowSec = timeToSeconds(currentTime);
             const hasUpcoming = optimalTrips.some(t => {
@@ -1487,8 +1497,8 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
             });
             
             if (!hasUpcoming) {
-                console.log("[GUARDIAN] All trips today have departed. Forcing rollover to tomorrow.");
-                finalStatus = 'NO_PATH';
+                console.log("[GUARDIAN] All trips today have departed. Flagging as ALL_DEPARTED to await user instruction.");
+                finalStatus = 'ALL_DEPARTED';
             }
         }
 
@@ -1570,9 +1580,9 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
             }
 
             // The moment we find a valid trip block, we capture and break
-            if (evalResult.status === 'FOUND') {
+            if (evalResult.status === 'FOUND' || evalResult.status === 'ALL_DEPARTED') {
                 // If we found it on a subsequent day loop, the commuters missed all trains for the origin day.
-                loopStatus = (offset > startOffset) ? 'NO_MORE_TODAY' : 'FOUND';
+                loopStatus = (offset > startOffset) ? 'NO_MORE_TODAY' : evalResult.status;
                 loopTrips = evalResult.trips;
                 break; 
             }

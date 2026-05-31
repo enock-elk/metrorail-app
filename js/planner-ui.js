@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7 05.29 - Stabilization Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_05.31 - Stabilization Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -464,6 +464,9 @@ window.extractTripCoordinates = function(tripIndex) {
 const PlannerRenderer = {
     // GUARDIAN V6.12: Strict Midnight Protocol Evaluator
     isMidnightRollover: () => {
+        // GUARDIAN PHASE 4: Bypass automatic rollover if the engine explicitly flagged ALL_DEPARTED
+        if (typeof currentPlannerStatus !== 'undefined' && currentPlannerStatus === 'ALL_DEPARTED') return false;
+
         const isToday = (!selectedPlannerDay || selectedPlannerDay === currentDayType);
         if (!isToday || currentTripOptions.length === 0) return false;
         
@@ -2027,6 +2030,16 @@ function executeTripPlan(origin, dest, preferredTime = null) {
     }, 100); 
 }
 
+// GUARDIAN GROWTH MODE PHASE 4: Manual Rollover Trigger
+window.executeManualRollover = function(origin, dest) {
+    if (typeof triggerHaptic === 'function') triggerHaptic();
+    // Signal to planner-core.js to scan starting from tomorrow
+    window._forceManualRollover = true;
+    if (typeof executeTripPlan === 'function') {
+        executeTripPlan(origin, dest);
+    }
+};
+
 function renderSelectedTrip(container, index) {
     window._plannerCurrentTripIndex = index; // GUARDIAN: Synchronize global state for Custom Dropdowns
     const selectedTrip = currentTripOptions[index];
@@ -2037,7 +2050,9 @@ function renderSelectedTrip(container, index) {
 
     const effectivelyTomorrow = isTomorrow || midnightRollover;
 
-    if (effectivelyTomorrow) {
+    if (currentPlannerStatus === 'ALL_DEPARTED') {
+        renderAllDepartedResult(container, currentTripOptions, index);
+    } else if (effectivelyTomorrow) {
         // GUARDIAN PHASE 13: Distinct handling for Mathematically Impossible routes vs simply missing the last train
         if (currentPlannerStatus === 'SUNDAY_ROLLOVER') {
             renderSundayRolloverResult(container, currentTripOptions, index);
@@ -2218,6 +2233,33 @@ function renderTripResult(container, trips, selectedIndex = 0) {
     updatePlannerHeader(dayLabel, true);
 
     container.innerHTML = PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
+}
+
+// GUARDIAN GROWTH MODE PHASE 4: All Departed Manual Rollover Card
+function renderAllDepartedResult(container, trips, selectedIndex = 0) {
+    const selectedTrip = trips[selectedIndex];
+    if (!selectedTrip) return;
+
+    const dayLabel = getPlanningDayLabel();
+    updatePlannerHeader(dayLabel, true);
+
+    const origin = (selectedTrip.from || "").replace(/ STATION/gi, '').trim();
+    const dest = (selectedTrip.to || "").replace(/ STATION/gi, '').trim();
+
+    container.innerHTML = `
+        <div class="bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mb-4 shadow-sm text-center animate-fade-in-up">
+            <div class="flex items-center justify-center mb-3">
+                <span class="text-3xl mr-3">🌙</span>
+                <h3 class="font-black text-gray-800 dark:text-gray-200 text-lg tracking-tight">All Trains Departed</h3>
+            </div>
+            <p class="text-xs text-gray-600 dark:text-gray-400 mb-5 leading-snug">There are no more scheduled trains for today. You can review past trips below, or check the next available schedule.</p>
+            <button onclick="executeManualRollover('${origin.replace(/'/g, "\\'")}', '${dest.replace(/'/g, "\\'")}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 px-4 rounded-xl shadow-md transition-colors focus:outline-none flex items-center justify-center uppercase tracking-wide text-xs">
+                See Next Available Day
+                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+            </button>
+        </div>
+        ${PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex)}
+    `;
 }
 
 function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "No more trains today") {
