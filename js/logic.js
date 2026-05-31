@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_05.31 - Stabilization Edition) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_05.31 - Stabilization Edition v2) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -1325,8 +1325,8 @@ async function loadAllSchedules(force = false) {
             let fetchSuccess = false;
 
             // 🛡️ GUARDIAN PHASE 5: The Waterfall Failover Engine (Hardcoded to protect Firebase Quotas)
-            let sourcesToTry = ['CLOUDFLARE', 'FIREBASE', 'GITHUB'];
-            //let sourcesToTry = ['FIREBASE', 'CLOUDFLARE', 'GITHUB'];
+            //let sourcesToTry = ['CLOUDFLARE', 'FIREBASE', 'GITHUB'];
+            let sourcesToTry = ['FIREBASE', 'CLOUDFLARE', 'GITHUB'];
 
             // 🛡️ GUARDIAN PHASE 4 (ADMIN): The Waterfall Override Hook
             let devForceSource = null;

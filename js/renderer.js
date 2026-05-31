@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7 05.31 - Stabilization Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_05.31 - Stabilization Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
