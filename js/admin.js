@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_05.31 - Stabilization Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_05.31 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -884,12 +884,26 @@ const Admin = {
                 // 🛡️ GUARDIAN UX: Mirror session to safeStorage to persist Dev Mode
                 try { safeStorage.setItem('dev_session_active', 'true'); } catch(e){}
                 Admin.currentUser = user;
+
+                // 🛡️ GUARDIAN UX: Client-Side Dictionary Fallback for Admin Names
+                const adminAliases = {
+                    'enockelk@gmail.com': 'Enock',
+                    'thandeka05nxumalo@gmail.com': 'Thandeka'
+                };
+                
+                let displayName = user.email;
+                if (adminAliases[user.email]) {
+                    displayName = adminAliases[user.email];
+                } else if (user.email && user.email.includes('@')) {
+                    const prefix = user.email.split('@')[0];
+                    displayName = prefix.charAt(0).toUpperCase() + prefix.slice(1).toLowerCase();
+                }
                 
                 // Fallback Sign-out Injection for absolute safety
                 if (signoutContainer) {
                     signoutContainer.innerHTML = `
                         <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                            <p class="text-xs text-gray-500 mb-2 text-center">Logged in as: ${user.email}</p>
+                            <p class="text-xs text-gray-500 mb-2 text-center">Logged in as: <span class="font-bold text-gray-700 dark:text-gray-300">${displayName}</span></p>
                             <button id="admin-signout-btn" class="w-full bg-gray-200 dark:bg-gray-700 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 font-bold py-3 rounded-lg shadow-sm transition-colors text-sm focus:outline-none">
                                 Secure Sign Out
                             </button>
@@ -1206,14 +1220,22 @@ const Admin = {
                     window.simDayIndex = 1;
                 }
 
-                if (typeof showToast === 'function') showToast("Dev Simulation Active!", "success");
+                if (typeof showToast === 'function') showToast("Dev Simulation Active! Fetching data...", "success");
                 
                 // GUARDIAN FIX: Proper Router-aware Exit. Closes Hub, lets you see the result.
                 if (location.hash === '#dev') history.back();
                 else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
                 
-                if (typeof updateTime === 'function') updateTime(); 
-                if (typeof findNextTrains === 'function') findNextTrains();
+                // 🛡️ GUARDIAN HOTFIX: Force network sync to apply Pipeline Overrides, then update UI
+                if (typeof loadAllSchedules === 'function') {
+                    loadAllSchedules(true).then(() => {
+                        if (typeof updateTime === 'function') updateTime(); 
+                        if (typeof findNextTrains === 'function') findNextTrains();
+                    });
+                } else {
+                    if (typeof updateTime === 'function') updateTime(); 
+                    if (typeof findNextTrains === 'function') findNextTrains();
+                }
             });
         }
 
@@ -1367,14 +1389,22 @@ const Admin = {
                 
                 const latestDate = new Date(groupCrashes[0].timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
                 
+                // 🛡️ GUARDIAN PHASE 1: Bulk Resolve Button & HTML Fix (button inside button is invalid, changed outer to div)
+                const resolveAllHtml = isInbox 
+                    ? `<button onclick="event.stopPropagation(); Admin.resolveAllDeviceCrashes('${did}')" class="mr-3 bg-green-100 dark:bg-green-900/50 hover:bg-green-200 dark:hover:bg-green-800 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors shadow-sm focus:outline-none flex items-center shrink-0"><span class="mr-1">✅</span> Resolve All (${groupCrashes.length})</button>` 
+                    : '';
+
                 let groupHTML = `
-                    <button class="w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none border-b border-transparent" onclick="this.nextElementSibling.classList.toggle('hidden'); this.classList.toggle('border-gray-200'); this.classList.toggle('dark:border-gray-700'); this.querySelector('svg').classList.toggle('rotate-180')">
-                        <div class="flex flex-col items-start">
-                            <span class="text-xs font-bold text-gray-900 dark:text-white">Device: <span class="text-blue-600">${did.substring(0,15)}${did.length>15?'...':''}</span></span>
-                            <span class="text-[9px] text-gray-500 font-mono mt-0.5">${groupCrashes.length} Crash${groupCrashes.length > 1 ? 'es' : ''} | Last: ${latestDate}</span>
+                    <div class="w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer border-b border-transparent" onclick="this.nextElementSibling.classList.toggle('hidden'); this.classList.toggle('border-gray-200'); this.classList.toggle('dark:border-gray-700'); this.querySelector('.chevron-icon').classList.toggle('rotate-180')">
+                        <div class="flex flex-col items-start min-w-0 pr-2">
+                            <span class="text-xs font-bold text-gray-900 dark:text-white truncate w-full">Device: <span class="text-blue-600">${did.substring(0,15)}${did.length>15?'...':''}</span></span>
+                            <span class="text-[9px] text-gray-500 font-mono mt-0.5 truncate w-full">${groupCrashes.length} Crash${groupCrashes.length > 1 ? 'es' : ''} | Last: ${latestDate}</span>
                         </div>
-                        <svg class="w-4 h-4 text-gray-400 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
+                        <div class="flex items-center shrink-0">
+                            ${resolveAllHtml}
+                            <svg class="chevron-icon w-4 h-4 text-gray-400 transform transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                    </div>
                     <div class="hidden divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
                 `;
                 
@@ -1467,6 +1497,43 @@ const Admin = {
                 Admin.fetchCrashes();
             } catch (e) {
                 if (typeof showToast === 'function') showToast("Error resolving crash.", "error");
+            }
+        };
+
+        // 🛡️ GUARDIAN PHASE 1: Bulk Resolve Engine
+        Admin.resolveAllDeviceCrashes = async (deviceId) => {
+            const confirmed = await Admin.secureConfirm("Resolve All Crashes", `Mark all active crashes for device ${deviceId.substring(0,10)}... as resolved?`);
+            if (!confirmed) return;
+
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+
+            try {
+                const targetCrashes = Admin.cachedCrashData.filter(c => 
+                    c.status !== 'resolved' && 
+                    (c.deviceId === deviceId || c.device_id === deviceId || (deviceId === 'Anonymous / Legacy' && !c.deviceId && !c.device_id))
+                );
+                
+                if (targetCrashes.length === 0) return;
+
+                if (typeof showToast === 'function') showToast(`Resolving ${targetCrashes.length} crashes...`, "info");
+
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const payload = { status: 'resolved', resolvedAt: Date.now() };
+
+                // Execute all PATCH requests concurrently
+                const promises = targetCrashes.map(crash => 
+                    fetch(`${dynamicEndpoint}sys_logs/crashes/${crash.id}.json?auth=${secret}`, {
+                        method: 'PATCH', body: JSON.stringify(payload)
+                    })
+                );
+
+                await Promise.all(promises);
+
+                if (typeof showToast === 'function') showToast("All device crashes archived!", "success");
+                Admin.fetchCrashes();
+            } catch (e) {
+                if (typeof showToast === 'function') showToast("Error resolving crashes.", "error");
             }
         };
 
@@ -1607,6 +1674,10 @@ const Admin = {
                 container.classList.remove('admin-grid-view');
                 container.style.gridTemplateColumns = ''; // Clear inline styles
                 
+                // 🛡️ GUARDIAN UX FIX: Hide Sign Out container to maximize panel airspace
+                const signoutContainer = document.getElementById('admin-signout-container');
+                if (signoutContainer) signoutContainer.style.display = 'none';
+                
                 // 🛡️ GUARDIAN PHASE 11: Admin Router Bug Fix
                 history.pushState({ adminPanel: card.id }, '', `#dev-${card.id}`);
                 
@@ -1670,6 +1741,9 @@ const Admin = {
                     container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
                     titleH3.innerHTML = devHeaderRow.dataset.originalHtml;
                     toggleBtn.style.display = '';
+                    
+                    // 🛡️ GUARDIAN UX FIX: Restore Sign Out container when returning to grid
+                    if (signoutContainer) signoutContainer.style.display = '';
                     
                     Array.from(container.children).forEach(child => {
                         child.style.display = '';
@@ -4359,7 +4433,19 @@ const Admin = {
                 const regionNameMap = { 'GP': 'Gauteng', 'WC': 'Western Cape', 'KZN': 'KwaZulu-Natal', 'EC': 'Eastern Cape' };
                 const displayRegion = regionNameMap[targetRegion] || targetRegion;
 
+                // 🛡️ GUARDIAN PHASE 1: Extract and format Last Updated metadata for Diagnostics
+                let dataAgeStr = "Unknown";
+                if (dbToScan && dbToScan.lastUpdated) {
+                    // Clean prefix if exists, then optionally format through the global formatter
+                    let rawDate = String(dbToScan.lastUpdated).replace(/^last updated[:\s-]*/i, '').trim();
+                    dataAgeStr = typeof formatEffectiveDate === 'function' ? formatEffectiveDate(rawDate) : rawDate;
+                }
+
                 const summary = `
+                    <div class="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800/50 mb-3 shadow-sm">
+                        <span class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-widest flex items-center"><span class="mr-1.5">⏱️</span> Source Data Age</span>
+                        <span class="font-mono text-[10px] font-black text-blue-700 dark:text-blue-400 bg-white dark:bg-gray-800 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-700/50">${dataAgeStr}</span>
+                    </div>
                     <div class="flex justify-between bg-gray-50 dark:bg-gray-700/50 p-3 rounded-xl mb-4 border border-gray-100 dark:border-gray-600">
                         <div class="text-center flex-1 border-r border-gray-200 dark:border-gray-600"><span class="block text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-0.5">${displayRegion} Routes</span><span class="text-lg font-black text-gray-800 dark:text-gray-200 leading-none">${totalRoutes}</span></div>
                         <div class="text-center flex-1 border-r border-gray-200 dark:border-gray-600"><span class="block text-[9px] text-green-600 uppercase font-bold tracking-widest mb-0.5">Healthy</span><span class="text-lg font-black text-green-600 leading-none">${healthyCount}</span></div>

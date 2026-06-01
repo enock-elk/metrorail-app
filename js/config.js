@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7_05.31 - Stabilization v2"; // BUMPED: Western Cape Full Launch & Scrim UI
+const APP_VERSION = "V7_05.31 - Performance Polish v2"; // BUMPED: Western Cape Full Launch & Scrim UI
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -716,6 +716,15 @@ const DEFAULT_EXCLUSIONS = {
 // This drives the "What's New" modal.
 // GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
+    {
+    version: "V7 05.31 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Performance Polish</span>",
+    date: "31 May 2026",
+    features: [
+        "<b>Instant Loading:</b> Squashed a bug that occasionally caused the Welcome Screen to freeze on 'Loading Route'. The app now drops you straight into your schedule.",
+        "<b>Cleaner Interface:</b> Tightened up the side menus, optimized text for smaller screens, and fixed an issue where popup ads were leaking onto the welcome screen.",
+        "<b>Data Reliability:</b> Upgraded our background sync engines to ensure your timetables update perfectly, even on patchy cell networks."
+    ]
+    },
     {
         version: "V7 05.16 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Western Cape Expansion</span>",
         date: "16 May 2026",

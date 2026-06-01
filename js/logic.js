@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_05.31 - Stabilization Edition v2) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_05.31 - Performance Polish Edition v2) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
