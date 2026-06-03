@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_05.31 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.03 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -371,7 +371,7 @@ window.onerror = function(msg, url, line, col, error) {
             <h2 class="text-2xl font-black text-white mb-2 tracking-tight">App Crashed (Safe Mode)</h2>
             <p class="text-gray-400 text-sm mb-8 max-w-xs leading-relaxed">A fatal data error occurred. Please clear your offline cache to resync the latest schedules.</p>
             <div class="w-full max-w-xs space-y-3">
-                <button onclick="try{ if(typeof safeStorage !== 'undefined') safeStorage.flushVolatile(); else { localStorage.clear(); sessionStorage.clear(); } }catch(e){} if(window.indexedDB) indexedDB.deleteDatabase('NextTrainDB'); if(window.caches) { caches.keys().then(k => Promise.all(k.map(n => caches.delete(n)))).finally(() => window.location.href = window.location.pathname + '?v=' + Date.now()) } else { window.location.href = window.location.pathname + '?v=' + Date.now(); }" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg transition-colors w-full focus:outline-none">
+                <button id="safe-mode-clear-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg transition-colors w-full focus:outline-none">
                     Clear Cache & Restart
                 </button>
                 <a href="${feedbackUrl}" target="_blank" class="flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3.5 px-6 rounded-xl shadow-lg transition-colors w-full border border-gray-700 focus:outline-none text-sm">
@@ -380,6 +380,24 @@ window.onerror = function(msg, url, line, col, error) {
             </div>
         </div>
     `;
+
+    // 🛡️ GUARDIAN PHASE 2: Document Body Event Delegation to survive Translation DOM manipulation
+    document.body.addEventListener('click', function(e) {
+        if (e.target.closest('#safe-mode-clear-btn')) {
+            try { 
+                if (typeof safeStorage !== 'undefined') safeStorage.flushVolatile(); 
+                else { localStorage.clear(); sessionStorage.clear(); } 
+            } catch(ex) {} 
+            
+            if (window.indexedDB) indexedDB.deleteDatabase('NextTrainDB'); 
+            
+            if (window.caches) { 
+                caches.keys().then(k => Promise.all(k.map(n => caches.delete(n)))).finally(() => window.location.href = window.location.pathname + '?v=' + Date.now());
+            } else { 
+                window.location.href = window.location.pathname + '?v=' + Date.now(); 
+            }
+        }
+    });
     
     return false;
 };
@@ -1435,10 +1453,15 @@ function initializeApp() {
 }
 
 async function checkMaintenanceStatus() {
-    if (!navigator.onLine) return; 
+    if (!navigator.onLine || window.isLieFi) return; 
     try {
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
         const res = await fetch(`${dynamicEndpoint}config/maintenance.json?t=${Date.now()}`);
+        
+        // 🛡️ GUARDIAN PHASE 2: Captive Portal Trap (Prevents Unexpected token '<' crash)
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('text/html')) throw new Error("Captive Portal Detected");
+        
         const maintData = await res.json();
         
         const existingBanner = document.getElementById('maintenance-banner');
@@ -1518,6 +1541,10 @@ async function checkServiceAlerts() {
             try {
                 const inboxRes = await fetch(`${dynamicEndpoint}inbox/${NEXT_TRAIN_DEVICE_ID}.json?t=${Date.now()}`);
                 if (inboxRes.ok) {
+                    // 🛡️ GUARDIAN PHASE 2: Captive Portal Trap
+                    const contentType = inboxRes.headers.get('content-type') || '';
+                    if (contentType.includes('text/html')) throw new Error("Captive Portal Detected");
+                    
                     const inboxData = await inboxRes.json();
                     if (inboxData) {
                         const unreadKeys = Object.keys(inboxData).filter(k => inboxData[k] && !inboxData[k].read);
@@ -1662,6 +1689,11 @@ async function checkServiceAlerts() {
         // 2. FETCH STANDARD NOTICES
         const response = await fetch(`${dynamicEndpoint}notices.json?t=${Date.now()}`);
         if (!response.ok) return; 
+        
+        // 🛡️ GUARDIAN PHASE 2: Captive Portal Trap
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('text/html')) throw new Error("Captive Portal Detected");
+        
         const notices = await response.json();
         
         const existingTicker = document.getElementById('service-ticker');
@@ -2416,6 +2448,11 @@ async function submitFeedback() {
     spinner.classList.remove('hidden');
 
     try {
+        // 🛡️ GUARDIAN PHASE 2: Lie-Fi & Auth Guard (Stops auth/network-request-failed crash)
+        if (!navigator.onLine || window.isLieFi) {
+            throw new Error("Network disconnected. Cannot submit feedback while offline.");
+        }
+
         if (window.firebaseAuth && !window.firebaseAuth.currentUser && window.firebaseSignInAnonymously) {
             await window.firebaseSignInAnonymously(window.firebaseAuth);
         }
@@ -2794,7 +2831,51 @@ function setupFeatureButtons() {
 // --- GUARDIAN PHASE 3: THE REGION INTERCEPTOR ---
 window.lastClickedFutureRegion = null;
 
-window.handleRegionChange = function(newRegion, selectElement) {
+// 🛡️ GUARDIAN UX FIX: Global Event Delegation for Region Dropdowns (Translation Trap Immunity)
+document.addEventListener('click', (e) => {
+    const regionOption = e.target.closest('[data-region-target]');
+    if (regionOption) {
+        e.stopPropagation();
+        
+        const regionCode = regionOption.getAttribute('data-region-target');
+        const regionName = regionOption.getAttribute('data-region-name');
+        const displayId = regionOption.getAttribute('data-display-id');
+        const selectId = regionOption.getAttribute('data-select-id');
+        const listId = regionOption.getAttribute('data-list-id');
+        const chevronId = regionOption.getAttribute('data-chevron-id');
+
+        // 1. Update text content safely (with null check)
+        if (displayId) {
+            const displayEl = document.getElementById(displayId);
+            if (displayEl && regionName) displayEl.textContent = regionName;
+        }
+
+        // 2. Trigger native select change safely (with null check)
+        if (selectId) {
+            const selectEl = document.getElementById(selectId);
+            if (selectEl && regionCode) {
+                selectEl.value = regionCode;
+                selectEl.dispatchEvent(new Event('change'));
+            }
+        }
+
+        // 3. Close the dropdown safely (with null checks)
+        if (typeof window.toggleDropdownScrim === 'function') {
+            window.toggleDropdownScrim();
+        } else {
+            if (listId) {
+                const listEl = document.getElementById(listId);
+                if (listEl) listEl.classList.add('hidden');
+            }
+            if (chevronId) {
+                const chevronEl = document.getElementById(chevronId);
+                if (chevronEl) chevronEl.classList.remove('rotate-180');
+            }
+        }
+    }
+});
+
+window.handleRegionChange = async function(newRegion, selectElement) {
     if (newRegion === currentRegion) return;
 
     if (selectElement) selectElement.value = currentRegion;
@@ -2808,7 +2889,7 @@ window.handleRegionChange = function(newRegion, selectElement) {
 
     if (!navigator.onLine) {
         const cacheKey = `full_db_${newRegion}`;
-        const cachedData = safeStorage.getItem(cacheKey);
+        const cachedData = await loadFromLocalCache(cacheKey);
         if (!cachedData) {
             showToast(`Internet required to download ${getRegionName(newRegion)} schedules for the first time.`, "error", 4000);
             return;
@@ -3088,9 +3169,12 @@ function closeLegal() {
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./service-worker.js').then(reg => {
-            reg.update();
+            // 🛡️ GUARDIAN PHASE 2: Catch null/nonexistent SW registration race condition
+            try {
+                if (reg) reg.update();
+            } catch (e) { console.warn("SW Update failed:", e); }
 
-            if (reg.waiting) {
+            if (reg && reg.waiting) {
                 handleUpdateFound(reg);
             }
 
@@ -3113,7 +3197,7 @@ if ('serviceWorker' in navigator) {
             let lastReload = null;
             try { lastReload = sessionStorage.getItem('sw_last_reload'); } catch(e) {}
             const now = Date.now();
-            if (lastReload && (now - parseInt(lastReload, 10)) < 10000) {
+            if (lastReload && (now - parseInt(lastReload, 10)) < 30000) {
                 console.warn("🛡️ Guardian: Suppressed rapid infinite reload (Live Server loop blocked).");
                 return;
             }
@@ -3139,6 +3223,12 @@ function handleUpdateFound(registration) {
         
         if (registration.waiting) {
             registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        } else if (registration.installing) {
+            registration.installing.addEventListener('statechange', function() {
+                if (this.state === 'installed') {
+                    this.postMessage({ type: 'SKIP_WAITING' });
+                }
+            });
         }
     } else {
         console.log("GUARDIAN: Silent Update Available.");
@@ -3705,6 +3795,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (routeSelectorBtn) {
         routeSelectorBtn.addEventListener('click', () => {
             history.pushState({ modal: 'route' }, '', '#route');
+        });
+    }
+
+    // 🛡️ GUARDIAN PHASE 2 (Translation Immunity): Bind stripped inline attributes safely
+    const appHubRegionSelect = document.getElementById('app-hub-region-select');
+    if (appHubRegionSelect) {
+        appHubRegionSelect.addEventListener('change', function() {
+            if (typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } 
+            else { try { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); } catch(e) {} window.location.reload(); }
+        });
+    }
+
+    const routeModalRegionSelect = document.getElementById('route-modal-region-select');
+    if (routeModalRegionSelect) {
+        routeModalRegionSelect.addEventListener('change', function() {
+            if (typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } 
+            else { try { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); } catch(e) {} window.location.reload(); }
+        });
+    }
+
+    const checkUpdatesBtn = document.getElementById('check-updates-btn');
+    if (checkUpdatesBtn) {
+        checkUpdatesBtn.addEventListener('click', () => {
+            if (typeof showCacheClearWarning === 'function') showCacheClearWarning();
         });
     }
     

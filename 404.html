@@ -55,9 +55,11 @@
             <div class="absolute inset-0 bg-red-600 rounded-full opacity-10 blur-3xl animate-pulse"></div>
             
             <div class="relative w-full h-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-                <!-- High Quality Unsplash Image (Empty Station) -->
+                <!-- High Quality Local Image with Unsplash Fallback (Empty Station) -->
                 <picture>
-                    <img src="https://images.unsplash.com/photo-1518135114454-9a5a7536c050?auto=format&fit=crop&q=80&w=800&h=800" 
+                    <source srcset="images/port-404.jpg" media="(max-width: 600px)">
+                    <img src="images/land-404.jpg" 
+                        onerror="this.src='https://images.unsplash.com/photo-1518135114454-9a5a7536c050?auto=format&fit=crop&q=80&w=800&h=800'" 
                         alt="Empty Train Station" 
                         class="object-cover w-full h-full grayscale opacity-60"
                     >

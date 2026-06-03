@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V7_05.31 (Performance Polish Edition - UI/UX Polish)
+  Metrorail Next Train V7_06.03 (Performance Polish Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -62,7 +62,7 @@
         "priceCurrency": "ZAR"
       },
       "description": "Live Metrorail schedules and route maps for Gauteng (Pretoria, Johannesburg) and Western Cape (Cape Town). Download timetable images for offline use.",
-      "softwareVersion": "6.04.28",
+      "softwareVersion": "6.06.03",
       "featureList": "Offline Access, Full Timetable, Fare Calculator, Trip Planner, Network Map, Download Timetable Images",
       "url": "https://nexttrain.co.za/"
     }
@@ -429,19 +429,20 @@
                         </button>
                         
                         <!-- Hidden Native Select (The Puppet) -->
-                        <select id="app-hub-region-select" class="hidden" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { try { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); } catch(e) {} window.location.reload(); }">
-                            <option value="GP">Gauteng</option>
-                            <option value="WC">Western Cape</option>
-                            <option value="KZN">KwaZulu-Natal</option>
-                            <option value="EC">Eastern Cape</option>
-                        </select>
+                    <!-- LINTING FIX: Removed inline appearance styles -->
+                    <select id="app-hub-region-select" class="hidden">
+                        <option value="GP">Gauteng</option>
+                        <option value="WC">Western Cape</option>
+                        <option value="KZN">KwaZulu-Natal</option>
+                        <option value="EC">Eastern Cape</option>
+                    </select>
 
                         <!-- Custom Dropdown List (GUARDIAN UX FIX: Moved top-[3.5rem] to top-[2.75rem]) -->
                         <ul id="sidenav-region-list" class="absolute z-[200] w-[calc(100%-2rem)] left-4 top-[2.75rem] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden flex-col overflow-hidden text-left">
-                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Gauteng'; const sel=document.getElementById('app-hub-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Gauteng</li>
-                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Western Cape'; const sel=document.getElementById('app-hub-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Western Cape</li>
-                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='KwaZulu-Natal'; const sel=document.getElementById('app-hub-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">KwaZulu-Natal</li>
-                            <li onclick="event.stopPropagation(); document.getElementById('sidenav-region-display').textContent='Eastern Cape'; const sel=document.getElementById('app-hub-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('sidenav-region-list').classList.add('hidden'); document.getElementById('sidenav-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors">Eastern Cape</li>
+                            <li data-region-target="GP" data-region-name="Gauteng" data-display-id="sidenav-region-display" data-select-id="app-hub-region-select" data-list-id="sidenav-region-list" data-chevron-id="sidenav-region-chevron" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">Gauteng</li>
+                            <li data-region-target="WC" data-region-name="Western Cape" data-display-id="sidenav-region-display" data-select-id="app-hub-region-select" data-list-id="sidenav-region-list" data-chevron-id="sidenav-region-chevron" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">Western Cape</li>
+                            <li data-region-target="KZN" data-region-name="KwaZulu-Natal" data-display-id="sidenav-region-display" data-select-id="app-hub-region-select" data-list-id="sidenav-region-list" data-chevron-id="sidenav-region-chevron" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">KwaZulu-Natal</li>
+                            <li data-region-target="EC" data-region-name="Eastern Cape" data-display-id="sidenav-region-display" data-select-id="app-hub-region-select" data-list-id="sidenav-region-list" data-chevron-id="sidenav-region-chevron" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer">Eastern Cape</li>
                         </ul>
                         
                         <!-- Script to sync initial state instantly -->
@@ -550,7 +551,7 @@
             <div class="pt-5">
                 <h3 class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-5 mb-2">Data & Sync</h3>
                 <div class="flex flex-col border-t border-gray-100 dark:border-gray-800">
-                    <button onclick="showCacheClearWarning()" class="w-full flex justify-between items-center py-3 px-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800 focus:outline-none group">
+                    <button id="check-updates-btn" class="w-full flex justify-between items-center py-3 px-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800 focus:outline-none group">
                         <div class="flex items-center space-x-4">
                             <svg class="w-5 h-5 text-orange-500 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                             <div class="text-left">
@@ -896,7 +897,7 @@
                     
                     <!-- Hidden Native Select (The Puppet) -->
                     <!-- LINTING FIX: Removed inline appearance styles -->
-                    <select id="route-modal-region-select" class="hidden" onchange="if(typeof window.handleRegionChange === 'function') { window.handleRegionChange(this.value, this); } else { try { typeof safeStorage !== 'undefined' ? safeStorage.setItem('userRegion', this.value) : localStorage.setItem('userRegion', this.value); } catch(e) {} window.location.reload(); }">
+                    <select id="route-modal-region-select" class="hidden">
                         <option value="GP">Region: Gauteng</option>
                         <option value="WC">Region: Western Cape</option>
                         <option value="KZN">Region: KwaZulu-Natal</option>
@@ -913,10 +914,10 @@
 
                     <!-- Custom Dropdown List -->
                     <ul id="route-modal-region-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl hidden mt-1 flex-col overflow-hidden text-left">
-                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Gauteng'; const sel=document.getElementById('route-modal-region-select'); sel.value='GP'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: Gauteng</li>
-                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Western Cape'; const sel=document.getElementById('route-modal-region-select'); sel.value='WC'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: Western Cape</li>
-                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: KwaZulu-Natal'; const sel=document.getElementById('route-modal-region-select'); sel.value='KZN'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700">Region: KwaZulu-Natal</li>
-                        <li onclick="event.stopPropagation(); document.getElementById('route-modal-region-display').textContent='Region: Eastern Cape'; const sel=document.getElementById('route-modal-region-select'); sel.value='EC'; sel.dispatchEvent(new Event('change')); if(window.toggleDropdownScrim) window.toggleDropdownScrim(); else { document.getElementById('route-modal-region-list').classList.add('hidden'); document.getElementById('route-modal-region-chevron').classList.remove('rotate-180'); }" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors">Region: Eastern Cape</li>
+                        <li data-region-target="GP" data-region-name="Region: Gauteng" data-display-id="route-modal-region-display" data-select-id="route-modal-region-select" data-list-id="route-modal-region-list" data-chevron-id="route-modal-region-chevron" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">Region: Gauteng</li>
+                        <li data-region-target="WC" data-region-name="Region: Western Cape" data-display-id="route-modal-region-display" data-select-id="route-modal-region-select" data-list-id="route-modal-region-list" data-chevron-id="route-modal-region-chevron" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">Region: Western Cape</li>
+                        <li data-region-target="KZN" data-region-name="Region: KwaZulu-Natal" data-display-id="route-modal-region-display" data-select-id="route-modal-region-select" data-list-id="route-modal-region-list" data-chevron-id="route-modal-region-chevron" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">Region: KwaZulu-Natal</li>
+                        <li data-region-target="EC" data-region-name="Region: Eastern Cape" data-display-id="route-modal-region-display" data-select-id="route-modal-region-select" data-list-id="route-modal-region-list" data-chevron-id="route-modal-region-chevron" class="px-4 py-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer">Region: Eastern Cape</li>
                     </ul>
                 </div>
                 
@@ -1096,40 +1097,46 @@
                 <div>
                     <label class="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 tracking-wider">What's on your mind?</label>
                     <select id="feedback-type" class="w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all shadow-inner appearance-none">
+                        <option value="general">General Feedback</option>
                         <option value="schedule_error">Schedule / Time Error</option>
                         <option value="bug">App Bug or Glitch</option>
                         <option value="suggestion">Feature Suggestion</option>
-                        <option value="general">General Feedback</option>
                     </select>
                 </div>
 
                 <div>
                     <label class="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 tracking-wider">Details</label>
-                    <textarea id="feedback-text" rows="4" class="w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all shadow-inner resize-none" placeholder="Tell us what you noticed..."></textarea>
+                    <textarea id="feedback-text" rows="6" class="w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all shadow-inner resize-none" placeholder="Tell us what you noticed..."></textarea>
                 </div>
 
-                <div>
-                    <label class="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 tracking-wider">Attachment (Optional)</label>
-                    <label for="feedback-file" class="cursor-pointer flex flex-col items-center justify-center w-full py-4 px-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:bg-blue-50 dark:hover:bg-gray-700/50 hover:border-blue-300 dark:hover:border-gray-500 transition-all group">
-                        <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">📎</span>
-                        <span class="text-xs font-bold text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" id="feedback-file-label">Attach Image or PDF (Max 5MB)</span>
-                        <input type="file" id="feedback-file" class="hidden" accept="image/*,.pdf">
-                    </label>
-                    
-                    <div id="feedback-file-preview" class="hidden mt-3 flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-100 dark:border-blue-800/50 shadow-sm">
-                        <div class="flex items-center min-w-0 pr-2">
-                            <span class="text-blue-500 dark:text-blue-400 mr-2 shrink-0">📄</span>
-                            <span id="feedback-file-name" class="text-xs font-bold text-blue-800 dark:text-blue-300 truncate">filename.jpg</span>
+                <details class="group bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-300">
+                    <summary class="cursor-pointer flex items-center justify-between p-3.5 text-[11px] font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider select-none focus:outline-none hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <div class="flex items-center"><span class="text-base mr-2">📎</span> Add Attachment (Optional)</div>
+                        <svg class="w-4 h-4 text-gray-400 transform transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </summary>
+                    <div class="p-4 pt-1 border-t border-gray-200 dark:border-gray-700">
+                        <label for="feedback-file" class="cursor-pointer flex flex-col items-center justify-center w-full py-4 px-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:bg-blue-50 dark:hover:bg-gray-700/50 hover:border-blue-300 dark:hover:border-gray-500 transition-all">
+                            <span class="text-2xl mb-1 hover:scale-110 transition-transform">🖼️</span>
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-400 transition-colors" id="feedback-file-label">Attach Image or PDF (Max 5MB)</span>
+                            <input type="file" id="feedback-file" class="hidden" accept="image/*,.pdf">
+                        </label>
+                        
+                        <div id="feedback-file-preview" class="hidden mt-3 flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-100 dark:border-blue-800/50 shadow-sm">
+                            <div class="flex items-center min-w-0 pr-2">
+                                <span class="text-blue-500 dark:text-blue-400 mr-2 shrink-0">📄</span>
+                                <span id="feedback-file-name" class="text-xs font-bold text-blue-800 dark:text-blue-300 truncate">filename.jpg</span>
+                            </div>
+                            <button id="feedback-file-remove" class="text-gray-400 hover:text-red-500 transition-colors focus:outline-none shrink-0 p-1">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
                         </div>
-                        <button id="feedback-file-remove" class="text-gray-400 hover:text-red-500 transition-colors focus:outline-none shrink-0 p-1">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
                     </div>
-                </div>
+                </details>
 
                 <div class="pt-2 border-t border-gray-100 dark:border-gray-700">
-                    <label class="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 tracking-wider">Contact Info (Optional)</label>
-                    <input type="email" id="feedback-email" class="w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all shadow-inner" placeholder="Leave an email if you'd like a reply">
+                    <label class="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 tracking-wider">WhatsApp / Email (Optional)</label>
+                    <input type="text" id="feedback-email" class="w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all shadow-inner" placeholder="Leave your number or email for a reply">
+                    <p class="text-[9px] text-gray-400 mt-1.5 flex items-start"><span class="mr-1">🔒</span> We will only use this to reply to your specific feedback.</p>
                 </div>
             </div>
 
@@ -1725,24 +1732,24 @@
     </script>
 
     <!-- RENDERER ENGINE -->
-    <script src="js/grid-order.js?v=7_05.31"></script>
-    <script src="js/renderer.js?v=7_05.31"></script>
+    <script src="js/grid-order.js"></script>
+    <script src="js/renderer.js"></script>
     
-    <script src="js/utils.js?v=7_05.31"></script>
-    <script src="js/config.js?v=7_05.31"></script>
-    <script src="js/logic.js?v=7_05.31"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/logic.js"></script>
 
     <!-- ADMIN TOOLS -->
-    <script src="js/admin.js?v=7_05.31"></script>
+    <script src="js/admin.js"></script>
 
     <!-- PLANNER MODULARIZATION -->
-    <script src="js/planner-core.js?v=7_05.31"></script>
-    <script src="js/planner-ui.js?v=7_05.31"></script>
+    <script src="js/planner-core.js"></script>
+    <script src="js/planner-ui.js"></script>
 
-    <script src="js/map-viewer.js?v=7_05.31"></script>
+    <script src="js/map-viewer.js"></script>
 
     <!-- MAIN UI CONTROLLER -->
-    <script src="js/ui.js?v=7_05.31"></script>
+    <script src="js/ui.js"></script>
     
 </body>
 </html>

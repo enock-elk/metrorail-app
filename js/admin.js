@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_05.31 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.03 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -1013,6 +1013,12 @@ const Admin = {
                     return;
                 }
 
+                // 🛡️ GUARDIAN PHASE 1: Network-request-failed crash immunity
+                if (!navigator.onLine || window.isLieFi) {
+                    if (typeof showToast === 'function') showToast("Network disconnected. Cannot authenticate.", "error");
+                    return;
+                }
+
                 if (spinner) spinner.classList.remove('hidden');
                 loginBtn.disabled = true;
 
@@ -1350,18 +1356,20 @@ const Admin = {
         // 🛡️ GUARDIAN UX: Native Swipe Navigation for Crash Tabs
         let crashTouchStartX = 0;
         let crashTouchStartY = 0;
-        body.addEventListener('touchstart', (e) => {
-            crashTouchStartX = e.changedTouches[0].screenX;
-            crashTouchStartY = e.changedTouches[0].screenY;
-        }, {passive: true});
-        body.addEventListener('touchend', (e) => {
-            const diffX = e.changedTouches[0].screenX - crashTouchStartX;
-            const diffY = e.changedTouches[0].screenY - crashTouchStartY;
-            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
-                if (diffX > 0 && Admin.currentCrashTab === 'archive') switchTab('inbox'); // Swipe Right
-                else if (diffX < 0 && Admin.currentCrashTab === 'inbox') switchTab('archive'); // Swipe Left
-            }
-        }, {passive: true});
+        if (body) {
+            body.addEventListener('touchstart', (e) => {
+                crashTouchStartX = e.changedTouches[0].screenX;
+                crashTouchStartY = e.changedTouches[0].screenY;
+            }, {passive: true});
+            body.addEventListener('touchend', (e) => {
+                const diffX = e.changedTouches[0].screenX - crashTouchStartX;
+                const diffY = e.changedTouches[0].screenY - crashTouchStartY;
+                if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+                    if (diffX > 0 && Admin.currentCrashTab === 'archive') switchTab('inbox'); // Swipe Right
+                    else if (diffX < 0 && Admin.currentCrashTab === 'inbox') switchTab('archive'); // Swipe Left
+                }
+            }, {passive: true});
+        }
 
         Admin.renderCrashList = () => {
             listDiv.innerHTML = '';
@@ -2107,18 +2115,20 @@ const Admin = {
         // 🛡️ GUARDIAN UX: Native Swipe Navigation for Feedback Tabs
         let fbTouchStartX = 0;
         let fbTouchStartY = 0;
-        body.addEventListener('touchstart', (e) => {
-            fbTouchStartX = e.changedTouches[0].screenX;
-            fbTouchStartY = e.changedTouches[0].screenY;
-        }, {passive: true});
-        body.addEventListener('touchend', (e) => {
-            const diffX = e.changedTouches[0].screenX - fbTouchStartX;
-            const diffY = e.changedTouches[0].screenY - fbTouchStartY;
-            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
-                if (diffX > 0 && Admin.currentFeedbackTab === 'archive') switchTab('inbox'); // Swipe Right
-                else if (diffX < 0 && Admin.currentFeedbackTab === 'inbox') switchTab('archive'); // Swipe Left
-            }
-        }, {passive: true});
+        if (body) {
+            body.addEventListener('touchstart', (e) => {
+                fbTouchStartX = e.changedTouches[0].screenX;
+                fbTouchStartY = e.changedTouches[0].screenY;
+            }, {passive: true});
+            body.addEventListener('touchend', (e) => {
+                const diffX = e.changedTouches[0].screenX - fbTouchStartX;
+                const diffY = e.changedTouches[0].screenY - fbTouchStartY;
+                if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+                    if (diffX > 0 && Admin.currentFeedbackTab === 'archive') switchTab('inbox'); // Swipe Right
+                    else if (diffX < 0 && Admin.currentFeedbackTab === 'inbox') switchTab('archive'); // Swipe Left
+                }
+            }, {passive: true});
+        }
 
         // Render purely from RAM state based on Active Tab (WhatsApp Thread Protocol)
         Admin.renderFeedbackList = () => {
@@ -2201,6 +2211,7 @@ const Admin = {
                             <span class="text-[9px] text-gray-500 font-mono mt-1">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} | Last: ${latestDate}</span>
                         </button>
                         <div class="flex items-center space-x-1 sm:space-x-2 shrink-0">
+                            <button onclick="Admin.exportThreadForAI('${did}')" class="p-1.5 bg-white dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900/30 text-gray-500 hover:text-green-600 dark:hover:text-green-400 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm" title="Download Thread for AI (.txt)">🤖</button>
                             ${did !== 'Anonymous / Legacy' ? `<button onclick="Admin.setCommuterAlias('${did}', '${alias || ''}')" class="p-1.5 bg-white dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-gray-600 text-gray-500 hover:text-blue-600 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm" title="Edit Alias">✏️</button>` : ''}
                             <button class="focus:outline-none p-1.5" onclick="const p = this.parentElement.parentElement; p.nextElementSibling.classList.toggle('hidden'); p.classList.toggle('border-gray-200'); p.classList.toggle('dark:border-gray-700'); this.querySelector('.chevron-icon').classList.toggle('rotate-180')">
                                 <svg class="chevron-icon w-4 h-4 text-gray-400 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -2286,7 +2297,21 @@ const Admin = {
                     } else {
                         // COMMUTER BUBBLE (Left)
                         // TRAILING WHITESPACE PURGE: .trim() before replace
-                        let rawText = item.text ? secureEscape(item.text.trim()).replace(/\n/g, "<br>") : "No content";
+                        let rawText = item.text ? secureEscape(item.text.trim()) : "No content";
+                        
+                        // 🛡️ GUARDIAN PHASE 6: SMART REGEX (Emails & WhatsApp Auto-Linking)
+                        rawText = rawText.replace(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi, '<a href="mailto:$1" class="text-blue-600 dark:text-blue-400 underline font-bold" onclick="event.stopPropagation()">$1</a>');
+                        
+                        // Captures SA formats: 082 123 4567, +27 82 123 4567, 27821234567
+                        rawText = rawText.replace(/(?:^|\s|\()(?:\+?27|0)[\s-]*([6-8]\d)[\s-]*(\d{3})[\s-]*(\d{4})(?=\s|$|[.,!?\)])/g, (match, p1, p2, p3) => {
+                            const fullNum = `27${p1}${p2}${p3}`;
+                            const displayNum = `0${p1} ${p2} ${p3}`;
+                            const prefix = match.charAt(0).match(/\s|\(/) ? match.charAt(0) : ''; 
+                            return `${prefix}<a href="https://wa.me/${fullNum}" target="_blank" class="text-green-600 dark:text-green-400 font-bold underline" onclick="event.stopPropagation()">💬 ${displayNum}</a>`;
+                        });
+                        
+                        rawText = rawText.replace(/\n/g, "<br>");
+                        
                         const safeAppVersion = secureEscape(item.appVersion || 'Unknown');
                         const safeRouteId = secureEscape(item.routeId || 'None');
                         const safeAttachUrl = item.attachmentUrl ? secureEscape(item.attachmentUrl) : null;
@@ -2566,6 +2591,44 @@ const Admin = {
             } catch (e) {
                 if (typeof showToast === 'function') showToast("Error saving alias.", "error");
             }
+        };
+
+        // 🛡️ GUARDIAN PHASE 6: AI Thread Exporter (.txt Blob Generator)
+        Admin.exportThreadForAI = (did) => {
+            const items = Admin.cachedFeedbackData.filter(i => (i.device_id === did || i.deviceId === did || (did === 'Anonymous / Legacy' && !i.device_id && !i.deviceId)));
+            items.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            
+            let txt = `METRORAIL NEXT TRAIN - COMMUTER THREAD EXPORT\n`;
+            txt += `Device ID: ${did}\n`;
+            txt += `Alias: ${(Admin.cachedAliases && Admin.cachedAliases[did]) ? Admin.cachedAliases[did] : 'None'}\n`;
+            txt += `Exported: ${new Date().toLocaleString('en-ZA')}\n`;
+            txt += `--------------------------------------------------\n\n`;
+            
+            items.forEach(i => {
+                const dateStr = new Date(i.timestamp || Date.now()).toLocaleString('en-ZA');
+                const sender = i.isFromAdmin ? "ADMIN" : "COMMUTER";
+                
+                // Revert <br> to newline and securely strip HTML tags
+                let cleanText = i.text || "No content";
+                cleanText = cleanText.replace(/<br\s*\/?>/gi, '\n');
+                cleanText = cleanText.replace(/<[^>]+>/g, ''); 
+                // Decode HTML entities
+                cleanText = cleanText.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+                
+                txt += `[${dateStr}] ${sender}:\n${cleanText}\n\n`;
+            });
+            
+            const blob = new Blob([txt], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `NextTrain_Thread_${did.replace(/[^a-zA-Z0-9]/g, '').substring(0,8)}_${Date.now()}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            if (typeof showToast === 'function') showToast("Thread exported for AI (.txt)", "success");
         };
     },
 
@@ -2975,13 +3038,15 @@ const Admin = {
             });
         }
 
-        pollToggle.addEventListener('change', () => {
-            if (pollToggle.checked) {
-                pollContainer.classList.remove('hidden');
-            } else {
-                pollContainer.classList.add('hidden');
-            }
-        });
+        if (pollToggle) {
+            pollToggle.addEventListener('change', () => {
+                if (pollToggle.checked) {
+                    if (pollContainer) pollContainer.classList.remove('hidden');
+                } else {
+                    if (pollContainer) pollContainer.classList.add('hidden');
+                }
+            });
+        }
 
         async function fetchCurrentAlert(target) {
             try {
@@ -3119,7 +3184,9 @@ const Admin = {
             fetchCurrentAlert(alertTarget.value);
         }
 
-        alertTarget.addEventListener('change', () => fetchCurrentAlert(alertTarget.value));
+        if (alertTarget) {
+            alertTarget.addEventListener('change', () => fetchCurrentAlert(alertTarget.value));
+        }
         populateTargets();
 
         const now = new Date();
@@ -3425,10 +3492,12 @@ const Admin = {
             });
         };
 
-        routeSelect.addEventListener('change', () => {
-            populateStations();
-            Admin.fetchDisruptions(routeSelect.value);
-        });
+        if (routeSelect) {
+            routeSelect.addEventListener('change', () => {
+                populateStations();
+                Admin.fetchDisruptions(routeSelect.value);
+            });
+        }
         populateStations();
 
         // Default Expiry (48 hours)
@@ -3726,20 +3795,26 @@ const Admin = {
             }
         }
 
-        routeSelect.addEventListener('change', () => {
-            const rId = routeSelect.value;
-            if (rId && ROUTES[rId]) {
-                const r = ROUTES[rId];
-                dirSelect.options[0].textContent = `To ${r.destA.replace(' STATION','')}`;
-                dirSelect.options[1].textContent = `To ${r.destB.replace(' STATION','')}`;
-                fetchExclusions();
-            } else {
-                dirSelect.options[0].textContent = "To Dest A";
-                dirSelect.options[1].textContent = "To Dest B";
-            }
-        });
-        
-        routeSelect.dispatchEvent(new Event('change'));
+        if (routeSelect) {
+            routeSelect.addEventListener('change', () => {
+                const rId = routeSelect.value;
+                if (rId && ROUTES[rId]) {
+                    const r = ROUTES[rId];
+                    if (dirSelect && dirSelect.options.length >= 2) {
+                        dirSelect.options[0].textContent = `To ${r.destA.replace(' STATION','')}`;
+                        dirSelect.options[1].textContent = `To ${r.destB.replace(' STATION','')}`;
+                    }
+                    fetchExclusions();
+                } else {
+                    if (dirSelect && dirSelect.options.length >= 2) {
+                        dirSelect.options[0].textContent = "To Dest A";
+                        dirSelect.options[1].textContent = "To Dest B";
+                    }
+                }
+            });
+            
+            routeSelect.dispatchEvent(new Event('change'));
+        }
 
         const days = ['S','M','T','W','T','F','S'];
         days.forEach((d, idx) => {
@@ -4192,45 +4267,68 @@ const Admin = {
             </button>
 
             <div id="diag-body" class="hidden mt-4 space-y-4">
-                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p class="text-[10px] text-blue-800 dark:text-blue-300 font-medium leading-snug">Scans the active local database to verify if all configured routes have successfully downloaded their train schedules and checks for structural anomalies.</p>
-                </div>
                 
-                <!-- 🛡️ GUARDIAN PHASE 2: Region Selector -->
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Data Source</label>
-                        <select id="diag-source-select" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
-                            <option value="RAM">Local Memory (RAM)</option>
-                            <option value="FIREBASE">Firebase (Live)</option>
-                            <option value="GITHUB">GitHub CDN (Live)</option>
-                            <option value="CLOUDFLARE">Cloudflare Edge (Live)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Region</label>
-                        <select id="diag-region-select" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
-                            <option value="CURRENT">Active Region Only</option>
-                            <option value="GP">Gauteng</option>
-                            <option value="WC">Western Cape</option>
-                            <option value="KZN">KwaZulu-Natal</option>
-                            <option value="EC">Eastern Cape</option>
-                        </select>
-                    </div>
+                <!-- 🛡️ GUARDIAN PHASE 1: Global Target Region (Controls Both Panels) -->
+                <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Region (Matrix & Scan)</label>
+                    <select id="diag-region-select" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
+                        <option value="CURRENT">Active Region Only</option>
+                        <option value="GP">Gauteng</option>
+                        <option value="WC">Western Cape</option>
+                        <option value="KZN">KwaZulu-Natal</option>
+                        <option value="EC">Eastern Cape</option>
+                    </select>
                 </div>
 
-                <!-- 🛡️ GUARDIAN: Data Pipeline Ping Tool -->
-                <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-600 mt-2 mb-2">
-                    <button id="ping-diagnostics-btn" class="w-full bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 font-bold py-2 rounded-lg shadow-sm transition-colors text-[10px] uppercase tracking-wide focus:outline-none flex justify-center items-center">
-                        <span class="mr-2 text-sm">📡</span> Ping Endpoints
+                <!-- 🛡️ CACHE PROPAGATION MATRIX ACCORDION -->
+                <div class="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800 overflow-hidden shadow-sm transition-all">
+                    <button id="matrix-header-btn" class="w-full px-3 py-3 bg-indigo-100/50 dark:bg-indigo-900/40 text-left text-[10px] font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-indigo-200/50 dark:hover:bg-indigo-900/60">
+                        <span class="flex items-center"><span class="mr-2 text-sm">🌐</span> Cache Propagation Matrix</span>
+                        <svg id="matrix-chevron" class="w-4 h-4 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
-                    <div id="ping-results" class="hidden mt-3 space-y-1.5"></div>
+                    
+                    <div id="matrix-body" class="p-3">
+                        <p class="text-[9px] text-indigo-700 dark:text-indigo-400 font-medium leading-snug mb-3">Interrogates global Edge Caches (Cloudflare, GitHub, Firebase) to verify version sync status. Bypasses local browser cache.</p>
+                        
+                        <button id="ping-diagnostics-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-[10px] uppercase tracking-wide focus:outline-none flex justify-center items-center">
+                            <span class="mr-1.5 text-sm">📡</span> Probe Edge Caches
+                        </button>
+                        
+                        <div id="ping-results" class="hidden mt-3">
+                            <div class="overflow-x-auto rounded-lg border border-indigo-200 dark:border-indigo-800/50 shadow-sm">
+                                <table class="w-full text-left text-[9px] whitespace-nowrap">
+                                    <thead class="bg-indigo-100/70 dark:bg-indigo-900/40 text-indigo-900 dark:text-indigo-200 uppercase tracking-wider font-bold">
+                                        <tr>
+                                            <th class="px-2 py-2 border-b border-indigo-200 dark:border-indigo-800/50">Pipeline</th>
+                                            <th class="px-2 py-2 border-b border-indigo-200 dark:border-indigo-800/50">App Version</th>
+                                            <th class="px-2 py-2 border-b border-indigo-200 dark:border-indigo-800/50 text-right">DB Freshness & Ping</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="matrix-tbody" class="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800 text-gray-700 dark:text-gray-300">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <button id="diag-run-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors text-xs uppercase tracking-wide focus:outline-none">
-                    Run Network Scan
-                </button>
-                <div id="diag-results" class="space-y-1 max-h-60 overflow-y-auto custom-scrollbar"></div>
+                <!-- 🛡️ DEEP NETWORK SCAN ACCORDION -->
+                <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800 overflow-hidden shadow-sm transition-all">
+                    <button id="deepscan-header-btn" class="w-full px-3 py-3 bg-blue-100/50 dark:bg-blue-900/40 text-left text-[10px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-blue-200/50 dark:hover:bg-blue-900/60">
+                        <span class="flex items-center"><span class="mr-2 text-sm">🩻</span> Deep Network Scan</span>
+                        <svg id="deepscan-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    
+                    <div id="deepscan-body" class="p-3 hidden">
+                        <p class="text-[9px] text-blue-700 dark:text-blue-400 font-medium leading-snug mb-3">Scans the database to verify if all configured routes have successfully downloaded their timetables and checks for structural anomalies.</p>
+
+                        <button id="diag-run-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-[10px] uppercase tracking-wide focus:outline-none flex justify-center items-center">
+                            Run Deep Scan
+                        </button>
+                        
+                        <div id="diag-results" class="mt-3 space-y-1 max-h-60 overflow-y-auto custom-scrollbar"></div>
+                    </div>
+                </div>
             </div>
         `;
 
@@ -4240,104 +4338,236 @@ const Admin = {
         const runBtn = document.getElementById('diag-run-btn');
         const resultsDiv = document.getElementById('diag-results');
 
-        // --- PIPELINE DIAGNOSTICS LOGIC ---
+        // Accordions
+        const matrixHeader = document.getElementById('matrix-header-btn');
+        const matrixBody = document.getElementById('matrix-body');
+        const matrixChevron = document.getElementById('matrix-chevron');
+
+        const deepscanHeader = document.getElementById('deepscan-header-btn');
+        const deepscanBody = document.getElementById('deepscan-body');
+        const deepscanChevron = document.getElementById('deepscan-chevron');
+
+        if (matrixHeader) {
+            matrixHeader.onclick = () => {
+                matrixBody.classList.toggle('hidden');
+                if (matrixBody.classList.contains('hidden')) matrixChevron.classList.add('-rotate-90');
+                else matrixChevron.classList.remove('-rotate-90');
+            };
+        }
+
+        if (deepscanHeader) {
+            deepscanHeader.onclick = () => {
+                deepscanBody.classList.toggle('hidden');
+                if (deepscanBody.classList.contains('hidden')) deepscanChevron.classList.add('-rotate-90');
+                else deepscanChevron.classList.remove('-rotate-90');
+            };
+        }
+
+        // Main Module Toggle
+        header.onclick = () => {
+            if (Admin.isGridMode) return; 
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) chevron.classList.add('-rotate-90');
+            else chevron.classList.remove('-rotate-90');
+        };
+
+        // --- CACHE PROPAGATION MATRIX LOGIC ---
         const pingBtn = document.getElementById('ping-diagnostics-btn');
         const pingResults = document.getElementById('ping-results');
+        const matrixTbody = document.getElementById('matrix-tbody');
+
+        const formatNiceDate = (dateStr) => {
+            if (!dateStr || dateStr === 'Unknown') return 'Unknown';
+            try {
+                const d = new Date(dateStr.replace(/^last updated[:\s-]*/i, '').trim());
+                if (isNaN(d.getTime())) return dateStr;
+                const day = d.getDate();
+                const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()];
+                const year = d.getFullYear();
+                let hours = d.getHours();
+                const ampm = hours >= 12 ? 'PM' : 'AM';
+                hours = hours % 12;
+                hours = hours ? hours : 12; 
+                const minutes = d.getMinutes().toString().padStart(2, '0');
+                return `${day} ${month} ${year} - ${hours}:${minutes}${ampm}`;
+            } catch(e) { return dateStr; }
+        };
 
         if (pingBtn) {
             pingBtn.onclick = async () => {
                 pingResults.classList.remove('hidden');
-                pingResults.innerHTML = '<div class="text-[10px] text-gray-500 italic text-center py-2">Pinging endpoints...</div>';
+                matrixTbody.innerHTML = `<tr><td colspan="3" class="px-2 py-6 text-center italic text-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/10">Probing Global Edge Networks...<br><span class="text-[8px] opacity-70">Bypassing local caches</span></td></tr>`;
                 
-                const endpoints = [
-                    { name: 'Cloudflare', url: 'https://nexttrain-cache.enock.workers.dev/config/maintenance.json' },
-                    { name: 'Firebase', url: 'https://metrorail-next-train-default-rtdb.firebaseio.com/config/maintenance.json' },
-                    { name: 'GitHub', url: 'https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/manifest.json' }
+                const regionSelect = document.getElementById('diag-region-select');
+                const targetRegion = regionSelect ? regionSelect.value : 'CURRENT';
+                const activeRegion = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
+                const actualRegion = targetRegion === 'CURRENT' ? activeRegion : targetRegion;
+
+                const getRegionDbPath = (source) => {
+                    const paths = {
+                        'GP': source === 'GITHUB' ? 'full-database.json' : 'schedules/gauteng.json',
+                        'WC': source === 'GITHUB' ? 'full-database.json' : 'schedules/westerncape.json',
+                        'KZN': source === 'GITHUB' ? 'full-database.json' : 'schedules/kzn.json',
+                        'EC': source === 'GITHUB' ? 'full-database.json' : 'schedules/easterncape.json'
+                    };
+                    return paths[actualRegion];
+                };
+
+                // The Golden Rule: Fetching raw resources completely bypassing local PWA cache policies.
+                const pipelines = [
+                    {
+                        name: 'Cloudflare Edge',
+                        configUrl: 'https://nexttrain.co.za/js/config.js',
+                        dbUrl: `https://nexttrain-cache.enock.workers.dev/${getRegionDbPath('CLOUDFLARE')}`,
+                        expectApp: true
+                    },
+                    {
+                        name: 'GitHub CDN',
+                        configUrl: 'https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/js/config.js',
+                        dbUrl: `https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/data/${getRegionDbPath('GITHUB')}`,
+                        expectApp: true
+                    },
+                    {
+                        name: 'Firebase Live',
+                        configUrl: 'https://metrorail-next-train.firebaseapp.com/js/config.js',
+                        dbUrl: `https://metrorail-next-train-default-rtdb.firebaseio.com/${getRegionDbPath('FIREBASE')}`,
+                        expectApp: false // We don't host the active frontend UI here, so don't punish it if config.js is missing
+                    }
                 ];
 
-                let resultsHtml = '';
-                
-                for (const ep of endpoints) {
+                const probePromises = pipelines.map(async (pipe) => {
                     const start = Date.now();
+                    let appVer = "Error";
+                    let appTime = "Fetch Failed";
+                    let dbTime = "Fetch Failed";
+                    let latency = 0;
+                    let latencyClass = "text-red-600 dark:text-red-400"; // Default failure state
+
                     try {
-                        const res = await fetch(ep.url + '?t=' + Date.now(), { cache: 'no-store' });
-                        const latency = Date.now() - start;
-                        if (res.ok) {
-                            resultsHtml += `<div class="flex justify-between items-center text-[10px] p-2 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-lg border border-green-200 dark:border-green-800/50 shadow-sm"><span class="font-bold">${ep.name}</span> <span class="font-mono bg-green-100 dark:bg-green-800 px-1.5 py-0.5 rounded">${latency}ms (OK)</span></div>`;
-                        } else {
-                            resultsHtml += `<div class="flex justify-between items-center text-[10px] p-2 bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300 rounded-lg border border-orange-200 dark:border-orange-800/50 shadow-sm"><span class="font-bold">${ep.name}</span> <span class="font-mono bg-orange-100 dark:bg-orange-800 px-1.5 py-0.5 rounded">HTTP ${res.status}</span></div>`;
+                        // Concurrent non-blocking fetches using cache: 'no-store'
+                        const [confRes, dbRes] = await Promise.all([
+                            fetch(pipe.configUrl, { cache: 'no-store' }).catch(e => null),
+                            fetch(pipe.dbUrl, { cache: 'no-store' }).catch(e => null)
+                        ]);
+
+                        latency = Date.now() - start;
+
+                        // Parse Config.js App Version & Header Time
+                        if (confRes && confRes.ok) {
+                            const confText = await confRes.text();
+                            const verMatch = confText.match(/const APP_VERSION\s*=\s*["']([^"']+)["']/);
+                            appVer = verMatch ? verMatch[1].split(' - ')[0] : 'Unknown';
+                            const lastMod = confRes.headers.get('Last-Modified');
+                            if (lastMod) appTime = formatNiceDate(lastMod);
+                            else appTime = "Cache Verified";
+                        } else if (!pipe.expectApp) {
+                            appVer = "N/A";
+                            appTime = "RTDB Data Only";
                         }
-                    } catch(e) {
-                        const latency = Date.now() - start;
-                        resultsHtml += `<div class="flex justify-between items-center text-[10px] p-2 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 rounded-lg border border-red-200 dark:border-red-800/50 shadow-sm"><span class="font-bold">${ep.name}</span> <span class="font-mono bg-red-100 dark:bg-red-800 px-1.5 py-0.5 rounded">Fail (${latency}ms)</span></div>`;
+
+                        // Parse Database Freshness
+                        if (dbRes && dbRes.ok) {
+                            const dbJson = await dbRes.json();
+                            if (dbJson) {
+                                let targetObj = dbJson;
+                                // Unwrap nested regions if necessary
+                                if (actualRegion === 'GP' && dbJson.gauteng) targetObj = dbJson.gauteng;
+                                else if (actualRegion === 'WC' && dbJson.westerncape) targetObj = dbJson.westerncape;
+                                else if (actualRegion === 'KZN' && dbJson.kzn) targetObj = dbJson.kzn;
+                                else if (actualRegion === 'EC' && dbJson.easterncape) targetObj = dbJson.easterncape;
+                                else if (actualRegion === 'GP' && dbJson.schedules && !dbJson.gauteng) targetObj = dbJson.schedules;
+                                
+                                let dbVer = targetObj.lastUpdated || 'Unknown';
+                                dbTime = formatNiceDate(dbVer);
+                            }
+                        }
+
+                        // Color-coding latency & validation matrix
+                        if (appVer !== "Error" && dbTime !== "Fetch Failed") {
+                            if (latency < 500) {
+                                latencyClass = "text-green-600 dark:text-green-400";
+                            } else if (latency < 1000) {
+                                latencyClass = "text-orange-500 dark:text-orange-400";
+                            } else {
+                                latencyClass = "text-red-600 dark:text-red-400"; // Slow response
+                            }
+                        }
+
+                    } catch (e) {
+                        latency = Date.now() - start;
+                        latencyClass = "text-red-600 dark:text-red-400";
                     }
-                }
-                pingResults.innerHTML = resultsHtml;
+
+                    return {
+                        name: pipe.name,
+                        appVer: appVer,
+                        appTime: appTime,
+                        dbTime: dbTime,
+                        latency: latency,
+                        latencyClass: latencyClass
+                    };
+                });
+
+                const results = await Promise.all(probePromises);
+                
+                let html = '';
+                results.forEach(res => {
+                    html += `
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <td class="px-2 py-2.5 border-r border-gray-100 dark:border-gray-800">
+                                <div class="font-bold text-gray-900 dark:text-white">${res.name}</div>
+                            </td>
+                            <td class="px-2 py-2.5 border-r border-gray-100 dark:border-gray-800">
+                                <div class="font-mono font-bold text-blue-600 dark:text-blue-400">${res.appVer}</div>
+                                <div class="text-[8px] text-gray-500 uppercase tracking-wider mt-0.5">${res.appTime}</div>
+                            </td>
+                            <td class="px-2 py-2.5 text-right">
+                                <div class="font-mono font-black text-sm ${res.latencyClass}">${res.latency}ms</div>
+                                <div class="text-[8px] text-gray-500 uppercase tracking-wider mt-0.5">${res.dbTime}</div>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                matrixTbody.innerHTML = html;
             };
         }
 
-        header.onclick = () => {
-            if (Admin.isGridMode) return; // Prevent accordion action when in grid
-            body.classList.toggle('hidden');
-            if (body.classList.contains('hidden')) {
-                chevron.classList.add('-rotate-90');
-                header.classList.remove('mb-4');
-            } else {
-                chevron.classList.remove('-rotate-90');
-                header.classList.add('mb-4');
-            }
-        };
-
+        // --- DEEP NETWORK SCAN LOGIC ---
         runBtn.onclick = async () => {
-            resultsDiv.innerHTML = '<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Scanning database...</div>';
+            resultsDiv.innerHTML = '<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Scanning local memory cache...</div>';
             
-            // 🛡️ GUARDIAN PHASE 2: Dynamic Region & Probe Engine
+            // 🛡️ GUARDIAN PHASE 2: Dynamic Region Engine
             const regionSelect = document.getElementById('diag-region-select');
             const scanRegion = regionSelect ? regionSelect.value : 'CURRENT';
             const activeRegion = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
             const targetRegion = scanRegion === 'CURRENT' ? activeRegion : scanRegion;
 
-            const sourceSelect = document.getElementById('diag-source-select');
-            const scanSource = sourceSelect ? sourceSelect.value : 'RAM';
-
             let dbToScan = null;
 
-            if (scanSource !== 'RAM') {
+            if (targetRegion !== activeRegion) {
+                // Fetch target region database automatically for inspection
                 try {
-                    let baseUrl = '';
-                    if (scanSource === 'FIREBASE') baseUrl = 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                    else if (scanSource === 'GITHUB') baseUrl = 'https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/data/';
-                    else if (scanSource === 'CLOUDFLARE') baseUrl = 'https://nexttrain-cache.enock.workers.dev/';
-
-                    const regionPaths = {
-                        'GP': scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/gauteng.json',
-                        'WC': scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/westerncape.json',
-                        'KZN': scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/kzn.json',
-                        'EC': scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/easterncape.json'
-                    };
-                    
-                    const fetchUrl = baseUrl + regionPaths[targetRegion] + '?t=' + Date.now();
-                    resultsDiv.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Downloading ${scanSource} payload...</div>`;
+                    const fetchUrl = `https://nexttrain-cache.enock.workers.dev/${targetRegion === 'GP' ? 'schedules/gauteng.json' : targetRegion === 'WC' ? 'schedules/westerncape.json' : targetRegion === 'KZN' ? 'schedules/kzn.json' : 'schedules/easterncape.json'}?t=${Date.now()}`;
+                    resultsDiv.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Downloading Cloudflare payload...</div>`;
                     
                     const res = await fetch(fetchUrl);
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     let rawData = await res.json();
                     
-                    // Unwrap if Firebase or Cloudflare nested format
                     if (targetRegion === 'GP' && rawData.gauteng) dbToScan = rawData.gauteng;
                     else if (targetRegion === 'WC' && rawData.westerncape) dbToScan = rawData.westerncape;
                     else if (targetRegion === 'KZN' && rawData.kzn) dbToScan = rawData.kzn;
                     else if (targetRegion === 'EC' && rawData.easterncape) dbToScan = rawData.easterncape;
                     else if (targetRegion === 'GP' && rawData.schedules && !rawData.gauteng) dbToScan = rawData.schedules;
                     else dbToScan = rawData;
-
                 } catch(e) {
-                    resultsDiv.innerHTML = `<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Failed to fetch from ${scanSource}. ${e.message}</div>`;
+                    resultsDiv.innerHTML = `<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Failed to fetch ${targetRegion} database. ${e.message}</div>`;
                     return;
                 }
             } else {
-                 if (typeof fullDatabase === 'undefined' || !fullDatabase) {
-                    resultsDiv.innerHTML = '<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Offline Cache (RAM) is missing or not fully loaded.</div>';
+                if (typeof fullDatabase === 'undefined' || !fullDatabase) {
+                    resultsDiv.innerHTML = '<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Offline Cache (RAM) is missing.</div>';
                     return;
                 }
                 dbToScan = fullDatabase;
@@ -4353,7 +4583,6 @@ const Admin = {
                 if (typeof ROUTES !== 'undefined') {
                     Object.values(ROUTES).forEach(route => {
                         if (!route.isActive || route.id === 'special_event') return;
-                        
                         if (route.region !== targetRegion) return;
                         
                         totalRoutes++;
@@ -4366,19 +4595,15 @@ const Admin = {
                                 const sheet = dbToScan[key];
                                 if (!sheet || !Array.isArray(sheet) || sheet.length === 0) {
                                     routeHealthy = false;
-                                    missingSheets.push(key); // 🛡️ GUARDIAN FIX: Print actual DB key
+                                    missingSheets.push(key); 
                                 } else {
-                                    // 🛡️ GUARDIAN FIX: Pass raw array through the universal parser to bypass metadata rows (Index 0 Trap)
                                     const parsedSchedule = typeof parseJSONSchedule === 'function' ? parseJSONSchedule(sheet) : null;
                                     
-                                    // Deep Probe 1: Are there actually any trains mapped?
-                                    // headers[0] is 'STATION', the rest are actual train numbers.
                                     if (!parsedSchedule || !parsedSchedule.headers || parsedSchedule.headers.length <= 1) {
                                         routeHealthy = false;
                                         if (!structuralErrors.includes("0 Trains")) structuralErrors.push(`0 Trains (${key})`); 
                                     }
                                     
-                                    // Deep Probe 2: Do DestA and DestB physically exist in the clean timetable?
                                     const cleanA = route.destA.replace(' STATION', '').trim().toUpperCase();
                                     const cleanB = route.destB.replace(' STATION', '').trim().toUpperCase();
                                     
@@ -4433,10 +4658,8 @@ const Admin = {
                 const regionNameMap = { 'GP': 'Gauteng', 'WC': 'Western Cape', 'KZN': 'KwaZulu-Natal', 'EC': 'Eastern Cape' };
                 const displayRegion = regionNameMap[targetRegion] || targetRegion;
 
-                // 🛡️ GUARDIAN PHASE 1: Extract and format Last Updated metadata for Diagnostics
                 let dataAgeStr = "Unknown";
                 if (dbToScan && dbToScan.lastUpdated) {
-                    // Clean prefix if exists, then optionally format through the global formatter
                     let rawDate = String(dbToScan.lastUpdated).replace(/^last updated[:\s-]*/i, '').trim();
                     dataAgeStr = typeof formatEffectiveDate === 'function' ? formatEffectiveDate(rawDate) : rawDate;
                 }
@@ -4561,35 +4784,31 @@ const Admin = {
         }
         checkStatus();
 
-        toggle.addEventListener('change', async () => {
-            const secret = await Admin.getAuthKey(); 
-            if (!secret) {
-                if (typeof showToast === 'function') showToast("Authentication required.", "error");
-                toggle.checked = !toggle.checked; 
-                return;
-            }
-
-            const newState = toggle.checked;
-            const msgText = (maintMsg && maintMsg.value.trim()) ? maintMsg.value.trim() : null;
-            const payload = { active: newState, message: msgText };
-
-            try {
-                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const res = await window.guardianFetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
-                    method: 'PUT',
-                    body: JSON.stringify(payload)
-                }, 10000);
-                
-                if(res.ok) {
-                    if (typeof showToast === 'function') showToast(`Maintenance Mode: ${newState ? "ON" : "OFF"}`, newState ? "warning" : "success");
-                } else {
-                    throw new Error("Auth failed");
+        if (toggle) {
+            toggle.addEventListener('change', async () => {
+                try {
+                    const secret = await Admin.getAuthKey();
+                    if (!secret) {
+                        if (typeof showToast === 'function') showToast("Authentication required.", "error");
+                        toggle.checked = !toggle.checked;
+                        return;
+                    }
+                    const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                    const res = await window.guardianFetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ active: toggle.checked, message: maintMsg && maintMsg.value || "" })
+                    }, 10000);
+                    if (res.ok) {
+                        if (typeof showToast === 'function') showToast(`Maintenance: ${toggle.checked ? "ENABLED" : "DISABLED"}`, "success");
+                    } else {
+                        throw new Error("Auth failed");
+                    }
+                } catch(e) {
+                    if (typeof showToast === 'function') showToast("Failed to update status.", "error");
+                    toggle.checked = !toggle.checked; 
                 }
-            } catch(e) {
-                if (typeof showToast === 'function') showToast("Failed to update status.", "error");
-                toggle.checked = !toggle.checked; 
-            }
-        });
+            });
+        }
 
         if (adsToggle) {
             adsToggle.addEventListener('change', async () => {

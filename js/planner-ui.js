@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7_05.31 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.03 - Performance Polish Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -1260,6 +1260,25 @@ function initPlanner() {
         historyContainer.id = 'planner-history-container';
         historyContainer.className = "mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 hidden";
         inputSection.appendChild(historyContainer);
+        
+        // 🛡️ GUARDIAN PHASE 3: Translation-Proof Event Delegation for Planner History
+        historyContainer.addEventListener('click', (e) => {
+            const clearBtn = e.target.closest('#planner-history-clear-btn');
+            const historyItem = e.target.closest('.planner-history-item-btn');
+            
+            if (clearBtn) {
+                const historyKey = 'plannerHistory_' + (typeof currentRegion !== 'undefined' ? currentRegion : 'GP');
+                try { safeStorage.removeItem(historyKey); } catch(ex) {}
+                if (typeof renderPlannerHistory === 'function') renderPlannerHistory();
+            } else if (historyItem) {
+                const fullFrom = historyItem.getAttribute('data-full-from');
+                const fullTo = historyItem.getAttribute('data-full-to');
+                if (fullFrom && fullTo && typeof restorePlannerSearch === 'function') {
+                    restorePlannerSearch(fullFrom, fullTo);
+                }
+            }
+        });
+        
         if (typeof renderPlannerHistory === 'function') renderPlannerHistory();
     }
 
@@ -1668,12 +1687,12 @@ function renderPlannerHistory() {
     container.innerHTML = `
         <div class="flex items-center justify-between mb-2 px-1">
              <p class="text-xs font-bold text-gray-400 uppercase">Recent Trips</p>
-             <button onclick="safeStorage.removeItem('${historyKey}'); renderPlannerHistory()" class="text-[10px] text-gray-400 hover:text-red-500 focus:outline-none">Clear</button>
+             <button id="planner-history-clear-btn" class="text-[10px] text-gray-400 hover:text-red-500 focus:outline-none">Clear</button>
         </div>
         <div class="flex flex-col gap-2">
             ${validHistory.map(item => `
-                <button onclick="restorePlannerSearch('${item.fullFrom.replace(/'/g, "\\'")}', '${item.fullTo.replace(/'/g, "\\'")}')" 
-                    class="w-full flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 shadow-sm hover:border-blue-50 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group text-left focus:outline-none">
+                <button class="planner-history-item-btn w-full flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 shadow-sm hover:border-blue-50 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group text-left focus:outline-none"
+                    data-full-from="${escapeHTML(item.fullFrom)}" data-full-to="${escapeHTML(item.fullTo)}">
                     <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                         ${item.from} <span class="text-gray-400 mx-1">&rarr;</span> ${item.to}
                     </span>

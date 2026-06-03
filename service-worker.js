@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-V7_05.31 v2'; // GUARDIAN: Major Version Bump
+const CACHE_NAME = 'metrorail-next-train-V7_06.03 v2'; // GUARDIAN: Bumped to v2 for Firebase SDK injection
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.
@@ -21,7 +21,12 @@ const ASSETS_TO_CACHE = [
   './js/admin.js',
   './js/ui.js',
   './js/tailwind.js', 
-  './manifest.json'
+  './manifest.json',
+
+  // 🛡️ GROWTH MODE PHASE 1: Pre-cache Firebase SDKs to survive cold offline boots
+  '[https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js)',
+  '[https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js)',
+  '[https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js)'
 
   // 🛡️ GUARDIAN PHASE 6: removed the [Map image Caching (Cross-Region Offline Support)]
 ];
@@ -133,7 +138,7 @@ self.addEventListener('fetch', (event) => {
 
   // STRATEGY B: Static Assets (JS/CSS/IMG) - Cache First, Network Fallback
   event.respondWith(
-    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
+    caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }

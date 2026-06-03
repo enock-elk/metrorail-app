@@ -1,11 +1,11 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7_05.31 - Performance Polish v2"; // BUMPED: Western Cape Full Launch & Scrim UI
+const APP_VERSION = "V7_06.03 - Performance Polish v1"; // BUMPED: Western Cape Full Launch & Scrim UI
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
-const FORCE_UPDATE_REQUIRED = true;
+const FORCE_UPDATE_REQUIRED = false;
 
 // --- 🛡️ GUARDIAN PHASE 5: WATERFALL DATA PIPELINE ---
 // The Data Pipeline Router automatically falls back to backups if the primary endpoint fails.
@@ -30,6 +30,9 @@ let PRIMARY_DATA_SOURCE = 'CLOUDFLARE';
 
 // Legacy Reference (Safeguard until logic.js Waterfall is fully injected)
 let SCHEDULE_BASE_URL = PIPELINE_SOURCES[PRIMARY_DATA_SOURCE].url;
+
+// Firebase fallback baseline
+const FIREBASE_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";
 
 // Dynamic Data (Admin Bans, Alerts, Maintenance) ALWAYS uses Firebase for real-time capability.
 const DYNAMIC_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";

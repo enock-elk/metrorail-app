@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_05.31 - Performance Polish Edition v2) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_06.03 - Performance Polish Edition v2) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -183,6 +183,11 @@ window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
         }
 
         if (error.name === 'AbortError' || error.message.includes('fetch') || error.message.includes('Network')) {
+            if (navigator.onLine) {
+                console.warn(`🛡️ Guardian: Request to ${url} timed out, but OS reports online. Very slow connection.`);
+                if (typeof showToast === 'function') showToast("Connection is very slow. Still trying...", "warning", 3500);
+                // Do NOT set isLieFi = true or show the offline block. Let the app keep trying.
+            } else {
                 window.isLieFi = true;
                 console.warn(`🛡️ Guardian Lie-Fi Detector: Request to ${url} timed out/failed. Assumed offline.`);
                 
@@ -205,12 +210,13 @@ window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
                 }
 
                 // Priority Clash Fix: Suppress Maintenance Banner if offline
-            const maintBanner = document.getElementById('maintenance-banner');
-            if (maintBanner) maintBanner.style.display = 'none'; 
+                const maintBanner = document.getElementById('maintenance-banner');
+                if (maintBanner) maintBanner.style.display = 'none'; 
 
-            // Show standard offline indicator
-            const oi = document.getElementById('offline-indicator');
-            if (oi) oi.style.display = 'flex';
+                // Show standard offline indicator
+                const oi = document.getElementById('offline-indicator');
+                if (oi) oi.style.display = 'flex';
+            }
         }
         throw error;
     }
@@ -840,9 +846,37 @@ window.executeRegionSwap = function(newRegion) {
             });
         }
     } else {
-        // No default route: show Welcome Screen seamlessly
-        if (typeof showWelcomeScreen === 'function') {
-            showWelcomeScreen();
+        // No default route: Bypass Welcome Screen and default to the first active route
+        let firstAvailableRouteId = null;
+        if (typeof ROUTES !== 'undefined') {
+            const regionRoutes = Object.values(ROUTES).filter(r => r.region === currentRegion && r.isActive && r.id !== 'special_event');
+            if (regionRoutes.length > 0) {
+                firstAvailableRouteId = regionRoutes[0].id;
+            }
+        }
+
+        if (firstAvailableRouteId) {
+            currentRouteId = firstAvailableRouteId;
+            try { if (typeof safeStorage !== 'undefined') safeStorage.setItem('defaultRoute_' + currentRegion, currentRouteId); } catch(e) {}
+            
+            if (typeof updateSidebarActiveState === 'function') updateSidebarActiveState();
+            if (typeof updatePinUI === 'function') updatePinUI();
+            
+            if (typeof renderSkeletonLoader === 'function') {
+                if (typeof pretoriaTimeEl !== 'undefined' && pretoriaTimeEl) renderSkeletonLoader(pretoriaTimeEl);
+                if (typeof pienaarspoortTimeEl !== 'undefined' && pienaarspoortTimeEl) renderSkeletonLoader(pienaarspoortTimeEl);
+            }
+            
+            if (typeof loadAllSchedules === 'function') {
+                loadAllSchedules(true).then(() => {
+                    if (typeof checkServiceAlerts === 'function') checkServiceAlerts();
+                });
+            }
+        } else {
+            // Absolute fallback if no active routes exist in the region
+            if (typeof showWelcomeScreen === 'function') {
+                showWelcomeScreen();
+            }
         }
     }
 };
@@ -1325,8 +1359,8 @@ async function loadAllSchedules(force = false) {
             let fetchSuccess = false;
 
             // 🛡️ GUARDIAN PHASE 5: The Waterfall Failover Engine (Hardcoded to protect Firebase Quotas)
-            //let sourcesToTry = ['CLOUDFLARE', 'FIREBASE', 'GITHUB'];
-            let sourcesToTry = ['FIREBASE', 'CLOUDFLARE', 'GITHUB'];
+            let sourcesToTry = ['CLOUDFLARE', 'FIREBASE', 'GITHUB'];
+            //let sourcesToTry = ['FIREBASE', 'CLOUDFLARE', 'GITHUB'];
 
             // 🛡️ GUARDIAN PHASE 4 (ADMIN): The Waterfall Override Hook
             let devForceSource = null;
