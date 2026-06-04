@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_06.03 - Performance Polish Edition v2) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_06.04 - Performance Polish Edition v1) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -745,7 +745,7 @@ window.clearScheduleCache = async function() {
 };
 
 // --- GUARDIAN PHASE 2 (GROWTH MODE): Seamless SPA Region Swap Engine ---
-window.executeRegionSwap = function(newRegion) {
+window.executeRegionSwap = function(newRegion, isFromWelcomeScreen = false) {
     console.log(`🛡️ Guardian: Executing seamless SPA region swap to ${newRegion}...`);
 
     // 0. Increment the generation lock to instantly orphan any in-flight async parsers
@@ -822,6 +822,14 @@ window.executeRegionSwap = function(newRegion) {
             else if (currentRegion === 'EC') mapImageEl.src = 'images/network-map_ec.png';
             else mapImageEl.src = 'images/network-map.png';
         }
+    }
+
+    // 🛡️ GUARDIAN UX FIX: If this swap was triggered from the Welcome Screen,
+    // we deliberately skip the auto-assignment and background download to prevent
+    // the 4-second race condition teleportation bug.
+    if (isFromWelcomeScreen) {
+        console.log("🛡️ Guardian: Region swapped from Welcome Screen. Skipping auto-assign to prevent race condition.");
+        return;
     }
 
     // 5. Look for a saved default route for this new region

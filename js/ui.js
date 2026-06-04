@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.03 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.04 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -1509,6 +1509,22 @@ window.submitPollVote = function(pollId, optionKey, optionText) {
 
     try { safeStorage.setItem('poll_voted_' + pollId, optionKey); } catch(e) {}
 
+    // 🛡️ GUARDIAN PHASE 8: Send Poll Data to Firebase
+    try {
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const payload = {
+            optionKey: optionKey,
+            optionText: optionText,
+            timestamp: Date.now(),
+            deviceId: typeof NEXT_TRAIN_DEVICE_ID !== 'undefined' ? NEXT_TRAIN_DEVICE_ID : 'unknown'
+        };
+        // Fire and forget
+        fetch(`${dynamicEndpoint}polls/${pollId}.json`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        }).catch(()=>{});
+    } catch(e) {}
+
     const container = document.getElementById(`poll-container-${pollId}`);
     if (container) {
         container.innerHTML = `
@@ -1553,6 +1569,20 @@ async function checkServiceAlerts() {
                             const latestKey = unreadKeys.sort((a,b) => inboxData[b].timestamp - inboxData[a].timestamp)[0];
                             adminReply = inboxData[latestKey];
                             adminReply._key = latestKey;
+
+                            // 🛡️ GUARDIAN PHASE 8: Mark Delivered (2 Grey Ticks)
+                            const undeliveredKeys = unreadKeys.filter(k => !inboxData[k].delivered);
+                            if (undeliveredKeys.length > 0) {
+                                const updates = {};
+                                undeliveredKeys.forEach(k => {
+                                    updates[`${k}/delivered`] = true;
+                                    updates[`${k}/deliveredAt`] = Date.now();
+                                });
+                                fetch(`${dynamicEndpoint}inbox/${NEXT_TRAIN_DEVICE_ID}.json`, {
+                                    method: 'PATCH',
+                                    body: JSON.stringify(updates)
+                                }).catch(()=>{});
+                            }
                         }
                     }
                 }
@@ -1846,6 +1876,7 @@ async function checkServiceAlerts() {
                     }
                     contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Advisory:</span><span class="line-clamp-2">"${truncatedMsg}"</span></div>`;
                     contextBox.dataset.rawMsg = truncatedMsg;
+                    contextBox.dataset.alertId = activeNotice.id; // 🛡️ GUARDIAN PHASE 8: Alert ID Tagging
                     contextBox.classList.remove('hidden');
                     fText.value = ''; 
                 }
@@ -2436,7 +2467,9 @@ async function submitFeedback() {
 
     const contextBox = document.getElementById('feedback-reply-context');
     if (contextBox && !contextBox.classList.contains('hidden') && contextBox.dataset.rawMsg) {
-        text = `[Replying to: "${contextBox.dataset.rawMsg}"]\n\n` + text;
+        // 🛡️ GUARDIAN PHASE 8: Inject Alert ID into the text blob for Admin extraction
+        const alertRef = contextBox.dataset.alertId ? ` Alert ID: ${contextBox.dataset.alertId}` : '';
+        text = `[Replying to: "${contextBox.dataset.rawMsg}"${alertRef}]\n\n` + text;
     }
 
     const hasFile = !!(fileInput && fileInput.files && fileInput.files.length > 0);
@@ -3084,7 +3117,9 @@ function showWelcomeScreen() {
                 safeStorage.setItem('userRegion', code); 
                 
                 if (typeof executeRegionSwap === 'function') {
-                    executeRegionSwap(code);
+                    // 🛡️ GUARDIAN FIX: Pass 'true' to indicate this swap originated from the Welcome Screen.
+                    // This tells logic.js to bypass the auto-download/auto-assign sequence.
+                    executeRegionSwap(code, true);
                     
                     // 🛡️ GUARDIAN BUGFIX: Force Welcome Screen list to re-render instantly, 
                     // bypassing the savedDefault trap in executeRegionSwap.

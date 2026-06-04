@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.03 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.04 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -2052,9 +2052,21 @@ const Admin = {
                 
                 <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
                     <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="fb-status-display">Syncing Data...</span>
-                    <button id="fb-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
-                        Refresh Network
-                    </button>
+                    <div class="flex space-x-2">
+                        <button id="fb-export-global-btn" class="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800 border border-indigo-200 dark:border-indigo-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none flex items-center">
+                            <span class="mr-1 text-xs leading-none">🤖</span> Export AI
+                        </button>
+                        <button id="fb-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
+                            Refresh Network
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-2 mb-2 relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span class="text-xs">🔍</span>
+                    </div>
+                    <input type="text" id="fb-search-input" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block pl-8 p-2 shadow-inner outline-none transition-colors" placeholder="Search aliases, IDs, or messages...">
                 </div>
                 
                 <div id="fb-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar"></div>
@@ -2065,11 +2077,17 @@ const Admin = {
         const body = document.getElementById('fb-body');
         const chevron = document.getElementById('fb-chevron');
         const refreshBtn = document.getElementById('fb-refresh-btn');
+        const exportGlobalBtn = document.getElementById('fb-export-global-btn');
         const listContainer = document.getElementById('fb-list');
         const statusDisplay = document.getElementById('fb-status-display');
         const tabInbox = document.getElementById('fb-tab-inbox');
         const tabArchive = document.getElementById('fb-tab-archive');
         const inboxCountSpan = document.getElementById('fb-inbox-count');
+        const searchInput = document.getElementById('fb-search-input');
+
+        if (searchInput) {
+            searchInput.addEventListener('input', () => Admin.renderFeedbackList());
+        }
 
         header.onclick = () => {
             if (Admin.isGridMode) return; // Prevent accordion action when in grid
@@ -2085,6 +2103,7 @@ const Admin = {
         };
 
         refreshBtn.onclick = () => Admin.fetchFeedback();
+        if (exportGlobalBtn) exportGlobalBtn.onclick = () => Admin.exportGlobalThreadsForAI();
 
         // Dual-Tab Switcher Logic
         const switchTab = (tab) => {
@@ -2199,15 +2218,37 @@ const Admin = {
                 const displayDid = did === 'Anonymous / Legacy' ? did : did.substring(0,15) + '...';
                 const commuterTitle = alias ? `${alias} <span class="text-gray-400 text-[10px] font-normal">(${displayDid})</span>` : displayDid;
                 
-                // 🛡️ GUARDIAN UX FIX: Extract Commuter Email
-                const commuterEmail = latestCommuterMsg.email ? secureEscape(latestCommuterMsg.email) : null;
-                const emailHtml = commuterEmail ? `<a href="mailto:${commuterEmail}" onclick="event.stopPropagation()" class="block text-[10px] text-blue-500 hover:underline font-mono tracking-tight lowercase truncate mt-0.5 max-w-[220px] sm:max-w-[300px]">✉️ ${commuterEmail}</a>` : '';
+                // 🛡️ GUARDIAN UX FIX: Extract Commuter Email / Phone
+                const commuterContact = latestCommuterMsg.email ? secureEscape(latestCommuterMsg.email).trim() : null;
+                let contactHtml = '';
+
+                if (commuterContact) {
+                    // 🛡️ GUARDIAN PHASE 6B: Dynamic Contact Router (Legacy + WhatsApp Support)
+                    if (commuterContact.includes('@')) {
+                        // Legacy Email
+                        contactHtml = `<a href="mailto:${commuterContact}" onclick="event.stopPropagation()" class="block text-[10px] text-blue-500 hover:underline font-mono tracking-tight lowercase truncate mt-0.5 max-w-[220px] sm:max-w-[300px]">✉️ ${commuterContact}</a>`;
+                    } else {
+                        // Check if mostly numbers (min 9 digits)
+                        const digitCount = (commuterContact.match(/\d/g) || []).length;
+                        if (digitCount >= 9) {
+                            // WhatsApp Formatting
+                            let cleanNum = commuterContact.replace(/\D/g, '');
+                            if (cleanNum.startsWith('0')) cleanNum = '27' + cleanNum.substring(1);
+                            else if (!cleanNum.startsWith('27') && cleanNum.length === 9) cleanNum = '27' + cleanNum;
+                            
+                            contactHtml = `<a href="https://wa.me/${cleanNum}" target="_blank" onclick="event.stopPropagation()" class="block text-[10px] text-green-600 dark:text-green-400 hover:underline font-mono tracking-tight truncate mt-0.5 max-w-[220px] sm:max-w-[300px]">💬 ${commuterContact}</a>`;
+                        } else {
+                            // Ambiguous / Plain Text
+                            contactHtml = `<span class="block text-[10px] text-gray-500 dark:text-gray-400 font-mono tracking-tight truncate mt-0.5 max-w-[220px] sm:max-w-[300px]">📞 ${commuterContact}</span>`;
+                        }
+                    }
+                }
 
                 let groupHTML = `
                     <div class="w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 border-b border-transparent transition-colors">
                         <button class="flex-grow flex flex-col items-start focus:outline-none text-left min-w-0 pr-2" onclick="const p = this.parentElement; p.nextElementSibling.classList.toggle('hidden'); p.classList.toggle('border-gray-200'); p.classList.toggle('dark:border-gray-700'); p.querySelector('.chevron-icon').classList.toggle('rotate-180')">
                             <span class="text-xs font-bold text-gray-900 dark:text-white truncate w-full">Commuter: <span class="text-blue-600">${commuterTitle}</span></span>
-                            ${emailHtml}
+                            ${contactHtml}
                             <span class="text-[9px] text-gray-500 font-mono mt-1">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} | Last: ${latestDate}</span>
                         </button>
                         <div class="flex items-center space-x-1 sm:space-x-2 shrink-0">
@@ -2327,16 +2368,35 @@ const Admin = {
                         if (quoteMatch) {
                             isReply = true;
                             // 🛡️ GUARDIAN UX FIX: Cleanly formats the ugly internal Reply ID into "Reply to Enock"
-                            const quoteContent = quoteMatch[1]
+                            const rawQuoteContent = quoteMatch[1];
+                            let quoteContent = rawQuoteContent
                                 .replace(/REPLY TO ADMIN:\s*[-a-zA-Z0-9_]+/i, 'Reply to Enock:')
                                 .replace(/Replying to:\s*/i, '')
                                 .replace(/Failed Route Attempt:\s*/i, 'Failed Route: ');
                                 
-                            quoteBlockHtml = `
-                                <div class="-mx-1 mb-1.5 mt-1 bg-black/5 dark:bg-white/10 border-l-4 border-gray-400 dark:border-gray-500 py-1 px-2 rounded-r text-[10px] text-gray-700 dark:text-gray-300 italic line-clamp-3 w-full">
-                                    ${quoteContent}
-                                </div>
-                            `;
+                            // 🛡️ GUARDIAN PHASE 7: Clickable Context Bubble
+                            // Determines if this is an alert reply (either legacy text match or future ID format)
+                            let alertIdMatch = rawQuoteContent.match(/Alert ID:\s*(\d+)/i);
+                            let isAlertQuote = alertIdMatch || rawQuoteContent.includes('Advisory') || rawQuoteContent.includes('Line Severed') || rawQuoteContent.includes('Expect Delays');
+                            
+                            if (isAlertQuote) {
+                                let alertIdParam = alertIdMatch ? `'${alertIdMatch[1]}'` : 'null';
+                                let safeQuoteText = escapeHTML(quoteContent.replace(/'/g, "\\'"));
+                                quoteBlockHtml = `
+                                    <button type="button" onclick="Admin.viewContextAlert(${alertIdParam}, '${safeQuoteText}')" class="text-left -mx-1 mb-1.5 mt-1 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 dark:border-blue-500 py-1.5 px-2 rounded-r text-[10px] text-blue-800 dark:text-blue-300 italic w-full hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors focus:outline-none group shadow-sm">
+                                        <div class="flex items-start justify-between">
+                                            <span class="line-clamp-2">${quoteContent}</span>
+                                            <svg class="w-3 h-3 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-1 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                        </div>
+                                    </button>
+                                `;
+                            } else {
+                                quoteBlockHtml = `
+                                    <div class="-mx-1 mb-1.5 mt-1 bg-black/5 dark:bg-white/10 border-l-4 border-gray-400 dark:border-gray-500 py-1 px-2 rounded-r text-[10px] text-gray-700 dark:text-gray-300 italic line-clamp-3 w-full">
+                                        ${quoteContent}
+                                    </div>
+                                `;
+                            }
                             rawText = rawText.replace(quoteRegex, '').trim(); // Remove from main body
                         }
 
@@ -2424,7 +2484,7 @@ const Admin = {
                 
                 // Fetch Commuter Messages AND Admin Sent Messages concurrently
                 const [res, inboxRes, aliasesRes] = await Promise.all([
-                    window.guardianFetch(`${dynamicEndpoint}feedback.json?auth=${secret}&orderBy="$key"`, {}, 10000),
+                    window.guardianFetch(`${dynamicEndpoint}feedback.json?auth=${secret}`, {}, 10000),
                     window.guardianFetch(`${dynamicEndpoint}inbox.json?auth=${secret}`, {}, 10000),
                     window.guardianFetch(`${dynamicEndpoint}admin_state/aliases.json?auth=${secret}`, {}, 10000)
                 ]);
@@ -2630,6 +2690,97 @@ const Admin = {
             
             if (typeof showToast === 'function') showToast("Thread exported for AI (.txt)", "success");
         };
+
+        // 🛡️ GROWTH SPRINT PHASE 11: Global AI Thread Exporter (.txt Blob Generator)
+        Admin.exportGlobalThreadsForAI = () => {
+            const isInbox = Admin.currentFeedbackTab === 'inbox';
+            
+            // 1. Group ALL data globally by deviceId FIRST
+            const groups = {};
+            Admin.cachedFeedbackData.forEach(item => {
+                const did = item.device_id || item.deviceId || 'Anonymous / Legacy';
+                if (!groups[did]) groups[did] = [];
+                groups[did].push(item);
+            });
+
+            // 2. Filter groups based on Tab and Live Search (Matching visual render state)
+            const displayGroups = [];
+            const searchInputEl = document.getElementById('fb-search-input');
+            const searchQuery = searchInputEl ? searchInputEl.value.toLowerCase().trim() : "";
+
+            Object.keys(groups).forEach(did => {
+                const groupItems = groups[did];
+                groupItems.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+                const isThreadActive = groupItems.some(i => !i.isFromAdmin && i.status !== 'resolved');
+                
+                let matchesSearch = true;
+                if (searchQuery) {
+                    const alias = (Admin.cachedAliases && Admin.cachedAliases[did]) ? Admin.cachedAliases[did].toLowerCase() : "";
+                    const didLower = did.toLowerCase();
+                    const hasMatchingMsg = groupItems.some(i => i.text && i.text.toLowerCase().includes(searchQuery) || (i.email && i.email.toLowerCase().includes(searchQuery)));
+                    matchesSearch = alias.includes(searchQuery) || didLower.includes(searchQuery) || hasMatchingMsg;
+                }
+                
+                if (matchesSearch) {
+                    if (isInbox && isThreadActive) displayGroups.push({ did, items: groupItems });
+                    if (!isInbox && !isThreadActive) displayGroups.push({ did, items: groupItems });
+                }
+            });
+            
+            if (displayGroups.length === 0) {
+                if (typeof showToast === 'function') showToast("No threads available to export.", "warning");
+                return;
+            }
+
+            // 3. Sort threads (newest on top)
+            displayGroups.sort((a, b) => {
+                const lastA = a.items[a.items.length - 1].timestamp || 0;
+                const lastB = b.items[b.items.length - 1].timestamp || 0;
+                return lastB - lastA;
+            });
+
+            let txt = `METRORAIL NEXT TRAIN - GLOBAL THREAD EXPORT (${isInbox ? 'INBOX' : 'ARCHIVE'})\n`;
+            txt += `Exported: ${new Date().toLocaleString('en-ZA')}\n`;
+            txt += `Total Threads: ${displayGroups.length}\n`;
+            txt += `==================================================\n\n`;
+
+            displayGroups.forEach((group, index) => {
+                const did = group.did;
+                const items = group.items;
+                const alias = (Admin.cachedAliases && Admin.cachedAliases[did]) ? Admin.cachedAliases[did] : 'None';
+                
+                txt += `THREAD ${index + 1} OF ${displayGroups.length}\n`;
+                txt += `Device ID: ${did}\n`;
+                txt += `Alias: ${alias}\n`;
+                txt += `--------------------------------------------------\n`;
+                
+                items.forEach(i => {
+                    const dateStr = new Date(i.timestamp || Date.now()).toLocaleString('en-ZA');
+                    const sender = i.isFromAdmin ? "ADMIN" : "COMMUTER";
+                    
+                    let cleanText = i.text || "No content";
+                    cleanText = cleanText.replace(/<br\s*\/?>/gi, '\n');
+                    cleanText = cleanText.replace(/<[^>]+>/g, ''); 
+                    cleanText = cleanText.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+                    
+                    txt += `[${dateStr}] ${sender}:\n${cleanText}\n\n`;
+                });
+                
+                txt += `==================================================\n\n`;
+            });
+
+            const blob = new Blob([txt], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `NextTrain_Global_${isInbox ? 'Inbox' : 'Archive'}_${Date.now()}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            if (typeof showToast === 'function') showToast(`Exported ${displayGroups.length} threads!`, "success");
+        };
     },
 
     // --- GROWTH SPRINT PHASE 8: ADMIN REPLY INBOX PROTOCOL ---
@@ -2726,13 +2877,123 @@ const Admin = {
                 
                 if (typeof showToast === 'function') showToast("Reply sent & archived!", "success");
                 cleanup();
-            } catch(e) {
+            } catch (e) {
                 if (typeof showToast === 'function') showToast("Failed to send reply.", "error");
             } finally {
                 btn.textContent = "Send Reply";
                 btn.disabled = false;
             }
         };
+    },
+
+    // --- GUARDIAN PHASE 7: CONTEXTUAL ALERT VIEWER ---
+    viewContextAlert: async (alertId, fallbackText) => {
+        const secret = await Admin.getAuthKey();
+        if (!secret) return;
+        
+        if (typeof showToast === 'function') showToast("Fetching context...", "info", 1500);
+
+        let modal = document.getElementById('admin-context-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'admin-context-modal';
+            modal.className = 'fixed inset-0 bg-black/80 z-[250] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-blue-200 dark:border-blue-900/50 flex flex-col max-h-[85vh]">
+                    <div class="flex items-center justify-between mb-4 shrink-0">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xl">🔍</span>
+                            <h3 class="text-lg font-black text-gray-900 dark:text-white tracking-tight">Original Advisory</h3>
+                        </div>
+                        <button onclick="closeSmoothModal('admin-context-modal')" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    <div id="admin-context-content" class="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-800 dark:text-gray-200 leading-relaxed overflow-y-auto custom-scrollbar">
+                        Loading...
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        const contentDiv = document.getElementById('admin-context-content');
+        contentDiv.innerHTML = `<div class="animate-pulse text-center py-4">Searching database...</div>`;
+        
+        openSmoothModal('admin-context-modal');
+
+        try {
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            let foundData = null;
+
+            // Search Active and Archived nodes
+            if (alertId) {
+                let res = await fetch(`${dynamicEndpoint}notices.json?auth=${secret}`);
+                let data = await res.json();
+                if (data) Object.values(data).forEach(alert => { if (alert.id === String(alertId)) foundData = alert; });
+                
+                if (!foundData) {
+                    res = await fetch(`${dynamicEndpoint}notices_archive.json?orderBy="id"&equalTo="${alertId}"&auth=${secret}`);
+                    data = await res.json();
+                    if (data) {
+                        const keys = Object.keys(data);
+                        if (keys.length > 0) foundData = data[keys[0]];
+                    }
+                }
+            }
+
+            // Fuzzy Text Fallback (For legacy quotes without IDs)
+            if (!foundData && fallbackText) {
+                const cleanFallback = fallbackText.replace(/['"]/g, '').toLowerCase().substring(0, 30); 
+                
+                const resActive = await fetch(`${dynamicEndpoint}notices.json?auth=${secret}`);
+                const activeData = await resActive.json();
+                if (activeData) {
+                    Object.values(activeData).forEach(alert => {
+                        if (alert.message && alert.message.toLowerCase().includes(cleanFallback)) foundData = alert;
+                    });
+                }
+
+                if (!foundData) {
+                    const resArch = await fetch(`${dynamicEndpoint}notices_archive.json?auth=${secret}&limitToLast=50`);
+                    const archData = await resArch.json();
+                    if (archData) {
+                        Object.values(archData).forEach(alert => {
+                            if (alert.message && alert.message.toLowerCase().includes(cleanFallback)) foundData = alert;
+                        });
+                    }
+                }
+            }
+
+            if (foundData) {
+                const dateStr = new Date(foundData.postedAt).toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' });
+                let imgHtml = foundData.imageUrl ? `<img src="${foundData.imageUrl}" class="w-full rounded mb-3 max-h-32 object-cover">` : '';
+                let statusHtml = foundData.archivedAt ? `<span class="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2 inline-block">Archived</span>` : `<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2 inline-block">Active</span>`;
+                
+                contentDiv.innerHTML = `
+                    ${statusHtml}
+                    ${imgHtml}
+                    <div class="mb-3">${foundData.message}</div>
+                    <div class="text-[10px] text-gray-500 font-mono border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+                        ID: ${foundData.id}<br>
+                        Posted: ${dateStr}<br>
+                        Severity: ${foundData.severity}
+                    </div>
+                `;
+            } else {
+                contentDiv.innerHTML = `
+                    <div class="text-center py-4">
+                        <span class="text-3xl mb-2 block">📭</span>
+                        <p class="text-gray-500 text-sm font-bold">Alert not found in database.</p>
+                        <p class="text-xs text-gray-400 mt-2">It may have been permanently deleted or too old to retrieve. Here is the snippet we have:</p>
+                        <div class="mt-3 p-3 bg-gray-100 dark:bg-gray-800 rounded italic text-xs text-gray-600 dark:text-gray-400">"${fallbackText}"</div>
+                    </div>
+                `;
+            }
+
+        } catch(e) {
+            contentDiv.innerHTML = `<div class="text-red-500 text-center py-4">Error fetching context: ${e.message}</div>`;
+        }
     },
 
 // RICH TEXT FORMATTING HELPER ---
@@ -2903,6 +3164,37 @@ const Admin = {
                     <button id="alert-clear-btn" class="flex-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-2.5 rounded-lg shadow-sm transition-colors text-xs uppercase tracking-wide">
                         Clear
                     </button>
+                </div>
+
+                <div id="alert-live-poll-results" class="hidden pt-4 border-t border-gray-100 dark:border-gray-700 mt-4">
+                    <h4 class="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-3 flex items-center"><span class="mr-1.5">📊</span> Live Poll Results</h4>
+                    <div class="bg-gray-50 dark:bg-gray-900 rounded-xl p-3 border border-gray-200 dark:border-gray-700">
+                        <p id="poll-result-question" class="text-xs font-bold text-gray-800 dark:text-gray-200 mb-3 leading-snug">Question...</p>
+                        
+                        <div class="mb-2">
+                            <div class="flex justify-between text-[10px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                                <span id="poll-result-label-a">Option A</span>
+                                <span id="poll-result-count-a">0 votes (0%)</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div id="poll-result-bar-a" class="bg-purple-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between text-[10px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                                <span id="poll-result-label-b">Option B</span>
+                                <span id="poll-result-count-b">0 votes (0%)</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div id="poll-result-bar-b" class="bg-purple-400 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3 text-right">
+                            <span id="poll-result-total" class="text-[9px] font-black uppercase text-gray-400 tracking-wider">Total Votes: 0</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -3104,17 +3396,60 @@ const Admin = {
                         pollQuestion.value = data.poll.question || "";
                         pollOptA.value = data.poll.optionA || "";
                         pollOptB.value = data.poll.optionB || "";
+
+                        // 🛡️ GUARDIAN PHASE 7: Fetch Live Poll Results
+                        const pollResultsPanel = document.getElementById('alert-live-poll-results');
+                        if (pollResultsPanel && data.id) {
+                            try {
+                                const secret = await Admin.getAuthKey();
+                                const pollRes = await fetch(`${dynamicEndpoint}polls/${data.id}.json?auth=${secret}`);
+                                const pollData = await pollRes.json();
+                                
+                                let countA = 0;
+                                let countB = 0;
+                                
+                                if (pollData) {
+                                    Object.values(pollData).forEach(vote => {
+                                        if (vote.optionKey === 'A') countA++;
+                                        else if (vote.optionKey === 'B') countB++;
+                                    });
+                                }
+                                
+                                const total = countA + countB;
+                                const pctA = total > 0 ? Math.round((countA / total) * 100) : 0;
+                                const pctB = total > 0 ? Math.round((countB / total) * 100) : 0;
+                                
+                                document.getElementById('poll-result-question').textContent = data.poll.question;
+                                document.getElementById('poll-result-label-a').textContent = data.poll.optionA;
+                                document.getElementById('poll-result-label-b').textContent = data.poll.optionB;
+                                
+                                document.getElementById('poll-result-count-a').textContent = `${countA} votes (${pctA}%)`;
+                                document.getElementById('poll-result-count-b').textContent = `${countB} votes (${pctB}%)`;
+                                
+                                document.getElementById('poll-result-bar-a').style.width = `${pctA}%`;
+                                document.getElementById('poll-result-bar-b').style.width = `${pctB}%`;
+                                
+                                document.getElementById('poll-result-total').textContent = `Total Votes: ${total}`;
+                                
+                                pollResultsPanel.classList.remove('hidden');
+                            } catch(e) { console.warn("Could not fetch poll results", e); }
+                        }
                     } else {
                         pollToggle.checked = false;
                         pollContainer.classList.add('hidden');
                         pollQuestion.value = "";
                         pollOptA.value = "";
                         pollOptB.value = "";
+                        const pollResultsPanel = document.getElementById('alert-live-poll-results');
+                        if (pollResultsPanel) pollResultsPanel.classList.add('hidden');
                     }
 
                     sendBtn.textContent = "Update Alert"; 
                 } else {
                     alertMsg.innerHTML = "";
+                    
+                    const pollResultsPanel = document.getElementById('alert-live-poll-results');
+                    if (pollResultsPanel) pollResultsPanel.classList.add('hidden');
                     if(severitySelect) severitySelect.value = 'info';
 
                     signoffInput.value = "Next Train Ops";
@@ -4284,10 +4619,10 @@ const Admin = {
                 <div class="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800 overflow-hidden shadow-sm transition-all">
                     <button id="matrix-header-btn" class="w-full px-3 py-3 bg-indigo-100/50 dark:bg-indigo-900/40 text-left text-[10px] font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-indigo-200/50 dark:hover:bg-indigo-900/60">
                         <span class="flex items-center"><span class="mr-2 text-sm">🌐</span> Cache Propagation Matrix</span>
-                        <svg id="matrix-chevron" class="w-4 h-4 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        <svg id="matrix-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     
-                    <div id="matrix-body" class="p-3">
+                    <div id="matrix-body" class="p-3 hidden">
                         <p class="text-[9px] text-indigo-700 dark:text-indigo-400 font-medium leading-snug mb-3">Interrogates global Edge Caches (Cloudflare, GitHub, Firebase) to verify version sync status. Bypasses local browser cache.</p>
                         
                         <button id="ping-diagnostics-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-[10px] uppercase tracking-wide focus:outline-none flex justify-center items-center">
@@ -4321,6 +4656,16 @@ const Admin = {
                     
                     <div id="deepscan-body" class="p-3 hidden">
                         <p class="text-[9px] text-blue-700 dark:text-blue-400 font-medium leading-snug mb-3">Scans the database to verify if all configured routes have successfully downloaded their timetables and checks for structural anomalies.</p>
+
+                        <div class="mb-3">
+                            <label class="block text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase mb-1">Data Source</label>
+                            <select id="deepscan-source-select" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800/50 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
+                                <option value="RAM">RAM (Current Active Cache)</option>
+                                <option value="CLOUDFLARE">Cloudflare Edge Cache</option>
+                                <option value="GITHUB">GitHub CDN</option>
+                                <option value="FIREBASE">Firebase Live RTDB</option>
+                            </select>
+                        </div>
 
                         <button id="diag-run-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-[10px] uppercase tracking-wide focus:outline-none flex justify-center items-center">
                             Run Deep Scan
@@ -4535,21 +4880,50 @@ const Admin = {
 
         // --- DEEP NETWORK SCAN LOGIC ---
         runBtn.onclick = async () => {
-            resultsDiv.innerHTML = '<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Scanning local memory cache...</div>';
+            resultsDiv.innerHTML = '<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Initializing scan...</div>';
             
-            // 🛡️ GUARDIAN PHASE 2: Dynamic Region Engine
+            // 🛡️ GUARDIAN PHASE 2: Dynamic Region & Source Engine
             const regionSelect = document.getElementById('diag-region-select');
+            const sourceSelect = document.getElementById('deepscan-source-select');
             const scanRegion = regionSelect ? regionSelect.value : 'CURRENT';
+            const scanSourceRaw = sourceSelect ? sourceSelect.value : 'RAM';
             const activeRegion = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
             const targetRegion = scanRegion === 'CURRENT' ? activeRegion : scanRegion;
 
+            // Failsafe: Prevent scanning non-active regions from Local RAM cache
+            const scanSource = (scanSourceRaw === 'RAM' && targetRegion !== activeRegion) ? 'CLOUDFLARE' : scanSourceRaw;
+
             let dbToScan = null;
 
-            if (targetRegion !== activeRegion) {
-                // Fetch target region database automatically for inspection
+            if (scanSource !== 'RAM') {
+                // Fetch target region database from specific pipeline
                 try {
-                    const fetchUrl = `https://nexttrain-cache.enock.workers.dev/${targetRegion === 'GP' ? 'schedules/gauteng.json' : targetRegion === 'WC' ? 'schedules/westerncape.json' : targetRegion === 'KZN' ? 'schedules/kzn.json' : 'schedules/easterncape.json'}?t=${Date.now()}`;
-                    resultsDiv.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Downloading Cloudflare payload...</div>`;
+                    const getRegionDbPath = (source) => {
+                        const paths = {
+                            'GP': source === 'GITHUB' ? 'full-database.json' : 'schedules/gauteng.json',
+                            'WC': source === 'GITHUB' ? 'full-database.json' : 'schedules/westerncape.json',
+                            'KZN': source === 'GITHUB' ? 'full-database.json' : 'schedules/kzn.json',
+                            'EC': source === 'GITHUB' ? 'full-database.json' : 'schedules/easterncape.json'
+                        };
+                        return paths[targetRegion];
+                    };
+
+                    let fetchUrl = '';
+                    let loadingMsg = '';
+                    const dbPath = getRegionDbPath(scanSource);
+
+                    if (scanSource === 'GITHUB') {
+                        fetchUrl = `https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/data/${dbPath}?t=${Date.now()}`;
+                        loadingMsg = 'Downloading GitHub CDN payload...';
+                    } else if (scanSource === 'FIREBASE') {
+                        fetchUrl = `https://metrorail-next-train-default-rtdb.firebaseio.com/${dbPath}?t=${Date.now()}`;
+                        loadingMsg = 'Downloading Firebase Live payload...';
+                    } else {
+                        fetchUrl = `https://nexttrain-cache.enock.workers.dev/${dbPath}?t=${Date.now()}`;
+                        loadingMsg = 'Downloading Cloudflare payload...';
+                    }
+
+                    resultsDiv.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>${loadingMsg}</div>`;
                     
                     const res = await fetch(fetchUrl);
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -4562,10 +4936,11 @@ const Admin = {
                     else if (targetRegion === 'GP' && rawData.schedules && !rawData.gauteng) dbToScan = rawData.schedules;
                     else dbToScan = rawData;
                 } catch(e) {
-                    resultsDiv.innerHTML = `<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Failed to fetch ${targetRegion} database. ${e.message}</div>`;
+                    resultsDiv.innerHTML = `<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Failed to fetch ${targetRegion} from ${scanSource}. ${e.message}</div>`;
                     return;
                 }
             } else {
+                resultsDiv.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Scanning local memory cache...</div>`;
                 if (typeof fullDatabase === 'undefined' || !fullDatabase) {
                     resultsDiv.innerHTML = '<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Offline Cache (RAM) is missing.</div>';
                     return;

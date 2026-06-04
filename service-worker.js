@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-V7_06.03 v2'; // GUARDIAN: Bumped to v2 for Firebase SDK injection
+const CACHE_NAME = 'metrorail-next-train-V7_06.04'; // GUARDIAN: Bumped to v2 for Firebase SDK injection
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.
@@ -24,23 +24,29 @@ const ASSETS_TO_CACHE = [
   './manifest.json',
 
   // 🛡️ GROWTH MODE PHASE 1: Pre-cache Firebase SDKs to survive cold offline boots
-  '[https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js)',
-  '[https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js)',
-  '[https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js)'
+  'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js',
+  'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js',
+  'https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js'
 
   // 🛡️ GUARDIAN PHASE 6: removed the [Map image Caching (Cross-Region Offline Support)]
 ];
 
 // 1. INSTALL: Cache Core Assets
 self.addEventListener('install', (event) => {
-  // GUARDIAN: Do NOT skipWaiting() automatically anymore.
-  // We want to control the update flow via UI interaction to prevent atomic failures mid-session.
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log(`SW: Caching core offline shell for ${CACHE_NAME}...`);
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
-  );
+    const coreAssets = ASSETS_TO_CACHE.filter(url => !url.includes('gstatic.com'));
+    const optionalAssets = ASSETS_TO_CACHE.filter(url => url.includes('gstatic.com'));
+
+    event.waitUntil(
+        caches.open(CACHE_NAME).then(async (cache) => {
+            await cache.addAll(coreAssets); // Atomic — must succeed
+            // Optional: best-effort, never blocks install
+            await Promise.allSettled(
+                optionalAssets.map(url => cache.add(url).catch(() => {
+                    console.warn(`SW: Optional asset failed to pre-cache: ${url}`);
+                }))
+            );
+        })
+    );
 });
 
 // 2. ACTIVATE: SCORCHED EARTH Cleanup Protocol

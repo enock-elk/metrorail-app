@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.03 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.04 - Performance Polish Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
