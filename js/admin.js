@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.04 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.05 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -3613,7 +3613,7 @@ const Admin = {
                     try {
                         await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'Authorization': 'Bearer NEXT_TRAIN_GUARDIAN_2026'} 
+                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
                         });
                     } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -4253,7 +4253,7 @@ const Admin = {
                 try {
                     await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                         method: 'POST', 
-                        headers: {'Authorization': 'Bearer NEXT_TRAIN_GUARDIAN_2026'} 
+                        headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
                     });
                 } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -4396,7 +4396,7 @@ const Admin = {
                 try {
                     const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                         method: 'POST', 
-                        headers: {'Authorization': 'Bearer NEXT_TRAIN_GUARDIAN_2026'} 
+                        headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
                     });
                 } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -4429,7 +4429,7 @@ const Admin = {
                     try {
                         const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'Authorization': 'Bearer NEXT_TRAIN_GUARDIAN_2026'} 
+                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
                         });
                     } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -5284,7 +5284,7 @@ const Admin = {
                     try {
                         await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'Authorization': 'Bearer NEXT_TRAIN_GUARDIAN_2026'} 
+                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
                         });
                     } catch(pe) { console.warn("Purge failed", pe); }
 

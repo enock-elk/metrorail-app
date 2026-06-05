@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.04 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.05 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -674,11 +674,54 @@ function renderPlaceholder() {
 }
 
 function renderRouteError(error) {
-    if (typeof Renderer !== 'undefined') {
-        if(pretoriaTimeEl) Renderer.renderRouteError(pretoriaTimeEl, error);
-        if(pienaarspoortTimeEl) Renderer.renderRouteError(pienaarspoortTimeEl, error);
+    // 1. Unfreeze the UI Dropdowns and Titles
+    if (stationSelect) {
+        stationSelect.innerHTML = '<option value="">Select a station...</option>';
+        stationSelect.disabled = false;
     }
-    if(stationSelect) stationSelect.innerHTML = '<option>Unable to load stations</option>';
+    const routeSubtitleText = document.getElementById('route-subtitle-text');
+    if (routeSubtitleText) {
+        routeSubtitleText.textContent = "Route Unavailable";
+    }
+
+    // 2. Build and Trigger the Communicative Network Error Modal
+    let modal = document.getElementById('network-error-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'network-error-modal';
+        modal.className = 'fixed inset-0 bg-black/80 z-[150] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-red-200 dark:border-red-900/50">
+                <div class="text-center">
+                    <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4 shadow-inner ring-4 ring-red-50 dark:ring-red-900/20">
+                        <span class="text-3xl">📡</span>
+                    </div>
+                    <h3 class="text-xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Weak Signal Detected</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
+                        We need 10 seconds of stable internet to download the timetable for offline use. Please move to better coverage or Wi-Fi and try again.
+                    </p>
+                    <div class="flex flex-col space-y-3">
+                        <button onclick="closeSmoothModal('network-error-modal'); setTimeout(() => { if(typeof loadAllSchedules === 'function') loadAllSchedules(true); else window.location.reload(); }, 350);" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-colors focus:outline-none flex justify-center items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
+                            Try Again
+                        </button>
+                        <button onclick="closeSmoothModal('network-error-modal')" class="w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3.5 px-4 rounded-xl transition-colors focus:outline-none text-sm">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    // Bind to the Router and Animation Engine
+    history.pushState({ modal: 'network-error' }, '', '#network-error');
+    if (typeof openSmoothModal === 'function') {
+        openSmoothModal('network-error-modal');
+    } else {
+        modal.classList.remove('hidden');
+    }
 }
 
 function renderComingSoon(element, routeName) {

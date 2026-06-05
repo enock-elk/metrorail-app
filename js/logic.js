@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_06.04 - Performance Polish Edition v1) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_06.05 - Performance Polish Edition v1) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -1367,8 +1367,8 @@ async function loadAllSchedules(force = false) {
             let fetchSuccess = false;
 
             // 🛡️ GUARDIAN PHASE 5: The Waterfall Failover Engine (Hardcoded to protect Firebase Quotas)
-            let sourcesToTry = ['CLOUDFLARE', 'FIREBASE', 'GITHUB'];
-            //let sourcesToTry = ['FIREBASE', 'CLOUDFLARE', 'GITHUB'];
+            //let sourcesToTry = ['CLOUDFLARE', 'GITHUB', 'FIREBASE'];
+            let sourcesToTry = ['FIREBASE', 'CLOUDFLARE', 'GITHUB'];
 
             // 🛡️ GUARDIAN PHASE 4 (ADMIN): The Waterfall Override Hook
             let devForceSource = null;
@@ -1401,8 +1401,8 @@ async function loadAllSchedules(force = false) {
                 try {
                     console.log(`🛡️ Guardian: Attempting schedule fetch via [${sourceKey}]...`);
                     
-                    // 🛡️ GUARDIAN FIX: Aggressive 3-second timeout for Cloudflare to ensure instant failover to Firebase
-                    const timeoutMs = sourceKey === 'CLOUDFLARE' ? 3000 : 10000;
+                    // 🛡️ GUARDIAN FIX: Relaxed 6-second timeout for Cloudflare to ensure cold-starts succeed on mobile networks
+                    const timeoutMs = sourceKey === 'CLOUDFLARE' ? 6000 : 10000;
                     const response = await window.guardianFetch(regionDbUrl, { signal: fetchSignal }, timeoutMs);
                     
                     if (fetchSignal.aborted || currentRouteId !== requestedRouteId) return; 
