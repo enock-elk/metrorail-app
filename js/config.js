@@ -319,7 +319,7 @@ const ROUTES = {
     },
     'jhb-midway': { 
         id: 'jhb-midway', 
-        name: "JHB <-> Lenz", 
+        name: "JHB <-> Midway/Lenz", 
         corridorId: "JHB_SOUTH", 
         region: "GP",
         colorClass: "text-yellow-500", 
