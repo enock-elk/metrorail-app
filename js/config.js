@@ -5,7 +5,7 @@ const APP_VERSION = "V7_06.05"; // BUMPED: Western Cape Full Launch & Scrim UI
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
-const FORCE_UPDATE_REQUIRED = false;
+const FORCE_UPDATE_REQUIRED = true;
 
 // --- 🛡️ GUARDIAN PHASE 5: WATERFALL DATA PIPELINE ---
 // The Data Pipeline Router automatically falls back to backups if the primary endpoint fails.
@@ -319,13 +319,13 @@ const ROUTES = {
     },
     'jhb-midway': { 
         id: 'jhb-midway', 
-        name: "JHB <-> Midway", 
+        name: "JHB <-> Lenz", 
         corridorId: "JHB_SOUTH", 
         region: "GP",
         colorClass: "text-yellow-500", 
         isActive: true, 
         destA: 'JOHANNESBURG STATION', 
-        destB: 'MIDWAY STATION', 
+        destB: 'LENZ STATION', 
         transferStation: null, 
         sheetKeys: {
             weekday_to_a: 'midwy_to_jhb_weekday', 
