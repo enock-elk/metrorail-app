@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.05 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.15 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -660,7 +660,7 @@ function renderPlaceholder() {
     const placeholderHTML = `
         <div onclick="${triggerShake.replace(/\n/g, ' ')}" class="min-h-[96px] h-auto flex flex-col justify-center items-center text-gray-400 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl transition-colors group w-full shadow-sm border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50">
             <svg class="w-6 h-6 mb-1 opacity-50 group-hover:scale-110 transition-transform text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-            <span class="text-xs font-bold group-hover:text-blue-500 transition-colors">Tap to select station</span>
+            <span class="text-xs font-bold group-hover:text-blue-500 transition-colors">Select station above</span>
         </div>`;
 
     if(pretoriaTimeEl) pretoriaTimeEl.innerHTML = placeholderHTML;
@@ -998,6 +998,13 @@ window.openFareModal = function(fareDetails) {
 // --- UTILS ---
 
 function showToast(message, type = 'info', duration = 2500, actionHTML = '') { 
+    const toastEl = document.getElementById('toast');
+    
+    // 🛡️ GUARDIAN: Debounce spamming. Ignore if the exact same message is already visible.
+    if (toastEl && toastEl.classList.contains('show') && toastEl.innerText.includes(message.replace(/<[^>]*>?/gm, '').trim())) {
+        return;
+    }
+
     if (toastTimeout) clearTimeout(toastTimeout); 
     
     const safeDuration = Math.min(duration, 5000);
@@ -1027,7 +1034,6 @@ function showToast(message, type = 'info', duration = 2500, actionHTML = '') {
         document.head.appendChild(style);
     }
 
-    const toastEl = document.getElementById('toast');
     if (!toastEl) return;
 
     let bgClass = "bg-gray-900/90 dark:bg-gray-800/95";
@@ -1058,6 +1064,9 @@ function showToast(message, type = 'info', duration = 2500, actionHTML = '') {
         </div>
         ${actionHTML ? `<div class="ml-3 pl-3 border-l border-white/20 shrink-0">${actionHTML}</div>` : ''}
     `;
+    
+    // 🛡️ GUARDIAN: Prevent pull-to-refresh ghost triggers when highlighting text inside the toast
+    toastEl.ontouchmove = (e) => e.stopPropagation();
     
     toastEl.classList.add('show'); 
     
@@ -1343,6 +1352,12 @@ function initAdInterceptor() {
         return; 
     }
 
+    // 🛡️ GUARDIAN PHASE 5.1: The Ad Armor (Wait for Network & RAM Stabilization)
+    if (typeof window._appStabilized === 'undefined' || window._appStabilized !== true) {
+        setTimeout(initAdInterceptor, 1000);
+        return;
+    }
+
     window._adScriptInjected = true;
     console.log("🛡️ AdInterceptor: Eagerly injecting Monetization Engine in background.");
 
@@ -1394,9 +1409,14 @@ function initAdInterceptor() {
 
             const isDbReady = typeof fullDatabase !== 'undefined' && fullDatabase !== null;
             const isMutexLocked = window._isModalAnimating || window._isMapInitializing;
+            
+            // 🛡️ GUARDIAN PHASE 1: Absolute Catch-All Modal Check & Data Stability Guard
+            const isAnyModalActive = document.body.classList.contains('modal-active');
+            const hasValidRoute = typeof currentRouteId !== 'undefined' && currentRouteId !== null && currentRouteId !== '';
+            const isManualRollover = typeof window._forceManualRollover !== 'undefined' && window._forceManualRollover === true;
 
             // Strict intersection of safe states
-            const isSafeZone = isDbReady && isMainRoute && isWelcomeHidden && !isReloadLocked && isMapHidden && isTripMapHidden && isGridHidden && !isMutexLocked;
+            const isSafeZone = isDbReady && hasValidRoute && isMainRoute && isWelcomeHidden && !isReloadLocked && isMapHidden && isTripMapHidden && isGridHidden && !isMutexLocked && !isManualRollover && !isAnyModalActive;
 
             if (adContainer) {
                 if (isSafeZone) {
@@ -1647,6 +1667,23 @@ async function checkServiceAlerts() {
                     const markReadBtn = document.getElementById('mark-reply-read-btn');
                     
                     if (replyContent) {
+                        // 🛡️ GUARDIAN UX UPGRADE: Dynamically morph modal layout for edge-to-edge scrolling
+                        const replyModalCard = document.querySelector('#developer-reply-modal > div');
+                        if (replyModalCard && !replyModalCard.dataset.styled) {
+                            replyModalCard.dataset.styled = "true";
+                            replyModalCard.classList.add('max-h-[85vh]', 'flex', 'flex-col', 'p-0', 'overflow-hidden');
+                            replyModalCard.classList.remove('p-6');
+                            
+                            const headerDiv = replyModalCard.querySelector('.flex.items-center.justify-between');
+                            if (headerDiv) {
+                                headerDiv.classList.add('p-5', 'bg-white', 'dark:bg-gray-800', 'border-b', 'border-gray-200', 'dark:border-gray-700', 'shrink-0');
+                                headerDiv.classList.remove('mb-4');
+                            }
+                            
+                            replyContent.classList.add('overflow-y-auto', 'custom-scrollbar', 'flex-grow', 'p-5', 'rounded-none', 'border-0', 'mb-0');
+                            replyContent.classList.remove('mb-6', 'rounded-xl', 'border', 'border-gray-200', 'dark:border-gray-700');
+                        }
+
                         // 🛡️ GUARDIAN PHASE 2: Strict DOMParser XSS Sanitization
                         const sanitizeHTML = (dirtyHtml) => {
                             const doc = new DOMParser().parseFromString(dirtyHtml, 'text/html');
@@ -1683,6 +1720,14 @@ async function checkServiceAlerts() {
                     
                     if (markReadBtn) {
                         markReadBtn.textContent = "Got it, Thanks!";
+                        
+                        // 🛡️ GUARDIAN UX FIX: Prepare Side-by-Side Flex Container
+                        let actionsContainer = document.getElementById('admin-message-actions') || markReadBtn.parentNode;
+                        actionsContainer.className = "flex space-x-3 w-full"; // Force 50/50 split container
+                        
+                        // Update markReadBtn to be flex-1
+                        markReadBtn.className = "flex-1 bg-gray-900 hover:bg-black dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-bold py-3 rounded-xl shadow-md transition-colors focus:outline-none text-sm";
+
                         markReadBtn.onclick = async () => {
                             if (typeof triggerHaptic === 'function') triggerHaptic();
                             markReadBtn.disabled = true;
@@ -1690,7 +1735,8 @@ async function checkServiceAlerts() {
                             try {
                                 await fetch(`${dynamicEndpoint}inbox/${NEXT_TRAIN_DEVICE_ID}/${adminReply._key}.json`, {
                                     method: 'PATCH',
-                                    body: JSON.stringify({ read: true, readAt: Date.now() }) // 🛡️ Adds Read Receipt Timestamp
+                                    // 🛡️ GUARDIAN PHASE 3: Added acknowledged: true for 'R' status
+                                    body: JSON.stringify({ read: true, readAt: Date.now(), acknowledged: true })
                                 });
                             } catch(e) {}
                             
@@ -1703,9 +1749,10 @@ async function checkServiceAlerts() {
                         if (!replyToAdminBtn) {
                             replyToAdminBtn = document.createElement('button');
                             replyToAdminBtn.id = 'reply-to-admin-btn';
-                            replyToAdminBtn.className = "w-full bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-2 border-blue-600 dark:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 font-bold py-3 rounded-xl shadow-sm transition-colors focus:outline-none mt-3 flex items-center justify-center text-sm";
+                            // 🛡️ GUARDIAN UX FIX: Changed w-full to flex-1 and removed mt-3 to sit perfectly side-by-side
+                            replyToAdminBtn.className = "flex-1 bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-2 border-blue-600 dark:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 font-bold py-3 rounded-xl shadow-sm transition-colors focus:outline-none flex items-center justify-center text-sm";
                             replyToAdminBtn.innerHTML = `<span class="mr-2">💬</span> Reply to Admin`;
-                            markReadBtn.parentNode.insertBefore(replyToAdminBtn, markReadBtn.nextSibling);
+                            actionsContainer.appendChild(replyToAdminBtn);
                         }
                         
                         replyToAdminBtn.onclick = () => {
@@ -1723,14 +1770,33 @@ async function checkServiceAlerts() {
                                     fText.parentNode.insertBefore(contextBox, fText);
                                 }
                                 
-                                let truncatedAdminMsg = adminReply.message.split(/\\s+/).slice(0, 8).join(' ') + '...';
+                                // 🛡️ GUARDIAN UX FIX: Robust DOMParser to eradicate all HTML bleeding
+                                let cleanAdminMsg = '';
+                                if (adminReply.message) {
+                                    const tempDoc = new DOMParser().parseFromString(adminReply.message, 'text/html');
+                                    cleanAdminMsg = tempDoc.body.textContent || tempDoc.body.innerText || '';
+                                }
+                                cleanAdminMsg = cleanAdminMsg.replace(/—.*/, '').trim(); // Remove the "— Enock" signature part
+                                
+                                let words = cleanAdminMsg.split(/\s+/).filter(w => w.length > 0);
+                                let truncatedAdminMsg = words.slice(0, 8).join(' ') + (words.length > 8 ? '...' : '');
                                 
                                 contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Admin:</span><span class="line-clamp-2">"${escapeHTML(truncatedAdminMsg)}"</span></div>`;
                                 contextBox.dataset.rawMsg = `[REPLY TO ADMIN: ${adminReply._key}] ${truncatedAdminMsg}`;
                                 contextBox.classList.remove('hidden');
                                 fText.value = ''; 
                             }
-                            if (fType) fType.value = 'general';
+                            
+                            if (fType) {
+                                // 🛡️ GUARDIAN UX FIX: Dynamically inject "Thread Reply" to stop metrics pollution
+                                if (!fType.querySelector('option[value="thread_reply"]')) {
+                                    const replyOpt = document.createElement('option');
+                                    replyOpt.value = 'thread_reply';
+                                    replyOpt.textContent = 'Thread Reply';
+                                    fType.appendChild(replyOpt);
+                                }
+                                fType.value = 'thread_reply';
+                            }
                             
                             closeSmoothModal('developer-reply-modal');
                             setTimeout(() => {
@@ -1809,10 +1875,45 @@ async function checkServiceAlerts() {
         const bindModalContent = () => {
             if (!content || !modal) return;
             
+            // 🛡️ GUARDIAN UX UPGRADE: Dynamic Modal Borders & Headers
+            const modalCard = modal.firstElementChild;
+            if (modalCard) {
+                modalCard.classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-red-200', 'dark:border-red-900/50');
+                if (severity === 'critical') modalCard.classList.add('border-red-500');
+                else if (severity === 'warning') modalCard.classList.add('border-yellow-500');
+                else modalCard.classList.add('border-blue-500');
+            }
+
             const modalHeader = modal.querySelector('h3');
-            if (modalHeader) modalHeader.innerHTML = `Service Alert`;
+            if (modalHeader) {
+                const headerContainer = modalHeader.parentElement;
+                if (headerContainer) {
+                    // Remove the hardcoded SVG from index.html during rendering to let the emoji shine
+                    const existingIcon = headerContainer.querySelector('svg');
+                    if (existingIcon) existingIcon.remove();
+                    headerContainer.className = `flex items-center shrink-0 ${severity === 'critical' ? 'text-red-600 dark:text-red-400' : (severity === 'warning' ? 'text-yellow-600 dark:text-yellow-400' : 'text-blue-600 dark:text-blue-400')}`;
+                }
+                modalHeader.innerHTML = severity === 'critical' ? '🔴 CRITICAL ADVISORY' : (severity === 'warning' ? '🟡 SERVICE WARNING' : '🔵 SERVICE INFO');
+            }
             
             let formattedMsg = activeNotice.message;
+            
+            // 🛡️ GUARDIAN PHASE 3: Data Source Citation Injection
+            if (activeNotice.sourceName) {
+                const sName = escapeHTML(activeNotice.sourceName);
+                const sUrl = activeNotice.sourceUrl ? escapeHTML(activeNotice.sourceUrl) : null;
+                const innerCitation = sUrl ? `<a href="${sUrl}" target="_blank" class="hover:underline text-blue-600 dark:text-blue-400 font-medium flex items-center">${sName} <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a>` : `<span class="font-medium text-gray-700 dark:text-gray-300">${sName}</span>`;
+                const sourceHtml = `<div class="mt-3 p-2.5 bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-lg text-[10px] text-gray-500 dark:text-gray-400 italic flex items-center shadow-sm w-fit max-w-full"><span class="mr-1.5 not-italic text-sm">📰</span><span class="flex items-center space-x-1"><span>Source:</span> ${innerCitation}</span></div>`;
+                
+                // Intelligently insert the citation BEFORE the Admin signoff block if it exists
+                const signoffMatch = formattedMsg.match(/<br><br><span[^>]*>—.*?<\/span>$/);
+                if (signoffMatch) {
+                    formattedMsg = formattedMsg.replace(signoffMatch[0], sourceHtml + signoffMatch[0]);
+                } else {
+                    formattedMsg += sourceHtml;
+                }
+            }
+
             let mediaHtml = '';
             if (activeNotice.imageUrl) {
                 mediaHtml += `<img src="${escapeHTML(activeNotice.imageUrl)}" class="w-full h-auto max-h-48 object-cover rounded-lg mb-3 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image" onerror="this.style.display='none'">`;
@@ -1858,13 +1959,6 @@ async function checkServiceAlerts() {
                 content.innerHTML += pollHtml;
             }
             
-            // Append Severity Tags below everything
-            if (severity === 'critical') {
-                content.innerHTML += `<div class="mt-3 text-xs text-red-600 font-bold border border-red-200 bg-red-50 dark:bg-red-900/30 dark:border-red-800 p-2 rounded text-center">🔴 CRITICAL SERVICE DISRUPTION</div>`;
-            } else if (severity === 'warning') {
-                content.innerHTML += `<div class="mt-3 text-xs text-yellow-700 font-bold border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/30 dark:border-yellow-800 dark:text-yellow-400 p-2 rounded text-center">🟡 SERVICE WARNING</div>`;
-            }
-            
             const date = new Date(activeNotice.postedAt);
             if (timestamp) timestamp.textContent = `Posted: ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, ${date.toLocaleDateString()}`;
 
@@ -1898,7 +1992,8 @@ async function checkServiceAlerts() {
                 
                 let cleanMsgText = "";
                 if (activeNotice && activeNotice.message) {
-                    cleanMsgText = activeNotice.message.replace(/<[^>]*>?/gm, '');
+                    const tempDoc = new DOMParser().parseFromString(activeNotice.message, 'text/html');
+                    cleanMsgText = tempDoc.body.textContent || tempDoc.body.innerText || '';
                     cleanMsgText = cleanMsgText.replace(/—.*/, '').trim();
                 }
                 
@@ -1923,7 +2018,16 @@ async function checkServiceAlerts() {
                     contextBox.classList.remove('hidden');
                     fText.value = ''; 
                 }
-                if (fType) fType.value = 'general';
+                
+                if (fType) {
+                    if (!fType.querySelector('option[value="thread_reply"]')) {
+                        const replyOpt = document.createElement('option');
+                        replyOpt.value = 'thread_reply';
+                        replyOpt.textContent = 'Thread Reply';
+                        fType.appendChild(replyOpt);
+                    }
+                    fType.value = 'thread_reply';
+                }
                 
                 closeNotice();
                 setTimeout(() => {
@@ -3103,17 +3207,39 @@ function setupSettingsHub() {
             verEl.textContent = APP_VERSION;
         }
 
+        let changelogVersion = currentVersionStr;
+        let forceShowChangelog = false;
+        
+        if (typeof CHANGELOG_DATA !== 'undefined' && CHANGELOG_DATA.length > 0) {
+            // Strip any HTML formatting (like <br> or <span>) to get the raw version string
+            changelogVersion = CHANGELOG_DATA[0].version.split('<')[0].trim();
+            forceShowChangelog = CHANGELOG_DATA[0].forceShow === true;
+        }
+
         const seenVersion = safeStorage.getItem('seen_changelog_version');
         const badge = document.getElementById('whats-new-badge');
-        if (seenVersion !== currentVersionStr) {
+        
+        if (seenVersion !== changelogVersion) {
             if (badge) badge.classList.remove('hidden');
+            
+            // 🛡️ GUARDIAN: Auto-open modal if the payload explicitly demands it
+            if (forceShowChangelog) {
+                safeStorage.setItem('seen_changelog_version', changelogVersion);
+                if (badge) badge.classList.add('hidden');
+                setTimeout(() => {
+                    if (typeof Renderer !== 'undefined' && Renderer.renderChangelogModal) {
+                        history.pushState({ modal: 'changelog' }, '', '#changelog');
+                        Renderer.renderChangelogModal(typeof CHANGELOG_DATA !== 'undefined' ? CHANGELOG_DATA : []);
+                    }
+                }, 1000); // 1-second delay so it blooms after the app loads
+            }
         } else {
             if (badge) badge.classList.add('hidden');
         }
         
         verEl.onclick = () => {
             triggerHaptic();
-            safeStorage.setItem('seen_changelog_version', currentVersionStr);
+            safeStorage.setItem('seen_changelog_version', changelogVersion);
             if (badge) badge.classList.add('hidden');
             
             if (typeof Renderer !== 'undefined' && Renderer.renderChangelogModal) {

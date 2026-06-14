@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_06.05 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_06.15 - Performance Polish Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -143,7 +143,9 @@ const Renderer = {
                             <li class="list-none opacity-60 bg-gray-50 dark:bg-gray-800/30">
                                 <a class="block px-4 py-3 cursor-not-allowed flex items-center justify-between text-sm text-gray-500 dark:text-gray-400" data-route-id="${r.id}">
                                     <div class="flex items-center min-w-0 pr-2">
-                                        <span class="w-2.5 h-2.5 rounded-full mr-3 flex-shrink-0 bg-gray-300 dark:bg-gray-600"></span>
+                                        <div class="w-7 h-7 rounded-md flex items-center justify-center mr-3 flex-shrink-0 bg-gray-200 dark:bg-gray-700 text-gray-400 shadow-sm">
+                                            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="16" rx="2" ry="2"></rect><path d="M4 11h16"></path><path d="M12 3v8"></path><path d="M8 19l-2 3"></path><path d="M18 22l-2-3"></path><path d="M8 15h0"></path><path d="M16 15h0"></path></svg>
+                                        </div>
                                         <span class="truncate">${displayName}</span>
                                     </div>
                                     <span class="ml-2 text-[8px] bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded uppercase font-black tracking-widest flex-shrink-0">Soon</span>
@@ -151,14 +153,26 @@ const Renderer = {
                             </li>
                         `;
                     } else {
+                        let tileBg = 'bg-gray-100 dark:bg-gray-800 text-gray-500';
+                        if (r.colorClass.includes('green')) tileBg = 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400';
+                        else if (r.colorClass.includes('orange')) tileBg = 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400';
+                        else if (r.colorClass.includes('purple')) tileBg = 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400';
+                        else if (r.colorClass.includes('indigo')) tileBg = 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400';
+                        else if (r.colorClass.includes('blue')) tileBg = 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
+                        else if (r.colorClass.includes('yellow')) tileBg = 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400';
+                        else if (r.colorClass.includes('red')) tileBg = 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400';
+                        else if (r.colorClass.includes('lime')) tileBg = 'bg-lime-100 dark:bg-lime-900/30 text-lime-600 dark:text-lime-400';
+
                         html += `
                             <li class="list-none">
-                                <a class="block px-4 py-3 ${activeBg} transition-colors cursor-pointer flex items-center justify-between text-sm group" data-route-id="${r.id}">
+                                <a class="block px-4 py-3.5 ${activeBg} transition-colors cursor-pointer flex items-center justify-between text-sm group rounded-lg mx-2 mb-1 w-[calc(100%-1rem)]" data-route-id="${r.id}">
                                     <div class="flex items-center min-w-0 pr-2">
-                                        <span class="w-3 h-3 rounded-full mr-3 flex-shrink-0 ${dotColor} ${isActive ? 'ring-2 ring-blue-300 dark:ring-blue-700' : ''}"></span>
+                                        <div class="w-7 h-7 rounded-md flex items-center justify-center mr-3 flex-shrink-0 ${tileBg} shadow-sm group-hover:scale-105 transition-transform">
+                                            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="16" rx="2" ry="2"></rect><path d="M4 11h16"></path><path d="M12 3v8"></path><path d="M8 19l-2 3"></path><path d="M18 22l-2-3"></path><path d="M8 15h0"></path><path d="M16 15h0"></path></svg>
+                                        </div>
                                         <span class="truncate">${displayName}</span>
                                     </div>
-                                    ${isActive ? '<svg class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' : ''}
+                                    ${isActive ? '<svg class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>' : ''}
                                 </a>
                             </li>
                         `;
@@ -249,7 +263,7 @@ const Renderer = {
         const placeholderHTML = `
             <div onclick="${triggerShake}" class="h-24 flex flex-col justify-center items-center text-gray-400 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors group w-full">
                 <svg class="w-6 h-6 mb-1 opacity-50 group-hover:scale-110 transition-transform text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                <span class="text-xs font-bold group-hover:text-blue-500 transition-colors">Tap to select station</span>
+                <span class="text-xs font-bold group-hover:text-blue-500 transition-colors">Select station above</span>
             </div>`;
             
         if (element1) element1.innerHTML = placeholderHTML;
@@ -353,16 +367,22 @@ const Renderer = {
             const activeDisruptions = window.getTripDisruptions(currentRouteId, stopsArray);
             if (activeDisruptions && activeDisruptions.length > 0) {
                 const routeDisruption = activeDisruptions.find(d => d.tier === 'CRITICAL') || activeDisruptions[0];
-                const btnClass = routeDisruption.tier === 'CRITICAL' 
-                    ? 'bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700' 
-                    : 'bg-yellow-100 dark:bg-yellow-900/50 hover:bg-yellow-200 dark:hover:bg-yellow-800 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-700';
-                const icon = routeDisruption.tier === 'CRITICAL' ? '🔴' : '🟡';
-                const labelText = routeDisruption.buttonText ? escapeHTML(routeDisruption.buttonText) : (routeDisruption.tier === 'CRITICAL' ? 'Line Severed' : 'Expect Delays');
+                
+                const isCritical = routeDisruption.tier === 'CRITICAL';
+                const btnClass = isCritical
+                    ? 'bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-800/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/50' 
+                    : 'bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-800/40 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/50';
+
+                const svgIcon = isCritical 
+                    ? `<svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`
+                    : `<svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+
+                const labelText = routeDisruption.buttonText ? escapeHTML(routeDisruption.buttonText) : (isCritical ? 'Line Severed' : 'Expect Delays');
                 
                 disruptionHtml = `
                     <div class="mt-1 flex justify-center w-full px-2">
-                        <button type="button" onclick="openDisruptionModal('${routeDisruption.id}')" class="${btnClass} px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border transition-colors shadow-sm flex items-center animate-pulse truncate max-w-full focus:outline-none">
-                            <span class="mr-1">${icon}</span> <span class="truncate">${labelText}</span>
+                        <button type="button" onclick="openDisruptionModal('${routeDisruption.id}')" class="${btnClass} px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-widest border transition-colors shadow-sm flex items-center animate-pulse truncate max-w-full focus:outline-none">
+                            ${svgIcon} <span class="truncate">${labelText}</span>
                         </button>
                     </div>
                 `;
@@ -419,16 +439,22 @@ const Renderer = {
             const activeDisruptions = window.getTripDisruptions(currentRouteId, stopsArray);
             if (activeDisruptions && activeDisruptions.length > 0) {
                 const routeDisruption = activeDisruptions.find(d => d.tier === 'CRITICAL') || activeDisruptions[0];
-                const btnClass = routeDisruption.tier === 'CRITICAL' 
-                    ? 'bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700' 
-                    : 'bg-yellow-100 dark:bg-yellow-900/50 hover:bg-yellow-200 dark:hover:bg-yellow-800 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-700';
-                const icon = routeDisruption.tier === 'CRITICAL' ? '🔴' : '🟡';
-                const labelText = routeDisruption.buttonText ? escapeHTML(routeDisruption.buttonText) : (routeDisruption.tier === 'CRITICAL' ? 'Line Severed' : 'Expect Delays');
+                
+                const isCritical = routeDisruption.tier === 'CRITICAL';
+                const btnClass = isCritical
+                    ? 'bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-800/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/50' 
+                    : 'bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-800/40 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/50';
+
+                const svgIcon = isCritical 
+                    ? `<svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`
+                    : `<svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+
+                const labelText = routeDisruption.buttonText ? escapeHTML(routeDisruption.buttonText) : (isCritical ? 'Line Severed' : 'Expect Delays');
                 
                 disruptionHtml = `
                     <div class="mt-1 flex justify-center w-full px-2">
-                        <button type="button" onclick="openDisruptionModal('${routeDisruption.id}')" class="${btnClass} px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border transition-colors shadow-sm flex items-center animate-pulse truncate max-w-full focus:outline-none">
-                            <span class="mr-1">${icon}</span> <span class="truncate">${labelText}</span>
+                        <button type="button" onclick="openDisruptionModal('${routeDisruption.id}')" class="${btnClass} px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-widest border transition-colors shadow-sm flex items-center animate-pulse truncate max-w-full focus:outline-none">
+                            ${svgIcon} <span class="truncate">${labelText}</span>
                         </button>
                     </div>
                 `;
@@ -519,16 +545,21 @@ const Renderer = {
                 // Priority: CRITICAL first, then WARNING
                 const routeDisruption = activeDisruptions.find(d => d.tier === 'CRITICAL') || activeDisruptions[0];
                 
-                const btnClass = routeDisruption.tier === 'CRITICAL' 
-                    ? 'bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700' 
-                    : 'bg-yellow-100 dark:bg-yellow-900/50 hover:bg-yellow-200 dark:hover:bg-yellow-800 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-700';
-                const icon = routeDisruption.tier === 'CRITICAL' ? '🔴' : '🟡';
-                const labelText = routeDisruption.buttonText ? escapeHTML(routeDisruption.buttonText) : (routeDisruption.tier === 'CRITICAL' ? 'Line Severed' : 'Expect Delays');
+                const isCritical = routeDisruption.tier === 'CRITICAL';
+                const btnClass = isCritical
+                    ? 'bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-800/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/50' 
+                    : 'bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-800/40 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/50';
+
+                const svgIcon = isCritical 
+                    ? `<svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`
+                    : `<svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+
+                const labelText = routeDisruption.buttonText ? escapeHTML(routeDisruption.buttonText) : (isCritical ? 'Line Severed' : 'Expect Delays');
                 
                 disruptionHtml = `
                     <div class="mt-1.5 flex justify-center w-full px-1">
-                        <button type="button" onclick="openDisruptionModal('${routeDisruption.id}')" class="${btnClass} px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border transition-colors shadow-sm flex items-center animate-pulse truncate max-w-full focus:outline-none">
-                            <span class="mr-1">${icon}</span> <span class="truncate">${labelText}</span>
+                        <button type="button" onclick="openDisruptionModal('${routeDisruption.id}')" class="${btnClass} px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-widest border transition-colors shadow-sm flex items-center animate-pulse truncate max-w-full focus:outline-none">
+                            ${svgIcon} <span class="truncate">${labelText}</span>
                         </button>
                     </div>
                 `;
@@ -943,12 +974,25 @@ const Renderer = {
                             
                             // GUARDIAN PHASE 23: Grid Typography Polish - Absolute positioning for Exception tags to preserve Train ID baseline alignment
                             if (exclusionType === 'special') {
-                                if (isExport) {
-                                    bgClass = 'export-spl-col relative';
-                                    headerContent = `<span style="position:absolute; top:2px; left:0; width:100%; font-size:7px; color:#16a34a; font-weight:900; letter-spacing:0.5px;">⭐ SPL</span>${h}`;
-                                } else {
-                                    bgClass = 'bg-green-50 dark:bg-green-900/50 text-green-700 dark:text-green-300 opacity-95 relative';
-                                    headerContent = `<span class="absolute top-[2px] left-0 w-full text-[8px] text-green-600 dark:text-green-400 font-black tracking-tight leading-none">⭐ SPL</span>${h}`;
+                                const splIcon = `<svg class="inline-block w-2 h-2 mr-0.5 mb-[1px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+                                const banIcon = `<svg class="inline-block w-2 h-2 mr-0.5 mb-[1px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>`;
+
+                                if (exclusionType === 'special') {
+                                    if (isExport) {
+                                        bgClass = 'export-spl-col relative';
+                                        headerContent = `<span style="position:absolute; top:2px; left:0; width:100%; font-size:7px; color:#16a34a; font-weight:900; letter-spacing:0.5px; display:flex; justify-content:center; align-items:center;">${splIcon} SPL</span>${h}`;
+                                    } else {
+                                        bgClass = 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 opacity-95 relative';
+                                        headerContent = `<span class="absolute top-[2px] left-0 w-full text-[8px] text-green-600 dark:text-green-500 font-black tracking-tight leading-none flex justify-center items-center">${splIcon} SPL</span>${h}`;
+                                    }
+                                } else if (exclusionType) {
+                                    if (isExport) {
+                                        bgClass = 'export-banned-col relative';
+                                        headerContent = `<span style="position:absolute; top:2px; left:0; width:100%; font-size:7px; color:#dc2626; font-weight:900; letter-spacing:0.5px; display:flex; justify-content:center; align-items:center;">${banIcon} NO SVC</span>${h}`;
+                                    } else {
+                                        bgClass = 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 opacity-90 relative';
+                                        headerContent = `<span class="absolute top-[2px] left-0 w-full text-[8px] text-red-600 dark:text-red-500 font-black tracking-tight leading-none flex justify-center items-center">${banIcon} NO SVC</span>${h}`;
+                                    }
                                 }
                             } else if (exclusionType) {
                                 if (isExport) {

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V7_06.05 (Performance Polish Edition - UI/UX Polish)
+  Metrorail Next Train V7_06.15 (Performance Polish Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -72,7 +72,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nexttrain.co.za/">
     <meta property="og:title" content="Metrorail Next Train | Updated Schedules">
-    <meta property="og:description" content="Stop guessing. Get accurate train times, ticket prices, and updates for Gauteng, Cape Town, KZN, and Eastern Cape. Download timetables and check live updates offline!">
+    <meta property="og:description" content="Stop guessing. Get accurate train times, ticket prices, and updates for Gauteng, Cape Town, KZN, and Eastern Cape. Download timetables and plan your trip offline!">
     <meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png">
     <meta property="og:image:width" content="512">
     <meta property="og:image:height" content="512">
@@ -569,8 +569,9 @@
             <!-- ABOUT & UPDATES GROUP -->
             <div class="pt-5">
                 <h3 class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-5 mb-2">About & Updates</h3>
-                <div class="flex flex-col border-t border-gray-100 dark:border-gray-800 border-b">
-                    <button id="settings-about-btn" class="w-full flex justify-between items-center py-3 px-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800 focus:outline-none">
+                <div class="flex flex-col">
+                    <!-- Notice we dropped the heavy borders and rely entirely on the hover state for interaction affordance -->
+                    <button id="settings-about-btn" class="w-full flex justify-between items-center py-3.5 px-4 hover:bg-gray-100/50 dark:hover:bg-gray-800/50 transition-colors focus:outline-none rounded-lg mx-2 w-[calc(100%-1rem)]">
                         <span class="text-sm font-bold text-gray-900 dark:text-white">About Next Train</span>
                         <svg class="w-4 h-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                     </button>
@@ -594,8 +595,8 @@
     <!-- MAIN APP CONTAINER -->
     <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden relative min-h-[600px] flex flex-col border border-gray-200 dark:border-gray-700" style="display: none;">
         
-        <!-- THE CLEAN HEADER -->
-        <div class="pt-2 px-3 pb-1 bg-white dark:bg-gray-800 z-20 shadow-sm relative flex flex-col justify-center min-h-[85px]">
+        <!-- THE CLEAN HEADER (Glassmorphism) -->
+        <div class="pt-2 px-3 pb-1 bg-white/85 dark:bg-gray-800/95 backdrop-blur-xl z-20 shadow-sm relative flex flex-col justify-center min-h-[85px] border-b border-gray-200/50 dark:border-gray-800/50">
             
             <!-- GUARDIAN UX V6.08: Flex-Wrapped Drop-Tab (Solves width stretching & clipping) -->
             <div id="offline-wrapper" class="absolute top-0 left-0 right-0 flex justify-center z-[60] pointer-events-none">
@@ -640,16 +641,17 @@
         </div>
 
         <!-- INBOX BANNER SCAFFOLD -->
-        <div id="developer-reply-banner" class="hidden bg-blue-600 dark:bg-blue-700 text-white w-full shadow-md z-20 shrink-0 relative transition-all duration-300">
+        <div id="developer-reply-banner" class="hidden bg-gray-900 dark:bg-black text-white w-full shadow-md z-20 shrink-0 relative transition-all duration-300">
             <div class="flex items-center justify-between p-3 px-4">
                 <div class="flex items-center space-x-3 min-w-0">
-                    <span class="text-xl flex-shrink-0 animate-bounce">💬</span>
+                    <!-- Clean SVG replacing the emoji -->
+                    <svg class="w-6 h-6 flex-shrink-0 animate-bounce text-gray-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                     <div class="flex flex-col min-w-0">
-                        <span class="text-[10px] font-black uppercase tracking-widest text-blue-200 dark:text-blue-300">Developer Reply</span>
+                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">Admin Message</span>
                         <span class="text-sm font-bold truncate">You have a new message!</span>
                     </div>
                 </div>
-                <button id="view-reply-btn" class="flex-shrink-0 bg-white dark:bg-gray-900 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-800 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm focus:outline-none">Read</button>
+                <button id="view-reply-btn" class="flex-shrink-0 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm focus:outline-none">Read</button>
             </div>
         </div>
 
@@ -1084,13 +1086,13 @@
     </div>
 
     <!-- IN-HOUSE FEEDBACK MODAL -->
-    <div id="feedback-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[130] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] flex flex-col transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
-            <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-2xl shrink-0">
+    <div id="feedback-modal" class="fixed inset-0 bg-gray-900/60 z-[130] hidden flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300">
+        <div class="bg-white/95 dark:bg-gray-900/95 backdrop-blur-2xl rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] flex flex-col transform transition-all scale-95 border border-white/40 dark:border-gray-700/50">
+            <div class="p-5 border-b border-gray-200/50 dark:border-gray-800/50 flex justify-between items-center bg-transparent rounded-t-2xl shrink-0">
                 <h3 class="text-lg font-black text-gray-900 dark:text-white flex items-center tracking-tight">
-                    <span class="mr-2 text-xl">💡</span>
+                    <svg class="w-5 h-5 mr-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.9 1.3 1.5 1.5 2.5"></path><path d="M9 18h6"></path><path d="M10 22h4"></path></svg>
                     Send Feedback
-                </h3>
+               </h3>
                 <button onclick="closeSmoothModal('feedback-modal')" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition focus:outline-none" aria-label="Close Feedback">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
@@ -1099,7 +1101,7 @@
             <div class="p-6 overflow-y-auto flex-grow space-y-5 custom-scrollbar">
                 <div>
                     <label class="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 tracking-wider">What's on your mind?</label>
-                    <select id="feedback-type" class="w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all shadow-inner appearance-none">
+                    <select id="feedback-type" class="w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all shadow-inner appearance-none">
                         <option value="general">General Feedback</option>
                         <option value="schedule_error">Schedule / Time Error</option>
                         <option value="bug">App Bug or Glitch</option>
@@ -1109,7 +1111,7 @@
 
                 <div>
                     <label class="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 tracking-wider">Details</label>
-                    <textarea id="feedback-text" rows="6" class="w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all shadow-inner resize-none" placeholder="Tell us what you noticed..."></textarea>
+                    <textarea id="feedback-text" rows="6" class="w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all shadow-inner resize-none" placeholder="Tell us what you noticed..."></textarea>
                 </div>
 
                 <details class="group bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-300">
@@ -1138,7 +1140,7 @@
 
                 <div class="pt-2 border-t border-gray-100 dark:border-gray-700">
                     <label class="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-2 tracking-wider">WhatsApp / Email (Optional)</label>
-                    <input type="text" id="feedback-email" class="w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all shadow-inner" placeholder="Leave your number or email for a reply">
+                    <input type="text" id="feedback-email" class="w-full p-3.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all shadow-inner" placeholder="Leave your number or email for a reply">
                     <p class="text-[9px] text-gray-400 mt-1.5 flex items-start"><span class="mr-1">🔒</span> We will only use this to reply to your specific feedback.</p>
                 </div>
             </div>
@@ -1189,7 +1191,43 @@
         </div>
     </div>
 
-    <!-- LEGAL MODAL -->
+    <div id="network-struggle-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[150] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-orange-200 dark:border-orange-900/50">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-orange-100 dark:bg-orange-900/30 mb-4 shadow-inner ring-4 ring-orange-50 dark:ring-orange-900/20">
+                    <svg class="w-8 h-8 text-orange-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"></circle><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48 0a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"></path></svg>
+                </div>
+                <h3 class="text-xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Weak Signal Detected</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
+                    Your connection is struggling. We need a few seconds of stable internet to download the timetables so they work offline.
+                </p>
+                <div class="flex flex-col space-y-3">
+                    <button onclick="closeSmoothModal('network-struggle-modal'); setTimeout(() => { if(typeof loadAllSchedules === 'function') loadAllSchedules(true); else window.location.reload(); }, 350);" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-colors focus:outline-none flex justify-center items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
+                        Try Again
+                    </button>
+                    <button onclick="if(location.hash === '#network-struggle') history.back(); else closeSmoothModal('network-struggle-modal');" class="w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3.5 px-4 rounded-xl transition-colors focus:outline-none text-sm">
+                        Dismiss
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 🛡️ GUARDIAN: Global Trigger for the Network Struggle Empathy Engine
+        window.triggerNetworkStruggleModal = function() {
+            if (typeof triggerHaptic === 'function') triggerHaptic();
+            history.pushState({ modal: 'network-struggle' }, '', '#network-struggle');
+            if (typeof openSmoothModal === 'function') {
+                openSmoothModal('network-struggle-modal');
+            } else {
+                const modal = document.getElementById('network-struggle-modal');
+                if (modal) modal.classList.remove('hidden');
+            }
+        };
+    </script>
+
     <div id="legal-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[120] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[85dvh] flex flex-col transform transition-transform duration-300 scale-95">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
@@ -1527,24 +1565,27 @@
         </div>
     </div>
 
-    <!-- DEVELOPER REPLY MODAL -->
+    <!-- ADMIN MESSAGE MODAL -->
     <div id="developer-reply-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[140] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-blue-200 dark:border-blue-900/50">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center space-x-2">
                     <span class="text-2xl">💬</span>
-                    <h3 class="text-lg font-black text-gray-900 dark:text-white tracking-tight">Message from Developer</h3>
+                    <h3 class="text-lg font-black text-gray-900 dark:text-white tracking-tight">Message from Admin</h3>
                 </div>
                 <button onclick="closeSmoothModal('developer-reply-modal')" class="text-gray-400 hover:text-gray-500 focus:outline-none">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            <div id="developer-reply-content" class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800 text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap mb-6">
+            <div id="developer-reply-content" class="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap mb-6">
                 Loading message...
             </div>
-            <button id="mark-reply-read-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors focus:outline-none">
-                Mark as Read
-            </button>
+            <!-- Container ready for Phase 3 Side-by-Side split -->
+            <div id="admin-message-actions" class="w-full">
+                <button id="mark-reply-read-btn" class="w-full bg-gray-900 hover:bg-black dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-bold py-3 rounded-xl shadow-md transition-colors focus:outline-none">
+                    Got it, Thanks!
+                </button>
+            </div>
         </div>
     </div>
 

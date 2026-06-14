@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7_06.05"; // BUMPED: Western Cape Full Launch & Scrim UI
+const APP_VERSION = "V7_06.15"; // BUMPED: UX Polish, 18-Hour Layover Uncap & Precision Routing
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -719,6 +719,15 @@ const DEFAULT_EXCLUSIONS = {
 // This drives the "What's New" modal.
 // GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
+    {
+        version: "V7 06.15 <br><span class='text-sm text-blue-600 dark:text-blue-400'>The Precision Update</span>",
+        date: "15 Jun 2026",
+        features: [
+            "<b>Smarter Trip Planner:</b> The routing engine now actively finds overnight and extended weekend connections that were previously hidden, ensuring you see every possible travel option.",
+            "<b>Clearer Journey Timelines:</b> We've polished the visual timeline with a unified, professional color scheme and fixed text that was getting cut off on smaller mobile screens.",
+            "<b>Accurate Route Status:</b> If a trip is impossible today, the app now specifically tells you why-whether it's due to an active incident, extreme timetable gaps, or disconnected lines."
+        ]
+    },
     {
     version: "V7 05.31 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Performance Polish</span>",
     date: "31 May 2026",

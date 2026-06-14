@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.05 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.15 - Performance Polish Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -524,7 +524,6 @@ const PlannerRenderer = {
             const getInjectionHtml = (idx) => {
                 let inj = '';
                 disruptions.filter(d => d.triggerStopIndex === idx).forEach(d => {
-                    // SINGLE RENDER LOCK: Prevents the same warning from bleeding repeatedly down the timeline
                     if (renderedAlerts.has(d.id)) return;
                     renderedAlerts.add(d.id);
                     
@@ -541,12 +540,10 @@ const PlannerRenderer = {
                         locationText = `Between ${cleanStr(r.destA.replace(' STATION', ''))} & ${cleanStr(r.destB.replace(' STATION', ''))}`;
                     }
 
-                    // 🛡️ GUARDIAN UX UPGRADE: Flexbox Decoupling
                     if (d.tier === 'CRITICAL') {
                         const justSevered = !isSevered;
-                        isSevered = true; // State flips! Mathematical severance propagates downward.
+                        isSevered = true; 
                         
-                        // Analytics Tracker Injection for Severed Trips
                         window._trackedSeverances = window._trackedSeverances || new Set();
                         if (justSevered && !window._trackedSeverances.has(d.id)) {
                             window._trackedSeverances.add(d.id);
@@ -567,7 +564,7 @@ const PlannerRenderer = {
                             : ``;
 
                         inj += `
-                            <div class="relative pl-6 pb-6 pt-2 z-20 ml-2">
+                            <div class="relative pl-5 pb-6 pt-2 z-20 ml-2">
                                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-red-500 ring-4 ring-red-100 dark:ring-red-900 z-10"></div>
                                 <div class="mt-1 text-xs text-red-800 dark:text-red-300 bg-red-50 dark:bg-red-900/30 p-2 rounded border-l-4 border-red-500 shadow-sm">
                                     ${terminationTag}
@@ -585,7 +582,7 @@ const PlannerRenderer = {
                         `;
                     } else {
                         inj += `
-                            <div class="relative pl-6 pb-6 pt-2 z-20 ml-2">
+                            <div class="relative pl-5 pb-6 pt-2 z-20 ml-2">
                                 <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900 z-10"></div>
                                 <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500 shadow-sm flex flex-col">
                                     <div class="w-full">
@@ -607,13 +604,14 @@ const PlannerRenderer = {
                 return inj;
             };
 
-            // 1. Depart Node
-            const depDotClass = isSevered ? "bg-gray-400 opacity-70 w-3 h-3 -left-[7px] top-1.5" : "bg-blue-600 ring-4 ring-blue-100 dark:ring-blue-900 w-4 h-4 -left-[9px] top-0";
+            const isFirstOrigin = subLegId.includes('direct') || subLegId.includes('leg1') || subLegId.includes('l1-');
+            const depDotClass = isSevered ? "bg-gray-400 opacity-70 w-3 h-3 -left-[7px] top-1.5" : 
+                                (isFirstOrigin ? "bg-green-500 ring-4 ring-green-100 dark:ring-green-900 w-4 h-4 -left-[9px] top-0" : "bg-blue-500 w-3 h-3 -left-[7px] top-1.5");
             const depTextClass = isSevered ? "text-gray-400 dark:text-gray-600 opacity-70" : "text-gray-900 dark:text-white";
             const depTrainClass = isSevered ? "text-gray-400 opacity-70" : "text-blue-500";
             
             html += `
-                <div class="relative pl-8 pb-2 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
+                <div class="relative pl-6 pb-2 border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                     <div class="absolute rounded-full ${depDotClass}"></div>
                     <div class="flex flex-col">
                         <div class="flex justify-between items-center mb-1">
@@ -627,36 +625,32 @@ const PlannerRenderer = {
                 </div>
             `;
             
-            // Disruption at First Station
-            html += getInjectionHtml(0);
+            html += getInjectionHtml(0) ? `<div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">${getInjectionHtml(0)}</div>` : '';
 
-            // 2. Intermediate Stops
             const intermediateStops = fullValidStops.slice(1, -1);
             if (intermediateStops.length > 0) {
                 let innerHtml = '';
                 intermediateStops.forEach((stop, idx) => {
-                    const globalIdx = idx + 1; // Since we sliced the first element
+                    const globalIdx = idx + 1; 
                     let textClass = isSevered ? "text-gray-400 dark:text-gray-600 opacity-70" : "text-gray-500 dark:text-gray-400";
-                    let dotClass = isSevered ? "bg-gray-300 dark:bg-gray-700" : "bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800";
+                    let dotClass = isSevered ? "bg-gray-300 dark:bg-gray-700" : "bg-blue-500 border-2 border-white dark:border-gray-800";
                     
                     innerHtml += `
-                        <div class="flex justify-between text-xs py-1.5 relative pl-6">
+                        <div class="flex justify-between text-xs py-1.5 relative pl-5">
                             <div class="absolute -left-[5px] top-2 w-3 h-3 rounded-full ${dotClass}"></div>
                             <span class="${textClass}">${stop.station.replace(' STATION', '')}</span>
                             <span class="font-mono ${textClass}">${formatTimeDisplay(stop.time)}</span>
                         </div>
                     `;
-                    // Inject Disruption directly below the affected stop
                     innerHtml += getInjectionHtml(globalIdx);
                 });
                 
-                // If a CRITICAL alert is buried in this leg, auto-expand the list so the commuter sees the red ❌ immediately.
                 const hasCritical = disruptions.some(d => d.tier === 'CRITICAL');
                 const isExpanded = plannerExpandedState.has(subLegId) || hasCritical;
                 
                 html += `
                     <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
-                        <button id="btn-${subLegId}" onclick="togglePlannerStops('${subLegId}')" class="text-[10px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full transition-colors mb-2 w-fit ml-6 -mt-1 relative top-[-5px] focus:outline-none">
+                        <button id="btn-${subLegId}" onclick="togglePlannerStops('${subLegId}')" class="text-[10px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full transition-colors mb-2 w-fit ml-5 -mt-1 relative top-[-5px] focus:outline-none">
                             ${isExpanded ? "Hide Stops" : "Show All Stops"}
                         </button>
                         <div id="${subLegId}" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2">${innerHtml}</div>
@@ -666,14 +660,15 @@ const PlannerRenderer = {
                 html += `<div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 h-4"></div>`;
             }
 
-            // 3. Arrive Node
             const arrGlobalIdx = fullValidStops.length - 1;
             const isEndDot = subIsFinalDest && !isSevered;
-            const arrDotClass = isSevered ? "bg-gray-300 dark:bg-gray-700 w-3 h-3 -left-[7px] top-1.5" : (isEndDot ? "bg-green-600 ring-4 ring-green-100 dark:ring-green-900 w-4 h-4 -left-[9px] top-0" : "bg-gray-400 w-3 h-3 -left-[7px] top-1.5");
+            const arrDotClass = isSevered ? "bg-gray-300 dark:bg-gray-700 w-3 h-3 -left-[7px] top-1.5" : 
+                                (isEndDot ? "bg-red-500 ring-4 ring-red-100 dark:ring-red-900 w-4 h-4 -left-[9px] top-0" : "bg-blue-500 w-3 h-3 -left-[7px] top-1.5");
             const arrTextClass = isSevered ? "text-gray-400 dark:text-gray-600 opacity-70 font-bold" : "text-gray-900 dark:text-white font-bold";
+            const arrBorderClass = subIsFinalDest ? "border-l-2 border-transparent" : "border-l-2 border-gray-300 dark:border-gray-600";
             
             html += `
-                <div class="relative pl-8 border-l-2 border-gray-300 dark:border-gray-600 ml-2 pb-2">
+                <div class="relative pl-6 ${arrBorderClass} ml-2 pb-2">
                     <div class="absolute rounded-full ${arrDotClass}"></div>
                     <div class="flex justify-between items-center mb-1">
                         <span class="${arrTextClass} text-sm">${subIsFinalDest ? subTo.replace(' STATION', '') : 'Arrive ' + subTo.replace(' STATION', '')}</span>
@@ -682,12 +677,11 @@ const PlannerRenderer = {
                 </div>
             `;
             
-            html += getInjectionHtml(arrGlobalIdx);
+            html += getInjectionHtml(arrGlobalIdx) ? `<div class="${subIsFinalDest ? 'border-l-2 border-transparent' : 'border-l-2 border-gray-300 dark:border-gray-600'} ml-2">${getInjectionHtml(arrGlobalIdx)}</div>` : '';
             
             return { html, isSevered };
         };
 
-        // --- RELAY VS STANDARD EXECUTION ---
         if (leg.isRelayComposite && leg.internalTransfer) {
             const it = leg.internalTransfer;
             const sName = formatStation(it.station.replace(' STATION', ''));
@@ -704,15 +698,18 @@ const PlannerRenderer = {
             let combinedHtml = leg1.html;
 
             const transferOpacity = leg1.isSevered ? "opacity-50 grayscale" : "";
+            const clockSvg = `<svg class="w-3.5 h-3.5 mr-1 text-gray-900 dark:text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+            
+            // 🛡️ GUARDIAN UX FIX: Oval Unification - Subdued blue, locked height
             combinedHtml += `
                 <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
-                    <div class="relative pl-6 pb-4 pt-2">
-                        <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-purple-50 ring-4 ring-purple-100 dark:ring-purple-900 z-10"></div>
-                        <div class="mt-1 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded border-l-4 border-purple-500">
+                    <div class="relative pl-6 pb-6 pt-2">
+                        <div class="absolute -left-[3px] top-3 bottom-6 w-2 rounded-full bg-blue-400 dark:bg-blue-700 z-10"></div>
+                        <div class="mt-1 text-xs text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 p-2 rounded border-l-4 border-blue-500 shadow-sm">
                             <div class="font-bold uppercase tracking-wide mb-1">INTERNAL TRANSFER @ ${sName}</div>
-                            <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                                <span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Wait</span><br>
-                                &bull; Switch to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${it.train2}</span>
+                            <div class="flex flex-col space-y-0.5 text-gray-600 dark:text-gray-400 leading-snug">
+                                <div class="font-bold text-gray-900 dark:text-white flex items-center">${clockSvg} <span>${waitStr} Wait</span></div>
+                                <div>&bull; Switch to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${it.train2}</span></div>
                             </div>
                         </div>
                     </div>
@@ -730,31 +727,30 @@ const PlannerRenderer = {
 
     buildCard: (step, isNextDay, allOptions, selectedIndex) => {
         return `
-            <div class="bg-white dark:bg-gray-700 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 overflow-hidden mb-4 flex flex-col">
+            <div class="bg-transparent overflow-hidden flex flex-col">
                 ${PlannerRenderer.renderHeader(step, isNextDay)}
                 ${PlannerRenderer.renderOptionsSelector(allOptions, selectedIndex, isNextDay)}
                 ${step.type !== 'TRANSFER' && step.type !== 'DOUBLE_TRANSFER' && step.type !== 'MULTI_TRANSFER' ? PlannerRenderer.renderInstruction(step) : ''}
-                <div class="p-4 bg-white dark:bg-gray-800 flex-grow">
-                    <p class="text-xs font-bold text-gray-400 uppercase mb-2">Journey Timeline</p>
+                <div class="py-3 flex-grow">
+                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 pl-1 border-b border-gray-100 dark:border-gray-800 pb-1">Journey Timeline</p>
                     ${PlannerRenderer.renderTimeline(step)}
                 </div>
-                <button onclick="extractTripCoordinates(${selectedIndex})" class="w-full bg-gray-50 dark:bg-gray-900/50 hover:bg-blue-50 dark:hover:bg-gray-800 text-blue-600 dark:text-blue-400 font-bold py-3.5 text-sm border-t border-gray-200 dark:border-gray-700 transition-colors flex items-center justify-center focus:outline-none mt-auto">
-                    <span class="mr-2 text-lg">🗺️</span> View Live Route on Map
+                <button onclick="extractTripCoordinates(${selectedIndex})" class="w-full bg-blue-50/50 hover:bg-blue-100 dark:bg-gray-800 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 font-bold py-3 text-xs rounded-lg transition-colors flex items-center justify-center focus:outline-none mt-2 uppercase tracking-wide border border-blue-200 dark:border-gray-600 shadow-sm">
+                    <svg class="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+                    View Live Route on Map
                 </button>
             </div>
         `;
     },
 
     renderHeader: (step, isNextDay) => {
-        // GUARDIAN PHASE 4: Inject Global Card Header Alert
-        let hasCriticalDisruption = false;
-        let hasWarningDisruption = false;
+        let activeDisr = null;
         
         if (typeof getTripDisruptions === 'function') {
             const checkStops = (stops, routeId) => {
                 const disr = getTripDisruptions(routeId, stops);
-                if (disr.some(d => d.tier === 'CRITICAL')) hasCriticalDisruption = true;
-                else if (disr.some(d => d.tier === 'WARNING')) hasWarningDisruption = true;
+                if (disr.some(d => d.tier === 'CRITICAL')) activeDisr = disr.find(d => d.tier === 'CRITICAL');
+                else if (disr.some(d => d.tier === 'WARNING') && !activeDisr) activeDisr = disr.find(d => d.tier === 'WARNING');
             };
             
             if (step.type === 'DIRECT') checkStops(step.stops, step.route.id);
@@ -764,13 +760,15 @@ const PlannerRenderer = {
         }
 
         let alertBanner = '';
-        if (hasCriticalDisruption) {
-            alertBanner = `<div class="bg-red-600 text-white text-[10px] font-black uppercase tracking-widest text-center py-1 shadow-sm">🔴 Critical Service Disruption 🔴</div>`;
-        } else if (hasWarningDisruption) {
-            alertBanner = `<div class="bg-yellow-500 text-yellow-900 text-[10px] font-black uppercase tracking-widest text-center py-1 shadow-sm">⚠️ Minor Service Delays ⚠️</div>`;
+        if (activeDisr) {
+            const isCrit = activeDisr.tier === 'CRITICAL';
+            const colorClass = isCrit ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-yellow-500 text-yellow-900 hover:bg-yellow-600';
+            const icon = isCrit ? '🔴' : '⚠️';
+            const text = isCrit ? 'Critical Service Disruption' : 'Minor Service Delays';
+            
+            alertBanner = `<button type="button" onclick="openDisruptionModal('${activeDisr.id}')" class="w-full ${colorClass} text-[10px] font-black uppercase tracking-widest text-center py-1.5 shadow-sm mb-3 rounded transition-colors focus:outline-none animate-pulse">${icon} ${text} ${icon}</button>`;
         }
 
-        // GUARDIAN V7: True Transfer Counting using Legs Array
         let transferCount = 0;
         if (step.type === 'MULTI_TRANSFER') {
             transferCount = step.legs ? step.legs.length - 1 : (step.transferCount || 3);
@@ -793,10 +791,30 @@ const PlannerRenderer = {
 
         const { countdown, duration, isDeparted } = PlannerRenderer.calculateTimes(step, isNextDay);
 
+        let layoverBanner = '';
+        let maxWaitMins = 0;
+        let hubName = '';
+        
+        const checkLayover = (arr, dep, hub) => {
+            let wait = Math.floor((timeToSeconds(dep) - timeToSeconds(arr)) / 60);
+            if (wait < 0) wait += 14400; // Rollover safe
+            if (wait > maxWaitMins) { maxWaitMins = wait; hubName = hub; }
+        };
+
+        if (step.type === 'TRANSFER') checkLayover(step.leg1.arrTime, step.leg2.depTime, step.transferStation);
+        if (step.type === 'DOUBLE_TRANSFER') { checkLayover(step.leg1.arrTime, step.leg2.depTime, step.hub1); checkLayover(step.leg2.arrTime, step.leg3.depTime, step.hub2); }
+        if (step.type === 'MULTI_TRANSFER' && step.legs) {
+            for (let i = 0; i < step.legs.length - 1; i++) checkLayover(step.legs[i].arrTime, step.legs[i+1].depTime, step.legs[i].to);
+        }
+        
+        if (maxWaitMins >= 240) {
+            const waitStr = PlannerRenderer.formatDuration(maxWaitMins);
+            layoverBanner = `<div class="bg-orange-50 dark:bg-orange-900/30 border-l-4 border-orange-500 text-orange-800 dark:text-orange-300 text-[10px] font-bold p-2.5 mb-3 rounded-r shadow-sm flex items-start"><span class="text-sm mr-2 leading-none">⚠️</span><span>Please be advised that your trip includes a wait time of <b>${waitStr}</b> @ ${Renderer._applyUIIntercepts(hubName)}.</span></div>`;
+        }
+
         let stateBadge = "";
         
         if (isNextDay) {
-             // GUARDIAN PHASE 14: Dynamic Typography to handle actual designated day
              const dynamicDayText = step.dayLabel ? `Departure: ${step.dayLabel}` : "Departure: Tomorrow";
              stateBadge = `<div class="flex items-center text-sm font-bold text-orange-600 dark:text-orange-400">
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -804,12 +822,12 @@ const PlannerRenderer = {
                           </div>`;
         } else if (isDeparted) {
             stateBadge = `
-                <div class="flex flex-col items-start">
-                    <div class="text-sm font-bold text-gray-500 dark:text-gray-400 mb-1">
+                <div class="flex flex-col items-start w-full sm:w-auto mt-2 sm:mt-0">
+                    <div class="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2">
                         ${countdown}
                     </div>
-                    <button onclick="if(typeof window._plannerCurrentTripIndex !== 'undefined') window._selectCustomTrip(window._plannerCurrentTripIndex + 1);" class="text-xs text-blue-500 font-bold underline hover:text-blue-600 transition-colors focus:outline-none">
-                        Show Next Train? &rarr;
+                    <button onclick="if(typeof window._plannerCurrentTripIndex !== 'undefined') window._selectCustomTrip(window._plannerCurrentTripIndex + 1);" class="w-full sm:w-auto bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 font-bold py-2 px-3 rounded-lg shadow-sm transition-colors focus:outline-none flex justify-center items-center text-[10px] uppercase tracking-wider">
+                        Show Next Train <svg class="w-3.5 h-3.5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
                     </button>
                 </div>
             `;
@@ -822,32 +840,33 @@ const PlannerRenderer = {
 
         return `
             ${alertBanner}
-            <div class="p-4 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
-                <div class="flex items-center justify-center mb-2">
-                    <span class="text-[11px] font-black ${colorClass} uppercase tracking-widest text-center">${headerLabel}</span>
+            ${layoverBanner}
+            <div class="pb-4 mb-2 border-b border-gray-100 dark:border-gray-800 bg-transparent">
+                <div class="flex items-center justify-start mb-3">
+                    <span class="text-[10px] font-black ${colorClass} uppercase tracking-widest">${headerLabel}</span>
                 </div>
-                <div class="flex justify-between items-center mt-2">
-                    <div class="text-left flex-1 w-0">
-                        <p class="text-[10px] text-gray-400 uppercase font-bold">Depart</p>
-                        <p class="text-base sm:text-lg font-black text-gray-900 dark:text-white leading-tight tracking-tight truncate" title="${step.from}">${step.from.replace(' STATION', '')}</p>
-                        <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.depTime)}</p>
+                <div class="flex justify-between items-center">
+                    <div class="text-left flex-1 w-0 pr-2">
+                        <p class="text-[9px] text-gray-500 uppercase font-black tracking-widest">Depart</p>
+                        <p class="text-base sm:text-lg font-black text-gray-900 dark:text-white leading-tight tracking-tight mt-0.5 break-words" title="${step.from}">${step.from}</p>
+                        <p class="text-lg font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.depTime)}</p>
                     </div>
                     
-                    <button onclick="swapPlannerResults()" class="flex-none p-1.5 bg-white dark:bg-gray-700 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 transition shadow-sm border border-gray-200 dark:border-gray-600 mx-0.5 focus:outline-none" title="Reverse Trip">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                    <button onclick="swapPlannerResults()" class="flex-none p-1.5 bg-gray-50 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 transition focus:outline-none shrink-0 border border-gray-200 dark:border-gray-700" title="Reverse Trip">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
                     </button>
 
-                    <div class="text-right flex-1 w-0">
-                        <p class="text-[10px] text-gray-400 uppercase font-bold">Arrive</p>
-                        <p class="text-base sm:text-lg font-black text-gray-900 dark:text-white leading-tight tracking-tight truncate" title="${step.to}">${step.to.replace(' STATION', '')}</p>
-                        <p class="text-base font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.arrTime)}</p>
+                    <div class="text-right flex-1 w-0 pl-2">
+                        <p class="text-[9px] text-gray-500 uppercase font-black tracking-widest">Arrive</p>
+                        <p class="text-base sm:text-lg font-black text-gray-900 dark:text-white leading-tight tracking-tight mt-0.5 break-words" title="${step.to}">${step.to}</p>
+                        <p class="text-lg font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.arrTime)}</p>
                     </div>
                 </div>
-                <div class="flex justify-between items-center mt-3 pt-2 border-t border-gray-200 dark:border-gray-600">
+                <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                      ${stateBadge}
-                     <div class="flex items-center text-sm font-medium text-gray-500 dark:text-gray-400">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                        Duration: ${duration}
+                     <div class="flex items-center text-xs font-bold text-gray-500 dark:text-gray-400">
+                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        ${duration} Total Time
                      </div>
                 </div>
             </div>
@@ -908,13 +927,13 @@ const PlannerRenderer = {
         }).join('');
 
         return `
-            <div class="px-4 pb-2 relative" id="custom-time-dropdown-container">
-                <label class="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-1 block tracking-wider">Select Departure Time:</label>
-                <div onclick="window._toggleCustomTimeDropdown(event)" class="w-full bg-blue-100 dark:bg-blue-900/60 border border-blue-300 dark:border-blue-700 text-gray-900 dark:text-white text-sm rounded-lg p-3 focus:outline-none font-black shadow-sm cursor-pointer flex justify-between items-center transition-colors hover:bg-blue-200 dark:hover:bg-blue-800/80 animate-pulse">
+            <div class="pb-3 relative border-b border-gray-100 dark:border-gray-800 mb-2" id="custom-time-dropdown-container">
+                <label class="text-[9px] uppercase font-black text-gray-400 mb-1.5 block tracking-widest pl-1">Departure Time</label>
+                <div onclick="this.classList.remove('animate-pulse', 'ring-4', 'ring-blue-500/30'); window._toggleCustomTimeDropdown(event)" class="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm rounded-lg p-3 focus:outline-none font-bold shadow-sm cursor-pointer flex justify-between items-center transition-colors hover:border-blue-400 group ring-4 ring-blue-500/30 animate-pulse">
                     <span id="custom-time-display" class="truncate pr-2">${selectedText}</span>
-                    <svg class="w-5 h-5 text-blue-500 dark:text-blue-400 shrink-0 transform transition-transform" id="custom-time-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    <svg class="w-4 h-4 text-blue-500 dark:text-blue-400 shrink-0 transform transition-transform" id="custom-time-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
-                <ul id="custom-time-list" class="absolute z-[200] w-[calc(100%-2rem)] left-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto hidden mt-1 custom-scrollbar flex flex-col text-left">
+                <ul id="custom-time-list" class="absolute z-[200] w-full left-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto hidden mt-1 custom-scrollbar flex flex-col text-left">
                     ${optionsHtml}
                 </ul>
             </div>
@@ -922,10 +941,10 @@ const PlannerRenderer = {
     },
 
     renderInstruction: (step) => `
-        <div class="p-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/50">
-            <div class="flex items-start">
-                <span class="text-xl mr-3">ℹ️</span>
-                <p class="text-sm text-gray-700 dark:text-gray-300 leading-snug">
+        <div class="py-2 mb-2 border-b border-gray-100 dark:border-gray-800">
+            <div class="flex items-start bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50">
+                <span class="text-base mr-2 mt-0.5">ℹ️</span>
+                <p class="text-xs text-gray-700 dark:text-gray-300 leading-snug">
                     <b>Instruction:</b><br> 
                     Take train <b>${step.train}</b> on the <b>${step.route.name}</b> line.
                 </p>
@@ -954,13 +973,6 @@ const PlannerRenderer = {
         if (!step.legs || step.legs.length === 0) return '';
         let html = '<div class="mt-4 ml-0 space-y-0">';
 
-        const colors = [
-            { dot: 'bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900', box: 'text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500' },
-            { dot: 'bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900', box: 'text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 border-purple-500' },
-            { dot: 'bg-teal-500 ring-4 ring-teal-100 dark:ring-teal-900', box: 'text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/30 border-teal-500' },
-            { dot: 'bg-pink-500 ring-4 ring-pink-100 dark:ring-pink-900', box: 'text-pink-800 dark:text-pink-300 bg-pink-50 dark:bg-pink-900/30 border-pink-500' }
-        ];
-
         let currentSevered = false;
 
         for (let i = 0; i < step.legs.length; i++) {
@@ -981,7 +993,7 @@ const PlannerRenderer = {
                 const hubName = PlannerRenderer.applyUIIntercepts(leg.to);
                 const trainDest = PlannerRenderer.applyUIIntercepts(nextLeg.actualDestination || nextLeg.route.destB);
 
-                const isExtended = waitMins >= 240; // 🛡️ GUARDIAN PHASE 2: Bumped threshold to 4 hours
+                const isExtended = waitMins >= 240; 
                 if (isExtended && !renderedAlerts.has('excessive_layover')) {
                     renderedAlerts.add('excessive_layover');
                     if (typeof trackAnalyticsEvent === 'function') {
@@ -994,19 +1006,17 @@ const PlannerRenderer = {
                     }
                 }
 
-                const c = isExtended 
-                    ? { dot: 'bg-orange-500 ring-4 ring-orange-100 dark:ring-orange-900', box: 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' } 
-                    : colors[i % colors.length];
-                
                 const transferOpacity = currentSevered ? "opacity-50 grayscale" : "";
+                const boxClass = isExtended ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-500';
                 const titleText = isExtended ? `⚠️ EXTENDED LAYOVER: ${waitStr} Wait` : `TRANSFER ${i+1} @ ${hubName}`;
-                const waitTextHtml = isExtended ? `<span class="font-bold text-orange-600 dark:text-orange-400">⏱ <b>${waitStr}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Wait</span>`;
+                const clockSvg = `<svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+                const waitTextHtml = `<span class="font-bold flex items-center ${isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white'}">${clockSvg} ${waitStr} Wait</span>`;
 
                 html += `
                     <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
                         <div class="relative pl-6 pb-6 pt-2">
-                            <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full ${c.dot} z-10"></div>
-                            <div class="mt-1 text-xs ${c.box} p-2 rounded border-l-4">
+                            <div class="absolute -left-[3px] top-3 bottom-6 w-2 rounded-full bg-blue-400 dark:bg-blue-700 z-10"></div>
+                            <div class="mt-1 text-xs ${boxClass} p-2 rounded border-l-4 shadow-sm">
                                 <div class="font-bold uppercase tracking-wide mb-1">${titleText}</div>
                                 <div class="text-gray-600 dark:text-gray-400 leading-snug">
                                     ${waitTextHtml}<br>
@@ -1034,7 +1044,7 @@ const PlannerRenderer = {
         const leg1Result = PlannerRenderer.renderLegTimeline(step.leg1, step.from, step.transferStation, `stops-leg1-${step.train}`, false, renderedAlerts, false);
         const transferOpacity = leg1Result.isSevered ? "opacity-50 grayscale" : "";
 
-        const isExtended = waitMins >= 240; // 🛡️ GUARDIAN PHASE 2: Bumped threshold to 4 hours
+        const isExtended = waitMins >= 240; 
         if (isExtended && !renderedAlerts.has('excessive_layover')) {
             renderedAlerts.add('excessive_layover');
             if (typeof trackAnalyticsEvent === 'function') {
@@ -1047,16 +1057,17 @@ const PlannerRenderer = {
             }
         }
 
-        const dotClass = isExtended ? 'bg-orange-500 ring-4 ring-orange-100 dark:ring-orange-900' : 'bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900';
-        const boxClass = isExtended ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500';
+        const boxClass = isExtended ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-500';
         const titleText = isExtended ? `⚠️ EXTENDED LAYOVER: ${waitStr} Wait` : `TRANSFER REQUIRED`;
-        const waitTextHtml = isExtended ? `<span class="font-bold text-orange-600 dark:text-orange-400">⏱ <b>${waitStr}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${waitStr}</b> Wait</span>`;
+        const clockSvg = `<svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+        const waitTextHtml = `<span class="font-bold flex items-center ${isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white'}">${clockSvg} ${waitStr} Wait</span>`;
 
+        // 🛡️ GUARDIAN UX FIX: Oval Unification - Subdued blue, locked height
         const standardTransferBlock = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
                 <div class="relative pl-6 pb-6 pt-2">
-                    <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full ${dotClass} z-10"></div>
-                    <div class="mt-1 text-xs ${boxClass} p-2 rounded border-l-4">
+                    <div class="absolute -left-[3px] top-3 bottom-6 w-2 rounded-full bg-blue-400 dark:bg-blue-700 z-10"></div>
+                    <div class="mt-1 text-xs ${boxClass} p-2 rounded border-l-4 shadow-sm">
                         <div class="font-bold uppercase tracking-wide mb-1">${titleText}</div>
                         <div class="text-gray-600 dark:text-gray-400 leading-snug">
                             ${waitTextHtml}<br>
@@ -1079,7 +1090,6 @@ const PlannerRenderer = {
     },
 
     renderDoubleTransferTimeline: (step, renderedAlerts) => {
-        // --- CALCULATIONS ---
         const arr1 = timeToSeconds(step.leg1.arrTime);
         const dep2 = timeToSeconds(step.leg2.depTime);
         const wait1Mins = Math.floor((dep2 - arr1) / 60);
@@ -1100,7 +1110,7 @@ const PlannerRenderer = {
         const leg1Result = PlannerRenderer.renderLegTimeline(step.leg1, step.from, step.hub1, `l1-${step.train}`, false, renderedAlerts, false);
         const transferOpacity1 = leg1Result.isSevered ? "opacity-50 grayscale" : "";
 
-        const isExtended1 = wait1Mins >= 240; // 🛡️ GUARDIAN PHASE 2: Bumped threshold to 4 hours
+        const isExtended1 = wait1Mins >= 240; 
         if (isExtended1 && !renderedAlerts.has('excessive_layover')) {
             renderedAlerts.add('excessive_layover');
             if (typeof trackAnalyticsEvent === 'function') {
@@ -1113,16 +1123,15 @@ const PlannerRenderer = {
             }
         }
 
-        const dot1Class = isExtended1 ? 'bg-orange-500 ring-4 ring-orange-100 dark:ring-orange-900' : 'bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900';
-        const box1Class = isExtended1 ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 border-yellow-500';
+        const box1Class = isExtended1 ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-500';
         const title1Text = isExtended1 ? `⚠️ EXTENDED LAYOVER: ${wait1Str} Wait` : `TRANSFER 1 @ ${hub1Name}`;
         const wait1TextHtml = isExtended1 ? `<span class="font-bold text-orange-600 dark:text-orange-400">⏱ <b>${wait1Str}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait1Str}</b> Wait</span>`;
 
         const transferBlock1 = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity1}">
                 <div class="relative pl-6 pb-6 pt-2">
-                    <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full ${dot1Class} z-10"></div>
-                    <div class="mt-1 text-xs ${box1Class} p-2 rounded border-l-4">
+                    <div class="absolute -left-[3px] top-3 bottom-6 w-2 rounded-full bg-blue-400 dark:bg-blue-700 z-10"></div>
+                    <div class="mt-1 text-xs ${box1Class} p-2 rounded border-l-4 shadow-sm">
                         <div class="font-bold uppercase tracking-wide mb-1">${title1Text}</div>
                         <div class="text-gray-600 dark:text-gray-400 leading-snug">
                             ${wait1TextHtml}<br>
@@ -1136,7 +1145,7 @@ const PlannerRenderer = {
         const leg2Result = PlannerRenderer.renderLegTimeline(step.leg2, step.hub1, step.hub2, `l2-${step.train}`, false, renderedAlerts, leg1Result.isSevered);
         const transferOpacity2 = leg2Result.isSevered ? "opacity-50 grayscale" : "";
 
-        const isExtended2 = wait2Mins >= 240; // 🛡️ GUARDIAN PHASE 2: Bumped threshold to 4 hours
+        const isExtended2 = wait2Mins >= 240; 
         if (isExtended2 && !renderedAlerts.has('excessive_layover')) {
             renderedAlerts.add('excessive_layover');
             if (typeof trackAnalyticsEvent === 'function') {
@@ -1149,17 +1158,15 @@ const PlannerRenderer = {
             }
         }
 
-        const dot2Class = isExtended2 ? 'bg-orange-500 ring-4 ring-orange-100 dark:ring-orange-900' : 'bg-purple-500 ring-4 ring-purple-100 dark:ring-purple-900';
-        const box2Class = isExtended2 ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 border-purple-500';
+        const box2Class = isExtended2 ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-500';
         const title2Text = isExtended2 ? `⚠️ EXTENDED LAYOVER: ${wait2Str} Wait` : `TRANSFER 2 @ ${hub2Name}`;
         const wait2TextHtml = isExtended2 ? `<span class="font-bold text-orange-600 dark:text-orange-400">⏱ <b>${wait2Str}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait2Str}</b> Wait</span>`;
-
 
         const transferBlock2 = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity2}">
                 <div class="relative pl-6 pb-6 pt-2">
-                    <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full ${dot2Class} z-10"></div>
-                    <div class="mt-1 text-xs ${box2Class} p-2 rounded border-l-4">
+                    <div class="absolute -left-[3px] top-3 bottom-6 w-2 rounded-full bg-blue-400 dark:bg-blue-700 z-10"></div>
+                    <div class="mt-1 text-xs ${box2Class} p-2 rounded border-l-4 shadow-sm">
                         <div class="font-bold uppercase tracking-wide mb-1">${title2Text}</div>
                         <div class="text-gray-600 dark:text-gray-400 leading-snug">
                             ${wait2TextHtml}<br>
@@ -1693,10 +1700,10 @@ function renderPlannerHistory() {
             ${validHistory.map(item => `
                 <button class="planner-history-item-btn w-full flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 shadow-sm hover:border-blue-50 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors group text-left focus:outline-none"
                     data-full-from="${escapeHTML(item.fullFrom)}" data-full-to="${escapeHTML(item.fullTo)}">
-                    <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                        ${item.from} <span class="text-gray-400 mx-1">&rarr;</span> ${item.to}
+                    <span class="text-xs font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 flex items-center">
+                        ${item.from} <svg class="w-3 h-3 mx-1.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg> ${item.to}
                     </span>
-                    <svg class="w-3 h-3 text-gray-300 group-hover:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7-7"></path></svg>
+                    <svg class="w-3 h-3 text-gray-300 group-hover:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                 </button>
             `).join('')}
         </div>
@@ -1997,6 +2004,20 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                     break;
                 case 'ERR_TIMETABLE_MISMATCH':
                     errorTitle = "Extreme Schedule Gaps";
+                    
+                    let incidentNoteHtml = '';
+                    if (errorPayload && errorPayload.hasIncident) {
+                        const btnText = errorPayload.buttonText || "Line Severed";
+                        incidentNoteHtml = `
+                            <div class="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 text-left text-[11px] text-red-800 dark:text-red-300 rounded-r shadow-sm">
+                                <b>Note:</b> There is also an active incident on this line:<br>
+                                <button type="button" onclick="openDisruptionModal('${errorPayload.disruptionId}')" class="mt-2 w-full bg-white dark:bg-gray-800 hover:bg-red-100 dark:hover:bg-gray-700 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors shadow-sm focus:outline-none flex justify-center items-center">
+                                    <span class="mr-1">🔴</span> ${escapeHTML(btnText)}
+                                </button>
+                            </div>
+                        `;
+                    }
+                    
                     errorMsg = `
                         <div class="text-left space-y-2 mt-2">
                             <p>A physical path exists, but the connecting trains have layovers exceeding 4 hours.</p>
@@ -2005,6 +2026,7 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                                 <li>If you know a better way to make this trip, please report it below.</li>
                             </ul>
                         </div>
+                        ${incidentNoteHtml}
                     `;
                     showFeedbackBtn = true;
                     break;
@@ -2266,7 +2288,7 @@ function renderAllDepartedResult(container, trips, selectedIndex = 0) {
     const dest = (selectedTrip.to || "").replace(/ STATION/gi, '').trim();
 
     container.innerHTML = `
-        <div class="bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mb-4 shadow-sm text-center animate-fade-in-up">
+        <div class="bg-transparent border-b-4 border-gray-200 dark:border-gray-800 pb-6 mb-6 text-center animate-fade-in-up">
             <div class="flex items-center justify-center mb-3">
                 <span class="text-3xl mr-3">🌙</span>
                 <h3 class="font-black text-gray-800 dark:text-gray-200 text-lg tracking-tight">All Trains Departed</h3>
@@ -2296,11 +2318,11 @@ function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "
     }
 
     container.innerHTML = `
-        <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
+        <div class="bg-transparent border-b-4 border-orange-200 dark:border-orange-800/50 pb-6 mb-6">
             <div class="flex items-center mb-3">
                 <span class="text-2xl mr-3">🚫</span>
                 <div>
-                    <h3 class="font-bold text-orange-800 dark:text-orange-200">${title}</h3>
+                    <h3 class="font-bold text-orange-800 dark:text-orange-200 text-lg">${title}</h3>
                     <p class="text-xs text-orange-700 dark:text-orange-300 mt-1 leading-snug">${explanationText}</p>
                 </div>
             </div>
@@ -2325,13 +2347,13 @@ function renderSundayRolloverResult(container, trips, selectedIndex = 0) {
     explanationText += `Showing the next available option for <b>${selectedTrip.dayLabel || 'Tomorrow'}</b>.`;
 
     container.innerHTML = `
-        <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4 mb-4 shadow-sm">
+        <div class="bg-transparent border-b-4 border-indigo-200 dark:border-indigo-800/50 pb-6 mb-6">
             <div class="flex items-start mb-3">
-                <div class="flex-shrink-0 w-8 h-8 bg-indigo-100 dark:bg-indigo-800 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                <div class="flex-shrink-0 w-8 h-8 bg-indigo-100 dark:bg-indigo-800/50 rounded-full flex items-center justify-center mr-3 mt-0.5">
                     <span class="text-base">📅</span>
                 </div>
                 <div>
-                    <h3 class="font-bold text-indigo-900 dark:text-indigo-300">No Sunday Service</h3>
+                    <h3 class="font-bold text-indigo-900 dark:text-indigo-300 text-lg">No Sunday Service</h3>
                     <p class="text-xs text-indigo-700 dark:text-indigo-400 mt-1 leading-snug">${explanationText}</p>
                 </div>
             </div>
@@ -2356,13 +2378,13 @@ function renderImpossibleTodayResult(container, trips, selectedIndex = 0) {
     explanationText += `Showing the next available option for <b>${selectedTrip.dayLabel || 'Tomorrow'}</b>.`;
 
     container.innerHTML = `
-        <div class="bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-4 shadow-sm">
+        <div class="bg-transparent border-b-4 border-gray-200 dark:border-gray-800 pb-6 mb-6">
             <div class="flex items-start mb-3">
-                <div class="flex-shrink-0 w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                <div class="flex-shrink-0 w-8 h-8 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mr-3 mt-0.5 shadow-sm border border-gray-200 dark:border-gray-700">
                     <span class="text-base">📅</span>
                 </div>
                 <div>
-                    <h3 class="font-bold text-gray-900 dark:text-white">Route Unavailable Today</h3>
+                    <h3 class="font-bold text-gray-900 dark:text-white text-lg">Route Unavailable Today</h3>
                     <p class="text-xs text-gray-600 dark:text-gray-400 mt-1 leading-snug">${explanationText}</p>
                 </div>
             </div>
@@ -2373,15 +2395,17 @@ function renderImpossibleTodayResult(container, trips, selectedIndex = 0) {
 
 function renderErrorCard(title, message, actionHtml = "") {
     return `
-        <div class="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800/50 rounded-lg p-5 text-center shadow-sm">
-            <div class="flex items-center justify-center mb-2">
+        <div class="bg-transparent border-b-4 border-yellow-200 dark:border-yellow-800/50 pb-6 mb-4 text-center">
+            <div class="flex items-center justify-center mb-3">
                 <span class="text-3xl mr-2">⚠️</span>
-                <h3 class="font-black text-yellow-800 dark:text-yellow-400 text-lg">${title}</h3>
+                <h3 class="font-black text-yellow-800 dark:text-yellow-400 text-xl">${title}</h3>
             </div>
-            <div class="text-sm text-gray-700 dark:text-gray-300 border-t border-yellow-200 dark:border-yellow-800/50 pt-3">
+            <div class="text-sm text-gray-700 dark:text-gray-300 pt-2">
                 ${message}
             </div>
-            ${actionHtml}
+            <div class="mt-5">
+                ${actionHtml}
+            </div>
         </div>
     `;
 }

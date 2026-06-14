@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.05 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.15 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -120,6 +120,20 @@ const Admin = {
     gridCols: 2, 
     _modulesRendered: false,
 
+    // --- UNIVERSAL DATE FORMATTER ---
+    formatDate: (ts) => {
+        if (!ts) return "Unknown";
+        const d = new Date(ts);
+        const day = d.getDate();
+        const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()];
+        const year = d.getFullYear();
+        let hours = d.getHours();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day} ${month} ${year}, ${hours}:${minutes} ${ampm}`;
+    },
+
     // --- GUARDIAN PHASE 11 & 12: MASTER NOTIFICATION ENGINE (SEEN PROTOCOL) ---
     syncAllBadges: async () => {
         const secret = await Admin.getAuthKey();
@@ -239,22 +253,61 @@ const Admin = {
         const telPanel = document.getElementById('telemetry-panel');
         if (!telPanel) return;
 
-        // GUARDIAN: Inject HTML elements dynamically if they don't exist
         const telBody = document.getElementById('telemetry-body');
+        
+        // 🛡️ GUARDIAN UX FIX: Dynamically strip "vibe coded" rainbow colors and apply sleek monochromatic corporate theme
+        if (telBody && !telBody.dataset.devibed) {
+            telBody.dataset.devibed = "true";
+            
+            const metricBoxes = telBody.querySelectorAll('.grid > div');
+            metricBoxes.forEach(box => {
+                box.className = "bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center shadow-sm transition-colors";
+                const label = box.querySelector('span:first-child');
+                const value = box.querySelector('span:last-child');
+                if (label) label.className = "text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1";
+                if (value) value.className = "text-2xl font-black text-slate-800 dark:text-slate-200 animate-pulse";
+            });
+
+            const errorBox = telBody.querySelector('.bg-red-50');
+            if (errorBox) {
+                errorBox.className = "bg-slate-50 dark:bg-slate-800/80 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-3 transition-colors";
+                const label = errorBox.querySelector('span:first-child');
+                const value = errorBox.querySelector('span:last-child');
+                if (label) {
+                    label.className = "text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center";
+                    label.innerHTML = `<svg class="w-3.5 h-3.5 mr-1.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> Diagnostic Errors (24h)`;
+                }
+                if (value) value.className = "text-lg font-black text-slate-800 dark:text-slate-200 animate-pulse";
+            }
+            
+            const telHeaderBtn = document.getElementById('telemetry-header-btn');
+            if (telHeaderBtn) {
+                telHeaderBtn.innerHTML = telHeaderBtn.innerHTML.replace('📊', '<svg class="w-5 h-5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>');
+            }
+        }
+
+        // GUARDIAN: Inject HTML elements dynamically if they don't exist
         if (telBody && !document.getElementById('tel-export-btn')) {
             // GROWTH SPRINT PHASE 6 & 8: Fully Dynamic SVG Line Graph & Range Toggles
             const trendWrapper = document.createElement('div');
-            trendWrapper.className = "mt-4 border-t border-gray-100 dark:border-gray-700 pt-3";
+            trendWrapper.className = "mt-4 border-t border-slate-200 dark:border-slate-700 pt-3";
             trendWrapper.innerHTML = `
                 <div class="flex items-center justify-between mb-2 px-1">
-                    <button id="trend-cycle-btn" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest focus:outline-none hover:text-blue-800 dark:hover:text-blue-200 transition-colors bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded">📈 INTRADAY Trend</button>
+                    <button id="trend-cycle-btn" class="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest focus:outline-none hover:text-blue-600 dark:hover:text-blue-400 transition-colors bg-slate-100 dark:bg-slate-800 px-2 py-1.5 rounded flex items-center shadow-sm border border-slate-200 dark:border-slate-700">
+                        <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                        <span>${Admin.telemetryRange} Trend</span>
+                    </button>
                     <div class="flex space-x-2">
-                        <button id="trend-expand-btn" class="text-sm text-gray-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Full Screen">⛶</button>
-                        <button id="trend-inline-export-btn" class="text-sm text-gray-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Export">📸</button>
+                        <button id="trend-expand-btn" class="text-sm text-slate-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Full Screen">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                        </button>
+                        <button id="trend-inline-export-btn" class="text-sm text-slate-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Export">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        </button>
                     </div>
                 </div>
-                <div id="tel-trend-container" class="h-28 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-                    <span class="text-xs text-gray-400 italic">Loading Graph...</span>
+                <div id="tel-trend-container" class="h-28 bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
+                    <span class="text-xs text-slate-400 italic">Loading Graph...</span>
                 </div>
             `;
             telBody.appendChild(trendWrapper);
@@ -266,21 +319,28 @@ const Admin = {
                 chartModal.id = 'telemetry-chart-modal';
                 chartModal.className = 'fixed inset-0 bg-black/90 z-[160] hidden flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300';
                 chartModal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] landscape:h-[95vh] flex flex-col transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
-                        <div class="p-3 md:p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-2xl shrink-0">
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] landscape:h-[95vh] flex flex-col transform transition-all scale-95 border border-slate-200 dark:border-slate-700">
+                        <div class="p-3 md:p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900 rounded-t-2xl shrink-0">
                             <div class="flex items-center space-x-2">
-                                <button id="modal-trend-cycle" class="px-2 py-1.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors focus:outline-none text-[10px] font-bold uppercase tracking-widest border border-blue-200 dark:border-blue-800 shadow-sm">📈 INTRADAY</button>
+                                <button id="modal-trend-cycle" class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none text-[10px] font-bold uppercase tracking-widest border border-slate-200 dark:border-slate-700 shadow-sm flex items-center">
+                                    <svg class="w-3.5 h-3.5 mr-1.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                                    <span>INTRADAY</span>
+                                </button>
                             </div>
                             <div class="flex items-center space-x-2">
-                                <button id="modal-trend-export" class="p-2 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors focus:outline-none" title="Export Chart">📸</button>
-                                <button onclick="closeSmoothModal('telemetry-chart-modal')" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors focus:outline-none">✖</button>
+                                <button id="modal-trend-export" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-slate-700 transition-colors focus:outline-none" title="Export Chart">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                </button>
+                                <button onclick="closeSmoothModal('telemetry-chart-modal')" class="p-2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors focus:outline-none">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                </button>
                             </div>
                         </div>
                         
-                        <div id="modal-pagination-controls" class="p-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-center items-center space-x-4 shrink-0 shadow-inner">
-                            <button id="modal-trend-prev" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none transition-transform active:scale-95">◀</button>
-                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest w-24 text-center">Navigate</span>
-                            <button id="modal-trend-next" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none transition-transform active:scale-95 disabled:opacity-30">▶</button>
+                        <div id="modal-pagination-controls" class="p-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex justify-center items-center space-x-4 shrink-0 shadow-inner">
+                            <button id="modal-trend-prev" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95">◀</button>
+                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest w-24 text-center">Navigate</span>
+                            <button id="modal-trend-next" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95 disabled:opacity-30">▶</button>
                         </div>
                         
                         <div class="flex-grow p-2 md:p-6 flex flex-col items-center justify-center relative bg-white dark:bg-gray-800 min-h-0">
@@ -288,8 +348,8 @@ const Admin = {
                                 <!-- High-Res SVG Line Graph gets injected here -->
                             </div>
                             <div class="text-center shrink-0 pb-4">
-                                <h3 class="text-lg md:text-xl font-black text-gray-900 dark:text-white tracking-tight leading-none" id="modal-trend-title">Loading...</h3>
-                                <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-1">Live Analytics Engine</p>
+                                <h3 class="text-lg md:text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none" id="modal-trend-title">Loading...</h3>
+                                <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-1">Live Analytics Engine</p>
                             </div>
                         </div>
                     </div>
@@ -319,8 +379,11 @@ const Admin = {
             // Main Global Export Button (Raw Data Snapshot)
             const exportBtn = document.createElement('button');
             exportBtn.id = 'tel-export-btn';
-            exportBtn.className = "w-full mt-4 bg-transparent text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold py-2 rounded-lg transition-colors text-[10px] flex items-center justify-center border border-gray-200 dark:border-gray-700 focus:outline-none shadow-sm uppercase tracking-wider";
-            exportBtn.innerHTML = `<span class="mr-1 text-sm">📸</span> Full Snapshot`;
+            exportBtn.className = "w-full mt-4 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold py-2.5 rounded-lg transition-colors text-[10px] flex items-center justify-center border border-slate-200 dark:border-slate-700 focus:outline-none shadow-sm uppercase tracking-wider";
+            exportBtn.innerHTML = `
+                <svg class="w-4 h-4 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Full Snapshot
+            `;
             exportBtn.onclick = Admin.exportTelemetry;
             telBody.appendChild(exportBtn);
         }
@@ -952,7 +1015,7 @@ const Admin = {
         let clickTimer = null;
 
         appTitle.style.cursor = 'pointer'; 
-        appTitle.title = "Developer Access";
+        appTitle.title = "Metrorail Next Train";
 
         appTitle.addEventListener('click', (e) => {
             e.preventDefault(); 
@@ -1154,6 +1217,211 @@ const Admin = {
         
         // Final Universal Sync
         Admin.syncAllBadges();
+
+        // 🛡️ GUARDIAN PHASE 14: Action Required Expiry Dashboard
+        Admin.fetchActionRequired();
+    },
+
+    fetchActionRequired: async () => {
+        const secret = await Admin.getAuthKey();
+        if (!secret) return;
+
+        const adminContainer = document.getElementById('admin-modules-container');
+        let actionBanner = document.getElementById('action-required-panel');
+
+        if (!actionBanner && adminContainer) {
+            actionBanner = document.createElement('div');
+            actionBanner.id = 'action-required-panel';
+            // Insert at the very top of the grid view
+            adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
+        }
+
+        if (!actionBanner) return;
+        actionBanner.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+        actionBanner.innerHTML = `<div class="animate-pulse text-xs text-center text-gray-500">Scanning for expiring entities...</div>`;
+
+        try {
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const [noticesRes, disrRes, exclRes] = await Promise.all([
+                fetch(`${dynamicEndpoint}notices.json?auth=${secret}`).catch(() => null),
+                fetch(`${dynamicEndpoint}disruptions.json?auth=${secret}`).catch(() => null),
+                fetch(`${dynamicEndpoint}exclusions.json?auth=${secret}`).catch(() => null)
+            ]);
+
+            const now = Date.now();
+            const threshold24h = now + (24 * 60 * 60 * 1000);
+            const expiringItems = [];
+
+            // 1. Scan Notices (Alerts)
+            if (noticesRes && noticesRes.ok) {
+                const noticesData = await noticesRes.json();
+                if (noticesData) {
+                    Object.keys(noticesData).forEach(target => {
+                        const targetNotices = noticesData[target];
+                        if (targetNotices && typeof targetNotices === 'object') {
+                            if (targetNotices.id) {
+                                if (targetNotices.expiresAt && targetNotices.expiresAt > now && targetNotices.expiresAt <= threshold24h) {
+                                    expiringItems.push({ type: 'Alert', label: targetNotices.severity === 'critical' ? 'Critical Advisory' : 'General Advisory', expiresAt: targetNotices.expiresAt, id: targetNotices.id, panelId: 'alert-panel', routeId: target });
+                                }
+                            } else {
+                                Object.values(targetNotices).forEach(item => {
+                                    if (item.expiresAt && item.expiresAt > now && item.expiresAt <= threshold24h) {
+                                        expiringItems.push({ type: 'Alert', label: item.severity === 'critical' ? 'Critical Advisory' : 'General Advisory', expiresAt: item.expiresAt, id: item.id, panelId: 'alert-panel', routeId: target });
+                                    }
+                                });
+                            }
+                        }
+                    });
+                }
+            }
+
+            // 2. Scan Disruptions
+            if (disrRes && disrRes.ok) {
+                const disrData = await disrRes.json();
+                if (disrData) {
+                    Object.keys(disrData).forEach(rId => {
+                        Object.values(disrData[rId]).forEach(item => {
+                            if (item.expiresAt && item.expiresAt > now && item.expiresAt <= threshold24h) {
+                                const targetStr = item.stations ? item.stations.join(' - ').replace(/ STATION/g, '') : 'Route-Wide';
+                                expiringItems.push({ type: 'Disruption', label: `[${rId}] ${targetStr}`, expiresAt: item.expiresAt, id: item.id, panelId: 'disruption-panel', routeId: rId });
+                            }
+                        });
+                    });
+                }
+            }
+
+            // 3. Scan Exclusions (Bans/Specials)
+            if (exclRes && exclRes.ok) {
+                const exclData = await exclRes.json();
+                if (exclData) {
+                    Object.keys(exclData).forEach(rId => {
+                        Object.keys(exclData[rId]).forEach(tNum => {
+                            if (tNum === '_grid_notice') return;
+                            const item = exclData[rId][tNum];
+                            if (item.expiresAt && item.expiresAt > now && item.expiresAt <= threshold24h) {
+                                expiringItems.push({ type: 'Exception', label: `[${rId}] Train #${tNum}`, expiresAt: item.expiresAt, id: tNum, panelId: 'exclusion-panel', routeId: rId });
+                            }
+                        });
+                    });
+                }
+            }
+
+            if (expiringItems.length === 0) {
+                actionBanner.classList.add('hidden');
+                return;
+            }
+
+            actionBanner.classList.remove('hidden');
+            expiringItems.sort((a, b) => a.expiresAt - b.expiresAt);
+
+            let listHtml = '';
+            expiringItems.forEach(item => {
+                const hrsLeft = Math.max(0, Math.floor((item.expiresAt - now) / (1000 * 60 * 60)));
+                const colorClass = hrsLeft < 4 ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400';
+                const bgClass = hrsLeft < 4 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800';
+                
+                listHtml += `
+                    <div class="flex flex-col ${bgClass} px-3 py-2.5 rounded-lg border shadow-sm mt-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onclick="Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex flex-col">
+                                <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">${item.type}</span>
+                                <span class="text-xs font-bold text-slate-800 dark:text-slate-200">${item.label}</span>
+                            </div>
+                            <span class="text-[10px] font-black ${colorClass} bg-white dark:bg-gray-800 px-2 py-1 rounded shadow-sm border border-current">in ${hrsLeft} hrs</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold py-1.5 rounded border border-slate-200 dark:border-slate-600 shadow-sm transition-colors focus:outline-none flex items-center justify-center">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Resolve
+                            </button>
+                            <button onclick="event.stopPropagation(); Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')" class="flex-1 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-[10px] font-bold py-1.5 rounded shadow-sm transition-colors focus:outline-none flex items-center justify-center">
+                                Review &rarr;
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            actionBanner.innerHTML = `
+                <button id="action-header-btn" class="w-full text-left text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between focus:outline-none relative">
+                    <span class="flex items-center">
+                        <span class="mr-3 relative flex h-4 w-4">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-4 w-4 bg-orange-500 items-center justify-center">
+                                <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </span>
+                        </span>
+                        <span class="text-orange-600 dark:text-orange-400">Action Required (${expiringItems.length})</span>
+                    </span>
+                    <svg id="action-chevron" class="w-4 h-4 transform transition-transform text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="action-body" class="mt-4 space-y-2">
+                    ${listHtml}
+                </div>
+            `;
+
+            const header = document.getElementById('action-header-btn');
+            const body = document.getElementById('action-body');
+            const chevron = document.getElementById('action-chevron');
+            
+            header.onclick = () => {
+                if (Admin.isGridMode) return; 
+                body.classList.toggle('hidden');
+                if (body.classList.contains('hidden')) chevron.classList.add('-rotate-90');
+                else chevron.classList.remove('-rotate-90');
+            };
+
+        } catch(e) {
+            actionBanner.classList.add('hidden');
+        }
+    },
+
+    deepLinkToPanel: (panelId, routeId) => {
+        const panel = document.getElementById(panelId);
+        if (panel) {
+            if (Admin.isGridMode) {
+                panel.click(); // Triggers the grid drill-down natively
+            }
+        }
+        if (routeId) {
+            setTimeout(() => {
+                let selectId = '';
+                if (panelId === 'alert-panel') selectId = 'alert-target';
+                else if (panelId === 'disruption-panel') selectId = 'disr-route';
+                else if (panelId === 'exclusion-panel') selectId = 'excl-route';
+
+                if (selectId) {
+                    const selectEl = document.getElementById(selectId);
+                    if (selectEl) {
+                        selectEl.value = routeId;
+                        selectEl.dispatchEvent(new Event('change'));
+                    }
+                }
+            }, 350); // Delay allows modal animation to clear
+        }
+    },
+
+    resolveActionRequired: async (type, id, routeId) => {
+        const confirmed = await Admin.secureConfirm("Resolve Item", `Are you sure you want to dismiss/resolve this ${type}?`);
+        if (!confirmed) return;
+
+        const secret = await Admin.getAuthKey();
+        if (!secret) return;
+
+        try {
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            
+            if (type === 'Disruption') {
+                await Admin.deleteDisruption(routeId, id);
+            } else if (type === 'Exception') {
+                await Admin.deleteExclusion(routeId, id);
+            } else if (type === 'Alert') {
+                await fetch(`${dynamicEndpoint}notices/${routeId}/${id}.json?auth=${secret}`, { method: 'DELETE' });
+                if (typeof showToast === 'function') showToast("Alert cleared.", "success");
+            }
+            Admin.fetchActionRequired();
+        } catch(e) {
+            if (typeof showToast === 'function') showToast("Failed to resolve item.", "error");
+        }
     },
 
     // --- 3. SIMULATION CONTROLS (RESTORED) ---
@@ -1395,7 +1663,7 @@ const Admin = {
                 const groupCard = document.createElement('div');
                 groupCard.className = "bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mb-3";
                 
-                const latestDate = new Date(groupCrashes[0].timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+                const latestDate = Admin.formatDate(groupCrashes[0].timestamp);
                 
                 // 🛡️ GUARDIAN PHASE 1: Bulk Resolve Button & HTML Fix (button inside button is invalid, changed outer to div)
                 const resolveAllHtml = isInbox 
@@ -1417,7 +1685,7 @@ const Admin = {
                 `;
                 
                 groupCrashes.forEach(crash => {
-                    const dateStr = new Date(crash.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+                    const dateStr = Admin.formatDate(crash.timestamp);
                     const safeErr = typeof escapeHTML === 'function' ? escapeHTML(crash.error) : crash.error;
                     const safeRoute = crash.routeId || "Global";
                     const safeOS = typeof escapeHTML === 'function' ? escapeHTML(crash.userAgent) : "Unknown OS";
@@ -1960,7 +2228,7 @@ const Admin = {
                 listDiv.innerHTML = '';
                 
                 sorted.forEach(item => {
-                    const dateStr = new Date(item.lastSeen).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    const dateStr = Admin.formatDate(item.lastSeen);
                     const card = document.createElement('div');
                     card.className = "bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between transition-colors hover:border-blue-300";
                     
@@ -2054,10 +2322,10 @@ const Admin = {
                     <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="fb-status-display">Syncing Data...</span>
                     <div class="flex space-x-2">
                         <button id="fb-export-global-btn" class="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800 border border-indigo-200 dark:border-indigo-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none flex items-center">
-                            <span class="mr-1 text-xs leading-none">🤖</span> Export AI
+                            <span class="mr-1 text-xs leading-none">📥</span> Export
                         </button>
                         <button id="fb-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
-                            Refresh Network
+                            Refresh
                         </button>
                     </div>
                 </div>
@@ -2162,8 +2430,11 @@ const Admin = {
                 groups[did].push(item);
             });
 
-            // 2. Filter groups based on Tab
+            // 2. Filter groups based on Tab and Search String
             const displayGroups = [];
+            const searchInputEl = document.getElementById('fb-search-input');
+            const searchQuery = searchInputEl ? searchInputEl.value.toLowerCase().trim() : "";
+
             Object.keys(groups).forEach(did => {
                 const groupItems = groups[did];
                 // Sort chronologically (oldest top, newest bottom) for the chat flow
@@ -2172,8 +2443,18 @@ const Admin = {
                 // A thread is "Active" (Inbox) if ANY commuter message is unresolved
                 const isThreadActive = groupItems.some(i => !i.isFromAdmin && i.status !== 'resolved');
                 
-                if (isInbox && isThreadActive) displayGroups.push({ did, items: groupItems });
-                if (!isInbox && !isThreadActive) displayGroups.push({ did, items: groupItems });
+                let matchesSearch = true;
+                if (searchQuery) {
+                    const alias = (Admin.cachedAliases && Admin.cachedAliases[did]) ? Admin.cachedAliases[did].toLowerCase() : "";
+                    const didLower = did.toLowerCase();
+                    const hasMatchingMsg = groupItems.some(i => i.text && i.text.toLowerCase().includes(searchQuery) || (i.email && i.email.toLowerCase().includes(searchQuery)));
+                    matchesSearch = alias.includes(searchQuery) || didLower.includes(searchQuery) || hasMatchingMsg;
+                }
+
+                if (matchesSearch) {
+                    if (isInbox && isThreadActive) displayGroups.push({ did, items: groupItems });
+                    if (!isInbox && !isThreadActive) displayGroups.push({ did, items: groupItems });
+                }
             });
 
             statusDisplay.textContent = isInbox ? `Active Threads: ${displayGroups.length}` : `Archived Threads: ${displayGroups.length}`;
@@ -2197,6 +2478,19 @@ const Admin = {
                     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
                 });
             };
+            
+            // 🛡️ GUARDIAN UX FIX: Universal CRM Date Formatter
+            const formatNiceDateTime = (ts) => {
+                const d = new Date(ts);
+                const day = d.getDate();
+                const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()];
+                const year = d.getFullYear();
+                let hours = d.getHours();
+                const ampm = hours >= 12 ? 'PM' : 'AM';
+                hours = hours % 12 || 12;
+                const minutes = String(d.getMinutes()).padStart(2, '0');
+                return `${day} ${month} ${year}, ${hours}:${minutes} ${ampm}`;
+            };
 
             displayGroups.forEach(group => {
                 const did = group.did;
@@ -2211,50 +2505,75 @@ const Admin = {
                 const groupCard = document.createElement('div');
                 groupCard.className = "bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mb-3 transition-colors hover:border-blue-300 dark:hover:border-blue-500";
                 
-                const latestDate = new Date(groupItems[groupItems.length - 1].timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+                const latestDate = formatNiceDateTime(groupItems[groupItems.length - 1].timestamp);
                 
-                // --- AFTER ---
                 const alias = Admin.cachedAliases && Admin.cachedAliases[did] ? Admin.cachedAliases[did] : null;
                 const displayDid = did === 'Anonymous / Legacy' ? did : did.substring(0,15) + '...';
-                const commuterTitle = alias ? `${alias} <span class="text-gray-400 text-[10px] font-normal">(${displayDid})</span>` : displayDid;
                 
-                // 🛡️ GUARDIAN UX FIX: Extract Commuter Email / Phone
-                const commuterContact = latestCommuterMsg.email ? secureEscape(latestCommuterMsg.email).trim() : null;
-                let contactHtml = '';
-
-                if (commuterContact) {
-                    // 🛡️ GUARDIAN PHASE 6B: Dynamic Contact Router (Legacy + WhatsApp Support)
-                    if (commuterContact.includes('@')) {
-                        // Legacy Email
-                        contactHtml = `<a href="mailto:${commuterContact}" onclick="event.stopPropagation()" class="block text-[10px] text-blue-500 hover:underline font-mono tracking-tight lowercase truncate mt-0.5 max-w-[220px] sm:max-w-[300px]">✉️ ${commuterContact}</a>`;
-                    } else {
-                        // Check if mostly numbers (min 9 digits)
-                        const digitCount = (commuterContact.match(/\d/g) || []).length;
-                        if (digitCount >= 9) {
-                            // WhatsApp Formatting
-                            let cleanNum = commuterContact.replace(/\D/g, '');
-                            if (cleanNum.startsWith('0')) cleanNum = '27' + cleanNum.substring(1);
-                            else if (!cleanNum.startsWith('27') && cleanNum.length === 9) cleanNum = '27' + cleanNum;
-                            
-                            contactHtml = `<a href="https://wa.me/${cleanNum}" target="_blank" onclick="event.stopPropagation()" class="block text-[10px] text-green-600 dark:text-green-400 hover:underline font-mono tracking-tight truncate mt-0.5 max-w-[220px] sm:max-w-[300px]">💬 ${commuterContact}</a>`;
+                // 🛡️ GUARDIAN UX FIX: Relocate Alias button into the native Title bar to free up the Action Menu
+                const editAliasBtn = did !== 'Anonymous / Legacy' ? `<button onclick="event.stopPropagation(); Admin.setCommuterAlias('${did}', '${alias || ''}')" class="ml-2 hover:bg-gray-200 dark:hover:bg-gray-700 p-0.5 rounded transition-colors focus:outline-none flex-shrink-0" title="Edit Alias">✏️</button>` : '';
+                const commuterTitle = alias ? `${alias} <span class="text-gray-400 text-[10px] font-normal ml-1">(${displayDid})</span>${editAliasBtn}` : `${displayDid}${editAliasBtn}`;
+                
+                // 🛡️ GUARDIAN PHASE 2: The "Rolodex" Contact Aggregator
+                const allEmails = new Set();
+                const allPhones = new Set();
+                
+                groupItems.forEach(msg => {
+                    if (msg.email && msg.email.trim()) {
+                        const em = msg.email.trim();
+                        if (em.includes('@')) {
+                            allEmails.add(em);
                         } else {
-                            // Ambiguous / Plain Text
-                            contactHtml = `<span class="block text-[10px] text-gray-500 dark:text-gray-400 font-mono tracking-tight truncate mt-0.5 max-w-[220px] sm:max-w-[300px]">📞 ${commuterContact}</span>`;
+                            const digitCount = (em.match(/\d/g) || []).length;
+                            if (digitCount >= 9) {
+                                let cleanNum = em.replace(/\D/g, '');
+                                if (cleanNum.startsWith('0')) cleanNum = '27' + cleanNum.substring(1);
+                                else if (!cleanNum.startsWith('27') && cleanNum.length === 9) cleanNum = '27' + cleanNum;
+                                allPhones.add(cleanNum);
+                            } else {
+                                allPhones.add(em); // Ambiguous/Plain text
+                            }
                         }
                     }
+                });
+
+                let contactHtml = '';
+                if (allEmails.size > 0 || allPhones.size > 0) {
+                    contactHtml = '<div class="flex flex-wrap gap-1.5 mt-1.5">';
+                    allEmails.forEach(em => {
+                        contactHtml += `
+                            <div class="flex items-center bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded px-1.5 py-0.5 max-w-[220px] sm:max-w-[300px]">
+                                <a href="mailto:${em}" onclick="event.stopPropagation()" class="text-[10px] text-blue-500 hover:underline font-mono tracking-tight lowercase truncate">✉️ ${em}</a>
+                                <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${em}'); if(typeof showToast === 'function') showToast('Copied!', 'success', 1000);" class="ml-1.5 text-[10px] text-gray-400 hover:text-blue-500 transition-colors focus:outline-none" title="Copy">📋</button>
+                            </div>`;
+                    });
+                    allPhones.forEach(ph => {
+                        const isNum = /^\d+$/.test(ph);
+                        const icon = isNum ? '💬' : '📞';
+                        const link = isNum ? `https://wa.me/${ph}` : '#';
+                        const target = isNum ? `target="_blank"` : '';
+                        const aClass = isNum ? 'text-green-600 dark:text-green-400 hover:underline' : 'text-gray-500 dark:text-gray-400';
+                        
+                        contactHtml += `
+                            <div class="flex items-center bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-1.5 py-0.5 max-w-[220px] sm:max-w-[300px]">
+                                <a href="${link}" ${target} onclick="event.stopPropagation()" class="text-[10px] ${aClass} font-mono tracking-tight truncate">${icon} ${ph}</a>
+                                <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${ph}'); if(typeof showToast === 'function') showToast('Copied!', 'success', 1000);" class="ml-1.5 text-[10px] text-gray-400 hover:text-green-500 transition-colors focus:outline-none" title="Copy">📋</button>
+                            </div>`;
+                    });
+                    contactHtml += '</div>';
                 }
 
+                // 🛡️ GUARDIAN UX FIX: Removed wrapping <button> to prevent invalid nested buttons
                 let groupHTML = `
                     <div class="w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 border-b border-transparent transition-colors">
-                        <button class="flex-grow flex flex-col items-start focus:outline-none text-left min-w-0 pr-2" onclick="const p = this.parentElement; p.nextElementSibling.classList.toggle('hidden'); p.classList.toggle('border-gray-200'); p.classList.toggle('dark:border-gray-700'); p.querySelector('.chevron-icon').classList.toggle('rotate-180')">
-                            <span class="text-xs font-bold text-gray-900 dark:text-white truncate w-full">Commuter: <span class="text-blue-600">${commuterTitle}</span></span>
+                        <div class="flex-grow flex flex-col items-start min-w-0 pr-2">
+                            <span class="text-xs font-bold text-gray-900 dark:text-white truncate w-full flex items-center">Commuter: <span class="text-blue-600 ml-1 flex items-center">${commuterTitle}</span></span>
                             ${contactHtml}
-                            <span class="text-[9px] text-gray-500 font-mono mt-1">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} | Last: ${latestDate}</span>
-                        </button>
-                        <div class="flex items-center space-x-1 sm:space-x-2 shrink-0">
-                            <button onclick="Admin.exportThreadForAI('${did}')" class="p-1.5 bg-white dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900/30 text-gray-500 hover:text-green-600 dark:hover:text-green-400 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm" title="Download Thread for AI (.txt)">🤖</button>
-                            ${did !== 'Anonymous / Legacy' ? `<button onclick="Admin.setCommuterAlias('${did}', '${alias || ''}')" class="p-1.5 bg-white dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-gray-600 text-gray-500 hover:text-blue-600 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm" title="Edit Alias">✏️</button>` : ''}
-                            <button class="focus:outline-none p-1.5" onclick="const p = this.parentElement.parentElement; p.nextElementSibling.classList.toggle('hidden'); p.classList.toggle('border-gray-200'); p.classList.toggle('dark:border-gray-700'); this.querySelector('.chevron-icon').classList.toggle('rotate-180')">
+                            <span class="text-[9px] text-gray-500 font-mono mt-1.5">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} | Last: ${latestDate}</span>
+                        </div>
+                        <div class="flex items-center justify-end gap-1.5 shrink-0 flex-wrap sm:flex-nowrap self-start mt-1">
+                            <button onclick="Admin.exportThreadForAI('${did}')" class="p-1.5 bg-white dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900/30 text-gray-500 hover:text-green-600 dark:hover:text-green-400 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm" title="Download Thread for AI (.txt)">📥</button>
+                            <button class="focus:outline-none p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors border border-transparent" onclick="const p = this.parentElement.parentElement; p.nextElementSibling.classList.toggle('hidden'); p.classList.toggle('border-gray-200'); p.classList.toggle('dark:border-gray-700'); this.querySelector('.chevron-icon').classList.toggle('rotate-180')">
                                 <svg class="chevron-icon w-4 h-4 text-gray-400 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
                         </div>
@@ -2298,11 +2617,12 @@ const Admin = {
                     
                     if (item.isFromAdmin) {
                         // ADMIN BUBBLE (Right)
+                        // 🛡️ GUARDIAN PHASE 4: Polished Read Receipts & Acknowledged State
                         let receiptHtml = '<span class="text-[11px] text-gray-400 font-bold ml-1">✓</span>';
                         if (item.acknowledged) {
-                            receiptHtml = '<span class="text-[11px] text-blue-500 tracking-tighter font-bold ml-1">✓✓</span> <span class="text-[10px] ml-0.5">🙏</span>';
+                            receiptHtml = '<span class="text-[11px] text-blue-400 tracking-tighter font-bold ml-1">✓✓</span><span class="text-[9px] font-black bg-green-500 text-white rounded-sm px-1 ml-1.5 leading-none py-[1px]" title="Acknowledged by Commuter">R</span>';
                         } else if (item.read) {
-                            receiptHtml = '<span class="text-[11px] text-blue-500 tracking-tighter font-bold ml-1">✓✓</span>';
+                            receiptHtml = '<span class="text-[11px] text-blue-400 tracking-tighter font-bold ml-1">✓✓</span>';
                         } else if (item.delivered) {
                             receiptHtml = '<span class="text-[11px] text-gray-400 tracking-tighter font-bold ml-1">✓✓</span>';
                         }
@@ -2321,15 +2641,14 @@ const Admin = {
 
                         parsedAdminText = parsedAdminText.replace(/^(?:<br>|\s)+/, '');
 
-                        // --- AFTER ---
-                        // 🛡️ GUARDIAN UX FIX: Widen Admin bubbles too
+                        // 🛡️ GUARDIAN UX FIX: Professional, high-contrast Admin message bubble
                         groupHTML += `
                             <div class="flex flex-col items-end mb-1.5 pl-2 sm:pl-4">
-                                <div class="flex flex-col bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 pt-1.5 pb-2 px-3 rounded-2xl rounded-tr-sm shadow-sm border border-blue-200 dark:border-blue-800/50 text-sm leading-relaxed text-left w-fit max-w-[95%] sm:max-w-[90%] relative">
-                                    <div class="mb-0.5 text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">${adminName}</div>
+                                <div class="flex flex-col bg-slate-700 dark:bg-slate-800 text-white pt-1.5 pb-2 px-3 rounded-2xl rounded-tr-sm shadow-md border border-slate-600 dark:border-slate-700 text-sm leading-relaxed text-left w-fit max-w-[95%] sm:max-w-[90%] relative">
+                                    <div class="mb-0.5 text-[10px] font-black text-slate-300 uppercase tracking-wider">${adminName}</div>
                                     <div>${parsedAdminText}</div>
-                                    <div class="flex items-center justify-end mt-1 opacity-80 self-end ml-3">
-                                        <span class="text-[9px] font-mono">${dateStr}</span>
+                                    <div class="flex items-center justify-end mt-1 self-end ml-3">
+                                        <span class="text-[9px] font-mono text-slate-300 opacity-90">${dateStr}</span>
                                         ${receiptHtml}
                                     </div>
                                 </div>
@@ -2661,11 +2980,11 @@ const Admin = {
             let txt = `METRORAIL NEXT TRAIN - COMMUTER THREAD EXPORT\n`;
             txt += `Device ID: ${did}\n`;
             txt += `Alias: ${(Admin.cachedAliases && Admin.cachedAliases[did]) ? Admin.cachedAliases[did] : 'None'}\n`;
-            txt += `Exported: ${new Date().toLocaleString('en-ZA')}\n`;
+            txt += `Exported: ${Admin.formatDate(Date.now())}\n`;
             txt += `--------------------------------------------------\n\n`;
             
             items.forEach(i => {
-                const dateStr = new Date(i.timestamp || Date.now()).toLocaleString('en-ZA');
+                const dateStr = Admin.formatDate(i.timestamp || Date.now());
                 const sender = i.isFromAdmin ? "ADMIN" : "COMMUTER";
                 
                 // Revert <br> to newline and securely strip HTML tags
@@ -2740,7 +3059,7 @@ const Admin = {
             });
 
             let txt = `METRORAIL NEXT TRAIN - GLOBAL THREAD EXPORT (${isInbox ? 'INBOX' : 'ARCHIVE'})\n`;
-            txt += `Exported: ${new Date().toLocaleString('en-ZA')}\n`;
+            txt += `Exported: ${Admin.formatDate(Date.now())}\n`;
             txt += `Total Threads: ${displayGroups.length}\n`;
             txt += `==================================================\n\n`;
 
@@ -2755,7 +3074,7 @@ const Admin = {
                 txt += `--------------------------------------------------\n`;
                 
                 items.forEach(i => {
-                    const dateStr = new Date(i.timestamp || Date.now()).toLocaleString('en-ZA');
+                    const dateStr = Admin.formatDate(i.timestamp || Date.now());
                     const sender = i.isFromAdmin ? "ADMIN" : "COMMUTER";
                     
                     let cleanText = i.text || "No content";
@@ -2807,7 +3126,7 @@ const Admin = {
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
                             <button type="button" onclick="Admin.formatAlertText('link', 'admin-reply-text')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Add Custom Link">🔗 Link</button>
                         </div>
-                        <div contenteditable="true" id="admin-reply-text" class="w-full min-h-[120px] max-h-[250px] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="Type your response..."></div>
+                        <div contenteditable="true" id="admin-reply-text" class="w-full min-h-[200px] resize-y overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" style="max-height: 50vh;" placeholder="Type your response..."></div>
                     </div>
 
                     <div class="flex space-x-3 mt-4">
@@ -2923,7 +3242,7 @@ const Admin = {
         openSmoothModal('admin-context-modal');
 
         try {
-            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '[https://metrorail-next-train-default-rtdb.firebaseio.com/](https://metrorail-next-train-default-rtdb.firebaseio.com/)';
             let foundData = null;
 
             // Search Active and Archived nodes
@@ -2965,8 +3284,41 @@ const Admin = {
                 }
             }
 
+            // 🛡️ GUARDIAN PHASE 14: Disruption Graveyard Sweep
+            if (!foundData && fallbackText) {
+                const cleanFallback = fallbackText.replace(/['"]/g, '').toLowerCase().substring(0, 30);
+                
+                // Sweep active disruptions globally
+                const disrActiveRes = await fetch(`${dynamicEndpoint}disruptions.json?auth=${secret}`);
+                const disrActiveData = await disrActiveRes.json();
+                if (disrActiveData) {
+                    Object.values(disrActiveData).forEach(routeNode => {
+                        Object.values(routeNode).forEach(disr => {
+                            if (disr.message && disr.message.toLowerCase().includes(cleanFallback)) {
+                                foundData = { ...disr, severity: disr.tier === 'CRITICAL' ? 'critical' : 'warning' };
+                            }
+                        });
+                    });
+                }
+
+                // Sweep the new Graveyard
+                if (!foundData) {
+                    const disrArchRes = await fetch(`${dynamicEndpoint}disruptions_archive.json?auth=${secret}&limitToLast=10`);
+                    const disrArchData = await disrArchRes.json();
+                    if (disrArchData) {
+                        Object.values(disrArchData).forEach(routeNode => {
+                            Object.values(routeNode).forEach(disr => {
+                                if (disr.message && disr.message.toLowerCase().includes(cleanFallback)) {
+                                    foundData = { ...disr, severity: disr.tier === 'CRITICAL' ? 'critical' : 'warning', archivedAt: disr.archivedAt };
+                                }
+                            });
+                        });
+                    }
+                }
+            }
+
             if (foundData) {
-                const dateStr = new Date(foundData.postedAt).toLocaleString('en-ZA', { dateStyle: 'short', timeStyle: 'short' });
+                const dateStr = Admin.formatDate(foundData.postedAt);
                 let imgHtml = foundData.imageUrl ? `<img src="${foundData.imageUrl}" class="w-full rounded mb-3 max-h-32 object-cover">` : '';
                 let statusHtml = foundData.archivedAt ? `<span class="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2 inline-block">Archived</span>` : `<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2 inline-block">Active</span>`;
                 
@@ -3123,6 +3475,24 @@ const Admin = {
                     </div>
                 </div>
 
+                <!-- 🛡️ SUPERCHARGED: Data Source (HIDDEN IN ADVANCED TOGGLE) -->
+                <div class="mt-2 border-t border-gray-100 dark:border-gray-700 pt-3">
+                    <button type="button" id="alert-source-toggle-btn" class="w-full text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center justify-between focus:outline-none">
+                        <span>📰 Add Data Source (Advanced)</span>
+                        <svg id="alert-source-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="alert-source-body" class="hidden mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50/50 dark:bg-gray-900/30 p-3 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-inner">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Source Name</label>
+                            <input type="text" id="alert-source-name" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" placeholder="e.g. PRASA Official Twitter">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Source URL (Optional)</label>
+                            <input type="text" id="alert-source-url" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" placeholder="https://...">
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 🛡️ SUPERCHARGED: Interactive Poll Manager -->
                 <div class="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 p-3 rounded-xl border border-purple-200 dark:border-purple-800 mt-2">
                     <div>
@@ -3224,6 +3594,12 @@ const Admin = {
         const advBody = document.getElementById('alert-advanced-body');
         const advChevron = document.getElementById('alert-advanced-chevron');
 
+        const srcToggleBtn = document.getElementById('alert-source-toggle-btn');
+        const srcBody = document.getElementById('alert-source-body');
+        const srcChevron = document.getElementById('alert-source-chevron');
+        const sourceNameInput = document.getElementById('alert-source-name');
+        const sourceUrlInput = document.getElementById('alert-source-url');
+
         const pollToggle = document.getElementById('alert-poll-toggle');
         const pollContainer = document.getElementById('alert-poll-container');
         const pollQuestion = document.getElementById('alert-poll-question');
@@ -3257,6 +3633,14 @@ const Admin = {
                 advBody.classList.toggle('hidden');
                 if (advBody.classList.contains('hidden')) advChevron.classList.add('-rotate-90');
                 else advChevron.classList.remove('-rotate-90');
+            };
+        }
+
+        if (srcToggleBtn) {
+            srcToggleBtn.onclick = () => {
+                srcBody.classList.toggle('hidden');
+                if (srcBody.classList.contains('hidden')) srcChevron.classList.add('-rotate-90');
+                else srcChevron.classList.remove('-rotate-90');
             };
         }
 
@@ -3558,6 +3942,8 @@ const Admin = {
                 imageUrl: imageUrlInput.value.trim() || null,
                 ctaUrl: ctaUrlInput.value.trim() || null,
                 ctaText: ctaTextInput.value.trim() || null,
+                sourceName: sourceNameInput ? sourceNameInput.value.trim() || null : null,
+                sourceUrl: sourceUrlInput ? sourceUrlInput.value.trim() || null : null,
                 poll: {
                     active: pollToggle.checked,
                     question: pollToggle.checked ? pollQuestion.value.trim() : null,
@@ -3711,7 +4097,7 @@ const Admin = {
 
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Commuter Explanation (PRASA Notice)</label>
-                    <textarea id="disr-msg" rows="4" class="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-y" placeholder="The line between Centurion and Irene is suspended due to a sinkhole..."></textarea>
+                    <textarea id="disr-msg" rows="6" class="w-full min-h-[150px] p-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-y" placeholder="The line between Centurion and Irene is suspended due to a sinkhole..."></textarea>
                 </div>
 
                 <div>
@@ -3875,13 +4261,19 @@ const Admin = {
 
                     const row = document.createElement('div');
                     row.className = `flex flex-col bg-gray-50 dark:bg-gray-900 p-2.5 rounded-lg text-xs border border-gray-100 dark:border-gray-700 ${isExpired ? 'opacity-60' : ''}`;
+                    const reviveBtnHtml = isExpired 
+                        ? `<button class="text-xs font-bold text-green-500 hover:text-green-700 focus:outline-none mr-3" onclick="Admin.reviveDisruption('${rId}', '${id}')">Revive</button>`
+                        : '';
                     row.innerHTML = `
                         <div class="flex justify-between items-center mb-1.5">
                             <div class="flex items-center min-w-0 pr-2">
                                 ${badgeHtml}
                                 <span class="font-bold text-gray-800 dark:text-gray-200 truncate">${targetStr}</span>
                             </div>
-                            <button class="text-xs font-bold text-blue-500 hover:text-blue-700 focus:outline-none" onclick="Admin.deleteDisruption('${rId}', '${id}')">Resolve</button>
+                            <div class="flex items-center shrink-0">
+                                ${reviveBtnHtml}
+                                <button class="text-xs font-bold text-blue-500 hover:text-blue-700 focus:outline-none" onclick="Admin.deleteDisruption('${rId}', '${id}')">Resolve</button>
+                            </div>
                         </div>
                         <div class="text-[10px] text-gray-500 dark:text-gray-400 truncate mb-1">"${item.message || item.longExplanation || ''}"</div>
                         <div class="text-[8px] ${expColor} font-mono uppercase tracking-widest">Expires: ${expStr}</div>
@@ -3948,6 +4340,39 @@ const Admin = {
             }
         };
 
+        Admin.reviveDisruption = async function(rId, id) {
+            if (typeof showToast === 'function') showToast("Loading incident data...", "info");
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await fetch(`${dynamicEndpoint}disruptions/${rId}/${id}.json?t=${Date.now()}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data) {
+                        document.getElementById('disr-route').value = rId;
+                        document.getElementById('disr-route').dispatchEvent(new Event('change'));
+                        
+                        setTimeout(() => {
+                            document.getElementById('disr-tier').value = data.tier || 'CRITICAL';
+                            if (data.stations && data.stations.length >= 1) document.getElementById('disr-station-a').value = data.stations[0];
+                            if (data.stations && data.stations.length === 2) document.getElementById('disr-station-b').value = data.stations[1];
+                            document.getElementById('disr-btn-text').value = data.buttonText || '';
+                            document.getElementById('disr-msg').value = (data.message || data.longExplanation || '').replace(/<br>/g, '\n');
+                            
+                            const now = new Date();
+                            now.setHours(now.getHours() + 48);
+                            now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); 
+                            document.getElementById('disr-expiry').value = now.toISOString().slice(0, 16);
+                            
+                            document.getElementById('disr-body').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            if (typeof showToast === 'function') showToast("Ready to deploy. Review details and click Deploy.", "success");
+                        }, 100); 
+                    }
+                }
+            } catch(e) {
+                if (typeof showToast === 'function') showToast("Failed to fetch incident data.", "error");
+            }
+        };
+
         Admin.deleteDisruption = async function(rId, id) {
             const confirmed = await Admin.secureConfirm("Resolve Incident", `Remove this incident from the live network?`);
             if (!confirmed) return;
@@ -3957,11 +4382,24 @@ const Admin = {
             
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                
+                // 🛡️ GUARDIAN PHASE 14: The Disruption Graveyard Interceptor
+                const fetchRes = await window.guardianFetch(`${dynamicEndpoint}disruptions/${rId}/${id}.json`, {}, 6000);
+                if (fetchRes.ok) {
+                    const disrData = await fetchRes.json();
+                    if (disrData && disrData.id) {
+                        disrData.archivedAt = Date.now();
+                        const archiveUrl = `${dynamicEndpoint}disruptions_archive/${rId}/${disrData.id}_${Date.now()}.json?auth=${secret}`;
+                        const archiveRes = await fetch(archiveUrl, { method: 'PUT', body: JSON.stringify(disrData) });
+                        if (!archiveRes.ok) throw new Error("Failed to archive disruption. Aborting delete.");
+                    }
+                }
+
                 const url = `${dynamicEndpoint}disruptions/${rId}/${id}.json?auth=${secret}`;
                 const res = await fetch(url, { method: 'DELETE' });
                 
                 if (res.ok) {
-                    if (typeof showToast === 'function') showToast("Incident resolved.", "success");
+                    if (typeof showToast === 'function') showToast("Incident resolved & archived.", "success");
                     Admin.fetchDisruptions(rId);
                 } else { 
                     if (typeof showToast === 'function') showToast("Delete failed.", "error"); 
@@ -4593,9 +5031,9 @@ const Admin = {
         diagPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         diagPanel.innerHTML = `
-            <button id="diag-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+            <button id="diag-header-btn" class="w-full text-left text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">🩺</span> 
+                    <svg class="w-6 h-6 mb-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     <span>System Health Diagnostics</span>
                 </span>
                 <svg id="diag-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -4618,7 +5056,10 @@ const Admin = {
                 <!-- 🛡️ CACHE PROPAGATION MATRIX ACCORDION -->
                 <div class="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800 overflow-hidden shadow-sm transition-all">
                     <button id="matrix-header-btn" class="w-full px-3 py-3 bg-indigo-100/50 dark:bg-indigo-900/40 text-left text-[10px] font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-indigo-200/50 dark:hover:bg-indigo-900/60">
-                        <span class="flex items-center"><span class="mr-2 text-sm">🌐</span> Cache Propagation Matrix</span>
+                        <span class="flex items-center">
+                            <svg class="w-4 h-4 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                            Cache Propagation Matrix
+                        </span>
                         <svg id="matrix-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     
@@ -4626,7 +5067,8 @@ const Admin = {
                         <p class="text-[9px] text-indigo-700 dark:text-indigo-400 font-medium leading-snug mb-3">Interrogates global Edge Caches (Cloudflare, GitHub, Firebase) to verify version sync status. Bypasses local browser cache.</p>
                         
                         <button id="ping-diagnostics-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-[10px] uppercase tracking-wide focus:outline-none flex justify-center items-center">
-                            <span class="mr-1.5 text-sm">📡</span> Probe Edge Caches
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.906 14.142 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path></svg>
+                            Probe Edge Caches
                         </button>
                         
                         <div id="ping-results" class="hidden mt-3">
@@ -4650,7 +5092,10 @@ const Admin = {
                 <!-- 🛡️ DEEP NETWORK SCAN ACCORDION -->
                 <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800 overflow-hidden shadow-sm transition-all">
                     <button id="deepscan-header-btn" class="w-full px-3 py-3 bg-blue-100/50 dark:bg-blue-900/40 text-left text-[10px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-blue-200/50 dark:hover:bg-blue-900/60">
-                        <span class="flex items-center"><span class="mr-2 text-sm">🩻</span> Deep Network Scan</span>
+                        <span class="flex items-center">
+                            <svg class="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
+                            Deep Network Scan
+                        </span>
                         <svg id="deepscan-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     
@@ -4856,15 +5301,26 @@ const Admin = {
                 const results = await Promise.all(probePromises);
                 
                 let html = '';
+                const currentAppVer = typeof APP_VERSION !== 'undefined' ? APP_VERSION.split(' - ')[0] : 'Unknown';
+
                 results.forEach(res => {
+                    let appVerClass = "text-blue-600 dark:text-blue-400";
+                    if (res.appVer !== "Error" && res.appVer !== "N/A") {
+                        if (res.appVer === currentAppVer) {
+                            appVerClass = "bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded";
+                        } else {
+                            appVerClass = "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400 px-1.5 py-0.5 rounded";
+                        }
+                    }
+
                     html += `
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                             <td class="px-2 py-2.5 border-r border-gray-100 dark:border-gray-800">
                                 <div class="font-bold text-gray-900 dark:text-white">${res.name}</div>
                             </td>
                             <td class="px-2 py-2.5 border-r border-gray-100 dark:border-gray-800">
-                                <div class="font-mono font-bold text-blue-600 dark:text-blue-400">${res.appVer}</div>
-                                <div class="text-[8px] text-gray-500 uppercase tracking-wider mt-0.5">${res.appTime}</div>
+                                <div class="font-mono font-bold ${appVerClass}">${res.appVer}</div>
+                                <div class="text-[8px] text-gray-500 uppercase tracking-wider mt-1">${res.appTime}</div>
                             </td>
                             <td class="px-2 py-2.5 text-right">
                                 <div class="font-mono font-black text-sm ${res.latencyClass}">${res.latency}ms</div>

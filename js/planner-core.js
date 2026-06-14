@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V7_06.05 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7_06.15 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -106,7 +106,7 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false, context 
         if (leg2Options.length === 0) continue;
 
         const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
-        const MAX_HUB_WAIT_SEC = 240 * 60; // 4 hours (Metrorail reality - Guardian expanded)
+        const MAX_HUB_WAIT_SEC = 1080 * 60; // 18 hours (Metrorail reality - Guardian expanded)
 
         leg1Options.forEach(leg1 => {
             const arrivalSec = timeToSeconds(leg1.arrTime);
@@ -464,7 +464,7 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType, co
                 
                 if (legsFromRelay.length > 0) {
                     const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
-                    const MAX_RELAY_WAIT = 240 * 60; // 4 hours
+                    const MAX_RELAY_WAIT = 1080 * 60; // 18 hours
 
                     legsToRelay.forEach(l1 => {
                         const arr1 = timeToSeconds(l1.arrTime);
@@ -526,7 +526,7 @@ function findIntersections(routeAId, routeBId) {
 
 function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3, dayType, context = {}) {
     const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 minutes
-    const MAX_WAIT_SEC = 240 * 60; // 4 hours (GUARDIAN Expanded Tolerance)
+    const MAX_WAIT_SEC = 1080 * 60; // 18 hours (GUARDIAN Expanded Tolerance)
 
     // 1. Get All Leg Options ONCE
     const legs1 = findAllLegsBetween(origin, hub1, new Set([route1.id]), dayType, context);
@@ -1011,7 +1011,7 @@ function enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, startSec, c
     if (!mergedLegs || mergedLegs.length === 0) return [];
 
     const TRANSFER_BUFFER_SEC = 0;
-    const MAX_WAIT_SEC        = 14400; // 4 hours (240 * 60)
+    const MAX_WAIT_SEC        = 64800; // 18 hours (1080 * 60)
 
     const waypoints = [origin, ...mergedLegs.map(l => l.to)];
     const routeIds  = mergedLegs.map(l => l.route.id);
@@ -1290,19 +1290,21 @@ function runHeuristicFailureProbe(origin, dest) {
     // 2. Is there ANY physical path?
     if (!checkConnectivity(false)) return 'ERR_DISCONNECTED_GRAPH';
 
-    // 3. Is the physical path currently severed by an incident?
-    if (!checkConnectivity(true)) {
-        if (blockingDisruption) {
-            return {
-                code: 'ERR_ACTIVE_SUSPENSION',
-                disruptionId: blockingDisruption.id,
-                buttonText: blockingDisruption.buttonText || 'Line Severed'
-            };
-        }
-        return 'ERR_ACTIVE_SUSPENSION';
+    // 3. Since the routing engine handles physical severances visually, 
+    // failing to find a route means it is fundamentally a timetable/schedule gap.
+    // We check for suspensions purely to attach context to the mismatch error.
+    const isSevered = !checkConnectivity(true); // Populates blockingDisruption
+
+    if (isSevered && blockingDisruption) {
+        return {
+            code: 'ERR_TIMETABLE_MISMATCH',
+            disruptionId: blockingDisruption.id,
+            buttonText: blockingDisruption.buttonText || 'Line Severed',
+            hasIncident: true
+        };
     }
 
-    // 4. Everything is fine physically, but timetables are too sparse
+    // 4. No physical issues, just sparse timetables
     return 'ERR_TIMETABLE_MISMATCH';
 }
 
@@ -1445,7 +1447,7 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
             const checkLayover = (arrTime, depTime) => {
                 let layover = timeToSeconds(depTime) - timeToSeconds(arrTime);
                 if (layover < 0) layover += 86400; 
-                return layover >= 0 && layover <= 14400; // GUARDIAN: 4 hours
+                return layover >= 0 && layover <= 64800; // GUARDIAN: 18 hours
             };
 
             if (trip.type === 'TRANSFER')

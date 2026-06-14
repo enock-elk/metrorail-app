@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_06.05 - Performance Polish Edition v1) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_06.15 - Performance Polish Edition v1) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -144,6 +144,8 @@ const HOLIDAY_NAMES = {
 
 // --- GUARDIAN PHASE B: THE LIE-FI DETECTOR & FETCH WRAPPER ---
 window.isLieFi = false;
+window._networkStruggleCount = 0; // 🛡️ GUARDIAN: Empathy Engine Counter
+
 window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
     if (!navigator.onLine) {
         window.isLieFi = true;
@@ -167,9 +169,18 @@ window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
         clearTimeout(id);
         window.isLieFi = false;
         
+        // 🛡️ GUARDIAN: Network Stabilized. Reset struggle counter and update UI.
+        window._networkStruggleCount = 0;
+        
         // Hide the offline indicator if network succeeded
         const oi = document.getElementById('offline-indicator');
         if (oi) oi.style.display = 'none';
+        
+        // If the "Please wait" toast is showing, flip it to success
+        const toastEl = document.getElementById('toast');
+        if (toastEl && toastEl.classList.contains('show') && toastEl.innerText.includes('Please wait while we load schedules')) {
+             if (typeof showToast === 'function') showToast("Connection stabilized. Schedules loading.", "success", 2000);
+        }
         
         return response;
     } catch (error) {
@@ -183,10 +194,20 @@ window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
         }
 
         if (error.name === 'AbortError' || error.message.includes('fetch') || error.message.includes('Network')) {
+            // 🛡️ GUARDIAN: Increment Struggle Counter on pure network timeouts/failures
+            window._networkStruggleCount++;
+            
             if (navigator.onLine) {
                 console.warn(`🛡️ Guardian: Request to ${url} timed out, but OS reports online. Very slow connection.`);
-                if (typeof showToast === 'function') showToast("Connection is very slow. Still trying...", "warning", 3500);
-                // Do NOT set isLieFi = true or show the offline block. Let the app keep trying.
+                
+                if (window._networkStruggleCount >= 3) {
+                     if (typeof window.triggerNetworkStruggleModal === 'function') {
+                         window.triggerNetworkStruggleModal();
+                         window._networkStruggleCount = 0; // Reset so it doesn't spam
+                     }
+                } else {
+                     if (typeof showToast === 'function') showToast("Connection is very slow. Still trying...", "warning", 3500);
+                }
             } else {
                 window.isLieFi = true;
                 console.warn(`🛡️ Guardian Lie-Fi Detector: Request to ${url} timed out/failed. Assumed offline.`);
@@ -1501,6 +1522,10 @@ async function loadAllSchedules(force = false) {
         }
 
         if(currentRouteId && mainContent) mainContent.style.display = 'block';
+        
+        // 🛡️ GUARDIAN PHASE 5.1: The Ad Armor Flag
+        // Release the lock so initAdInterceptor can finally inject CleverAds safely.
+        window._appStabilized = true;
     }
 }
 
