@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_06.15 - Performance Polish Edition v1) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_06.16 - Performance Polish Edition v1) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -1522,10 +1522,6 @@ async function loadAllSchedules(force = false) {
         }
 
         if(currentRouteId && mainContent) mainContent.style.display = 'block';
-        
-        // 🛡️ GUARDIAN PHASE 5.1: The Ad Armor Flag
-        // Release the lock so initAdInterceptor can finally inject CleverAds safely.
-        window._appStabilized = true;
     }
 }
 

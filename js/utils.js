@@ -104,7 +104,7 @@ const safeStorage = {
     // Mass-deletes localStorage to clear zombie cache items, while surgically extracting, 
     // protecting, and restoring core identity/preference keys.
     flushVolatile: function() {
-        const protectedKeys = [
+        const exactProtectedKeys = [
             'next_train_device_id',
             'userProfile',
             'theme',
@@ -116,16 +116,27 @@ const safeStorage = {
             'defaultRoute_KZN', // 🛡️ GUARDIAN FIX: Protect KZN
             'defaultRoute_EC',  // 🛡️ GUARDIAN FIX: Protect EC
             'last_killswitch_timestamp', // Protect killswitch memory
-            'analytics_queue' // Protect offline events queue
+            'analytics_queue', // Protect offline events queue
+            'last_impression_timestamp' // 🛡️ GUARDIAN FIX: Protect ad frequency cap
         ];
         
         const vault = {};
         
-        // 1. Extract to RAM Vault
-        protectedKeys.forEach(key => {
-            const val = this.getItem(key);
-            if (val !== null) vault[key] = val;
-        });
+        // 1. Extract to RAM Vault (With Ad Network Wildcard Support)
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (exactProtectedKeys.includes(key) || key.startsWith('clever_') || key.startsWith('cws_')) {
+                    vault[key] = localStorage.getItem(key);
+                }
+            }
+        } catch(e) {
+            // Fallback if localStorage iteration is blocked
+            exactProtectedKeys.forEach(key => {
+                const val = this.getItem(key);
+                if (val !== null) vault[key] = val;
+            });
+        }
         
         // 2. Nuke Local Storage Completely
         try {
@@ -144,8 +155,15 @@ const safeStorage = {
     },
 
     // --- ITP RESILIENCE (IndexedDB Mirroring) ---
+    _idbInstance: null,
+    _idbOpenPromise: null,
+    _mirroredKeys: new Set(),
+
     _initIDB: function() {
-        return new Promise((resolve, reject) => {
+        if (this._idbInstance) return Promise.resolve(this._idbInstance);
+        if (this._idbOpenPromise) return this._idbOpenPromise; // Dedup concurrent callers
+
+        this._idbOpenPromise = new Promise((resolve, reject) => {
             if (!window.indexedDB) {
                 reject(new Error("IndexedDB not supported"));
                 return;
@@ -153,7 +171,10 @@ const safeStorage = {
             try {
                 const request = indexedDB.open('GuardianIdentityDB', 1);
                 request.onerror = (e) => reject(e.target.error || new Error("IDB Open Error"));
-                request.onsuccess = (e) => resolve(e.target.result);
+                request.onsuccess = (e) => {
+                    this._idbInstance = e.target.result;
+                    resolve(this._idbInstance);
+                };
                 request.onupgradeneeded = (e) => {
                     const db = e.target.result;
                     if (!db.objectStoreNames.contains('IdentityStore')) {
@@ -164,6 +185,7 @@ const safeStorage = {
                 reject(err);
             }
         });
+        return this._idbOpenPromise;
     },
 
     // Asynchronously fetches from localStorage. If missing (purged), resurrects from IndexedDB.
@@ -171,8 +193,11 @@ const safeStorage = {
         // Fast path: Check synchronous storage first
         let val = this.getItem(key);
         if (val) {
-            // Background sync to ensure IDB is up-to-date
-            this.setResilientItem(key, val);
+            // Background sync to ensure IDB is up-to-date (Only once per session to prevent IO storm)
+            if (!this._mirroredKeys.has(key)) {
+                this._mirroredKeys.add(key);
+                this.setResilientItem(key, val);
+            }
             return val;
         }
 
@@ -221,9 +246,17 @@ const safeStorage = {
 // 🛡️ GUARDIAN PHASE 2: Identity ITP Protection Bootstrapper
 // The UUID is generated synchronously in index.html to ensure GA4 fires immediately.
 // We run a deferred sweep here to mirror it into IndexedDB, permanently shielding it from Apple's 7-Day ITP wipe.
-setTimeout(() => {
+const _mirrorDeviceId = () => {
     const currentId = safeStorage.getItem('next_train_device_id');
     if (currentId) {
         safeStorage.setResilientItem('next_train_device_id', currentId);
     }
-}, 2000);
+};
+
+setTimeout(_mirrorDeviceId, 2000);
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        _mirrorDeviceId();
+    }
+}, { once: true });

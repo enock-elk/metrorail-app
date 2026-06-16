@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-V7_06.15'; // GUARDIAN: Bumped to v1 for Firebase SDK injection
+const CACHE_NAME = 'metrorail-next-train-V7_06.16'; // GUARDIAN: Bumped to v1 for Firebase SDK injection
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.
@@ -83,9 +83,13 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   // GUARDIAN PHASE E: THE CACHE TRAP (Strict Network-Only Bypass)
-  // Ensure real-time database queries (Firebase RTDB) and Cloudflare telemetry workers are NEVER cached by the SW.
-  // This guarantees Service Alerts, Killswitches, and Maintenance banners hit the UI instantly.
-  if (url.hostname.includes('firebaseio.com') || url.hostname.includes('workers.dev')) {
+  // Ensure real-time database queries (Firebase RTDB), Cloudflare telemetry, and CleverAds beacons are NEVER cached.
+  // This guarantees Service Alerts hit the UI instantly, and Ad impressions aren't swallowed by cache.
+  if (
+    url.hostname.includes('firebaseio.com') || 
+    url.hostname.includes('workers.dev') ||
+    url.hostname.includes('cleverwebserver.com')
+  ) {
       event.respondWith(
           fetch(event.request).catch(() => {
               // If offline, fail gracefully returning a synthetic JSON 503 instead of crashing the UI parser
@@ -103,20 +107,26 @@ self.addEventListener('fetch', (event) => {
   // fixing the issue of users being stuck on old versions due to Stale-While-Revalidate.
   if (event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
     
+    // 🛡️ GUARDIAN UX FIX: Detached Promise Pattern
+    // Resolves the race condition where `waitUntil` is invoked too late, causing silent cache write failures.
+    let resolveWaitUntil;
+    const waitUntilPromise = new Promise(resolve => { resolveWaitUntil = resolve; });
+    event.waitUntil(waitUntilPromise); // Called synchronously — SW lifetime guaranteed
+
     // 1. Network Fetch Promise
     const networkFetch = fetch(event.request).then((networkResponse) => {
       // Clone synchronously BEFORE opening the asynchronous cache
       const responseToCache = networkResponse.clone();
       
-      // Wrap the async disk write in event.waitUntil.
-      // Prevents OS from killing the SW thread mid-write, preventing corrupted caches.
-      event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-           return cache.put(event.request, responseToCache);
-        })
-      );
+      const cacheWrite = caches.open(CACHE_NAME).then((cache) => {
+          return cache.put(event.request, responseToCache);
+      });
       
+      resolveWaitUntil(cacheWrite); // Hands off the real promise to waitUntil
       return networkResponse;
+    }).catch((err) => {
+        resolveWaitUntil(); // Never leave the detached promise hanging
+        throw err;
     });
 
     // 2. Timeout Promise (Fast Fail: 3 seconds)

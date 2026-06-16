@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.15 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.16 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -429,7 +429,13 @@ const Admin = {
         
         const spread = maxVal - minVal;
         const yMax = Math.ceil(maxVal + (spread > 0 ? spread * 0.2 : maxVal * 0.2));
-        const yMin = Math.max(0, Math.floor(minVal - (spread > 0 ? spread * 0.2 : minVal * 0.5)));
+        let yMin = Math.max(0, Math.floor(minVal - (spread > 0 ? spread * 0.2 : minVal * 0.5)));
+        
+        // 🛡️ GUARDIAN UX FIX: Clamp Y-Axis to 0 if dataset contains 0s to stop negative baseline rendering
+        if (dataArray.includes(0)) {
+            yMin = 0;
+        }
+
         const yRange = yMax - yMin || 10;
 
         const getX = (i) => pl + (i * (uw / Math.max(1, numPoints - 1)));
@@ -5555,20 +5561,6 @@ const Admin = {
                         <input type="text" id="maint-message" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700/50 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-orange-500 outline-none shadow-sm" placeholder="Optional context (e.g. Adding KZN routes...)">
                     </div>
                 </div>
-
-                <!-- Ad Killswitch Controls -->
-                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <span class="font-bold text-blue-800 dark:text-blue-200 text-sm">Enable Third-Party Ads</span>
-                            <p class="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5">Controls CleverAds script injection globally.</p>
-                        </div>
-                        <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                            <input type="checkbox" name="toggle" id="ads-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
-                            <label for="ads-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
-                        </div>
-                    </div>
-                </div>
             </div>
         `;
 
@@ -5577,7 +5569,6 @@ const Admin = {
         const chevron = document.getElementById('maint-chevron');
         const toggle = document.getElementById('maint-toggle');
         const maintMsg = document.getElementById('maint-message');
-        const adsToggle = document.getElementById('ads-toggle');
 
         header.onclick = () => {
             if (Admin.isGridMode) return;
@@ -5605,11 +5596,6 @@ const Admin = {
                     toggle.checked = !!maintData; // Legacy boolean fallback
                     if (maintMsg) maintMsg.value = "";
                 }
-
-                // Fetch Ads Config
-                const resAds = await fetch(`${dynamicEndpoint}config/ads_enabled.json`);
-                const adsData = await resAds.json();
-                if (adsToggle) adsToggle.checked = adsData === null ? true : !!adsData; // Defaults to true
                 
             } catch(e) { console.warn("Failed to check system status"); }
         }
@@ -5637,33 +5623,6 @@ const Admin = {
                 } catch(e) {
                     if (typeof showToast === 'function') showToast("Failed to update status.", "error");
                     toggle.checked = !toggle.checked; 
-                }
-            });
-        }
-
-        if (adsToggle) {
-            adsToggle.addEventListener('change', async () => {
-                const secret = await Admin.getAuthKey(); 
-                if (!secret) {
-                    if (typeof showToast === 'function') showToast("Authentication required.", "error");
-                    adsToggle.checked = !adsToggle.checked; 
-                    return;
-                }
-                try {
-                    const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                    const res = await window.guardianFetch(`${dynamicEndpoint}config/ads_enabled.json?auth=${secret}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(adsToggle.checked)
-                    }, 10000);
-                    
-                    if(res.ok) {
-                        if (typeof showToast === 'function') showToast(`Ads: ${adsToggle.checked ? "ENABLED" : "DISABLED"}`, "success");
-                    } else {
-                        throw new Error("Auth failed");
-                    }
-                } catch(e) {
-                    if (typeof showToast === 'function') showToast("Failed to update ad status.", "error");
-                    adsToggle.checked = !adsToggle.checked; 
                 }
             });
         }

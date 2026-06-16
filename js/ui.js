@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.15 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.16 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -1339,127 +1339,7 @@ window.showCacheClearWarning = function() {
     openSmoothModal('cache-clear-modal');
 }
 
-// --- GUARDIAN PHASE 5.1: THE AD INTERCEPTOR (Eager Init & Verified Telemetry) ---
-function initAdInterceptor() {
-    if (window._adScriptInjected) return;
-
-    // 1. Check Version Enforcer state (prevent firing right before a hard reload)
-    const currentVersion = typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown';
-    const storedVersion = safeStorage.getItem('app_installed_version');
-    const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
-    if (storedVersion && storedVersion !== currentVersion && isForceUpdate) {
-        console.log("🛡️ AdInterceptor: Pending force update detected. Holding injection.");
-        return; 
-    }
-
-    // 🛡️ GUARDIAN PHASE 5.1: The Ad Armor (Wait for Network & RAM Stabilization)
-    if (typeof window._appStabilized === 'undefined' || window._appStabilized !== true) {
-        setTimeout(initAdInterceptor, 1000);
-        return;
-    }
-
-    window._adScriptInjected = true;
-    console.log("🛡️ AdInterceptor: Eagerly injecting Monetization Engine in background.");
-
-    // ACTION 1: Eager Injection (Pre-load ad payload silently)
-        try {
-            (function (document, window) {
-                var a, c = document.createElement("script"), f;
-                try { f = window.frameElement; } catch(e) { f = null; } // 🛡️ GUARDIAN FIX: Cross-origin frame shield
-                c.id = "CleverCoreLoader103008";
-                c.src = "https://scripts.cleverwebserver.com/a399a0d9cfe9817e0ccd10f89b4e320a.js";
-                c.async = !0;
-                c.type = "text/javascript";
-                c.setAttribute("data-target", window.name || (f && f.getAttribute("id")));
-                c.setAttribute("data-callback", "put-your-callback-function-here");
-                c.setAttribute("data-callback-url-click", "put-your-click-macro-here");
-                c.setAttribute("data-callback-url-view", "put-your-view-macro-here");
-                try {
-                    a = parent.document.getElementsByTagName("script")[0] || document.getElementsByTagName("script")[0];
-                } catch (e) {
-                    a = !1;
-                }
-                a || (a = document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]);
-                a.parentNode.insertBefore(c, a);
-            })(document, window);
-        } catch(e) { console.warn("🛡️ Guardian: Ad script injection safely suppressed.", e); }
-
-        // ACTION 2 & 3: Safe Unhiding & Verified Telemetry
-        const checkAndUnhide = () => {
-            // Locate the ad container (adjust selector based on your exact HTML structure)
-            const adContainer = document.getElementById('ad-container') || document.querySelector('.clever-core-ad') || document.querySelector('[id^="clever-"]');
-
-            // State Verification
-            const hash = location.hash;
-            const isMainRoute = (hash === '' || hash === '#home');
-            
-            // 🛡️ GROWTH MODE PHASE 5.1: Ad Armor - Suppress Ad if Reloading or Welcome Screen is active
-            const isReloadLocked = typeof window._suppressReloads !== 'undefined' && window._suppressReloads;
-            const welcomeModal = document.getElementById('welcome-modal');
-            const isWelcomeHidden = !welcomeModal || welcomeModal.classList.contains('hidden');
-
-            const mapModal = document.getElementById('map-modal');
-            const isMapHidden = !mapModal || mapModal.classList.contains('hidden');
-            
-            const tripMapModal = document.getElementById('trip-map-modal');
-            const isTripMapHidden = !tripMapModal || tripMapModal.classList.contains('hidden');
-            
-            const gridModal = document.getElementById('full-schedule-modal');
-            const isGridHidden = !gridModal || gridModal.classList.contains('hidden');
-
-            const isDbReady = typeof fullDatabase !== 'undefined' && fullDatabase !== null;
-            const isMutexLocked = window._isModalAnimating || window._isMapInitializing;
-            
-            // 🛡️ GUARDIAN PHASE 1: Absolute Catch-All Modal Check & Data Stability Guard
-            const isAnyModalActive = document.body.classList.contains('modal-active');
-            const hasValidRoute = typeof currentRouteId !== 'undefined' && currentRouteId !== null && currentRouteId !== '';
-            const isManualRollover = typeof window._forceManualRollover !== 'undefined' && window._forceManualRollover === true;
-
-            // Strict intersection of safe states
-            const isSafeZone = isDbReady && hasValidRoute && isMainRoute && isWelcomeHidden && !isReloadLocked && isMapHidden && isTripMapHidden && isGridHidden && !isMutexLocked && !isManualRollover && !isAnyModalActive;
-
-            if (adContainer) {
-                if (isSafeZone) {
-                    adContainer.style.display = ''; // 🛡️ GUARDIAN FIX: Release inline lock
-                    adContainer.classList.remove('hidden');
-                    
-                    // Attach Intersection Observer if telemetry hasn't fired yet
-                    if (!window._adTelemetryFired) {
-                        try { // 🛡️ GUARDIAN FIX: IntersectionObserver Sandbox
-                            if ('IntersectionObserver' in window) {
-                                const observer = new IntersectionObserver((entries, obs) => {
-                                    if (entries[0].isIntersecting) {
-                                        window._adTelemetryFired = true;
-                                        if (typeof trackAnalyticsEvent === 'function') {
-                                            trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: true });
-                                            console.log("📈 Ad View Verified via IntersectionObserver.");
-                                        }
-                                        obs.disconnect(); // Detach to ensure we only log the view once per session
-                                    }
-                                }, { threshold: 0.5 }); // Requires 50% of the ad to be visible
-                                observer.observe(adContainer);
-                            } else {
-                                // Fallback for ancient browsers
-                                window._adTelemetryFired = true;
-                                if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'fallback' });
-                            }
-                        } catch (obsError) {
-                            console.warn("🛡️ Guardian: IntersectionObserver blocked by strict WebView sandbox.", obsError);
-                        }
-                    }
-                } else {
-                    adContainer.classList.add('hidden');
-                    adContainer.style.setProperty('display', 'none', 'important'); // 🛡️ GUARDIAN FIX: Brute-force inline lock
-                }
-            }
-
-            // Keep polling gently to monitor UI state changes (hides ad if a modal opens)
-            setTimeout(checkAndUnhide, 1500);
-        };
-
-        // 🛡️ GUARDIAN FIX: Zero-millisecond delay. Intercept instantly.
-        checkAndUnhide();
-}
+// --- THE AD INTERCEPTOR HAS BEEN SECURELY PURGED ---
 
 function initializeApp() {
     if (window.location.pathname.endsWith('index.html')) {
@@ -1507,11 +1387,6 @@ function initializeApp() {
     if (!navigator.onLine) { 
         const oi = document.getElementById('offline-indicator');
         if (oi) oi.style.display = 'flex';
-    }
-
-    // GROWTH MODE PHASE 5.1: Init AdInterceptor safely
-    if (typeof initAdInterceptor === 'function') {
-        initAdInterceptor();
     }
 }
 

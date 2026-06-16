@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.15 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.16 - Performance Polish Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -821,13 +821,14 @@ const PlannerRenderer = {
                             ${dynamicDayText}
                           </div>`;
         } else if (isDeparted) {
+            // 🛡️ GUARDIAN UX FIX: Removed w-full, shrunk button, and added whitespace-nowrap to stop text squishing
             stateBadge = `
-                <div class="flex flex-col items-start w-full sm:w-auto mt-2 sm:mt-0">
-                    <div class="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2">
+                <div class="flex flex-col items-start mt-1 sm:mt-0 pr-2 min-w-0">
+                    <div class="text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
                         ${countdown}
                     </div>
-                    <button onclick="if(typeof window._plannerCurrentTripIndex !== 'undefined') window._selectCustomTrip(window._plannerCurrentTripIndex + 1);" class="w-full sm:w-auto bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 font-bold py-2 px-3 rounded-lg shadow-sm transition-colors focus:outline-none flex justify-center items-center text-[10px] uppercase tracking-wider">
-                        Show Next Train <svg class="w-3.5 h-3.5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                    <button onclick="if(typeof window._plannerCurrentTripIndex !== 'undefined') window._selectCustomTrip(window._plannerCurrentTripIndex + 1);" class="bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 font-bold py-1.5 px-3 rounded-lg shadow-sm transition-colors focus:outline-none flex justify-center items-center text-[9px] uppercase tracking-wider whitespace-nowrap">
+                        Show Next Train <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
                     </button>
                 </div>
             `;
@@ -862,11 +863,14 @@ const PlannerRenderer = {
                         <p class="text-lg font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.arrTime)}</p>
                     </div>
                 </div>
-                <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <div class="flex justify-between items-end mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                      ${stateBadge}
-                     <div class="flex items-center text-xs font-bold text-gray-500 dark:text-gray-400">
-                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        ${duration} Total Time
+                     <div class="flex flex-col items-end text-right shrink-0 pl-2">
+                        <div class="flex items-center text-xs font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            ${duration}
+                        </div>
+                        <div class="text-[9px] text-gray-400 uppercase tracking-widest mt-0.5">Total Time</div>
                      </div>
                 </div>
             </div>
