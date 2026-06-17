@@ -2776,7 +2776,6 @@ const Admin = {
                         const safeRouteId = secureEscape(item.routeId || 'None');
                         const safeAttachUrl = item.attachmentUrl ? secureEscape(item.attachmentUrl) : null;
 
-                        // --- AFTER ---
                         // REGEX: Extract Context Block ("[Replying to: ...]")
                         let quoteBlockHtml = "";
                         // 🛡️ GUARDIAN UX FIX: Relaxed regex to catch replies without explicit <br> tags
@@ -2784,10 +2783,10 @@ const Admin = {
                         const quoteMatch = rawText.match(quoteRegex);
                         let isReply = false;
                         
-                        if (quoteMatch) {
+                        if (quoteMatch && quoteMatch[1] !== undefined) {
                             isReply = true;
-                            // 🛡️ GUARDIAN UX FIX: Cleanly formats the ugly internal Reply ID into "Reply to Enock"
-                            const rawQuoteContent = quoteMatch[1];
+                            // 🛡️ GUARDIAN UX FIX: Force string cast to ensure .replace() and .includes() never throw TypeErrors
+                            const rawQuoteContent = String(quoteMatch[1]);
                             let quoteContent = rawQuoteContent
                                 .replace(/REPLY TO ADMIN:\s*[-a-zA-Z0-9_]+/i, 'Reply to Enock:')
                                 .replace(/Replying to:\s*/i, '')
@@ -2819,6 +2818,8 @@ const Admin = {
                             rawText = rawText.replace(quoteRegex, '').trim(); // Remove from main body
                         }
 
+                        // Safeguard rawText in case the replace cleared it completely
+                        if (typeof rawText !== 'string') rawText = "";
                         rawText = rawText.replace(/^(?:<br>|\s)+/, '');
 
                         const attachmentHtml = safeAttachUrl 

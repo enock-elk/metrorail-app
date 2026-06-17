@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7_06.17"; // BUMPED: UX Polish, 18-Hour Layover Uncap & Precision Routing.
+const APP_VERSION = "V7_06.17"; // v3 - BUMPED: UX Polish, 18-Hour Layover Uncap & Precision Routing.
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
