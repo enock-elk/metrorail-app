@@ -2,8 +2,8 @@
  * METRORAIL NEXT TRAIN - GRID ORDER CONFIG
  * ---------------------------------------------------
  * This file defines the explicit column order for the Full Schedule Grid.
- * Generated from: NextTrain EC-Schedules - 12 May.xlsx, NextTrain GP-Schedules-2 June.xlsx, NextTrain KZN-Schedules - 12 May.xlsx, NextTrain WC-Schedules - 22 April.xlsx
- * Date: 2026-06-03
+ * Generated from: NextTrain EC-Schedules - 12 May.xlsx, NextTrain GP-Schedules-9 June.xlsx, NextTrain KZN-Schedules - 12 May.xlsx, NextTrain WC-Schedules - 22 April.xlsx
+ * Date: 2026-06-16
  */
 
 const MANUAL_GRID_ORDER = {
@@ -667,22 +667,6 @@ const MANUAL_GRID_ORDER = {
         "0219",
         "0221",
         "0223"
-    ],
-    "pta_to_kemp_weekday": [
-        "0604",
-        "0616",
-        "0618",
-        "0620",
-        "0622",
-        "0654"
-    ],
-    "kemp_to_pta_weekday": [
-        "0603",
-        "0615",
-        "0617",
-        "0619",
-        "0621",
-        "0623"
     ],
     "pta_to_kemp_sat": [
         "0604",

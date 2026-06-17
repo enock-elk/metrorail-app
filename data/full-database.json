@@ -1,13 +1,14 @@
 {
   "config": {
+    "ads_enabled": false,
     "data_source": "FIREBASE",
     "killswitch": {
-      "timestamp": 1780270378936,
+      "timestamp": 1781608810029,
       "triggeredBy": "enockelk@gmail.com"
     },
     "maintenance": {
       "active": false,
-      "message": "Maintenance - Bug fixes"
+      "message": "Maintenance - (Fixing Bugs)"
     },
     "special_event": {
       "destA": "PRETORIA",
@@ -26,15 +27,17 @@
     },
     "all_EC": {
       "authorName": "Enock",
-      "expiresAt": 1779746340000,
+      "expiresAt": 1781474340000,
       "forcePopup": true,
-      "id": "1779012513898",
+      "id": "1781457034477",
       "message": "Dear <b><i>EC Commuters</i></b>,\n<br><br><div>The <b>Next Train</b> project, recently launched the Eastern Cape schedules, but our prices are not yet accurate.\n</div><div>If you commute on these routes, please feel free to use the reply button below, to let us know of the correct ticket prices or any timetable errors etc.\n</div><div><br>Thank you for riding with us!</div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Enock</span>",
       "poll": {
         "active": false
       },
-      "postedAt": 1779012513898,
-      "severity": "info"
+      "postedAt": 1781457034477,
+      "severity": "info",
+      "sourceName": "PRASA WhatsApp",
+      "sourceUrl": "https://web.whatsapp.com/"
     },
     "all_KZN": {
       "authorName": "Enock",
@@ -49,15 +52,15 @@
       "severity": "info"
     },
     "all_WC": {
-      "authorName": "Enock",
-      "expiresAt": 1779832740000,
+      "authorName": "Next Train Ops",
+      "expiresAt": 1781992740000,
       "forcePopup": true,
-      "id": "1779035693058",
-      "message": "Hello <b><i>Western Cape commuters</i></b>,<div><br><div>Thank you for your continued support.</div><div>We are actively working on adding more routes and correcting schedules, especially Saturday schedules.</div><div><br></div><div>On that note, I'm looking for <i>volunteers based in Cape Town</i> to help finalize the Western Cape rollout.&nbsp;</div><div><br></div><div>If you know the routes well <i>(or ticket pricing)</i> and want to contribute, I'd love to hear from you.</div><div><br></div><div>You can reach out anonymously by simply replying to this post, or attach your email or WhatsApp number in the app's feedback section and I'll get back to you.</div><div><br></div><div>Thanks everyone 🙏🏾</div></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Enock</span>",
+      "id": "1781655750115",
+      "message": "<b><i style=\"\">Hello</i> <i style=\"\">Western Cape commuters</i>,</b><div><br><div>Thank you for your continued support.</div><div>We are actively updating the schedules to reflect the new changes.</div><div><br></div><div>Thank you very much for your patience.</div><div><br></div><div><i>Thanks everyone</i> 🙏🏾</div></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
       "poll": {
         "active": false
       },
-      "postedAt": 1779035693058,
+      "postedAt": 1781655750115,
       "severity": "info"
     },
     "bellville-mutual": {
@@ -88,56 +91,69 @@
       "postedAt": 1773915050016,
       "severity": "info"
     },
+    "jhb-midway": {
+      "authorName": "Next Train Ops",
+      "expiresAt": 1781042340000,
+      "forcePopup": true,
+      "id": "1780987035035",
+      "message": "<b>PRASA Alert: Lenasia Line Service Disruption</b><div><i style=\"\">Tuesday 09 June 2026</i><div><br></div><div><b>Cable theft overnight</b>.&nbsp;</div><div>67 meters of OHTE power lines stolen between Lenz and Tshiawelo.&nbsp;<span style=\"font-size: 0.75rem;\">One line is down, one still working.</span></div><div><br></div><div><b>Today's service</b>:</div><div>Train 92s are suspended until wires are fixed.</div><div>Train 90s will only run between Lenasia Station and Johannesburg Park.&nbsp;</div><div><br></div><div>T9003 already left Lenasia this morning. All other 90s trains will start/end at Lenasia.&nbsp;</div><div><br></div><div>Expect delays on 90s trips.</div><div><br></div><div>Metrorail PRASA asks for patience while repairs happen.</div><div><br></div><div>#CommuterAlert #LenasiaLine</div></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
+      "poll": {
+        "active": false
+      },
+      "postedAt": 1780987035035,
+      "severity": "critical"
+    },
     "jhb-rand": {
       "authorName": "Next Train Ops",
-      "expiresAt": 1779227940000,
+      "expiresAt": 1780955940000,
       "forcePopup": true,
-      "id": "1779203273246",
-      "message": "<b>Randfontein to Roodepoort line</b><div>SERVICE CANCELLED<div><br></div><div><b>Help NextTrain - we need your input:</b></div><div>Following the disruption on the Randfontein line announced earlier.</div></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
+      "id": "1780915282017",
+      "message": "<b>Service Alert: Train Cancellations</b><div><i>New Canada Substation</i><div><br></div><div>Heads up for today, <b><i>Monday 08 June 2026</i></b></div><div><br></div><div>Emergency work at New Canada Substation means no trains running on these corridors:</div><div><br></div><div><b>Cancelled trains</b>:</div><div><b>Midway</b>: 9009, 9008</div><div><b>Naledi</b>: 9314, 9316, 9318, 9315, 9317, 9321</div><div><b>Lenz</b>: 9207, 9209, 9206, 9208, 9210</div><div><b>Randfontein</b>: 0209, 0210, 0228, 0229</div><div><br></div><div>Metrorail Gauteng says apologizes for the mess.&nbsp;</div><div>Please sort alternative transport today and stay safe.</div><div><br></div><div><b><i>#CommuterAlert #TrainCancellation</i></b></div></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
       "poll": {
-        "active": true,
-        "optionA": "Yes - Trains are moving!",
-        "optionB": "No - still cancelled!",
-        "question": "Are trains moving normally now?"
+        "active": false
       },
-      "postedAt": 1779203273246,
+      "postedAt": 1780915282017,
       "severity": "critical"
     },
     "jhb-soweto": {
       "authorName": "Next Train Ops",
-      "expiresAt": 1779710340000,
+      "expiresAt": 1781215140000,
       "forcePopup": true,
-      "id": "1779690977869",
-      "message": "<b>Naledi Line disruption</b>&nbsp;<div>&gt;&nbsp;<i style=\"font-weight: bold;\">Monday 25 May</i><div><br></div><div>Perway maintenance is cancelling several off-peak services between 09:00 and 14:00 today.</div><div><br></div><div>Cancelled trains:</div><div>- NLD 9311 – 08:50 from Naledi</div><div>- JHB 9312 – 09:50 from Johannesburg</div><div>- NLD 9315 – 10:50 from Naledi</div><div>- JHB 9316 – 11:50 from Johannesburg</div><div>- NLD 9321 – 12:50 from Naledi</div><div>- JHB 9322 – 13:50 from Johannesburg</div><div><br></div><div>Normal service resumes after 14:00.</div></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
+      "id": "1781075781792",
+      "message": "<b>Service Cancellation Alert</b>:&nbsp;<div><i>Naledi to Johannesburg Off-Peak Train Cancellations</i><div><br></div><div><b>Dates:</b></div><div><i>Tuesday <b>10 June </b>&amp; Wednesday <b>11 June</b> 2026, 09:00 to 15:00</i></div><div><br></div><div>Gauteng Metrorail will do planned track maintenance between Naledi and Johannesburg. Tracks will be closed to allow safe access.</div><div><br></div><div><b>Cancelled trains during 09:00-15:00:</b></div><div><b><i>Naledi to Johannesburg:</i></b>&nbsp;</div><div>9311 at 08H50, 9315 at 10H50, 9321 at 12H50</div><div><b><i>Johannesburg to Naledi:</i></b>&nbsp;</div><div>9312 at 09H50, 9316 at 11H50, 9322 at 13H50</div><div><br></div><div>Only off-peak services affected. This work is to improve safety, reduce future cancellations, and increase capacity.</div><div><br></div><div>Please plan travel ahead and use alternative transport during these times. Metrorail apologizes for the inconvenience.</div></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
       "poll": {
         "active": false
       },
-      "postedAt": 1779690977869,
-      "severity": "warning"
+      "postedAt": 1781075781792,
+      "severity": "critical"
     },
     "mab-belle": {
       "authorName": "Next Train Ops",
-      "expiresAt": 1779703200000,
-      "forcePopup": false,
-      "id": "1779702604742",
-      "message": "<img src=\"https://imgur.com/a/zwXp05a#uJueG08\" class=\"w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700\" alt=\"Alert Image\"><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
+      "expiresAt": 1781719140000,
+      "forcePopup": true,
+      "id": "1781638241109",
+      "message": "🚆<b> COMMUTER TO COMMUTER UPDATE 🚆</b><div><i>A very good evening fellow commuters 🇿🇦</i></div><div><br></div><div>Heads up for <b>tomorrow, Wednesday 17 June:</b></div><div><br></div><div><b>Mabopane &amp; Dewildt commuters</b> - Please try to arrive a bit earlier than your usual time at the station.</div><div><br></div><div>What’s happening:There’s a power issue at Wolmerton section. Tonight’s evening trains were running behind schedule because of it. Eskom is on site trying to fix it, but we don’t know yet if it’ll be sorted by morning.</div><div><br></div><div>From one commuter to another:&nbsp;</div><div><i>\"Let’s play it safe and get there early, just in case trains are delayed again tomorrow. Better early than late for work/school 💙\"&nbsp;</i></div><div><br></div><div><i><b>Safe travels, Mzansi.</b></i></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
       "poll": {
         "active": false
       },
-      "postedAt": 1779702604742,
-      "severity": "info"
+      "postedAt": 1781638241110,
+      "severity": "warning",
+      "sourceName": "RailTalk SA WhatsApp Channel",
+      "sourceUrl": "https://whatsapp.com/channel/0029Vb61eoeCnA7xvYauuf0x"
     },
     "pta-dewildt": {
       "authorName": "Next Train Ops",
-      "expiresAt": 1779987540000,
+      "expiresAt": 1781719140000,
       "forcePopup": true,
-      "id": "1779973605643",
-      "message": "⚠️ <b>TRAIN ALERT – Dewildt Corridor</b><div><br></div><div>Good afternoon, members.&nbsp;</div><div><br></div><div>Power has been restored, and train services will resume normal operations shortly.&nbsp;</div><div><br></div><div>However, some trains will be short-turned at Roslyn Station to compensate for lost time.</div><div><br></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
+      "id": "1781638338731",
+      "message": "<div>🚆<b> COMMUTER TO COMMUTER UPDATE 🚆</b></div><div><i>A very good evening fellow commuters</i> 🇿🇦</div><div><br></div><div>Heads up for <b>tomorrow, Wednesday 17 June:</b></div><div><br></div><div><b>Mabopane &amp; Dewildt commuters</b> - Please try to arrive a bit earlier than your usual time at the station.</div><div><br></div><div>What’s happening:There’s a power issue at <b>Wolmerton</b> section. Tonight’s evening trains were running behind schedule because of it. Eskom is on site trying to fix it, but we don’t know yet if it’ll be sorted by morning.</div><div><br></div><div>From one commuter to another:&nbsp;</div><div><i>\"Let’s play it safe and get there early, just in case trains are delayed again tomorrow. Better early than late for work/school 💙\"&nbsp;</i></div><div><br></div><div><b><i>Safe travels, Mzansi.</i></b></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
       "poll": {
         "active": false
       },
-      "postedAt": 1779973605643,
-      "severity": "warning"
+      "postedAt": 1781638338731,
+      "severity": "warning",
+      "sourceName": "RailTalk SA WhatsApp Channel",
+      "sourceUrl": "https://whatsapp.com/channel/0029Vb61eoeCnA7xvYauuf0x"
     },
     "pta-irene": {
       "authorName": "Enock",
@@ -165,12 +181,17 @@
     },
     "pta-mabopane": {
       "authorName": "Next Train Ops",
-      "expiresAt": 1775771940000,
+      "expiresAt": 1781719140000,
       "forcePopup": true,
-      "id": "1775610799438",
-      "message": "Good morning commuters 🙋🏾‍♂️<br><br>NEW MABOPANE SCHEDULE ACTIVE<br>The updated timetable is now live! <br><br>How to verify you have the new times:<br><br>Look under the route name on the main screen for: Effective: 8 April 2026<br><br>Open the menu and check the bottom for version v6.04.07<br><br>If you still see the old  schedule times, open the menu (top left) and tap Check for Updates to clear cache & sync the new timetable instantly.<br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
-      "postedAt": 1775610799438,
-      "severity": "info"
+      "id": "1781638148200",
+      "message": "🚆 <b>COMMUTER TO COMMUTER UPDATE</b> 🚆<div><i>A very good evening fellow commuters 🇿🇦</i></div><div><br></div><div>Heads up for <b>tomorrow, Wednesday 17 June</b>:</div><div><br></div><div><b>Mabopane &amp; Dewildt commuters</b> - Please try to arrive a bit earlier than your usual time at the station.</div><div><br></div><div>What’s happening:There’s a power issue at <b>Wolmerton</b> section. Tonight’s evening trains were running behind schedule because of it. Eskom is on site trying to fix it, but we don’t know yet if it’ll be sorted by morning.</div><div><br></div><div>From one commuter to another:&nbsp;</div><div><i style=\"font-size: 0.75rem;\">\"Let’s play it safe and get there early, just in case trains are delayed again tomorrow. Better early than late for work/school 💙\"&nbsp;</i></div><div><br></div><div><b><i>Safe travels, Mzansi.</i></b></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
+      "poll": {
+        "active": false
+      },
+      "postedAt": 1781638148200,
+      "severity": "warning",
+      "sourceName": "RailTalk SA WhatsApp Channel",
+      "sourceUrl": "https://whatsapp.com/channel/0029Vb61eoeCnA7xvYauuf0x"
     },
     "pta-pien": {
       "expiresAt": 1774130340000,
@@ -216,6 +237,19 @@
           "IRENE"
         ],
         "tier": "CRITICAL"
+      },
+      "1780536476444": {
+        "buttonText": "Sinkhole Advisory",
+        "expiresAt": 1788830340000,
+        "id": "1780536476444",
+        "message": "Metrorail Update: Centurion–Irene Sinkhole<br><br>Sinkhole between Centurion and Irene. Line is split into 2 shuttles:<br><br><br>Note: No direct trains between Centurion and Irene. You’ll need to change trains and expect delays. Leave earlier.<br><br>1. Pretoria trains stop at Irene only <br>2. Centurion trains stop at Centurion only<br>3. No trains crossing the sinkhole<br><br>Shuttles run on time but won’t wait for late connections.",
+        "postedAt": 1780536476444,
+        "routeId": "pta-kempton",
+        "stations": [
+          "CENTURION",
+          "IRENE"
+        ],
+        "tier": "CRITICAL"
       }
     },
     "pta-saul": {
@@ -234,6 +268,303 @@
     }
   },
   "exclusions": {
+    "ct-chrishani": {
+      "_grid_notice": {
+        "text": "We are still in the process of updating the schedule for the Central Line.",
+        "updatedAt": 1780941175154
+      }
+    },
+    "ct-kapteinsklip": {
+      "_grid_notice": {
+        "text": "We are still in the process of updating the schedule for the Central Line.",
+        "updatedAt": 1780941088233
+      }
+    },
+    "ct-nolu": {
+      "_grid_notice": {
+        "text": "We are still in the process of updating the schedule for the Central Line.",
+        "updatedAt": 1780941135026
+      }
+    },
+    "ec-berlin": {
+      "0001": {
+        "days": [
+          6
+        ],
+        "expiresAt": 1781474340000,
+        "reason": "Service Adjustment",
+        "type": "banned",
+        "updatedAt": 1781457145309
+      }
+    },
+    "jhb-midway": {
+      "9008": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780915634427
+      },
+      "9009": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780915606375
+      },
+      "9206": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780917104492
+      },
+      "9207": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780917062097
+      },
+      "9208": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780917104492
+      },
+      "9209": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780917062097
+      },
+      "9210": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780917104492
+      }
+    },
+    "jhb-rand": {
+      "0209": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780916885641
+      },
+      "0210": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780916918414
+      },
+      "0228": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780916918414
+      },
+      "0229": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780916885641
+      }
+    },
+    "jhb-soweto": {
+      "9311": {
+        "days": [
+          3,
+          4
+        ],
+        "expiresAt": 1781215140000,
+        "reason": "Track Occupation",
+        "type": "banned",
+        "updatedAt": 1781073438047
+      },
+      "9312": {
+        "days": [
+          3,
+          4
+        ],
+        "expiresAt": 1781215140000,
+        "reason": "Track Occupation",
+        "type": "banned",
+        "updatedAt": 1781073366153
+      },
+      "9314": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780916619925
+      },
+      "9315": {
+        "days": [
+          3,
+          4
+        ],
+        "expiresAt": 1781215140000,
+        "reason": "Track Occupation",
+        "type": "banned",
+        "updatedAt": 1781073438047
+      },
+      "9316": {
+        "days": [
+          3,
+          4
+        ],
+        "expiresAt": 1781215140000,
+        "reason": "Track Occupation",
+        "type": "banned",
+        "updatedAt": 1781073366153
+      },
+      "9317": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780916691508
+      },
+      "9318": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1780955940000,
+        "reason": "New Canada Substation",
+        "type": "banned",
+        "updatedAt": 1780916619926
+      },
+      "9321": {
+        "days": [
+          3,
+          4
+        ],
+        "expiresAt": 1781215140000,
+        "reason": "Track Occupation",
+        "type": "banned",
+        "updatedAt": 1781073438047
+      },
+      "9332": {
+        "days": [
+          3,
+          4
+        ],
+        "expiresAt": 1781215140000,
+        "reason": "Track Occupation",
+        "type": "banned",
+        "updatedAt": 1781073366153
+      },
+      "_grid_notice": {
+        "text": "Planned track occupation from 9AM to 3PM, 10 - 11 June.",
+        "updatedAt": 1781073410398
+      }
+    },
+    "mab-belle": {
+      "0802": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1781542740000,
+        "reason": "Eskom Outage",
+        "type": "banned",
+        "updatedAt": 1781508367250
+      }
+    },
+    "pta-dewildt": {
+      "4402": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1781542740000,
+        "reason": "Eskom Outage",
+        "type": "banned",
+        "updatedAt": 1781508281574
+      },
+      "4406": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1781542740000,
+        "reason": "Eskom Outage",
+        "type": "banned",
+        "updatedAt": 1781508281574
+      },
+      "4408": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1781542740000,
+        "reason": "Eskom Outage",
+        "type": "banned",
+        "updatedAt": 1781508281574
+      }
+    },
+    "pta-irene": {
+      "_grid_notice": {
+        "text": "Please note: No service between Centurion & Irene due to sinkhole.",
+        "updatedAt": 1781277743690
+      }
+    },
+    "pta-kempton": {
+      "_grid_notice": {
+        "text": "We are in the process of updating the schedule for Kempton Park.",
+        "updatedAt": 1781277682152
+      }
+    },
+    "pta-mabopane": {
+      "1804": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1781542740000,
+        "reason": "Eskom Outage",
+        "type": "banned",
+        "updatedAt": 1781508333557
+      },
+      "1808": {
+        "days": [
+          1
+        ],
+        "expiresAt": 1781542740000,
+        "reason": "Eskom Outage",
+        "type": "banned",
+        "updatedAt": 1781508333557
+      }
+    },
     "pta-pien": {
       "5507": {
         "days": [
@@ -1715,11 +2046,11 @@
     ],
     "eastl_to_berln_weekday_meta": "Unspecified",
     "eastl_to_berln_weekday_zone": "Z1",
-    "lastUpdated": "5/12/2026, 9:21:13 PM"
+    "lastUpdated": "6/17/2026, 1:10:18 AM"
   },
   "event_to_a_sat": [
     {
-      "STATION": "Last Updated: 2 June 2026"
+      "STATION": "Last Updated: 17 June 2026"
     },
     {
       "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -1790,11 +2121,11 @@
       "STATION": "PIENAARSPOORT "
     }
   ],
-  "event_to_a_sat_meta": "2 June 2026",
+  "event_to_a_sat_meta": "17 June 2026",
   "event_to_a_sat_zone": "Z2",
   "event_to_a_weekday": [
     {
-      "STATION": "Last Updated: 2 June 2026"
+      "STATION": "Last Updated: 17 June 2026"
     },
     {
       "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -1865,11 +2196,11 @@
       "STATION": "PIENAARSPOORT "
     }
   ],
-  "event_to_a_weekday_meta": "2 June 2026",
+  "event_to_a_weekday_meta": "17 June 2026",
   "event_to_a_weekday_zone": "Z2",
   "event_to_b_sat": [
     {
-      "STATION": "Last Updated: 2 June 2026"
+      "STATION": "Last Updated: 17 June 2026"
     },
     {
       "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -1940,11 +2271,11 @@
       "STATION": "PIENAARSPOORT "
     }
   ],
-  "event_to_b_sat_meta": "2 June 2026",
+  "event_to_b_sat_meta": "17 June 2026",
   "event_to_b_sat_zone": "Z2",
   "event_to_b_weekday": [
     {
-      "STATION": "Last Updated: 2 June 2026"
+      "STATION": "Last Updated: 17 June 2026"
     },
     {
       "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -2015,7 +2346,7 @@
       "STATION": "PIENAARSPOORT "
     }
   ],
-  "event_to_b_weekday_meta": "2 June 2026",
+  "event_to_b_weekday_meta": "17 June 2026",
   "event_to_b_weekday_zone": "Z2",
   "gauteng": {
     "belle_to_mab_sat": [
@@ -2797,7 +3128,7 @@
     "dewil_to_pta_weekday_zone": "Z2",
     "event_to_a_sat": [
       {
-        "STATION": "Last Updated: 2 June 2026"
+        "STATION": "Last Updated: 17 June 2026"
       },
       {
         "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -2868,11 +3199,11 @@
         "STATION": "PIENAARSPOORT "
       }
     ],
-    "event_to_a_sat_meta": "2 June 2026",
+    "event_to_a_sat_meta": "17 June 2026",
     "event_to_a_sat_zone": "Z2",
     "event_to_a_weekday": [
       {
-        "STATION": "Last Updated: 2 June 2026"
+        "STATION": "Last Updated: 17 June 2026"
       },
       {
         "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -2943,11 +3274,11 @@
         "STATION": "PIENAARSPOORT "
       }
     ],
-    "event_to_a_weekday_meta": "2 June 2026",
+    "event_to_a_weekday_meta": "17 June 2026",
     "event_to_a_weekday_zone": "Z2",
     "event_to_b_sat": [
       {
-        "STATION": "Last Updated: 2 June 2026"
+        "STATION": "Last Updated: 17 June 2026"
       },
       {
         "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -3018,11 +3349,11 @@
         "STATION": "PIENAARSPOORT "
       }
     ],
-    "event_to_b_sat_meta": "2 June 2026",
+    "event_to_b_sat_meta": "17 June 2026",
     "event_to_b_sat_zone": "Z2",
     "event_to_b_weekday": [
       {
-        "STATION": "Last Updated: 2 June 2026"
+        "STATION": "Last Updated: 17 June 2026"
       },
       {
         "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -3093,7 +3424,7 @@
         "STATION": "PIENAARSPOORT "
       }
     ],
-    "event_to_b_weekday_meta": "2 June 2026",
+    "event_to_b_weekday_meta": "17 June 2026",
     "event_to_b_weekday_zone": "Z2",
     "germ_to_jhb_sat": [
       {
@@ -4034,7 +4365,7 @@
     "irene_to_pta_sat_zone": "Z1",
     "irene_to_pta_weekday": [
       {
-        "STATION": "Last Updated: 27 May 2026"
+        "STATION": "Last Updated: 11 June 2026"
       },
       {
         "0625": "5:55:00",
@@ -4109,7 +4440,7 @@
         "STATION": "PRETORIA"
       }
     ],
-    "irene_to_pta_weekday_meta": "27 May 2026",
+    "irene_to_pta_weekday_meta": "11 June 2026",
     "irene_to_pta_weekday_zone": "Z1",
     "jhb_to_germ_sat": [
       {
@@ -4446,7 +4777,7 @@
     "jhb_to_midwy_sat_zone": "Z2",
     "jhb_to_midwy_weekday": [
       {
-        "STATION": "Last Updated: 1 June 2026"
+        "STATION": "Last Updated: 8 June 2026"
       },
       {
         "9004": "5:45:00",
@@ -4512,7 +4843,7 @@
         "9210": "13:20:00",
         "9212": "15:20:00",
         "9214": "17:20:00",
-        "9216": "19:20:00",
+        "9216": "19:40:00",
         "COORDINATES": "-26.201595050664512, 27.97172133796557",
         "STATION": "CROESUS"
       },
@@ -4530,7 +4861,7 @@
         "9210": "13:23:00",
         "9212": "15:23:00",
         "9214": "17:23:00",
-        "9216": "19:23:00",
+        "9216": "19:43:00",
         "COORDINATES": "-26.198503123750555, 27.962929509129903",
         "STATION": "LONGDALE"
       },
@@ -4548,7 +4879,7 @@
         "9210": "13:30:00",
         "9212": "15:30:00",
         "9214": "17:30:00",
-        "9216": "19:30:00",
+        "9216": "19:50:00",
         "COORDINATES": "-26.214411850342184, 27.94240072447306",
         "STATION": "NEW CANADA"
       },
@@ -4566,7 +4897,7 @@
         "9210": "13:34:00",
         "9212": "15:34:00",
         "9214": "17:34:00",
-        "9216": "19:34:00",
+        "9216": "19:54:00",
         "COORDINATES": "-26.22594835366509, 27.928217035582186",
         "STATION": "MLAMLANKUNZI"
       },
@@ -4584,7 +4915,7 @@
         "9210": "13:39:00",
         "9212": "15:39:00",
         "9214": "17:39:00",
-        "9216": "19:39:00",
+        "9216": "19:59:00",
         "COORDINATES": "-26.237577526260885, 27.91727947272508",
         "STATION": "ORLANDO"
       },
@@ -4602,7 +4933,7 @@
         "9210": "13:44:00",
         "9212": "15:44:00",
         "9214": "17:44:00",
-        "9216": "19:44:00",
+        "9216": "20:04:00",
         "COORDINATES": "-26.25168123666912, 27.906423465881122",
         "STATION": "NANCEFIELD"
       },
@@ -4620,7 +4951,7 @@
         "9210": "13:50:00",
         "9212": "15:50:00",
         "9214": "17:50:00",
-        "9216": "19:50:00",
+        "9216": "20:10:00",
         "COORDINATES": "-26.272809958189928, 27.887633494308975",
         "STATION": "KLIPTOWN"
       },
@@ -4638,7 +4969,7 @@
         "9210": "13:56:00",
         "9212": "15:56:00",
         "9214": "17:56:00",
-        "9216": "19:56:00",
+        "9216": "20:16:00",
         "COORDINATES": "-26.288947777153577, 27.87068768853021",
         "STATION": "TSHIAWELO"
       },
@@ -4656,7 +4987,7 @@
         "9210": "14:00:00",
         "9212": "16:00:00",
         "9214": "18:00:00",
-        "9216": "20:00:00",
+        "9216": "20:20:00",
         "COORDINATES": "-26.292695060119772, 27.851230923913732",
         "STATION": "MIDWAY"
       },
@@ -4668,12 +4999,12 @@
         "9210": "14:10:00",
         "9212": "16:10:00",
         "9214": "18:10:00",
-        "9216": "20:10:00",
+        "9216": "20:30:00",
         "COORDINATES": "-26.319519733948702, 27.82296719973482",
         "STATION": "LENZ"
       }
     ],
-    "jhb_to_midwy_weekday_meta": "1 June 2026",
+    "jhb_to_midwy_weekday_meta": "8 June 2026",
     "jhb_to_midwy_weekday_zone": "Z2",
     "jhb_to_nald_sat": [
       {
@@ -5611,21 +5942,19 @@
     "kemp_to_pta_sat_zone": "Z3",
     "kemp_to_pta_weekday": [
       {
-        "STATION": "Last Updated: 27 May 2026"
+        "STATION": "Last Updated: 11 June 2026"
       },
       {
-        "0603": "4:11:00",
         "COORDINATES": "-26.16687928991135, 28.20526073136343",
         "STATION": "ELANDSFONTEIN"
       },
       {
-        "0603": "4:17:00",
         "COORDINATES": "-26.127779713576295, 28.22489605946647",
         "STATION": "RHODESFIELD"
       },
       {
         "0603": "4:21:00",
-        "0615": "7:10:00",
+        "0615": "7:03:00",
         "0617": "9:45:00",
         "0619": "12:40:00",
         "0621": "15:35:00",
@@ -5646,8 +5975,20 @@
         "STATION": "KAALFONTEIN"
       },
       {
+        "COORDINATES": "-26.009687133196852, 28.231477162611803",
+        "STATION": "TEMBISA"
+      },
+      {
+        "COORDINATES": "-26.011188907434516, 28.214689000778122",
+        "STATION": "LIMINDLELA"
+      },
+      {
+        "COORDINATES": "-26.02917658612082, 28.196411826993103",
+        "STATION": "LERALLA"
+      },
+      {
         "0603": "4:41:00",
-        "0615": "7:27:00",
+        "0615": "7:20:00",
         "0617": "10:02:00",
         "0619": "12:57:00",
         "0621": "15:52:00",
@@ -5657,7 +5998,7 @@
       },
       {
         "0603": "4:49:00",
-        "0615": "7:35:00",
+        "0615": "7:28:00",
         "0617": "10:10:00",
         "0619": "13:05:00",
         "0621": "16:00:00",
@@ -5671,7 +6012,7 @@
       },
       {
         "0603": "5:02:00",
-        "0615": "7:47:00",
+        "0615": "7:40:00",
         "0617": "10:22:00",
         "0619": "13:17:00",
         "0621": "16:12:00",
@@ -5680,22 +6021,34 @@
         "STATION": "IRENE"
       },
       {
-        "0603": "5:12:00",
-        "0615": "7:56:00",
-        "0617": "10:31:00",
-        "0619": "13:26:00",
-        "0621": "16:21:00",
-        "0623": "18:51:00",
+        "0607": "6:05:00",
+        "0625": "5:40:00",
+        "0627": "6:55:00",
+        "0629": "8:25:00",
+        "0633": "10:50:00",
+        "0635": "12:00:00",
+        "0637": "13:10:00",
+        "0639": "14:20:00",
+        "0641": "15:30:00",
+        "0643": "16:40:00",
+        "0645": "17:50:00",
+        "0647": "19:00:00",
         "COORDINATES": "-25.83486600288455, 28.210815277978245",
         "STATION": "CENTURION"
       },
       {
-        "0603": "5:15:00",
-        "0615": "7:59:00",
-        "0617": "10:34:00",
-        "0619": "13:29:00",
-        "0621": "16:24:00",
-        "0623": "18:54:00",
+        "0607": "6:08:00",
+        "0625": "5:43:00",
+        "0627": "6:58:00",
+        "0629": "8:28:00",
+        "0633": "10:53:00",
+        "0635": "12:03:00",
+        "0637": "13:13:00",
+        "0639": "14:23:00",
+        "0641": "15:33:00",
+        "0643": "16:43:00",
+        "0645": "17:53:00",
+        "0647": "19:03:00",
         "COORDINATES": "-25.82467276464524, 28.20570286536511",
         "STATION": "SPORTPARK"
       },
@@ -5708,17 +6061,23 @@
         "STATION": "FONTEINE"
       },
       {
-        "0603": "5:27:00",
-        "0615": "8:10:00",
-        "0617": "10:45:00",
-        "0619": "13:40:00",
-        "0621": "16:35:00",
-        "0623": "19:05:00",
+        "0607": "6:20:00",
+        "0625": "5:55:00",
+        "0627": "7:10:00",
+        "0629": "8:40:00",
+        "0633": "11:05:00",
+        "0635": "12:15:00",
+        "0637": "13:25:00",
+        "0639": "14:35:00",
+        "0641": "15:45:00",
+        "0643": "16:55:00",
+        "0645": "18:05:00",
+        "0647": "19:15:00",
         "COORDINATES": "-25.75864361043285, 28.189866445989118",
         "STATION": "PRETORIA"
       }
     ],
-    "kemp_to_pta_weekday_meta": "27 May 2026",
+    "kemp_to_pta_weekday_meta": "11 June 2026",
     "kemp_to_pta_weekday_zone": "Z3",
     "koed_to_herc_sat": [
       {
@@ -6118,7 +6477,7 @@
     ],
     "kwesi_to_germ_weekday_meta": "18 February 2026",
     "kwesi_to_germ_weekday_zone": "Z2",
-    "lastUpdated": "6/2/2026, 2:17:10 PM",
+    "lastUpdated": "6/17/2026, 12:15:06 AM",
     "lerl_to_germ_sat": [
       {
         "STATION": "Last Updated: 2 February 2026"
@@ -7287,7 +7646,7 @@
     "midwy_to_jhb_sat_zone": "Z2",
     "midwy_to_jhb_weekday": [
       {
-        "STATION": "Last Updated: 1 June 2026"
+        "STATION": "Last Updated: 8 June 2026"
       },
       {
         "9201": "4:15:00",
@@ -7514,7 +7873,7 @@
         "STATION": "JOHANNESBURG"
       }
     ],
-    "midwy_to_jhb_weekday_meta": "1 June 2026",
+    "midwy_to_jhb_weekday_meta": "8 June 2026",
     "midwy_to_jhb_weekday_zone": "Z2",
     "nald_to_jhb_sat": [
       {
@@ -9190,7 +9549,7 @@
     "pta_to_irene_sat_zone": "Z1",
     "pta_to_irene_weekday": [
       {
-        "STATION": "Last Updated: 27 May 2026"
+        "STATION": "Last Updated: 11 June 2026"
       },
       {
         "0624": "5:10:00",
@@ -9265,7 +9624,7 @@
         "STATION": "IRENE"
       }
     ],
-    "pta_to_irene_weekday_meta": "27 May 2026",
+    "pta_to_irene_weekday_meta": "11 June 2026",
     "pta_to_irene_weekday_zone": "Z1",
     "pta_to_kemp_sat": [
       {
@@ -9366,15 +9725,22 @@
     "pta_to_kemp_sat_zone": "Z3",
     "pta_to_kemp_weekday": [
       {
-        "STATION": "Last Updated: 27 May 2026"
+        "STATION": "Last Updated: 11 June 2026"
       },
       {
-        "0604": "5:40:00",
-        "0616": "8:20:00",
-        "0618": "10:55:00",
-        "0620": "14:25:00",
-        "0622": "16:50:00",
-        "0654": "19:20:00",
+        "0606": "5:40:00",
+        "0624": "5:15:00",
+        "0626": "6:30:00",
+        "0628": "7:40:00",
+        "0630": "8:55:00",
+        "0632": "10:05:00",
+        "0634": "11:15:00",
+        "0636": "12:25:00",
+        "0638": "13:35:00",
+        "0640": "14:45:00",
+        "0642": "15:55:00",
+        "0644": "17:05:00",
+        "0646": "18:15:00",
         "COORDINATES": "-25.75864361043285, 28.189866445989118",
         "STATION": "PRETORIA"
       },
@@ -9387,22 +9753,36 @@
         "STATION": "KLOOFSIG"
       },
       {
-        "0604": "5:51:00",
-        "0616": "8:31:00",
-        "0618": "11:06:00",
-        "0620": "14:36:00",
-        "0622": "17:01:00",
-        "0654": "19:32:00",
+        "0606": "5:51:00",
+        "0624": "5:26:00",
+        "0626": "6:41:00",
+        "0628": "7:51:00",
+        "0630": "9:06:00",
+        "0632": "10:16:00",
+        "0634": "11:26:00",
+        "0636": "12:36:00",
+        "0638": "13:46:00",
+        "0640": "14:56:00",
+        "0642": "16:06:00",
+        "0644": "17:16:00",
+        "0646": "18:26:00",
         "COORDINATES": "-25.82467276464524, 28.20570286536511",
         "STATION": "SPORTPARK"
       },
       {
-        "0604": "5:55:00",
-        "0616": "8:35:00",
-        "0618": "11:10:00",
-        "0620": "14:40:00",
-        "0622": "17:05:00",
-        "0654": "19:37:00",
+        "0606": "5:55:00",
+        "0624": "5:30:00",
+        "0626": "6:45:00",
+        "0628": "7:55:00",
+        "0630": "9:10:00",
+        "0632": "10:20:00",
+        "0634": "11:30:00",
+        "0636": "12:40:00",
+        "0638": "13:50:00",
+        "0640": "15:00:00",
+        "0642": "16:10:00",
+        "0644": "17:20:00",
+        "0646": "18:30:00",
         "COORDINATES": "-25.83486600288455, 28.210815277978245",
         "STATION": "CENTURION"
       },
@@ -9426,7 +9806,7 @@
         "0618": "11:31:00",
         "0620": "15:01:00",
         "0622": "17:26:00",
-        "0654": "20:00:00",
+        "0654": "19:59:00",
         "COORDINATES": "-25.964142125962706, 28.235515817897813",
         "STATION": "OLIFANTSFONTEIN"
       },
@@ -9439,6 +9819,18 @@
         "0654": "20:08:00",
         "COORDINATES": "-26.00579639391282, 28.248566233475742",
         "STATION": "OAKMOOR"
+      },
+      {
+        "COORDINATES": "-26.02917658612082, 28.196411826993103",
+        "STATION": "LERALLA"
+      },
+      {
+        "COORDINATES": "-26.011188907434516, 28.214689000778122",
+        "STATION": "LIMINDLELA"
+      },
+      {
+        "COORDINATES": "-26.009687133196852, 28.231477162611803",
+        "STATION": "TEMBISA"
       },
       {
         "COORDINATES": "-26.03555593578171, 28.25416120912308",
@@ -9458,22 +9850,20 @@
         "0618": "11:55:00",
         "0620": "15:25:00",
         "0622": "17:50:00",
-        "0654": "20:27:00",
+        "0654": "20:26:00",
         "COORDINATES": "-26.10627314041378, 28.22733384351009",
         "STATION": "KEMPTON PARK"
       },
       {
-        "0654": "20:31:00",
         "COORDINATES": "-26.127779713576295, 28.22489605946647",
         "STATION": "RHODESFIELD"
       },
       {
-        "0654": "20:37:00",
         "COORDINATES": "-26.16687928991135, 28.20526073136343",
         "STATION": "ELANDSFONTEIN"
       }
     ],
-    "pta_to_kemp_weekday_meta": "27 May 2026",
+    "pta_to_kemp_weekday_meta": "11 June 2026",
     "pta_to_kemp_weekday_zone": "Z3",
     "pta_to_mab_sat": [
       {
@@ -12851,7 +13241,7 @@
   "irene_to_pta_sat_zone": "Z1",
   "irene_to_pta_weekday": [
     {
-      "STATION": "Last Updated: 27 May 2026"
+      "STATION": "Last Updated: 11 June 2026"
     },
     {
       "0625": "5:55:00",
@@ -12926,7 +13316,7 @@
       "STATION": "PRETORIA"
     }
   ],
-  "irene_to_pta_weekday_meta": "27 May 2026",
+  "irene_to_pta_weekday_meta": "11 June 2026",
   "irene_to_pta_weekday_zone": "Z1",
   "jhb_to_germ_sat": [
     {
@@ -13263,7 +13653,7 @@
   "jhb_to_midwy_sat_zone": "Z2",
   "jhb_to_midwy_weekday": [
     {
-      "STATION": "Last Updated: 1 June 2026"
+      "STATION": "Last Updated: 8 June 2026"
     },
     {
       "9004": "5:45:00",
@@ -13329,7 +13719,7 @@
       "9210": "13:20:00",
       "9212": "15:20:00",
       "9214": "17:20:00",
-      "9216": "19:20:00",
+      "9216": "19:40:00",
       "COORDINATES": "-26.201595050664512, 27.97172133796557",
       "STATION": "CROESUS"
     },
@@ -13347,7 +13737,7 @@
       "9210": "13:23:00",
       "9212": "15:23:00",
       "9214": "17:23:00",
-      "9216": "19:23:00",
+      "9216": "19:43:00",
       "COORDINATES": "-26.198503123750555, 27.962929509129903",
       "STATION": "LONGDALE"
     },
@@ -13365,7 +13755,7 @@
       "9210": "13:30:00",
       "9212": "15:30:00",
       "9214": "17:30:00",
-      "9216": "19:30:00",
+      "9216": "19:50:00",
       "COORDINATES": "-26.214411850342184, 27.94240072447306",
       "STATION": "NEW CANADA"
     },
@@ -13383,7 +13773,7 @@
       "9210": "13:34:00",
       "9212": "15:34:00",
       "9214": "17:34:00",
-      "9216": "19:34:00",
+      "9216": "19:54:00",
       "COORDINATES": "-26.22594835366509, 27.928217035582186",
       "STATION": "MLAMLANKUNZI"
     },
@@ -13401,7 +13791,7 @@
       "9210": "13:39:00",
       "9212": "15:39:00",
       "9214": "17:39:00",
-      "9216": "19:39:00",
+      "9216": "19:59:00",
       "COORDINATES": "-26.237577526260885, 27.91727947272508",
       "STATION": "ORLANDO"
     },
@@ -13419,7 +13809,7 @@
       "9210": "13:44:00",
       "9212": "15:44:00",
       "9214": "17:44:00",
-      "9216": "19:44:00",
+      "9216": "20:04:00",
       "COORDINATES": "-26.25168123666912, 27.906423465881122",
       "STATION": "NANCEFIELD"
     },
@@ -13437,7 +13827,7 @@
       "9210": "13:50:00",
       "9212": "15:50:00",
       "9214": "17:50:00",
-      "9216": "19:50:00",
+      "9216": "20:10:00",
       "COORDINATES": "-26.272809958189928, 27.887633494308975",
       "STATION": "KLIPTOWN"
     },
@@ -13455,7 +13845,7 @@
       "9210": "13:56:00",
       "9212": "15:56:00",
       "9214": "17:56:00",
-      "9216": "19:56:00",
+      "9216": "20:16:00",
       "COORDINATES": "-26.288947777153577, 27.87068768853021",
       "STATION": "TSHIAWELO"
     },
@@ -13473,7 +13863,7 @@
       "9210": "14:00:00",
       "9212": "16:00:00",
       "9214": "18:00:00",
-      "9216": "20:00:00",
+      "9216": "20:20:00",
       "COORDINATES": "-26.292695060119772, 27.851230923913732",
       "STATION": "MIDWAY"
     },
@@ -13485,12 +13875,12 @@
       "9210": "14:10:00",
       "9212": "16:10:00",
       "9214": "18:10:00",
-      "9216": "20:10:00",
+      "9216": "20:30:00",
       "COORDINATES": "-26.319519733948702, 27.82296719973482",
       "STATION": "LENZ"
     }
   ],
-  "jhb_to_midwy_weekday_meta": "1 June 2026",
+  "jhb_to_midwy_weekday_meta": "8 June 2026",
   "jhb_to_midwy_weekday_zone": "Z2",
   "jhb_to_nald_sat": [
     {
@@ -14428,21 +14818,19 @@
   "kemp_to_pta_sat_zone": "Z3",
   "kemp_to_pta_weekday": [
     {
-      "STATION": "Last Updated: 27 May 2026"
+      "STATION": "Last Updated: 11 June 2026"
     },
     {
-      "0603": "4:11:00",
       "COORDINATES": "-26.16687928991135, 28.20526073136343",
       "STATION": "ELANDSFONTEIN"
     },
     {
-      "0603": "4:17:00",
       "COORDINATES": "-26.127779713576295, 28.22489605946647",
       "STATION": "RHODESFIELD"
     },
     {
       "0603": "4:21:00",
-      "0615": "7:10:00",
+      "0615": "7:03:00",
       "0617": "9:45:00",
       "0619": "12:40:00",
       "0621": "15:35:00",
@@ -14463,8 +14851,20 @@
       "STATION": "KAALFONTEIN"
     },
     {
+      "COORDINATES": "-26.009687133196852, 28.231477162611803",
+      "STATION": "TEMBISA"
+    },
+    {
+      "COORDINATES": "-26.011188907434516, 28.214689000778122",
+      "STATION": "LIMINDLELA"
+    },
+    {
+      "COORDINATES": "-26.02917658612082, 28.196411826993103",
+      "STATION": "LERALLA"
+    },
+    {
       "0603": "4:41:00",
-      "0615": "7:27:00",
+      "0615": "7:20:00",
       "0617": "10:02:00",
       "0619": "12:57:00",
       "0621": "15:52:00",
@@ -14474,7 +14874,7 @@
     },
     {
       "0603": "4:49:00",
-      "0615": "7:35:00",
+      "0615": "7:28:00",
       "0617": "10:10:00",
       "0619": "13:05:00",
       "0621": "16:00:00",
@@ -14488,7 +14888,7 @@
     },
     {
       "0603": "5:02:00",
-      "0615": "7:47:00",
+      "0615": "7:40:00",
       "0617": "10:22:00",
       "0619": "13:17:00",
       "0621": "16:12:00",
@@ -14497,22 +14897,34 @@
       "STATION": "IRENE"
     },
     {
-      "0603": "5:12:00",
-      "0615": "7:56:00",
-      "0617": "10:31:00",
-      "0619": "13:26:00",
-      "0621": "16:21:00",
-      "0623": "18:51:00",
+      "0607": "6:05:00",
+      "0625": "5:40:00",
+      "0627": "6:55:00",
+      "0629": "8:25:00",
+      "0633": "10:50:00",
+      "0635": "12:00:00",
+      "0637": "13:10:00",
+      "0639": "14:20:00",
+      "0641": "15:30:00",
+      "0643": "16:40:00",
+      "0645": "17:50:00",
+      "0647": "19:00:00",
       "COORDINATES": "-25.83486600288455, 28.210815277978245",
       "STATION": "CENTURION"
     },
     {
-      "0603": "5:15:00",
-      "0615": "7:59:00",
-      "0617": "10:34:00",
-      "0619": "13:29:00",
-      "0621": "16:24:00",
-      "0623": "18:54:00",
+      "0607": "6:08:00",
+      "0625": "5:43:00",
+      "0627": "6:58:00",
+      "0629": "8:28:00",
+      "0633": "10:53:00",
+      "0635": "12:03:00",
+      "0637": "13:13:00",
+      "0639": "14:23:00",
+      "0641": "15:33:00",
+      "0643": "16:43:00",
+      "0645": "17:53:00",
+      "0647": "19:03:00",
       "COORDINATES": "-25.82467276464524, 28.20570286536511",
       "STATION": "SPORTPARK"
     },
@@ -14525,17 +14937,23 @@
       "STATION": "FONTEINE"
     },
     {
-      "0603": "5:27:00",
-      "0615": "8:10:00",
-      "0617": "10:45:00",
-      "0619": "13:40:00",
-      "0621": "16:35:00",
-      "0623": "19:05:00",
+      "0607": "6:20:00",
+      "0625": "5:55:00",
+      "0627": "7:10:00",
+      "0629": "8:40:00",
+      "0633": "11:05:00",
+      "0635": "12:15:00",
+      "0637": "13:25:00",
+      "0639": "14:35:00",
+      "0641": "15:45:00",
+      "0643": "16:55:00",
+      "0645": "18:05:00",
+      "0647": "19:15:00",
       "COORDINATES": "-25.75864361043285, 28.189866445989118",
       "STATION": "PRETORIA"
     }
   ],
-  "kemp_to_pta_weekday_meta": "27 May 2026",
+  "kemp_to_pta_weekday_meta": "11 June 2026",
   "kemp_to_pta_weekday_zone": "Z3",
   "koed_to_herc_sat": [
     {
@@ -17974,7 +18392,7 @@
     ],
     "durbn_to_winkl_weekday_meta": "23 February 2024",
     "durbn_to_winkl_weekday_zone": "Z1",
-    "lastUpdated": "5/13/2026, 7:44:12 PM",
+    "lastUpdated": "6/17/2026, 1:09:17 AM",
     "pinet_to_durbn_sat": [
       {
         "STATION": "Last Updated: 23 February 2024"
@@ -19402,7 +19820,7 @@
     "winkl_to_durbn_weekday_meta": "23 February 2024",
     "winkl_to_durbn_weekday_zone": "Z1"
   },
-  "lastUpdated": "6/2/2026, 2:17:10 PM",
+  "lastUpdated": "6/17/2026, 12:15:06 AM",
   "lerl_to_germ_sat": [
     {
       "STATION": "Last Updated: 2 February 2026"
@@ -20571,7 +20989,7 @@
   "midwy_to_jhb_sat_zone": "Z2",
   "midwy_to_jhb_weekday": [
     {
-      "STATION": "Last Updated: 1 June 2026"
+      "STATION": "Last Updated: 8 June 2026"
     },
     {
       "9201": "4:15:00",
@@ -20798,7 +21216,7 @@
       "STATION": "JOHANNESBURG"
     }
   ],
-  "midwy_to_jhb_weekday_meta": "1 June 2026",
+  "midwy_to_jhb_weekday_meta": "8 June 2026",
   "midwy_to_jhb_weekday_zone": "Z2",
   "nald_to_jhb_sat": [
     {
@@ -22474,7 +22892,7 @@
   "pta_to_irene_sat_zone": "Z1",
   "pta_to_irene_weekday": [
     {
-      "STATION": "Last Updated: 27 May 2026"
+      "STATION": "Last Updated: 11 June 2026"
     },
     {
       "0624": "5:10:00",
@@ -22549,7 +22967,7 @@
       "STATION": "IRENE"
     }
   ],
-  "pta_to_irene_weekday_meta": "27 May 2026",
+  "pta_to_irene_weekday_meta": "11 June 2026",
   "pta_to_irene_weekday_zone": "Z1",
   "pta_to_kemp_sat": [
     {
@@ -22650,15 +23068,22 @@
   "pta_to_kemp_sat_zone": "Z3",
   "pta_to_kemp_weekday": [
     {
-      "STATION": "Last Updated: 27 May 2026"
+      "STATION": "Last Updated: 11 June 2026"
     },
     {
-      "0604": "5:40:00",
-      "0616": "8:20:00",
-      "0618": "10:55:00",
-      "0620": "14:25:00",
-      "0622": "16:50:00",
-      "0654": "19:20:00",
+      "0606": "5:40:00",
+      "0624": "5:15:00",
+      "0626": "6:30:00",
+      "0628": "7:40:00",
+      "0630": "8:55:00",
+      "0632": "10:05:00",
+      "0634": "11:15:00",
+      "0636": "12:25:00",
+      "0638": "13:35:00",
+      "0640": "14:45:00",
+      "0642": "15:55:00",
+      "0644": "17:05:00",
+      "0646": "18:15:00",
       "COORDINATES": "-25.75864361043285, 28.189866445989118",
       "STATION": "PRETORIA"
     },
@@ -22671,22 +23096,36 @@
       "STATION": "KLOOFSIG"
     },
     {
-      "0604": "5:51:00",
-      "0616": "8:31:00",
-      "0618": "11:06:00",
-      "0620": "14:36:00",
-      "0622": "17:01:00",
-      "0654": "19:32:00",
+      "0606": "5:51:00",
+      "0624": "5:26:00",
+      "0626": "6:41:00",
+      "0628": "7:51:00",
+      "0630": "9:06:00",
+      "0632": "10:16:00",
+      "0634": "11:26:00",
+      "0636": "12:36:00",
+      "0638": "13:46:00",
+      "0640": "14:56:00",
+      "0642": "16:06:00",
+      "0644": "17:16:00",
+      "0646": "18:26:00",
       "COORDINATES": "-25.82467276464524, 28.20570286536511",
       "STATION": "SPORTPARK"
     },
     {
-      "0604": "5:55:00",
-      "0616": "8:35:00",
-      "0618": "11:10:00",
-      "0620": "14:40:00",
-      "0622": "17:05:00",
-      "0654": "19:37:00",
+      "0606": "5:55:00",
+      "0624": "5:30:00",
+      "0626": "6:45:00",
+      "0628": "7:55:00",
+      "0630": "9:10:00",
+      "0632": "10:20:00",
+      "0634": "11:30:00",
+      "0636": "12:40:00",
+      "0638": "13:50:00",
+      "0640": "15:00:00",
+      "0642": "16:10:00",
+      "0644": "17:20:00",
+      "0646": "18:30:00",
       "COORDINATES": "-25.83486600288455, 28.210815277978245",
       "STATION": "CENTURION"
     },
@@ -22710,7 +23149,7 @@
       "0618": "11:31:00",
       "0620": "15:01:00",
       "0622": "17:26:00",
-      "0654": "20:00:00",
+      "0654": "19:59:00",
       "COORDINATES": "-25.964142125962706, 28.235515817897813",
       "STATION": "OLIFANTSFONTEIN"
     },
@@ -22723,6 +23162,18 @@
       "0654": "20:08:00",
       "COORDINATES": "-26.00579639391282, 28.248566233475742",
       "STATION": "OAKMOOR"
+    },
+    {
+      "COORDINATES": "-26.02917658612082, 28.196411826993103",
+      "STATION": "LERALLA"
+    },
+    {
+      "COORDINATES": "-26.011188907434516, 28.214689000778122",
+      "STATION": "LIMINDLELA"
+    },
+    {
+      "COORDINATES": "-26.009687133196852, 28.231477162611803",
+      "STATION": "TEMBISA"
     },
     {
       "COORDINATES": "-26.03555593578171, 28.25416120912308",
@@ -22742,22 +23193,20 @@
       "0618": "11:55:00",
       "0620": "15:25:00",
       "0622": "17:50:00",
-      "0654": "20:27:00",
+      "0654": "20:26:00",
       "COORDINATES": "-26.10627314041378, 28.22733384351009",
       "STATION": "KEMPTON PARK"
     },
     {
-      "0654": "20:31:00",
       "COORDINATES": "-26.127779713576295, 28.22489605946647",
       "STATION": "RHODESFIELD"
     },
     {
-      "0654": "20:37:00",
       "COORDINATES": "-26.16687928991135, 28.20526073136343",
       "STATION": "ELANDSFONTEIN"
     }
   ],
-  "pta_to_kemp_weekday_meta": "27 May 2026",
+  "pta_to_kemp_weekday_meta": "11 June 2026",
   "pta_to_kemp_weekday_zone": "Z3",
   "pta_to_mab_sat": [
     {
@@ -33949,7 +34398,7 @@
     ],
     "kraai_to_ct_weekday_meta": "23 February 2024",
     "kraai_to_ct_weekday_zone": "Z1",
-    "lastUpdated": "5/21/2026, 9:59:48 PM",
+    "lastUpdated": "6/17/2026, 12:49:21 AM",
     "malm_to_ct_sat": [
       {
         "STATION": "Last Updated: 25 October 2024"

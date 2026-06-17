@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.16 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.17 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -1320,6 +1320,18 @@ const Admin = {
             actionBanner.classList.remove('hidden');
             expiringItems.sort((a, b) => a.expiresAt - b.expiresAt);
 
+            // 🛡️ GUARDIAN FIX: Dynamic Region Badge Extractor
+            const getRegionBadge = (rId) => {
+                if (!rId) return '';
+                if (rId.includes('_GP')) return '<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">GP</span>';
+                if (rId.includes('_WC')) return '<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">WC</span>';
+                if (rId.includes('_KZN')) return '<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">KZN</span>';
+                if (rId.includes('_EC')) return '<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">EC</span>';
+                if (rId === 'all') return '<span class="bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded mr-1.5">ALL</span>';
+                if (typeof ROUTES !== 'undefined' && ROUTES[rId]) return `<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">${ROUTES[rId].region}</span>`;
+                return '';
+            };
+
             let listHtml = '';
             expiringItems.forEach(item => {
                 const hrsLeft = Math.max(0, Math.floor((item.expiresAt - now) / (1000 * 60 * 60)));
@@ -1331,7 +1343,7 @@ const Admin = {
                         <div class="flex justify-between items-start mb-2">
                             <div class="flex flex-col">
                                 <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">${item.type}</span>
-                                <span class="text-xs font-bold text-slate-800 dark:text-slate-200">${item.label}</span>
+                                <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center mt-0.5">${getRegionBadge(item.routeId)}${item.label}</span>
                             </div>
                             <span class="text-[10px] font-black ${colorClass} bg-white dark:bg-gray-800 px-2 py-1 rounded shadow-sm border border-current">in ${hrsLeft} hrs</span>
                         </div>
@@ -1382,12 +1394,94 @@ const Admin = {
     },
 
     deepLinkToPanel: (panelId, routeId) => {
-        const panel = document.getElementById(panelId);
-        if (panel) {
-            if (Admin.isGridMode) {
-                panel.click(); // Triggers the grid drill-down natively
+        const targetPanel = document.getElementById(panelId);
+        if (!targetPanel) return;
+
+        const container = document.getElementById('admin-modules-container');
+        if (!container) return;
+
+        // If we are currently in Grid Mode, we can just click it naturally
+        if (Admin.isGridMode) {
+            targetPanel.click();
+        } else {
+            // We are already drilled down into another panel (Action Required)
+            // Seamlessly swap the panels without triggering history.back() race conditions
+
+            // Hide all children
+            Array.from(container.children).forEach(child => {
+                if (child.id !== 'admin-live-clock') child.style.display = 'none';
+            });
+
+            // Show target panel and its body
+            targetPanel.style.display = '';
+            const body = targetPanel.querySelector('[id$="-body"]');
+            if (body) body.classList.remove('hidden');
+            const chev = targetPanel.querySelector('[id$="-chevron"]');
+            if (chev) chev.classList.remove('-rotate-90');
+
+            // Update Header Title
+            const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6');
+            if (devHeaderRow) {
+                const titleH3 = devHeaderRow.querySelector('h3');
+                if (titleH3) {
+                    let titleClone = targetPanel.querySelector('button span').cloneNode(true);
+                    titleClone.querySelectorAll('span[id$="-last-sync"], span[id$="-unread-badge"]').forEach(el => el.remove());
+                    let cardTitle = titleClone.textContent.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '').trim();
+
+                    titleH3.innerHTML = `
+                        <button id="drill-back-btn" class="mr-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors focus:outline-none shadow-sm shrink-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        </button>
+                        <span class="truncate flex-grow text-lg min-w-0">${cardTitle}</span>
+                    `;
+
+                    // Rebind the drill-back button to the master logic
+                    const newDrillBack = document.getElementById('drill-back-btn');
+                    if (newDrillBack) {
+                        newDrillBack.onclick = (evt) => {
+                            evt.stopPropagation();
+                            window._adminDrillBackLock = true;
+
+                            if (location.hash.startsWith('#dev-')) {
+                                const devModal = document.getElementById('dev-modal');
+                                if (devModal) devModal.id = 'dev-panel-temp';
+                                history.back();
+                                setTimeout(() => {
+                                    const tempModal = document.getElementById('dev-panel-temp');
+                                    if (tempModal) tempModal.id = 'dev-modal';
+                                    window._adminDrillBackLock = false;
+                                }, 150);
+                            }
+
+                            Admin.isGridMode = true;
+                            container.classList.add('admin-grid-view');
+                            container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
+                            titleH3.innerHTML = devHeaderRow.dataset.originalHtml;
+                            const toggleBtn = document.getElementById('grid-view-toggle');
+                            if (toggleBtn) toggleBtn.style.display = '';
+                            const signoutContainer = document.getElementById('admin-signout-container');
+                            if (signoutContainer) signoutContainer.style.display = '';
+
+                            Array.from(container.children).forEach(child => {
+                                child.style.display = '';
+                                const b = child.querySelector('[id$="-body"]');
+                                if (b) b.classList.add('hidden');
+                            });
+                            Admin.syncAllBadges();
+                        };
+                    }
+                }
             }
+
+            // Replace Router State safely
+            history.replaceState({ adminPanel: targetPanel.id }, '', `#dev-${targetPanel.id}`);
+
+            // Auto-Fetch data upon drill-down
+            if (targetPanel.id === 'feedback-panel') Admin.fetchFeedback();
+            if (targetPanel.id === 'deadends-panel') Admin.fetchDeadEnds();
+            if (targetPanel.id === 'crashes-panel') Admin.fetchCrashes();
         }
+
         if (routeId) {
             setTimeout(() => {
                 let selectId = '';
@@ -1402,7 +1496,7 @@ const Admin = {
                         selectEl.dispatchEvent(new Event('change'));
                     }
                 }
-            }, 350); // Delay allows modal animation to clear
+            }, 100);
         }
     },
 
@@ -3252,17 +3346,16 @@ const Admin = {
             let foundData = null;
 
             // Search Active and Archived nodes
-            if (alertId) {
+            if (alertId && alertId !== 'null' && alertId !== 'undefined') {
                 let res = await fetch(`${dynamicEndpoint}notices.json?auth=${secret}`);
                 let data = await res.json();
-                if (data) Object.values(data).forEach(alert => { if (alert.id === String(alertId)) foundData = alert; });
+                if (data && !data.error) Object.values(data).forEach(alert => { if (alert.id === String(alertId)) foundData = alert; });
                 
                 if (!foundData) {
-                    res = await fetch(`${dynamicEndpoint}notices_archive.json?orderBy="id"&equalTo="${alertId}"&auth=${secret}`);
+                    res = await fetch(`${dynamicEndpoint}notices_archive.json?auth=${secret}`); // 🛡️ GUARDIAN FIX: Removed REST index constraint to prevent 400 Bad Request
                     data = await res.json();
-                    if (data) {
-                        const keys = Object.keys(data);
-                        if (keys.length > 0) foundData = data[keys[0]];
+                    if (data && !data.error) {
+                        Object.values(data).forEach(alert => { if (alert.id === String(alertId)) foundData = alert; });
                     }
                 }
             }
@@ -3273,16 +3366,16 @@ const Admin = {
                 
                 const resActive = await fetch(`${dynamicEndpoint}notices.json?auth=${secret}`);
                 const activeData = await resActive.json();
-                if (activeData) {
+                if (activeData && !activeData.error) {
                     Object.values(activeData).forEach(alert => {
                         if (alert.message && alert.message.toLowerCase().includes(cleanFallback)) foundData = alert;
                     });
                 }
 
                 if (!foundData) {
-                    const resArch = await fetch(`${dynamicEndpoint}notices_archive.json?auth=${secret}&limitToLast=50`);
+                    const resArch = await fetch(`${dynamicEndpoint}notices_archive.json?auth=${secret}`);
                     const archData = await resArch.json();
-                    if (archData) {
+                    if (archData && !archData.error) {
                         Object.values(archData).forEach(alert => {
                             if (alert.message && alert.message.toLowerCase().includes(cleanFallback)) foundData = alert;
                         });
@@ -3297,27 +3390,33 @@ const Admin = {
                 // Sweep active disruptions globally
                 const disrActiveRes = await fetch(`${dynamicEndpoint}disruptions.json?auth=${secret}`);
                 const disrActiveData = await disrActiveRes.json();
-                if (disrActiveData) {
+                if (disrActiveData && !disrActiveData.error) {
                     Object.values(disrActiveData).forEach(routeNode => {
-                        Object.values(routeNode).forEach(disr => {
-                            if (disr.message && disr.message.toLowerCase().includes(cleanFallback)) {
-                                foundData = { ...disr, severity: disr.tier === 'CRITICAL' ? 'critical' : 'warning' };
-                            }
-                        });
+                        if (typeof routeNode === 'object') {
+                            Object.values(routeNode).forEach(disr => {
+                                const dMsg = disr.message || disr.longExplanation || '';
+                                if (dMsg.toLowerCase().includes(cleanFallback) || (disr.buttonText && disr.buttonText.toLowerCase().includes(cleanFallback))) {
+                                    foundData = { ...disr, severity: disr.tier === 'CRITICAL' ? 'critical' : 'warning' };
+                                }
+                            });
+                        }
                     });
                 }
 
                 // Sweep the new Graveyard
                 if (!foundData) {
-                    const disrArchRes = await fetch(`${dynamicEndpoint}disruptions_archive.json?auth=${secret}&limitToLast=10`);
+                    const disrArchRes = await fetch(`${dynamicEndpoint}disruptions_archive.json?auth=${secret}`);
                     const disrArchData = await disrArchRes.json();
-                    if (disrArchData) {
+                    if (disrArchData && !disrArchData.error) {
                         Object.values(disrArchData).forEach(routeNode => {
-                            Object.values(routeNode).forEach(disr => {
-                                if (disr.message && disr.message.toLowerCase().includes(cleanFallback)) {
-                                    foundData = { ...disr, severity: disr.tier === 'CRITICAL' ? 'critical' : 'warning', archivedAt: disr.archivedAt };
-                                }
-                            });
+                            if (typeof routeNode === 'object') {
+                                Object.values(routeNode).forEach(disr => {
+                                    const dMsg = disr.message || disr.longExplanation || '';
+                                    if (dMsg.toLowerCase().includes(cleanFallback) || (disr.buttonText && disr.buttonText.toLowerCase().includes(cleanFallback))) {
+                                        foundData = { ...disr, severity: disr.tier === 'CRITICAL' ? 'critical' : 'warning', archivedAt: disr.archivedAt };
+                                    }
+                                });
+                            }
                         });
                     }
                 }
@@ -3331,7 +3430,7 @@ const Admin = {
                 contentDiv.innerHTML = `
                     ${statusHtml}
                     ${imgHtml}
-                    <div class="mb-3">${foundData.message}</div>
+                    <div class="mb-3">${foundData.message || foundData.longExplanation || 'No details provided.'}</div>
                     <div class="text-[10px] text-gray-500 font-mono border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
                         ID: ${foundData.id}<br>
                         Posted: ${dateStr}<br>

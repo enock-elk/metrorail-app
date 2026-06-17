@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.16 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.17 - Performance Polish Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -1768,7 +1768,22 @@ function setupAutocomplete(inputId, selectId) {
     const renderList = (filterText = '') => {
         list.innerHTML = '';
         const val = filterText.trim().toUpperCase();
-        const matches = val.length === 0 ? MASTER_STATION_LIST : MASTER_STATION_LIST.filter(s => s.includes(val));
+        let matches = val.length === 0 ? MASTER_STATION_LIST : MASTER_STATION_LIST.filter(s => s.includes(val));
+
+        // 🛡️ GUARDIAN PHASE 2: Planner Station Collision Immunity
+        // Prevent the user from selecting the exact same station by scrubbing it from the active dropdown
+        let oppositeValue = "";
+        if (inputId === 'planner-from-search') {
+            const toInput = document.getElementById('planner-to-search');
+            oppositeValue = (toInput && toInput.dataset.resolvedValue) ? toInput.dataset.resolvedValue : "";
+        } else if (inputId === 'planner-to-search') {
+            const fromInput = document.getElementById('planner-from-search');
+            oppositeValue = (fromInput && fromInput.dataset.resolvedValue) ? fromInput.dataset.resolvedValue : "";
+        }
+        
+        if (oppositeValue) {
+            matches = matches.filter(s => s !== oppositeValue);
+        }
 
         if (matches.length === 0) {
             const li = document.createElement('li');

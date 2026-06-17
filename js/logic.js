@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_06.16 - Performance Polish Edition v1) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_06.17 - Performance Polish Edition v1) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -146,7 +146,8 @@ const HOLIDAY_NAMES = {
 window.isLieFi = false;
 window._networkStruggleCount = 0; // 🛡️ GUARDIAN: Empathy Engine Counter
 
-window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
+// 🛡️ GUARDIAN FIX: Increased default baseline timeout from 5s to 8s
+window.guardianFetch = async function(url, options = {}, timeoutMs = 8000) {
     if (!navigator.onLine) {
         window.isLieFi = true;
         throw new Error("OS reports offline state.");
@@ -201,7 +202,15 @@ window.guardianFetch = async function(url, options = {}, timeoutMs = 5000) {
                 console.warn(`🛡️ Guardian: Request to ${url} timed out, but OS reports online. Very slow connection.`);
                 
                 if (window._networkStruggleCount >= 3) {
-                     if (typeof window.triggerNetworkStruggleModal === 'function') {
+                     // 🛡️ GUARDIAN FIX: Check RAM and Disk Cache FIRST. 
+                     // If the user has offline data available, silently bypass the blocking modal.
+                     const hasRamCache = (typeof fullDatabase !== 'undefined' && fullDatabase);
+                     const hasDiskCache = (typeof safeStorage !== 'undefined' && safeStorage.getItem(`full_db_${typeof currentRegion !== 'undefined' ? currentRegion : 'GP'}`));
+                     
+                     if (hasRamCache || hasDiskCache) {
+                         console.log("🛡️ Guardian: Bypassing Weak Signal modal. User has cached offline data to view.");
+                         window._networkStruggleCount = 0; // Reset counter silently
+                     } else if (typeof window.triggerNetworkStruggleModal === 'function') {
                          window.triggerNetworkStruggleModal();
                          window._networkStruggleCount = 0; // Reset so it doesn't spam
                      }
@@ -1422,8 +1431,8 @@ async function loadAllSchedules(force = false) {
                 try {
                     console.log(`🛡️ Guardian: Attempting schedule fetch via [${sourceKey}]...`);
                     
-                    // 🛡️ GUARDIAN FIX: Relaxed 6-second timeout for Cloudflare to ensure cold-starts succeed on mobile networks
-                    const timeoutMs = sourceKey === 'CLOUDFLARE' ? 6000 : 10000;
+                    // 🛡️ GUARDIAN FIX: Increased 8-second timeout for Cloudflare to ensure cold-starts succeed on weak mobile networks
+                    const timeoutMs = sourceKey === 'CLOUDFLARE' ? 8000 : 12000;
                     const response = await window.guardianFetch(regionDbUrl, { signal: fetchSignal }, timeoutMs);
                     
                     if (fetchSignal.aborted || currentRouteId !== requestedRouteId) return; 

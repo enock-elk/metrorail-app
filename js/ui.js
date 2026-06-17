@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.16 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.17 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -72,6 +72,12 @@ window.closeSmoothModal = function(modalId) {
     if (modalId === 'dev-modal' && window.Admin && window.Admin.telemetryInterval) {
         clearInterval(window.Admin.telemetryInterval);
         window.Admin.telemetryInterval = null;
+    }
+    
+    // 🛡️ GUARDIAN FIX: Clean up the auto-polling loop if the network error modal is closed natively
+    if (modalId === 'network-error-modal' && window._networkPollInterval) {
+        clearInterval(window._networkPollInterval);
+        window._networkPollInterval = null;
     }
     
     // 🛡️ GUARDIAN UX: Ensure cinematic scrim is released when ANY modal closes
@@ -523,11 +529,29 @@ window.addEventListener('online', () => {
     OfflineTracker.flush(); 
     const oi = document.getElementById('offline-indicator');
     if (oi) oi.style.display = 'none';
+    
+    // 🛡️ GUARDIAN FIX: Reset the offline toast lock and hide it if currently visible
+    window._hasShownOfflineToast = false;
+    const offlineToast = document.getElementById('offline-toast');
+    if (offlineToast) offlineToast.classList.add('translate-y-[150%]', 'opacity-0');
 });
 
 window.addEventListener('offline', () => { 
     const oi = document.getElementById('offline-indicator');
     if (oi) oi.style.display = 'flex';
+    
+    // 🛡️ GUARDIAN FIX: Throttled Offline Toast (Only fires once per genuine offline transition)
+    if (!window._hasShownOfflineToast) {
+        window._hasShownOfflineToast = true;
+        const offlineToast = document.getElementById('offline-toast');
+        if (offlineToast) {
+            offlineToast.classList.remove('translate-y-[150%]', 'opacity-0');
+            if (window._lieFiToastTimeout) clearTimeout(window._lieFiToastTimeout);
+            window._lieFiToastTimeout = setTimeout(() => {
+                offlineToast.classList.add('translate-y-[150%]', 'opacity-0');
+            }, 4000);
+        }
+    }
 });
 
 // --- NEXT TRAIN AUTOCOMPLETE ENGINE (GUARDIAN V6.16) ---
@@ -698,22 +722,53 @@ function renderRouteError(error) {
                     </div>
                     <h3 class="text-xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Weak Signal Detected</h3>
                     <p class="text-sm text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
-                        We need 10 seconds of stable internet to download the timetable for offline use. Please move to better coverage or Wi-Fi and try again.
+                        We need a few seconds of stable internet to download the timetable for offline use. The app will automatically resume when the signal returns.
                     </p>
-                    <div class="flex flex-col space-y-3">
-                        <button onclick="closeSmoothModal('network-error-modal'); setTimeout(() => { if(typeof loadAllSchedules === 'function') loadAllSchedules(true); else window.location.reload(); }, 350);" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-colors focus:outline-none flex justify-center items-center">
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
-                            Try Again
-                        </button>
-                        <button onclick="closeSmoothModal('network-error-modal')" class="w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3.5 px-4 rounded-xl transition-colors focus:outline-none text-sm">
-                            Cancel
-                        </button>
+                    <div class="flex flex-col items-center justify-center space-y-3 mt-2 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-inner">
+                        <svg class="animate-spin h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest" id="network-polling-text">Waiting for connection...</span>
                     </div>
                 </div>
             </div>
         `;
         document.body.appendChild(modal);
+    } else {
+        const pollText = document.getElementById('network-polling-text');
+        if (pollText) {
+            pollText.textContent = "Waiting for connection...";
+            pollText.classList.remove('text-green-600', 'dark:text-green-400');
+            pollText.classList.add('text-gray-500', 'dark:text-gray-400');
+        }
     }
+    
+    // 3. 🛡️ GUARDIAN FIX: Modal Auto-Resolve Polling Loop
+    if (window._networkPollInterval) clearInterval(window._networkPollInterval);
+    window._networkPollInterval = setInterval(() => {
+        if (navigator.onLine) {
+            // Lightweight ping to verify actual internet access, defeating false-positive "router-only" Wi-Fi connections
+            fetch('https://nexttrain-telemetry.enock.workers.dev/ping', { method: 'HEAD', cache: 'no-store' })
+            .then(res => {
+                if (res.ok || res.status === 405 || res.status === 404) {
+                    clearInterval(window._networkPollInterval);
+                    window._networkPollInterval = null;
+                    const pollText = document.getElementById('network-polling-text');
+                    if (pollText) {
+                        pollText.textContent = "Signal restored! Syncing...";
+                        pollText.classList.remove('text-gray-500', 'dark:text-gray-400');
+                        pollText.classList.add('text-green-600', 'dark:text-green-400');
+                    }
+                    
+                    setTimeout(() => {
+                        if (location.hash === '#network-error') history.back();
+                        else closeSmoothModal('network-error-modal');
+                        
+                        if (typeof loadAllSchedules === 'function') loadAllSchedules(true); 
+                        else window.location.reload();
+                    }, 800);
+                }
+            }).catch(() => {}); // Silent catch, keep polling
+        }
+    }, 3000);
     
     // Bind to the Router and Animation Engine
     history.pushState({ modal: 'network-error' }, '', '#network-error');
@@ -1887,9 +1942,9 @@ async function checkServiceAlerts() {
                         contextBox.className = 'mb-3 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 italic flex items-start hidden shadow-inner';
                         fText.parentNode.insertBefore(contextBox, fText);
                     }
-                    contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Advisory:</span><span class="line-clamp-2">"${truncatedMsg}"</span></div>`;
-                    contextBox.dataset.rawMsg = truncatedMsg;
-                    contextBox.dataset.alertId = activeNotice.id; // 🛡️ GUARDIAN PHASE 8: Alert ID Tagging
+                    contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Advisory:</span><span class="line-clamp-2">"${rawMsg}"</span></div>`;
+                    contextBox.dataset.rawMsg = rawMsg;
+                    contextBox.dataset.alertId = targetDisruption.id; // 🛡️ GUARDIAN FIX: Attach explicit ID to fix missing references
                     contextBox.classList.remove('hidden');
                     fText.value = ''; 
                 }
