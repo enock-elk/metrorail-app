@@ -1942,9 +1942,9 @@ async function checkServiceAlerts() {
                         contextBox.className = 'mb-3 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 italic flex items-start hidden shadow-inner';
                         fText.parentNode.insertBefore(contextBox, fText);
                     }
-                    contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Advisory:</span><span class="line-clamp-2">"${rawMsg}"</span></div>`;
-                    contextBox.dataset.rawMsg = rawMsg;
-                    contextBox.dataset.alertId = targetDisruption.id; // 🛡️ GUARDIAN FIX: Attach explicit ID to fix missing references
+                    contextBox.innerHTML = `<span class="mr-2 text-sm leading-none">💬</span><div><span class="block font-bold text-[10px] uppercase tracking-wider mb-0.5 text-gray-400">Replying to Advisory:</span><span class="line-clamp-2">"${truncatedMsg}"</span></div>`;
+                    contextBox.dataset.rawMsg = truncatedMsg;
+                    contextBox.dataset.alertId = activeNotice.id; // 🛡️ GUARDIAN FIX: Attach ID using local activeNotice object
                     contextBox.classList.remove('hidden');
                     fText.value = ''; 
                 }
