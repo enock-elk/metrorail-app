@@ -720,8 +720,8 @@ const DEFAULT_EXCLUSIONS = {
 // GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
     {
-        version: "V7 06.15 <br><span class='text-sm text-blue-600 dark:text-blue-400'>The Precision Update</span>",
-        date: "15 Jun 2026",
+        version: "V7 06.17 <br><span class='text-sm text-blue-600 dark:text-blue-400'>The Precision Update</span>",
+        date: "17 Jun 2026",
         features: [
             "<b>Smarter Trip Planner:</b> The routing engine now actively finds overnight and extended weekend connections that were previously hidden, ensuring you see every possible travel option.",
             "<b>Clearer Journey Timelines:</b> We've polished the visual timeline with a unified, professional color scheme and fixed text that was getting cut off on smaller mobile screens.",
