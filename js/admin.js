@@ -113,12 +113,18 @@ const Admin = {
     currentUser: null,
     telemetryInterval: null, 
     telemetryWeeksAgo: 0, 
-    telemetryRange: 'INTRADAY', // GUARDIAN: Set new default view
+    telemetryRange: 'DAU', // GROWTH SPRINT: Default to Daily Active Users Trend
     clockInterval: null,
     
     isGridMode: true,
     gridCols: 2, 
     _modulesRendered: false,
+
+    // --- UNIVERSAL NUMBER FORMATTER ---
+    formatNumber: (val) => {
+        if (val === null || val === undefined || isNaN(val) || val === '--' || val === 'ERR') return val;
+        return Number(val).toLocaleString('en-US');
+    },
 
     // --- UNIVERSAL DATE FORMATTER ---
     formatDate: (ts) => {
@@ -264,6 +270,14 @@ const Admin = {
                 box.className = "bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center shadow-sm transition-colors";
                 const label = box.querySelector('span:first-child');
                 const value = box.querySelector('span:last-child');
+                
+                // 🛡️ GUARDIAN: Identify the "Today" tile to make it interactive for Regional Breakdown
+                if (value && value.id === 'stat-today') {
+                    box.classList.add('cursor-pointer', 'hover:border-indigo-400', 'dark:hover:border-indigo-500', 'hover:shadow-md');
+                    box.title = "View Regional Breakdown";
+                    box.onclick = () => Admin.openRegionalModal();
+                }
+
                 if (label) label.className = "text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1";
                 if (value) value.className = "text-2xl font-black text-slate-800 dark:text-slate-200 animate-pulse";
             });
@@ -324,7 +338,7 @@ const Admin = {
                             <div class="flex items-center space-x-2">
                                 <button id="modal-trend-cycle" class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none text-[10px] font-bold uppercase tracking-widest border border-slate-200 dark:border-slate-700 shadow-sm flex items-center">
                                     <svg class="w-3.5 h-3.5 mr-1.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
-                                    <span>INTRADAY</span>
+                                    <span>${Admin.telemetryRange}</span>
                                 </button>
                             </div>
                             <div class="flex items-center space-x-2">
@@ -361,6 +375,51 @@ const Admin = {
                 document.getElementById('modal-trend-next').onclick = () => { if(Admin.telemetryWeeksAgo > 0) { Admin.telemetryWeeksAgo--; Admin.refreshTelemetry(); } };
                 document.getElementById('modal-trend-export').onclick = () => Admin.exportTrendGraph();
                 document.getElementById('modal-trend-cycle').onclick = Admin.cycleTelemetryRange;
+            }
+
+            let regionModal = document.getElementById('telemetry-region-modal');
+            if (!regionModal) {
+                regionModal = document.createElement('div');
+                regionModal.id = 'telemetry-region-modal';
+                regionModal.className = 'fixed inset-0 bg-black/90 z-[160] hidden flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300';
+                regionModal.innerHTML = `
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-all scale-95 border border-slate-200 dark:border-slate-700">
+                        <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900 rounded-t-2xl shrink-0">
+                            <h3 class="text-lg font-black text-slate-900 dark:text-white flex items-center tracking-tight">
+                                <span class="mr-2">🌍</span> Regional Breakdown
+                            </h3>
+                            <button onclick="if(location.hash === '#region-breakdown') history.back(); else closeSmoothModal('telemetry-region-modal');" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors focus:outline-none">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        <div class="p-5 flex-grow bg-white dark:bg-gray-800 rounded-b-2xl">
+                            <p class="text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Unique Active Users (Today)</p>
+                            <div class="grid grid-cols-2 gap-3 mb-3">
+                                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50 flex flex-col items-center justify-center shadow-sm">
+                                    <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">Gauteng</span>
+                                    <span id="region-stat-gp" class="text-2xl font-black text-blue-700 dark:text-blue-300">--</span>
+                                </div>
+                                <div class="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-100 dark:border-green-800/50 flex flex-col items-center justify-center shadow-sm">
+                                    <span class="text-[10px] text-green-600 dark:text-green-400 font-bold uppercase tracking-wider mb-1">Western Cape</span>
+                                    <span id="region-stat-wc" class="text-2xl font-black text-green-700 dark:text-green-300">--</span>
+                                </div>
+                                <div class="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg border border-orange-100 dark:border-orange-800/50 flex flex-col items-center justify-center shadow-sm">
+                                    <span class="text-[10px] text-orange-600 dark:text-orange-400 font-bold uppercase tracking-wider mb-1">KwaZulu-Natal</span>
+                                    <span id="region-stat-kzn" class="text-2xl font-black text-orange-700 dark:text-orange-300">--</span>
+                                </div>
+                                <div class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-100 dark:border-purple-800/50 flex flex-col items-center justify-center shadow-sm">
+                                    <span class="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-wider mb-1">Eastern Cape</span>
+                                    <span id="region-stat-ec" class="text-2xl font-black text-purple-700 dark:text-purple-300">--</span>
+                                </div>
+                            </div>
+                            <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-1">
+                                <span class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center">Uncategorized / Global</span>
+                                <span id="region-stat-other" class="text-lg font-black text-slate-700 dark:text-slate-300">--</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(regionModal);
             }
 
             const cycleBtn = document.getElementById('trend-cycle-btn');
@@ -525,6 +584,8 @@ const Admin = {
         const stat5m = document.getElementById('stat-5m');
         const stat30m = document.getElementById('stat-30m');
         const statToday = document.getElementById('stat-today');
+        const statWeekly = document.getElementById('stat-weekly');
+        const statMonthly = document.getElementById('stat-monthly');
         const statAllTime = document.getElementById('stat-alltime');
         const statErrors = document.getElementById('stat-errors');
         const syncEl = document.getElementById('telemetry-last-sync');
@@ -542,7 +603,7 @@ const Admin = {
         const secret = await Admin.getAuthKey();
         if (!secret) return;
 
-        [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
+        [stat5m, stat30m, statToday, statWeekly, statMonthly, statAllTime, statErrors].forEach(el => {
             if (el && !el.classList.contains('animate-pulse')) el.classList.add('animate-pulse');
         });
 
@@ -561,11 +622,19 @@ const Admin = {
             if (res.ok) {
                 const data = await res.json();
                 
-                if(stat5m) stat5m.textContent = data.active5m !== undefined ? data.active5m : '--';
-                if(stat30m) stat30m.textContent = data.active30m !== undefined ? data.active30m : '--';
-                if(statToday) statToday.textContent = data.todayUsers !== undefined ? data.todayUsers : '--';
-                if(statAllTime) statAllTime.textContent = data.allTimeUsers !== undefined ? data.allTimeUsers : '--';
-                if(statErrors) statErrors.textContent = data.todayErrors !== undefined ? data.todayErrors : '--';
+                if(stat5m) stat5m.textContent = data.active5m !== undefined ? Admin.formatNumber(data.active5m) : '--';
+                if(stat30m) stat30m.textContent = data.active30m !== undefined ? Admin.formatNumber(data.active30m) : '--';
+                if(statToday) statToday.textContent = data.todayUsers !== undefined ? Admin.formatNumber(data.todayUsers) : '--';
+                if(statWeekly) statWeekly.textContent = data.wauUsers !== undefined ? Admin.formatNumber(data.wauUsers) : '--';
+                if(statMonthly) statMonthly.textContent = data.mauUsers !== undefined ? Admin.formatNumber(data.mauUsers) : '--';
+                if(statAllTime) statAllTime.textContent = data.allTimeUsers !== undefined ? Admin.formatNumber(data.allTimeUsers) : '--';
+                if(statErrors) statErrors.textContent = data.todayErrors !== undefined ? Admin.formatNumber(data.todayErrors) : '--';
+                
+                // 🛡️ GUARDIAN: Store and update regional breakdown seamlessly
+                if (data.regionalBreakdown) {
+                    Admin.currentRegionalBreakdown = data.regionalBreakdown;
+                    Admin.updateRegionalModal();
+                }
 
                 if (syncEl) {
                     syncEl.classList.remove('hidden');
@@ -706,10 +775,12 @@ const Admin = {
             if(stat5m && stat5m.textContent === '--') stat5m.textContent = "Wait";
             if(stat30m && stat30m.textContent === '--') stat30m.textContent = "Wait";
             if(statToday && statToday.textContent === '--') statToday.textContent = "Wait";
+            if(statWeekly && statWeekly.textContent === '--') statWeekly.textContent = "Wait";
+            if(statMonthly && statMonthly.textContent === '--') statMonthly.textContent = "Wait";
             if(statAllTime && statAllTime.textContent === '--') statAllTime.textContent = "Wait";
             if(statErrors && statErrors.textContent === '--') statErrors.textContent = "Wait";
 
-            [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
+            [stat5m, stat30m, statToday, statWeekly, statMonthly, statAllTime, statErrors].forEach(el => {
                 if(el) el.classList.remove('animate-pulse');
             });
         }
@@ -733,17 +804,22 @@ const Admin = {
             }
         }
 
-        // Grab current stats from the DOM
+        // Identify the exporting Admin dynamically
+        const adminEmail = Admin.currentUser?.email || '';
+        const adminName = adminEmail.includes('enock') ? 'Enock' : (adminEmail.includes('thandeka') ? 'Thandeka' : 'System Admin');
+
+        // Grab current stats from the DOM (already formatted with commas by the live engine)
         const stat5m = document.getElementById('stat-5m')?.textContent || '--';
         const stat30m = document.getElementById('stat-30m')?.textContent || '--';
         const statToday = document.getElementById('stat-today')?.textContent || '--';
+        const statWeekly = document.getElementById('stat-weekly')?.textContent || '--';
+        const statMonthly = document.getElementById('stat-monthly')?.textContent || '--';
         const statAllTime = document.getElementById('stat-alltime')?.textContent || '--';
-        const statErrors = document.getElementById('stat-errors')?.textContent || '--';
-        const syncTime = document.getElementById('telemetry-last-sync')?.textContent || '';
         
         const now = new Date();
         const dateStr = now.toLocaleDateString('en-ZA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         const timeStr = now.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+        const fullDateTimeStr = `${dateStr} | ${timeStr}`;
 
         const exportContainer = document.createElement('div');
         exportContainer.style.position = 'fixed';
@@ -753,55 +829,55 @@ const Admin = {
         exportContainer.style.backgroundColor = '#ffffff'; 
         exportContainer.style.fontFamily = 'system-ui, -apple-system, sans-serif';
         exportContainer.style.padding = '30px';
-        exportContainer.style.color = '#1f2937';
+        exportContainer.style.color = '#0f172a'; // slate-900
         exportContainer.style.borderRadius = '16px';
         
         exportContainer.innerHTML = `
-            <div style="border-bottom: 3px solid #3b82f6; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
                 <div>
-                    <h1 style="font-size: 26px; font-weight: 900; margin: 0; color: #1e3a8a; text-transform: uppercase; letter-spacing: -0.5px;">Live Telemetry Snapshot</h1>
-                    <p style="font-size: 13px; font-weight: 700; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Metrorail Next Train</p>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 14px; font-weight: 800; color: #0f172a;">${dateStr}</div>
-                    <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-top: 2px;">${timeStr}</div>
+                    <h1 style="font-size: 24px; font-weight: 900; margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: -0.5px;">Live Telemetry Snapshot</h1>
+                    <p style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Metrorail Next Train</p>
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 12px; text-align: center;">
-                    <div style="font-size: 11px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Active (Last 5 Mins)</div>
-                    <div style="font-size: 36px; font-weight: 900; color: #15803d; line-height: 1;">${stat5m}</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px;">
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Active (Last 5 Mins)</div>
+                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${stat5m}</div>
                 </div>
-                <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 20px; border-radius: 12px; text-align: center;">
-                    <div style="font-size: 11px; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Active (Last 30 Mins)</div>
-                    <div style="font-size: 36px; font-weight: 900; color: #1d4ed8; line-height: 1;">${stat30m}</div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Active (Last 30 Mins)</div>
+                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${stat30m}</div>
                 </div>
-                <div style="background: #eef2ff; border: 1px solid #c7d2fe; padding: 20px; border-radius: 12px; text-align: center;">
-                    <div style="font-size: 11px; font-weight: 800; color: #3730a3; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Unique Users Today</div>
-                    <div style="font-size: 36px; font-weight: 900; color: #4338ca; line-height: 1;">${statToday}</div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Unique Users Today</div>
+                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${statToday}</div>
                 </div>
-                <div style="background: #faf5ff; border: 1px solid #e9d5ff; padding: 20px; border-radius: 12px; text-align: center;">
-                    <div style="font-size: 11px; font-weight: 800; color: #5b21b6; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Total Users (All-Time)</div>
-                    <div style="font-size: 36px; font-weight: 900; color: #6d28d9; line-height: 1;">${statAllTime}</div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">7 Days (WAU)</div>
+                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${statWeekly}</div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">30 Days (MAU)</div>
+                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${statMonthly}</div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">All-Time Users</div>
+                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${statAllTime}</div>
                 </div>
             </div>
 
-            <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <div style="font-size: 13px; font-weight: 800; color: #991b1b; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center;">
-                    <span style="font-size: 16px; margin-right: 8px;">🚨</span> System Errors (Today)
-                </div>
-                <div style="font-size: 24px; font-weight: 900; color: #b91c1c;">${statErrors}</div>
-            </div>
-
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <div style="font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 2px;">Exported by System Admin</div>
-                    <div style="font-size: 10px; font-weight: 600; color: #64748b;">nexttrain.co.za | ${syncTime}</div>
+                    <div style="font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 2px;">Exported by ${adminName}</div>
+                    <div style="font-size: 10px; font-weight: 600; color: #64748b;">${fullDateTimeStr}</div>
                 </div>
-                <div style="display: flex; align-items: center; background: #ffffff; padding: 6px 12px; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                    <svg style="width: 14px; height: 14px; color: #f59e0b; margin-right: 6px;" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                    <span style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Verified by Google Analytics</span>
+                <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                    <div style="display: flex; align-items: center; background: #ffffff; padding: 6px 12px; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <svg style="width: 14px; height: 14px; margin-right: 6px;" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm4 0h-2V7h2v10z" fill="#E37400"/></svg>
+                        <span style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Verified by Google Analytics</span>
+                    </div>
+                    <div style="font-size: 10px; font-weight: 600; color: #64748b; margin-top: 6px; padding-right: 4px;">nexttrain.co.za</div>
                 </div>
             </div>
         `;
@@ -838,6 +914,31 @@ const Admin = {
             if (typeof showToast === 'function') showToast("Snapshot failed.", "error");
             if(document.body.contains(exportContainer)) document.body.removeChild(exportContainer);
         }
+    },
+
+    // --- GROWTH SPRINT: REGIONAL BREAKDOWN MODAL LOGIC ---
+    openRegionalModal: () => {
+        if (typeof triggerHaptic === 'function') triggerHaptic();
+        history.pushState({ modal: 'telemetry-region-modal' }, '', '#region-breakdown');
+        openSmoothModal('telemetry-region-modal');
+        Admin.updateRegionalModal();
+    },
+
+    updateRegionalModal: () => {
+        const data = Admin.currentRegionalBreakdown;
+        if (!data) return;
+        
+        const gpEl = document.getElementById('region-stat-gp');
+        const wcEl = document.getElementById('region-stat-wc');
+        const kznEl = document.getElementById('region-stat-kzn');
+        const ecEl = document.getElementById('region-stat-ec');
+        const otherEl = document.getElementById('region-stat-other');
+        
+        if (gpEl) gpEl.textContent = data.GP !== undefined ? Admin.formatNumber(data.GP) : '--';
+        if (wcEl) wcEl.textContent = data.WC !== undefined ? Admin.formatNumber(data.WC) : '--';
+        if (kznEl) kznEl.textContent = data.KZN !== undefined ? Admin.formatNumber(data.KZN) : '--';
+        if (ecEl) ecEl.textContent = data.EC !== undefined ? Admin.formatNumber(data.EC) : '--';
+        if (otherEl) otherEl.textContent = data.OTHER !== undefined ? Admin.formatNumber(data.OTHER) : '--';
     },
 
     // GROWTH SPRINT PHASE 6: Dynamic 7-Day Chart Snapshot Engine (SVG Clone Method)
