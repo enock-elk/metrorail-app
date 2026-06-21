@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.17 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.21 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -474,9 +474,9 @@ function trackAnalyticsEvent(eventName, params = {}) {
     
     try {
         if (typeof gtag === 'function') { 
-            // GUARDIAN FIX: Persist the ID dynamically into the user_properties map
+            // 🛡️ GUARDIAN FIX: crm_region is now set globally in index.html to prevent (not set) buckets.
+            // We only attach the custom_device_id here as a fail-safe sync.
             gtag('set', 'user_properties', { 
-                crm_region: params.region,
                 custom_device_id: NEXT_TRAIN_DEVICE_ID
             });
             gtag('event', eventName, params); 
@@ -2544,9 +2544,21 @@ async function submitFeedback() {
 
     const contextBox = document.getElementById('feedback-reply-context');
     if (contextBox && !contextBox.classList.contains('hidden') && contextBox.dataset.rawMsg) {
-        // 🛡️ GUARDIAN PHASE 8: Inject Alert ID into the text blob for Admin extraction
+        // 🛡️ GUARDIAN FIX: Inject explicit structured tag for exact Admin parsing
+        let tagPrefix = "notice";
+        if (contextBox.dataset.rawMsg.includes("Replying to Advisory:") && !contextBox.dataset.rawMsg.includes("REPLY TO ADMIN:")) {
+            tagPrefix = "disruption";
+        }
+        
+        let structuredTag = "";
+        if (contextBox.dataset.alertId) {
+            const routeSlug = (typeof currentRouteId !== 'undefined' && currentRouteId) ? currentRouteId : 'global';
+            structuredTag = `\n[CTX:${tagPrefix}:${routeSlug}:${contextBox.dataset.alertId}]`;
+        }
+
         const alertRef = contextBox.dataset.alertId ? ` Alert ID: ${contextBox.dataset.alertId}` : '';
-        text = `[Replying to: "${contextBox.dataset.rawMsg}"${alertRef}]\n\n` + text;
+        // Combine human-readable quote snippet with the hidden structured tag at the end
+        text = `[Replying to: "${contextBox.dataset.rawMsg}"${alertRef}]${structuredTag}\n\n` + text;
     }
 
     const hasFile = !!(fileInput && fileInput.files && fileInput.files.length > 0);

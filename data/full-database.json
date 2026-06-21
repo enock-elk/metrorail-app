@@ -7,8 +7,8 @@
       "triggeredBy": "enockelk@gmail.com"
     },
     "maintenance": {
-      "active": false,
-      "message": "Maintenance - (Fixing Bugs)"
+      "active": true,
+      "message": "Maintenance - (Updating Schedules)"
     },
     "special_event": {
       "destA": "PRETORIA",
@@ -52,15 +52,15 @@
       "severity": "info"
     },
     "all_WC": {
-      "authorName": "Next Train Ops",
-      "expiresAt": 1781992740000,
-      "forcePopup": true,
-      "id": "1781655750115",
-      "message": "<b><i style=\"\">Hello</i> <i style=\"\">Western Cape commuters</i>,</b><div><br><div>Thank you for your continued support.</div><div>We are actively updating the schedules to reflect the new changes.</div><div><br></div><div>Thank you very much for your patience.</div><div><br></div><div><i>Thanks everyone</i> 🙏🏾</div></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
+      "authorName": "Enock",
+      "expiresAt": 1781906340000,
+      "forcePopup": false,
+      "id": "1781902588133",
+      "message": "<b style=\"font-style: italic;\">​</b><b>Hello Western Cape commuters!</b><div><br></div><div>You may have noticed that Metrorail recently issued updated timetables.</div><div>​<i><b>Metrorail Next Train is an</b></i> <i><b>independent, unofficial app built and maintained by a single developer based in Pretoria.</b></i> Because I do not receive automatic data feeds from PRASA, I typically just have to manually source, verify, and digitize these complex schedule changes. I am currently processing the new data and will push the updated schedules live as soon as it is complete <b>(1-2 days)</b>.</div><div><br></div><div>​<b>How You Can Help:</b></div><div>Since I am based in Gauteng, I rely heavily on you- the commuter community! In the future, if you ever spot a new timetable posted at your local Cape Town station, please snap a photo and send it my way. Getting a heads-up directly from commuters on the ground helps me update the app much faster for everyone.</div><div><br></div><div>​Thank you for your incredible patience and for helping keep the community moving.&nbsp;</div><div><br></div><div>Travel safe! 🚆</div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Enock</span>",
       "poll": {
         "active": false
       },
-      "postedAt": 1781655750115,
+      "postedAt": 1781902588133,
       "severity": "info"
     },
     "bellville-mutual": {
@@ -105,15 +105,15 @@
     },
     "jhb-rand": {
       "authorName": "Next Train Ops",
-      "expiresAt": 1780955940000,
+      "expiresAt": 1781992740000,
       "forcePopup": true,
-      "id": "1780915282017",
-      "message": "<b>Service Alert: Train Cancellations</b><div><i>New Canada Substation</i><div><br></div><div>Heads up for today, <b><i>Monday 08 June 2026</i></b></div><div><br></div><div>Emergency work at New Canada Substation means no trains running on these corridors:</div><div><br></div><div><b>Cancelled trains</b>:</div><div><b>Midway</b>: 9009, 9008</div><div><b>Naledi</b>: 9314, 9316, 9318, 9315, 9317, 9321</div><div><b>Lenz</b>: 9207, 9209, 9206, 9208, 9210</div><div><b>Randfontein</b>: 0209, 0210, 0228, 0229</div><div><br></div><div>Metrorail Gauteng says apologizes for the mess.&nbsp;</div><div>Please sort alternative transport today and stay safe.</div><div><br></div><div><b><i>#CommuterAlert #TrainCancellation</i></b></div></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
+      "id": "1781940357973",
+      "message": "<b>Good morning,</b><div><b><br></b></div><div><b>We are in the process of updating our Saturday Schedule, please use the attached image in the meantime:</b></div><div><b><br></b></div><div><img src=\"https://i.supaimg.com/339b34a0-1526-4ec8-a986-ac75c3740544/5a6ba03e-908d-4097-94ca-45c60da12ade.jpg\" class=\"w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700\" alt=\"Alert Image\"></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
       "poll": {
         "active": false
       },
-      "postedAt": 1780915282017,
-      "severity": "critical"
+      "postedAt": 1781940357973,
+      "severity": "warning"
     },
     "jhb-soweto": {
       "authorName": "Next Train Ops",
@@ -398,6 +398,10 @@
         "reason": "New Canada Substation",
         "type": "banned",
         "updatedAt": 1780916885641
+      },
+      "_grid_notice": {
+        "text": "We are still in the process of updating the Saturday schedule, please see alert for latest schedule image.",
+        "updatedAt": 1781940470101
       }
     },
     "jhb-soweto": {
@@ -2050,7 +2054,7 @@
   },
   "event_to_a_sat": [
     {
-      "STATION": "Last Updated: 17 June 2026"
+      "STATION": "Last Updated: 20 June 2026"
     },
     {
       "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -2121,11 +2125,11 @@
       "STATION": "PIENAARSPOORT "
     }
   ],
-  "event_to_a_sat_meta": "17 June 2026",
+  "event_to_a_sat_meta": "20 June 2026",
   "event_to_a_sat_zone": "Z2",
   "event_to_a_weekday": [
     {
-      "STATION": "Last Updated: 17 June 2026"
+      "STATION": "Last Updated: 20 June 2026"
     },
     {
       "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -2196,11 +2200,11 @@
       "STATION": "PIENAARSPOORT "
     }
   ],
-  "event_to_a_weekday_meta": "17 June 2026",
+  "event_to_a_weekday_meta": "20 June 2026",
   "event_to_a_weekday_zone": "Z2",
   "event_to_b_sat": [
     {
-      "STATION": "Last Updated: 17 June 2026"
+      "STATION": "Last Updated: 20 June 2026"
     },
     {
       "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -2271,11 +2275,11 @@
       "STATION": "PIENAARSPOORT "
     }
   ],
-  "event_to_b_sat_meta": "17 June 2026",
+  "event_to_b_sat_meta": "20 June 2026",
   "event_to_b_sat_zone": "Z2",
   "event_to_b_weekday": [
     {
-      "STATION": "Last Updated: 17 June 2026"
+      "STATION": "Last Updated: 20 June 2026"
     },
     {
       "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -2346,7 +2350,7 @@
       "STATION": "PIENAARSPOORT "
     }
   ],
-  "event_to_b_weekday_meta": "17 June 2026",
+  "event_to_b_weekday_meta": "20 June 2026",
   "event_to_b_weekday_zone": "Z2",
   "gauteng": {
     "belle_to_mab_sat": [
@@ -3128,7 +3132,7 @@
     "dewil_to_pta_weekday_zone": "Z2",
     "event_to_a_sat": [
       {
-        "STATION": "Last Updated: 17 June 2026"
+        "STATION": "Last Updated: 20 June 2026"
       },
       {
         "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -3199,11 +3203,11 @@
         "STATION": "PIENAARSPOORT "
       }
     ],
-    "event_to_a_sat_meta": "17 June 2026",
+    "event_to_a_sat_meta": "20 June 2026",
     "event_to_a_sat_zone": "Z2",
     "event_to_a_weekday": [
       {
-        "STATION": "Last Updated: 17 June 2026"
+        "STATION": "Last Updated: 20 June 2026"
       },
       {
         "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -3274,11 +3278,11 @@
         "STATION": "PIENAARSPOORT "
       }
     ],
-    "event_to_a_weekday_meta": "17 June 2026",
+    "event_to_a_weekday_meta": "20 June 2026",
     "event_to_a_weekday_zone": "Z2",
     "event_to_b_sat": [
       {
-        "STATION": "Last Updated: 17 June 2026"
+        "STATION": "Last Updated: 20 June 2026"
       },
       {
         "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -3349,11 +3353,11 @@
         "STATION": "PIENAARSPOORT "
       }
     ],
-    "event_to_b_sat_meta": "17 June 2026",
+    "event_to_b_sat_meta": "20 June 2026",
     "event_to_b_sat_zone": "Z2",
     "event_to_b_weekday": [
       {
-        "STATION": "Last Updated: 17 June 2026"
+        "STATION": "Last Updated: 20 June 2026"
       },
       {
         "COORDINATES": "-25.75864361043285, 28.189866445989118",
@@ -3424,7 +3428,7 @@
         "STATION": "PIENAARSPOORT "
       }
     ],
-    "event_to_b_weekday_meta": "17 June 2026",
+    "event_to_b_weekday_meta": "20 June 2026",
     "event_to_b_weekday_zone": "Z2",
     "germ_to_jhb_sat": [
       {
@@ -5438,11 +5442,12 @@
     "jhb_to_nald_weekday_zone": "Z2",
     "jhb_to_rand_sat": [
       {
-        "STATION": "Last Updated: 6 April 2026"
+        "STATION": "Last Updated: 20 June 2026"
       },
       {
         "0200": "5:00:00",
         "0206": "7:00:00",
+        "0212": "14:00:00",
         "0216": "16:00:00",
         "0220": "18:00:00",
         "COORDINATES": "-26.197647593316965, 28.04233618836466",
@@ -5451,6 +5456,7 @@
       {
         "0200": "5:07:00",
         "0206": "7:07:00",
+        "0212": "14:07:00",
         "0216": "16:07:00",
         "0220": "18:07:00",
         "COORDINATES": "-26.19785038795819, 28.022075850924722",
@@ -5459,6 +5465,7 @@
       {
         "0200": "5:13:00",
         "0206": "7:13:00",
+        "0212": "14:13:00",
         "0216": "16:13:00",
         "0220": "18:13:00",
         "COORDINATES": "-26.204357573800028, 28.014409877846887",
@@ -5467,6 +5474,7 @@
       {
         "0200": "5:16:00",
         "0206": "7:16:00",
+        "0212": "14:16:00",
         "0216": "16:16:00",
         "0220": "18:16:00",
         "COORDINATES": "-26.202962977069127, 28.00593136680137",
@@ -5475,6 +5483,7 @@
       {
         "0200": "5:20:00",
         "0206": "7:20:00",
+        "0212": "14:20:00",
         "0216": "16:20:00",
         "0220": "18:20:00",
         "COORDINATES": "-26.201719229862785, 27.990539266801267",
@@ -5495,6 +5504,7 @@
       {
         "0200": "5:29:00",
         "0206": "7:29:00",
+        "0212": "14:29:00",
         "0216": "16:29:00",
         "0220": "18:29:00",
         "COORDINATES": "-26.18345940414852, 27.95132529292846",
@@ -5507,6 +5517,7 @@
       {
         "0200": "5:36:00",
         "0206": "7:36:00",
+        "0212": "14:36:00",
         "0216": "16:36:00",
         "0220": "18:36:00",
         "COORDINATES": "-26.17934640087511, 27.926554891892838",
@@ -5515,6 +5526,7 @@
       {
         "0200": "5:40:00",
         "0206": "7:40:00",
+        "0212": "14:40:00",
         "0216": "16:40:00",
         "0220": "18:40:00",
         "COORDINATES": "-26.176752716611063, 27.91426358618772",
@@ -5523,6 +5535,7 @@
       {
         "0200": "5:45:00",
         "0206": "7:45:00",
+        "0212": "14:45:00",
         "0216": "16:45:00",
         "0220": "18:45:00",
         "COORDINATES": "-26.16761329423407, 27.89363955466481",
@@ -5537,6 +5550,8 @@
         "0202": "6:00:00",
         "0206": "7:50:00",
         "0208": "8:00:00",
+        "0212": "14:50:00",
+        "0214": "15:00:00",
         "0216": "16:50:00",
         "0218": "17:00:00",
         "0220": "18:50:00",
@@ -5551,6 +5566,7 @@
       {
         "0202": "6:07:00",
         "0208": "8:07:00",
+        "0214": "15:07:00",
         "0218": "17:07:00",
         "0224": "19:07:00",
         "COORDINATES": "-26.132583466401883, 27.853421824034942",
@@ -5561,10 +5577,11 @@
         "STATION": "WITPOORTJIE"
       },
       {
-        "0202": "6:14:00",
-        "0208": "8:14:00",
-        "0218": "17:14:00",
-        "0224": "19:14:00",
+        "0202": "6:16:00",
+        "0208": "8:16:00",
+        "0214": "15:16:00",
+        "0218": "17:16:00",
+        "0224": "19:16:00",
         "COORDINATES": "-26.119650130332165, 27.811365162291754",
         "STATION": "LUIPAARDSVLEI"
       },
@@ -5577,10 +5594,11 @@
         "STATION": "WINDSOR MINE"
       },
       {
-        "0202": "6:27:00",
-        "0208": "8:27:00",
-        "0218": "17:27:00",
-        "0224": "19:27:00",
+        "0202": "6:28:00",
+        "0208": "8:28:00",
+        "0214": "15:28:00",
+        "0218": "17:28:00",
+        "0224": "19:28:00",
         "COORDINATES": "-26.108673106302327, 27.77054582194475",
         "STATION": "KRUGERSDORP"
       },
@@ -5603,13 +5621,14 @@
       {
         "0202": "6:50:00",
         "0208": "8:50:00",
+        "0214": "15:50:00",
         "0218": "17:50:00",
         "0224": "19:50:00",
         "COORDINATES": "-26.18172322656187, 27.69778245070208",
         "STATION": "RANDFONTEIN"
       }
     ],
-    "jhb_to_rand_sat_meta": "6 April 2026",
+    "jhb_to_rand_sat_meta": "20 June 2026",
     "jhb_to_rand_sat_zone": "Z3",
     "jhb_to_rand_weekday": [
       {
@@ -6477,7 +6496,7 @@
     ],
     "kwesi_to_germ_weekday_meta": "18 February 2026",
     "kwesi_to_germ_weekday_zone": "Z2",
-    "lastUpdated": "6/17/2026, 12:15:06 AM",
+    "lastUpdated": "6/20/2026, 9:19:39 PM",
     "lerl_to_germ_sat": [
       {
         "STATION": "Last Updated: 2 February 2026"
@@ -11383,11 +11402,12 @@
     "pta_to_saul_weekday_zone": "Z1",
     "rand_to_jhb_sat": [
       {
-        "STATION": "Last Updated: 6 April 2026"
+        "STATION": "Last Updated: 20 June 2026"
       },
       {
         "0203": "5:00:00",
         "0207": "7:00:00",
+        "0213": "14:00:00",
         "0217": "16:00:00",
         "0221": "18:00:00",
         "COORDINATES": "-26.18172322656187, 27.69778245070208",
@@ -11412,6 +11432,7 @@
       {
         "0203": "5:25:00",
         "0207": "7:25:00",
+        "0213": "14:25:00",
         "0217": "16:25:00",
         "0221": "18:25:00",
         "COORDINATES": "-26.108673106302327, 27.77054582194475",
@@ -11426,10 +11447,11 @@
         "STATION": "LANWEN"
       },
       {
-        "0203": "5:33:00",
-        "0207": "7:33:00",
-        "0217": "16:33:00",
-        "0221": "18:33:00",
+        "0203": "5:32:00",
+        "0207": "7:32:00",
+        "0213": "14:32:00",
+        "0217": "16:32:00",
+        "0221": "18:32:00",
         "COORDINATES": "-26.119650130332165, 27.811365162291754",
         "STATION": "LUIPAARDSVLEI"
       },
@@ -11438,10 +11460,11 @@
         "STATION": "WITPOORTJIE"
       },
       {
-        "0203": "5:43:00",
-        "0207": "7:43:00",
-        "0217": "16:43:00",
-        "0221": "18:43:00",
+        "0203": "5:42:00",
+        "0207": "7:42:00",
+        "0213": "14:42:00",
+        "0217": "16:42:00",
+        "0221": "18:42:00",
         "COORDINATES": "-26.132583466401883, 27.853421824034942",
         "STATION": "PRINCESS"
       },
@@ -11454,6 +11477,8 @@
         "0205": "6:00:00",
         "0207": "7:50:00",
         "0209": "8:00:00",
+        "0213": "14:50:00",
+        "0215": "15:00:00",
         "0217": "16:50:00",
         "0219": "17:00:00",
         "0221": "18:50:00",
@@ -11468,6 +11493,7 @@
       {
         "0205": "6:05:00",
         "0209": "8:05:00",
+        "0215": "15:05:00",
         "0219": "17:05:00",
         "0223": "19:05:00",
         "COORDINATES": "-26.16761329423407, 27.89363955466481",
@@ -11476,6 +11502,7 @@
       {
         "0205": "6:09:00",
         "0209": "8:09:00",
+        "0215": "15:09:00",
         "0219": "17:09:00",
         "0223": "19:09:00",
         "COORDINATES": "-26.176752716611063, 27.91426358618772",
@@ -11484,6 +11511,7 @@
       {
         "0205": "6:13:00",
         "0209": "8:13:00",
+        "0215": "15:13:00",
         "0219": "17:13:00",
         "0223": "19:13:00",
         "COORDINATES": "-26.17934640087511, 27.926554891892838",
@@ -11496,6 +11524,7 @@
       {
         "0205": "6:18:00",
         "0209": "8:18:00",
+        "0215": "15:18:00",
         "0219": "17:18:00",
         "0223": "19:18:00",
         "COORDINATES": "-26.18345940414852, 27.95132529292846",
@@ -11516,6 +11545,7 @@
       {
         "0205": "6:28:00",
         "0209": "8:28:00",
+        "0215": "15:28:00",
         "0219": "17:28:00",
         "0223": "19:28:00",
         "COORDINATES": "-26.201719229862785, 27.990539266801267",
@@ -11524,6 +11554,7 @@
       {
         "0205": "6:33:00",
         "0209": "8:33:00",
+        "0215": "15:33:00",
         "0219": "17:33:00",
         "0223": "19:33:00",
         "COORDINATES": "-26.202962977069127, 28.00593136680137",
@@ -11532,6 +11563,7 @@
       {
         "0205": "6:37:00",
         "0209": "8:37:00",
+        "0215": "15:37:00",
         "0219": "17:37:00",
         "0223": "19:37:00",
         "COORDINATES": "-26.204357573800028, 28.014409877846887",
@@ -11540,6 +11572,7 @@
       {
         "0205": "6:42:00",
         "0209": "8:42:00",
+        "0215": "15:42:00",
         "0219": "17:42:00",
         "0223": "19:42:00",
         "COORDINATES": "-26.19785038795819, 28.022075850924722",
@@ -11548,13 +11581,14 @@
       {
         "0205": "6:50:00",
         "0209": "8:50:00",
+        "0215": "15:50:00",
         "0219": "17:50:00",
         "0223": "19:50:00",
         "COORDINATES": "-26.197647593316965, 28.04233618836466",
         "STATION": "JOHANNESBURG"
       }
     ],
-    "rand_to_jhb_sat_meta": "6 April 2026",
+    "rand_to_jhb_sat_meta": "20 June 2026",
     "rand_to_jhb_sat_zone": "Z3",
     "rand_to_jhb_weekday": [
       {
@@ -14314,11 +14348,12 @@
   "jhb_to_nald_weekday_zone": "Z2",
   "jhb_to_rand_sat": [
     {
-      "STATION": "Last Updated: 6 April 2026"
+      "STATION": "Last Updated: 20 June 2026"
     },
     {
       "0200": "5:00:00",
       "0206": "7:00:00",
+      "0212": "14:00:00",
       "0216": "16:00:00",
       "0220": "18:00:00",
       "COORDINATES": "-26.197647593316965, 28.04233618836466",
@@ -14327,6 +14362,7 @@
     {
       "0200": "5:07:00",
       "0206": "7:07:00",
+      "0212": "14:07:00",
       "0216": "16:07:00",
       "0220": "18:07:00",
       "COORDINATES": "-26.19785038795819, 28.022075850924722",
@@ -14335,6 +14371,7 @@
     {
       "0200": "5:13:00",
       "0206": "7:13:00",
+      "0212": "14:13:00",
       "0216": "16:13:00",
       "0220": "18:13:00",
       "COORDINATES": "-26.204357573800028, 28.014409877846887",
@@ -14343,6 +14380,7 @@
     {
       "0200": "5:16:00",
       "0206": "7:16:00",
+      "0212": "14:16:00",
       "0216": "16:16:00",
       "0220": "18:16:00",
       "COORDINATES": "-26.202962977069127, 28.00593136680137",
@@ -14351,6 +14389,7 @@
     {
       "0200": "5:20:00",
       "0206": "7:20:00",
+      "0212": "14:20:00",
       "0216": "16:20:00",
       "0220": "18:20:00",
       "COORDINATES": "-26.201719229862785, 27.990539266801267",
@@ -14371,6 +14410,7 @@
     {
       "0200": "5:29:00",
       "0206": "7:29:00",
+      "0212": "14:29:00",
       "0216": "16:29:00",
       "0220": "18:29:00",
       "COORDINATES": "-26.18345940414852, 27.95132529292846",
@@ -14383,6 +14423,7 @@
     {
       "0200": "5:36:00",
       "0206": "7:36:00",
+      "0212": "14:36:00",
       "0216": "16:36:00",
       "0220": "18:36:00",
       "COORDINATES": "-26.17934640087511, 27.926554891892838",
@@ -14391,6 +14432,7 @@
     {
       "0200": "5:40:00",
       "0206": "7:40:00",
+      "0212": "14:40:00",
       "0216": "16:40:00",
       "0220": "18:40:00",
       "COORDINATES": "-26.176752716611063, 27.91426358618772",
@@ -14399,6 +14441,7 @@
     {
       "0200": "5:45:00",
       "0206": "7:45:00",
+      "0212": "14:45:00",
       "0216": "16:45:00",
       "0220": "18:45:00",
       "COORDINATES": "-26.16761329423407, 27.89363955466481",
@@ -14413,6 +14456,8 @@
       "0202": "6:00:00",
       "0206": "7:50:00",
       "0208": "8:00:00",
+      "0212": "14:50:00",
+      "0214": "15:00:00",
       "0216": "16:50:00",
       "0218": "17:00:00",
       "0220": "18:50:00",
@@ -14427,6 +14472,7 @@
     {
       "0202": "6:07:00",
       "0208": "8:07:00",
+      "0214": "15:07:00",
       "0218": "17:07:00",
       "0224": "19:07:00",
       "COORDINATES": "-26.132583466401883, 27.853421824034942",
@@ -14437,10 +14483,11 @@
       "STATION": "WITPOORTJIE"
     },
     {
-      "0202": "6:14:00",
-      "0208": "8:14:00",
-      "0218": "17:14:00",
-      "0224": "19:14:00",
+      "0202": "6:16:00",
+      "0208": "8:16:00",
+      "0214": "15:16:00",
+      "0218": "17:16:00",
+      "0224": "19:16:00",
       "COORDINATES": "-26.119650130332165, 27.811365162291754",
       "STATION": "LUIPAARDSVLEI"
     },
@@ -14453,10 +14500,11 @@
       "STATION": "WINDSOR MINE"
     },
     {
-      "0202": "6:27:00",
-      "0208": "8:27:00",
-      "0218": "17:27:00",
-      "0224": "19:27:00",
+      "0202": "6:28:00",
+      "0208": "8:28:00",
+      "0214": "15:28:00",
+      "0218": "17:28:00",
+      "0224": "19:28:00",
       "COORDINATES": "-26.108673106302327, 27.77054582194475",
       "STATION": "KRUGERSDORP"
     },
@@ -14479,13 +14527,14 @@
     {
       "0202": "6:50:00",
       "0208": "8:50:00",
+      "0214": "15:50:00",
       "0218": "17:50:00",
       "0224": "19:50:00",
       "COORDINATES": "-26.18172322656187, 27.69778245070208",
       "STATION": "RANDFONTEIN"
     }
   ],
-  "jhb_to_rand_sat_meta": "6 April 2026",
+  "jhb_to_rand_sat_meta": "20 June 2026",
   "jhb_to_rand_sat_zone": "Z3",
   "jhb_to_rand_weekday": [
     {
@@ -19820,7 +19869,7 @@
     "winkl_to_durbn_weekday_meta": "23 February 2024",
     "winkl_to_durbn_weekday_zone": "Z1"
   },
-  "lastUpdated": "6/17/2026, 12:15:06 AM",
+  "lastUpdated": "6/20/2026, 9:19:39 PM",
   "lerl_to_germ_sat": [
     {
       "STATION": "Last Updated: 2 February 2026"
@@ -24726,11 +24775,12 @@
   "pta_to_saul_weekday_zone": "Z1",
   "rand_to_jhb_sat": [
     {
-      "STATION": "Last Updated: 6 April 2026"
+      "STATION": "Last Updated: 20 June 2026"
     },
     {
       "0203": "5:00:00",
       "0207": "7:00:00",
+      "0213": "14:00:00",
       "0217": "16:00:00",
       "0221": "18:00:00",
       "COORDINATES": "-26.18172322656187, 27.69778245070208",
@@ -24755,6 +24805,7 @@
     {
       "0203": "5:25:00",
       "0207": "7:25:00",
+      "0213": "14:25:00",
       "0217": "16:25:00",
       "0221": "18:25:00",
       "COORDINATES": "-26.108673106302327, 27.77054582194475",
@@ -24769,10 +24820,11 @@
       "STATION": "LANWEN"
     },
     {
-      "0203": "5:33:00",
-      "0207": "7:33:00",
-      "0217": "16:33:00",
-      "0221": "18:33:00",
+      "0203": "5:32:00",
+      "0207": "7:32:00",
+      "0213": "14:32:00",
+      "0217": "16:32:00",
+      "0221": "18:32:00",
       "COORDINATES": "-26.119650130332165, 27.811365162291754",
       "STATION": "LUIPAARDSVLEI"
     },
@@ -24781,10 +24833,11 @@
       "STATION": "WITPOORTJIE"
     },
     {
-      "0203": "5:43:00",
-      "0207": "7:43:00",
-      "0217": "16:43:00",
-      "0221": "18:43:00",
+      "0203": "5:42:00",
+      "0207": "7:42:00",
+      "0213": "14:42:00",
+      "0217": "16:42:00",
+      "0221": "18:42:00",
       "COORDINATES": "-26.132583466401883, 27.853421824034942",
       "STATION": "PRINCESS"
     },
@@ -24797,6 +24850,8 @@
       "0205": "6:00:00",
       "0207": "7:50:00",
       "0209": "8:00:00",
+      "0213": "14:50:00",
+      "0215": "15:00:00",
       "0217": "16:50:00",
       "0219": "17:00:00",
       "0221": "18:50:00",
@@ -24811,6 +24866,7 @@
     {
       "0205": "6:05:00",
       "0209": "8:05:00",
+      "0215": "15:05:00",
       "0219": "17:05:00",
       "0223": "19:05:00",
       "COORDINATES": "-26.16761329423407, 27.89363955466481",
@@ -24819,6 +24875,7 @@
     {
       "0205": "6:09:00",
       "0209": "8:09:00",
+      "0215": "15:09:00",
       "0219": "17:09:00",
       "0223": "19:09:00",
       "COORDINATES": "-26.176752716611063, 27.91426358618772",
@@ -24827,6 +24884,7 @@
     {
       "0205": "6:13:00",
       "0209": "8:13:00",
+      "0215": "15:13:00",
       "0219": "17:13:00",
       "0223": "19:13:00",
       "COORDINATES": "-26.17934640087511, 27.926554891892838",
@@ -24839,6 +24897,7 @@
     {
       "0205": "6:18:00",
       "0209": "8:18:00",
+      "0215": "15:18:00",
       "0219": "17:18:00",
       "0223": "19:18:00",
       "COORDINATES": "-26.18345940414852, 27.95132529292846",
@@ -24859,6 +24918,7 @@
     {
       "0205": "6:28:00",
       "0209": "8:28:00",
+      "0215": "15:28:00",
       "0219": "17:28:00",
       "0223": "19:28:00",
       "COORDINATES": "-26.201719229862785, 27.990539266801267",
@@ -24867,6 +24927,7 @@
     {
       "0205": "6:33:00",
       "0209": "8:33:00",
+      "0215": "15:33:00",
       "0219": "17:33:00",
       "0223": "19:33:00",
       "COORDINATES": "-26.202962977069127, 28.00593136680137",
@@ -24875,6 +24936,7 @@
     {
       "0205": "6:37:00",
       "0209": "8:37:00",
+      "0215": "15:37:00",
       "0219": "17:37:00",
       "0223": "19:37:00",
       "COORDINATES": "-26.204357573800028, 28.014409877846887",
@@ -24883,6 +24945,7 @@
     {
       "0205": "6:42:00",
       "0209": "8:42:00",
+      "0215": "15:42:00",
       "0219": "17:42:00",
       "0223": "19:42:00",
       "COORDINATES": "-26.19785038795819, 28.022075850924722",
@@ -24891,13 +24954,14 @@
     {
       "0205": "6:50:00",
       "0209": "8:50:00",
+      "0215": "15:50:00",
       "0219": "17:50:00",
       "0223": "19:50:00",
       "COORDINATES": "-26.197647593316965, 28.04233618836466",
       "STATION": "JOHANNESBURG"
     }
   ],
-  "rand_to_jhb_sat_meta": "6 April 2026",
+  "rand_to_jhb_sat_meta": "20 June 2026",
   "rand_to_jhb_sat_zone": "Z3",
   "rand_to_jhb_weekday": [
     {

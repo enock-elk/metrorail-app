@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V7_06.17 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7_06.21 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -106,7 +106,7 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false, context 
         if (leg2Options.length === 0) continue;
 
         const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
-        const MAX_HUB_WAIT_SEC = 1080 * 60; // 18 hours (Metrorail reality - Guardian expanded)
+        const MAX_HUB_WAIT_SEC = 240 * 60; // 🛡️ GUARDIAN FIX: Clamped to 4 hours to prevent overnight layovers
 
         leg1Options.forEach(leg1 => {
             const arrivalSec = timeToSeconds(leg1.arrTime);
@@ -526,9 +526,9 @@ function findIntersections(routeAId, routeBId) {
 
 function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3, dayType, context = {}) {
     const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 minutes
-    const MAX_WAIT_SEC = 1080 * 60; // 18 hours (GUARDIAN Expanded Tolerance)
+    const MAX_WAIT_SEC = 240 * 60; // 🛡️ GUARDIAN FIX: Clamped to 4 hours to prevent overnight layovers
 
-    // 1. Get All Leg Options ONCE
+    // 1. Get All Leg Options ONCE for each segment to avoid redundant calculations in nested loops
     const legs1 = findAllLegsBetween(origin, hub1, new Set([route1.id]), dayType, context);
     if (legs1.length === 0) return [];
 
@@ -1011,7 +1011,7 @@ function enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, startSec, c
     if (!mergedLegs || mergedLegs.length === 0) return [];
 
     const TRANSFER_BUFFER_SEC = 0;
-    const MAX_WAIT_SEC        = 64800; // 18 hours (1080 * 60)
+    const MAX_WAIT_SEC        = 14400; // 🛡️ GUARDIAN FIX: Clamped to 4 hours (240 * 60) to prevent overnight layovers
 
     const waypoints = [origin, ...mergedLegs.map(l => l.to)];
     const routeIds  = mergedLegs.map(l => l.route.id);
@@ -1446,8 +1446,9 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
 
             const checkLayover = (arrTime, depTime) => {
                 let layover = timeToSeconds(depTime) - timeToSeconds(arrTime);
-                if (layover < 0) layover += 86400; 
-                return layover >= 0 && layover <= 64800; // GUARDIAN: 18 hours
+                // 🛡️ GUARDIAN FIX: Strictly block layovers that cross midnight (layover < 0)
+                if (layover < 0) return false; 
+                return layover >= 0 && layover <= 14400; // 🛡️ GUARDIAN FIX: Clamped to 4 hours (14,400s)
             };
 
             if (trip.type === 'TRANSFER')

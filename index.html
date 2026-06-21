@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V7_06.17 (Performance Polish Edition - UI/UX Polish)
+  Metrorail Next Train V7_06.21 (Performance Polish Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -136,6 +136,12 @@
         if (deviceId) {
             gaConfig['user_id'] = deviceId;
         }
+
+        // 🛡️ GUARDIAN FIX: Shift crm_region assignment to the initial config payload
+        // This prevents the very first page_view from landing in the "(not set)" dimension bucket
+        var userRegion = 'GP';
+        try { userRegion = localStorage.getItem('userRegion') || 'GP'; } catch(e) {}
+        gaConfig['user_properties'] = { crm_region: userRegion, custom_device_id: deviceId };
 
         gtag('config', 'G-JM5DH6ERVX', gaConfig);
     </script>

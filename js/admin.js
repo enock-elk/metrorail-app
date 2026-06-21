@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.17 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.21 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -289,15 +289,12 @@ const Admin = {
                 const value = errorBox.querySelector('span:last-child');
                 if (label) {
                     label.className = "text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center";
-                    label.innerHTML = `<svg class="w-3.5 h-3.5 mr-1.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> Diagnostic Errors (24h)`;
+                    label.innerHTML = `<span class="mr-1.5 text-base leading-none">⚠️</span> Diagnostic Errors (24h)`;
                 }
                 if (value) value.className = "text-lg font-black text-slate-800 dark:text-slate-200 animate-pulse";
             }
             
-            const telHeaderBtn = document.getElementById('telemetry-header-btn');
-            if (telHeaderBtn) {
-                telHeaderBtn.innerHTML = telHeaderBtn.innerHTML.replace('📊', '<svg class="w-5 h-5 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>');
-            }
+            // 🛡️ GUARDIAN FIX: Removed the regex SVG-replacement block here to allow the native 📊 emoji to display.
         }
 
         // GUARDIAN: Inject HTML elements dynamically if they don't exist
@@ -1390,7 +1387,8 @@ const Admin = {
                         Object.values(disrData[rId]).forEach(item => {
                             if (item.expiresAt && item.expiresAt > now && item.expiresAt <= threshold24h) {
                                 const targetStr = item.stations ? item.stations.join(' - ').replace(/ STATION/g, '') : 'Route-Wide';
-                                expiringItems.push({ type: 'Disruption', label: `[${rId}] ${targetStr}`, expiresAt: item.expiresAt, id: item.id, panelId: 'disruption-panel', routeId: rId });
+                                const routeName = (typeof ROUTES !== 'undefined' && ROUTES[rId]) ? ROUTES[rId].name : rId;
+                                expiringItems.push({ type: 'Disruption', label: `${routeName} — ${targetStr}`, expiresAt: item.expiresAt, id: item.id, panelId: 'disruption-panel', routeId: rId });
                             }
                         });
                     });
@@ -1406,7 +1404,8 @@ const Admin = {
                             if (tNum === '_grid_notice') return;
                             const item = exclData[rId][tNum];
                             if (item.expiresAt && item.expiresAt > now && item.expiresAt <= threshold24h) {
-                                expiringItems.push({ type: 'Exception', label: `[${rId}] Train #${tNum}`, expiresAt: item.expiresAt, id: tNum, panelId: 'exclusion-panel', routeId: rId });
+                                const routeName = (typeof ROUTES !== 'undefined' && ROUTES[rId]) ? ROUTES[rId].name : rId;
+                                expiringItems.push({ type: 'Exception', label: `${routeName} — Train #${tNum}`, expiresAt: item.expiresAt, id: tNum, panelId: 'exclusion-panel', routeId: rId });
                             }
                         });
                     });
@@ -1429,7 +1428,7 @@ const Admin = {
                 if (rId.includes('_KZN')) return '<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">KZN</span>';
                 if (rId.includes('_EC')) return '<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">EC</span>';
                 if (rId === 'all') return '<span class="bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded mr-1.5">ALL</span>';
-                if (typeof ROUTES !== 'undefined' && ROUTES[rId]) return `<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">${ROUTES[rId].region}</span>`;
+                if (typeof ROUTES !== 'undefined' && ROUTES[rId]) return `<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">${ROUTES[rId].region} ${ROUTES[rId].name}</span>`;
                 return '';
             };
 
@@ -1612,9 +1611,9 @@ const Admin = {
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
             
             if (type === 'Disruption') {
-                await Admin.deleteDisruption(routeId, id);
+                await Admin.deleteDisruption(routeId, id, true);
             } else if (type === 'Exception') {
-                await Admin.deleteExclusion(routeId, id);
+                await Admin.deleteExclusion(routeId, id, true);
             } else if (type === 'Alert') {
                 await fetch(`${dynamicEndpoint}notices/${routeId}/${id}.json?auth=${secret}`, { method: 'DELETE' });
                 if (typeof showToast === 'function') showToast("Alert cleared.", "success");
@@ -4204,9 +4203,9 @@ const Admin = {
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
                     try {
-                        await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                        await fetch('https://nexttrain-telemetry.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                            headers: {'Authorization': `Bearer ${secret}`} 
                         });
                     } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -4580,11 +4579,13 @@ const Admin = {
             }
         };
 
-        Admin.deleteDisruption = async function(rId, id) {
-            const confirmed = await Admin.secureConfirm("Resolve Incident", `Remove this incident from the live network?`);
-            if (!confirmed) return;
+        Admin.deleteDisruption = async function(rId, id, skipConfirm = false) {
+            if (!skipConfirm) {
+                const confirmed = await Admin.secureConfirm("Resolve Incident", `Remove this incident from the live network?`);
+                if (!confirmed) return;
+            }
 
-            const secret = await Admin.getAuthKey(); 
+            const secret = await Admin.getAuthKey();
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
             
             try {
@@ -4894,11 +4895,11 @@ const Admin = {
                     }, 10000);
                 }
 
-                // 🛡️ GUARDIAN FIX: Cache Purge
+                // 🛡️ GUARDIAN FIX: Cache Purge (Routed securely through telemetry worker)
                 try {
-                    await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                    await fetch('https://nexttrain-telemetry.enock.workers.dev/admin/purge', { 
                         method: 'POST', 
-                        headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                        headers: {'Authorization': `Bearer ${secret}`} 
                     });
                 } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -5037,11 +5038,11 @@ const Admin = {
                 });
                 await Promise.all(promises);
 
-                // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key
+                // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key (Secured)
                 try {
-                    const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                    const purgeRes = await fetch('https://nexttrain-telemetry.enock.workers.dev/admin/purge', { 
                         method: 'POST', 
-                        headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                        headers: {'Authorization': `Bearer ${secret}`} 
                     });
                 } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -5059,9 +5060,11 @@ const Admin = {
             }
         };
 
-        Admin.deleteExclusion = async function(rId, trainNum) {
-            const confirmed = await Admin.secureConfirm("Remove Exception", `Remove exception for Train #${trainNum}?`);
-            if (!confirmed) return;
+        Admin.deleteExclusion = async function(rId, trainNum, skipConfirm = false) {
+            if (!skipConfirm) {
+                const confirmed = await Admin.secureConfirm("Remove Exception", `Remove exception for Train #${trainNum}?`);
+                if (!confirmed) return;
+            }
 
             const secret = await Admin.getAuthKey(); 
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
@@ -5070,11 +5073,11 @@ const Admin = {
             try {
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
-                    // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key
+                    // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key (Secured)
                     try {
-                        const purgeRes = await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                        const purgeRes = await fetch('https://nexttrain-telemetry.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                            headers: {'Authorization': `Bearer ${secret}`} 
                         });
                     } catch(pe) { console.warn("Purge failed", pe); }
 
@@ -5240,7 +5243,7 @@ const Admin = {
         diagPanel.innerHTML = `
             <button id="diag-header-btn" class="w-full text-left text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
-                    <svg class="w-6 h-6 mb-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    <span class="text-2xl mb-2">🩺</span> 
                     <span>System Health Diagnostics</span>
                 </span>
                 <svg id="diag-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -5280,12 +5283,12 @@ const Admin = {
                         
                         <div id="ping-results" class="hidden mt-3">
                             <div class="overflow-x-auto rounded-lg border border-indigo-200 dark:border-indigo-800/50 shadow-sm">
-                                <table class="w-full text-left text-[9px] whitespace-nowrap">
+                                <table class="w-full text-left text-[9px]">
                                     <thead class="bg-indigo-100/70 dark:bg-indigo-900/40 text-indigo-900 dark:text-indigo-200 uppercase tracking-wider font-bold">
                                         <tr>
-                                            <th class="px-2 py-2 border-b border-indigo-200 dark:border-indigo-800/50">Pipeline</th>
-                                            <th class="px-2 py-2 border-b border-indigo-200 dark:border-indigo-800/50">App Version</th>
-                                            <th class="px-2 py-2 border-b border-indigo-200 dark:border-indigo-800/50 text-right">DB Freshness & Ping</th>
+                                            <th class="px-1.5 py-2 border-b border-indigo-200 dark:border-indigo-800/50">Pipeline</th>
+                                            <th class="px-1.5 py-2 border-b border-indigo-200 dark:border-indigo-800/50">App Version</th>
+                                            <th class="px-1.5 py-2 border-b border-indigo-200 dark:border-indigo-800/50 text-right">DB Freshness & Ping</th>
                                         </tr>
                                     </thead>
                                     <tbody id="matrix-tbody" class="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800 text-gray-700 dark:text-gray-300">
@@ -5520,18 +5523,19 @@ const Admin = {
                         }
                     }
 
+                    // 🛡️ GUARDIAN FIX: Adjusted padding and wrapping to ensure narrow mobile screens don't stretch
                     html += `
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                            <td class="px-2 py-2.5 border-r border-gray-100 dark:border-gray-800">
-                                <div class="font-bold text-gray-900 dark:text-white">${res.name}</div>
+                            <td class="px-1.5 py-2 border-r border-gray-100 dark:border-gray-800 align-top">
+                                <div class="font-bold text-gray-900 dark:text-white leading-tight mt-0.5">${res.name}</div>
                             </td>
-                            <td class="px-2 py-2.5 border-r border-gray-100 dark:border-gray-800">
-                                <div class="font-mono font-bold ${appVerClass}">${res.appVer}</div>
-                                <div class="text-[8px] text-gray-500 uppercase tracking-wider mt-1">${res.appTime}</div>
+                            <td class="px-1.5 py-2 border-r border-gray-100 dark:border-gray-800 align-top">
+                                <div class="font-mono font-bold inline-block mb-1 ${appVerClass}">${res.appVer}</div>
+                                <div class="text-[8px] text-gray-500 uppercase tracking-wider leading-tight">${res.appTime}</div>
                             </td>
-                            <td class="px-2 py-2.5 text-right">
-                                <div class="font-mono font-black text-sm ${res.latencyClass}">${res.latency}ms</div>
-                                <div class="text-[8px] text-gray-500 uppercase tracking-wider mt-0.5">${res.dbTime}</div>
+                            <td class="px-1.5 py-2 text-right align-top">
+                                <div class="font-mono font-black text-xs ${res.latencyClass} mb-1">${res.latency}ms</div>
+                                <div class="text-[8px] text-gray-500 uppercase tracking-wider leading-tight block break-words">${res.dbTime}</div>
                             </td>
                         </tr>
                     `;
@@ -5898,9 +5902,9 @@ const Admin = {
                 const res = await window.guardianFetch(url, { method: 'PUT', body: JSON.stringify(payload) }, 10000);
                 if (res.ok) {
                     try {
-                        await fetch('https://nexttrain-cache.enock.workers.dev/admin/purge', { 
+                        await fetch('https://nexttrain-telemetry.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
-                            headers: {'X-Admin-Purge-Key': 'NEXT_TRAIN_GUARDIAN_2026'} 
+                            headers: {'Authorization': `Bearer ${secret}`} 
                         });
                     } catch(pe) { console.warn("Purge failed", pe); }
 
