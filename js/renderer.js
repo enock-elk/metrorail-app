@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_06.23 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_06.24 - Performance Polish Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -1381,7 +1381,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
                 ? `<button onclick="triggerNoticeShare()" class="bg-white text-blue-600 px-3 py-1 rounded text-xs font-bold shadow-sm hover:bg-gray-100 transition-colors ml-3 whitespace-nowrap border border-gray-200">SHARE 📤</button>` 
                 : '';
 
-            showToast("✅ Image saved to gallery!", "success", 8000, shareBtnHTML);
+            showToast("Image saved to gallery!", "success", 8000, shareBtnHTML);
             
             if (typeof trackAnalyticsEvent === 'function') {
                 trackAnalyticsEvent('grid_save_image', { 
