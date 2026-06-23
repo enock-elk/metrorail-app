@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7_06.21"; // v1 - BUMPED: UX Polish, 18-Hour Layover Uncap & Precision Routings.
+const APP_VERSION = "V7_06.23"; // v1 - BUMPED: UX Polish, 18-Hour Layover Uncap & Precision Routings.
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -719,6 +719,16 @@ const DEFAULT_EXCLUSIONS = {
 // This drives the "What's New" modal.
 // GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
+    {
+        version: "V7 06.23 <br><span class='text-sm text-blue-600 dark:text-blue-400'>The Corporate Glass Update</span>",
+        date: "23 Jun 2026",
+        features: [
+            "<b>Sleeker Design:</b> We've overhauled the app's visual identity, replacing cluttered emojis with crisp, modern icons and cleaner timeline layouts.",
+            "<b>Smarter Route Status:</b> If a connection is impossible, the app now explicitly tells you <i>why</i>—linking you instantly to active service incidents or warning about extreme timetable gaps.",
+            "<b>Layover Warnings:</b> The app now proactively flags routes that require unusually long transfer waits, helping you avoid being stranded at a station.",
+            "<b>Smoother Experience:</b> Fixed text clipping on mobile screens and improved the 'Select Station' prompts to prevent accidental dead-clicks."
+        ]
+    },
     {
         version: "V7 06.17 <br><span class='text-sm text-blue-600 dark:text-blue-400'>The Precision Update</span>",
         date: "17 Jun 2026",

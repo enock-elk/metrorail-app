@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.21 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.23 - Performance Polish Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -65,9 +65,10 @@ let plannerOrigin = null;
 let plannerDest = null;
 let currentTripOptions = []; 
 let currentPlannerStatus = 'NO_PATH'; // GUARDIAN PHASE 13: Track status for Impossible Route Cards
+let currentPlannerErrorPayload = null; // GUARDIAN PHASE 16: Track payload for Partial Journeys
 let selectedPlannerDay = null; 
 let plannerPulse = null; 
-let plannerExpandedState = new Set(); 
+let plannerExpandedState = new Set();
 
 // --- GROWTH MODE PHASE 3.5: CUSTOM PUPPETEER DROPDOWNS GLOBALS ---
 window._plannerCurrentTripIndex = 0;
@@ -624,16 +625,19 @@ const PlannerRenderer = {
                     </div>
                 </div>
             `;
-            
+                    
             html += getInjectionHtml(0) ? `<div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">${getInjectionHtml(0)}</div>` : '';
 
             const intermediateStops = fullValidStops.slice(1, -1);
             if (intermediateStops.length > 0) {
                 let innerHtml = '';
-                intermediateStops.forEach((stop, idx) => {
+                for (let idx = 0; idx < intermediateStops.length; idx++) {
+                    const stop = intermediateStops[idx];
                     const globalIdx = idx + 1; 
-                    let textClass = isSevered ? "text-gray-400 dark:text-gray-600 opacity-70" : "text-gray-500 dark:text-gray-400";
-                    let dotClass = isSevered ? "bg-gray-300 dark:bg-gray-700" : "bg-blue-500 border-2 border-white dark:border-gray-800";
+                    
+                    // GUARDIAN FIX: Dynamic CSS variables for greyed-out state flow
+                    let textClass = isSevered ? "text-gray-400 dark:text-gray-500 opacity-50 grayscale" : "text-gray-700 dark:text-gray-300 font-medium";
+                    let dotClass = isSevered ? "bg-gray-300 dark:bg-gray-700 opacity-50 grayscale" : "bg-blue-500 border-2 border-white dark:border-gray-800";
                     
                     innerHtml += `
                         <div class="flex justify-between text-xs py-1.5 relative pl-5">
@@ -642,12 +646,17 @@ const PlannerRenderer = {
                             <span class="font-mono ${textClass}">${formatTimeDisplay(stop.time)}</span>
                         </div>
                     `;
-                    innerHtml += getInjectionHtml(globalIdx);
-                });
+                    
+                    const injHtml = getInjectionHtml(globalIdx);
+                    if (injHtml) innerHtml += injHtml;
+                    
+                    // GUARDIAN FIX: Removed timeline truncation (break;) to allow visual fracture flow
+                }
                 
                 const hasCritical = disruptions.some(d => d.tier === 'CRITICAL');
                 const isExpanded = plannerExpandedState.has(subLegId) || hasCritical;
                 
+                // Keep the border intact, let individual stops handle their own greyness
                 html += `
                     <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2">
                         <button id="btn-${subLegId}" onclick="togglePlannerStops('${subLegId}')" class="text-[10px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full transition-colors mb-2 w-fit ml-5 -mt-1 relative top-[-5px] focus:outline-none">
@@ -660,25 +669,31 @@ const PlannerRenderer = {
                 html += `<div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 h-4"></div>`;
             }
 
+            // GUARDIAN FIX: Removed `if (!isSevered)` wrapper so the final destination always renders
             const arrGlobalIdx = fullValidStops.length - 1;
             const isEndDot = subIsFinalDest && !isSevered;
-            const arrDotClass = isSevered ? "bg-gray-300 dark:bg-gray-700 w-3 h-3 -left-[7px] top-1.5" : 
+            const arrDotClass = isSevered ? "bg-gray-300 dark:bg-gray-700 w-3 h-3 -left-[7px] top-1.5 opacity-50 grayscale" : 
                                 (isEndDot ? "bg-red-500 ring-4 ring-red-100 dark:ring-red-900 w-4 h-4 -left-[9px] top-0" : "bg-blue-500 w-3 h-3 -left-[7px] top-1.5");
-            const arrTextClass = isSevered ? "text-gray-400 dark:text-gray-600 opacity-70 font-bold" : "text-gray-900 dark:text-white font-bold";
+            const arrTextClass = isSevered ? "text-gray-400 dark:text-gray-500 opacity-50 grayscale font-bold" : "text-gray-900 dark:text-white font-bold";
             const arrBorderClass = subIsFinalDest ? "border-l-2 border-transparent" : "border-l-2 border-gray-300 dark:border-gray-600";
             
+            let arrLabel = subIsFinalDest ? subTo.replace(' STATION', '') : 'Arrive ' + subTo.replace(' STATION', '');
+            if (isSevered) {
+                arrLabel = `${subTo.replace(' STATION', '')}`;
+            }
+
             html += `
                 <div class="relative pl-6 ${arrBorderClass} ml-2 pb-2">
                     <div class="absolute rounded-full ${arrDotClass}"></div>
                     <div class="flex justify-between items-center mb-1">
-                        <span class="${arrTextClass} text-sm">${subIsFinalDest ? subTo.replace(' STATION', '') : 'Arrive ' + subTo.replace(' STATION', '')}</span>
+                        <span class="${arrTextClass} text-sm">${arrLabel}</span>
                         <span class="font-mono ${arrTextClass} text-sm">${formatTimeDisplay(fullValidStops[arrGlobalIdx].time)}</span>
                     </div>
                 </div>
             `;
             
-            html += getInjectionHtml(arrGlobalIdx) ? `<div class="${subIsFinalDest ? 'border-l-2 border-transparent' : 'border-l-2 border-gray-300 dark:border-gray-600'} ml-2">${getInjectionHtml(arrGlobalIdx)}</div>` : '';
-            
+            const finalInj = getInjectionHtml(arrGlobalIdx);
+            if (finalInj) html += `<div class="${subIsFinalDest ? 'border-l-2 border-transparent' : 'border-l-2 border-gray-300 dark:border-gray-600'} ml-2">${finalInj}</div>`;
             return { html, isSevered };
         };
 
@@ -1867,27 +1882,28 @@ function executeTripPlan(origin, dest, preferredTime = null) {
 
     if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
 
-    setTimeout(() => {
-        let plannerResponse = { status: 'NO_PATH', trips: [] };
-        if (typeof planUnifiedTrip === 'function') {
-            // 🛡️ GUARDIAN PHASE 2: Decoupled DOM Query Context Passthrough
-            const extContext = {};
-            if (typeof window.isSimMode !== 'undefined' && window.isSimMode) {
-                const dateInput = document.getElementById('sim-date');
-                if (dateInput && dateInput.value) {
-                    extContext.simBaseDate = dateInput.value;
+    setTimeout(async () => {
+            let plannerResponse = { status: 'NO_PATH', trips: [] };
+            if (typeof planUnifiedTrip === 'function') {
+                // 🛡️ GUARDIAN PHASE 2: Decoupled DOM Query Context Passthrough
+                const extContext = {};
+                if (typeof window.isSimMode !== 'undefined' && window.isSimMode) {
+                    const dateInput = document.getElementById('sim-date');
+                    if (dateInput && dateInput.value) {
+                        extContext.simBaseDate = dateInput.value;
+                    }
                 }
+                plannerResponse = await planUnifiedTrip(origin, dest, selectedPlannerDay, extContext);
+            } else {
+                console.error("Critical Error: planUnifiedTrip is undefined.");
             }
-            plannerResponse = planUnifiedTrip(origin, dest, selectedPlannerDay, extContext);
-        } else {
-            console.error("Critical Error: planUnifiedTrip is undefined.");
-        }
 
-        currentTripOptions = plannerResponse.trips || [];
-        currentPlannerStatus = plannerResponse.status; // GUARDIAN PHASE 13: Track status
-        const errorPayload = plannerResponse.errorPayload; // GUARDIAN PHASE 5: Catch payload
-        
-        if (currentTripOptions.length > 0) {
+            currentTripOptions = plannerResponse.trips || [];
+            currentPlannerStatus = plannerResponse.status; // GUARDIAN PHASE 13: Track status
+            currentPlannerErrorPayload = plannerResponse.errorPayload; // GUARDIAN PHASE 16: Catch partial journey payload
+            const errorPayload = plannerResponse.errorPayload; // GUARDIAN PHASE 5: Catch payload
+            
+            if (currentTripOptions.length > 0) {
             let nextTripIndex = 0;
             
             if (preferredTime) {
@@ -2112,6 +2128,8 @@ function renderSelectedTrip(container, index) {
 
     if (currentPlannerStatus === 'ALL_DEPARTED') {
         renderAllDepartedResult(container, currentTripOptions, index);
+    } else if (currentPlannerStatus === 'PARTIAL_JOURNEY') {
+        renderTripResult(container, currentTripOptions, index, true);
     } else if (effectivelyTomorrow) {
         // GUARDIAN PHASE 13: Distinct handling for Mathematically Impossible routes vs simply missing the last train
         if (currentPlannerStatus === 'SUNDAY_ROLLOVER') {
@@ -2284,7 +2302,7 @@ function updatePlannerHeader(dayLabel, showShare = true) {
     }
 }
 
-function renderTripResult(container, trips, selectedIndex = 0) {
+function renderTripResult(container, trips, selectedIndex = 0, isPartial = false) {
     const selectedTrip = trips[selectedIndex];
     if (!selectedTrip) return; 
 
@@ -2292,7 +2310,26 @@ function renderTripResult(container, trips, selectedIndex = 0) {
     
     updatePlannerHeader(dayLabel, true);
 
-    container.innerHTML = PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
+    let partialWarningHtml = "";
+    if (isPartial && currentPlannerErrorPayload) {
+        const intended = currentPlannerErrorPayload.intendedDest || "Destination";
+        const partial = currentPlannerErrorPayload.partialDest || selectedTrip.to;
+        partialWarningHtml = `
+            <div class="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-3 mb-4 rounded-r shadow-sm animate-fade-in-up">
+                <div class="flex items-start">
+                    <span class="text-xl mr-2 leading-none">⚠️</span>
+                    <div>
+                        <h4 class="text-xs font-black text-yellow-800 dark:text-yellow-400 uppercase tracking-widest mb-0.5">Line Severed</h4>
+                        <p class="text-xs text-yellow-700 dark:text-yellow-300 leading-snug">
+                            Cannot reach <b>${intended}</b>. Showing trains terminating at <b>${partial}</b>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = partialWarningHtml + PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
 }
 
 // GUARDIAN GROWTH MODE PHASE 4: All Departed Manual Rollover Card

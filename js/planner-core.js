@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V7_06.21 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7_06.23 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -1069,7 +1069,15 @@ function planDijkstraTrip(origin, dest, dayType, isRolloverLoop = false, context
     // GUARDIAN PHASE 1 (Growth Update): Always map full day templates (startSec = 0) so departed trips are preserved in UI dropdown.
     const startSec = 0;
 
-    const baseGraph       = buildTransitGraph(dayType, dayIdx);
+    // 🛡️ GUARDIAN PHASE 16: Transit Graph Memoization (The CPU Saver)
+    // Caches the heavily parsed Transit Graph for the entire lifecycle of the Unified Trip calculation.
+    const cacheKey = `graph_${dayType}_${dayIdx}`;
+    if (!context.graphCache) context.graphCache = {};
+    if (!context.graphCache[cacheKey]) {
+        context.graphCache[cacheKey] = buildTransitGraph(dayType, dayIdx);
+    }
+    const baseGraph = context.graphCache[cacheKey];
+
     const bannedEdges     = new Set();
     const seenTemplates   = new Set();
     const allTrips        = [];
@@ -1308,7 +1316,7 @@ function runHeuristicFailureProbe(origin, dest) {
     return 'ERR_TIMETABLE_MISMATCH';
 }
 
-function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
+async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
     console.log(`[GUARDIAN] Running Unified Trip Planner for ${origin} -> ${dest} (Requested: ${dayType})`);
 
     // 🛡️ GUARDIAN PHASE 2.1: The Core Boomerang Lock
@@ -1403,7 +1411,7 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
     }
 
     // Helper to evaluate a specific day offset in the physical calendar
-    const evaluateDay = (offset) => {
+    const evaluateDay = (offset, evalDest = dest) => {
         let targetDayType = dayType;
         let targetDayLabel = null;
         let targetDayIdx = currentDayIndex;
@@ -1434,7 +1442,7 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
 
         context.targetDayIdx = targetDayIdx; // Propagate exact day geometry to the Ghost Train filtering engine
 
-        let allRawTrips = fetchRawTrips(origin, dest, targetDayType, isFutureOffset, context);
+        let allRawTrips = fetchRawTrips(origin, evalDest, targetDayType, isFutureOffset, context);
 
         // 🛡️ GUARDIAN TIME FILTER REMOVED 
         // We no longer strip past trains here. We want them in the UI dropdown so they can be greyed out.
@@ -1518,7 +1526,7 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
 
             context.zeroHourProbeActive = true;
             try {
-                const probeTripsRaw = fetchRawTrips(origin, dest, targetDayType, false, context);
+                const probeTripsRaw = fetchRawTrips(origin, evalDest, targetDayType, false, context);
                 const validProbeTrips = probeTripsRaw.filter(hasValidLayovers);
                 if (validProbeTrips.length === 0) {
                     console.log("[GUARDIAN] Zero-Hour Probe verified 0 valid trips exist from 00:00. Route is IMPOSSIBLE today.");
@@ -1560,19 +1568,48 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
     let executionCounter = 0;
     const MAX_EXECUTION_LIMIT = 14;
 
+    // --- GUARDIAN PHASE 16 (UPGRADE): Eager Partial Journey Evaluator ---
+    // Pre-compute the backward station sequence ONCE outside the loop to optimize CPU overhead.
+    const getBackwardStationSequence = (dst) => {
+        const dNorm = normalizeStationName(dst);
+        let possibleStations = [];
+        for (const route of Object.values(ROUTES)) {
+            if (!route.isActive || route.id === 'special_event') continue;
+            for (const dir of getDirectionsForRoute(route, 'weekday')) {
+                if (!fullDatabase || !fullDatabase[dir.key]) continue;
+                const rows = parseJSONSchedule(fullDatabase[dir.key]).rows;
+                if (!rows) continue;
+                const stationsNorm = rows.map(r => normalizeStationName(r.STATION));
+                const idxD = stationsNorm.indexOf(dNorm);
+                if (idxD > 0) {
+                    // GUARDIAN BUGFIX: Removed 10-station limit. Scan the entire physical route backwards
+                    // to ensure distant partial terminus points (like Centurion) are caught.
+                    const seq = rows.slice(0, idxD).map(r => r.STATION).reverse();
+                    possibleStations.push(...seq);
+                }
+            }
+        }
+        return [...new Set(possibleStations)];
+    };
+    const testStations = getBackwardStationSequence(dest);
+
     // We scan up to 7 days ahead from the natively requested start offset
     for (let offset = startOffset; offset <= maxOffset; offset++) {
         
         // 🛡️ GUARDIAN PHASE 1: Absolute hard ceiling to prevent browser freeze or stack explosions
-        // if calendar synchronization logic becomes contradictory.
         if (executionCounter++ > MAX_EXECUTION_LIMIT) {
             console.error("🛡️ Guardian: Unified Trip loop threshold critically exceeded. Triggering failsafe abort.");
             loopStatus = 'ERR_TIMETABLE_MISMATCH'; // Graceful UI fallback
             break;
         }
 
+        // 🛡️ GUARDIAN PHASE 16: Event Loop Yielding (Anti-Freeze)
+        // Forces JavaScript to take a 1ms breath per day evaluated, unblocking the UI spinner thread.
+        await new Promise(resolve => setTimeout(resolve, 0));
+
         try {
-            const evalResult = evaluateDay(offset);
+            // 1. Evaluate for the FULL intended trip
+            const evalResult = evaluateDay(offset, dest);
             
             // Capture the exact reason why the route failed on the very first attempted day
             if (offset === startOffset) {
@@ -1582,26 +1619,63 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
                 }
             }
 
-            // The moment we find a valid trip block, we capture and break
+            // The moment we find a valid full trip block, we capture and break
             if (evalResult.status === 'FOUND' || evalResult.status === 'ALL_DEPARTED') {
                 // If we found it on a subsequent day loop, the commuters missed all trains for the origin day.
                 loopStatus = (offset > startOffset) ? 'NO_MORE_TODAY' : evalResult.status;
                 loopTrips = evalResult.trips;
                 break; 
             }
+
+            // 2. 🛡️ EAGER PARTIAL EVALUATION
+            // If the full route failed, check for a partial journey ON THIS EXACT DAY
+            // before we blindly allow the loop to roll over to tomorrow.
+            if ((evalResult.status === 'NO_PATH' || evalResult.status === 'IMPOSSIBLE_TODAY') && testStations.length > 0) {
+                let partialSuccess = false;
+                
+                for (const testDest of testStations) {
+                    if (normalizeStationName(testDest) === normalizeStationName(origin)) continue;
+                    
+                    // 🛡️ GUARDIAN PHASE 16: Event Loop Yielding (The N+1 Anti-Freeze)
+                    // Breathes between every backward station checked to prevent total ANR freezes
+                    await new Promise(resolve => setTimeout(resolve, 0));
+
+                    const partialResult = evaluateDay(offset, testDest);
+                    if (partialResult.status === 'FOUND' || partialResult.status === 'ALL_DEPARTED') {
+                        console.log(`[GUARDIAN] Partial Journey Found to ${testDest} on offset ${offset}!`);
+                        loopTrips = partialResult.trips;
+                        loopStatus = 'PARTIAL_JOURNEY';
+                        
+                        const formatTitle = (s) => {
+                            if (!s) return '';
+                            return s.replace(' STATION', '').replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+                        };
+                        
+                        errorPayload = { 
+                            intendedDest: formatTitle(dest), 
+                            partialDest: formatTitle(testDest) 
+                        };
+                        partialSuccess = true;
+                        break; // Stop testing other partial destinations
+                    }
+                }
+                
+                if (partialSuccess) {
+                    break; // Break outer 7-day loop! We found a partial trip today, stop looking at tomorrow.
+                }
+            }
+
         } catch (e) {
             // 🛡️ GUARDIAN PHASE 1: Catch Maximum Call Stack Exceeded or arbitrary execution failures cleanly
             console.error("🛡️ Guardian: Fatal execution error during rollover evaluation. Aborting loop.", e);
             loopStatus = 'ERR_TIMETABLE_MISMATCH';
             break;
         }
-        
-        // If it's NO_PATH, IMPOSSIBLE_TODAY, or SUNDAY_SKIP, the loop naturally increments to scan the next day
     }
 
     if (loopTrips.length === 0) {
         // GUARDIAN PHASE 14: THE HEURISTIC FAILURE PROBE
-        console.log("[GUARDIAN] Zero trips found after 7-day scan. Initiating Heuristic Failure Probe...");
+        console.log("[GUARDIAN] Zero trips found after 7-day scan (including partials). Initiating Heuristic Failure Probe...");
         const probeResult = runHeuristicFailureProbe(origin, dest);
         
         // GUARDIAN PHASE 5: Unwrap rich payload
@@ -1613,10 +1687,13 @@ function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
         }
     } else {
         // Adjust the final payload status so the UI knows EXACTLY why we rolled over
-        if (initialStatus === 'IMPOSSIBLE_TODAY') {
-            loopStatus = 'IMPOSSIBLE_TODAY'; 
-        } else if (initialStatus === 'SUNDAY_ROLLOVER') {
-            loopStatus = 'SUNDAY_ROLLOVER';
+        // BUT do not overwrite a successful PARTIAL_JOURNEY.
+        if (loopStatus !== 'PARTIAL_JOURNEY') {
+            if (initialStatus === 'IMPOSSIBLE_TODAY') {
+                loopStatus = 'IMPOSSIBLE_TODAY'; 
+            } else if (initialStatus === 'SUNDAY_ROLLOVER') {
+                loopStatus = 'SUNDAY_ROLLOVER';
+            }
         }
     }
 
