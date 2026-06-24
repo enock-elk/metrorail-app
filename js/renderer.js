@@ -1378,7 +1378,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             
             const canShare = navigator.canShare && navigator.canShare({ files: [file] });
             const shareBtnHTML = canShare 
-                ? `<button onclick="triggerNoticeShare()" class="bg-white text-blue-600 px-3 py-1 rounded text-xs font-bold shadow-sm hover:bg-gray-100 transition-colors ml-3 whitespace-nowrap border border-gray-200">SHARE 📤</button>` 
+                ? `<button onclick="triggerNoticeShare()" class="bg-white text-blue-600 px-3 py-1 rounded text-xs font-bold shadow-sm hover:bg-gray-100 transition-colors whitespace-nowrap border border-gray-200">SHARE 📤</button>` 
                 : '';
 
             showToast("Image saved to gallery!", "success", 8000, shareBtnHTML);

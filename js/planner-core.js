@@ -1448,6 +1448,46 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
         // We no longer strip past trains here. We want them in the UI dropdown so they can be greyed out.
         // allRawTrips remains untouched, holding the full day's schedule from 00:00.
 
+        let capturedTerminus = null;
+
+        const isTripSevered = (trip) => {
+            if (typeof window.getTripDisruptions !== 'function') return false;
+            
+            const checkLeg = (routeId, stops) => {
+                if (!stops || stops.length === 0) return false;
+                const disr = window.getTripDisruptions(routeId, stops);
+                const crit = disr.find(d => d.tier === 'CRITICAL');
+                
+                if (crit) {
+                    // 🛡️ GUARDIAN REFINEMENT: Only sever if traveling PAST the disruption boundary.
+                    if (crit.triggerStopIndex !== undefined) {
+                        // If the disruption triggers at the passenger's exact final stop on this leg,
+                        // they are alighting before the danger zone. The trip is safe!
+                        if (crit.triggerStopIndex === stops.length - 1) {
+                            return false; 
+                        }
+                        
+                        if (!capturedTerminus && stops[crit.triggerStopIndex]) {
+                            capturedTerminus = normalizeStationName(stops[crit.triggerStopIndex].station);
+                        }
+                        return true;
+                    }
+                    return true;
+                }
+                return false;
+            };
+            
+            if (trip.type === 'DIRECT') return checkLeg(trip.route.id, trip.stops);
+            if (trip.type === 'TRANSFER') return checkLeg(trip.leg1.route.id, trip.leg1.stops) || checkLeg(trip.leg2.route.id, trip.leg2.stops);
+            if (trip.type === 'DOUBLE_TRANSFER') return checkLeg(trip.leg1.route.id, trip.leg1.stops) || checkLeg(trip.leg2.route.id, trip.leg2.stops) || checkLeg(trip.leg3.route.id, trip.leg3.stops);
+            if (trip.type === 'MULTI_TRANSFER' && trip.legs) {
+                for (const leg of trip.legs) {
+                    if (checkLeg(leg.route.id, leg.stops)) return true;
+                }
+            }
+            return false;
+        };
+
         // Enforce strict layover guardrails
         const hasValidLayovers = (trip) => {
             if (trip.type === 'DIRECT') return true;
@@ -1476,7 +1516,11 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
             return true;
         };
 
-        const validTrips = allRawTrips.filter(hasValidLayovers);
+        const validTrips = allRawTrips.filter(t => {
+            if (!hasValidLayovers(t)) return false;
+            if (isTripSevered(t)) return false; // 🛡️ GUARDIAN PHASE 14: Disruption Severance Guard
+            return true;
+        });
 
         // Apply Pareto Dominance Filter
         const optimalTrips = filterDominatedTrips(validTrips);
@@ -1550,7 +1594,7 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
             });
         }
 
-        return { status: finalStatus, trips: optimalTrips, targetDayLabel };
+        return { status: finalStatus, trips: optimalTrips, targetDayLabel, severedTerminus: capturedTerminus };
     };
 
     // THE 7-DAY INFINITE ROLLOVER LOOP
@@ -1628,12 +1672,18 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
             }
 
             // 2. 🛡️ EAGER PARTIAL EVALUATION
+            let targetsToTest = [...testStations];
+            if (evalResult.severedTerminus && !targetsToTest.includes(evalResult.severedTerminus)) {
+                // 🛡️ GUARDIAN FIX: Prepend the mathematically proven forward terminus so it's tested first!
+                targetsToTest.unshift(evalResult.severedTerminus);
+            }
+
             // If the full route failed, check for a partial journey ON THIS EXACT DAY
             // before we blindly allow the loop to roll over to tomorrow.
-            if ((evalResult.status === 'NO_PATH' || evalResult.status === 'IMPOSSIBLE_TODAY') && testStations.length > 0) {
+            if ((evalResult.status === 'NO_PATH' || evalResult.status === 'IMPOSSIBLE_TODAY') && targetsToTest.length > 0) {
                 let partialSuccess = false;
                 
-                for (const testDest of testStations) {
+                for (const testDest of targetsToTest) {
                     if (normalizeStationName(testDest) === normalizeStationName(origin)) continue;
                     
                     // 🛡️ GUARDIAN PHASE 16: Event Loop Yielding (The N+1 Anti-Freeze)

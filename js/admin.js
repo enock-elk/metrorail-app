@@ -1615,8 +1615,32 @@ const Admin = {
             } else if (type === 'Exception') {
                 await Admin.deleteExclusion(routeId, id, true);
             } else if (type === 'Alert') {
-                await fetch(`${dynamicEndpoint}notices/${routeId}/${id}.json?auth=${secret}`, { method: 'DELETE' });
-                if (typeof showToast === 'function') showToast("Alert cleared.", "success");
+                // 🛡️ GUARDIAN FIX: Corrected Firebase path for single-object nodes and integrated Archive + Purge protocol
+                const fetchRes = await window.guardianFetch(`${dynamicEndpoint}notices/${routeId}.json`, {}, 6000);
+                if (fetchRes.ok) {
+                    const alertData = await fetchRes.json();
+                    if (alertData && alertData.id) {
+                        alertData.archivedAt = Date.now();
+                        alertData.clearedFrom = routeId;
+                        const archiveUrl = `${dynamicEndpoint}notices_archive/${alertData.id}_${Date.now()}.json?auth=${secret}`;
+                        await fetch(archiveUrl, { method: 'PUT', body: JSON.stringify(alertData) });
+                    }
+                }
+
+                const res = await fetch(`${dynamicEndpoint}notices/${routeId}.json?auth=${secret}`, { method: 'DELETE' });
+                
+                if (res.ok) {
+                    try {
+                        await fetch('https://nexttrain-telemetry.enock.workers.dev/admin/purge', { 
+                            method: 'POST', 
+                            headers: {'Authorization': `Bearer ${secret}`} 
+                        });
+                    } catch(pe) { console.warn("Purge failed", pe); }
+
+                    if (typeof showToast === 'function') showToast("Alert cleared & archived.", "success");
+                } else {
+                    if (typeof showToast === 'function') showToast("Failed to clear alert.", "error");
+                }
             }
             Admin.fetchActionRequired();
         } catch(e) {
