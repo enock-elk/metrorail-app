@@ -1865,7 +1865,14 @@ function setupAutocomplete(inputId, selectId) {
 // --- ORCHESTRATION ---
 function executeTripPlan(origin, dest, preferredTime = null) {
     const resultsContainer = document.getElementById('planner-results-list');
-    resultsContainer.innerHTML = '<div class="text-center p-4"><svg class="w-8 h-8 animate-spin mx-auto text-blue-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p class="mt-2 text-xs text-gray-500">Calculating route...</p></div>';
+    
+    resultsContainer.innerHTML = `
+        <div class="min-h-[400px] flex flex-col justify-center items-center text-center p-4 animate-pulse">
+            <svg class="w-10 h-10 animate-spin mx-auto text-blue-500 mb-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-2.5"></div>
+            <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+        </div>
+    `;
     
     const inputSecEl = document.getElementById('planner-input-section');
     if (inputSecEl) inputSecEl.classList.add('hidden');
@@ -1881,6 +1888,13 @@ function executeTripPlan(origin, dest, preferredTime = null) {
     }
 
     if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
+
+    let isSearching = true;
+    const searchToastTimer = setTimeout(() => {
+        if (isSearching && typeof showToast === 'function') {
+            showToast("Searching all possible routes...", "info", 3000);
+        }
+    }, 1500);
 
     setTimeout(async () => {
             let plannerResponse = { status: 'NO_PATH', trips: [] };
@@ -2103,6 +2117,10 @@ function executeTripPlan(origin, dest, preferredTime = null) {
 
             resultsContainer.innerHTML = renderErrorCard(errorTitle, errorMsg, actionBtn);
         }
+        
+        isSearching = false;
+        clearTimeout(searchToastTimer);
+        
     }, 100); 
 }
 

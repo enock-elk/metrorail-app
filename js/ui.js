@@ -3365,7 +3365,8 @@ function handleUpdateFound(registration) {
 
     if (isForceUpdate) {
         console.log("GUARDIAN: Force Update Triggered.");
-        showToast("Crucial system update. Reloading...", "error", 5000);
+        const currentVer = typeof APP_VERSION !== 'undefined' ? APP_VERSION.split(' - ')[0] : 'Unknown';
+        showToast(`Crucial system update incoming: ${currentVer}.`, "error", 5000);
         
         if (registration.waiting) {
             registration.waiting.postMessage({ type: 'SKIP_WAITING' });

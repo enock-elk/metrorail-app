@@ -215,7 +215,13 @@ window.guardianFetch = async function(url, options = {}, timeoutMs = 8000) {
                          window._networkStruggleCount = 0; // Reset so it doesn't spam
                      }
                 } else {
-                     if (typeof showToast === 'function') showToast("Connection is very slow. Still trying...", "warning", 3500);
+                     const now = Date.now();
+                     window._lastSlowNetworkToastTime = window._lastSlowNetworkToastTime || 0;
+                     
+                     if (now - window._lastSlowNetworkToastTime > 6000) {
+                         window._lastSlowNetworkToastTime = now;
+                         if (typeof showToast === 'function') showToast("Connection is very slow. Still trying...", "warning", 3500);
+                     }
                 }
             } else {
                 window.isLieFi = true;
