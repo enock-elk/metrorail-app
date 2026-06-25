@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.25 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.26 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -385,7 +385,7 @@ const Admin = {
                             <h3 class="text-lg font-black text-slate-900 dark:text-white flex items-center tracking-tight">
                                 <span class="mr-2">🌍</span> Regional Breakdown
                             </h3>
-                            <button onclick="if(location.hash === '#region-breakdown') history.back(); else closeSmoothModal('telemetry-region-modal');" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors focus:outline-none">
+                            <button onclick="closeSmoothModal('telemetry-region-modal'); if(location.hash === '#region-breakdown') history.replaceState({ adminPanel: 'telemetry-panel' }, '', '#dev-telemetry-panel');" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors focus:outline-none">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                             </button>
                         </div>
@@ -1052,16 +1052,9 @@ const Admin = {
                 try { safeStorage.setItem('dev_session_active', 'true'); } catch(e){}
                 Admin.currentUser = user;
 
-                // 🛡️ GUARDIAN UX: Client-Side Dictionary Fallback for Admin Names
-                const adminAliases = {
-                    'enockelk@gmail.com': 'Enock',
-                    'thandeka05nxumalo@gmail.com': 'Thandeka'
-                };
-                
+                // 🛡️ GUARDIAN UX: Dynamic Email-Prefix Extractor for Admin Names
                 let displayName = user.email;
-                if (adminAliases[user.email]) {
-                    displayName = adminAliases[user.email];
-                } else if (user.email && user.email.includes('@')) {
+                if (user.email && user.email.includes('@')) {
                     const prefix = user.email.split('@')[0];
                     displayName = prefix.charAt(0).toUpperCase() + prefix.slice(1).toLowerCase();
                 }

@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN UTILITIES (V7 06.25 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN UTILITIES (V7 06.26 - Guardian Edition) ---
 // Pure, stateless helper functions shared across the application.
 
 function pad(num) {
@@ -122,11 +122,11 @@ const safeStorage = {
         
         const vault = {};
         
-        // 1. Extract to RAM Vault (With Ad Network Wildcard Support)
+        // 1. Extract to RAM Vault (With Ad Network & Firebase Wildcard Support)
         try {
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (exactProtectedKeys.includes(key) || key.startsWith('clever_') || key.startsWith('cws_')) {
+                if (exactProtectedKeys.includes(key) || key.startsWith('clever_') || key.startsWith('cws_') || key.startsWith('firebase:authUser:')) {
                     vault[key] = localStorage.getItem(key);
                 }
             }

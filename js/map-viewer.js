@@ -1,4 +1,4 @@
-// --- METRORAIL MAP VIEWER (V6.00.30 - Guardian Fixed) ---
+// --- METRORAIL MAP VIEWER (V7_06.26 - Guardian Edition) ---
 // Handles the pinch-to-zoom image viewer for the static network map.
 
 let mapModal, closeMapBtn, closeMapBtn2, viewMapBtn;
@@ -104,6 +104,9 @@ function setupMapLogic() {
 
     // --- MOUSE PAN ---
     if (mapContainer) {
+        // 🛡️ GUARDIAN UX FIX: Stop browser native gestures from fighting with our custom map logic
+        mapContainer.style.touchAction = 'none';
+
         mapContainer.addEventListener('mousedown', (e) => {
             e.preventDefault();
             startX = e.clientX - pointX;
@@ -166,6 +169,28 @@ function setupMapLogic() {
                         resetMap(); 
                     } else {
                         scale = 2.5; 
+                        // 🛡️ GUARDIAN UX FIX: Calculate offset to zoom precisely into the tapped coordinates
+                        const rect = mapContainer.getBoundingClientRect();
+                        const tapX = e.touches[0].clientX - rect.left;
+                        const tapY = e.touches[0].clientY - rect.top;
+                        const centerX = rect.width / 2;
+                        const centerY = rect.height / 2;
+                        
+                        pointX = -(tapX - centerX) * (scale - 1);
+                        pointY = -(tapY - centerY) * (scale - 1);
+                        
+                        // Limit Panning based on Scale
+                        const limitX = (mapContainer.offsetWidth * scale - mapContainer.offsetWidth) / 2;
+                        const limitY = (mapContainer.offsetHeight * scale - mapContainer.offsetHeight) / 2;
+
+                        const safeLimitX = Math.max(0, limitX);
+                        const safeLimitY = Math.max(0, limitY);
+
+                        if (pointX > safeLimitX) pointX = safeLimitX;
+                        if (pointX < -safeLimitX) pointX = -safeLimitX;
+                        if (pointY > safeLimitY) pointY = safeLimitY;
+                        if (pointY < -safeLimitY) pointY = -safeLimitY;
+
                         updateTransform();
                     }
                     lastTap = 0;
@@ -229,6 +254,12 @@ function setupMapLogic() {
         mapContainer.addEventListener('touchend', (e) => {
             if (e.touches.length < 2) {
                 initialPinchDistance = null;
+            }
+            if (e.touches.length === 1) {
+                // 🛡️ GUARDIAN UX FIX: Re-anchor pan when dropping from 2 to 1 finger to stop jump bug
+                startX = e.touches[0].clientX - pointX;
+                startY = e.touches[0].clientY - pointY;
+                panning = true;
             }
             if (e.touches.length === 0) {
                 panning = false;
