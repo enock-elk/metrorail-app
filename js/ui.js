@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.24 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.25 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -1394,7 +1394,81 @@ window.showCacheClearWarning = function() {
     openSmoothModal('cache-clear-modal');
 }
 
-// --- THE AD INTERCEPTOR HAS BEEN SECURELY PURGED ---
+// --- GROWTH MODE PHASE 5: THE MONETIZATION ENGINE ---
+function initAdInterceptor() {
+    const checkAndInject = async () => {
+        let adsEnabled = true; // Fail-safe: Revenue protection on Lie-Fi
+        
+        // 🛡️ GUARDIAN OPTIMIZATION: Session Cache Check
+        try {
+            const cachedAdStatus = sessionStorage.getItem('ads_enabled_status');
+            if (cachedAdStatus !== null) {
+                adsEnabled = cachedAdStatus === 'true';
+                console.log(`🛡️ Guardian: Ad status loaded from Session Cache: ${adsEnabled}`);
+            } else {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                // Lightweight, non-blocking fetch with strict 2-second timeout & cache-busting
+                const res = await window.guardianFetch(`${dynamicEndpoint}config/ads_enabled.json?t=${Date.now()}`, { cache: 'no-store' }, 2000);
+                if (res.ok) {
+                    const data = await res.json();
+                    adsEnabled = !!data;
+                    // Save to session cache to prevent duplicate network calls this session
+                    sessionStorage.setItem('ads_enabled_status', adsEnabled.toString());
+                }
+            }
+        } catch (e) {
+            console.warn("🛡️ Guardian: Ad config fetch failed. Defaulting to ads enabled (Revenue Protection).");
+        }
+
+        if (!adsEnabled) {
+            console.log("🛡️ Guardian: Ads disabled via Admin Killswitch. Aborting Monetization Engine.");
+            return;
+        }
+
+        console.log("🛡️ Guardian: Ads verified active. Injecting CleverAds Payload...");
+        
+        // 🛡️ GUARDIAN FIX: Unhide Ad Scaffolding safely
+        const adContainers = ['ad-wrapper-top', 'ad-wrapper-inline-1', 'ad-wrapper-inline-2', 'clever-ad-sticky-footer'];
+        adContainers.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('hidden');
+        });
+
+        // Action 1: Eager Injection (Non-blocking)
+        const adScript = document.createElement('script');
+        adScript.src = "https://cleverwebserver.com/app.js?id=nexttrain";
+        adScript.async = true;
+        adScript.defer = true;
+        document.body.appendChild(adScript);
+
+        // Actions 2 & 3: Safe Telemetry Loop
+        let impressionTracked = false;
+        const checkAndTrack = () => {
+            const isSafeZone = !document.body.classList.contains('modal-active') && !document.body.classList.contains('sidenav-open');
+            
+            if (isSafeZone && !impressionTracked) {
+                if (typeof trackAnalyticsEvent === 'function') {
+                    trackAnalyticsEvent('view_clever_ad', { location: 'pb-24_safe_zone' });
+                    impressionTracked = true;
+                }
+            }
+            
+            if (!impressionTracked) {
+                setTimeout(checkAndTrack, 2000);
+            }
+        };
+        
+        checkAndTrack();
+    };
+
+    // Wait for app to stabilize before initiating network fetch (Hooked securely in logic.js)
+    const waitForStabilization = setInterval(() => {
+        if (window._appStabilized) {
+            clearInterval(waitForStabilization);
+            checkAndInject();
+        }
+    }, 500);
+}
 
 function initializeApp() {
     if (window.location.pathname.endsWith('index.html')) {
@@ -1443,6 +1517,9 @@ function initializeApp() {
         const oi = document.getElementById('offline-indicator');
         if (oi) oi.style.display = 'flex';
     }
+
+    // _appStabilized hook moved securely to logic.js (loadAllSchedules)
+    initAdInterceptor();
 }
 
 async function checkMaintenanceStatus() {

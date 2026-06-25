@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_06.24 - Performance Polish Edition v1) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_06.25 - Performance Polish Edition v1) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -1536,27 +1536,37 @@ async function loadAllSchedules(force = false) {
             if (typeof renderRouteError === 'function') renderRouteError(error);
         }
     } finally {
-        // If it was aborted mid-flight, the user is looking at a new route loading overlay, 
-        // so DO NOT hide the loading overlay or re-enable the refresh button for the old route.
-        if (fetchSignal && fetchSignal.aborted) return;
+            // If it was aborted mid-flight, the user is looking at a new route loading overlay, 
+            // so DO NOT hide the loading overlay or re-enable the refresh button for the old route.
+            if (fetchSignal && fetchSignal.aborted) return;
 
-        if(forceReloadBtn) {
-            forceReloadBtn.disabled = false;
-            const reloadIcon = forceReloadBtn.querySelector('svg');
-            if(reloadIcon) reloadIcon.classList.remove('spinning');
-        }
-        
-        if (typeof hideLoadingOverlay === 'function') {
-            hideLoadingOverlay();
-        } else if(loadingOverlay) {
-            loadingOverlay.style.display = 'none';
-        }
+            if(forceReloadBtn) {
+                forceReloadBtn.disabled = false;
+                const reloadIcon = forceReloadBtn.querySelector('svg');
+                if(reloadIcon) reloadIcon.classList.remove('spinning');
+            }
+            
+            if (typeof hideLoadingOverlay === 'function') {
+                hideLoadingOverlay();
+            } else if(loadingOverlay) {
+                loadingOverlay.style.display = 'none';
+            }
 
-        if(currentRouteId && mainContent) mainContent.style.display = 'block';
+            if(currentRouteId && mainContent) mainContent.style.display = 'block';
+
+            // 🛡️ GROWTH MODE PHASE 5: THE STABILIZATION HOOK
+            // Marks the app as ready for heavy third-party script injections.
+            // Explicitly guarded to prevent firing while the Welcome Screen is active.
+            const welcomeModal = typeof document !== 'undefined' ? document.getElementById('welcome-modal') : null;
+            const isWelcomeActive = welcomeModal && !welcomeModal.classList.contains('hidden');
+            
+            if (currentRouteId && !isWelcomeActive) {
+                window._appStabilized = true;
+            }
+        }
     }
-}
 
-function parseJSONSchedule(jsonRows, externalMetaDate = null) {
+    function parseJSONSchedule(jsonRows, externalMetaDate = null) {
     try {
         if (!jsonRows || !Array.isArray(jsonRows) || jsonRows.length === 0) 
             return { headers: [], rows: [], stationColumnName: 'STATION', lastUpdated: externalMetaDate };

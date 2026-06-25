@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V7_06.24 (Performance Polish Edition - UI/UX Polish)
+  Metrorail Next Train V7_06.25 (Performance Polish Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -661,6 +661,8 @@
             </div>
         </div>
 
+        <div id="ad-wrapper-top" class="hidden w-full flex justify-center items-center bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 min-h-[50px]"></div>
+
         <!-- VIEW 1: NEXT TRAIN -->
         <div id="view-next-train" class="view-section active p-4 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
             
@@ -721,6 +723,8 @@
                     <span class="tracking-wide">VIEW FULL TIMETABLE</span>
                 </button>
             </div>
+
+            <div id="ad-wrapper-inline-1" class="hidden w-full flex justify-center items-center mb-4 min-h-[50px]"></div>
 
             <!-- GUARDIAN PHASE 3: Re-architected Fare Box -->
             <div id="fare-container" class="mb-6 p-3.5 bg-blue-50 dark:bg-gray-800 rounded-xl flex items-center justify-between shadow-sm border border-blue-100 dark:border-gray-700 hidden min-h-[58px] pr-10 relative">
@@ -816,6 +820,8 @@
                     Find Route
                 </button>
             </div>
+
+            <div id="ad-wrapper-inline-2" class="hidden w-full flex justify-center items-center mt-4 min-h-[50px]"></div>
 
             <!-- Results Section -->
             <div id="planner-results-section" class="hidden mt-4 space-y-4">
@@ -1796,5 +1802,6 @@
     <!-- MAIN UI CONTROLLER -->
     <script src="js/ui.js"></script>
     
+    <div id="clever-ad-sticky-footer" class="hidden fixed bottom-0 left-0 w-full z-[80] flex justify-center bg-gray-100/90 dark:bg-gray-900/90 backdrop-blur-sm border-t border-gray-200 dark:border-gray-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] min-h-[50px]"></div>
 </body>
 </html>
