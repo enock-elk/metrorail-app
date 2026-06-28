@@ -1,14 +1,14 @@
 {
   "config": {
-    "ads_enabled": false,
+    "ads_enabled": true,
     "data_source": "FIREBASE",
     "killswitch": {
-      "timestamp": 1782225001524,
+      "timestamp": 1782390953577,
       "triggeredBy": "enockelk@gmail.com"
     },
     "maintenance": {
       "active": false,
-      "message": "Maintenance - (Updating Schedules)"
+      "message": "Maintenance - (Third-Party Ads)"
     },
     "special_event": {
       "destA": "PRETORIA",
@@ -39,16 +39,28 @@
       "sourceName": "PRASA WhatsApp",
       "sourceUrl": "https://web.whatsapp.com/"
     },
-    "all_KZN": {
-      "authorName": "Enock",
-      "expiresAt": 1779746340000,
-      "forcePopup": true,
-      "id": "1779012501209",
-      "message": "<i>Dear <b>KZN Commuters,</b></i><br><br>The Next Train project, recently launched the KwaZulu-Natal schedules, but our prices are not yet accurate.<br><br>If you commute on these routes, please feel free to use the reply button below, to let us know of the correct ticket prices or any timetable errors etc.<br><br>Thank you for riding with us!<br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Enock</span>",
+    "all_GP": {
+      "authorName": "Next Train Ops",
+      "expiresAt": 1782511140000,
+      "forcePopup": false,
+      "id": "1782395347650",
+      "message": "<b>July Monthly Tickets</b><div><img src=\"https://i.supaimg.com/339b34a0-1526-4ec8-a986-ac75c3740544/ba00829f-8808-4475-adb2-24d0cf3906a7.jpg\" class=\"w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700\" alt=\"Alert Image\"></div><div>Please plan ahead and secure your July ticket in advance to ensure uninterrupted travel.</div><div><br></div><div>Thank you for your cooperation.</div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
       "poll": {
         "active": false
       },
-      "postedAt": 1779012501209,
+      "postedAt": 1782395347650,
+      "severity": "info"
+    },
+    "all_KZN": {
+      "authorName": "Enock",
+      "expiresAt": 1782856740000,
+      "forcePopup": true,
+      "id": "1782309150985",
+      "message": "<i>Dear <b>KZN Commuters,</b></i><br><br>The Next Train project is still new in KZN so we rely heavily on you, to help keep our data accurate and useful.<br><br>If you commute on these routes, please feel free to use the reply button below, to let us know of any timetable errors etc.&nbsp;<br><br>Thank you for riding with us!<br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Enock</span>",
+      "poll": {
+        "active": false
+      },
+      "postedAt": 1782309150985,
       "severity": "info"
     },
     "all_WC": {
@@ -76,6 +88,18 @@
       "message": "Hello Western Cape commuters! <br><br>We're actively adding more train routes to the Web App. <br><br>If you’re missing a specific route, please let us know & share its schedule image with us using the feedback button at the bottom right of the screen. Your input helps us improve! <br><br>Thanks for your patience.<br><br><span class=\"opacity-75 text-xs\">— Enock</span>",
       "postedAt": 1774026490270,
       "severity": "info"
+    },
+    "ct-flats": {
+      "authorName": "Next Train Ops",
+      "expiresAt": 1782251940000,
+      "forcePopup": true,
+      "id": "1782285611500",
+      "message": "Good morning commuters.&nbsp;<div><br></div><div>Service Advisory: Perway planned occupation between Pinelands/Heathfield</div><div><br></div><div>Occupation:<span style=\"font-size: 0.75rem;\">&nbsp;Planned Occupation&nbsp;</span></div><div>Date: 24 June 2026</div><div>Time: 10:00 – 15:00</div><div>Location :  Pinelands/Heathfield</div><div><br></div><div>Impacts Cape Flats train service</div><div>All Cape Flats trains will terminate at Heathfield .&nbsp;</div><div><br></div><div>&nbsp;As from T0518 - 10:00 from Heathfield to Cape Town, platform changes, between Heathfield and Ndabeni will be on platform 2 and platform 3 at Maitland.</div><div><br></div><div>Cancelled trains</div><div>T0517 - 09:45 from Cape Town to Retreat</div><div>T0520 - 10:40 from Retreat to Cape Town.</div><div>T0521 -11:35 from Cape Town to Retreat.</div><div>T0524 - 12:25 from Retreat to Cape Town.</div><div><br></div><div>Commuters are advised to make use of own alternative transport arrangements in the affected areas.</div><div>Allow for additional travel time of 20 - 30 minutes</div><div><br></div><div><i>Metrorail apologize sincerely for the inconvenience caused and appreciate your patience and understanding during this time.</i></div><br><br><span class=\"opacity-75 text-[10px] uppercase font-bold tracking-wider\">— Next Train Ops</span>",
+      "poll": {
+        "active": false
+      },
+      "postedAt": 1782285611500,
+      "severity": "warning"
     },
     "ct-kapteinsklip": {
       "expiresAt": 1774994340000,
@@ -26147,37 +26171,30 @@
         "STATION": "Last Updated: 8 June 2026"
       },
       {
-        "9301": "5:12:00",
         "COORDINATES": "-33.92363127060243, 18.42718648501388",
         "STATION": "CAPE TOWN"
       },
       {
-        "9301": "5:15:00",
         "COORDINATES": "-33.925058308184404, 18.44613913370814",
         "STATION": "WOODSTOCK"
       },
       {
-        "9301": "5:18:00",
         "COORDINATES": "-33.92754558428959, 18.464689555116372",
         "STATION": "SALT RIVER"
       },
       {
-        "9301": "5:20:00",
         "COORDINATES": "-33.92570961024241, 18.47887742815667",
         "STATION": "KOEBERG RD"
       },
       {
-        "9301": "5:22:00",
         "COORDINATES": "-33.92465193392986, 18.487001988940953",
         "STATION": "MAITLAND"
       },
       {
-        "9301": "5:25:00",
         "COORDINATES": "-33.928548273196824, 18.495159894144553",
         "STATION": "NDABENI"
       },
       {
-        "9301": "5:28:00",
         "COORDINATES": "-33.93964476336891, 18.490635019900687",
         "STATION": "PINELANDS"
       },
@@ -26197,7 +26214,7 @@
         "9009": "9:15",
         "9011": "9:45",
         "9013": "11:05",
-        "9015": "12:30:00",
+        "9015": "12:30",
         "9017": "14:00:00",
         "9019": "15:40:00",
         "9021": "16:50:00",
@@ -26215,14 +26232,13 @@
         "9009": "9:20",
         "9011": "9:50",
         "9013": "11:10",
-        "9015": "12:35:00",
+        "9015": "12:35",
         "9017": "14:05:00",
         "9019": "15:45:00",
         "9021": "16:55:00",
         "9023": "17:25:00",
         "9025": "18:25:00",
         "9027": "19:05:00",
-        "9301": "5:34",
         "COORDINATES": "-33.938934072196076, 18.52974423065194",
         "STATION": "LANGA"
       },
@@ -26234,34 +26250,29 @@
         "9009": "9:22",
         "9011": "9:52",
         "9013": "11:12",
-        "9015": "12:37:00",
+        "9015": "12:37",
         "9017": "14:07:00",
         "9019": "15:47:00",
         "9021": "16:57:00",
         "9023": "17:27:00",
         "9025": "18:27:00",
         "9027": "19:07:00",
-        "9301": "5:36",
         "COORDINATES": "-33.94185049480737, 18.549579817876847",
         "STATION": "BONTEHEUWEL"
       },
       {
-        "9301": "5:38:00",
         "COORDINATES": "-33.952666168847884, 18.56356622880313",
         "STATION": "NETREG"
       },
       {
-        "9301": "5:39:00",
         "COORDINATES": "-33.969594701133275, 18.56187725551686",
         "STATION": "HEIDEVELD"
       },
       {
-        "9301": "5:43:00",
         "COORDINATES": "-33.99271379632963, 18.559776951819032",
         "STATION": "NYANGA"
       },
       {
-        "9301": "5:49",
         "COORDINATES": "-34.01328895709482, 18.584421561340882",
         "STATION": "PHILIPPI"
       },
@@ -26278,17 +26289,14 @@
         "STATION": "KAPTEINSKLIP"
       },
       {
-        "9301": "5:53",
         "COORDINATES": "-34.01412292128464, 18.606174209491407",
         "STATION": "STOCK ROAD"
       },
       {
-        "9301": "5:57:00",
         "COORDINATES": "-34.019015667481014, 18.624391145998562",
         "STATION": "MANDALAY"
       },
       {
-        "9301": "6:01",
         "COORDINATES": "-34.016811809063164, 18.64902361716287",
         "STATION": "NOLUNGILE"
       },
@@ -34998,7 +35006,7 @@
     ],
     "kraai_to_ct_weekday_meta": "8 June 2026",
     "kraai_to_ct_weekday_zone": "Z1",
-    "lastUpdated": "6/24/2026, 1:23:13 AM",
+    "lastUpdated": "6/25/2026, 11:21:34 PM",
     "malm_to_ct_sat": [
       {
         "STATION": "Last Updated: 25 October 2024"

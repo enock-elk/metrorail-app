@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN UTILITIES (V7 06.26 - Guardian Edition) ---
+// --- METRORAIL NEXT TRAIN UTILITIES (V7 06.28 - Guardian Edition) ---
 // Pure, stateless helper functions shared across the application.
 
 function pad(num) {

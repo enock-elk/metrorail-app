@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.26 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.28 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -108,6 +108,54 @@ const Admin = {
                 }
             };
         });
+    },
+
+    // --- 0.16 IMAGE LIGHTBOX MODAL ---
+    openLightbox: function(url) {
+        let modal = document.getElementById('admin-lightbox-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'admin-lightbox-modal';
+            modal.className = 'fixed inset-0 bg-black/95 z-[300] hidden flex items-center justify-center p-2 sm:p-4 backdrop-blur-md transition-opacity duration-300';
+            modal.onclick = (e) => {
+                if (e.target === modal || e.target.id === 'lightbox-close-btn' || e.target.closest('#lightbox-close-btn')) {
+                    Admin.closeLightbox();
+                }
+            };
+            modal.innerHTML = `
+                <button id="lightbox-close-btn" class="absolute top-4 right-4 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors focus:outline-none z-10 backdrop-blur-sm">
+                    <svg class="w-6 h-6 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+                <img id="admin-lightbox-img" src="" class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl transform transition-transform scale-95 duration-300" alt="Full screen preview">
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        const img = document.getElementById('admin-lightbox-img');
+        if (img) img.src = url;
+        
+        modal.classList.remove('hidden');
+        void modal.offsetWidth; // Force Reflow
+        if (img) {
+            img.classList.remove('scale-95');
+            img.classList.add('scale-100');
+        }
+    },
+
+    closeLightbox: function() {
+        const modal = document.getElementById('admin-lightbox-modal');
+        if (!modal) return;
+        const img = document.getElementById('admin-lightbox-img');
+        if (img) {
+            img.classList.remove('scale-100');
+            img.classList.add('scale-95');
+        }
+        modal.classList.add('opacity-0');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('opacity-0');
+            if (img) img.src = '';
+        }, 300);
     },
 
     currentUser: null,
@@ -1502,7 +1550,7 @@ const Admin = {
 
             // Hide all children
             Array.from(container.children).forEach(child => {
-                if (child.id !== 'admin-live-clock') child.style.display = 'none';
+                child.style.display = 'none'; // 🛡️ GUARDIAN UX FIX: Hide clock too to save vertical space
             });
 
             // Show target panel and its body
@@ -1513,8 +1561,11 @@ const Admin = {
             if (chev) chev.classList.remove('-rotate-90');
 
             // Update Header Title
-            const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6');
+            const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6') || document.querySelector('#dev-modal .border-b.border-gray-200.pb-2.mb-3');
             if (devHeaderRow) {
+                devHeaderRow.classList.remove('pb-4', 'mb-6');
+                devHeaderRow.classList.add('pb-2', 'mb-3'); // 🛡️ GUARDIAN UX: Slim header padding
+
                 const titleH3 = devHeaderRow.querySelector('h3');
                 if (titleH3) {
                     let titleClone = targetPanel.querySelector('button span').cloneNode(true);
@@ -1550,6 +1601,8 @@ const Admin = {
                             container.classList.add('admin-grid-view');
                             container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
                             titleH3.innerHTML = devHeaderRow.dataset.originalHtml;
+                            devHeaderRow.classList.add('pb-4', 'mb-6'); // 🛡️ GUARDIAN UX: Restore padding
+                            devHeaderRow.classList.remove('pb-2', 'mb-3');
                             const toggleBtn = document.getElementById('grid-view-toggle');
                             if (toggleBtn) toggleBtn.style.display = '';
                             const signoutContainer = document.getElementById('admin-signout-container');
@@ -1867,6 +1920,15 @@ const Admin = {
                 return;
             }
 
+            // 🛡️ GUARDIAN PHASE 1: Sanitization Armor (XSS Protection)
+            const secureEscape = (str) => {
+                if (!str) return '';
+                if (typeof escapeHTML === 'function') return escapeHTML(str);
+                return String(str).replace(/[&<>"']/g, function(m) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+                });
+            };
+
             // Group by deviceId
             const groups = {};
             targetData.forEach(crash => {
@@ -1875,16 +1937,20 @@ const Admin = {
                 groups[did].push(crash);
             });
 
-            Object.keys(groups).forEach(did => {
-                const groupCrashes = groups[did];
+            Object.keys(groups).forEach(rawDid => {
+                const groupCrashes = groups[rawDid];
                 const groupCard = document.createElement('div');
                 groupCard.className = "bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mb-3";
                 
                 const latestDate = Admin.formatDate(groupCrashes[0].timestamp);
                 
+                // Fortify Device IDs before DOM / onclick injection
+                const did = secureEscape(rawDid);
+                const safeJsDid = rawDid.replace(/'/g, "\\'");
+                
                 // 🛡️ GUARDIAN PHASE 1: Bulk Resolve Button & HTML Fix (button inside button is invalid, changed outer to div)
                 const resolveAllHtml = isInbox 
-                    ? `<button onclick="event.stopPropagation(); Admin.resolveAllDeviceCrashes('${did}')" class="mr-3 bg-green-100 dark:bg-green-900/50 hover:bg-green-200 dark:hover:bg-green-800 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors shadow-sm focus:outline-none flex items-center shrink-0"><span class="mr-1">✅</span> Resolve All (${groupCrashes.length})</button>` 
+                    ? `<button onclick="event.stopPropagation(); Admin.resolveAllDeviceCrashes('${safeJsDid}')" class="mr-3 bg-green-100 dark:bg-green-900/50 hover:bg-green-200 dark:hover:bg-green-800 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors shadow-sm focus:outline-none flex items-center shrink-0"><span class="mr-1">✅</span> Resolve All (${groupCrashes.length})</button>` 
                     : '';
 
                 let groupHTML = `
@@ -1903,19 +1969,20 @@ const Admin = {
                 
                 groupCrashes.forEach(crash => {
                     const dateStr = Admin.formatDate(crash.timestamp);
-                    const safeErr = typeof escapeHTML === 'function' ? escapeHTML(crash.error) : crash.error;
-                    const safeRoute = crash.routeId || "Global";
-                    const safeOS = typeof escapeHTML === 'function' ? escapeHTML(crash.userAgent) : "Unknown OS";
-                    const safeAppVersion = typeof escapeHTML === 'function' ? escapeHTML(crash.appVersion || 'Unknown') : (crash.appVersion || 'Unknown');
+                    const safeErr = secureEscape(crash.error);
+                    const safeRoute = secureEscape(crash.routeId || "Global");
+                    const safeOS = secureEscape(crash.userAgent || "Unknown OS");
+                    const safeAppVersion = secureEscape(crash.appVersion || 'Unknown');
+                    const safeJsCrashId = (crash.id || '').replace(/'/g, "\\'");
                     
                     const actionHtml = isInbox 
                         ? `<div class="flex space-x-2 w-full mt-3">
-                             ${did !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${crash.id}', '${did}')">Reply</button>` : ''}
-                             <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveCrash('${crash.id}')">Resolve</button>
+                             ${rawDid !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${safeJsCrashId}', '${safeJsDid}')">Reply</button>` : ''}
+                             <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveCrash('${safeJsCrashId}')">Resolve</button>
                            </div>`
                         : `<div class="flex justify-between items-center w-full mt-3">
                              <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived</span>
-                             <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteCrash('${crash.id}')">Delete</button>
+                             <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteCrash('${safeJsCrashId}')">Delete</button>
                            </div>`;
 
                     groupHTML += `
@@ -2444,6 +2511,15 @@ const Admin = {
                 
                 listDiv.innerHTML = '';
                 
+                // 🛡️ GUARDIAN PHASE 1: Sanitization Armor for Telemetry
+                const secureEscape = (str) => {
+                    if (!str) return '';
+                    if (typeof escapeHTML === 'function') return escapeHTML(str);
+                    return String(str).replace(/[&<>"']/g, function(m) {
+                        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+                    });
+                };
+
                 sorted.forEach(item => {
                     const dateStr = Admin.formatDate(item.lastSeen);
                     const card = document.createElement('div');
@@ -2456,10 +2532,14 @@ const Admin = {
                     else if (item.reason === 'ERR_CROSS_REGION') { reasonBadge = "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400"; reasonText = "Cross Region"; }
                     else if (item.reason === 'ERR_ACTIVE_SUSPENSION') { reasonBadge = "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400"; reasonText = "Line Severed"; }
 
+                    // Apply strict XSS isolation to raw commuter telemetry
+                    const safeOrigin = secureEscape(item.origin);
+                    const safeDest = secureEscape(item.dest);
+
                     // GUARDIAN PHASE 11: Decoupled whitespace for long route names so they wrap dynamically instead of truncating
                     card.innerHTML = `
                         <div class="min-w-0 flex-1 pr-2">
-                            <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${item.origin} <span class="text-gray-400 mx-1">→</span> ${item.dest}</div>
+                            <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${safeOrigin} <span class="text-gray-400 mx-1">→</span> ${safeDest}</div>
                             <div class="flex items-center mt-1.5 space-x-2">
                                 <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${reasonBadge}">${reasonText}</span>
                                 <span class="text-[9px] text-gray-400 font-mono">Last: ${dateStr}</span>
@@ -2731,6 +2811,9 @@ const Admin = {
                 const editAliasBtn = did !== 'Anonymous / Legacy' ? `<button onclick="event.stopPropagation(); Admin.setCommuterAlias('${did}', '${alias || ''}')" class="ml-2 hover:bg-gray-200 dark:hover:bg-gray-700 p-0.5 rounded transition-colors focus:outline-none flex-shrink-0" title="Edit Alias">✏️</button>` : '';
                 const commuterTitle = alias ? `${alias} <span class="text-gray-400 text-[10px] font-normal ml-1">(${displayDid})</span>${editAliasBtn}` : `${displayDid}${editAliasBtn}`;
                 
+                // 🛡️ GUARDIAN UX FIX: Detect attachments in thread for 📎 icon
+                const hasAttachments = groupItems.some(i => i.attachmentUrl || (i.attachmentUrls && i.attachmentUrls.length > 0));
+
                 // 🛡️ GUARDIAN PHASE 2: The "Rolodex" Contact Aggregator
                 const allEmails = new Set();
                 const allPhones = new Set();
@@ -2786,7 +2869,7 @@ const Admin = {
                         <div class="flex-grow flex flex-col items-start min-w-0 pr-2">
                             <span class="text-xs font-bold text-gray-900 dark:text-white truncate w-full flex items-center">Commuter: <span class="text-blue-600 ml-1 flex items-center">${commuterTitle}</span></span>
                             ${contactHtml}
-                            <span class="text-[9px] text-gray-500 font-mono mt-1.5">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} | Last: ${latestDate}</span>
+                            <span class="text-[9px] text-gray-500 font-mono mt-1.5">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} ${hasAttachments ? '📎 ' : ''}| Last: ${latestDate}</span>
                         </div>
                         <div class="flex items-center justify-end gap-1.5 shrink-0 flex-wrap sm:flex-nowrap self-start mt-1">
                             <button onclick="Admin.exportThreadForAI('${did}')" class="p-1.5 bg-white dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900/30 text-gray-500 hover:text-green-600 dark:hover:text-green-400 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm" title="Download Thread for AI (.txt)">📥</button>
@@ -2892,6 +2975,9 @@ const Admin = {
                         const safeAppVersion = secureEscape(item.appVersion || 'Unknown');
                         const safeRouteId = secureEscape(item.routeId || 'None');
                         const safeAttachUrl = item.attachmentUrl ? secureEscape(item.attachmentUrl) : null;
+                        const safeAttachUrls = item.attachmentUrls && Array.isArray(item.attachmentUrls) 
+                            ? item.attachmentUrls.map(url => secureEscape(url)) 
+                            : (safeAttachUrl ? [safeAttachUrl] : []);
 
                         // REGEX: Extract Context Block ("[Replying to: ...]")
                         let quoteBlockHtml = "";
@@ -2939,9 +3025,21 @@ const Admin = {
                         if (typeof rawText !== 'string') rawText = "";
                         rawText = rawText.replace(/^(?:<br>|\s)+/, '');
 
-                        const attachmentHtml = safeAttachUrl 
-                            ? `<a href="${safeAttachUrl}" target="_blank" class="mt-2 flex items-center justify-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-xs font-bold w-full"><span class="mr-1">📎</span> View Attachment</a>`
-                            : ``;
+                        // 🛡️ GUARDIAN PHASE 3: Dynamic Visual Attachment Previewer (Multi-File Grid & Lightbox)
+                        let attachmentHtml = '';
+                        if (safeAttachUrls.length > 0) {
+                            const gridCols = safeAttachUrls.length > 1 ? 'grid-cols-2' : 'grid-cols-1';
+                            attachmentHtml = `<div class="mt-2 grid ${gridCols} gap-2 w-full">`;
+                            safeAttachUrls.forEach((url, idx) => {
+                                const isImageExt = url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i);
+                                if (isImageExt) {
+                                    attachmentHtml += `<button type="button" onclick="event.stopPropagation(); Admin.openLightbox('${url}')" class="block focus:outline-none w-full text-left"><img src="${url}" class="w-full h-24 object-cover rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-zoom-in" alt="Attachment ${idx + 1}"></button>`;
+                                } else {
+                                    attachmentHtml += `<a href="${url}" target="_blank" onclick="event.stopPropagation();" class="flex items-center justify-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-xs font-bold w-full h-24"><span class="mr-1">📄</span> View Doc ${idx + 1}</a>`;
+                                }
+                            });
+                            attachmentHtml += `</div>`;
+                        }
 
                         // METADATA: Integrated Bubble Header
                         let typeLabel = "General";
@@ -3342,7 +3440,12 @@ const Admin = {
                             <button type="button" onclick="Admin.formatAlertText('bold', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Bold">B</button>
                             <button type="button" onclick="Admin.formatAlertText('italic', 'admin-reply-text')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Italic">I</button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
+                            <button type="button" onclick="Admin.formatAlertText('sizeUp', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Larger Text">A+</button>
+                            <button type="button" onclick="Admin.formatAlertText('sizeDown', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Smaller Text">A-</button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
                             <button type="button" onclick="Admin.formatAlertText('link', 'admin-reply-text')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Add Custom Link">🔗 Link</button>
+                            <label for="admin-reply-upload-file" id="admin-reply-upload-label" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer" title="Upload Image or PDF">📎 Insert Media</label>
+                            <input type="file" id="admin-reply-upload-file" class="hidden" accept="image/*,.pdf">
                         </div>
                         <div contenteditable="true" id="admin-reply-text" class="w-full min-h-[200px] resize-y overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" style="max-height: 50vh;" placeholder="Type your response..."></div>
                     </div>
@@ -3367,6 +3470,81 @@ const Admin = {
             modal.firstElementChild.classList.remove('scale-100');
             modal.firstElementChild.classList.add('scale-95');
         };
+
+        // 🛡️ GUARDIAN PHASE 3: Inline WYSIWYG File Uploader (Admin Inbox Reply)
+        const replyUploadFile = document.getElementById('admin-reply-upload-file');
+        if (replyUploadFile) {
+            replyUploadFile.addEventListener('change', async function() {
+                if (this.files && this.files.length > 0) {
+                    const file = this.files[0];
+                    if (file.size > 5242880) { // Strict 5MB limit
+                        if (typeof showToast === 'function') showToast("File is too large. Max 5MB.", "error");
+                        this.value = '';
+                        return;
+                    }
+                    
+                    if (!window.firebaseStorage || !window.firebaseStorageRef || !window.firebaseUploadBytesResumable || !window.firebaseGetDownloadURL) {
+                        if (typeof showToast === 'function') showToast("Storage SDK not ready. Check connection.", "error");
+                        this.value = '';
+                        return;
+                    }
+
+                    if (typeof showToast === 'function') showToast("Uploading Attachment...", "info", 30000);
+
+                    try {
+                        const fileExt = file.name.split('.').pop().toLowerCase();
+                        const isPdf = fileExt === 'pdf';
+                        const fileName = `inline_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
+                        const storageReference = window.firebaseStorageRef(window.firebaseStorage, `admin_attachments/${fileName}`);
+                        
+                        const uploadTask = window.firebaseUploadBytesResumable(storageReference, file);
+                        const labelEl = document.getElementById('admin-reply-upload-label');
+                        const originalLabel = labelEl ? labelEl.innerHTML : '📎 Insert Media';
+                        
+                        uploadTask.on('state_changed', 
+                            (snapshot) => {
+                                const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                                if (labelEl) labelEl.innerHTML = `⏳ ${progress}%`;
+                            }, 
+                            (error) => {
+                                if (typeof showToast === 'function') showToast("Upload failed", "error");
+                                console.error("Inline Upload error:", error);
+                                if (labelEl) labelEl.innerHTML = originalLabel;
+                                this.value = '';
+                            }, 
+                            async () => {
+                                if (labelEl) labelEl.innerHTML = originalLabel;
+                                try {
+                                    const url = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
+                                    const editor = document.getElementById('admin-reply-text');
+                                    
+                                    let htmlToInsert = '';
+                                    if (isPdf) {
+                                        htmlToInsert = `&nbsp;<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline font-bold px-1">📄 View Attached PDF</a>&nbsp;`;
+                                    } else {
+                                        htmlToInsert = `<br><img src="${url}" class="w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700" alt="Admin Attachment"><br>`;
+                                    }
+                                    
+                                    if (editor) {
+                                        editor.focus();
+                                        if (!document.execCommand('insertHTML', false, htmlToInsert)) {
+                                            editor.innerHTML += htmlToInsert;
+                                        }
+                                    }
+                                    if (typeof showToast === 'function') showToast("Attachment inserted!", "success");
+                                } catch(e) {
+                                    if (typeof showToast === 'function') showToast("Failed to insert attachment link", "error");
+                                }
+                                this.value = '';
+                            }
+                        );
+                    } catch(e) {
+                        if (typeof showToast === 'function') showToast("Upload system error.", "error");
+                        this.value = '';
+                    }
+                }
+            });
+        }
 
         document.getElementById('reply-cancel').onclick = cleanup;
         document.getElementById('reply-send').onclick = async () => {
@@ -3582,17 +3760,16 @@ const Admin = {
             document.execCommand('bold', false, null);
         } else if (tag === 'italic') { 
             document.execCommand('italic', false, null);
+        } else if (tag === 'sizeUp') {
+            document.execCommand('fontSize', false, '5'); // Approx 1.5x larger
+        } else if (tag === 'sizeDown') {
+            document.execCommand('fontSize', false, '2'); // Approx 0.8x smaller
         } else if (tag === 'link') { 
-            const url = prompt("Enter the full URL (e.g., [https://nexttrain.co.za](https://nexttrain.co.za)):", "https://");
+            const url = prompt("Enter the full URL (e.g., https://nexttrain.co.za):", "https://");
             if (!url) return;
             const selection = window.getSelection();
             const selectedText = selection.toString() || "Link";
             const html = `<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline underline-offset-2">${selectedText}</a>`;
-            document.execCommand('insertHTML', false, html);
-        } else if (tag === 'image') {
-            const url = prompt("Enter the image URL:", "https://");
-            if (!url) return;
-            const html = `<img src="${url}" class="w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image">`;
             document.execCommand('insertHTML', false, html);
         }
     },
@@ -3659,8 +3836,12 @@ const Admin = {
                             <button type="button" onclick="Admin.formatAlertText('bold')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Bold">B</button>
                             <button type="button" onclick="Admin.formatAlertText('italic')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Italic">I</button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
+                            <button type="button" onclick="Admin.formatAlertText('sizeUp')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Larger Text">A+</button>
+                            <button type="button" onclick="Admin.formatAlertText('sizeDown')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Smaller Text">A-</button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
                             <button type="button" onclick="Admin.formatAlertText('link')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Add Custom Link">🔗 Link</button>
-                            <button type="button" onclick="Admin.formatAlertText('image')" class="px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Insert Image via HTML tag">📸 Img Tag</button>
+                            <label for="alert-upload-file" id="alert-upload-label" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer" title="Upload Image or PDF">📎 Insert Media</label>
+                            <input type="file" id="alert-upload-file" class="hidden" accept="image/*,.pdf">
                         </div>
                         <div contenteditable="true" id="alert-msg" class="w-full min-h-[120px] max-h-[300px] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 border-0 text-gray-900 dark:text-white text-xs focus:ring-0 outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="e.g. Delays of 45min due to cable theft..."></div>
                     </div>
@@ -3904,15 +4085,22 @@ const Admin = {
                         const storageReference = window.firebaseStorageRef(window.firebaseStorage, `alert_images/${fileName}`);
                         
                         const uploadTask = window.firebaseUploadBytesResumable(storageReference, file);
+                        const labelEl = document.querySelector('label[for="alert-image-file"]');
+                        const originalLabel = labelEl ? labelEl.innerHTML : '📸 Upload';
                         
                         uploadTask.on('state_changed', 
-                            null, 
+                            (snapshot) => {
+                                const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                                if (labelEl) labelEl.innerHTML = `⏳ ${progress}%`;
+                            }, 
                             (error) => {
                                 if (typeof showToast === 'function') showToast("Upload failed", "error");
                                 console.error("Admin Image Upload error:", error);
+                                if (labelEl) labelEl.innerHTML = originalLabel;
                                 this.value = '';
                             }, 
                             async () => {
+                                if (labelEl) labelEl.innerHTML = originalLabel;
                                 try {
                                     const url = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
                                     if (imageUrlInput) {
@@ -3925,6 +4113,82 @@ const Admin = {
                                     if (advBody && advBody.classList.contains('hidden')) advToggleBtn.click();
                                 } catch(e) {
                                     if (typeof showToast === 'function') showToast("Failed to get image link", "error");
+                                }
+                                this.value = '';
+                            }
+                        );
+                    } catch(e) {
+                        if (typeof showToast === 'function') showToast("Upload system error.", "error");
+                        this.value = '';
+                    }
+                }
+            });
+        }
+
+        // 🛡️ GUARDIAN PHASE 3: Inline WYSIWYG File Uploader (Service Alerts)
+        const inlineUploadFile = document.getElementById('alert-upload-file');
+        if (inlineUploadFile) {
+            inlineUploadFile.addEventListener('change', async function() {
+                if (this.files && this.files.length > 0) {
+                    const file = this.files[0];
+                    if (file.size > 5242880) { // Strict 5MB limit
+                        if (typeof showToast === 'function') showToast("File is too large. Max 5MB.", "error");
+                        this.value = '';
+                        return;
+                    }
+                    
+                    if (!window.firebaseStorage || !window.firebaseStorageRef || !window.firebaseUploadBytesResumable || !window.firebaseGetDownloadURL) {
+                        if (typeof showToast === 'function') showToast("Storage SDK not ready. Check connection.", "error");
+                        this.value = '';
+                        return;
+                    }
+
+                    if (typeof showToast === 'function') showToast("Uploading Attachment...", "info", 30000);
+
+                    try {
+                        const fileExt = file.name.split('.').pop().toLowerCase();
+                        const isPdf = fileExt === 'pdf';
+                        const fileName = `inline_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
+                        const storageReference = window.firebaseStorageRef(window.firebaseStorage, `admin_attachments/${fileName}`);
+                        
+                        const uploadTask = window.firebaseUploadBytesResumable(storageReference, file);
+                        const labelEl = document.getElementById('alert-upload-label');
+                        const originalLabel = labelEl ? labelEl.innerHTML : '📎 Insert Media';
+                        
+                        uploadTask.on('state_changed', 
+                            (snapshot) => {
+                                const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                                if (labelEl) labelEl.innerHTML = `⏳ ${progress}%`;
+                            }, 
+                            (error) => {
+                                if (typeof showToast === 'function') showToast("Upload failed", "error");
+                                console.error("Inline Upload error:", error);
+                                if (labelEl) labelEl.innerHTML = originalLabel;
+                                this.value = '';
+                            }, 
+                            async () => {
+                                if (labelEl) labelEl.innerHTML = originalLabel;
+                                try {
+                                    const url = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
+                                    const editor = document.getElementById('alert-msg');
+                                    
+                                    let htmlToInsert = '';
+                                    if (isPdf) {
+                                        htmlToInsert = `&nbsp;<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline font-bold px-1">📄 View Attached PDF</a>&nbsp;`;
+                                    } else {
+                                        htmlToInsert = `<br><img src="${url}" class="w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700" alt="Admin Attachment"><br>`;
+                                    }
+                                    
+                                    if (editor) {
+                                        editor.focus();
+                                        // Use native execCommand for undo-stack support, fallback to manual append if strict sandboxed
+                                        if (!document.execCommand('insertHTML', false, htmlToInsert)) {
+                                            editor.innerHTML += htmlToInsert;
+                                        }
+                                    }
+                                    if (typeof showToast === 'function') showToast("Attachment inserted!", "success");
+                                } catch(e) {
+                                    if (typeof showToast === 'function') showToast("Failed to insert attachment link", "error");
                                 }
                                 this.value = '';
                             }

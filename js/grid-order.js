@@ -3,7 +3,7 @@
  * ---------------------------------------------------
  * This file defines the explicit column order for the Full Schedule Grid.
  * Generated from: NextTrain EC-Schedules - 12 May.xlsx, NextTrain GP-Schedules-20 June.xlsx, NextTrain KZN-Schedules - 12 May.xlsx, NextTrain WC-Schedules - 23 June.xlsx
- * Date: 2026-06-23
+ * Date: 2026-06-25
  */
 
 const MANUAL_GRID_ORDER = {
@@ -1147,6 +1147,7 @@ const MANUAL_GRID_ORDER = {
         "9514"
     ],
     "ct_to_nolu_weekday": [
+        "9703",
         "9401",
         "9403",
         "9405",
@@ -1198,20 +1199,20 @@ const MANUAL_GRID_ORDER = {
         "9028"
     ],
     "bellv_to_mutul_weekday": [
-        "9002",
-        "9004",
-        "9006",
-        "9008",
-        "9010",
-        "9012",
-        "9014",
-        "9014",
-        "9016",
-        "9020",
-        "9022",
-        "9024",
-        "9026",
-        "9028"
+        "9001",
+        "9003",
+        "9005",
+        "9007",
+        "9009",
+        "9011",
+        "9013",
+        "9015",
+        "9017",
+        "9019",
+        "9021",
+        "9023",
+        "9025",
+        "9027"
     ],
     "mutul_to_bellv_sat": [
         "9001",

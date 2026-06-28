@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.26 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.28 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -1425,33 +1425,97 @@ function initAdInterceptor() {
             return;
         }
 
-        console.log("🛡️ Guardian: Ads verified active. Injecting Legacy CleverAds Payload...");
+        console.log("🛡️ Guardian: Ads verified active. Injecting Fortified CleverAds Payload...");
 
-        // ACTION 1: Eager Injection (Pre-load ad payload silently)
-        try {
-            (function (document, window) {
-                var a, c = document.createElement("script"), f;
-                try { f = window.frameElement; } catch(e) { f = null; } // 🛡️ GUARDIAN FIX: Cross-origin frame shield
-                c.id = "CleverCoreLoader103008";
-                c.src = "https://scripts.cleverwebserver.com/a399a0d9cfe9817e0ccd10f89b4e320a.js";
-                c.async = !0;
-                c.type = "text/javascript";
-                c.setAttribute("data-target", window.name || (f && f.getAttribute("id")));
-                try {
-                    a = parent.document.getElementsByTagName("script")[0] || document.getElementsByTagName("script")[0];
-                } catch (e) {
-                    a = !1;
+        // 🛡️ GUARDIAN PHASE 4: The Fallback Destruction Protocol (Nuke)
+        const adContainer = document.getElementById('ad-container') || document.querySelector('.clever-core-ad') || document.querySelector('[id^="clever-"]');
+        
+        const destroyAdNetwork = (reason) => {
+            console.warn(`🛡️ Guardian Ad Shield: Nuking ad network. Reason: ${reason}`);
+            window._adNetworkDestroyed = true; // Global lock
+            
+            // 1. Remove the script
+            const adScript = document.getElementById("CleverCoreLoader103008");
+            if (adScript) adScript.remove();
+            
+            // 2. Erase the container completely to prevent phantom clicks or visual artifacts
+            if (adContainer) {
+                adContainer.innerHTML = '';
+                adContainer.style.setProperty('display', 'none', 'important');
+                adContainer.classList.add('hidden');
+            }
+            
+            // 3. Track the failure for our telemetry
+            if (typeof trackAnalyticsEvent === 'function') {
+                trackAnalyticsEvent('ad_shield_triggered', { reason: reason });
+            }
+        };
+
+        // ACTION 1: Eager Injection (Pre-load ad payload silently with Timeout Guard)
+        if (!window._adNetworkDestroyed) {
+            try {
+                // Start an 8-second execution fuse
+                const adTimeout = setTimeout(() => {
+                    if (!window._adScriptLoaded) {
+                        destroyAdNetwork("TIMEOUT_8S_EXCEEDED");
+                    }
+                }, 8000);
+
+                (function (document, window) {
+                    var a, c = document.createElement("script"), f;
+                    try { f = window.frameElement; } catch(e) { f = null; } // 🛡️ GUARDIAN FIX: Cross-origin frame shield
+                    c.id = "CleverCoreLoader103008";
+                    c.src = "https://scripts.cleverwebserver.com/a399a0d9cfe9817e0ccd10f89b4e320a.js";
+                    c.async = !0;
+                    c.type = "text/javascript";
+                    c.setAttribute("data-target", window.name || (f && f.getAttribute("id")));
+                    
+                    // 🛡️ GUARDIAN PHASE 4: Strict Error Boundary
+                    c.onerror = () => {
+                        clearTimeout(adTimeout);
+                        destroyAdNetwork("SCRIPT_LOAD_ERROR");
+                    };
+                    c.onload = () => {
+                        clearTimeout(adTimeout);
+                        window._adScriptLoaded = true;
+                        console.log("🛡️ Guardian: Ad Script initialized successfully.");
+                    };
+
+                    try {
+                        a = parent.document.getElementsByTagName("script")[0] || document.getElementsByTagName("script")[0];
+                    } catch (e) {
+                        a = !1;
+                    }
+                    a || (a = document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]);
+                    a.parentNode.insertBefore(c, a);
+                })(document, window);
+            } catch(e) { 
+                console.warn("🛡️ Guardian: Ad script injection safely suppressed.", e); 
+                destroyAdNetwork("EVAL_EXCEPTION");
+            }
+        }
+
+        // 🛡️ GUARDIAN PHASE 4: MutationObserver to trap rogue full-page takeovers
+        if (adContainer && window.MutationObserver) {
+            const adObserver = new MutationObserver((mutations) => {
+                for (let m of mutations) {
+                    if (m.type === 'attributes' && m.attributeName === 'style') {
+                        const newStyle = adContainer.getAttribute('style') || '';
+                        if (newStyle.includes('height: 100vh') || newStyle.includes('height: 100%') || newStyle.includes('position: fixed; top: 0')) {
+                            adObserver.disconnect();
+                            destroyAdNetwork("ROGUE_FULLSCREEN_TAKEOVER");
+                            break;
+                        }
+                    }
                 }
-                a || (a = document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]);
-                a.parentNode.insertBefore(c, a);
-            })(document, window);
-        } catch(e) { console.warn("🛡️ Guardian: Ad script injection safely suppressed.", e); }
+            });
+            adObserver.observe(adContainer, { attributes: true, childList: true, subtree: true });
+        }
 
         // ACTION 2 & 3: Safe Unhiding & Verified Telemetry
         const checkAndUnhide = () => {
-            // Locate the ad container (adjust selector based on your exact HTML structure)
-            const adContainer = document.getElementById('ad-container') || document.querySelector('.clever-core-ad') || document.querySelector('[id^="clever-"]');
-
+            if (window._adNetworkDestroyed) return; // Halt if killed
+            
             // State Verification
             const hash = location.hash;
             const isMainRoute = (hash === '' || hash === '#home');
@@ -2644,15 +2708,32 @@ function setupFeedbackLogic() {
     if (fileInput) {
         fileInput.addEventListener('change', function() {
             if (this.files && this.files.length > 0) {
-                const file = this.files[0];
-                
-                if (file.size > 5242880) {
-                    showToast("File is too large. Maximum size is 5MB.", "error");
+                if (this.files.length > 4) {
+                    showToast("Maximum of 4 files allowed.", "error");
                     this.value = '';
                     if (filePreview) filePreview.classList.add('hidden');
                     return;
                 }
-                if (fileNameDisplay) fileNameDisplay.textContent = file.name;
+                
+                let fileNames = [];
+                for (let i = 0; i < this.files.length; i++) {
+                    const file = this.files[i];
+                    if (file.size > 5242880) {
+                        showToast(`File "${file.name}" is too large. Maximum 5MB per file.`, "error");
+                        this.value = '';
+                        if (filePreview) filePreview.classList.add('hidden');
+                        return;
+                    }
+                    fileNames.push(file.name);
+                }
+                
+                if (fileNameDisplay) {
+                    if (this.files.length === 1) {
+                        fileNameDisplay.textContent = fileNames[0];
+                    } else {
+                        fileNameDisplay.textContent = `${this.files.length} files selected`;
+                    }
+                }
                 if (filePreview) filePreview.classList.remove('hidden');
             } else {
                 if (filePreview) filePreview.classList.add('hidden');
@@ -2729,49 +2810,55 @@ async function submitFeedback() {
             authToken = await window.firebaseGetIdToken(window.firebaseAuth.currentUser, true);
         }
 
-        let attachmentUrl = null;
+        let attachmentUrls = [];
 
         if (hasFile) {
-            const file = fileInput.files[0];
             if (window.firebaseStorage && window.firebaseStorageRef && window.firebaseUploadBytesResumable && window.firebaseGetDownloadURL) {
-                submitText.textContent = "Uploading File...";
+                submitText.textContent = fileInput.files.length > 1 ? "Uploading Files..." : "Uploading File...";
                 
-                const fileExt = file.name.split('.').pop();
-                const fileName = `feedback_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
-                const storageReference = window.firebaseStorageRef(window.firebaseStorage, `feedback_attachments/${fileName}`);
-                
-                const uploadTask = window.firebaseUploadBytesResumable(storageReference, file);
-                
-                const uploadPromise = new Promise((resolve, reject) => {
-                    uploadTask.on('state_changed', 
-                        null, 
-                        (error) => reject(error), 
-                        async () => {
-                            try {
-                                attachmentUrl = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
-                                resolve();
-                            } catch (err) {
-                                reject(err);
+                const uploadPromises = Array.from(fileInput.files).map(file => {
+                    const fileExt = file.name.split('.').pop();
+                    const fileName = `feedback_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
+                    const storageReference = window.firebaseStorageRef(window.firebaseStorage, `feedback_attachments/${fileName}`);
+                    
+                    const uploadTask = window.firebaseUploadBytesResumable(storageReference, file);
+                    
+                    const uploadPromise = new Promise((resolve, reject) => {
+                        uploadTask.on('state_changed', 
+                            null, 
+                            (error) => reject(error), 
+                            async () => {
+                                try {
+                                    const url = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
+                                    resolve(url);
+                                } catch (err) {
+                                    reject(err);
+                                }
                             }
-                        }
-                    );
-                });
+                        );
+                    });
 
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('UPLOAD_TIMEOUT')), 15000);
+                    const timeoutPromise = new Promise((_, reject) => {
+                        setTimeout(() => reject(new Error('UPLOAD_TIMEOUT')), 15000);
+                    });
+
+                    return Promise.race([uploadPromise, timeoutPromise]).catch(uploadError => {
+                        console.warn(`🛡️ Guardian: Image upload failed or timed out for ${file.name}. Abandoning image.`, uploadError);
+                        if (uploadError.message === 'UPLOAD_TIMEOUT') {
+                            uploadTask.cancel(); 
+                        }
+                        return null; // Return null so Promise.all doesn't fail the entire batch
+                    });
                 });
 
                 try {
-                    await Promise.race([uploadPromise, timeoutPromise]);
-                } catch (uploadError) {
-                    console.warn("🛡️ Guardian: Image upload failed or timed out. Abandoning image to save text feedback.", uploadError);
-                    if (uploadError.message === 'UPLOAD_TIMEOUT') {
-                        uploadTask.cancel(); 
-                    }
-                    attachmentUrl = null; 
+                    const results = await Promise.all(uploadPromises);
+                    attachmentUrls = results.filter(url => url !== null);
+                } catch (e) {
+                    console.warn("🛡️ Guardian: Batch upload failed.", e);
                 }
             } else {
-                console.warn("🛡️ Firebase Storage SDK not available. Skipping attachment.");
+                console.warn("🛡️ Firebase Storage SDK not available. Skipping attachments.");
             }
         }
 
@@ -2783,7 +2870,8 @@ async function submitFeedback() {
             type: type,
             text: text,
             email: email,
-            attachmentUrl: attachmentUrl,
+            attachmentUrl: attachmentUrls.length > 0 ? attachmentUrls[0] : null, // Backwards compatibility for single-image admin views
+            attachmentUrls: attachmentUrls.length > 0 ? attachmentUrls : null, // Full array of images for updated admin views
             status: "unread",
             appVersion: typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown',
             routeId: typeof currentRouteId !== 'undefined' ? currentRouteId : 'none',
@@ -2807,8 +2895,10 @@ async function submitFeedback() {
             throw new Error(`Failed to post to database: ${res.status} ${res.statusText} - ${errorText}`);
         }
 
-        if (hasFile && !attachmentUrl) {
-            showToast("Feedback sent! (Image upload was blocked by network and skipped)", "warning", 4000);
+        if (hasFile && attachmentUrls.length === 0) {
+            showToast("Feedback sent! (Image uploads were blocked by network and skipped)", "warning", 4000);
+        } else if (hasFile && attachmentUrls.length < fileInput.files.length) {
+            showToast("Feedback sent! (Some files failed to upload)", "warning", 4000);
         } else {
             showToast("Feedback sent! Thank you.", "success");
         }
@@ -2838,7 +2928,7 @@ async function submitFeedback() {
             contextBox.dataset.rawMsg = '';
         }
         
-        trackAnalyticsEvent('submit_feedback_success', { feedback_type: type, has_attachment: !!attachmentUrl });
+        trackAnalyticsEvent('submit_feedback_success', { feedback_type: type, has_attachment: attachmentUrls.length > 0 });
 
     } catch (e) {
         console.error("🛡️ Feedback Error:", e);
