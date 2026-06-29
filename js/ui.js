@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.28 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.29 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -277,7 +277,9 @@ window.closeAppHub = function(fromPopState = false) {
     
     // GUARDIAN Phase 9: Sync with History API to keep Router clean
     if (!fromPopState && location.hash === '#sidenav') {
+        window._isSidenavClosing = true; // 🛡️ GUARDIAN FIX: Set router lock to protect Planner
         history.back();
+        setTimeout(() => { window._isSidenavClosing = false; }, 150); // Release lock safely after popstate fires
     }
 };
 
@@ -2330,6 +2332,12 @@ window.addEventListener('popstate', (event) => {
         return;
     }
 
+    // 🛡️ GUARDIAN PHASE 9: Sidenav Router Bleed Lock (Protects Planner Results)
+    if (window._isSidenavClosing) {
+        console.log("🛡️ Guardian: Suppressed popstate router bleed during Sidenav closure.");
+        return;
+    }
+
     // 🛡️ GUARDIAN PHASE 11: Admin Router Bug Fix (The Back-Button Trap)
     // If the admin is drilled down into a specific panel (e.g. Service Alerts), intercept the back button 
     // and click the "drill-back-btn" to return them to the Admin Grid, rather than dropping them to the home screen.
@@ -2932,7 +2940,20 @@ async function submitFeedback() {
 
     } catch (e) {
         console.error("🛡️ Feedback Error:", e);
-        showToast("Failed to send feedback. Please try again.", "error");
+        
+        // Parse the error to give a commuter-friendly, non-technical context
+        let friendlyMsg = "Failed to send feedback. Please try again.";
+        const rawError = (e.message || "").toLowerCase();
+        
+        if (rawError.includes("network") || rawError.includes("offline") || rawError.includes("fetch") || e.name === 'TypeError') {
+            friendlyMsg = "No internet connection. Please check your network and try again.";
+        } else if (rawError.includes("failed to post") || rawError.includes("database") || rawError.includes("503") || rawError.includes("timeout")) {
+            friendlyMsg = "Our servers are currently busy. Please try again in a few moments.";
+        } else if (rawError.includes("auth") || rawError.includes("token") || rawError.includes("anonymous")) {
+            friendlyMsg = "Security check failed. Please refresh the app and try again.";
+        }
+        
+        showToast(friendlyMsg, "error", 4000); // Extended to 4s so commuters can read the specific guidance
         trackAnalyticsEvent('submit_feedback_error', { error_msg: e.message });
     } finally {
         submitBtn.disabled = false;

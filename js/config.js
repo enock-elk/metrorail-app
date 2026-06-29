@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7_06.28"; // v1 - BUMPED: UX Polish, 18-Hour Layover Uncap & Precision Routings.
+const APP_VERSION = "V7_06.29"; // v1 - BUMPED: UX Polish, 18-Hour Layover Uncap & Precision Routings.
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -65,7 +65,7 @@ const MAX_RADIUS_KM = 6;
 const LEGAL_TEXTS = {
     terms: `
         <h4 class="font-bold text-lg mb-2">1. Independent Service & Disclaimer</h4>
-        <p class="mb-3"><strong>Metrorail Next Train</strong> is an independent digital tool developed by Kazembe CodeWorks. This application is <strong>not affiliated with, endorsed by, or directly associated with PRASA or Metrorail</strong>. The service is provided "as is" without warranties of any kind.</p>
+        <p class="mb-3"><strong>Next Train</strong> is an independent digital tool developed by Kazembe CodeWorks. This application is <strong>not affiliated with, endorsed by, or directly associated with PRASA or Metrorail</strong>. The service is provided "as is" without warranties of any kind.</p>
         
         <h4 class="font-bold text-lg mb-2 mt-4">2. Schedule Accuracy & Liability</h4>
         <p class="mb-3">All transit schedules, fares, and routing information presented within this application are aggregated estimations based on publicly available data. We do not guarantee absolute real-time accuracy. Kazembe CodeWorks and its developers shall not be held liable for any missed transit connections, financial losses, disciplinary actions at places of employment, or personal damages arising from the use of this information.</p>
@@ -720,6 +720,15 @@ const DEFAULT_EXCLUSIONS = {
 // GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
     {
+        version: "V7 06.29 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Trip Planner Polish</span>",
+        date: "29 Jun 2026",
+        features: [
+            "<b>Sleeker Timeline:</b> Tightened up the Trip Planner timeline to maximize screen space and make transfer instructions easier to read on mobile.",
+            "<b>Clearer Disruptions:</b> Line severance alerts now physically break out of the timeline axis to clearly show exactly where a train terminates.",
+            "<b>Official Rebranding:</b> We have officially rebranded to <b>Next Train</b> to ensure preemptive legal compliance and maintain our strict independence as an unaffiliated commuter tool."
+        ]
+    },
+    {
         version: "V7 06.24 <br><span class='text-sm text-blue-600 dark:text-blue-400'>The Corporate Glass Update</span>",
         date: "24 Jun 2026",
         features: [
@@ -759,7 +768,7 @@ const CHANGELOG_DATA = [
         version: "V7 05.12 <br><span class='text-sm text-blue-600 dark:text-blue-400'>KZN & EC Launch</span>",
         date: "12 May 2026",
         features: [
-            "<b>National Expansion:</b> Metrorail Next Train has officially launched in KwaZulu-Natal and the Eastern Cape!",
+            "<b>National Expansion:</b> Next Train has officially launched in KwaZulu-Natal and the Eastern Cape!",
             "<b>Cross-Region Support:</b> Easily switch between provinces in the main menu to view local timetables."
         ]
     },
@@ -784,7 +793,7 @@ const CHANGELOG_DATA = [
         version: "V6.00 <br><span class='text-[13px] text-blue-600 dark:text-blue-400'>Western Cape Launch</span>",
         date: "Apr 2026",
         features: [
-            "<b>Cape Town is Here!:</b> Metrorail Next Train now fully supports Western Cape routes. You can check schedules and plan trips for Cape Town completely offline.",
+            "<b>Cape Town is Here!:</b> Next Train now fully supports Western Cape routes. You can check schedules and plan trips for Cape Town completely offline.",
             "<b>All-New App Menu:</b> We've combined all your settings, offline syncing, and region selection into a clean, easy-to-use side menu.",
             "<b>Better Navigation:</b> Swiping back or using your phone's back button now cleanly closes popups instead of accidentally exiting the app."
         ]

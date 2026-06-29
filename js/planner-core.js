@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V7_06.28 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7_06.29 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -1606,7 +1606,7 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
     // If it's a strict manual override, we DO NOT loop. We query exactly once.
     // 🛡️ GUARDIAN PHASE 1 (Hard Execution Ceiling): Constrain the max offset securely.
     const MAX_SAFE_ROLLOVER_DAYS = 7;
-    const maxOffset = isExplicitOverride ? startOffset : startOffset + MAX_SAFE_ROLLOVER_DAYS;
+    let maxOffset = isExplicitOverride ? startOffset : startOffset + MAX_SAFE_ROLLOVER_DAYS;
     
     // 🛡️ GUARDIAN PHASE 15 & 1: Failsafe Loop Limiter upgraded to a Hard Execution Ceiling
     let executionCounter = 0;
@@ -1660,6 +1660,19 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
                 initialStatus = evalResult.status;
                 if (dayType === 'sunday' || evalResult.status === 'SUNDAY_SKIP') {
                     initialStatus = 'SUNDAY_ROLLOVER';
+                }
+                
+                // 🛡️ GUARDIAN PHASE 10: ALGORITHM SHORT-CIRCUIT (The 13-Second Loop Fix)
+                // If the very first day yields no path, do a rapid pre-probe.
+                // If it's a hard physical severance (sinkhole, cross-region), there is NO 
+                // mathematical reason to scan the next 6 days. Abort the future scan.
+                if (evalResult.status === 'NO_PATH' && !isExplicitOverride) {
+                    const earlyProbe = runHeuristicFailureProbe(origin, dest);
+                    if (typeof earlyProbe === 'object' || earlyProbe === 'ERR_CROSS_REGION' || earlyProbe === 'ERR_DISCONNECTED_GRAPH') {
+                        console.log("🛡️ Guardian: Hard physical block detected on Day 1. Short-circuiting 7-day loop.");
+                        // Force the loop to terminate after today's iteration (allowing today's partial journey check to finish)
+                        maxOffset = offset;
+                    }
                 }
             }
 

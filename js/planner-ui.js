@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.28 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_06.29 - Performance Polish Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -314,13 +314,13 @@ window.openDisruptionModal = function(id) {
     // Support either legacy message or new robust message fields
     bodyEl.innerHTML = targetDisruption.message || targetDisruption.longExplanation || "No additional details provided.";
     
+    if (badgeEl && badgeEl.parentElement) {
+        badgeEl.parentElement.classList.add('hidden'); // 🛡️ GUARDIAN FIX: Completely hides the bottom badge wrapper
+    }
+
     if (targetDisruption.tier === 'CRITICAL') {
-        badgeEl.className = "w-full text-center text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 py-2.5 rounded-lg border border-red-200 dark:border-red-800/50";
-        badgeEl.innerHTML = "🔴 CRITICAL SERVICE DISRUPTION";
         iconEl.className = "w-5 h-5 mr-2 text-red-500";
     } else {
-        badgeEl.className = "w-full text-center text-[10px] font-black uppercase tracking-widest text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 py-2.5 rounded-lg border border-yellow-200 dark:border-yellow-800/50";
-        badgeEl.innerHTML = "🟡 EXPECT DELAYS / SINGLE TRACK";
         iconEl.className = "w-5 h-5 mr-2 text-yellow-500";
     }
     
@@ -561,42 +561,50 @@ const PlannerRenderer = {
                         const termStationName = cleanStr(fullValidStops[idx].station.replace(' STATION', '')).toUpperCase();
                         
                         let terminationTag = justSevered 
-                            ? `<div class="font-bold uppercase tracking-wide mb-1 text-red-800 dark:text-red-300">TRAIN TERMINATES @ ${termStationName}</div>` 
+                            ? `<div class="bg-red-50 dark:bg-red-900/20 px-3 py-2 border-b border-red-100 dark:border-red-900/50 flex justify-between items-center rounded-t-xl"><span class="font-black uppercase tracking-widest text-[10px] text-red-700 dark:text-red-400">🛑 TRAIN TERMINATES @ ${termStationName}</span></div>` 
                             : ``;
 
+                        const linkSvg = `<svg class="w-3 h-3 mr-1 text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`;
+
+                        // 🛡️ GUARDIAN UX FIX: The Breakout Disruption
+                        // -ml-[10px] exactly counteracts the parent's ml-2 (8px) + border-l-2 (2px), snapping the card flush left.
                         inj += `
-                            <div class="relative pl-5 pb-6 pt-2 z-20 ml-2">
-                                <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-red-500 ring-4 ring-red-100 dark:ring-red-900 z-10"></div>
-                                <div class="mt-1 text-xs text-red-800 dark:text-red-300 bg-red-50 dark:bg-red-900/30 p-2 rounded border-l-4 border-red-500 shadow-sm">
+                            <div class="relative -ml-[10px] my-4 z-20 w-[calc(100%+10px)]">
+                                <div class="bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-900/50 shadow-md flex flex-col w-full overflow-hidden">
                                     ${terminationTag}
-                                    <div class="font-bold uppercase tracking-wide mb-1 flex justify-between items-center w-full">
-                                        <span class="text-red-900 dark:text-white text-[10px] leading-none">❌ LINE SEVERED</span>
-                                        <button type="button" onclick="openDisruptionModal('${d.id}')" class="shrink-0 min-w-0 truncate max-w-[50%] bg-white dark:bg-gray-800 hover:bg-red-100 dark:hover:bg-gray-700 text-red-700 dark:text-red-400 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border border-red-200 dark:border-red-800 transition-colors shadow-sm focus:outline-none ml-2">
-                                            ${safeBtnText}
+                                    <div class="p-3 flex justify-between items-end w-full">
+                                        <div class="flex flex-col items-start min-w-0 pr-2">
+                                            <span class="text-red-600 dark:text-red-500 font-bold uppercase tracking-wide text-[11px] leading-none mb-1 flex items-center">
+                                                ❌ LINE SEVERED
+                                            </span>
+                                            <div class="text-gray-500 dark:text-gray-400 leading-snug flex items-center min-w-0 w-full mt-1">
+                                                ${linkSvg} <span class="font-medium text-[10px] truncate">${locationText}</span>
+                                            </div>
+                                        </div>
+                                        <button type="button" onclick="openDisruptionModal('${d.id}')" class="bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-100 dark:text-white px-2.5 py-1.5 rounded-md text-[9px] font-bold uppercase tracking-wider transition-colors focus:outline-none shadow-sm flex items-center shrink-0">
+                                            <span class="truncate max-w-[110px]">${safeBtnText}</span>
                                         </button>
-                                    </div>
-                                    <div class="text-red-700 dark:text-red-400 leading-snug">
-                                        &bull; <span class="font-bold text-red-600 dark:text-red-400 text-[9px]">${locationText}</span>
                                     </div>
                                 </div>
                             </div>
                         `;
                     } else {
+                        const linkSvg = `<svg class="w-3 h-3 mr-1 text-gray-400 dark:text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`;
+                        
                         inj += `
-                            <div class="relative pl-5 pb-6 pt-2 z-20 ml-2">
-                                <div class="absolute -left-[5px] top-4 w-3 h-3 rounded-full bg-yellow-500 ring-4 ring-yellow-100 dark:ring-yellow-900 z-10"></div>
-                                <div class="mt-1 text-xs text-yellow-800 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-900/30 p-2 rounded border-l-4 border-yellow-500 shadow-sm flex flex-col">
-                                    <div class="w-full">
-                                        <div class="flex justify-between items-start w-full">
-                                            <span class="font-bold text-yellow-900 dark:text-white text-[10px] leading-none mt-1">⚠️ EXPECT DELAYS</span>
-                                            <button type="button" onclick="openDisruptionModal('${d.id}')" class="shrink-0 bg-white dark:bg-gray-800 hover:bg-yellow-100 dark:hover:bg-gray-700 text-yellow-700 dark:text-yellow-400 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border border-yellow-200 dark:border-yellow-800 transition-colors shadow-sm focus:outline-none ml-2">
-                                                ${safeBtnText}
-                                            </button>
-                                        </div>
-                                        <div class="text-yellow-700 dark:text-yellow-400 leading-snug mt-1.5">
-                                            &bull; <span class="font-bold text-yellow-700 dark:text-yellow-400 text-[9px]">${locationText}</span>
+                            <div class="relative py-2 z-20 w-full">
+                                <div class="bg-slate-50 dark:bg-slate-800/40 rounded-r-lg border-l-4 border-yellow-500 p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-sm">
+                                    <div class="flex flex-col items-start min-w-0 pr-2">
+                                        <span class="text-yellow-600 dark:text-yellow-500 font-bold uppercase tracking-wide text-[10px] leading-none mb-1 flex items-center">
+                                            ⚠️ EXPECT DELAYS
+                                        </span>
+                                        <div class="text-gray-500 dark:text-gray-400 leading-snug flex items-center min-w-0 w-full mt-0.5">
+                                            ${linkSvg} <span class="font-medium text-[9px] truncate">${locationText}</span>
                                         </div>
                                     </div>
+                                    <button type="button" onclick="openDisruptionModal('${d.id}')" class="bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-100 dark:text-white px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors focus:outline-none shadow-sm flex items-center shrink-0">
+                                        <span class="truncate max-w-[110px]">${safeBtnText}</span>
+                                    </button>
                                 </div>
                             </div>
                         `;
@@ -713,18 +721,29 @@ const PlannerRenderer = {
             let combinedHtml = leg1.html;
 
             const transferOpacity = leg1.isSevered ? "opacity-50 grayscale" : "";
-            const clockSvg = `<svg class="w-3.5 h-3.5 mr-1 text-gray-900 dark:text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+            const isExtended = Math.floor(it.wait / 60) >= 240;
+            const iconBg = isExtended ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
+            const waitTextColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white';
+            const bridgeTitle = isExtended ? `⚠️ EXTENDED LAYOVER` : `INTERNAL TRANSFER`;
+            const bridgeTitleColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
+            const bigClockSvg = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
             
-            // 🛡️ GUARDIAN UX FIX: Oval Unification - Subdued blue, locked height
             combinedHtml += `
                 <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
-                    <div class="relative pl-6 pb-6 pt-2">
-                        <div class="absolute -left-[3px] top-3 bottom-6 w-2 rounded-full bg-blue-400 dark:bg-blue-700 z-10"></div>
-                        <div class="mt-1 text-xs text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 p-2 rounded border-l-4 border-blue-500 shadow-sm">
-                            <div class="font-bold uppercase tracking-wide mb-1">INTERNAL TRANSFER @ ${sName}</div>
-                            <div class="flex flex-col space-y-0.5 text-gray-600 dark:text-gray-400 leading-snug">
-                                <div class="font-bold text-gray-900 dark:text-white flex items-center">${clockSvg} <span>${waitStr} Wait</span></div>
-                                <div>&bull; Switch to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${it.train2}</span></div>
+                    <div class="relative py-2 z-20">
+                        <div class="bg-slate-50 dark:bg-slate-800/40 rounded-r-lg border-l-4 ${isExtended ? 'border-orange-500' : 'border-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-sm">
+                            <div class="flex items-center min-w-0 pr-3">
+                                <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
+                                    ${bigClockSvg}
+                                </div>
+                                <div class="flex flex-col items-start min-w-0">
+                                    <span class="text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle} @ ${sName}">${bridgeTitle} @ ${sName}</span>
+                                    <span class="font-bold text-[11px] ${waitTextColor} leading-none truncate">${waitStr} Wait</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end text-right shrink-0 max-w-[45%]">
+                                <span class="text-[8px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider leading-none mb-1">Connect To</span>
+                                <span class="font-bold text-[10px] text-blue-600 dark:text-blue-400 leading-tight truncate w-full" title="${train2Dest} Train ${it.train2}">${train2Dest} Train ${it.train2}</span>
                             </div>
                         </div>
                     </div>
@@ -778,10 +797,15 @@ const PlannerRenderer = {
         if (activeDisr) {
             const isCrit = activeDisr.tier === 'CRITICAL';
             const colorClass = isCrit ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-yellow-500 text-yellow-900 hover:bg-yellow-600';
-            const icon = isCrit ? '🔴' : '⚠️';
-            const text = isCrit ? 'Critical Service Disruption' : 'Minor Service Delays';
             
-            alertBanner = `<button type="button" onclick="openDisruptionModal('${activeDisr.id}')" class="w-full ${colorClass} text-[10px] font-black uppercase tracking-widest text-center py-1.5 shadow-sm mb-3 rounded transition-colors focus:outline-none animate-pulse">${icon} ${text} ${icon}</button>`;
+            // 🛡️ GUARDIAN UX FIX: Replaced vibe-coded emojis with premium Lucide-style SVGs
+            const criticalIcon = `<svg class="w-4 h-4 shrink-0 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+            const warningIcon = `<svg class="w-4 h-4 shrink-0 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+            
+            const icon = isCrit ? criticalIcon : warningIcon;
+            const text = isCrit ? 'CRITICAL SERVICE DISRUPTION' : 'MINOR SERVICE DELAYS';
+            
+            alertBanner = `<button type="button" onclick="openDisruptionModal('${activeDisr.id}')" class="w-full flex items-center justify-center ${colorClass} text-[10px] font-black uppercase tracking-wider text-center py-1.5 shadow-sm mb-3 rounded transition-colors focus:outline-none">${icon} <span class="ml-1.5">${text}</span></button>`;
         }
 
         let transferCount = 0;
@@ -878,7 +902,7 @@ const PlannerRenderer = {
                         <p class="text-lg font-black ${colorClass} mt-1">${PlannerRenderer.format12h(step.arrTime)}</p>
                     </div>
                 </div>
-                <div class="flex justify-between items-end mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <div class="flex justify-between items-start mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                      ${stateBadge}
                      <div class="flex flex-col items-end text-right shrink-0 pl-2">
                         <div class="flex items-center text-xs font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">
@@ -947,8 +971,17 @@ const PlannerRenderer = {
 
         return `
             <div class="pb-3 relative border-b border-gray-100 dark:border-gray-800 mb-2" id="custom-time-dropdown-container">
+                <style>
+                    @keyframes gentleRingPulse {
+                        0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+                        50% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25); }
+                    }
+                    .planner-gentle-pulse {
+                        animation: gentleRingPulse 1.5s ease-in-out 4; /* Stops gracefully after 6 seconds */
+                    }
+                </style>
                 <label class="text-[9px] uppercase font-black text-gray-400 mb-1.5 block tracking-widest pl-1">Departure Time</label>
-                <div onclick="this.classList.remove('animate-pulse', 'ring-4', 'ring-blue-500/30'); window._toggleCustomTimeDropdown(event)" class="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm rounded-lg p-3 focus:outline-none font-bold shadow-sm cursor-pointer flex justify-between items-center transition-colors hover:border-blue-400 group ring-4 ring-blue-500/30 animate-pulse">
+                <div onclick="this.classList.remove('planner-gentle-pulse'); window._toggleCustomTimeDropdown(event)" class="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm rounded-lg p-3 focus:outline-none font-bold shadow-sm cursor-pointer flex justify-between items-center transition-colors hover:border-blue-400 group planner-gentle-pulse">
                     <span id="custom-time-display" class="truncate pr-2">${selectedText}</span>
                     <svg class="w-4 h-4 text-blue-500 dark:text-blue-400 shrink-0 transform transition-transform" id="custom-time-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
@@ -1026,20 +1059,30 @@ const PlannerRenderer = {
                 }
 
                 const transferOpacity = currentSevered ? "opacity-50 grayscale" : "";
-                const boxClass = isExtended ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-500';
-                const titleText = isExtended ? `⚠️ EXTENDED LAYOVER: ${waitStr} Wait` : `TRANSFER ${i+1} @ ${hubName}`;
-                const clockSvg = `<svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
-                const waitTextHtml = `<span class="font-bold flex items-center ${isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white'}">${clockSvg} ${waitStr} Wait</span>`;
+                const bridgeTitle = isExtended ? `⚠️ EXTENDED LAYOVER` : `TRANSFER ${i+1}`;
+                const bridgeTitleColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
+                const lineColor = isExtended ? 'bg-orange-500' : 'bg-blue-500';
+                const iconBg = isExtended ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
+                const waitTextColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white';
+                const bigClockSvg = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
 
+                // 🛡️ GUARDIAN UX FIX: The Flush Axis & Text Compression
                 html += `
                     <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
-                        <div class="relative pl-6 pb-6 pt-2">
-                            <div class="absolute -left-[3px] top-3 bottom-6 w-2 rounded-full bg-blue-400 dark:bg-blue-700 z-10"></div>
-                            <div class="mt-1 text-xs ${boxClass} p-2 rounded border-l-4 shadow-sm">
-                                <div class="font-bold uppercase tracking-wide mb-1">${titleText}</div>
-                                <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                                    ${waitTextHtml}<br>
-                                    &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${trainDest} Train ${nextLeg.train}</span>
+                        <div class="relative py-2 z-20 w-full">
+                            <div class="bg-slate-50 dark:bg-slate-800/40 rounded-r-lg border-l-4 ${isExtended ? 'border-orange-500' : 'border-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-sm">
+                                <div class="flex items-center min-w-0 pr-3">
+                                    <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
+                                        ${bigClockSvg}
+                                    </div>
+                                    <div class="flex flex-col items-start min-w-0">
+                                        <span class="text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle} @ ${hubName}">${bridgeTitle} @ ${hubName}</span>
+                                        <span class="font-bold text-[11px] ${waitTextColor} leading-none truncate">${waitStr} Wait</span>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col items-end text-right shrink-0 max-w-[45%]">
+                                    <span class="text-[8px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider leading-none mb-1">Connect To</span>
+                                    <span class="font-bold text-[10px] text-blue-600 dark:text-blue-400 leading-tight truncate w-full" title="${trainDest} Train ${nextLeg.train}">${trainDest} Train ${nextLeg.train}</span>
                                 </div>
                             </div>
                         </div>
@@ -1076,21 +1119,30 @@ const PlannerRenderer = {
             }
         }
 
-        const boxClass = isExtended ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-500';
-        const titleText = isExtended ? `⚠️ EXTENDED LAYOVER: ${waitStr} Wait` : `TRANSFER REQUIRED`;
-        const clockSvg = `<svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
-        const waitTextHtml = `<span class="font-bold flex items-center ${isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white'}">${clockSvg} ${waitStr} Wait</span>`;
+        const bridgeTitle = isExtended ? `⚠️ EXTENDED LAYOVER` : `TRANSFER REQUIRED`;
+        const bridgeTitleColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
+        const lineColor = isExtended ? 'bg-orange-500' : 'bg-blue-500';
+        const iconBg = isExtended ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
+        const waitTextColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white';
+        const bigClockSvg = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
 
-        // 🛡️ GUARDIAN UX FIX: Oval Unification - Subdued blue, locked height
+        // 🛡️ GUARDIAN UX FIX: The Flush Axis & Text Compression
         const standardTransferBlock = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
-                <div class="relative pl-6 pb-6 pt-2">
-                    <div class="absolute -left-[3px] top-3 bottom-6 w-2 rounded-full bg-blue-400 dark:bg-blue-700 z-10"></div>
-                    <div class="mt-1 text-xs ${boxClass} p-2 rounded border-l-4 shadow-sm">
-                        <div class="font-bold uppercase tracking-wide mb-1">${titleText}</div>
-                        <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                            ${waitTextHtml}<br>
-                            &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${step.leg2.train}</span>
+                <div class="relative py-2 z-20 w-full">
+                    <div class="bg-slate-50 dark:bg-slate-800/40 rounded-r-lg border-l-4 ${isExtended ? 'border-orange-500' : 'border-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-sm">
+                        <div class="flex items-center min-w-0 pr-3">
+                            <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
+                                ${bigClockSvg}
+                            </div>
+                            <div class="flex flex-col items-start min-w-0">
+                                <span class="text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle}">${bridgeTitle}</span>
+                                <span class="font-bold text-[11px] ${waitTextColor} leading-none truncate">${waitStr} Wait</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end text-right shrink-0 max-w-[45%]">
+                            <span class="text-[8px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider leading-none mb-1">Connect To</span>
+                            <span class="font-bold text-[10px] text-blue-600 dark:text-blue-400 leading-tight truncate w-full" title="${train2Dest} Train ${step.leg2.train}">${train2Dest} Train ${step.leg2.train}</span>
                         </div>
                     </div>
                 </div>
@@ -1142,19 +1194,29 @@ const PlannerRenderer = {
             }
         }
 
-        const box1Class = isExtended1 ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-500';
-        const title1Text = isExtended1 ? `⚠️ EXTENDED LAYOVER: ${wait1Str} Wait` : `TRANSFER 1 @ ${hub1Name}`;
-        const wait1TextHtml = isExtended1 ? `<span class="font-bold text-orange-600 dark:text-orange-400">⏱ <b>${wait1Str}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait1Str}</b> Wait</span>`;
+        const bridgeTitle1 = isExtended1 ? `⚠️ EXTENDED LAYOVER` : `TRANSFER 1`;
+        const bridgeTitleColor1 = isExtended1 ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
+        const line1Color = isExtended1 ? 'bg-orange-500' : 'bg-blue-500';
+        const iconBg1 = isExtended1 ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
+        const waitTextColor1 = isExtended1 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white';
+        const bigClockSvg1 = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
 
         const transferBlock1 = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity1}">
-                <div class="relative pl-6 pb-6 pt-2">
-                    <div class="absolute -left-[3px] top-3 bottom-6 w-2 rounded-full bg-blue-400 dark:bg-blue-700 z-10"></div>
-                    <div class="mt-1 text-xs ${box1Class} p-2 rounded border-l-4 shadow-sm">
-                        <div class="font-bold uppercase tracking-wide mb-1">${title1Text}</div>
-                        <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                            ${wait1TextHtml}<br>
-                            &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train2Dest} Train ${step.leg2.train}</span>
+                <div class="relative py-2 z-20 w-full">
+                    <div class="bg-slate-50 dark:bg-slate-800/40 rounded-r-lg border-l-4 ${isExtended1 ? 'border-orange-500' : 'border-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-sm">
+                        <div class="flex items-center min-w-0 pr-3">
+                            <div class="w-8 h-8 rounded-full ${iconBg1} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
+                                ${bigClockSvg1}
+                            </div>
+                            <div class="flex flex-col items-start min-w-0">
+                                <span class="text-[8px] font-black ${bridgeTitleColor1} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle1} @ ${hub1Name}">${bridgeTitle1} @ ${hub1Name}</span>
+                                <span class="font-bold text-[11px] ${waitTextColor1} leading-none truncate">${wait1Str} Wait</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end text-right shrink-0 max-w-[45%]">
+                            <span class="text-[8px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider leading-none mb-1">Connect To</span>
+                            <span class="font-bold text-[10px] text-blue-600 dark:text-blue-400 leading-tight truncate w-full" title="${train2Dest} Train ${step.leg2.train}">${train2Dest} Train ${step.leg2.train}</span>
                         </div>
                     </div>
                 </div>
@@ -1177,19 +1239,29 @@ const PlannerRenderer = {
             }
         }
 
-        const box2Class = isExtended2 ? 'text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border-orange-500' : 'text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-500';
-        const title2Text = isExtended2 ? `⚠️ EXTENDED LAYOVER: ${wait2Str} Wait` : `TRANSFER 2 @ ${hub2Name}`;
-        const wait2TextHtml = isExtended2 ? `<span class="font-bold text-orange-600 dark:text-orange-400">⏱ <b>${wait2Str}</b> Wait</span>` : `<span class="font-bold text-gray-900 dark:text-white">⏱ <b>${wait2Str}</b> Wait</span>`;
+        const bridgeTitle2 = isExtended2 ? `⚠️ EXTENDED LAYOVER` : `TRANSFER 2`;
+        const bridgeTitleColor2 = isExtended2 ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
+        const line2Color = isExtended2 ? 'bg-orange-500' : 'bg-blue-500';
+        const iconBg2 = isExtended2 ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
+        const waitTextColor2 = isExtended2 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white';
+        const bigClockSvg2 = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
 
         const transferBlock2 = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity2}">
-                <div class="relative pl-6 pb-6 pt-2">
-                    <div class="absolute -left-[3px] top-3 bottom-6 w-2 rounded-full bg-blue-400 dark:bg-blue-700 z-10"></div>
-                    <div class="mt-1 text-xs ${box2Class} p-2 rounded border-l-4 shadow-sm">
-                        <div class="font-bold uppercase tracking-wide mb-1">${title2Text}</div>
-                        <div class="text-gray-600 dark:text-gray-400 leading-snug">
-                            ${wait2TextHtml}<br>
-                            &bull; Connect to <span class="font-bold text-blue-600 dark:text-blue-400">${train3Dest} Train ${step.leg3.train}</span>
+                <div class="relative py-2 z-20 w-full">
+                    <div class="bg-slate-50 dark:bg-slate-800/40 rounded-r-lg border-l-4 ${isExtended2 ? 'border-orange-500' : 'border-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-sm">
+                        <div class="flex items-center min-w-0 pr-3">
+                            <div class="w-8 h-8 rounded-full ${iconBg2} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
+                                ${bigClockSvg2}
+                            </div>
+                            <div class="flex flex-col items-start min-w-0">
+                                <span class="text-[8px] font-black ${bridgeTitleColor2} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle2} @ ${hub2Name}">${bridgeTitle2} @ ${hub2Name}</span>
+                                <span class="font-bold text-[11px] ${waitTextColor2} leading-none truncate">${wait2Str} Wait</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end text-right shrink-0 max-w-[45%]">
+                            <span class="text-[8px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider leading-none mb-1">Connect To</span>
+                            <span class="font-bold text-[10px] text-blue-600 dark:text-blue-400 leading-tight truncate w-full" title="${train3Dest} Train ${step.leg3.train}">${train3Dest} Train ${step.leg3.train}</span>
                         </div>
                     </div>
                 </div>
@@ -1866,11 +1938,11 @@ function setupAutocomplete(inputId, selectId) {
 function executeTripPlan(origin, dest, preferredTime = null) {
     const resultsContainer = document.getElementById('planner-results-list');
     
+    // 🛡️ GUARDIAN UX FIX: Replaced skeleton bars with dynamic text container
     resultsContainer.innerHTML = `
-        <div class="min-h-[400px] flex flex-col justify-center items-center text-center p-4 animate-pulse">
+        <div class="min-h-[400px] flex flex-col justify-center items-center text-center p-4">
             <svg class="w-10 h-10 animate-spin mx-auto text-blue-500 mb-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-2.5"></div>
-            <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+            <div id="planner-spinner-text" class="text-sm font-bold text-gray-600 dark:text-gray-400 animate-pulse">Searching all possible routes...</div>
         </div>
     `;
     
@@ -1890,11 +1962,19 @@ function executeTripPlan(origin, dest, preferredTime = null) {
     if (!selectedPlannerDay) selectedPlannerDay = currentDayType;
 
     let isSearching = true;
-    const searchToastTimer = setTimeout(() => {
-        if (isSearching && typeof showToast === 'function') {
-            showToast("Searching all possible routes...", "info", 3000);
-        }
-    }, 1500);
+    
+    // 🛡️ GUARDIAN PHASE 8: Dynamic Spinner Text Logic
+    const updateSpinnerText = (text) => {
+        const el = document.getElementById('planner-spinner-text');
+        if (el && isSearching) el.textContent = text;
+    };
+
+    // Staggers text updates for exhaustive Dijkstra searches
+    const spinnerTimers = [
+        setTimeout(() => updateSpinnerText("Evaluating alternative corridors..."), 3500),
+        setTimeout(() => updateSpinnerText("Line Severance detected. Rerouting..."), 7000),
+        setTimeout(() => updateSpinnerText("Calculating partial journeys..."), 10500)
+    ];
 
     setTimeout(async () => {
             let plannerResponse = { status: 'NO_PATH', trips: [] };
@@ -2026,19 +2106,21 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                     `;
                     break;
                 case 'ERR_ACTIVE_SUSPENSION':
-                    errorTitle = "Route Suspended";
-                    
-                    let suspensionAlertHtml = '';
-                    if (errorPayload && errorPayload.disruptionId) {
-                        const btnText = errorPayload.buttonText || "Line Severed";
-                        suspensionAlertHtml = `
-                            <div class="mt-4 flex justify-center w-full">
-                                <button type="button" onclick="openDisruptionModal('${errorPayload.disruptionId}')" class="bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm flex items-center animate-pulse focus:outline-none">
-                                    <span class="mr-1.5 text-sm">🔴</span> <span>${escapeHTML(btnText)}</span>
-                                </button>
-                            </div>
-                        `;
-                    }
+            errorTitle = "Route Suspended";
+            
+            let suspensionAlertHtml = '';
+            if (errorPayload && errorPayload.disruptionId) {
+                const btnText = errorPayload.buttonText || "Line Severed";
+                // 🛡️ GUARDIAN UX FIX: Replaced emoji with premium SVG
+                const brokenChainSvg = `<svg class="w-3.5 h-3.5 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path><line x1="8" y1="8" x2="16" y2="16"></line></svg>`;
+                suspensionAlertHtml = `
+                    <div class="mt-4 flex justify-center w-full">
+                        <button type="button" onclick="openDisruptionModal('${errorPayload.disruptionId}')" class="bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm flex items-center focus:outline-none">
+                            ${brokenChainSvg} <span>${escapeHTML(btnText)}</span>
+                        </button>
+                    </div>
+                `;
+            }
                     
                     errorMsg = `
                         <div class="text-left space-y-2 mt-2">
@@ -2119,7 +2201,7 @@ function executeTripPlan(origin, dest, preferredTime = null) {
         }
         
         isSearching = false;
-        clearTimeout(searchToastTimer);
+        spinnerTimers.forEach(t => clearTimeout(t));
         
     }, 100); 
 }
@@ -2226,14 +2308,15 @@ function updatePlannerHeader(dayLabel, showShare = true) {
         
         const badge = document.createElement("div");
         badge.id = "planner-header-badge";
-        badge.className = "relative bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-800 dark:text-blue-300 text-xs font-bold rounded-lg border border-blue-100 dark:border-blue-800 shadow-sm flex items-center transition-colors w-full max-w-[150px] cursor-pointer group h-[38px]"; 
+        // 🛡️ GUARDIAN UX FIX: Bumped text-xs to text-sm to perfectly align with the Back and Share buttons
+        badge.className = "relative bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-800 dark:text-blue-300 text-sm font-bold rounded-lg border border-blue-100 dark:border-blue-800 shadow-sm flex items-center transition-colors w-full max-w-[150px] cursor-pointer group h-[38px]"; 
         
         let selDay = selectedPlannerDay || (typeof currentDayType !== 'undefined' ? currentDayType : 'weekday');
         let selText = selDay === 'weekday' ? 'Mon - Fri' : (selDay === 'saturday' ? 'Saturday / Hol' : 'Sunday');
 
         badge.innerHTML = `
             <div onclick="window._toggleHeaderDayDropdown(event)" class="w-full h-full flex items-center justify-center px-3 relative">
-                <span id="header-day-display" class="truncate font-bold text-[12px] pr-1.5">${selText}</span>
+                <span id="header-day-display" class="truncate font-bold text-sm pr-1.5">${selText}</span>
                 <svg id="header-day-chevron" class="w-4 h-4 shrink-0 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 
                 <ul id="header-day-list" class="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl hidden flex-col overflow-hidden z-[200] text-left">
@@ -2329,23 +2412,25 @@ function renderTripResult(container, trips, selectedIndex = 0, isPartial = false
     updatePlannerHeader(dayLabel, true);
 
     let partialWarningHtml = "";
-    if (isPartial && currentPlannerErrorPayload) {
-        const intended = currentPlannerErrorPayload.intendedDest || "Destination";
-        const partial = currentPlannerErrorPayload.partialDest || selectedTrip.to;
-        partialWarningHtml = `
-            <div class="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-3 mb-4 rounded-r shadow-sm animate-fade-in-up">
-                <div class="flex items-start">
-                    <span class="text-xl mr-2 leading-none">⚠️</span>
-                    <div>
-                        <h4 class="text-xs font-black text-yellow-800 dark:text-yellow-400 uppercase tracking-widest mb-0.5">Line Severed</h4>
-                        <p class="text-xs text-yellow-700 dark:text-yellow-300 leading-snug">
-                            Cannot reach <b>${intended}</b>. Showing trains terminating at <b>${partial}</b>.
-                        </p>
+        if (isPartial && currentPlannerErrorPayload) {
+            const intended = currentPlannerErrorPayload.intendedDest || "Destination";
+            const partial = currentPlannerErrorPayload.partialDest || selectedTrip.to;
+            // 🛡️ GUARDIAN UX FIX: Replaced vibe-coded emoji with premium SVG
+            const alertSvg = `<svg class="w-5 h-5 mr-2 text-yellow-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+            partialWarningHtml = `
+                <div class="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-3 mb-4 rounded-r shadow-sm animate-fade-in-up">
+                    <div class="flex items-start">
+                        ${alertSvg}
+                        <div>
+                            <h4 class="text-xs font-black text-yellow-800 dark:text-yellow-400 uppercase tracking-widest mb-0.5">Line Severed</h4>
+                            <p class="text-xs text-yellow-700 dark:text-yellow-300 leading-snug">
+                                Cannot reach <b>${intended}</b>.<br>Showing trains terminating at <b>${partial}</b>.
+                            </p>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-    }
+            `;
+        }
 
     container.innerHTML = partialWarningHtml + PlannerRenderer.buildCard(selectedTrip, false, trips, selectedIndex);
 }
