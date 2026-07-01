@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_06.29 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_07.02 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -2941,6 +2941,12 @@ const Admin = {
 
                         parsedAdminText = parsedAdminText.replace(/^(?:<br>|\s)+/, '');
 
+                        // 🛡️ GROWTH SPRINT PHASE 1: Retroactive Lightbox Wrapper for legacy admin inline images
+                        parsedAdminText = parsedAdminText.replace(/(<button[^>]*>)?\s*(<img[^>]+src=["']([^"']+)["'][^>]*>)\s*(<\/button>)?/gi, (match, btnStart, imgTag, srcUrl, btnEnd) => {
+                            if (btnStart || btnEnd) return match; // Already wrapped in a button
+                            return `<button type="button" onclick="event.stopPropagation(); window.openLightbox('${srcUrl}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-slate-600 dark:border-slate-700 shadow-sm active:scale-[0.98] transition-transform">${imgTag}<div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-1.5 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button>`;
+                        });
+
                         // 🛡️ GUARDIAN UX FIX: Professional, high-contrast Admin message bubble
                         groupHTML += `
                             <div class="flex flex-col items-end mb-1.5 pl-2 sm:pl-4">
@@ -3522,7 +3528,7 @@ const Admin = {
                                     if (isPdf) {
                                         htmlToInsert = `&nbsp;<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline font-bold px-1">📄 View Attached PDF</a>&nbsp;`;
                                     } else {
-                                        htmlToInsert = `<br><img src="${url}" class="w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700" alt="Admin Attachment"><br>`;
+                                        htmlToInsert = `<br><button type="button" onclick="window.openLightbox('${url}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${url}" class="w-full h-auto object-cover hover:opacity-90 transition-opacity" alt="Admin Attachment"><div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-2 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button><br>`;
                                     }
                                     
                                     if (editor) {
@@ -3720,13 +3726,23 @@ const Admin = {
 
             if (foundData) {
                 const dateStr = Admin.formatDate(foundData.postedAt);
-                let imgHtml = foundData.imageUrl ? `<img src="${foundData.imageUrl}" class="w-full rounded mb-3 max-h-32 object-cover">` : '';
+                
+                // Wrap Hero Image in Lightbox
+                let imgHtml = foundData.imageUrl ? `<button type="button" onclick="window.openLightbox('${escapeHTML(foundData.imageUrl)}')" class="relative block w-full focus:outline-none mb-3 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${escapeHTML(foundData.imageUrl)}" class="w-full h-auto max-h-32 object-cover hover:opacity-90 transition-opacity"><div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-2 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button>` : '';
+                
                 let statusHtml = foundData.archivedAt ? `<span class="bg-gray-200 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2 inline-block">Archived</span>` : `<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2 inline-block">Active</span>`;
                 
+                // 🛡️ GROWTH SPRINT PHASE 1: Retroactive Lightbox Wrapper for legacy inline images in Alerts
+                let parsedMessage = foundData.message || foundData.longExplanation || 'No details provided.';
+                parsedMessage = parsedMessage.replace(/(<button[^>]*>)?\s*(<img[^>]+src=["']([^"']+)["'][^>]*>)\s*(<\/button>)?/gi, (match, btnStart, imgTag, srcUrl, btnEnd) => {
+                    if (btnStart || btnEnd) return match; // Already wrapped
+                    return `<button type="button" onclick="window.openLightbox('${srcUrl}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform">${imgTag}<div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-1.5 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button>`;
+                });
+
                 contentDiv.innerHTML = `
                     ${statusHtml}
                     ${imgHtml}
-                    <div class="mb-3">${foundData.message || foundData.longExplanation || 'No details provided.'}</div>
+                    <div class="mb-3">${parsedMessage}</div>
                     <div class="text-[10px] text-gray-500 font-mono border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
                         ID: ${foundData.id}<br>
                         Posted: ${dateStr}<br>
@@ -4176,7 +4192,7 @@ const Admin = {
                                     if (isPdf) {
                                         htmlToInsert = `&nbsp;<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline font-bold px-1">📄 View Attached PDF</a>&nbsp;`;
                                     } else {
-                                        htmlToInsert = `<br><img src="${url}" class="w-full rounded-lg my-2 shadow-sm border border-gray-200 dark:border-gray-700" alt="Admin Attachment"><br>`;
+                                        htmlToInsert = `<br><button type="button" onclick="window.openLightbox('${url}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${url}" class="w-full h-auto object-cover hover:opacity-90 transition-opacity" alt="Admin Attachment"><div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-2 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button><br>`;
                                     }
                                     
                                     if (editor) {

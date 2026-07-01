@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V7_06.29 (Performance Polish Edition - UI/UX Polish)
+  Metrorail Next Train V7_07.02 (Performance Polish Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -40,6 +40,32 @@
         }
     </script>
 
+    <!-- GUARDIAN PHASE 12: Legacy WebView Crash Shield (Polyfill for Array/String .at) -->
+    <!-- Environment shim only (NOT app logic). Chrome 88 WebViews (Huawei EVE-LX9, itel L6502) lack -->
+    <!-- Array.prototype.at / String.prototype.at (added in Chrome 92). Third-party scripts such as the -->
+    <!-- CleverAds bundle ship un-transpiled `.at()` calls that fatally crash there ("t.entries.at is not -->
+    <!-- a function"). Loading this before any other script recovers those low-end-device ad impressions. -->
+    <script>
+        (function () {
+            function atPolyfill(n) {
+                n = Math.trunc(n) || 0;
+                if (n < 0) n += this.length;
+                if (n < 0 || n >= this.length) return undefined;
+                return this[n];
+            }
+            if (!Array.prototype.at) {
+                Object.defineProperty(Array.prototype, 'at', {
+                    value: atPolyfill, writable: true, enumerable: false, configurable: true
+                });
+            }
+            if (!String.prototype.at) {
+                Object.defineProperty(String.prototype, 'at', {
+                    value: atPolyfill, writable: true, enumerable: false, configurable: true
+                });
+            }
+        })();
+    </script>
+
     <!-- SEO: Freshness Signal -->
     <title>Metrorail Next Train | 2026 Train Schedules for South Africa</title>
     
@@ -71,7 +97,7 @@
     <!-- SOCIAL MEDIA META TAGS -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nexttrain.co.za/">
-    <meta property="og:title" content="Metrorail Next Train | Updated Schedules">
+    <meta property="og:title" content="Metrorail Next Train | 2026 Updated Schedules">
     <meta property="og:description" content="Stop guessing. Get accurate train times, ticket prices, and updates for Gauteng, Cape Town, KZN, and Eastern Cape. Download timetables and plan your trip offline!">
     <meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png">
     <meta property="og:image:width" content="512">
@@ -79,7 +105,7 @@
 
     <!-- TWITTER CARD -->
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="Metrorail Next Train">
+    <meta name="twitter:title" content="Metrorail Next Train | 2026 Updated Schedules">
     <meta name="twitter:description" content="Live Metrorail schedules for Gauteng and Western Cape. Download timetables and plan your trip offline.">
     <meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png">
 
@@ -400,6 +426,26 @@
         }
         #sidenav.open { 
             transform: translateX(0px) !important; 
+        }
+
+        /* GUARDIAN MONETIZATION ARMOR: CSS Handcuffs & Cloaking */
+        #clever-core-ad {
+            max-height: 90px !important;
+            overflow: hidden !important;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+        }
+        #clever-core-ad.ad-cloaked {
+            transform: translateY(150%) !important;
+            pointer-events: none !important;
+            opacity: 0;
+        }
+
+        /* GUARDIAN UX: Elastic Ad Padding */
+        .ad-active-padding {
+            padding-bottom: 96px !important; /* Matches Tailwind pb-24 */
+        }
+        .view-section {
+            transition: padding-bottom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
     </style>
 </head>
@@ -765,7 +811,6 @@
         <!-- VIEW 2: TRIP PLANNER -->
         <div id="view-trip-planner" class="view-section p-4 flex-grow overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
             <div class="text-center mb-5 flex flex-col justify-center items-center w-full">
-                <!-- Planner button tweaked slightly to use the exact same grid logic for 100% geometric uniformity -->
                 <button id="planner-info-btn" class="w-full grid grid-cols-[3rem_1fr_3rem] items-center bg-white dark:bg-gray-800 h-[46px] rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-1 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors overflow-hidden group focus:outline-none">
                     <div class="w-full h-full"></div> <!-- Spacer to match pin width mathematically -->
                     <h2 class="text-sm sm:text-base font-medium text-gray-700 dark:text-gray-200 group-hover:opacity-80 transition-colors truncate w-full px-1 text-center">

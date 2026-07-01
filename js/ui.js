@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_06.29 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.02 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -283,6 +283,54 @@ window.closeAppHub = function(fromPopState = false) {
     }
 };
 
+// --- GUARDIAN PHASE 6: UNIVERSAL IMAGE LIGHTBOX ---
+window.openLightbox = function(url) {
+    let modal = document.getElementById('global-lightbox-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'global-lightbox-modal';
+        modal.className = 'fixed inset-0 bg-black/95 z-[300] hidden flex items-center justify-center p-2 sm:p-4 backdrop-blur-md transition-opacity duration-300';
+        modal.onclick = (e) => {
+            if (e.target === modal || e.target.id === 'lightbox-close-btn' || e.target.closest('#lightbox-close-btn')) {
+                window.closeLightbox();
+            }
+        };
+        modal.innerHTML = `
+            <button id="lightbox-close-btn" class="absolute top-4 right-4 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors focus:outline-none z-10 backdrop-blur-sm" aria-label="Close Image">
+                <svg class="w-6 h-6 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            <img id="global-lightbox-img" src="" class="max-w-full max-h-[95dvh] object-contain rounded-lg shadow-2xl transform transition-transform scale-95 duration-300" alt="Full screen preview">
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    const img = document.getElementById('global-lightbox-img');
+    if (img) img.src = url;
+    
+    modal.classList.remove('hidden');
+    void modal.offsetWidth; // Force Reflow
+    if (img) {
+        img.classList.remove('scale-95');
+        img.classList.add('scale-100');
+    }
+};
+
+window.closeLightbox = function() {
+    const modal = document.getElementById('global-lightbox-modal');
+    if (!modal) return;
+    const img = document.getElementById('global-lightbox-img');
+    if (img) {
+        img.classList.remove('scale-100');
+        img.classList.add('scale-95');
+    }
+    modal.classList.add('opacity-0');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        modal.classList.remove('opacity-0');
+        if (img) img.src = '';
+    }, 300);
+};
+
 // --- GLOBAL ERROR HANDLER (SILENT NINJA PROTOCOL) ---
 window.onerror = function(msg, url, line, col, error) {
     // GUARDIAN V6.20: Sentry ErrorEvent Unwrap
@@ -316,6 +364,25 @@ window.onerror = function(msg, url, line, col, error) {
     // We strictly ignore these to prevent the app from nuking itself over third-party noise.
     if (!url || String(url) === 'undefined' || String(url) === 'null' || String(url).trim() === '') {
         console.warn("🛡️ Guardian: Suppressed invisible external error:", msg);
+        return false;
+    }
+
+    // 🛡️ GUARDIAN PHASE 12: Cross-Origin Error Firewall (Third-Party Ad Immunity)
+    // A visible URL is not enough — CleverAds ships un-transpiled modern JS (e.g. Array.prototype.at)
+    // that fatally crashes on Chrome 88 / Huawei / itel WebViews. Those errors carry a real
+    // cross-origin URL (scripts.cleverwebserver.com/...) so they bypass the blind-spot shield above
+    // and would otherwise force a reload, drop the user into Safe Mode, AND pollute crash analytics.
+    // We strictly quarantine ANY error whose source host is not our own origin. Same-origin app
+    // crashes remain fully handled below.
+    try {
+        const errHost = new URL(String(url), location.href).hostname;
+        if (errHost && errHost !== location.hostname) {
+            console.warn("🛡️ Guardian: Suppressed cross-origin third-party error (no reload / no Safe Mode / no log):", errHost, msg);
+            return false;
+        }
+    } catch (parseErr) {
+        // If the URL cannot be parsed it is not a trustworthy same-origin source — quarantine it.
+        console.warn("🛡️ Guardian: Suppressed unparseable-origin error:", msg);
         return false;
     }
 
@@ -1444,7 +1511,8 @@ function initAdInterceptor() {
             if (adContainer) {
                 adContainer.innerHTML = '';
                 adContainer.style.setProperty('display', 'none', 'important');
-                adContainer.classList.add('hidden');
+                adContainer.classList.add('hidden', 'ad-cloaked');
+                document.querySelectorAll('.view-section').forEach(el => el.classList.remove('ad-active-padding'));
             }
             
             // 3. Track the failure for our telemetry
@@ -1520,7 +1588,8 @@ function initAdInterceptor() {
             
             // State Verification
             const hash = location.hash;
-            const isMainRoute = (hash === '' || hash === '#home');
+            // 🛡️ GUARDIAN ELASTIC UI: Expand Safe Zone to include Trip Planner & Results
+            const isMainRoute = (hash === '' || hash === '#home' || hash === '#planner' || hash === '#planner-results');
             
             // 🛡️ GROWTH MODE PHASE 5.1: Ad Armor - Suppress Ad if Reloading or Welcome Screen is active
             const isReloadLocked = typeof window._suppressReloads !== 'undefined' && window._suppressReloads;
@@ -1537,27 +1606,53 @@ function initAdInterceptor() {
             const isGridHidden = !gridModal || gridModal.classList.contains('hidden');
 
             const isDbReady = typeof fullDatabase !== 'undefined' && fullDatabase !== null;
-            const isMutexLocked = window._isModalAnimating || window._isMapInitializing;
             
             // 🛡️ GUARDIAN PHASE 1: Absolute Catch-All Modal Check & Data Stability Guard
             const isAnyModalActive = document.body.classList.contains('modal-active');
             const hasValidRoute = typeof currentRouteId !== 'undefined' && currentRouteId !== null && currentRouteId !== '';
-            const isManualRollover = typeof window._forceManualRollover !== 'undefined' && window._forceManualRollover === true;
 
-            // Strict intersection of safe states
-            const isSafeZone = isDbReady && hasValidRoute && isMainRoute && isWelcomeHidden && !isReloadLocked && isMapHidden && isTripMapHidden && isGridHidden && !isMutexLocked && !isManualRollover && !isAnyModalActive;
+            // 🛡️ GUARDIAN PHASE 12: Ad Prioritization Rebalance.
+            // Root problem: viewership was ~50% partly because the ad was cloaked on ~11 simultaneous
+            // conditions. Two of those (`isMutexLocked` = transient modal/map animation flag, and
+            // `isManualRollover` = transient day-rollover flag) toggle constantly during normal use
+            // and needlessly suppressed a perfectly safe bottom bar. They are REMOVED from the gate.
+            // We KEEP every genuine sensitive-screen protection: welcome screen, full timetable grid,
+            // network map, trip map, reload lock, data-not-ready, no-route, and the catch-all modal
+            // guard. Net effect: more legitimate impressions with zero exposure on protected screens.
+            const isSafeZone = isDbReady && hasValidRoute && isMainRoute && isWelcomeHidden && !isReloadLocked && isMapHidden && isTripMapHidden && isGridHidden && !isAnyModalActive;
 
             if (adContainer) {
                 if (isSafeZone) {
+                    // 🛡️ GUARDIAN ELASTIC UI: Uncloak ad and apply elastic padding to views
                     adContainer.style.display = ''; // 🛡️ GUARDIAN FIX: Release inline lock
-                    adContainer.classList.remove('hidden');
-                    
-                    // Attach Intersection Observer if telemetry hasn't fired yet
+                    adContainer.classList.remove('hidden', 'ad-cloaked');
+
+                    // 🛡️ GUARDIAN PHASE 12: Anti-Phantom-Gap Reconciliation.
+                    // The 96px footer padding must track REALITY, not intent. CleverAds frequently fails
+                    // to fill the container on slow networks / old WebViews; `empty:hidden` then collapses
+                    // the bar but the reserved padding used to remain, leaving dead space under
+                    // "© Kazembe CodeWorks." We reserve space ONLY when the bar is genuinely filled.
+                    const isAdFilled = adContainer.childElementCount > 0 && adContainer.offsetHeight > 0;
+                    document.querySelectorAll('.view-section').forEach(el => el.classList.toggle('ad-active-padding', isAdFilled));
+
+                    // 🛡️ GUARDIAN PHASE 12: Real-Impression Telemetry.
+                    // A filled, uncloaked, in-safe-zone bar IS a genuine impression, so count it directly
+                    // (once per session). This fixes chronic under-counting where the old IntersectionObserver
+                    // needed 50% visibility on a sticky bar that is usually cloaked or scrolled past.
+                    if (isAdFilled && !window._adTelemetryFired) {
+                        window._adTelemetryFired = true;
+                        if (typeof trackAnalyticsEvent === 'function') {
+                            trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'filled' });
+                            console.log("📈 Ad View counted (container filled & uncloaked).");
+                        }
+                    }
+
+                    // Secondary verifier: attach IntersectionObserver only if we still haven't counted.
                     if (!window._adTelemetryFired) {
                         try { // 🛡️ GUARDIAN FIX: IntersectionObserver Sandbox
                             if ('IntersectionObserver' in window) {
                                 const observer = new IntersectionObserver((entries, obs) => {
-                                    if (entries[0].isIntersecting) {
+                                    if (entries[0].isIntersecting && adContainer.childElementCount > 0) {
                                         window._adTelemetryFired = true;
                                         if (typeof trackAnalyticsEvent === 'function') {
                                             trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: true });
@@ -1565,7 +1660,7 @@ function initAdInterceptor() {
                                         }
                                         obs.disconnect(); // Detach to ensure we only log the view once per session
                                     }
-                                }, { threshold: 0.5 }); // Requires 50% of the ad to be visible
+                                }, { threshold: 0.1 }); // Lowered: a sticky bottom bar rarely reaches 50%
                                 observer.observe(adContainer);
                             } else {
                                 // Fallback for ancient browsers
@@ -1573,16 +1668,17 @@ function initAdInterceptor() {
                                 if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'fallback' });
                             }
                         } catch (obsError) {
-                            console.warn("🛡️ Guardian: IntersectionObserver blocked by strict WebView sandbox.", obsError);
+                                    console.warn("🛡️ Guardian: IntersectionObserver blocked by strict WebView sandbox.", obsError);
+                                }
+                            }
+                        } else {
+                            // 🛡️ GUARDIAN ELASTIC UI: Gracefully cloak the ad off-screen and relax UI padding
+                            adContainer.classList.add('ad-cloaked');
+                            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('ad-active-padding'));
                         }
                     }
-                } else {
-                    adContainer.classList.add('hidden');
-                    adContainer.style.setProperty('display', 'none', 'important'); // 🛡️ GUARDIAN FIX: Brute-force inline lock
-                }
-            }
 
-            // Keep polling gently to monitor UI state changes (hides ad if a modal opens)
+                    // Keep polling gently to monitor UI state changes (hides ad if a modal opens)
             setTimeout(checkAndUnhide, 1500);
         };
 
@@ -1828,7 +1924,7 @@ async function checkServiceAlerts() {
                         // 🛡️ GUARDIAN PHASE 2: Strict DOMParser XSS Sanitization
                         const sanitizeHTML = (dirtyHtml) => {
                             const doc = new DOMParser().parseFromString(dirtyHtml, 'text/html');
-                            const allowedTags = ['B', 'I', 'STRONG', 'EM', 'A', 'BR', 'P', 'SPAN', 'DIV', 'UL', 'OL', 'LI'];
+                            const allowedTags = ['B', 'I', 'STRONG', 'EM', 'A', 'BR', 'P', 'SPAN', 'DIV', 'UL', 'OL', 'LI', 'IMG', 'BUTTON'];
                             const cleanNode = (node) => {
                                 Array.from(node.childNodes).forEach(child => {
                                     if (child.nodeType === 1) { // ELEMENT_NODE
@@ -1837,13 +1933,16 @@ async function checkServiceAlerts() {
                                             child.replaceWith(...Array.from(child.childNodes));
                                             cleanNode(node); // Re-evaluate flattened children
                                         } else {
-                                            // Clean attributes (only allow href, target, class, rel)
+                                            // Clean attributes (only allow specific whitelist)
                                             Array.from(child.attributes).forEach(attr => {
                                                 const attrName = attr.name.toLowerCase();
-                                                if (attrName === 'href') {
+                                                if (attrName === 'href' || attrName === 'src') {
                                                     // Block javascript: URIs
                                                     if (!/^(https?|mailto):/i.test(attr.value)) child.removeAttribute(attr.name);
-                                                } else if (!['target', 'class', 'rel'].includes(attrName)) {
+                                                } else if (attrName === 'onclick') {
+                                                    // STRICT XSS: Only allow our specific lightbox trigger
+                                                    if (!/^window\.openLightbox\(.*\)$/.test(attr.value)) child.removeAttribute(attr.name);
+                                                } else if (!['target', 'class', 'rel', 'alt', 'type'].includes(attrName)) {
                                                     child.removeAttribute(attr.name);
                                                 }
                                             });
@@ -2057,8 +2156,22 @@ async function checkServiceAlerts() {
 
             let mediaHtml = '';
             if (activeNotice.imageUrl) {
-                mediaHtml += `<img src="${escapeHTML(activeNotice.imageUrl)}" class="w-full h-auto max-h-48 object-cover rounded-lg mb-3 shadow-sm border border-gray-200 dark:border-gray-700" alt="Alert Image" onerror="this.style.display='none'">`;
+                const safeUrl = escapeHTML(activeNotice.imageUrl);
+                mediaHtml += `
+                    <button type="button" onclick="window.openLightbox('${safeUrl}')" class="relative block w-full focus:outline-none mb-3 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform">
+                        <img src="${safeUrl}" class="w-full h-auto max-h-48 object-cover hover:opacity-90 transition-opacity" alt="Alert Image" onerror="this.parentElement.style.display='none'">
+                        <div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-2 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
+                        </div>
+                    </button>
+                `;
             }
+
+            // 🛡️ GROWTH SPRINT PHASE 1: Retroactive Lightbox Wrapper for legacy inline images in Commuter Alerts
+            formattedMsg = formattedMsg.replace(/(<button[^>]*>)?\s*(<img[^>]+src=["']([^"']+)["'][^>]*>)\s*(<\/button>)?/gi, (match, btnStart, imgTag, srcUrl, btnEnd) => {
+                if (btnStart || btnEnd) return match; // Already wrapped
+                return `<button type="button" onclick="window.openLightbox('${srcUrl}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform">${imgTag}<div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-1.5 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button>`;
+            });
 
             content.innerHTML = mediaHtml + formattedMsg;
             
