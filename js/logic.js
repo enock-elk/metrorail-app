@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_07.07 - Performance Polish Edition v1) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_07.10 - Performance Polish Edition v1) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -591,22 +591,6 @@ window.getTripDisruptions = function(routeId, stopsArray) {
                             if (stop1Idx >= maxZone && stop2Idx <= minZone) {
                                 firstContactIdx = i;
                                 break;
-                            }
-
-                            // GUARDIAN PHASE 2: Terminus Detection Vector Math
-                            // If the train terminates exactly on the edge of the Danger Zone, and was heading towards it
-                            const isLastStop = (i === stopsArray.length - 2);
-                            if (isLastStop) {
-                                // Heading forward, terminates at minZone
-                                if (stop1Idx < minZone && stop2Idx === minZone) {
-                                    firstContactIdx = i + 1;
-                                    break;
-                                }
-                                // Heading backward, terminates at maxZone
-                                if (stop1Idx > maxZone && stop2Idx === maxZone) {
-                                    firstContactIdx = i + 1;
-                                    break;
-                                }
                             }
                         }
                     }

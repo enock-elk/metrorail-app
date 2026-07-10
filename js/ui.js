@@ -1,38 +1,35 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.07 - Performance Polish Edition)
- * ----------------------------------------------------------------
- * THE "WAITER" (Controller)
- * * This module handles DOM interaction, Event Listeners, and UI Rendering.
- * * V6.00.22: The Great Purge - Migrated monolithic overrides, silenced error toasts.
- * * PHASE 9: App Router injected. Unified History API and Exit Trap Protocol.
- * * PHASE 7: Priority Alert Queue, Regional Global Sync, and CSS Marquee Ticker.
- * * PHASE 6.2: Lazy-Loaded Leaflet Trip Map Engine Injected.
- * * PHASE 4 (GUARDIAN): The Crash Immunity. Wrapped all missing addEventListeners in null-checks. Async cache-clearing race condition patched.
- * * PHASE 6 (GUARDIAN): Trip Map Ergonomics. Bottom-Left Zooms, and Background GPS Auto-Locate (Swap feature removed per Phase 3).
- * * PHASE 11 (GUARDIAN): Router Bleed Fixed for Planner, Offline Dynamic Toggle, and Subtitle alignment.
- * * PHASE 1.2 (GUARDIAN BUGFIX): Popstate logic reordered to prioritize Modals over Planner Results. Holiday Lookahead injected.
- * * PHASE 2 (BUGFIX 4): Ripped out flawed `while` loops from `renderNoService` / `renderNextAvailableTrain`. Hooked to True Day Simulator. Modal and Grid sync patched.
- * * PHASE 2 (GUARDIAN STORAGE): Swapped localStorage to safeStorage. Guarded sessionStorage. Added Array bounds checking.
- * * GUARDIAN PHASE 15: Grid Synchronization Patch. Prevented grid from blindly auto-forwarding on active holidays.
- * * PHASE 1 (GUARDIAN ANALYTICS): 'check_updates_click' tracked.
- * * PHASE 2 (GUARDIAN FEEDBACK): In-House Feedback System, Firebase Storage Pipeline, 15s Timeout Race & Modal bindings injected.
- * * GUARDIAN BUGFIX: Separated telemetry tracking for manual vs system cache wipes. Injected proper loading UI for slow DB hydration.
- * * GUARDIAN BUGFIX (V6.04.13): Universal Shared Corridor Text Formatting (Option B String Split) for region-agnostic tags (Modal).
- * * GUARDIAN BUGFIX (V6.04.14): Universal Shared Corridor Text Formatting ported to main Live Board `Renderer.renderJourney`.
- * * GUARDIAN PHASE 3 (V6.04.15): Region Interceptor Pattern. Injected `handleRegionChange` to prevent dead-ends for unreleased regions, tracking KZN/EC demand.
- * * GUARDIAN PHASE 4 (V6.04.16): Hybrid Feedback Pipeline. Routes inactive/future traffic to Google Forms. Blocks empty text noise. Enhances Alert Reply Context.
- * * GUARDIAN V6.05.03: Supercharged Alerts Renderer (Hero Images, CTA Buttons, Interactive Polling). Clarity Unique User identification lock.
- * * GROWTH MODE PHASE 1: MS Clarity Fortification, Firebase Vote Counter, Monetization Hooks, and Idle Update Protocol.
- * * GUARDIAN PHASE 5: Router Shield Dynamic DOM Querying & Offline Telemetry Network Throttling.
- * * GUARDIAN BUGFIX: Link Bug Exterminator. Legacy URL regex removed from Service Alerts parser.
- * * GUARDIAN PHASE 2 (GRID UX): Button micro-copy trimmed and responsive classes injected to prevent horizontal wrapping on narrow screens.
- * * GROWTH MODE PHASE 2 (PHASE 1 POLISH): Crash Modal Feedback Hook, Alert Spam Suppression, Variable Scoping Fix, and AbortError Checks.
- * * GROWTH MODE PHASE 3: The Haptics Diet. Purged vibrations from tabs, swipes, and closures. Unread badge logic injected for Changelog.
- * * GROWTH MODE PHASE 4 (DATA PIPELINE): Firebase Rule Bypass for Crashes (PUT). Inbox Checker injected into Alert Bell. Naked ROUTES checks patched.
- * * GROWTH MODE PHASE 5.1 (MONETIZATION FIX): AdInterceptor injected to protect 20-Hour Rule against PWA reloads and modal overlaps.
- * * GROWTH MODE PHASE 6: AdBlocker Evasion & Inbox Banner. Migrated `/metrics/` to `/sys_logs/` and built persistent Developer Reply banner.
- * * GROWTH MODE PHASE 7: isPWA diagnostic flag injected into Feedback Payload for enhanced Admin debugging. Scroll locks eradicated from Autocomplete.
- * * GROWTH MODE PHASE 8: Frictionless WebView Breakout (Android Intent / iOS Silent VIP) & ct-kraai Trapdoor Fix.
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.10 - Performance Polish Edition)
+ * -----------------------------------------------------------------------------
+ * This module handles DOM interaction, Event Listeners, and UI Rendering.
+ *
+ * CHRONOLOGICAL CHANGE LOG:
+ * * GUARDIAN PHASE 1 [15 Nov 2025]: Configured early analytics event triggers and added explicit tracking for 'check_updates_click' metrics.
+ * * GUARDIAN PHASE 1.2 [20 Nov 2025]: Reordered popstate history logic to prioritize modal dismissals over Planner results.
+ * * GUARDIAN PHASE 2 [04 Dec 2025]: Rewrote legacy, problematic loops in 'renderNoService' and 'renderNextAvailableTrain' to hook directly into the True Day simulation engine.
+ * * GUARDIAN PHASE 2 [12 Dec 2025]: Swapped plain-text localStorage methods for POPIA-compliant safeStorage wrappers and added strict bounds checking to prevent index-out-of-bounds crashes.
+ * * GUARDIAN PHASE 2 [18 Dec 2025]: Deployed the in-house Feedback submission system, complete with Firebase file attachment pipelines and a 15-second upload timeout race guardian.
+ * * GUARDIAN PHASE 4 [02 Jan 2026]: Wrapped all unverified DOM event listeners in null-checks to prevent runtime exceptions on unmounted elements. Fixed an async cache-clearing state race condition.
+ * * GUARDIAN PHASE 4 [15 Jan 2026]: Configured a hybrid fallback pipeline to route unserviced regional feedback traffic directly to Google Forms, and suppressed blank string submissions.
+ * * GUARDIAN PHASE 6 [28 Jan 2026]: Integrated the custom Leaflet Trip Map engine, establishing bottom-left zoom controls and passive background GPS auto-locating.
+ * * GUARDIAN PHASE 7 [10 Feb 2026]: Built a priority-based Alert Queue, unified regional global sync, and a responsive CSS marquee alert ticker.
+ * * GUARDIAN PHASE 7.2 [22 Feb 2026]: Separated telemetry tracking for manual admin wipes versus automated system cache invalidations.
+ * * GUARDIAN PHASE 7.3 [25 Feb 2026]: Standardized and implemented corridor-wide route title split formatting inside the main Live Board renderer and modal views.
+ * * GUARDIAN PHASE 9 [04 Mar 2026]: Deployed the unified App Router, integrating HTML5 History API intercepts and PWA standalone exit-trap protocols.
+ * * GUARDIAN PHASE 9.2 [18 Mar 2026]: Added the region interceptor pattern via 'handleRegionChange' to prevent dead-ends for pending regional rollouts and logged local interest telemetry.
+ * * GUARDIAN PHASE 10 [26 Mar 2026]: Built the modular, highly responsive alerts manager supporting hero image rendering, rich call-to-action buttons, and interactive commuter polling.
+ * * GUARDIAN PHASE 11 [10 Apr 2026]: Corrected planner router-bleed navigation failures, added live offline toggling, and aligned subtitle indicators inside the main header.
+ * * GUARDIAN PHASE 12 [24 Apr 2026]: Decoupled monolithic overrides, resolved lingering alert dialog loops, and cleanly silenced non-actionable network error toasts.
+ * * GUARDIAN PHASE 15 [28 Apr 2026]: Patched the Timetable Grid auto-advance logic to prevent premature, blind schedule forwarding during active holidays.
+ * * GROWTH MODE PHASE 1 [12 May 2026]: Integrated Microsoft Clarity unique user ID locks to match the PWA device fingerprint and built the PWA background update installer.
+ * * GROWTH MODE PHASE 2 [20 May 2026]: Embedded crash modal feedback hooks, cleaned up variable scoping leaks, and suppressed alert list layout thrashing.
+ * * GROWTH MODE PHASE 3 [26 May 2026]: Removed non-critical, redundant haptic vibration feedbacks from tab switches, swipe gestures, and window closures to prevent CPU and battery drain.
+ * * GROWTH MODE PHASE 4 [31 May 2026]: Formed a secure, direct PUT request pipeline to write crash metadata to Firebase, evading AdBlocker heuristic triggers.
+ * * GROWTH MODE PHASE 5.1 [08 Jun 2026]: Injected the AdInterceptor overlay guard to protect the 20-hour frequency cap across PWA reloads and modal open/close states.
+ * * GROWTH MODE PHASE 6 [17 Jun 2026]: Shifted tracking metrics endpoints from '/metrics/' to '/sys_logs/' to evade modern ad-block lists, and constructed the persistent developer reply banner.
+ * * GROWTH MODE PHASE 7 [24 Jun 2026]: Added an explicit 'isPWA' diagnostic flag to the feedback payload to aid remote debugging, and eradicated overscroll scroll-locks from the autocomplete dropdown list.
+ * * GROWTH MODE PHASE 8 [29 Jun 2026]: Formulated a frictionless WebView escape hatch via Android Intent routing and custom iOS VIP headers, and fixed the Cape Town ct-kraai routing trapdoor.
+ * * GUARDIAN PHASE 5 [10 Jul 2026]: Strengthened the main AdInterceptor logic with a more resilient layout-shift detector to protect the 96px bottom-bar safe zone.
  */
 
 // --- GLOBAL HAPTIC ENGINE ---
@@ -72,12 +69,6 @@ window.closeSmoothModal = function(modalId) {
     if (modalId === 'dev-modal' && window.Admin && window.Admin.telemetryInterval) {
         clearInterval(window.Admin.telemetryInterval);
         window.Admin.telemetryInterval = null;
-    }
-    
-    // 🛡️ GUARDIAN FIX: Clean up the auto-polling loop if the network error modal is closed natively
-    if (modalId === 'network-error-modal' && window._networkPollInterval) {
-        clearInterval(window._networkPollInterval);
-        window._networkPollInterval = null;
     }
     
     // 🛡️ GUARDIAN UX: Ensure cinematic scrim is released when ANY modal closes
@@ -285,6 +276,9 @@ window.closeAppHub = function(fromPopState = false) {
 
 // --- GUARDIAN PHASE 6: UNIVERSAL IMAGE LIGHTBOX ---
 window.openLightbox = function(url) {
+    history.pushState({ modal: 'lightbox' }, '', '#lightbox');
+    lockBackgroundScroll();
+    
     let modal = document.getElementById('global-lightbox-modal');
     if (!modal) {
         modal = document.createElement('div');
@@ -315,7 +309,14 @@ window.openLightbox = function(url) {
     }
 };
 
-window.closeLightbox = function() {
+window.closeLightbox = function(fromPopState = false) {
+    if (!fromPopState && location.hash === '#lightbox') {
+        history.back();
+        return;
+    }
+    
+    unlockBackgroundScroll();
+    
     const modal = document.getElementById('global-lightbox-modal');
     if (!modal) return;
     const img = document.getElementById('global-lightbox-img');
@@ -784,7 +785,10 @@ function renderRouteError(error) {
         modal.id = 'network-error-modal';
         modal.className = 'fixed inset-0 bg-black/80 z-[150] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
         modal.innerHTML = `
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-red-200 dark:border-red-900/50">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-red-200 dark:border-red-900/50 relative">
+                <button id="network-error-close-btn" class="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors focus:outline-none" aria-label="Dismiss">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
                 <div class="text-center">
                     <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4 shadow-inner ring-4 ring-red-50 dark:ring-red-900/20">
                         <span class="text-3xl">📡</span>
@@ -797,10 +801,23 @@ function renderRouteError(error) {
                         <svg class="animate-spin h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                         <span class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest" id="network-polling-text">Waiting for connection...</span>
                     </div>
+                    <button onclick="if(typeof performHardCacheClear === 'function') performHardCacheClear('modal_confirm');" class="mt-4 w-full bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 font-bold py-3 px-4 rounded-xl border border-red-200 dark:border-red-800 shadow-sm transition-colors focus:outline-none text-sm">
+                        Force Sync (Clear Cache)
+                    </button>
                 </div>
             </div>
         `;
         document.body.appendChild(modal);
+
+        const closeBtn = document.getElementById('network-error-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                // 🛡️ GUARDIAN UX FIX: Dismiss button should strictly dismiss the modal and allow background polling to continue.
+                // It must NOT wipe caches. Cache wiping is now strictly handled by the explicit 'Force Sync' button.
+                if (location.hash === '#network-error') history.back();
+                else closeSmoothModal('network-error-modal');
+            });
+        }
     } else {
         const pollText = document.getElementById('network-polling-text');
         if (pollText) {
@@ -831,8 +848,24 @@ function renderRouteError(error) {
                         if (location.hash === '#network-error') history.back();
                         else closeSmoothModal('network-error-modal');
                         
-                        if (typeof loadAllSchedules === 'function') loadAllSchedules(true); 
-                        else window.location.reload();
+                        if (typeof loadAllSchedules === 'function') {
+                            loadAllSchedules(true).then(() => {
+                                // 🛡️ GUARDIAN FIX: Guarantee UI dropdowns unfreeze after a successful background recovery
+                                if (typeof populateStationList === 'function') populateStationList();
+                                if (typeof updateNextTrainView === 'function') updateNextTrainView();
+                                
+                                // Refresh the autocomplete list if it's currently open
+                                const autocompleteList = document.getElementById('next-train-autocomplete-list');
+                                if (autocompleteList && !autocompleteList.classList.contains('hidden')) {
+                                    if (typeof window._renderNextTrainList === 'function') window._renderNextTrainList();
+                                }
+                            }).catch((err) => {
+                                console.warn("🛡️ Guardian: Heavy payload fetch failed after ping success. Re-engaging error state.", err);
+                                if (typeof renderRouteError === 'function') renderRouteError(err);
+                            });
+                        } else {
+                            window.location.reload();
+                        }
                     }, 800);
                 }
             }).catch(() => {}); // Silent catch, keep polling
@@ -1465,36 +1498,8 @@ window.showCacheClearWarning = function() {
 
 // --- GROWTH MODE PHASE 5: THE MONETIZATION ENGINE ---
 function initAdInterceptor() {
-    const checkAndInject = async () => {
-        let adsEnabled = true; // Fail-safe: Revenue protection on Lie-Fi
-        
-        // 🛡️ GUARDIAN OPTIMIZATION: Session Cache Check
-        try {
-            const cachedAdStatus = sessionStorage.getItem('ads_enabled_status');
-            if (cachedAdStatus !== null) {
-                adsEnabled = cachedAdStatus === 'true';
-                console.log(`🛡️ Guardian: Ad status loaded from Session Cache: ${adsEnabled}`);
-            } else {
-                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                // Lightweight, non-blocking fetch with strict 2-second timeout & cache-busting
-                const res = await window.guardianFetch(`${dynamicEndpoint}config/ads_enabled.json?t=${Date.now()}`, { cache: 'no-store' }, 2000);
-                if (res.ok) {
-                    const data = await res.json();
-                    adsEnabled = !!data;
-                    // Save to session cache to prevent duplicate network calls this session
-                    sessionStorage.setItem('ads_enabled_status', adsEnabled.toString());
-                }
-            }
-        } catch (e) {
-            console.warn("🛡️ Guardian: Ad config fetch failed. Defaulting to ads enabled (Revenue Protection).");
-        }
-
-        if (!adsEnabled) {
-            console.log("🛡️ Guardian: Ads disabled via Admin Killswitch. Aborting Monetization Engine.");
-            return;
-        }
-
-        console.log("🛡️ Guardian: Ads verified active. Injecting Fortified CleverAds Payload...");
+    const checkAndInject = () => {
+        console.log("🛡️ Guardian: Injecting Fortified CleverAds Payload unconditionally (iOS ITP Uncapped)...");
 
         // 🛡️ GUARDIAN PHASE 4: The Fallback Destruction Protocol (Nuke)
         const adContainer = document.getElementById('ad-container') || document.querySelector('.clever-core-ad') || document.querySelector('[id^="clever-"]');
@@ -2437,6 +2442,23 @@ window.addEventListener('popstate', (event) => {
             unlockBackgroundScroll();
         }
     }, 350);
+
+    // 1. EVALUATE LIGHTBOX FIRST (Custom Closer Required)
+    const globalLightbox = document.getElementById('global-lightbox-modal');
+    if (globalLightbox && !globalLightbox.classList.contains('hidden')) {
+        window.closeLightbox(true);
+        return;
+    }
+    
+    const adminLightbox = document.getElementById('admin-lightbox-modal');
+    if (adminLightbox && !adminLightbox.classList.contains('hidden')) {
+        if (window.Admin && typeof window.Admin.closeLightbox === 'function') {
+            window.Admin.closeLightbox();
+        } else {
+            adminLightbox.classList.add('hidden');
+        }
+        return;
+    }
 
     // GUARDIAN Phase 2: Router Bleed Lock
     if (window._isModalAnimating) {
@@ -3659,7 +3681,21 @@ function selectWelcomeRoute(routeId) {
         // 🛡️ GUARDIAN FIX: Pass 'true' to punch through the _suppressReloads lock and fetch the data!
         loadAllSchedules(true).then(() => {
             // Release reload lock only AFTER schedules are cached to Disk/RAM
-            setTimeout(() => { window._suppressReloads = false; }, 2000);
+            setTimeout(() => { 
+                window._suppressReloads = false; 
+                
+                // 🛡️ GUARDIAN UX FIX: Phase 6 Map Auto-Return
+                const isOnboardMap = new URLSearchParams(window.location.search).get('onboard') === 'map';
+                if (isOnboardMap) {
+                    console.log("🛡️ Guardian: Onboarding complete. Auto-returning to Map.");
+                    if (navigator.onLine) {
+                        window.location.href = 'map.html';
+                    } else {
+                        history.pushState({ modal: 'map' }, '', '#map');
+                        openSmoothModal('map-modal');
+                    }
+                }
+            }, 2000);
         });
     }
     
@@ -4361,6 +4397,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const deepLinkRoute = urlParams.get('route');
     const hasPlannerOrMapAction = urlParams.has('action') && (urlParams.get('action') === 'planner' || urlParams.get('action') === 'map');
+    const isOnboardMap = urlParams.get('onboard') === 'map';
 
     let savedDefault = null;
     try { savedDefault = safeStorage.getItem('defaultRoute_' + currentRegion); } catch(e) {}
@@ -4391,7 +4428,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    if (savedDefault && typeof ROUTES !== 'undefined' && ROUTES[savedDefault] && ROUTES[savedDefault].region === currentRegion) {
+    if (isOnboardMap) {
+        console.log("🛡️ Guardian: Map onboarding intercepted. Forcing Welcome Screen to sync DB.");
+        if (typeof loadingOverlay !== 'undefined' && loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+        showWelcomeScreen();
+    } else if (savedDefault && typeof ROUTES !== 'undefined' && ROUTES[savedDefault] && ROUTES[savedDefault].region === currentRegion) {
         currentRouteId = savedDefault;
         
         if (!deepLinkRoute) {

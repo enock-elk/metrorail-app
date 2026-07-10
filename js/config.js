@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7_07.07"; // v1 - BUMPED: UX Polish, 18-Hour Layover Uncap & Precision Routings.
+const APP_VERSION = "V7_07.10"; // BUMPED: Performance & Precision Polish
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -65,23 +65,33 @@ const MAX_RADIUS_KM = 6;
 const LEGAL_TEXTS = {
     terms: `
         <h4 class="font-bold text-lg mb-2">1. Independent Service & Disclaimer</h4>
-        <p class="mb-3"><strong>Next Train</strong> is an independent digital tool developed by Kazembe CodeWorks. This application is <strong>not affiliated with, endorsed by, or directly associated with PRASA or Metrorail</strong>. The service is provided "as is" without warranties of any kind.</p>
+        <p class="mb-3"><strong>Next Train</strong> is an independent, crowdsourced digital tool developed by Kazembe CodeWorks. We are <strong>not affiliated with, endorsed by, or directly associated with PRASA, Metrorail, or any government entity.</strong></p>
         
         <h4 class="font-bold text-lg mb-2 mt-4">2. Schedule Accuracy & Liability</h4>
-        <p class="mb-3">All transit schedules, fares, and routing information presented within this application are aggregated estimations based on publicly available data. We do not guarantee absolute real-time accuracy. Kazembe CodeWorks and its developers shall not be held liable for any missed transit connections, financial losses, disciplinary actions at places of employment, or personal damages arising from the use of this information.</p>
+        <p class="mb-3">Transit schedules, fares, and routing information presented in this app are aggregated estimations based on official timetables and commuter crowdsourcing. Because train schedules are subject to sudden delays and infrastructure changes, we do not guarantee absolute real-time accuracy. Kazembe CodeWorks cannot be held liable for any missed trains, financial losses, disciplinary actions at work, or personal damages arising from the use of this app.</p>
         
         <h4 class="font-bold text-lg mb-2 mt-4">3. Acceptable Use</h4>
-        <p class="mb-3">By accessing this application, you agree to use it strictly for personal, non-commercial transit planning. Automated data scraping, reverse-engineering of the application's secure endpoints, or malicious interference with our cloud infrastructure is strictly prohibited and will result in immediate service denial.</p>
+        <p class="mb-3">Next Train is built for personal, non-commercial transit planning. Automated data scraping, reverse-engineering of our databases, or malicious interference with our cloud infrastructure is strictly prohibited.</p>
     `,
     privacy: `
-        <h4 class="font-bold text-lg mb-2">1. Data Collection & Analytics</h4>
-        <p class="mb-3">To continuously improve the commuter experience, we utilize industry-standard analytics tools (including Google Analytics and Microsoft Clarity) to monitor application performance and user engagement. This tracking measures generic usage patterns, origin-destination planning flows, and crash reports. <strong>All data collected is strictly anonymized.</strong> We do not request, process, or store personally identifiable information (PII) such as names or contact details.</p>
+        <h4 class="font-bold text-lg mb-2">1. What Information Do We Collect?</h4>
+        <p class="mb-2">We respect your privacy. Next Train is designed to be used without creating an account.</p>
+        <ul class="list-disc pl-5 space-y-1 mb-3">
+            <li><strong>Location Data:</strong> If you use the "Find Nearest Station" feature, your GPS coordinates are processed <strong>strictly locally on your device</strong>. We never transmit, track, or store your physical location on our servers.</li>
+            <li><strong>Anonymous Telemetry:</strong> To keep the app fast and crash-free, we automatically collect basic diagnostic data (e.g., device model, operating system, generic region, and crash logs).</li>
+            <li><strong>Voluntary Information:</strong> If you use the In-App Feedback tool, you may optionally provide your email or WhatsApp number. This is used <em>only</em> to reply to your specific query and is never used for marketing.</li>
+        </ul>
         
-        <h4 class="font-bold text-lg mb-2 mt-4">2. Location Services</h4>
-        <p class="mb-3">Our "Find Nearest Station" feature requires access to your device's GPS coordinates. This location data is processed locally on your device in real-time to calculate distances to nearby stations. <strong>Your exact GPS location is never transmitted to, or stored on, our backend servers for tracking.</strong></p>
+        <h4 class="font-bold text-lg mb-2 mt-4">2. Third-Party Tracking & Cookies</h4>
+        <p class="mb-2">To understand how commuters use the app and to keep the servers running, we integrate with industry-standard third-party services:</p>
+        <ul class="list-disc pl-5 space-y-1 mb-3">
+            <li><strong>Analytics:</strong> We use Google Analytics 4 and Microsoft Clarity to track generic usage patterns (e.g., which routes are most popular) and identify UX roadblocks. All data is highly anonymized.</li>
+            <li><strong>Advertising:</strong> We use third-party ad networks to help cover server costs. These networks may use cookies to serve relevant ads. <em>(Note: We will soon be introducing a cookie consent banner to give you full control over this)</em>.</li>
+            <li><strong>Infrastructure:</strong> Our schedules and live alerts are distributed via secure, globally recognized cloud infrastructure providers.</li>
+        </ul>
         
-        <h4 class="font-bold text-lg mb-2 mt-4">3. Third-Party Infrastructure</h4>
-        <p class="mb-3">Schedule data and application states are distributed via secure, globally recognized cloud infrastructure providers. While your device downloads data from these secure endpoints, your individual connection metrics are governed by the strict privacy frameworks of those enterprise cloud providers. We do not broker your individual device fingerprints to external marketing agencies.</p>
+        <h4 class="font-bold text-lg mb-2 mt-4">3. Your POPIA Rights (South Africa)</h4>
+        <p class="mb-3">Under the Protection of Personal Information Act (POPIA), you have the right to request access to, correction of, or deletion of any personal data you have voluntarily provided to us (such as feedback emails). To exercise these rights, or if you have any privacy concerns, please contact our Lead Developer at <strong>enock@nexttrain.co.za</strong>.</p>
     `
 };
 
@@ -719,6 +729,15 @@ const DEFAULT_EXCLUSIONS = {
 // This drives the "What's New" modal.
 // GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
+    {
+        version: "V7 07.10 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Performance & Precision Polish</span>",
+        date: "10 Jul 2026",
+        features: [
+            "<b>Smarter Incident Warnings:</b> Fixed a bug where safe journeys ending near a disrupted area (like a sinkhole) would incorrectly flash a 'Line Severed' warning. You will now only see critical alerts if your train actually crosses the danger zone.",
+            "<b>Seamless Navigation:</b> When viewing empty schedules late at night or on Sundays, tapping \"See Next Available Day\" now instantly and perfectly syncs your top dropdown menu to the correct future day.",
+            "<b>Sleeker Interface:</b> We've polished the Trip Planner results, wiping out visual glitches and misaligned borders at the bottom of journey cards for a much cleaner, premium look."
+        ]
+    },
     {
         version: "V7 06.29 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Trip Planner Polish</span>",
         date: "29 Jun 2026",

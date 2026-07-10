@@ -1,5 +1,5 @@
-// --- METRORAIL NEXT TRAIN UTILITIES (V7 07.07 - Guardian Edition) ---
-// Pure, stateless helper functions shared across the application.
+// --- METRORAIL NEXT TRAIN UTILITIES (V7 07.10 - Guardian Edition) ---
+// Pure, stateless helper functions shared across the application..
 
 function pad(num) {
     var s = "00" + num;
@@ -36,7 +36,7 @@ function normalizeStationName(name) {
 function timeToSeconds(timeStr) {
     try {
         if (!timeStr) return 0;
-        const parts = timeStr.split(':').map(Number);
+        const parts = String(timeStr).split(':').map(Number);
         const h = parts[0] || 0; const m = parts[1] || 0; const s = parts[2] || 0;
         return (h * 3600) + (m * 60) + s;
     } catch (e) { return 0; }

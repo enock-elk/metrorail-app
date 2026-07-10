@@ -1,6 +1,6 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_07.07 - Performance Polish Edition)
- * --------------------------------------------
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_07.10 - Performance Polish Edition)
+ * -----------------------------------------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
  * 2. Transit Incident Manager (Tiered Graph/Timeline Disruptions)
@@ -14,19 +14,26 @@
  * 10. Live Telemetry Bridge & Snapshot Export
  * 11. User Feedback Manager (Inbox & Archive Protocol Tabs)
  * 12. Growth & Promo Manager (QR Codes)
- * * GROWTH SPRINT PHASE 5: Grid/Drill-Down UI injected. Silent Dead-End Telemetry Dashboard built.
- * * Alerts UI Decluttered (Advanced Toggle). 7-Day Telemetry Bar Chart scaffolding added.
- * * DOM Duplication bug absolutely eradicated via Singleton render locks.
- * * GROWTH SPRINT PHASE 6: 7-Day Graph Pagination, Fixed S-S Axis, & Snapshot Export Engine.
- * * GROWTH SPRINT PHASE 7: Safe Mode Crash Analytics Dashboard & Firehose Clear Protocol.
- * * GUARDIAN UI OVERHAUL: Replaced inline Bar Chart with Premium Full-Screen SVG Line Graph (Y-Axis + Fixed S-S Axis).
- * * GROWTH SPRINT PHASE 8: Dynamic Telemetry Cycling (DAU/WAU/MAU/ALL) & Commuter Reply Inbox Protocol.
- * * GROWTH SPRINT PHASE 9: Landscape Telemetry CSS Armor, SVG Tooltips & Unified Range Cycling.
- * * GROWTH SPRINT PHASE 10: AdBlocker Evasion & Crash Metadata Upgrade. Endpoints shifted to /sys_logs/.
- * * GUARDIAN PHASE 11 (ERGONOMICS): Full-Screen App Architecture, Dynamic Red-Dot Notification Engine, & Contextual Reply bindings for Crashes.
- * * GUARDIAN PHASE 12: Notification "Seen" Protocol via safeStorage. DOM Erasure (0 New) Bug Fixed. Firebase DDoS Network Loop Eradicated.
- */
-
+ *
+ * CHRONOLOGICAL CHANGE LOG:
+ * * GUARDIAN PHASE 5 [22 Dec 2025]: Injected basic simulation control wiring and first-pass Service Alerts/Incident layouts.
+ * * GUARDIAN PHASE 6 [02 Jan 2026]: Built out initial Exceptions Manager (train cancellations and specials) and designed a modular Special Event corridor scheduler.
+ * * GUARDIAN PHASE 7 [15 Jan 2026]: Injected the first-pass diagnostics system checks and completed basic local telemetry data extraction.
+ * * GUARDIAN PHASE 8 [04 Feb 2026]: Developed the basic in-house Feedback System with separate inbox/archive memory state tab controllers.
+ * * GUARDIAN PHASE 9 [04 Mar 2026]: Deployed Enterprise Admin Authentication with Firebase Custom Token security and modular, multi-turn drill-down views.
+ * * GUARDIAN PHASE 10 [12 Mar 2026]: Patched a critical DOM duplication bug on re-initialization by locking rendering hooks behind unique Singleton instance flags.
+ * * GUARDIAN PHASE 11 [10 Apr 2026]: Converted the modal to a full-screen app-like panel, added live diagnostic trackers, and enabled contextual admin reply fields.
+ * * GUARDIAN PHASE 12 [24 Apr 2026]: Synced unread status badges with Firebase to coordinate cross-device active notifications; fixed active-tab memory leaks.
+ * * GROWTH SPRINT PHASE 5 [12 May 2026]: Restructured the admin modules into an elegant Grid / Drill-Down navigation board and added the silent Dead-Ends failure scanner.
+ * * GROWTH SPRINT PHASE 6 [17 Jun 2026]: Upgraded old bar chart mockups to high-res SVG Line Graphs with interactive points, and built the PNG Snapshot Export engine.
+ * * GROWTH SPRINT PHASE 7 [24 Jun 2026]: Deployed the Safe Mode Crash Analytics Dashboard supporting dedicated database clears and archive pagination.
+ * * GROWTH SPRINT PHASE 8 [29 Jun 2026]: Built the Commuter Reply Inbox Protocol, allowing administrators to push threaded instant messages directly to individual commuter instances.
+ * * GROWTH SPRINT PHASE 9 [02 Jul 2026]: Integrated landscape-mode SVG CSS graph armor, absolute-positioned tooltips, and unified telemetry range selectors (DAU/WAU/MAU).
+ * * GROWTH SPRINT PHASE 10 [05 Jul 2026]: Swapped telemetry, crash, and routing failure endpoints from '/metrics/' to '/sys_logs/' to secure tracking channels against active client adblockers.
+ * * GUARDIAN PHASE 13 [09 Jul 2026]: Built the Action Required active state monitor to scan, list, and instantly resolve expiring/live incidents across the entire system.
+ * * GUARDIAN PHASE 14 [09 Jul 2026]: Resolved a malformed URL typo inside 'viewContextAlert' that threw unhandled exceptions during the disruption graveyard sweep.
+ * * GUARDIAN PHASE 15 [10 Jul 2026]: Appended standard [📝], [⛔], [🚧], and [📢] route cues directly to the drop-down selectors by cross-referencing live Firebase payloads.
+*/
 const Admin = {
     
     // 🛡️ GUARDIAN PHASE 2: Dropdown Breadcrumbs State
@@ -125,6 +132,9 @@ const Admin = {
 
     // --- 0.16 IMAGE LIGHTBOX MODAL ---
     openLightbox: function(url) {
+        window._adminLightboxOpen = true;
+        history.pushState({ modal: 'admin-lightbox' }, '', '#admin-lightbox');
+        if (typeof lockBackgroundScroll === 'function') lockBackgroundScroll();
         let modal = document.getElementById('admin-lightbox-modal');
         if (!modal) {
             modal = document.createElement('div');
@@ -156,6 +166,9 @@ const Admin = {
     },
 
     closeLightbox: function() {
+        window._adminLightboxOpen = false;
+        if (location.hash === '#admin-lightbox') history.back();
+        if (typeof unlockBackgroundScroll === 'function') unlockBackgroundScroll();
         const modal = document.getElementById('admin-lightbox-modal');
         if (!modal) return;
         const img = document.getElementById('admin-lightbox-img');
@@ -1532,19 +1545,29 @@ const Admin = {
                 const timeBadge = isPermanent ? 'Permanent' : `in ${hrsLeft} hrs`;
                 
                 listHtml += `
-                    <div class="flex flex-col ${bgClass} px-3 py-2.5 rounded-lg border shadow-sm mt-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onclick="Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')">
-                        <div class="flex justify-between items-start mb-2">
-                            <div class="flex flex-col">
-                                <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">${item.type}</span>
-                                <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center mt-0.5">${getRegionBadge(item.routeId)}${item.label}</span>
-                            </div>
-                            <span class="text-[10px] font-black ${colorClass} bg-white dark:bg-gray-800 px-2 py-1 rounded shadow-sm border border-current">${timeBadge}</span>
+                    <div class="flex flex-col ${bgClass} p-4 rounded-xl border shadow-sm mt-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer relative" onclick="Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')">
+                        
+                        <div class="absolute top-4 right-4 text-[10px] font-black ${colorClass} bg-white dark:bg-gray-800 px-2.5 py-1.5 rounded-lg shadow-sm border border-current z-10 whitespace-nowrap">
+                            ${timeBadge}
                         </div>
-                        <div class="flex gap-2">
-                            <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold py-1.5 rounded border border-slate-200 dark:border-slate-600 shadow-sm transition-colors focus:outline-none flex items-center justify-center">
-                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Resolve
+
+                        <div class="flex flex-col items-start pr-20 mb-4 w-full">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2.5">${item.type}</span>
+                            <div class="mb-2 max-w-full">
+                                <div class="inline-flex items-center flex-wrap">
+                                    ${getRegionBadge(item.routeId)}
+                                </div>
+                            </div>
+                            <span class="text-sm font-bold text-slate-800 dark:text-slate-200 leading-relaxed break-words w-full">
+                                ${item.label}
+                            </span>
+                        </div>
+                        
+                        <div class="flex gap-3 pt-3 border-t border-gray-200/50 dark:border-gray-700/50 mt-auto w-full">
+                            <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-300 text-xs font-bold py-2 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm transition-colors focus:outline-none flex items-center justify-center">
+                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Resolve
                             </button>
-                            <button onclick="event.stopPropagation(); Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')" class="flex-1 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-[10px] font-bold py-1.5 rounded shadow-sm transition-colors focus:outline-none flex items-center justify-center">
+                            <button onclick="event.stopPropagation(); window._actionRequiredWasOpen = true; Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')" class="flex-1 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold py-2 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center">
                                 Review &rarr;
                             </button>
                         </div>
@@ -1611,6 +1634,10 @@ const Admin = {
             if (body) body.classList.remove('hidden');
             const chev = targetPanel.querySelector('[id$="-chevron"]');
             if (chev) chev.classList.remove('-rotate-90');
+
+            // 🛡️ GUARDIAN UX FIX: Hide redundant internal accordion header during full-screen drill-down
+            const internalHeader = targetPanel.querySelector('[id$="-header-btn"]');
+            if (internalHeader) internalHeader.style.display = 'none';
 
             // Update Header Title
             const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6') || document.querySelector('#dev-modal .border-b.border-gray-200.pb-2.mb-3');
@@ -2290,6 +2317,12 @@ const Admin = {
                 container.classList.remove('admin-grid-view');
                 container.style.gridTemplateColumns = ''; // Clear inline styles
                 
+                // 🛡️ GUARDIAN UX FIX: Edge-to-Edge Expansion
+                // Strip padding, borders, and margins so the module touches the exact edge of the screen
+                card.dataset.originalClasses = card.className;
+                card.classList.remove('rounded-xl', 'border', 'shadow-md', 'p-4', 'mb-4', 'border-gray-200', 'dark:border-gray-700', 'bg-white', 'dark:bg-gray-800');
+                card.classList.add('!border-none', '!shadow-none', '!rounded-none', '!p-0', '!mb-0', 'bg-transparent');
+                
                 // 🛡️ GUARDIAN UX FIX: Hide Sign Out container to maximize panel airspace
                 const signoutContainer = document.getElementById('admin-signout-container');
                 if (signoutContainer) signoutContainer.style.display = 'none';
@@ -2331,13 +2364,19 @@ const Admin = {
                 toggleBtn.style.display = 'none';
                 
                 // Bind the Drill Back Action
-                document.getElementById('drill-back-btn').onclick = (evt) => {
-                    evt.stopPropagation();
-                    
-                    // 🛡️ GUARDIAN PHASE 1: The UI.js Blindfold & Router Lock
-                    // Temporarily rename the modal ID so ui.js's popstate listener doesn't see it
-                    // and close it during the asynchronous history.back() event.
-                    window._adminDrillBackLock = true;
+                    document.getElementById('drill-back-btn').onclick = (evt) => {
+                        evt.stopPropagation();
+                        
+                        // 🛡️ GUARDIAN PHASE 1: Lightbox Router Trap
+                        if (window._adminLightboxOpen) {
+                            Admin.closeLightbox();
+                            return; // Halt cascade, stay in the panel
+                        }
+
+                        // 🛡️ GUARDIAN PHASE 1: The UI.js Blindfold & Router Lock
+                        // Temporarily rename the modal ID so ui.js's popstate listener doesn't see it
+                        // and close it during the asynchronous history.back() event.
+                        window._adminDrillBackLock = true;
                     
                     if (location.hash.startsWith('#dev-')) {
                         const devModal = document.getElementById('dev-modal');
@@ -2353,19 +2392,35 @@ const Admin = {
                     }
                     
                     Admin.isGridMode = true;
-                    container.classList.add('admin-grid-view');
-                    container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
-                    titleH3.innerHTML = devHeaderRow.dataset.originalHtml;
-                    toggleBtn.style.display = '';
-                    
-                    // 🛡️ GUARDIAN UX FIX: Restore Sign Out container when returning to grid
-                    if (signoutContainer) signoutContainer.style.display = '';
-                    
-                    Array.from(container.children).forEach(child => {
-                        child.style.display = '';
-                        const b = child.querySelector('[id$="-body"]');
-                        if (b) b.classList.add('hidden');
-                    });
+                        container.classList.add('admin-grid-view');
+                        container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
+                        titleH3.innerHTML = devHeaderRow.dataset.originalHtml;
+                        toggleBtn.style.display = '';
+                        
+                        // 🛡️ GUARDIAN UX FIX: Restore Card Borders & Padding
+                        card.className = card.dataset.originalClasses;
+
+                        // 🛡️ GUARDIAN UX FIX: Restore Action Required accordion state if it was open
+                        if (window._actionRequiredWasOpen) {
+                            const actionBody = document.getElementById('action-body');
+                            const actionChevron = document.getElementById('action-chevron');
+                            if (actionBody) actionBody.classList.remove('hidden');
+                            if (actionChevron) actionChevron.classList.remove('-rotate-90');
+                            window._actionRequiredWasOpen = false; // Reset lock
+                        }
+                        
+                        // 🛡️ GUARDIAN UX FIX: Restore Sign Out container when returning to grid
+                        if (signoutContainer) signoutContainer.style.display = '';
+                        
+                        Array.from(container.children).forEach(child => {
+                            child.style.display = '';
+                            const b = child.querySelector('[id$="-body"]');
+                            if (b) b.classList.add('hidden');
+                            
+                            // 🛡️ GUARDIAN UX FIX: Restore internal accordion header
+                            const h = child.querySelector('[id$="-header-btn"]');
+                            if (h) h.style.display = '';
+                        });
                     
                     // 🛡️ GUARDIAN UX FIX: Recalculate and clear badges locally when returning to grid
                     Admin.syncAllBadges();
@@ -2662,31 +2717,36 @@ const Admin = {
                     <span>Commuter Feedback</span>
                 </span>
                 <span id="fb-unread-badge" class="hidden absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-black tracking-normal animate-pulse">0 New</span>
-                
-                <div class="grid-hidden-actions absolute right-8 flex items-center space-x-2 shrink-0">
-                    <button id="fb-export-global-btn" onclick="event.stopPropagation()" class="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800 border border-indigo-200 dark:border-indigo-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none flex items-center">
-                        <span class="mr-1 text-xs leading-none">📥</span> Export
-                    </button>
-                    <button id="fb-refresh-btn" onclick="event.stopPropagation()" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
-                        Refresh
-                    </button>
-                </div>
                 <svg id="fb-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             
-            <div id="fb-body" class="hidden mt-4 space-y-3">
-                <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2 mb-2 sticky top-0 bg-white dark:bg-gray-800 z-20 pt-1">
-                    <div class="flex space-x-4">
-                        <button id="fb-tab-inbox" class="py-1.5 text-[10px] uppercase font-black border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 transition-colors focus:outline-none tracking-wider">Inbox</button>
-                        <button id="fb-tab-archive" class="py-1.5 text-[10px] uppercase font-black border-b-2 border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors focus:outline-none tracking-wider">Archive</button>
-                    </div>
+            <div id="fb-body" class="hidden mt-4 flex flex-col">
+                <!-- 🛡️ GUARDIAN UX FIX: Next Train Style Tabs -->
+                <div class="flex border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-30 pt-1 mb-3">
+                    <button id="fb-tab-inbox" class="flex-1 py-3 text-sm font-bold text-center border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 transition-colors focus:outline-none">
+                        Inbox
+                    </button>
+                    <button id="fb-tab-archive" class="flex-1 py-3 text-sm font-bold text-center border-b-2 border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors focus:outline-none">
+                        Archive
+                    </button>
                 </div>
 
-                <div class="mb-2 relative sticky top-[44px] z-10 bg-white dark:bg-gray-800 pb-2">
-                    <div class="absolute inset-y-0 left-0 pl-3 pt-0 flex items-center pointer-events-none">
-                        <span class="text-xs pb-2">🔍</span>
+                <!-- 🛡️ GUARDIAN UX FIX: Search Bar -->
+                <div class="mb-3 relative px-1">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <span class="text-xs">🔍</span>
                     </div>
-                    <input type="text" id="fb-search-input" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block pl-8 p-2 shadow-inner outline-none transition-colors" placeholder="Search aliases, IDs, or messages...">
+                    <input type="text" id="fb-search-input" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block pl-10 p-3 shadow-inner outline-none transition-colors" placeholder="Search aliases, IDs, or messages...">
+                </div>
+
+                <!-- 🛡️ GUARDIAN UX FIX: Relocated Action Buttons -->
+                <div class="grid-hidden-actions flex space-x-2 mb-3 px-1">
+                    <button id="fb-export-global-btn" onclick="event.stopPropagation()" class="flex-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800 border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none flex items-center justify-center">
+                        <span class="mr-1.5 text-sm leading-none">📥</span> Export All
+                    </button>
+                    <button id="fb-refresh-btn" onclick="event.stopPropagation()" class="flex-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none flex items-center justify-center">
+                        <span class="mr-1.5 text-sm leading-none">🔄</span> Refresh
+                    </button>
                 </div>
                 
                 <div id="fb-list" class="space-y-3 pr-1"></div>
@@ -2727,20 +2787,20 @@ const Admin = {
         const switchTab = (tab) => {
             Admin.currentFeedbackTab = tab;
             if (tab === 'inbox') {
-                tabInbox.classList.replace('border-transparent', 'border-blue-500');
-                tabInbox.classList.replace('text-gray-400', 'text-blue-600');
+                tabInbox.classList.replace('border-transparent', 'border-blue-600');
+                tabInbox.classList.replace('text-gray-500', 'text-blue-600');
                 tabInbox.classList.replace('dark:text-gray-400', 'dark:text-blue-400');
                 
-                tabArchive.classList.replace('border-blue-500', 'border-transparent');
-                tabArchive.classList.replace('text-blue-600', 'text-gray-400');
+                tabArchive.classList.replace('border-blue-600', 'border-transparent');
+                tabArchive.classList.replace('text-blue-600', 'text-gray-500');
                 tabArchive.classList.replace('dark:text-blue-400', 'dark:text-gray-400');
             } else {
-                tabArchive.classList.replace('border-transparent', 'border-blue-500');
-                tabArchive.classList.replace('text-gray-400', 'text-blue-600');
+                tabArchive.classList.replace('border-transparent', 'border-blue-600');
+                tabArchive.classList.replace('text-gray-500', 'text-blue-600');
                 tabArchive.classList.replace('dark:text-gray-400', 'dark:text-blue-400');
                 
-                tabInbox.classList.replace('border-blue-500', 'border-transparent');
-                tabInbox.classList.replace('text-blue-600', 'text-gray-400');
+                tabInbox.classList.replace('border-blue-600', 'border-transparent');
+                tabInbox.classList.replace('text-blue-600', 'text-gray-500');
                 tabInbox.classList.replace('dark:text-blue-400', 'dark:text-gray-400');
             }
             Admin.renderFeedbackList();
@@ -2869,7 +2929,7 @@ const Admin = {
                 const displayDid = did === 'Anonymous / Legacy' ? did : did.substring(0,15) + '...';
                 
                 // 🛡️ GUARDIAN UX FIX: Relocate Alias button into the native Title bar to free up the Action Menu
-                const editAliasBtn = did !== 'Anonymous / Legacy' ? `<button onclick="event.stopPropagation(); Admin.setCommuterAlias('${did}', '${alias || ''}')" class="ml-2 hover:bg-gray-200 dark:hover:bg-gray-700 p-0.5 rounded transition-colors focus:outline-none flex-shrink-0" title="Edit Alias">✏️</button>` : '';
+                const editAliasBtn = did !== 'Anonymous / Legacy' ? `<button onclick="event.stopPropagation(); Admin.setCommuterAlias('${did}', '${alias || ''}')" class="ml-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-800 p-1 rounded-md transition-colors focus:outline-none flex-shrink-0 shadow-sm border border-orange-200 dark:border-orange-800" title="Edit Alias"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>` : '';
                 const commuterTitle = alias ? `${alias} <span class="text-gray-400 text-[10px] font-normal ml-1">(${displayDid})</span>${editAliasBtn}` : `${displayDid}${editAliasBtn}`;
                 
                 // 🛡️ GUARDIAN UX FIX: Detect attachments in thread for 📎 icon
@@ -2913,12 +2973,12 @@ const Admin = {
                         const icon = isNum ? '💬' : '📞';
                         const link = isNum ? `https://wa.me/${ph}` : '#';
                         const target = isNum ? `target="_blank"` : '';
-                        const aClass = isNum ? 'text-green-600 dark:text-green-400 hover:underline' : 'text-gray-500 dark:text-gray-400';
+                        const aClass = isNum ? 'text-emerald-700 dark:text-emerald-300 hover:underline' : 'text-gray-500 dark:text-gray-400';
                         
                         contactHtml += `
-                            <div class="flex items-center bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-1.5 py-0.5 max-w-[220px] sm:max-w-[300px]">
+                            <div class="flex items-center bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded px-2 py-1 max-w-[220px] sm:max-w-[300px] shadow-sm">
                                 <a href="${link}" ${target} onclick="event.stopPropagation()" class="text-[10px] ${aClass} font-mono tracking-tight truncate">${icon} ${ph}</a>
-                                <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${ph}'); if(typeof showToast === 'function') showToast('Copied!', 'success', 1000);" class="ml-1.5 text-[10px] text-gray-400 hover:text-green-500 transition-colors focus:outline-none" title="Copy">📋</button>
+                                <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${ph}'); if(typeof showToast === 'function') showToast('Copied!', 'success', 1000);" class="ml-1.5 text-[10px] text-gray-400 hover:text-emerald-500 transition-colors focus:outline-none" title="Copy">📋</button>
                             </div>`;
                     });
                     contactHtml += '</div>';
@@ -3550,16 +3610,19 @@ const Admin = {
                     <h3 class="text-lg font-black text-gray-900 dark:text-white mb-2 tracking-tight flex items-center"><span class="mr-2">💬</span> Reply to Commuter</h3>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Message will be delivered to their personal inbox upon next app launch.</p>
                     
-                    <div class="border border-gray-300 dark:border-gray-600 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 transition-all">
-                        <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 p-1 border-b border-gray-300 dark:border-gray-600">
+                    <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 p-1 border-b border-gray-300 dark:border-gray-600">
                             <button type="button" onclick="Admin.formatAlertText('bold', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Bold">B</button>
                             <button type="button" onclick="Admin.formatAlertText('italic', 'admin-reply-text')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Italic">I</button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('sizeUp', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Larger Text">A+</button>
-                            <button type="button" onclick="Admin.formatAlertText('sizeDown', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Smaller Text">A-</button>
+                            <button type="button" onclick="Admin.formatAlertText('larger', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Increase Size">A+</button>
+                            <button type="button" onclick="Admin.formatAlertText('smaller', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Decrease Size">A-</button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
+                            <button type="button" onclick="Admin.formatAlertText('justifyLeft', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onclick="Admin.formatAlertText('justifyCenter', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onclick="Admin.formatAlertText('justifyRight', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
                             <button type="button" onclick="Admin.formatAlertText('link', 'admin-reply-text')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Add Custom Link">🔗 Link</button>
-                            <label for="admin-reply-upload-file" id="admin-reply-upload-label" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer" title="Upload Image or PDF">📎 Insert Media</label>
+                            <label for="admin-reply-upload-file" id="admin-reply-upload-label" onmousedown="Admin.saveCursorRange()" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer" title="Upload Image or PDF">📎 Insert Media</label>
                             <input type="file" id="admin-reply-upload-file" class="hidden" accept="image/*,.pdf">
                         </div>
                         <div contenteditable="true" id="admin-reply-text" class="w-full min-h-[200px] resize-y overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" style="max-height: 50vh;" placeholder="Type your response..."></div>
@@ -3590,6 +3653,11 @@ const Admin = {
         const replyUploadFile = document.getElementById('admin-reply-upload-file');
         if (replyUploadFile) {
             replyUploadFile.addEventListener('change', async function() {
+                const editor = document.getElementById('admin-reply-text');
+                // 🛡️ GUARDIAN UX FIX: Retrieve pre-upload cursor position locked via mousedown
+                const savedRange = Admin._savedRange;
+                if (editor) editor.focus();
+
                 if (this.files && this.files.length > 0) {
                     const file = this.files[0];
                     if (file.size > 5242880) { // Strict 5MB limit
@@ -3631,17 +3699,21 @@ const Admin = {
                                 if (labelEl) labelEl.innerHTML = originalLabel;
                                 try {
                                     const url = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
-                                    const editor = document.getElementById('admin-reply-text');
                                     
                                     let htmlToInsert = '';
                                     if (isPdf) {
                                         htmlToInsert = `&nbsp;<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline font-bold px-1">📄 View Attached PDF</a>&nbsp;`;
                                     } else {
-                                        htmlToInsert = `<br><button type="button" onclick="window.openLightbox('${url}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${url}" class="w-full h-auto object-cover hover:opacity-90 transition-opacity" alt="Admin Attachment"><div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-2 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button><br>`;
+                                        htmlToInsert = `<br><button type="button" onclick="window.openLightbox('${url}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${url}" class="w-full h-auto object-cover hover:opacity-90 transition-opacity" alt="Admin Attachment"><div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-2 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button><br>`;
                                     }
                                     
                                     if (editor) {
                                         editor.focus();
+                                        if (savedRange) {
+                                            const sel = window.getSelection();
+                                            sel.removeAllRanges();
+                                            sel.addRange(savedRange);
+                                        }
                                         if (!document.execCommand('insertHTML', false, htmlToInsert)) {
                                             editor.innerHTML += htmlToInsert;
                                         }
@@ -3874,6 +3946,15 @@ const Admin = {
         }
     },
 
+// --- 🛡️ GUARDIAN PHASE 2: WYSIWYG CURSOR LOCK ---
+    _savedRange: null,
+    saveCursorRange: () => {
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+            Admin._savedRange = sel.getRangeAt(0);
+        }
+    },
+
 // RICH TEXT FORMATTING HELPER ---
     formatAlertText: (tag, targetId = 'alert-msg') => {
         const editor = document.getElementById(targetId);
@@ -3885,10 +3966,20 @@ const Admin = {
             document.execCommand('bold', false, null);
         } else if (tag === 'italic') { 
             document.execCommand('italic', false, null);
-        } else if (tag === 'sizeUp') {
-            document.execCommand('fontSize', false, '5'); // Approx 1.5x larger
-        } else if (tag === 'sizeDown') {
-            document.execCommand('fontSize', false, '2'); // Approx 0.8x smaller
+        } else if (tag === 'larger') {
+            let currentSize = parseInt(document.queryCommandValue('fontSize'), 10) || 3;
+            if (currentSize <= 2) document.execCommand('fontSize', false, '3');
+            else document.execCommand('fontSize', false, '5');
+        } else if (tag === 'smaller') {
+            let currentSize = parseInt(document.queryCommandValue('fontSize'), 10) || 3;
+            if (currentSize >= 5) document.execCommand('fontSize', false, '3');
+            else document.execCommand('fontSize', false, '2');
+        } else if (tag === 'justifyLeft') {
+            document.execCommand('justifyLeft', false, null);
+        } else if (tag === 'justifyCenter') {
+            document.execCommand('justifyCenter', false, null);
+        } else if (tag === 'justifyRight') {
+            document.execCommand('justifyRight', false, null);
         } else if (tag === 'link') { 
             const url = prompt("Enter the full URL (e.g., https://nexttrain.co.za):", "https://");
             if (!url) return;
@@ -3961,11 +4052,15 @@ const Admin = {
                             <button type="button" onclick="Admin.formatAlertText('bold')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Bold">B</button>
                             <button type="button" onclick="Admin.formatAlertText('italic')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Italic">I</button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('sizeUp')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Larger Text">A+</button>
-                            <button type="button" onclick="Admin.formatAlertText('sizeDown')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Smaller Text">A-</button>
+                            <button type="button" onclick="Admin.formatAlertText('larger')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Increase Size">A+</button>
+                            <button type="button" onclick="Admin.formatAlertText('smaller')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Decrease Size">A-</button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
+                            <button type="button" onclick="Admin.formatAlertText('justifyLeft')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onclick="Admin.formatAlertText('justifyCenter')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onclick="Admin.formatAlertText('justifyRight')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
                             <button type="button" onclick="Admin.formatAlertText('link')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Add Custom Link">🔗 Link</button>
-                            <label for="alert-upload-file" id="alert-upload-label" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer" title="Upload Image or PDF">📎 Insert Media</label>
+                            <label for="alert-upload-file" id="alert-upload-label" onmousedown="Admin.saveCursorRange()" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer" title="Upload Image or PDF">📎 Insert Media</label>
                             <input type="file" id="alert-upload-file" class="hidden" accept="image/*,.pdf">
                         </div>
                         <div contenteditable="true" id="alert-msg" class="w-full min-h-[120px] max-h-[300px] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 border-0 text-gray-900 dark:text-white text-xs focus:ring-0 outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="e.g. Delays of 45min due to cable theft..."></div>
@@ -4254,6 +4349,11 @@ const Admin = {
         const inlineUploadFile = document.getElementById('alert-upload-file');
         if (inlineUploadFile) {
             inlineUploadFile.addEventListener('change', async function() {
+                const editor = document.getElementById('alert-msg');
+                // 🛡️ GUARDIAN UX FIX: Retrieve pre-upload cursor position locked via mousedown
+                const savedRange = Admin._savedRange;
+                if (editor) editor.focus();
+
                 if (this.files && this.files.length > 0) {
                     const file = this.files[0];
                     if (file.size > 5242880) { // Strict 5MB limit
@@ -4295,7 +4395,6 @@ const Admin = {
                                 if (labelEl) labelEl.innerHTML = originalLabel;
                                 try {
                                     const url = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
-                                    const editor = document.getElementById('alert-msg');
                                     
                                     let htmlToInsert = '';
                                     if (isPdf) {
@@ -4306,10 +4405,16 @@ const Admin = {
                                     
                                     if (editor) {
                                         editor.focus();
+                                        if (savedRange) {
+                                            const sel = window.getSelection();
+                                            sel.removeAllRanges();
+                                            sel.addRange(savedRange);
+                                        }
                                         // Use native execCommand for undo-stack support, fallback to manual append if strict sandboxed
                                         if (!document.execCommand('insertHTML', false, htmlToInsert)) {
                                             editor.innerHTML += htmlToInsert;
                                         }
+                                        Admin._savedRange = null; // Clear lock
                                     }
                                     if (typeof showToast === 'function') showToast("Attachment inserted!", "success");
                                 } catch(e) {

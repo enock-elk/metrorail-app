@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-V7_07.07'; // GUARDIAN: Bumped to v1 for Firebase SDK injection
+const CACHE_NAME = 'metrorail-next-train-V7_07.10'; // GUARDIAN: Bumped to v1 for Firebase SDK injection
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.
@@ -163,7 +163,7 @@ self.addEventListener('fetch', (event) => {
         if (networkResponse && networkResponse.status === 200) {
             // 🛡️ GUARDIAN PHASE 4A: Captive Portal Cache Poisoning Defense
             const reqUrl = new URL(event.request.url);
-            const contentType = networkResponse.headers.get('content-type') || '';
+            const contentType = (networkResponse.headers && networkResponse.headers.get('content-type')) || '';
             const isCssOrJs = reqUrl.pathname.endsWith('.js') || reqUrl.pathname.endsWith('.css');
             
             if (isCssOrJs && contentType.includes('text/html')) {

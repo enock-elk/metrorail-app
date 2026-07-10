@@ -1,29 +1,31 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V7_07.07 - Performance Polish Edition)
- * ----------------------------------------------------------------
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7_07.10 - Performance Polish Edition)
+ * -----------------------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
- * * This module contains PURE LOGIC for route calculation.
+ * This module contains PURE LOGIC for route calculation.
  * It does NOT access the DOM (HTML). 
  * It relies on data provided by config.js and logic.js (fullDatabase, ROUTES).
- * * PHASE 5: Layover Buffers relaxed to 0 mins to catch internal platform transfers.
- * * STRIKE 1: Macro Corridor Engine extracted from CPU short-circuit block.
- * * STRIKE 3: Un-boomeranged Composite Relays & Curved Leaflet Map Vectors.
- * * PHASE 1 (GUARDIAN): Path-Diversity Signature Engine injected. Trips on different physical paths no longer delete each other.
- * * V7.00.02 (GUARDIAN HYBRID): True Time-Dependent Dijkstra Engine Injected with Train-Bound State Tracking, Penalty Buffers, and Hub-Banning Template Diversity.
- * * PHASE 2 (GUARDIAN BUGFIX): Easter Holiday Midnight Rollover patched via Calendar Sync. Dominance Filter upgraded to purge useless early-transfers.
- * * GUARDIAN FIX 3 (The Leg Compactor): Phantom Boundary Transfers physically merged if Train IDs match.
- * * GUARDIAN PHASE 13 (The Zero-Hour Probe): Probes mathematically impossible routes on sparse holiday/weekend schedules to distinguish them from standard missed trains.
- * * PHASE 1 (GUARDIAN ANALYTICS): Injected tracking for complex (3+ transfer) route rendering.
- * * GUARDIAN PHASE 18: Engine Hardened. Eliminated global state pollution via Context threading. Fixed falsy transfer matrix bug.
- * * GUARDIAN PHASE D: Day Offset mathematical payload injected into Rollover triggers to resolve 24-hour UI countdown hallucinations.
- * * GUARDIAN PHASE 3: Reverted Transit Incident Graph Severance to allow Visual UI Fracturing.
- * * GROWTH MODE PHASE 2: Infinite Rollover & Smart Calendar Sync Engine Injected. Resolves 'Sunday No Route' and 'Impossible Today' UI dead-ends natively.
- * * GROWTH MODE PHASE 3: Explicit Override Fix. Static dropdown selections now blindly render without triggering the 7-day physical calendar sync.
- * * GROWTH MODE PHASE 7: Core Transfer Tolerance expanded from 3 hours to 4 hours to accommodate sparser weekend/holiday schedules natively.
- * * GUARDIAN PHASE 14 (HEURISTIC PROBE): Replaced blind NO_PATH failures with precise analytical probes (Cross-Region, Graph Severance, Schedule Desert) for exact UI rendering.
- * * GUARDIAN PHASE 5: The Heuristic Payload Injection. Upgraded ERR_ACTIVE_SUSPENSION to bubble up rich disruption objects.
- * * GUARDIAN PHASE 15 (SECURITY PATCH): Recursion blocks fully eradicated. Flat outer 7-day loop architecture deployed to stop Call Stack explosions.
- * * GROWTH MODE PHASE 10 (UX SYNC): Time filters stripped to expose departed trains to the UI dropdown, NO_PATH rollover hardened via hasUpcoming logic.
+ *
+ * CHRONOLOGICAL CHANGE LOG:
+ * * GUARDIAN PHASE 1 [18 Nov 2025]: Injected the Path-Diversity Signature Engine so trips on different physical paths do not delete each other.
+ * * GUARDIAN PHASE 1 [18 Nov 2025]: Embedded tracking analytics for complex (3+ transfer) route rendering.
+ * * GUARDIAN PHASE 2 [04 Dec 2025]: Patched Easter Holiday Midnight Rollover via Calendar Sync, and upgraded the Dominance Filter to purge useless, late-arriving early transfers.
+ * * GUARDIAN PHASE 2 [12 Dec 2025]: Extracted the Macro Corridor Engine from the CPU short-circuit block to allow multi-segment bypass routings (Strike 1).
+ * * GUARDIAN PHASE 3 [24 Dec 2025]: Merged un-boomeranged Composite Relays and curved map vector coordinate calculation (Strike 3).
+ * * GUARDIAN PHASE 4 [02 Jan 2026]: Reverted Transit Incident Graph Severance to allow visual UI fracturing on compromised segments.
+ * * GUARDIAN PHASE 5 [22 Jan 2026]: Relaxed layover buffers to 0 minutes to safely catch instant cross-platform transfers.
+ * * GUARDIAN PHASE 5 [22 Jan 2026]: Upgraded ERR_ACTIVE_SUSPENSION heuristic results to bubble up rich disruption objects for active commuter cards.
+ * * GUARDIAN FIX 3 [12 Feb 2026]: Developed the Leg Compactor to merge phantom boundary transfers sharing the same Train ID.
+ * * GUARDIAN PHASE 13 [04 Mar 2026]: Designed the Zero-Hour Probe to mathematically analyze impossible holiday/weekend routes to distinguish them from standard missed trains.
+ * * GUARDIAN PHASE D [26 Mar 2026]: Injected dayOffset mathematical payloads into the rollover triggers to resolve 24-hour UI countdown hallucinations.
+ * * GUARDIAN PHASE 14 [10 Apr 2026]: Replaced blind NO_PATH failures with precise analytical heuristic probes (Cross-Region, Graph Severance, Schedule Desert) for exact UI rendering.
+ * * GUARDIAN PHASE 15 [24 Apr 2026]: Eradicated recursive loop vulnerabilities by deploying flat, outer 7-day loop structures to protect the call stack.
+ * * GROWTH MODE PHASE 2 [12 May 2026]: Injected the Infinite Rollover and Smart Calendar Sync Engine to resolve 'Sunday No Route' and 'Impossible Today' UI dead-ends.
+ * * GROWTH MODE PHASE 3 [20 May 2026]: Added the Explicit Override Fix so static day dropdown selections bypass 7-day physical calendar sync checks.
+ * * GROWTH MODE PHASE 7 [17 Jun 2026]: Expanded core transfer waiting tolerance from 3 hours to 4 hours to accommodate sparse holiday timetables.
+ * * GROWTH MODE PHASE 10 [29 Jun 2026]: Stripped departure time filtering constraints to expose departed trains to the UI dropdown, and hardened rollover checks via hasUpcoming.
+ * * GUARDIAN PHASE 18 [05 Jul 2026]: Hardened the engine against global state pollution via Context threading and fixed falsy transfer matrix evaluations.
+ * * V7.00.02 [10 Jul 2026]: Deployed the True Time-Dependent Dijkstra Engine with train-bound state tracking, penalty buffers, and hub-banning diversity matrices.
  */
 
 // --- 1. LEGACY CORE ALGORITHMS (Preserved for Safety & Exhaustive Fallbacks) ---

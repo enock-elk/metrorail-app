@@ -1,29 +1,31 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_07.07 - Performance Polish Edition)
- * ------------------------------------------------
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_07.10 - Performance Polish Edition)
+ * -----------------------------------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
- * * PART OF PHASE 5: NATIVE EXPERIENCE (Targeted Haptics & Grid UI)
- * * PHASE 1 (BUGFIX 4): Dynamic Holiday Lookahead bindings for UI buttons. Grid dropdowns relabeled.
- * * GUARDIAN PHASE 12: Integrated specific metadata styling for "SPL" vs "NO SVC" in the Timetable Grid.
- * * GUARDIAN PHASE 15: Ultra-Wide Data Matrix Polish (Zebra Striping, Right-Side Anchors, Typography scaling).
- * * GUARDIAN PHASE 16: Ultra-Compact Matrix Mode for routes with 20+ trains (Negative tracking, dynamic min-widths, asymmetrical padding).
- * * GUARDIAN PHASE 17: "Tall Grid" mode for Web UI vertical compression, strict Export sandbox, and Ghost Number transparency fix.
- * * GUARDIAN PHASE 18: Phantom Row Matrix Immunity and Android Chrome DOM-Attachment Export Fix.
- * * GUARDIAN PHASE 19: Android Chrome Anchor Click Patch & Blob Revocation Stabilization.
- * * GUARDIAN PHASE 20 (BUGFIX): Universal String Split logic injected to fix Cape Town route string bleed natively.
- * * GUARDIAN PHASE 21 (BUGFIX): Variable shadowing (th) resolved in export engine to prevent older Android WebView crashes.
- * * GUARDIAN PHASE 22: Export Visual Cues. Injected HTML2Canvas HEX mapping for Banned/Special trains and Amended Timetable badge.
- * * GUARDIAN PHASE 23: Grid Typography Polish. Absolute positioning for Exception tags to preserve Train ID baseline alignment. Strikethroughs removed.
- * * GUARDIAN PHASE 5: Live Board Disruption Evaluator. Force-terminates direct trips and injects dynamic advisories.
- * * GUARDIAN BUGFIX: Normalized Index Matching for Live Board Disruptions to prevent string-suffix mismatch.
- * * GUARDIAN PHASE 1 TRIAGE: Replaced naked localStorage in renderRouteMenu to prevent WebView fatal crash.
- * * GUARDIAN PHASE 2C: Injected globalDisruptions checks into after-hours empty-state cards.
- * * GUARDIAN PHASE 4 (CONTEXT ENGINE): Injected Route-Wide Grid Notices into Live Grid UI and Offline Canvas Exports.
- * * GROWTH MODE PHASE 4: Cross-Corridor Disruption Engine injected into Live Boards & Empty States via getTripDisruptions().
- * * GROWTH MODE PHASE 2 (GRID UX): Buttons aggressively shrunk horizontally. Text wrapping prevented. Text restored for Download/Share. Image export footer balanced.
- * * GUARDIAN UX (GRID POLISH): Bulked up dropdown buttons for touch targets and resolved clipping text.
- * * GUARDIAN UX (GRID PREMIUM): Premium Tailwind styling (shadow-md, border-2, py-2.5, px-4) injected into Timetable Grid controls.
+ *
+ * CHRONOLOGICAL CHANGE LOG:
+ * * GUARDIAN PHASE 1 [18 Nov 2025]: Integrated dynamic holiday lookahead bindings and relabeled Grid dropdown selectors.
+ * * GUARDIAN PHASE 1 [18 Nov 2025]: Patched WebView security crashes by wrapping naked localStorage lookups in safeStorage inside renderRouteMenu.
+ * * GUARDIAN PHASE 2 [04 Dec 2025]: Injected globalDisruptions checks into after-hours empty-state cards to account for service gaps.
+ * * GUARDIAN PHASE 4 [15 Dec 2025]: Integrated Route-Wide Grid Notices into the live grid UI and offline canvas exports.
+ * * GUARDIAN PHASE 5 [22 Dec 2025]: Implemented first-pass Native Experience features via targeted haptic events and basic Grid UI layout.
+ * * GUARDIAN PHASE 5 [22 Dec 2025]: Injected Live Board Disruption Evaluator to force-terminate direct trips and map alternative endpoints.
+ * * GUARDIAN PHASE 6 [02 Jan 2026]: Overhauled grid control touch targets with bulkier custom dropdown buttons to prevent misclicks.
+ * * GUARDIAN PHASE 7 [15 Jan 2026]: Applied premium Tailwind CSS properties (shadows, distinct borders, enhanced padding) to Timetable Grid controls.
+ * * GUARDIAN PHASE 8 [04 Feb 2026]: Shrunk grid controls horizontally to prevent text wrapping, and centered metadata on the image export footer.
+ * * GUARDIAN PHASE 10 [12 Mar 2026]: Normalized index matching for Live Board disruptions to prevent string-suffix parsing errors.
+ * * GUARDIAN PHASE 11 [10 Apr 2026]: Injected multi-station cross-corridor disruptions into Live Boards and empty states via getTripDisruptions().
+ * * GUARDIAN PHASE 12 [24 Apr 2026]: Added specific metadata styling for "SPL" vs "NO SVC" services inside the Timetable Grid.
+ * * GUARDIAN PHASE 15 [12 May 2026]: Designed Ultra-Wide Data Matrix with zebra striping, right-side anchors, and responsive scaling.
+ * * GUARDIAN PHASE 16 [16 May 2026]: Deployed Ultra-Compact Matrix Mode for high-frequency corridors to resolve horizontal overflow.
+ * * GUARDIAN PHASE 17 [31 May 2026]: Introduced vertical "Tall Grid" compression for Web UI, enforced strict export sandbox, and fixed ghost numbers.
+ * * GUARDIAN PHASE 18 [17 Jun 2026]: Resolved phantom row matrix exceptions and patched Android Chrome DOM-attachment canvas export bugs.
+ * * GUARDIAN PHASE 19 [24 Jun 2026]: Patched Android Chrome anchor click bugs and stabilized canvas memory usage via blob URL revocation.
+ * * GUARDIAN PHASE 20 [29 Jun 2026]: Injected universal string split logic to resolve route-name text bleeding on Cape Town schedules.
+ * * GUARDIAN PHASE 21 [02 Jul 2026]: Resolved variable shadowing (th) in the export canvas engine to prevent legacy WebView crashes.
+ * * GUARDIAN PHASE 22 [05 Jul 2026]: Built HTML2Canvas hex color mapping for custom exception cells and added the Amended Timetable banner.
+ * * GUARDIAN PHASE 23 [09 Jul 2026]: Positioned exception tags absolutely to preserve vertical baseline alignment, and removed old strikethroughs.
  */
 
 const Renderer = {
@@ -740,7 +742,7 @@ const Renderer = {
         if (!stationName) return '';
         
         // 1. Strip the redundant "STATION" suffix
-        let name = stationName.replace(/ STATION/gi, '').trim();
+        let name = String(stationName).replace(/ STATION/gi, '').trim();
         const upperName = name.toUpperCase();
 
         // 2. Perform Operational -> Commuter Intercepts

@@ -572,18 +572,9 @@
                 if(legend) legend.style.display = 'block';
 
             } catch (err) {
-                console.error("Map Init Failed:", err);
-                const placeholder = document.getElementById('map-placeholder');
-                if(placeholder) {
-                    placeholder.innerHTML = `
-                        <div class="text-center p-6 text-red-600 bg-red-50 dark:bg-red-900/30 rounded-xl shadow-lg border border-red-100 dark:border-red-800 max-w-[80%] mx-auto mt-20">
-                            <span class="text-3xl mb-2 block">⚠️</span>
-                            <p class="font-black text-lg">Failed to load map data.</p>
-                            <p class="text-xs mt-2 font-medium">Please open the main app Trip Planner to sync the latest schedule data for your region.</p>
-                            <a href="index.html" class="mt-4 inline-block bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 px-4 py-2 rounded-lg shadow-sm text-sm font-bold text-gray-800 dark:text-gray-200 transition hover:bg-gray-50 dark:hover:bg-gray-700">Return to App</a>
-                        </div>
-                    `;
-                }
+                console.warn("🛡️ Guardian: Map Init Failed (No DB). Redirecting to onboarding...", err);
+                // 🛡️ GUARDIAN UX FIX: Phase 4 - Seamless Onboarding Redirect
+                window.location.replace('index.html?onboard=map');
             }
         });
 

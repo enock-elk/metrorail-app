@@ -1,36 +1,35 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7_07.07 - Performance Polish Edition)
- * --------------------------------------------------------------
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_07.10 - Performance Polish Edition)
+ * -----------------------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
- * * This module handles user interaction, DOM updates, and event listeners.
+ * This module handles user interaction, DOM updates, and event listeners.
  * It calls the pure logic functions from planner-core.js.
- * * V6.00.21: The Great Decoupling - Absorbed robust UI overrides from monolithic ui.js.
- * * PHASE 10: App Router Parity - Integrated deep history stack for Planner Results.
- * * STRIKE 2: Dynamic Leg Renderer Injection - Unhides 'isRelayComposite' internal transfers.
- * * V7.00.01 (GUARDIAN): Dynamic MULTI_TRANSFER UI Renderer for True Dijkstra Graph.
- * * PHASE 1 (GUARDIAN BUGFIX): Live Map Router Bleed & Grey Screen Interceptor injected.
- * * GUARDIAN PHASE 13: Impossible Route Warning Card integrated via Zero-Hour Probe.
- * * GUARDIAN PHASE 14 & D: Dynamic Time-Sync applied to UI to prevent future-day times matching against today's clock, incorporating dayOffset weekend math.
- * * GUARDIAN PHASE D: Leaflet anti-rubberband flyTo() lock applied to prevent camera snapping race conditions.
- * * GUARDIAN PHASE 20: Map UX Parity - Integrated Action Bar, Naked Halo tooltips, and Dark Mode Tile Inversion from map.html.
- * * GUARDIAN BUGFIX (V6.04.17): Ghost Station Polyline Trap resolved in extractTripCoordinates.
- * * GUARDIAN UX UPGRADE (V6.04.17): Autocomplete native focus-select & Unconditional Swap Protocol.
- * * GUARDIAN PHASE 4: True Transit Incident Management. Visual Timeline Fracture injected.
- * * GUARDIAN ZONE ENGINE: Universal single-pass renderer for exact "Point of Contact" disruption fracturing.
- * * GUARDIAN PHASE 2B: Removed station strikethrough logic. Added explicit "TRAIN TERMINATES HERE" tag.
- * * GUARDIAN PHASE 3: Live Map Awareness. Leaflet crash race condition fixed and dynamic disruption overlays injected.
- * * GROWTH MODE PHASE 3: Leaflet Mutex Lock injected to prevent 'Map container is already initialized' rapid double-tap crashes.
- * * GROWTH MODE PHASE 3.5: Puppeteer Pattern UI Overhaul. Native <select> elements replaced with premium scroll-locked custom DOM dropdowns.
- * * GROWTH MODE PHASE 4: SUNDAY_ROLLOVER status added. Severance tags consolidated. Dropdown pulse optimized. No Path limitation string eradicated.
- * * GROWTH MODE PHASE 5: Rollover typography line breaks injected. Route-Wide terminus mapping added. Severance CTA shifted to top-right corner.
- * * GROWTH MODE PHASE 6: Disruption block flexbox inverted. Actionable Termination placed at the top, explanations aligned to Transfer styling.
- * * GROWTH MODE PHASE 7: History bubble-up bug fixed. Excessive Layover (>2hrs) warning cards and targeted analytics trackers injected.
- * * GUARDIAN PHASE 14 (DYNAMIC ERROR CARDS): Replaced generic NO_PATH black box with heuristic-driven contextual error cards and embedded Feedback hooks.
- * * GUARDIAN PHASE 6 (ERROR CARD REFINEMENT): Consumed rich error payloads to inject specific disruption buttons into Suspended cards, Map CTA upgraded.
- * * GROWTH MODE PHASE 8: Disruption UX alignment. Flexbox baseline matching, typography sync for Incident cards, orange layovers, and silent dead-end beacon.
- * * GROWTH MODE PHASE 9 (DATA PIPELINE): Upgraded Dead Ends telemetry beacon to bypass Firebase Rules trap using dynamic PUT requests & AdBlocker evasion.
- * * GUARDIAN PHASE 4.1: Deterministic Leaflet Teardown & Dynamic Contextual Reply injection for Disruption Modals.
- * * GROWTH MODE PHASE 10 (UX FIX): Dropped length <= 1 block on renderOptionsSelector to guarantee uniform dropdown visibility.
+ *
+ * CHRONOLOGICAL CHANGE LOG:
+ * * GUARDIAN PHASE 1 [18 Nov 2025]: Patched map-closure route bleed and gray screen flash by injecting a dedicated Interceptor.
+ * * GUARDIAN PHASE 2 [04 Dec 2025]: Decoupled and absorbed robust UI overrides from monolithic ui.js (The Great Decoupling).
+ * * GUARDIAN PHASE 10 [15 Jan 2026]: Integrated a deep history stack for Planner Results to establish App Router parity.
+ * * GUARDIAN STRIKE 2 [04 Feb 2026]: Designed a dynamic leg renderer to unhide 'isRelayComposite' internal transfers.
+ * * GUARDIAN PHASE 13 [12 Mar 2026]: Integrated the Impossible Route Warning Card, fueled by the Zero-Hour Probe.
+ * * GUARDIAN PHASE 14 [26 Mar 2026]: Applied dynamic time-sync preventing future-day times matching against today's clock, incorporating dayOffset weekend math.
+ * * GUARDIAN PHASE D [10 Apr 2026]: Implemented a Leaflet anti-rubberband flyTo() lock to prevent camera snapping race conditions.
+ * * GUARDIAN PHASE 20 [24 Apr 2026]: Achieved complete Map UX Parity, integrating the Action Bar, Naked Halo tooltips, and Dark Mode Tile Inversion.
+ * * GUARDIAN UX UPGRADE [12 May 2026]: Resolved the Ghost Station Polyline Trap in extractTripCoordinates and enabled the unconditional swap protocol.
+ * * GUARDIAN PHASE 4 [31 May 2026]: Injected visual timeline fractures to support live transit incident management and built a single-pass "Point of Contact" disruption fracturing system.
+ * * GUARDIAN PHASE 2B [17 Jun 2026]: Replaced old station strikethroughs with an explicit "TRAIN TERMINATES HERE" visual label.
+ * * GUARDIAN PHASE 3 [24 Jun 2026]: Fixed Leaflet container collision race conditions and enabled dynamic disruption overlays on map views.
+ * * GROWTH MODE PHASE 3 [29 Jun 2026]: Introduced Leaflet mutex locks to prevent container initialization crashes on rapid double-clicks.
+ * * GROWTH MODE PHASE 3.5 [02 Jul 2026]: Replaced all native <select> day and time pickers with premium scroll-locked custom DOM dropdowns.
+ * * GROWTH MODE PHASE 4 [05 Jul 2026]: Integrated SUNDAY_ROLLOVER handling, consolidated severance tags, and eliminated old "No Path" limits.
+ * * GROWTH MODE PHASE 5 [06 Jul 2026]: Injected line breaks for rollover cards, route-wide terminus mapping, and positioned the severance CTA on the top-right corner.
+ * * GROWTH MODE PHASE 6 [07 Jul 2026]: Realigned and inverted the layout of disruption cards to match modern transfer card aesthetics.
+ * * GROWTH MODE PHASE 7 [08 Jul 2026]: Patched history bubble-up anomalies, added warning cards for excessive layovers, and bound targeted analytics trackers.
+ * * GROWTH MODE PHASE 8 [09 Jul 2026]: Aligned list rendering heights and optimized dropdown list container overscroll boundaries to prevent background scroll leaks.
+ * * GROWTH MODE PHASE 9 [09 Jul 2026]: Refactored Dead Ends telemetry to write direct database nodes bypass-mode, resolving rules trapping.
+ * * GUARDIAN PHASE 4.1 [09 Jul 2026]: Added deterministic Leaflet teardown routines and dynamic contextual replies for disruption modals.
+ * * GROWTH MODE PHASE 10 [09 Jul 2026]: Dropped option count conditions on the Custom Time dropdown to ensure uniform visibility.
+ * * GUARDIAN PHASE 2 [10 Jul 2026]: Injected silent DOM-sync logic into the manual rollover trigger to instantly keep the top day dropdown up-to-date.
+ * * GUARDIAN PHASE 3 [10 Jul 2026]: Extracted journey card builds out of bordered warning divs to completely purge bottom border visual artifacts.
  */
 
 // --- GUARDIAN PHASE 1: ROUTER BLEED & GREY SCREEN INTERCEPTOR ---
@@ -670,7 +669,7 @@ const PlannerRenderer = {
                         <button id="btn-${subLegId}" onclick="togglePlannerStops('${subLegId}')" class="text-[10px] font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-full transition-colors mb-2 w-fit ml-5 -mt-1 relative top-[-5px] focus:outline-none">
                             ${isExpanded ? "Hide Stops" : "Show All Stops"}
                         </button>
-                        <div id="${subLegId}" class="${isExpanded ? "" : "hidden"} space-y-1 mb-2">${innerHtml}</div>
+                        <div id="${subLegId}" class="${isExpanded ? "" : "hidden"} space-y-1 pb-2">${innerHtml}</div>
                     </div>
                 `;
             } else {
@@ -721,32 +720,46 @@ const PlannerRenderer = {
             let combinedHtml = leg1.html;
 
             const transferOpacity = leg1.isSevered ? "opacity-50 grayscale" : "";
-            const isExtended = Math.floor(it.wait / 60) >= 240;
-            const iconBg = isExtended ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
-            const waitTextColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white';
-            const bridgeTitle = isExtended ? `EXTENDED LAYOVER` : `INTERNAL TRANSFER`;
-            const bridgeIcon = isExtended ? `<svg class="w-3 h-3 mr-1 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>` : ``;
-            const bridgeTitleColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
-            const bigClockSvg = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+            const waitMins = Math.floor(it.wait / 60);
+            const isExtended = waitMins >= 240;
+            const isInstant = waitMins === 0;
+
+            let bridgeTitle = `INTERNAL TRANSFER`;
+            let iconBg = 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
+            let bridgeTitleColor = 'text-blue-600 dark:text-blue-400';
+            let waitTextColor = 'text-gray-900 dark:text-white';
+            let centerSvg = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+            let leftBorderColor = 'border-l-blue-500';
+
+            if (isExtended) {
+                bridgeTitle = `EXTENDED LAYOVER`;
+                iconBg = 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400';
+                bridgeTitleColor = 'text-orange-600 dark:text-orange-400';
+                waitTextColor = 'text-orange-600 dark:text-orange-400';
+                centerSvg = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+                leftBorderColor = 'border-l-orange-500';
+            } else if (isInstant) {
+                bridgeTitle = `INSTANT TRANSFER`;
+                iconBg = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400';
+                bridgeTitleColor = 'text-emerald-600 dark:text-emerald-400';
+                waitTextColor = 'text-emerald-600 dark:text-emerald-400';
+                centerSvg = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+                leftBorderColor = 'border-l-emerald-500';
+            }
             
             combinedHtml += `
                 <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
                     <div class="relative py-2 z-20">
-                        <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${isExtended ? 'border-l-orange-500' : 'border-l-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
+                        <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${leftBorderColor} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
                             <div class="flex items-center min-w-0 pr-3">
                                 <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
-                                    ${bigClockSvg}
+                                    ${centerSvg}
                                 </div>
                                 <div class="flex flex-col items-start min-w-0">
-                                    <span class="flex items-center text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle} @ ${sName}">${bridgeIcon}${bridgeTitle} @ ${sName}</span>
+                                    <span class="flex items-center text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle} @ ${sName}">${bridgeTitle} @ ${sName}</span>
                                     <span class="font-bold text-[11px] ${waitTextColor} leading-none truncate">${waitStr} Wait</span>
                                 </div>
                             </div>
-                            <div class="flex flex-col items-end text-right shrink-0 max-w-[45%]">
-                                <span class="text-[8px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider leading-none mb-1">Connect To</span>
-                                <span class="font-bold text-[10px] text-blue-600 dark:text-blue-400 leading-tight truncate w-full" title="${train2Dest} Train ${it.train2}">${train2Dest} Train ${it.train2}</span>
-                            </div>
-                        </div>
                     </div>
                 </div>
             `;
@@ -772,7 +785,7 @@ const PlannerRenderer = {
                 </div>
                 <button onclick="extractTripCoordinates(${selectedIndex})" class="w-full bg-blue-50/50 hover:bg-blue-100 dark:bg-gray-800 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400 font-bold py-3 text-xs rounded-lg transition-colors flex items-center justify-center focus:outline-none mt-2 uppercase tracking-wide border border-blue-200 dark:border-gray-600 shadow-sm">
                     <svg class="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
-                    View Live Route on Map
+                    View Trip Plan on Map
                 </button>
             </div>
         `;
@@ -849,8 +862,8 @@ const PlannerRenderer = {
         
         if (maxWaitMins >= 240) {
             const waitStr = PlannerRenderer.formatDuration(maxWaitMins);
-            const alertSvg = `<svg class="w-4 h-4 mr-2 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
-            layoverBanner = `<div class="bg-orange-50 dark:bg-orange-900/30 border-l-4 border-orange-500 text-orange-800 dark:text-orange-300 text-[10px] font-bold p-2.5 mb-3 rounded-r shadow-sm flex items-start">${alertSvg}<span>Please be advised that your trip includes a wait time of <b>${waitStr}</b> @ ${Renderer._applyUIIntercepts(hubName)}.</span></div>`;
+            const alertSvg = `<svg class="w-4 h-4 text-orange-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+            layoverBanner = `<div class="bg-orange-50 dark:bg-orange-900/30 border-l-4 border-orange-500 text-orange-800 dark:text-orange-300 text-[10px] font-bold p-2.5 mb-3 rounded-r shadow-sm flex justify-between items-start w-full"><div class="flex-1 min-w-0 pr-3"><span>Please be advised that your trip includes a wait time of <b>${waitStr}</b> @ ${Renderer._applyUIIntercepts(hubName)}.</span></div><div class="shrink-0 scale-125 origin-top-right">${alertSvg}</div></div>`;
         }
 
         let stateBadge = "";
@@ -1061,25 +1074,42 @@ const PlannerRenderer = {
                 }
 
                 const transferOpacity = currentSevered ? "opacity-50 grayscale" : "";
-                const bridgeTitle = isExtended ? `EXTENDED LAYOVER` : `TRANSFER ${i+1}`;
-                const bridgeIcon = isExtended ? `<svg class="w-3 h-3 mr-1 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>` : ``;
-                const bridgeTitleColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
-                const lineColor = isExtended ? 'bg-orange-500' : 'bg-blue-500';
-                const iconBg = isExtended ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
-                const waitTextColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white';
-                const bigClockSvg = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+                const isInstant = waitMins === 0;
+
+                let bridgeTitle = `TRANSFER ${i+1}`;
+                let iconBg = 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
+                let bridgeTitleColor = 'text-blue-600 dark:text-blue-400';
+                let waitTextColor = 'text-gray-900 dark:text-white';
+                let centerSvg = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+                let leftBorderColor = 'border-l-blue-500';
+
+                if (isExtended) {
+                    bridgeTitle = `EXTENDED LAYOVER`;
+                    iconBg = 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400';
+                    bridgeTitleColor = 'text-orange-600 dark:text-orange-400';
+                    waitTextColor = 'text-orange-600 dark:text-orange-400';
+                    centerSvg = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+                    leftBorderColor = 'border-l-orange-500';
+                } else if (isInstant) {
+                    bridgeTitle = `INSTANT TRANSFER ${i+1}`;
+                    iconBg = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400';
+                    bridgeTitleColor = 'text-emerald-600 dark:text-emerald-400';
+                    waitTextColor = 'text-emerald-600 dark:text-emerald-400';
+                    centerSvg = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+                    leftBorderColor = 'border-l-emerald-500';
+                }
 
                 // 🛡️ GUARDIAN UX FIX: The Flush Axis & Text Compression
                 html += `
                     <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
                         <div class="relative py-2 z-20 w-full">
-                            <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${isExtended ? 'border-l-orange-500' : 'border-l-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
+                            <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${leftBorderColor} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
                                 <div class="flex items-center min-w-0 pr-3">
                                     <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
-                                        ${bigClockSvg}
+                                        ${centerSvg}
                                     </div>
                                     <div class="flex flex-col items-start min-w-0">
-                                        <span class="flex items-center text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle} @ ${hubName}">${bridgeIcon}${bridgeTitle} @ ${hubName}</span>
+                                        <span class="flex items-center text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle} @ ${hubName}">${bridgeTitle} @ ${hubName}</span>
                                         <span class="font-bold text-[11px] ${waitTextColor} leading-none truncate">${waitStr} Wait</span>
                                     </div>
                                 </div>
@@ -1122,25 +1152,42 @@ const PlannerRenderer = {
             }
         }
 
-        const bridgeTitle = isExtended ? `EXTENDED LAYOVER` : `TRANSFER REQUIRED`;
-        const bridgeIcon = isExtended ? `<svg class="w-3 h-3 mr-1 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>` : ``;
-        const bridgeTitleColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
-        const lineColor = isExtended ? 'bg-orange-500' : 'bg-blue-500';
-        const iconBg = isExtended ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
-        const waitTextColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white';
-        const bigClockSvg = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+        const isInstant = waitMins === 0;
+
+        let bridgeTitle = `TRANSFER REQUIRED`;
+        let iconBg = 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
+        let bridgeTitleColor = 'text-blue-600 dark:text-blue-400';
+        let waitTextColor = 'text-gray-900 dark:text-white';
+        let centerSvg = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+        let leftBorderColor = 'border-l-blue-500';
+
+        if (isExtended) {
+            bridgeTitle = `EXTENDED LAYOVER`;
+            iconBg = 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400';
+            bridgeTitleColor = 'text-orange-600 dark:text-orange-400';
+            waitTextColor = 'text-orange-600 dark:text-orange-400';
+            centerSvg = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+            leftBorderColor = 'border-l-orange-500';
+        } else if (isInstant) {
+            bridgeTitle = `INSTANT TRANSFER`;
+            iconBg = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400';
+            bridgeTitleColor = 'text-emerald-600 dark:text-emerald-400';
+            waitTextColor = 'text-emerald-600 dark:text-emerald-400';
+            centerSvg = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+            leftBorderColor = 'border-l-emerald-500';
+        }
 
         // 🛡️ GUARDIAN UX FIX: The Flush Axis & Text Compression
         const standardTransferBlock = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
                 <div class="relative py-2 z-20 w-full">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${isExtended ? 'border-l-orange-500' : 'border-l-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${leftBorderColor} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
                         <div class="flex items-center min-w-0 pr-3">
                             <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
-                                ${bigClockSvg}
+                                ${centerSvg}
                             </div>
                             <div class="flex flex-col items-start min-w-0">
-                                <span class="flex items-center text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle}">${bridgeIcon}${bridgeTitle}</span>
+                                <span class="flex items-center text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle}">${bridgeTitle}</span>
                                 <span class="font-bold text-[11px] ${waitTextColor} leading-none truncate">${waitStr} Wait</span>
                             </div>
                         </div>
@@ -1198,24 +1245,41 @@ const PlannerRenderer = {
             }
         }
 
-        const bridgeTitle1 = isExtended1 ? `EXTENDED LAYOVER` : `TRANSFER 1`;
-        const bridgeIcon1 = isExtended1 ? `<svg class="w-3 h-3 mr-1 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>` : ``;
-        const bridgeTitleColor1 = isExtended1 ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
-        const line1Color = isExtended1 ? 'bg-orange-500' : 'bg-blue-500';
-        const iconBg1 = isExtended1 ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
-        const waitTextColor1 = isExtended1 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white';
-        const bigClockSvg1 = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+        const isInstant1 = wait1Mins === 0;
+
+        let bridgeTitle1 = `TRANSFER 1`;
+        let iconBg1 = 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
+        let bridgeTitleColor1 = 'text-blue-600 dark:text-blue-400';
+        let waitTextColor1 = 'text-gray-900 dark:text-white';
+        let centerSvg1 = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+        let leftBorderColor1 = 'border-l-blue-500';
+
+        if (isExtended1) {
+            bridgeTitle1 = `EXTENDED LAYOVER`;
+            iconBg1 = 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400';
+            bridgeTitleColor1 = 'text-orange-600 dark:text-orange-400';
+            waitTextColor1 = 'text-orange-600 dark:text-orange-400';
+            centerSvg1 = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+            leftBorderColor1 = 'border-l-orange-500';
+        } else if (isInstant1) {
+            bridgeTitle1 = `INSTANT TRANSFER 1`;
+            iconBg1 = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400';
+            bridgeTitleColor1 = 'text-emerald-600 dark:text-emerald-400';
+            waitTextColor1 = 'text-emerald-600 dark:text-emerald-400';
+            centerSvg1 = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+            leftBorderColor1 = 'border-l-emerald-500';
+        }
 
         const transferBlock1 = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity1}">
                 <div class="relative py-2 z-20 w-full">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${isExtended1 ? 'border-l-orange-500' : 'border-l-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${leftBorderColor1} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
                         <div class="flex items-center min-w-0 pr-3">
                             <div class="w-8 h-8 rounded-full ${iconBg1} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
-                                ${bigClockSvg1}
+                                ${centerSvg1}
                             </div>
                             <div class="flex flex-col items-start min-w-0">
-                                <span class="flex items-center text-[8px] font-black ${bridgeTitleColor1} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle1} @ ${hub1Name}">${bridgeIcon1}${bridgeTitle1} @ ${hub1Name}</span>
+                                <span class="flex items-center text-[8px] font-black ${bridgeTitleColor1} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle1} @ ${hub1Name}">${bridgeTitle1} @ ${hub1Name}</span>
                                 <span class="font-bold text-[11px] ${waitTextColor1} leading-none truncate">${wait1Str} Wait</span>
                             </div>
                         </div>
@@ -1244,24 +1308,41 @@ const PlannerRenderer = {
             }
         }
 
-        const bridgeTitle2 = isExtended2 ? `EXTENDED LAYOVER` : `TRANSFER 2`;
-        const bridgeIcon2 = isExtended2 ? `<svg class="w-3 h-3 mr-1 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>` : ``;
-        const bridgeTitleColor2 = isExtended2 ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
-        const line2Color = isExtended2 ? 'bg-orange-500' : 'bg-blue-500';
-        const iconBg2 = isExtended2 ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
-        const waitTextColor2 = isExtended2 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white';
-        const bigClockSvg2 = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+        const isInstant2 = wait2Mins === 0;
+
+        let bridgeTitle2 = `TRANSFER 2`;
+        let iconBg2 = 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
+        let bridgeTitleColor2 = 'text-blue-600 dark:text-blue-400';
+        let waitTextColor2 = 'text-gray-900 dark:text-white';
+        let centerSvg2 = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+        let leftBorderColor2 = 'border-l-blue-500';
+
+        if (isExtended2) {
+            bridgeTitle2 = `EXTENDED LAYOVER`;
+            iconBg2 = 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400';
+            bridgeTitleColor2 = 'text-orange-600 dark:text-orange-400';
+            waitTextColor2 = 'text-orange-600 dark:text-orange-400';
+            centerSvg2 = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+            leftBorderColor2 = 'border-l-orange-500';
+        } else if (isInstant2) {
+            bridgeTitle2 = `INSTANT TRANSFER 2`;
+            iconBg2 = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400';
+            bridgeTitleColor2 = 'text-emerald-600 dark:text-emerald-400';
+            waitTextColor2 = 'text-emerald-600 dark:text-emerald-400';
+            centerSvg2 = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+            leftBorderColor2 = 'border-l-emerald-500';
+        }
 
         const transferBlock2 = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity2}">
                 <div class="relative py-2 z-20 w-full">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${isExtended2 ? 'border-l-orange-500' : 'border-l-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${leftBorderColor2} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
                         <div class="flex items-center min-w-0 pr-3">
                             <div class="w-8 h-8 rounded-full ${iconBg2} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
-                                ${bigClockSvg2}
+                                ${centerSvg2}
                             </div>
                             <div class="flex flex-col items-start min-w-0">
-                                <span class="flex items-center text-[8px] font-black ${bridgeTitleColor2} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle2} @ ${hub2Name}">${bridgeIcon2}${bridgeTitle2} @ ${hub2Name}</span>
+                                <span class="flex items-center text-[8px] font-black ${bridgeTitleColor2} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle2} @ ${hub2Name}">${bridgeTitle2} @ ${hub2Name}</span>
                                 <span class="font-bold text-[11px] ${waitTextColor2} leading-none truncate">${wait2Str} Wait</span>
                             </div>
                         </div>
@@ -2228,6 +2309,28 @@ function executeTripPlan(origin, dest, preferredTime = null) {
 // GUARDIAN GROWTH MODE PHASE 4: Manual Rollover Trigger
 window.executeManualRollover = function(origin, dest) {
     if (typeof triggerHaptic === 'function') triggerHaptic();
+
+    // 🛡️ GUARDIAN PHASE 2: Silent DOM Sync for Dropdown
+    if (typeof window.getLookaheadDayInfo === 'function') {
+        const nextDayInfo = window.getLookaheadDayInfo(1);
+        if (nextDayInfo) {
+            selectedPlannerDay = nextDayInfo.type;
+            const display = document.getElementById('main-day-display');
+            let mainTxt = nextDayInfo.type === 'weekday' ? 'Weekday (Mon-Fri)' : (nextDayInfo.type === 'saturday' ? 'Saturday / Public Holiday' : 'Sunday');
+            if (display) display.textContent = mainTxt;
+
+            const mList = document.getElementById('main-day-list');
+            if (mList) {
+                mList.querySelectorAll('li').forEach(li => {
+                    li.classList.remove('bg-blue-50', 'dark:bg-gray-700', 'text-blue-600', 'dark:text-blue-400');
+                    if (li.textContent === mainTxt) {
+                        li.classList.add('bg-blue-50', 'dark:bg-gray-700', 'text-blue-600', 'dark:text-blue-400');
+                    }
+                });
+            }
+        }
+    }
+
     // Signal to planner-core.js to scan starting from tomorrow
     window._forceManualRollover = true;
     if (typeof executeTripPlan === 'function') {
@@ -2434,17 +2537,19 @@ function renderTripResult(container, trips, selectedIndex = 0, isPartial = false
         if (isPartial && currentPlannerErrorPayload) {
             const intended = currentPlannerErrorPayload.intendedDest || "Destination";
             const partial = currentPlannerErrorPayload.partialDest || selectedTrip.to;
-            // 🛡️ GUARDIAN UX FIX: Replaced vibe-coded emoji with premium SVG
-            const alertSvg = `<svg class="w-5 h-5 mr-2 text-yellow-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+            // 🛡️ GUARDIAN UX FIX: Replaced vibe-coded emoji with premium SVG and stripped right-margin
+            const alertSvg = `<svg class="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
             partialWarningHtml = `
                 <div class="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-3 mb-4 rounded-r shadow-sm animate-fade-in-up">
-                    <div class="flex items-start">
-                        ${alertSvg}
-                        <div>
+                    <div class="flex justify-between items-start w-full">
+                        <div class="flex-1 min-w-0 pr-3">
                             <h4 class="text-xs font-black text-yellow-800 dark:text-yellow-400 uppercase tracking-widest mb-0.5">Line Severed</h4>
                             <p class="text-xs text-yellow-700 dark:text-yellow-300 leading-snug">
                                 Cannot reach <b>${intended}</b>.<br>Showing trains terminating at <b>${partial}</b>.
                             </p>
+                        </div>
+                        <div class="shrink-0 scale-125 origin-top-right">
+                            ${alertSvg}
                         </div>
                     </div>
                 </div>
@@ -2466,13 +2571,17 @@ function renderAllDepartedResult(container, trips, selectedIndex = 0) {
     const dest = (selectedTrip.to || "").replace(/ STATION/gi, '').trim();
 
     container.innerHTML = `
-        <div class="bg-transparent border-b-4 border-gray-200 dark:border-gray-800 pb-6 mb-6 text-center animate-fade-in-up">
-            <div class="flex items-center justify-center mb-3">
-                <span class="text-3xl mr-3">🌙</span>
-                <h3 class="font-black text-gray-800 dark:text-gray-200 text-lg tracking-tight">All Trains Departed</h3>
+        <div class="bg-transparent border-b-4 border-gray-200 dark:border-gray-800 pb-6 mb-6 text-left animate-fade-in-up">
+            <div class="flex justify-between items-start w-full mb-3">
+                <div class="flex-1 min-w-0 pr-3">
+                    <h3 class="font-black text-gray-800 dark:text-gray-200 text-lg tracking-tight">All Trains Departed</h3>
+                    <p class="text-xs text-gray-600 dark:text-gray-400 mt-1 leading-snug">There are no more scheduled trains for today. You can review past trips below, or check the next available schedule.</p>
+                </div>
+                <div class="shrink-0">
+                    <span class="text-3xl">🌙</span>
+                </div>
             </div>
-            <p class="text-xs text-gray-600 dark:text-gray-400 mb-5 leading-snug">There are no more scheduled trains for today. You can review past trips below, or check the next available schedule.</p>
-            <button onclick="executeManualRollover('${origin.replace(/'/g, "\\'")}', '${dest.replace(/'/g, "\\'")}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 px-4 rounded-xl shadow-md transition-colors focus:outline-none flex items-center justify-center uppercase tracking-wide text-xs">
+            <button onclick="executeManualRollover('${origin.replace(/'/g, "\\'")}', '${dest.replace(/'/g, "\\'")}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 px-4 rounded-xl shadow-md transition-colors focus:outline-none flex items-center justify-center uppercase tracking-wide text-xs mt-4">
                 See Next Available Day
                 <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
             </button>
@@ -2496,16 +2605,18 @@ function renderNoMoreTrainsResult(container, trips, selectedIndex = 0, title = "
     }
 
     container.innerHTML = `
-        <div class="bg-transparent border-b-4 border-orange-200 dark:border-orange-800/50 pb-6 mb-6">
-            <div class="flex items-center mb-3">
-                <span class="text-2xl mr-3">🚫</span>
-                <div>
+        <div class="bg-transparent border-b-4 border-orange-200 dark:border-orange-800/50 pb-6 mb-6 text-left">
+            <div class="flex justify-between items-start w-full mb-3">
+                <div class="flex-1 min-w-0 pr-3">
                     <h3 class="font-bold text-orange-800 dark:text-orange-200 text-lg">${title}</h3>
                     <p class="text-xs text-orange-700 dark:text-orange-300 mt-1 leading-snug">${explanationText}</p>
                 </div>
+                <div class="shrink-0">
+                    <span class="text-2xl">🚫</span>
+                </div>
             </div>
-            ${PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex)}
         </div>
+        ${PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex)}
     `;
 }
 
@@ -2525,18 +2636,18 @@ function renderSundayRolloverResult(container, trips, selectedIndex = 0) {
     explanationText += `Showing the next available option for <b>${selectedTrip.dayLabel || 'Tomorrow'}</b>.`;
 
     container.innerHTML = `
-        <div class="bg-transparent border-b-4 border-indigo-200 dark:border-indigo-800/50 pb-6 mb-6">
-            <div class="flex items-start mb-3">
-                <div class="flex-shrink-0 w-8 h-8 bg-indigo-100 dark:bg-indigo-800/50 rounded-full flex items-center justify-center mr-3 mt-0.5">
-                    <span class="text-base">📅</span>
-                </div>
-                <div>
+        <div class="bg-transparent border-b-4 border-indigo-200 dark:border-indigo-800/50 pb-6 mb-6 text-left">
+            <div class="flex justify-between items-start w-full mb-3">
+                <div class="flex-1 min-w-0 pr-3">
                     <h3 class="font-bold text-indigo-900 dark:text-indigo-300 text-lg">No Sunday Service</h3>
                     <p class="text-xs text-indigo-700 dark:text-indigo-400 mt-1 leading-snug">${explanationText}</p>
                 </div>
+                <div class="shrink-0 w-8 h-8 bg-indigo-100 dark:bg-indigo-800/50 rounded-full flex items-center justify-center mt-0.5">
+                    <span class="text-base">📅</span>
+                </div>
             </div>
-            ${PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex)}
         </div>
+        ${PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex)}
     `;
 }
 
@@ -2556,28 +2667,32 @@ function renderImpossibleTodayResult(container, trips, selectedIndex = 0) {
     explanationText += `Showing the next available option for <b>${selectedTrip.dayLabel || 'Tomorrow'}</b>.`;
 
     container.innerHTML = `
-        <div class="bg-transparent border-b-4 border-gray-200 dark:border-gray-800 pb-6 mb-6">
-            <div class="flex items-start mb-3">
-                <div class="flex-shrink-0 w-8 h-8 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mr-3 mt-0.5 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <span class="text-base">📅</span>
-                </div>
-                <div>
+        <div class="bg-transparent border-b-4 border-gray-200 dark:border-gray-800 pb-6 mb-6 text-left">
+            <div class="flex justify-between items-start w-full mb-3">
+                <div class="flex-1 min-w-0 pr-3">
                     <h3 class="font-bold text-gray-900 dark:text-white text-lg">Route Unavailable Today</h3>
                     <p class="text-xs text-gray-600 dark:text-gray-400 mt-1 leading-snug">${explanationText}</p>
                 </div>
+                <div class="shrink-0 w-8 h-8 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mt-0.5 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <span class="text-base">📅</span>
+                </div>
             </div>
-            ${PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex)}
         </div>
+        ${PlannerRenderer.buildCard(selectedTrip, true, trips, selectedIndex)}
     `;
 }
 
 function renderErrorCard(title, message, actionHtml = "") {
-    const errorAlertSvg = `<svg class="w-8 h-8 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+    const errorAlertSvg = `<svg class="w-8 h-8 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
     return `
-        <div class="bg-transparent border-b-4 border-yellow-200 dark:border-yellow-800/50 pb-6 mb-4 text-center">
-            <div class="flex items-center justify-center mb-3">
-                ${errorAlertSvg}
-                <h3 class="font-black text-yellow-800 dark:text-yellow-400 text-xl">${title}</h3>
+        <div class="bg-transparent border-b-4 border-yellow-200 dark:border-yellow-800/50 pb-6 mb-4 text-left">
+            <div class="flex justify-between items-start w-full mb-3">
+                <div class="flex-1 min-w-0 pr-3">
+                    <h3 class="font-black text-yellow-800 dark:text-yellow-400 text-xl">${title}</h3>
+                </div>
+                <div class="shrink-0">
+                    ${errorAlertSvg}
+                </div>
             </div>
             <div class="text-sm text-gray-700 dark:text-gray-300 pt-2">
                 ${message}
