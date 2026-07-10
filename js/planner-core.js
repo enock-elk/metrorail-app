@@ -25,7 +25,7 @@
  * * GROWTH MODE PHASE 7 [17 Jun 2026]: Expanded core transfer waiting tolerance from 3 hours to 4 hours to accommodate sparse holiday timetables.
  * * GROWTH MODE PHASE 10 [29 Jun 2026]: Stripped departure time filtering constraints to expose departed trains to the UI dropdown, and hardened rollover checks via hasUpcoming.
  * * GUARDIAN PHASE 18 [05 Jul 2026]: Hardened the engine against global state pollution via Context threading and fixed falsy transfer matrix evaluations.
- * * V7.00.02 [10 Jul 2026]: Deployed the True Time-Dependent Dijkstra Engine with train-bound state tracking, penalty buffers, and hub-banning diversity matrices.
+ * * V7.00.02 [10 Jul 2026]: Deployed the True Time - Dependent Dijkstra Engine with train-bound state tracking, penalty buffers, and hub-banning diversity matrices.
  */
 
 // --- 1. LEGACY CORE ALGORITHMS (Preserved for Safety & Exhaustive Fallbacks) ---
