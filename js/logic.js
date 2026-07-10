@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_07.02 - Performance Polish Edition v1) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_07.07 - Performance Polish Edition v1) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -1355,7 +1355,30 @@ async function loadAllSchedules(force = false) {
             const exclResp = await window.guardianFetch(`${dynamicEndpoint}exclusions.json?t=${Date.now()}`, { signal: fetchSignal }, 4000);
             if (exclResp.ok) {
                 const exclData = await exclResp.json();
-                if (exclData) globalExclusions = exclData;
+                if (exclData) {
+                    const now = Date.now();
+                    globalExclusions = {};
+                    
+                    // 🛡️ GUARDIAN PHASE 4: Automatic Expiry Sweep for Exclusions & Grid Notices
+                    Object.keys(exclData).forEach(routeKey => {
+                        const routeExclusions = exclData[routeKey];
+                        if (routeExclusions && typeof routeExclusions === 'object') {
+                            globalExclusions[routeKey] = {};
+                            Object.keys(routeExclusions).forEach(itemKey => {
+                                const item = routeExclusions[itemKey];
+                                // Keep it if there's no expiry, or if the expiry is in the future
+                                if (!item.expiresAt || item.expiresAt > now) {
+                                    globalExclusions[routeKey][itemKey] = item;
+                                }
+                            });
+                            
+                            // Clean up empty route objects to keep RAM pristine
+                            if (Object.keys(globalExclusions[routeKey]).length === 0) {
+                                delete globalExclusions[routeKey];
+                            }
+                        }
+                    });
+                }
             }
         } catch(e) { console.warn("Exclusions fetch failed, using defaults."); }
 

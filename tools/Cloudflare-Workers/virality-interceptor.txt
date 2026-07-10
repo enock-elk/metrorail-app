@@ -1,0 +1,170 @@
+/**
+ * METRORAIL NEXT TRAIN - VIRALITY INTERCEPTOR (V1.0 - Growth Mode)
+ * ----------------------------------------------------------------
+ * This worker acts as a shield and router for the main application domain.
+ * 1. Checks if the incoming request is a social media bot (WhatsApp, FB, etc.).
+ * 2. If it is a bot AND it contains deep-link query parameters, it intercepts the 
+ * request and returns a custom HTML stub with massive, dynamic OpenGraph tags.
+ * 3. It also serves a dynamically generated, premium 1200x630 SVG image 
+ * for the `og:image` property so the preview card looks incredible.
+ * 4. If it's a normal human user, it simply passes the request through to the origin.
+ */
+
+// GUARDIAN: Master Route Dictionary (Updated for V6 Western Cape Expansion)
+const ROUTE_NAMES = {
+    'special_event': 'Special Event Route',
+    'pta-pien': 'Pretoria ↔ Pienaarspoort',
+    'pta-mabopane': 'Pretoria ↔ Mabopane',
+    'mab-belle': 'Mabopane ↔ Belle Ombre',
+    'pta-dewildt': 'Pretoria ↔ De Wildt',
+    'herc-koed': 'Hercules ↔ Koedoespoort',
+    'pta-saul': 'Pretoria ↔ Saulsville',
+    'germ-leralla': 'Germiston ↔ Leralla',
+    'germ-kwesine': 'Germiston ↔ Kwesine',
+    'pta-irene': 'Pretoria ↔ Irene',
+    'jhb-germiston': 'JHB ↔ Germiston',
+    'pta-kempton': 'Pretoria ↔ Kempton Park',
+    'jhb-rand': 'JHB ↔ Randfontein',
+    'jhb-soweto': 'JHB ↔ Naledi',
+    'jhb-midway': 'JHB ↔ Midway',
+    'ct-chrishani': 'Cape Town ↔ Chris Hani',
+    'ct-kapteinsklip': 'Cape Town ↔ Kapteinsklip',
+    'ct-nolu': 'Cape Town ↔ Nolungile',
+    'bellville-mutual': 'Bellville ↔ Mutual',
+    'ct-simon': 'Cape Town ↔ Simon\'s Town',
+    'ct-flats': 'Cape Town ↔ Retreat',
+    'ct-bellv': 'Cape Town ↔ Bellville',
+    'ct-kraai': 'Cape Town ↔ Kraaifontein',
+    'ct-eerst': 'Cape Town ↔ Eerste River',
+    'ct-strnd': 'Cape Town ↔ Strand',
+    'eerst-dtoit': 'Eerste River ↔ Du Toit',
+    'ct-well': 'Cape Town ↔ Wellington',
+    'ct-malm': 'Cape Town ↔ Malmesbury',
+    'kzn-umlazi': 'Durban ↔ Umlazi',
+    'kzn-bridgecity': 'Berea Road ↔ Bridge City',
+    'kzn-winklespruit': 'Durban ↔ Winklespruit',
+    'kzn-catoridge': 'Durban ↔ Cato Ridge',
+    'kzn-pinetown': 'Durban ↔ Pinetown',
+    'ec-berlin': 'East London ↔ Berlin'
+};
+
+const toTitleCase = (str) => {
+    if (!str) return '';
+    return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+};
+
+// 🛡️ GUARDIAN FIX: HTML Escaping to prevent XSS injection via URL parameters
+const escHtml = (str) => {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+};
+
+// --- OPENGRAPH HTML STUB GENERATOR ---
+function generateHtmlStub(url, action) {
+    let title = "Metrorail Next Train";
+    let description = "Stop guessing. Get accurate train times, ticket prices, and live schedule updates.";
+    
+    // 🛡️ GUARDIAN FIX: WhatsApp/Facebook drop SVGs. We serve a standard PNG instead.
+    // As Firebase Storage requires billing, we default to the existing high-res loading logo.
+    let ogImageUrl = "https://nexttrain.co.za/icons/loading-logo.png";
+    let ogImageType = "image/png";
+
+    if (action === 'planner') {
+        const from = toTitleCase((url.searchParams.get('from') || 'Origin').replace(/ STATION/gi, ''));
+        const to = toTitleCase((url.searchParams.get('to') || 'Destination').replace(/ STATION/gi, ''));
+        const time = url.searchParams.get('time') || '';
+        const day = toTitleCase(url.searchParams.get('day') || '');
+
+        title = `🚆 Trip: ${from} to ${to}`;
+        description = `⏱️ Departs at ${time.substring(0,5)} (${day}). Tap to view the full journey timeline, transfers, and live map! 🌍`;
+        
+    } else if (action === 'route') {
+        const routeId = url.searchParams.get('route');
+        const routeName = ROUTE_NAMES[routeId] || "Train Route";
+        const day = toTitleCase(url.searchParams.get('day') || 'Schedule');
+
+        title = `📅 Schedule: ${routeName}`;
+        description = `⏱️ ${day} Timetable. Tap to view all upcoming trains, stops, and live disruptions. 🌍`;
+    }
+
+    const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        <!-- Primary Meta Tags -->
+        <title>${escHtml(title)}</title>
+        <meta name="description" content="${escHtml(description)}">
+        <meta name="theme-color" content="#1d4ed8">
+
+        <!-- Open Graph / Facebook / WhatsApp -->
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="${escHtml(url.toString())}">
+        <meta property="og:title" content="${escHtml(title)}">
+        <meta property="og:description" content="${escHtml(description)}">
+        <meta property="og:image" content="${escHtml(ogImageUrl)}">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        <meta property="og:image:type" content="${ogImageType}">
+
+        <!-- Twitter -->
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:url" content="${escHtml(url.toString())}">
+        <meta name="twitter:title" content="${escHtml(title)}">
+        <meta name="twitter:description" content="${escHtml(description)}">
+        <meta name="twitter:image" content="${escHtml(ogImageUrl)}">
+    </head>
+    <body>
+        <div style="font-family: sans-serif; padding: 20px; text-align: center;">
+            <h2>Redirecting to Next Train...</h2>
+            <p>If you are not redirected automatically, <a href="${escHtml(url.toString())}">click here</a>.</p>
+        </div>
+        <script>
+            // For straggler browsers/humans that somehow receive this stub, immediately redirect to the full app.
+            window.location.replace("${escHtml(url.toString())}");
+        </script>
+    </body>
+    </html>
+    `;
+
+    return new Response(html, {
+        headers: { 
+            'Content-Type': 'text/html;charset=UTF-8',
+            'Cache-Control': 'no-store, max-age=0' // Never cache the stub, always dynamically generate it
+        }
+    });
+}
+
+// --- MAIN WORKER EXECUTION ---
+export default {
+    async fetch(request, env, ctx) {
+        const url = new URL(request.url);
+
+        // 2. Identify the User-Agent
+        const userAgent = request.headers.get('User-Agent') || '';
+        
+        // This Regex matches 99% of social media crawlers (WhatsApp, Facebook, Twitter, Slack, LinkedIn, Discord, Apple)
+        const botRegex = /whatsapp|facebookexternalhit|facebot|twitterbot|slackbot|telegrambot|linkedinbot|discordbot|applebot/i;
+        const isBot = botRegex.test(userAgent);
+
+        // 3. The Virality Interceptor Hook
+        if (isBot) {
+            const action = url.searchParams.get('action');
+            if (action === 'planner' || action === 'route') {
+                console.log(`[Virality Interceptor] Trapped bot request for ${action}. Generating dynamic stub.`);
+                return generateHtmlStub(url, action);
+            }
+        }
+
+        // 4. Pass-Through
+        // If it's a normal human user (or a URL without sharing parameters),
+        // we pass the request directly to the underlying origin server (Firebase Hosting / Cloudflare Pages).
+        return fetch(request);
+    }
+};

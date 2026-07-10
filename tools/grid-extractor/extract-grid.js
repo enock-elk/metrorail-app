@@ -1,7 +1,10 @@
 /**
- * 🚅 METRORAIL NEXT TRAIN - GRID ORDER EXTRACTOR (GUARDIAN V3.3 - AUTO-SEEKER)
+ * 🚅 METRORAIL NEXT TRAIN - GRID ORDER EXTRACTOR (GUARDIAN V3.4 - AUTO-SEEKER)
  * --------------------------------------------------------------
  * USAGE: node extract-grid.js
+ * * UPDATES (V3.4):
+ * 1. Sheet Alias Interceptor: Maps legacy Config names (e.g., CTCEN-IN_Weekday) to new master tabs natively.
+ * 2. Zero-Pad Fix: Restores leading zeros stripped by Excel for pure numbers (e.g., "5" -> "0005").
  * * UPDATES (V3.3):
  * 1. Region Expansion: Expanded the regex and file-grouping logic to natively support KZN and EC regions.
  * * UPDATES (V3.2):
@@ -18,6 +21,14 @@ const XLSX = require('xlsx');
 // --- CONSTANTS ---
 const CONFIG_SHEET_NAME = 'Config_GridOrder';
 const OUTPUT_FILENAME = 'grid-order.js';
+
+// GUARDIAN V3.4: Alias mapping for legacy config names vs new master tabs
+const SHEET_ALIASES = {
+    'CTCEN-IN_Weekday': 'CEN_IN_WK_MASTER',
+    'CTCEN-OUT_Weekday': 'CEN_OUT_WK_MASTER',
+    'CTCEN-IN_Sat': 'CEN_IN_SAT_MASTER',
+    'CTCEN-OUT_Sat': 'CEN_OUT_SAT_MASTER'
+};
 
 // --- CONFIG: Where to look for the output folder? ---
 const TARGET_DIRECTORIES = [
@@ -70,7 +81,7 @@ function colToIndex(colStr) {
 // --- MAIN EXECUTION ---
 function run() {
     console.log("==============================================");
-    console.log(" 🚅 NEXT TRAIN GRID EXTRACTOR (AUTO-SEEKER V3.3)");
+    console.log(" 🚅 NEXT TRAIN GRID EXTRACTOR (AUTO-SEEKER V3.4)");
     console.log("==============================================");
 
     const sourceFiles = findAllScheduleFiles();
@@ -126,6 +137,11 @@ function run() {
             // Skip invalid rows and header row
             if (!key || key.toLowerCase() === 'key' || !sheetName) continue;
 
+            // GUARDIAN V3.4: Intercept legacy sheet names mapping to new Master sheets
+            if (SHEET_ALIASES[sheetName]) {
+                sheetName = SHEET_ALIASES[sheetName];
+            }
+
             const sheet = workbook.Sheets[sheetName];
             
             if (!sheet) {
@@ -154,7 +170,14 @@ function run() {
                     const cell = sheet[cellRef];
 
                     if (cell && cell.v) {
-                        const val = String(cell.v).trim();
+                        let val = String(cell.v).trim();
+                        
+                        // GUARDIAN V3.4: Excel strips leading zeros from purely numeric headers.
+                        // If it's 1 to 3 digits (e.g., "5", "123"), pad it to 4 digits ("0005", "0123").
+                        if (/^\d{1,3}$/.test(val)) {
+                            val = val.padStart(4, '0');
+                        }
+
                         // Match train number format (e.g., "0604", "9121b")
                         if (/^\d{4}[a-zA-Z]*$/.test(val)) {
                             tempNumbers.push(val);
@@ -163,8 +186,8 @@ function run() {
                     }
                 }
 
-                // If we found at least 2 train numbers in this row, we assume this is the header row
-                if (matchCount >= 2) {
+                // If we found at least 1 train numbers in this row, we assume this is the header row
+                if (matchCount >= 1) {
                     trainNumbers = tempNumbers;
                     foundRow = r;
                     break; // Stop searching once found

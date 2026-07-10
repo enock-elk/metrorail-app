@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_07.02 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_07.07 - Performance Polish Edition)
  * --------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -29,6 +29,19 @@
 
 const Admin = {
     
+    // 🛡️ GUARDIAN PHASE 2: Dropdown Breadcrumbs State
+    _routeFlags: {},
+    getRouteCues: (routeId) => {
+        if (!Admin._routeFlags || !Admin._routeFlags[routeId]) return '';
+        const flags = Admin._routeFlags[routeId];
+        let cues = [];
+        if (flags.hasNotice) cues.push('[📝 Notice]');
+        if (flags.hasExclusion) cues.push('[⛔ Bans]');
+        if (flags.hasDisruption) cues.push('[🚧 Incident]');
+        if (flags.hasAlert) cues.push('[📢 Alert]');
+        return cues.length ? ` ${cues.join(' ')}` : '';
+    },
+
     // --- 0.1 GLOBAL AUTH KEY HELPER (GUARDIAN PHASE 9) ---
     getAuthKey: async () => {
         if (window.firebaseAuth && window.firebaseAuth.currentUser) {
@@ -1394,8 +1407,7 @@ const Admin = {
             ]);
 
             const now = Date.now();
-            const threshold24h = now + (24 * 60 * 60 * 1000);
-            const expiringItems = [];
+            const activeItems = [];
 
             // 1. Scan Notices (Alerts)
             if (noticesRes && noticesRes.ok) {
@@ -1405,13 +1417,13 @@ const Admin = {
                         const targetNotices = noticesData[target];
                         if (targetNotices && typeof targetNotices === 'object') {
                             if (targetNotices.id) {
-                                if (targetNotices.expiresAt && targetNotices.expiresAt > now && targetNotices.expiresAt <= threshold24h) {
-                                    expiringItems.push({ type: 'Alert', label: targetNotices.severity === 'critical' ? 'Critical Advisory' : 'General Advisory', expiresAt: targetNotices.expiresAt, id: targetNotices.id, panelId: 'alert-panel', routeId: target });
+                                if (!targetNotices.expiresAt || targetNotices.expiresAt > now) {
+                                    activeItems.push({ type: 'Alert', label: targetNotices.severity === 'critical' ? 'Critical Advisory' : 'General Advisory', expiresAt: targetNotices.expiresAt, id: targetNotices.id, panelId: 'alert-panel', routeId: target });
                                 }
                             } else {
                                 Object.values(targetNotices).forEach(item => {
-                                    if (item.expiresAt && item.expiresAt > now && item.expiresAt <= threshold24h) {
-                                        expiringItems.push({ type: 'Alert', label: item.severity === 'critical' ? 'Critical Advisory' : 'General Advisory', expiresAt: item.expiresAt, id: item.id, panelId: 'alert-panel', routeId: target });
+                                    if (!item.expiresAt || item.expiresAt > now) {
+                                        activeItems.push({ type: 'Alert', label: item.severity === 'critical' ? 'Critical Advisory' : 'General Advisory', expiresAt: item.expiresAt, id: item.id, panelId: 'alert-panel', routeId: target });
                                     }
                                 });
                             }
@@ -1426,40 +1438,77 @@ const Admin = {
                 if (disrData) {
                     Object.keys(disrData).forEach(rId => {
                         Object.values(disrData[rId]).forEach(item => {
-                            if (item.expiresAt && item.expiresAt > now && item.expiresAt <= threshold24h) {
+                            if (!item.expiresAt || item.expiresAt > now) {
                                 const targetStr = item.stations ? item.stations.join(' - ').replace(/ STATION/g, '') : 'Route-Wide';
                                 const routeName = (typeof ROUTES !== 'undefined' && ROUTES[rId]) ? ROUTES[rId].name : rId;
-                                expiringItems.push({ type: 'Disruption', label: `${routeName} — ${targetStr}`, expiresAt: item.expiresAt, id: item.id, panelId: 'disruption-panel', routeId: rId });
+                                activeItems.push({ type: 'Disruption', label: `${routeName} — ${targetStr}`, expiresAt: item.expiresAt, id: item.id, panelId: 'disruption-panel', routeId: rId });
                             }
                         });
                     });
                 }
             }
 
-            // 3. Scan Exclusions (Bans/Specials)
+            // 3. Scan Exclusions (Bans/Specials) & Grid Notices
             if (exclRes && exclRes.ok) {
                 const exclData = await exclRes.json();
                 if (exclData) {
                     Object.keys(exclData).forEach(rId => {
                         Object.keys(exclData[rId]).forEach(tNum => {
-                            if (tNum === '_grid_notice') return;
                             const item = exclData[rId][tNum];
-                            if (item.expiresAt && item.expiresAt > now && item.expiresAt <= threshold24h) {
-                                const routeName = (typeof ROUTES !== 'undefined' && ROUTES[rId]) ? ROUTES[rId].name : rId;
-                                expiringItems.push({ type: 'Exception', label: `${routeName} — Train #${tNum}`, expiresAt: item.expiresAt, id: tNum, panelId: 'exclusion-panel', routeId: rId });
+                            const routeName = (typeof ROUTES !== 'undefined' && ROUTES[rId]) ? ROUTES[rId].name : rId;
+                            
+                            // 🛡️ GUARDIAN PHASE 1: Capture Grid Notices
+                            if (tNum === '_grid_notice') {
+                                if (!item.expiresAt || item.expiresAt > now) {
+                                    activeItems.push({ type: 'Grid Notice', label: `${routeName} — Active Notice`, expiresAt: item.expiresAt, id: '_grid_notice', panelId: 'exclusion-panel', routeId: rId });
+                                }
+                                return;
+                            }
+                            
+                            // Standard Exclusions
+                            if (!item.expiresAt || item.expiresAt > now) {
+                                activeItems.push({ type: 'Exception', label: `${routeName} — Train #${tNum}`, expiresAt: item.expiresAt, id: tNum, panelId: 'exclusion-panel', routeId: rId });
                             }
                         });
                     });
                 }
             }
 
-            if (expiringItems.length === 0) {
+            if (activeItems.length === 0) {
+                Admin._routeFlags = {};
+                if (typeof Admin.populateAlertTargets === 'function') Admin.populateAlertTargets(true);
+                if (typeof Admin.populateDisruptionRoutes === 'function') Admin.populateDisruptionRoutes();
+                if (typeof Admin.populateExclusionRoutes === 'function') Admin.populateExclusionRoutes();
+
                 actionBanner.classList.add('hidden');
                 return;
             }
 
             actionBanner.classList.remove('hidden');
-            expiringItems.sort((a, b) => a.expiresAt - b.expiresAt);
+            activeItems.sort((a, b) => {
+                if (!a.expiresAt && !b.expiresAt) return 0;
+                if (!a.expiresAt) return 1; // Push permanent items to the bottom
+                if (!b.expiresAt) return -1;
+                return a.expiresAt - b.expiresAt;
+            });
+
+            // 🛡️ GUARDIAN PHASE 2: Cross-reference active states for Dropdown Breadcrumbs
+            Admin._routeFlags = {};
+            activeItems.forEach(item => {
+                if (!item.routeId || item.routeId === 'all' || item.routeId.startsWith('all_')) return;
+                if (!Admin._routeFlags[item.routeId]) {
+                    Admin._routeFlags[item.routeId] = { hasAlert: false, hasDisruption: false, hasNotice: false, hasExclusion: false };
+                }
+                if (item.type === 'Alert') Admin._routeFlags[item.routeId].hasAlert = true;
+                if (item.type === 'Disruption') Admin._routeFlags[item.routeId].hasDisruption = true;
+                if (item.type === 'Grid Notice') Admin._routeFlags[item.routeId].hasNotice = true;
+                if (item.type === 'Exception') Admin._routeFlags[item.routeId].hasExclusion = true;
+            });
+
+            // Re-render dropdowns with new cues
+            if (typeof Admin.populateAlertTargets === 'function') Admin.populateAlertTargets(true);
+            if (typeof Admin.populateDisruptionRoutes === 'function') Admin.populateDisruptionRoutes();
+            if (typeof Admin.populateExclusionRoutes === 'function') Admin.populateExclusionRoutes();
 
             // 🛡️ GUARDIAN FIX: Dynamic Region Badge Extractor
             const getRegionBadge = (rId) => {
@@ -1474,10 +1523,13 @@ const Admin = {
             };
 
             let listHtml = '';
-            expiringItems.forEach(item => {
-                const hrsLeft = Math.max(0, Math.floor((item.expiresAt - now) / (1000 * 60 * 60)));
-                const colorClass = hrsLeft < 4 ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400';
-                const bgClass = hrsLeft < 4 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800';
+            activeItems.forEach(item => {
+                const isPermanent = !item.expiresAt;
+                const hrsLeft = isPermanent ? null : Math.max(0, Math.floor((item.expiresAt - now) / (1000 * 60 * 60)));
+                
+                const colorClass = isPermanent ? 'text-blue-600 dark:text-blue-400' : (hrsLeft < 4 ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400');
+                const bgClass = isPermanent ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : (hrsLeft < 4 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800');
+                const timeBadge = isPermanent ? 'Permanent' : `in ${hrsLeft} hrs`;
                 
                 listHtml += `
                     <div class="flex flex-col ${bgClass} px-3 py-2.5 rounded-lg border shadow-sm mt-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onclick="Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')">
@@ -1486,7 +1538,7 @@ const Admin = {
                                 <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">${item.type}</span>
                                 <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center mt-0.5">${getRegionBadge(item.routeId)}${item.label}</span>
                             </div>
-                            <span class="text-[10px] font-black ${colorClass} bg-white dark:bg-gray-800 px-2 py-1 rounded shadow-sm border border-current">in ${hrsLeft} hrs</span>
+                            <span class="text-[10px] font-black ${colorClass} bg-white dark:bg-gray-800 px-2 py-1 rounded shadow-sm border border-current">${timeBadge}</span>
                         </div>
                         <div class="flex gap-2">
                             <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold py-1.5 rounded border border-slate-200 dark:border-slate-600 shadow-sm transition-colors focus:outline-none flex items-center justify-center">
@@ -1504,12 +1556,12 @@ const Admin = {
                 <button id="action-header-btn" class="w-full text-left text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between focus:outline-none relative">
                     <span class="flex items-center">
                         <span class="mr-3 relative flex h-4 w-4">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                            <span class="relative inline-flex rounded-full h-4 w-4 bg-orange-500 items-center justify-center">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-4 w-4 bg-blue-500 items-center justify-center">
                                 <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             </span>
                         </span>
-                        <span class="text-orange-600 dark:text-orange-400">Action Required (${expiringItems.length})</span>
+                        <span class="text-blue-600 dark:text-blue-400">Global State Monitor (${activeItems.length})</span>
                     </span>
                     <svg id="action-chevron" class="w-4 h-4 transform transition-transform text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
@@ -1568,7 +1620,7 @@ const Admin = {
 
                 const titleH3 = devHeaderRow.querySelector('h3');
                 if (titleH3) {
-                    let titleClone = targetPanel.querySelector('button span').cloneNode(true);
+                    let titleClone = targetPanel.querySelector('[id$="-header-btn"] > span').cloneNode(true);
                     titleClone.querySelectorAll('span[id$="-last-sync"], span[id$="-unread-badge"]').forEach(el => el.remove());
                     let cardTitle = titleClone.textContent.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '').trim();
 
@@ -1660,6 +1712,9 @@ const Admin = {
                 await Admin.deleteDisruption(routeId, id, true);
             } else if (type === 'Exception') {
                 await Admin.deleteExclusion(routeId, id, true);
+            } else if (type === 'Grid Notice') {
+                await fetch(`${dynamicEndpoint}exclusions/${routeId}/_grid_notice.json?auth=${secret}`, { method: 'DELETE' });
+                if (typeof showToast === 'function') showToast("Grid Notice resolved & removed.", "success");
             } else if (type === 'Alert') {
                 // 🛡️ GUARDIAN FIX: Corrected Firebase path for single-object nodes and integrated Archive + Purge protocol
                 const fetchRes = await window.guardianFetch(`${dynamicEndpoint}notices/${routeId}.json`, {}, 6000);
@@ -2174,12 +2229,13 @@ const Admin = {
                     .admin-grid-view > div { margin-bottom: 0 !important; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; height: 110px; display: flex; flex-direction: column; justify-content: center; }
                     .admin-grid-view > div:hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #3b82f6; }
                     .admin-grid-view > div [id$="-body"] { display: none !important; }
-                    .admin-grid-view > div button[id$="-header-btn"] { flex-direction: column; justify-content: center; height: 100%; align-items: center; text-align: center; margin-bottom: 0 !important; position: relative; }
-                    .admin-grid-view > div button[id$="-header-btn"] > span { flex-direction: column; align-items: center; width: 100%; }
-                    .admin-grid-view > div button[id$="-header-btn"] > span > span:first-child { margin-right: 0 !important; margin-bottom: 8px; font-size: 28px; display: block; }
-                    .admin-grid-view > div button[id$="-header-btn"] svg[id$="-chevron"] { display: none !important; }
-                    .admin-grid-view > div button[id$="-header-btn"] span[id$="-last-sync"] { display: none !important; }
-                    .admin-grid-view > div button[id$="-header-btn"] span[id$="-unread-badge"]:not(.hidden) { display: block !important; }
+                    .admin-grid-view > div [id$="-header-btn"] { flex-direction: column; justify-content: center; height: 100%; align-items: center; text-align: center; margin-bottom: 0 !important; position: relative; }
+                    .admin-grid-view > div [id$="-header-btn"] > span { flex-direction: column; align-items: center; width: 100%; }
+                    .admin-grid-view > div [id$="-header-btn"] > span > span:first-child { margin-right: 0 !important; margin-bottom: 8px; font-size: 28px; display: block; }
+                    .admin-grid-view > div [id$="-header-btn"] svg[id$="-chevron"] { display: none !important; }
+                    .admin-grid-view > div [id$="-header-btn"] span[id$="-last-sync"] { display: none !important; }
+                    .admin-grid-view > div [id$="-header-btn"] span[id$="-unread-badge"]:not(.hidden) { display: block !important; }
+                    .admin-grid-view .grid-hidden-actions { display: none !important; }
                 `;
                 document.head.appendChild(style);
             }
@@ -2259,7 +2315,7 @@ const Admin = {
                 devHeaderRow.dataset.originalHtml = titleH3.innerHTML;
                 
                 // Isolate the title by removing trailing badges/timestamps before extracting text
-                let titleClone = card.querySelector('button span').cloneNode(true);
+                let titleClone = card.querySelector('[id$="-header-btn"] > span').cloneNode(true);
                 titleClone.querySelectorAll('span[id$="-last-sync"], span[id$="-unread-badge"]').forEach(el => el.remove());
                 
                 // Strip emojis safely using textContent (innerText behaves unpredictably on unattached clones)
@@ -2600,41 +2656,40 @@ const Admin = {
         fbPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         fbPanel.innerHTML = `
-            <button id="fb-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+            <div id="fb-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative cursor-pointer">
                 <span class="flex flex-col items-center">
                     <span class="text-2xl mb-2">💬</span> 
                     <span>Commuter Feedback</span>
                 </span>
                 <span id="fb-unread-badge" class="hidden absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-black tracking-normal animate-pulse">0 New</span>
-                <svg id="fb-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-            </button>
+                
+                <div class="grid-hidden-actions absolute right-8 flex items-center space-x-2 shrink-0">
+                    <button id="fb-export-global-btn" onclick="event.stopPropagation()" class="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800 border border-indigo-200 dark:border-indigo-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none flex items-center">
+                        <span class="mr-1 text-xs leading-none">📥</span> Export
+                    </button>
+                    <button id="fb-refresh-btn" onclick="event.stopPropagation()" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
+                        Refresh
+                    </button>
+                </div>
+                <svg id="fb-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
             
             <div id="fb-body" class="hidden mt-4 space-y-3">
-                <div class="flex border-b border-gray-200 dark:border-gray-700 mb-2">
-                    <button id="fb-tab-inbox" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 transition-colors focus:outline-none tracking-wider">Inbox (<span id="fb-inbox-count">0</span>)</button>
-                    <button id="fb-tab-archive" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors focus:outline-none tracking-wider">Archive</button>
-                </div>
-                
-                <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
-                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="fb-status-display">Syncing Data...</span>
-                    <div class="flex space-x-2">
-                        <button id="fb-export-global-btn" class="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800 border border-indigo-200 dark:border-indigo-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none flex items-center">
-                            <span class="mr-1 text-xs leading-none">📥</span> Export
-                        </button>
-                        <button id="fb-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
-                            Refresh
-                        </button>
+                <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2 mb-2 sticky top-0 bg-white dark:bg-gray-800 z-20 pt-1">
+                    <div class="flex space-x-4">
+                        <button id="fb-tab-inbox" class="py-1.5 text-[10px] uppercase font-black border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 transition-colors focus:outline-none tracking-wider">Inbox</button>
+                        <button id="fb-tab-archive" class="py-1.5 text-[10px] uppercase font-black border-b-2 border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors focus:outline-none tracking-wider">Archive</button>
                     </div>
                 </div>
 
-                <div class="mt-2 mb-2 relative">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <span class="text-xs">🔍</span>
+                <div class="mb-2 relative sticky top-[44px] z-10 bg-white dark:bg-gray-800 pb-2">
+                    <div class="absolute inset-y-0 left-0 pl-3 pt-0 flex items-center pointer-events-none">
+                        <span class="text-xs pb-2">🔍</span>
                     </div>
                     <input type="text" id="fb-search-input" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block pl-8 p-2 shadow-inner outline-none transition-colors" placeholder="Search aliases, IDs, or messages...">
                 </div>
                 
-                <div id="fb-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar"></div>
+                <div id="fb-list" class="space-y-3 pr-1"></div>
             </div>
         `;
 
@@ -2644,10 +2699,8 @@ const Admin = {
         const refreshBtn = document.getElementById('fb-refresh-btn');
         const exportGlobalBtn = document.getElementById('fb-export-global-btn');
         const listContainer = document.getElementById('fb-list');
-        const statusDisplay = document.getElementById('fb-status-display');
         const tabInbox = document.getElementById('fb-tab-inbox');
         const tabArchive = document.getElementById('fb-tab-archive');
-        const inboxCountSpan = document.getElementById('fb-inbox-count');
         const searchInput = document.getElementById('fb-search-input');
 
         if (searchInput) {
@@ -2727,6 +2780,16 @@ const Admin = {
                 groups[did].push(item);
             });
 
+            // 🛡️ GUARDIAN UX FIX: Dynamic Tab Counters
+            let totalInbox = 0;
+            let totalArchive = 0;
+            Object.keys(groups).forEach(did => {
+                if (groups[did].some(i => !i.isFromAdmin && i.status !== 'resolved')) totalInbox++;
+                else totalArchive++;
+            });
+            if (tabInbox) tabInbox.innerHTML = `Inbox (${totalInbox})`;
+            if (tabArchive) tabArchive.innerHTML = `Archive (${totalArchive})`;
+
             // 2. Filter groups based on Tab and Search String
             const displayGroups = [];
             const searchInputEl = document.getElementById('fb-search-input');
@@ -2753,8 +2816,6 @@ const Admin = {
                     if (!isInbox && !isThreadActive) displayGroups.push({ did, items: groupItems });
                 }
             });
-
-            statusDisplay.textContent = isInbox ? `Active Threads: ${displayGroups.length}` : `Archived Threads: ${displayGroups.length}`;
 
             if (displayGroups.length === 0) {
                 listContainer.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${isInbox ? 'Inbox is completely clean! ✨' : 'No archived threads yet.'}</div>`;
@@ -2865,7 +2926,7 @@ const Admin = {
 
                 // 🛡️ GUARDIAN UX FIX: Removed wrapping <button> to prevent invalid nested buttons
                 let groupHTML = `
-                    <div class="w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 border-b border-transparent transition-colors">
+                    <div class="feedback-group-header scroll-mt-[110px] cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 border-b border-transparent transition-colors">
                         <div class="flex-grow flex flex-col items-start min-w-0 pr-2">
                             <span class="text-xs font-bold text-gray-900 dark:text-white truncate w-full flex items-center">Commuter: <span class="text-blue-600 ml-1 flex items-center">${commuterTitle}</span></span>
                             ${contactHtml}
@@ -2873,12 +2934,12 @@ const Admin = {
                         </div>
                         <div class="flex items-center justify-end gap-1.5 shrink-0 flex-wrap sm:flex-nowrap self-start mt-1">
                             <button onclick="Admin.exportThreadForAI('${did}')" class="p-1.5 bg-white dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900/30 text-gray-500 hover:text-green-600 dark:hover:text-green-400 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm" title="Download Thread for AI (.txt)">📥</button>
-                            <button class="focus:outline-none p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors border border-transparent" onclick="const p = this.parentElement.parentElement; p.nextElementSibling.classList.toggle('hidden'); p.classList.toggle('border-gray-200'); p.classList.toggle('dark:border-gray-700'); this.querySelector('.chevron-icon').classList.toggle('rotate-180')">
+                            <button class="pointer-events-none focus:outline-none p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors border border-transparent">
                                 <svg class="chevron-icon w-4 h-4 text-gray-400 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
                         </div>
                     </div>
-                    <div class="hidden bg-white dark:bg-gray-900 p-2 sm:p-3">
+                    <div class="feedback-thread-body hidden bg-white dark:bg-gray-900 p-2 sm:p-3">
                         <!-- 🛡️ GUARDIAN UX FIX: Removed max-h-[60vh] and overflow-y-auto to stop double scrollbars -->
                         <div class="space-y-3 mb-2 h-auto min-h-[50px] flex flex-col">
                 `;
@@ -3102,6 +3163,55 @@ const Admin = {
                 groupCard.innerHTML = groupHTML;
                 listContainer.appendChild(groupCard);
             });
+
+            // 🛡️ GUARDIAN PHASE 1: The Auto-Collapse "Accordion Rule" & Delegated Listener
+            listContainer.onclick = (e) => {
+                const header = e.target.closest('.feedback-group-header');
+                if (!header) return;
+
+                // Protect inline actions (like Export AI Thread or Edit Alias)
+                if (e.target.closest('button') && !e.target.closest('button').classList.contains('pointer-events-none')) {
+                    return;
+                }
+
+                const body = header.nextElementSibling;
+                if (!body || !body.classList.contains('feedback-thread-body')) return;
+
+                const isOpening = body.classList.contains('hidden');
+                
+                // Close all other open threads
+                const allHeaders = listContainer.querySelectorAll('.feedback-group-header');
+                const allBodies = listContainer.querySelectorAll('.feedback-thread-body');
+
+                allBodies.forEach((b, idx) => {
+                    const h = allHeaders[idx];
+                    if (b !== body) {
+                        b.classList.add('hidden');
+                        h.classList.remove('border-gray-200', 'dark:border-gray-700');
+                        h.classList.add('border-transparent');
+                        const chevron = h.querySelector('.chevron-icon');
+                        if (chevron) chevron.classList.remove('rotate-180');
+                    }
+                });
+
+                // Toggle the selected thread
+                if (isOpening) {
+                    body.classList.remove('hidden');
+                    header.classList.add('border-gray-200', 'dark:border-gray-700');
+                    header.classList.remove('border-transparent');
+                    const chevron = header.querySelector('.chevron-icon');
+                    if (chevron) chevron.classList.add('rotate-180');
+                    
+                    // Smoothly scroll the opened thread into view to reduce manual scrolling
+                    setTimeout(() => { header.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+                } else {
+                    body.classList.add('hidden');
+                    header.classList.remove('border-gray-200', 'dark:border-gray-700');
+                    header.classList.add('border-transparent');
+                    const chevron = header.querySelector('.chevron-icon');
+                    if (chevron) chevron.classList.remove('rotate-180');
+                }
+            };
         };
 
         Admin.fetchFeedback = async () => {
@@ -3118,7 +3228,8 @@ const Admin = {
             if (badge) badge.classList.add('hidden');
 
             listContainer.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Synchronizing database...</div>';
-            statusDisplay.textContent = "Syncing Network...";
+            if (tabInbox) tabInbox.innerHTML = "Syncing...";
+            if (tabArchive) tabArchive.innerHTML = "Syncing...";
 
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -3166,15 +3277,13 @@ const Admin = {
                 Admin.cachedFeedbackData = mergedData;
                 Admin.cachedFeedbackData.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
-                const activeCount = Admin.cachedFeedbackData.filter(f => f.status !== 'resolved' && !f.isFromAdmin).length;
-                if (inboxCountSpan) inboxCountSpan.textContent = activeCount;
-
                 Admin.renderFeedbackList();
 
             } catch (e) {
                 console.error(e);
                 listContainer.innerHTML = '<div class="text-xs text-red-500 text-center py-4">Failed to load feedback.</div>';
-                statusDisplay.textContent = "Network Error";
+                if (tabInbox) tabInbox.innerHTML = "Error";
+                if (tabArchive) tabArchive.innerHTML = "Error";
             }
         };
 
@@ -3644,7 +3753,7 @@ const Admin = {
         openSmoothModal('admin-context-modal');
 
         try {
-            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '[https://metrorail-next-train-default-rtdb.firebaseio.com/](https://metrorail-next-train-default-rtdb.firebaseio.com/)';
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
             let foundData = null;
 
             // Search Active and Archived nodes
@@ -4357,7 +4466,8 @@ const Admin = {
             } catch (e) { console.log("No active alert."); }
         }
 
-        function populateTargets() {
+        Admin.populateAlertTargets = (skipFetch = false) => {
+            const currentVal = alertTarget.value;
             alertTarget.innerHTML = '';
             
             const globalGroup = document.createElement('optgroup');
@@ -4385,7 +4495,8 @@ const Admin = {
                     if (r.isActive && r.id !== 'special_event') {
                         const opt = document.createElement('option');
                         opt.value = r.id;
-                        opt.textContent = `🚂 ${r.name}`;
+                        const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
+                        opt.textContent = `🚂 ${r.name}${cues}`;
                         if (r.region === 'GP') gpGroup.appendChild(opt);
                         if (r.region === 'WC') wcGroup.appendChild(opt);
                         if (r.region === 'KZN') kznGroup.appendChild(opt);
@@ -4399,17 +4510,22 @@ const Admin = {
             alertTarget.appendChild(kznGroup);
             alertTarget.appendChild(ecGroup);
             
-            const defOpt = typeof currentRegion !== 'undefined' ? `all_${currentRegion}` : 'all_GP';
-            const optionToSelect = alertTarget.querySelector(`option[value="${defOpt}"]`);
-            if (optionToSelect) optionToSelect.selected = true;
+            if (currentVal) {
+                const optionToSelect = alertTarget.querySelector(`option[value="${currentVal}"]`);
+                if (optionToSelect) optionToSelect.selected = true;
+            } else {
+                const defOpt = typeof currentRegion !== 'undefined' ? `all_${currentRegion}` : 'all_GP';
+                const optionToSelect = alertTarget.querySelector(`option[value="${defOpt}"]`);
+                if (optionToSelect) optionToSelect.selected = true;
+            }
 
-            fetchCurrentAlert(alertTarget.value);
-        }
+            if (!skipFetch) fetchCurrentAlert(alertTarget.value);
+        };
 
         if (alertTarget) {
             alertTarget.addEventListener('change', () => fetchCurrentAlert(alertTarget.value));
         }
-        populateTargets();
+        Admin.populateAlertTargets();
 
         const now = new Date();
         now.setHours(23, 59, 59, 999);
@@ -4655,37 +4771,45 @@ const Admin = {
             }
         };
 
-        // Populate Routes
-        if (typeof ROUTES !== 'undefined') {
-            const gpGroup = document.createElement('optgroup');
-            gpGroup.label = "Gauteng Routes";
-            const wcGroup = document.createElement('optgroup');
-            wcGroup.label = "Western Cape Routes";
-            const kznGroup = document.createElement('optgroup');
-            kznGroup.label = "KwaZulu-Natal Routes";
-            const ecGroup = document.createElement('optgroup');
-            ecGroup.label = "Eastern Cape Routes";
-
-            Object.values(ROUTES).forEach(r => {
-                if (r.isActive && r.id !== 'special_event') {
-                    const opt = document.createElement('option');
-                    opt.value = r.id;
-                    opt.textContent = r.name;
-                    if (r.region === 'GP') gpGroup.appendChild(opt);
-                    if (r.region === 'WC') wcGroup.appendChild(opt);
-                    if (r.region === 'KZN') kznGroup.appendChild(opt);
-                    if (r.region === 'EC') ecGroup.appendChild(opt);
-                }
-            });
-            routeSelect.appendChild(gpGroup);
-            routeSelect.appendChild(wcGroup);
-            routeSelect.appendChild(kznGroup);
-            routeSelect.appendChild(ecGroup);
+        Admin.populateDisruptionRoutes = () => {
+            const currentVal = routeSelect.value;
+            routeSelect.innerHTML = '';
             
-            if (typeof currentRouteId !== 'undefined' && currentRouteId) {
-                routeSelect.value = currentRouteId;
+            if (typeof ROUTES !== 'undefined') {
+                const gpGroup = document.createElement('optgroup');
+                gpGroup.label = "Gauteng Routes";
+                const wcGroup = document.createElement('optgroup');
+                wcGroup.label = "Western Cape Routes";
+                const kznGroup = document.createElement('optgroup');
+                kznGroup.label = "KwaZulu-Natal Routes";
+                const ecGroup = document.createElement('optgroup');
+                ecGroup.label = "Eastern Cape Routes";
+
+                Object.values(ROUTES).forEach(r => {
+                    if (r.isActive && r.id !== 'special_event') {
+                        const opt = document.createElement('option');
+                        opt.value = r.id;
+                        const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
+                        opt.textContent = `${r.name}${cues}`;
+                        if (r.region === 'GP') gpGroup.appendChild(opt);
+                        if (r.region === 'WC') wcGroup.appendChild(opt);
+                        if (r.region === 'KZN') kznGroup.appendChild(opt);
+                        if (r.region === 'EC') ecGroup.appendChild(opt);
+                    }
+                });
+                routeSelect.appendChild(gpGroup);
+                routeSelect.appendChild(wcGroup);
+                routeSelect.appendChild(kznGroup);
+                routeSelect.appendChild(ecGroup);
+                
+                if (currentVal) {
+                    routeSelect.value = currentVal;
+                } else if (typeof currentRouteId !== 'undefined' && currentRouteId) {
+                    routeSelect.value = currentRouteId;
+                }
             }
-        }
+        };
+        Admin.populateDisruptionRoutes();
 
         // Populate Stations strictly bound to the selected route using globalStationIndex
         const populateStations = () => {
@@ -4958,7 +5082,18 @@ const Admin = {
                         <input type="text" id="excl-grid-notice" class="w-full h-10 px-3 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-xs text-gray-900 dark:text-white outline-none" placeholder="e.g. Trains 9116 & 9118 cancelled due to maintenance...">
                         <button id="excl-save-notice-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 rounded-lg shadow-sm transition-colors text-xs whitespace-nowrap focus:outline-none">Save</button>
                     </div>
-                    <p class="text-[9px] text-blue-600 dark:text-blue-400 mt-1">Displays a banner directly inside the full timetable grid.</p>
+                    <!-- 🛡️ GUARDIAN PHASE 1: Ephemerality & Export Controls for Grid Notices -->
+                    <div class="flex items-center justify-between mt-2">
+                        <div class="flex-1 pr-2">
+                            <label class="block text-[9px] font-bold text-blue-800 dark:text-blue-300 uppercase mb-1">Expiry Date (Optional)</label>
+                            <input type="datetime-local" id="excl-grid-notice-expiry" class="w-full h-8 px-2 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded text-xs text-gray-900 dark:text-white outline-none">
+                        </div>
+                        <label class="flex items-center cursor-pointer mt-3">
+                            <input type="checkbox" id="excl-grid-notice-export" checked class="form-checkbox h-3.5 w-3.5 text-blue-600 bg-white border-gray-300 rounded focus:ring-0">
+                            <span class="text-[9px] font-bold text-blue-800 dark:text-blue-300 ml-1.5 uppercase tracking-wide">Show on Export</span>
+                        </label>
+                    </div>
+                    <p class="text-[9px] text-blue-600 dark:text-blue-400 mt-2 border-t border-blue-200 dark:border-blue-800/50 pt-1.5">Displays a banner directly inside the full timetable grid.</p>
                 </div>
 
                 <div class="flex space-x-2 mt-2">
@@ -4998,7 +5133,12 @@ const Admin = {
                 <div class="mt-2 mb-3">
                     <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Expiry Date & Time (Optional)</label>
                     <input type="datetime-local" id="excl-expiry" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
-                    <p class="text-[9px] text-gray-400 mt-1">If set, the train will automatically reappear on the schedule after this date.</p>
+                    <p class="text-[9px] text-gray-400 mt-1 mb-2">If set, the train will automatically reappear on the schedule after this date.</p>
+                    <!-- 🛡️ GUARDIAN PHASE 1: Export Visibility Toggle -->
+                    <label class="flex items-center cursor-pointer bg-gray-100 dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
+                        <input type="checkbox" id="excl-export-toggle" checked class="form-checkbox h-4 w-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-0">
+                        <span class="text-[10px] font-bold text-gray-600 dark:text-gray-300 ml-2 uppercase tracking-wide leading-none">Show "NO SVC" Tag on Export Image</span>
+                    </label>
                 </div>
                 
                 <button id="excl-save-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors text-xs uppercase tracking-wide focus:outline-none">
@@ -5041,37 +5181,46 @@ const Admin = {
             }
         };
 
-        if (typeof ROUTES !== 'undefined') {
-            const gpGroup = document.createElement('optgroup');
-            gpGroup.label = "Gauteng Routes";
-            const wcGroup = document.createElement('optgroup');
-            wcGroup.label = "Western Cape Routes";
-            const kznGroup = document.createElement('optgroup');
-            kznGroup.label = "KwaZulu-Natal Routes";
-            const ecGroup = document.createElement('optgroup');
-            ecGroup.label = "Eastern Cape Routes";
+        Admin.populateExclusionRoutes = () => {
+            const currentVal = routeSelect.value;
+            routeSelect.innerHTML = '';
 
-            Object.values(ROUTES).forEach(r => {
-                if (r.isActive && r.id !== 'special_event') {
-                    const opt = document.createElement('option');
-                    opt.value = r.id;
-                    opt.textContent = r.name;
-                    if (r.region === 'GP') gpGroup.appendChild(opt);
-                    if (r.region === 'WC') wcGroup.appendChild(opt);
-                    if (r.region === 'KZN') kznGroup.appendChild(opt);
-                    if (r.region === 'EC') ecGroup.appendChild(opt);
+            if (typeof ROUTES !== 'undefined') {
+                const gpGroup = document.createElement('optgroup');
+                gpGroup.label = "Gauteng Routes";
+                const wcGroup = document.createElement('optgroup');
+                wcGroup.label = "Western Cape Routes";
+                const kznGroup = document.createElement('optgroup');
+                kznGroup.label = "KwaZulu-Natal Routes";
+                const ecGroup = document.createElement('optgroup');
+                ecGroup.label = "Eastern Cape Routes";
+
+                Object.values(ROUTES).forEach(r => {
+                    if (r.isActive && r.id !== 'special_event') {
+                        const opt = document.createElement('option');
+                        opt.value = r.id;
+                        const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
+                        opt.textContent = `${r.name}${cues}`;
+                        if (r.region === 'GP') gpGroup.appendChild(opt);
+                        if (r.region === 'WC') wcGroup.appendChild(opt);
+                        if (r.region === 'KZN') kznGroup.appendChild(opt);
+                        if (r.region === 'EC') ecGroup.appendChild(opt);
+                    }
+                });
+                
+                routeSelect.appendChild(gpGroup);
+                routeSelect.appendChild(wcGroup);
+                routeSelect.appendChild(kznGroup);
+                routeSelect.appendChild(ecGroup);
+                
+                if (currentVal) {
+                    routeSelect.value = currentVal;
+                } else if (typeof currentRouteId !== 'undefined' && currentRouteId) {
+                    routeSelect.value = currentRouteId;
                 }
-            });
-            
-            routeSelect.appendChild(gpGroup);
-            routeSelect.appendChild(wcGroup);
-            routeSelect.appendChild(kznGroup);
-            routeSelect.appendChild(ecGroup);
-            
-            if (typeof currentRouteId !== 'undefined' && currentRouteId) {
-                routeSelect.value = currentRouteId;
             }
-        }
+        };
+        Admin.populateExclusionRoutes();
 
         if (routeSelect) {
             routeSelect.addEventListener('change', () => {
@@ -5174,6 +5323,13 @@ const Admin = {
         noticeSaveBtn.onclick = async () => {
             const rId = routeSelect.value;
             const text = noticeInput.value.trim();
+            
+            const noticeExpiryInput = document.getElementById('excl-grid-notice-expiry');
+            const noticeExpiryTs = (noticeExpiryInput && noticeExpiryInput.value) ? new Date(noticeExpiryInput.value).getTime() : null;
+            
+            const noticeExportToggle = document.getElementById('excl-grid-notice-export');
+            const showOnExport = noticeExportToggle ? noticeExportToggle.checked : true;
+
             const secret = await Admin.getAuthKey();
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
 
@@ -5188,7 +5344,12 @@ const Admin = {
                 } else {
                     await window.guardianFetch(`${dynamicEndpoint}exclusions/${rId}/_grid_notice.json?auth=${secret}`, {
                         method: 'PUT',
-                        body: JSON.stringify({ text: text, updatedAt: Date.now() })
+                        body: JSON.stringify({ 
+                            text: text, 
+                            updatedAt: Date.now(),
+                            expiresAt: noticeExpiryTs,
+                            showOnExport: showOnExport
+                        })
                     }, 10000);
                 }
 
@@ -5226,11 +5387,37 @@ const Admin = {
                 const res = await window.guardianFetch(`${dynamicEndpoint}exclusions/${rId}.json?t=${Date.now()}`, {}, 6000);
                 const data = await res.json();
                 
-                // 🛡️ GUARDIAN Phase 3: Extract Grid Notice Text natively
+                // 🛡️ GUARDIAN Phase 3 & Phase 1: Extract Grid Notice Text and Ephemerality natively
                 if (data && data._grid_notice) {
                     noticeInput.value = data._grid_notice.text || "";
+                    
+                    const noticeExpiryInput = document.getElementById('excl-grid-notice-expiry');
+                    if (noticeExpiryInput) {
+                        if (data._grid_notice.expiresAt) {
+                            const ed = new Date(data._grid_notice.expiresAt);
+                            ed.setMinutes(ed.getMinutes() - ed.getTimezoneOffset());
+                            noticeExpiryInput.value = ed.toISOString().slice(0, 16);
+                        } else {
+                            noticeExpiryInput.value = "";
+                        }
+                    }
+                    
+                    const noticeExportToggle = document.getElementById('excl-grid-notice-export');
+                    if (noticeExportToggle) {
+                        noticeExportToggle.checked = data._grid_notice.showOnExport !== false;
+                    }
                 } else {
                     noticeInput.value = "";
+                    const noticeExpiryInput = document.getElementById('excl-grid-notice-expiry');
+                    if (noticeExpiryInput) {
+                        // 🛡️ GUARDIAN PHASE 1: 24-Hour Default Time-Bomb
+                        const defaultExpiry = new Date();
+                        defaultExpiry.setHours(defaultExpiry.getHours() + 24);
+                        defaultExpiry.setMinutes(defaultExpiry.getMinutes() - defaultExpiry.getTimezoneOffset());
+                        noticeExpiryInput.value = defaultExpiry.toISOString().slice(0, 16);
+                    }
+                    const noticeExportToggle = document.getElementById('excl-grid-notice-export');
+                    if (noticeExportToggle) noticeExportToggle.checked = true;
                 }
 
                 listDiv.innerHTML = '';
@@ -5297,6 +5484,9 @@ const Admin = {
             const expiryInput = document.getElementById('excl-expiry').value;
             const expiryTs = expiryInput ? new Date(expiryInput).getTime() : null;
             
+            const exportToggle = document.getElementById('excl-export-toggle');
+            const showOnExport = exportToggle ? exportToggle.checked : true;
+            
             const secret = await Admin.getAuthKey(); 
             
             const selectedTrains = Array.from(trainGrid.querySelectorAll('input:checked')).map(cb => cb.value);
@@ -5319,6 +5509,7 @@ const Admin = {
                     reason: reason,
                     type: exceptionType, 
                     expiresAt: expiryTs, 
+                    showOnExport: showOnExport,
                     updatedAt: Date.now()
                 };
             });

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-V7_07.02'; // GUARDIAN: Bumped to v2 for Firebase SDK injection
+const CACHE_NAME = 'metrorail-next-train-V7_07.07'; // GUARDIAN: Bumped to v1 for Firebase SDK injection
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.

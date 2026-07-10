@@ -1,0 +1,479 @@
+/**
+ * METRORAIL NEXT TRAIN - CLOUDFLARE WORKER (V1.7 - Growth Edition)
+ * --------------------------------------------------------------------------
+ * Path B: Secure Telemetry Bridge & OpenGraph Interceptor
+ * * GROWTH SPRINT PHASE 7: 
+ * - Transparent SPA Passthrough added to allow Worker deployment on main domain.
+ * - Telemetry Engine Scaled: Dual-Query architecture expanded to support 
+ * WAU (Weekly), MAU (Monthly), and All-Time metric aggregation.
+ * - Date-Bucketing logic implemented for dynamic SVG chart pagination (DAU/WAU/MAU/ALL).
+ * * GROWTH SPRINT PHASE 11: CleverAds Dashboard Scraper Engine injected into Telemetry payload.
+ * * GUARDIAN PHASE 1: Social Bot Interceptor migrated fully to virality-interceptor. 
+ * Sequential fetches parallelized via Promise.allSettled for lower dashboard latency.
+ */
+
+// --- UTILITY: EDGE-COMPATIBLE JWT SIGNER FOR GOOGLE OAUTH ---
+async function getGoogleAccessToken(clientEmail, privateKey) {
+    const header = { alg: 'RS256', typ: 'JWT' };
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+        iss: clientEmail,
+        scope: 'https://www.googleapis.com/auth/analytics.readonly',
+        aud: 'https://oauth2.googleapis.com/token',
+        exp: now + 3600,
+        iat: now
+    };
+
+    const toBase64Url = (obj) => btoa(JSON.stringify(obj)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const dataToSign = `${toBase64Url(header)}.${toBase64Url(payload)}`;
+
+    const cleanKey = privateKey
+        .replace(/\\n/g, '') 
+        .replace(/\\r/g, '') 
+        .replace(/"/g, '')   
+        .replace(/-----BEGIN PRIVATE KEY-----/gi, '')
+        .replace(/-----END PRIVATE KEY-----/gi, '')
+        .replace(/\s/g, ''); 
+
+    let binaryDerString;
+    try {
+        binaryDerString = atob(cleanKey);
+    } catch (e) {
+        throw new Error("Private Key Format Error: Could not decode Base64. Ensure you copied the entire key.");
+    }
+
+    const binaryDer = new Uint8Array(binaryDerString.length);
+    for (let i = 0; i < binaryDerString.length; i++) {
+        binaryDer[i] = binaryDerString.charCodeAt(i);
+    }
+
+    const cryptoKey = await crypto.subtle.importKey(
+        'pkcs8',
+        binaryDer.buffer,
+        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+        false,
+        ['sign']
+    );
+
+    const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(dataToSign));
+    const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    
+    const jwt = `${dataToSign}.${encodedSignature}`;
+
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(`Google Auth Failed: ${data.error_description || data.error}`);
+    return data.access_token;
+}
+
+export default {
+    async fetch(request, env, ctx) {
+        // --- 1. CORS CONFIGURATION ---
+        const corsHeaders = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '86400',
+        };
+
+        if (request.method === 'OPTIONS') {
+            return new Response(null, { headers: corsHeaders });
+        }
+
+        const url = new URL(request.url);
+
+        // --- NEW: IP GEOLOCATION ECHO ENDPOINT (GUARDIAN PHASE 5) ---
+        if (url.pathname === '/region' && request.method === 'GET') {
+            let region = 'GP'; // Default to Gauteng
+            
+            // Cloudflare automatically injects the 'cf' object containing geospatial data
+            if (request.cf && request.cf.regionCode) {
+                const prov = request.cf.regionCode.toUpperCase();
+                if (prov === 'WC') region = 'WC';
+                else if (prov === 'KZN' || prov === 'NL') region = 'KZN'; // NL = Natal
+                else if (prov === 'EC') region = 'EC';
+            }
+            
+            return new Response(JSON.stringify({ region }), {
+                status: 200,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+        }
+
+        if (request.method !== 'GET') {
+            return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });
+        }
+
+        // --- 2. SPA PASSTHROUGH & FIREBASE AUTHENTICATION GUARD ---
+        const authHeader = request.headers.get('Authorization');
+        
+        // If there is no auth header, and the path doesn't look like an explicit API request,
+        // we assume it's a human user navigating to the domain. We pass the request to the origin SPA.
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            if (url.pathname.includes('/telemetry')) {
+                return new Response(JSON.stringify({ error: 'Missing or Invalid Authorization Header' }), { 
+                    status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                });
+            } else {
+                // Transparent proxy to origin HTML/assets (Enables Worker to be mapped to main domain!)
+                return fetch(request);
+            }
+        }
+
+        const idToken = authHeader.split('Bearer ')[1];
+
+        if (env.FIREBASE_WEB_API_KEY) {
+            try {
+                const verifyRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${env.FIREBASE_WEB_API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken: idToken })
+                });
+
+                const verifyData = await verifyRes.json();
+
+                if (!verifyRes.ok || !verifyData.users || verifyData.users.length === 0) {
+                    return new Response(JSON.stringify({ error: 'Unauthorized: Invalid Firebase Token' }), { 
+                        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                    });
+                }
+
+                // 🛡️ GUARDIAN FIX: Strict Admin Allowlist Check
+                const user = verifyData.users[0];
+                const adminEmails = ['enockelk@gmail.com', 'thandeka05nxumalo@gmail.com'];
+                if (!user.email || !adminEmails.includes(user.email.toLowerCase())) {
+                    return new Response(JSON.stringify({ error: 'Forbidden: Admin access required.' }), { 
+                        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                    });
+                }
+            } catch (err) {
+                return new Response(JSON.stringify({ error: 'Auth Verification Failed', details: err.message }), { 
+                    status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                });
+            }
+        }
+
+        let telemetryData = {
+            active5m: '--',
+            active30m: '--',
+            todayUsers: '--',
+            wauUsers: '--',
+            mauUsers: '--',
+            allTimeUsers: '--', 
+            todayErrors: '--',
+            cleverRevenue: '--', // GUARDIAN PHASE 11: Monetization tracker
+            cleverHits: '--',    // GUARDIAN PHASE 11: Monetization tracker
+            sevenDayTrend: [0, 0, 0, 0, 0, 0, 0], // Kept for backward compatibility
+            chartData: [],                        // Dynamic payload for new Admin UI
+            chartLabels: [],                      // Dynamic X-Axis labels for new Admin UI
+            regionalBreakdown: { GP: 0, WC: 0, KZN: 0, EC: 0, OTHER: 0 } // GROWTH SPRINT: Regional Distribution
+        };
+
+        // 🛡️ GUARDIAN FIX: Short TTL Cache to protect GA4 Quotas
+        const cache = caches.default;
+        // Include search parameters in the cache key so DAU/WAU range toggles don't pull stale data
+        const cacheKey = new Request(`https://nexttrain-internal-cache.local/telemetry${url.search}`);
+        let cachedResponse = await cache.match(cacheKey);
+        
+        if (cachedResponse) {
+            return new Response(cachedResponse.body, { 
+                status: 200, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-Cache-Status': 'HIT' } 
+            });
+        }
+
+        // Array to hold our concurrent data-fetching promises
+        const telemetryTasks = [];
+
+        // --- 3. FETCH GA4 TELEMETRY DATA (UPGRADED MASS-BATCHING) ---
+        if (env.GA_PROPERTY_ID && env.GA_CLIENT_EMAIL && env.GA_PRIVATE_KEY) {
+            telemetryTasks.push((async () => {
+                try {
+                    const token = await getGoogleAccessToken(env.GA_CLIENT_EMAIL, env.GA_PRIVATE_KEY);
+                    const gaHeaders = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+                    // Range parsing for Date-Bucketing Logic (INTRADAY, DAU, WAU, MAU, ALL)
+                    const range = url.searchParams.get('range') || 'DAU';
+                    let trendDimensions = [{ name: "date" }];
+                    let trendOrderBys = [{ dimension: { dimensionName: "date" } }];
+                    let trendStartDate = "6daysAgo";
+                    let trendEndDate = "today";
+                    
+                    if (range === 'INTRADAY') {
+                        trendDimensions = [{ name: "hour" }, { name: "minute" }];
+                        trendOrderBys = [
+                            { dimension: { dimensionName: "hour" } },
+                            { dimension: { dimensionName: "minute" } }
+                        ];
+                        trendStartDate = "today";
+                        trendEndDate = "today";
+                    } else if (range === 'WAU') {
+                        trendDimensions = [{ name: "isoYearIsoWeek" }];
+                        trendOrderBys = [{ dimension: { dimensionName: "isoYearIsoWeek" } }];
+                        trendStartDate = "27daysAgo"; // Fetch 4 weeks
+                    } else if (range === 'MAU') {
+                        trendDimensions = [{ name: "yearMonth" }];
+                        trendOrderBys = [{ dimension: { dimensionName: "yearMonth" } }];
+                        trendStartDate = "179daysAgo"; // Fetch roughly 6 months
+                    } else if (range === 'ALL') {
+                        trendDimensions = [{ name: "yearMonth" }];
+                        trendOrderBys = [{ dimension: { dimensionName: "yearMonth" } }];
+                        trendStartDate = "2026-01-01"; // Fetch from launch 
+                    } else {
+                        // DAU pagination logic (Default)
+                        const weeksAgo = parseInt(url.searchParams.get('weeksAgo')) || 0;
+                        const startDays = (weeksAgo * 7) + 6;
+                        const endDays = weeksAgo * 7;
+                        trendStartDate = `${startDays}daysAgo`;
+                        trendEndDate = endDays === 0 ? "today" : `${endDays}daysAgo`;
+                    }
+
+                    // 🚀 Mass Promise.all Execution: Resolves 8 APIs concurrently at the Edge
+                    const responses = await Promise.all([
+                        // Query 0: Realtime 30m
+                        fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${env.GA_PROPERTY_ID}:runRealtimeReport`, {
+                            method: 'POST', headers: gaHeaders, body: JSON.stringify({ metrics: [{ name: "activeUsers" }] })
+                        }),
+                        // Query 1: Realtime 5m Deduplicated
+                        fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${env.GA_PROPERTY_ID}:runRealtimeReport`, {
+                            method: 'POST', headers: gaHeaders, body: JSON.stringify({ 
+                                dimensionFilter: {
+                                    filter: {
+                                        fieldName: "minutesAgo",
+                                        numericFilter: { operation: "LESS_THAN", value: { int64Value: "5" } }
+                                    }
+                                },
+                                metrics: [{ name: "activeUsers" }] 
+                            })
+                        }),
+                        // Query 2: DAU (Today)
+                        fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${env.GA_PROPERTY_ID}:runReport`, {
+                            method: 'POST', headers: gaHeaders, body: JSON.stringify({
+                                dateRanges: [{ startDate: "today", endDate: "today" }], metrics: [{ name: "activeUsers" }]
+                            })
+                        }),
+                        // Query 3: WAU (7-Day Active)
+                        fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${env.GA_PROPERTY_ID}:runReport`, {
+                            method: 'POST', headers: gaHeaders, body: JSON.stringify({
+                                dateRanges: [{ startDate: "7daysAgo", endDate: "today" }], metrics: [{ name: "activeUsers" }]
+                            })
+                        }),
+                        // Query 4: MAU (28-Day Active)
+                        fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${env.GA_PROPERTY_ID}:runReport`, {
+                            method: 'POST', headers: gaHeaders, body: JSON.stringify({
+                                dateRanges: [{ startDate: "28daysAgo", endDate: "today" }], metrics: [{ name: "activeUsers" }]
+                            })
+                        }),
+                        // Query 5: All Time Total (Fixed to launch date)
+                        fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${env.GA_PROPERTY_ID}:runReport`, {
+                            method: 'POST', headers: gaHeaders, body: JSON.stringify({
+                                dateRanges: [{ startDate: "2026-01-01", endDate: "today" }], metrics: [{ name: "activeUsers" }]
+                            })
+                        }),
+                        // Query 6: Dynamic Trend Graph
+                        fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${env.GA_PROPERTY_ID}:runReport`, {
+                            method: 'POST', headers: gaHeaders, body: JSON.stringify({
+                                dateRanges: [{ startDate: trendStartDate, endDate: trendEndDate }],
+                                dimensions: trendDimensions,
+                                metrics: [{ name: "activeUsers" }],
+                                orderBys: trendOrderBys 
+                            })
+                        }),
+                        // Query 7: Regional Breakdown (Today)
+                        fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${env.GA_PROPERTY_ID}:runReport`, {
+                            method: 'POST', headers: gaHeaders, body: JSON.stringify({
+                                dateRanges: [{ startDate: "today", endDate: "today" }],
+                                dimensions: [{ name: "customUser:crm_region" }], // User-scoped dimension
+                                metrics: [{ name: "activeUsers" }]
+                            })
+                        })
+                    ]);
+
+                    // Check for HTTP errors before consuming JSON
+                    for (let i = 0; i < responses.length; i++) {
+                        if (!responses[i].ok) throw new Error(`GA4 API Request [${i}] Failed: ${await responses[i].text()}`);
+                    }
+
+                    const [
+                        realtime30Data, realtime5Data, 
+                        dailyData, wauData, mauData, allTimeData, 
+                        trendData, regionalData
+                    ] = await Promise.all(responses.map(r => r.json()));
+                    
+                    // 🛡️ GUARDIAN FIX: Wrapped values in String() to appease strict Cloudflare ts(2322) linter 
+                    // This guarantees they remain the identical type as their initialized states ('--') 
+                    
+                    // Parse Query 0 (30m)
+                    telemetryData.active30m = String(parseInt(realtime30Data?.rows?.[0]?.metricValues?.[0]?.value) || 0);
+                    
+                    // Parse Query 1 (5m) - Now natively deduplicated
+                    telemetryData.active5m = String(parseInt(realtime5Data?.rows?.[0]?.metricValues?.[0]?.value) || 0);
+
+                    // Parse Core Totals
+                    telemetryData.todayUsers = String(parseInt(dailyData?.rows?.[0]?.metricValues?.[0]?.value) || 0);
+                    telemetryData.wauUsers = String(parseInt(wauData?.rows?.[0]?.metricValues?.[0]?.value) || 0);
+                    telemetryData.mauUsers = String(parseInt(mauData?.rows?.[0]?.metricValues?.[0]?.value) || 0);
+                    telemetryData.allTimeUsers = String(parseInt(allTimeData?.rows?.[0]?.metricValues?.[0]?.value) || 0);
+
+                    // Parse Query 7 (Regional Breakdown)
+                    if (regionalData?.rows) {
+                        regionalData.rows.forEach(row => {
+                            const region = row.dimensionValues?.[0]?.value;
+                            const users = parseInt(row.metricValues?.[0]?.value) || 0;
+                            if (region === 'GP') telemetryData.regionalBreakdown.GP += users;
+                            else if (region === 'WC') telemetryData.regionalBreakdown.WC += users;
+                            else if (region === 'KZN') telemetryData.regionalBreakdown.KZN += users;
+                            else if (region === 'EC') telemetryData.regionalBreakdown.EC += users;
+                            else telemetryData.regionalBreakdown.OTHER += users;
+                        });
+                    }
+
+                    // Parse Dynamic Trend Chart Data
+                    let activeCountsArray = [];
+                    let labelsArray = [];
+                    
+                    if (range === 'INTRADAY') {
+                        // 24 hours * 2 (30-min intervals) = 48 buckets
+                        const totalBuckets = 48; 
+                        activeCountsArray = Array(totalBuckets).fill(0);
+                        
+                        if (trendData?.rows) {
+                            trendData.rows.forEach(row => {
+                                const h = parseInt(row.dimensionValues?.[0]?.value, 10);
+                                const m = parseInt(row.dimensionValues?.[1]?.value, 10);
+                                const users = parseInt(row.metricValues?.[0]?.value, 10) || 0;
+                                
+                                // Map exact minute to a 0-1 bucket slot (30 mins each)
+                                const mBucket = Math.floor(m / 30); 
+                                const bucketIndex = (h * 2) + mBucket;
+                                activeCountsArray[bucketIndex] += users;
+                            });
+                        }
+                        
+                        // Generate labels (show only every 3 hours -> 6 buckets)
+                        for (let i = 0; i < totalBuckets; i++) {
+                            if (i % 6 === 0) {
+                                const h = Math.floor(i / 2).toString().padStart(2, '0');
+                                labelsArray.push(`${h}:00`);
+                            } else {
+                                labelsArray.push(""); // Invisible label to preserve geometric spacing
+                            }
+                        }
+                        
+                        // GROWTH SPRINT PHASE 8: Clip the unprocessed 3-hour lag window
+                        // 🛡️ GUARDIAN FIX: Adjust to SAST (UTC+2) to prevent prematurely dropping evening traffic
+                        const nowHourSAST = (new Date().getUTCHours() + 2) % 24; 
+                        const lagBuffer = 3;
+                        const cutoffBucket = Math.max(0, (nowHourSAST - lagBuffer) * 2);
+                        activeCountsArray = activeCountsArray.slice(0, cutoffBucket);
+                        labelsArray = labelsArray.slice(0, cutoffBucket);
+                    } else {
+                        if (trendData?.rows) {
+                            activeCountsArray = trendData.rows.map(row => parseInt(row.metricValues?.[0]?.value) || 0);
+                            labelsArray = trendData.rows.map(row => row.dimensionValues?.[0]?.value || "");
+                        }
+                    }
+                    
+                    // Maintain backward compatibility for Phase 6 Admin UI until Phase 8 drops
+                    if (range === 'DAU' || !url.searchParams.has('range')) {
+                        telemetryData.sevenDayTrend = [...Array(7).fill(0), ...activeCountsArray].slice(-7);
+                    }
+
+                    // New arrays directly consumed by the Phase 8 scalable chart
+                    telemetryData.chartData = activeCountsArray;
+                    telemetryData.chartLabels = labelsArray;
+
+                } catch (e) {
+                    console.error("GA4 Fetch Error:", e.message);
+                    telemetryData.active5m = "ERR";
+                    telemetryData.active30m = "ERR";
+                    telemetryData.todayUsers = "ERR";
+                    telemetryData.wauUsers = "ERR";
+                    telemetryData.mauUsers = "ERR";
+                    telemetryData.allTimeUsers = "ERR"; 
+                    telemetryData.gaErrorDetail = e.message; 
+                }
+            })());
+        }
+
+        // --- 4. FETCH SENTRY TELEMETRY DATA ---
+        if (env.SENTRY_AUTH_TOKEN && env.SENTRY_ORG && env.SENTRY_PROJECT) {
+            telemetryTasks.push((async () => {
+                try {
+                    const sentryRes = await fetch(`https://sentry.io/api/0/projects/${env.SENTRY_ORG}/${env.SENTRY_PROJECT}/stats/?stat=received&resolution=1d`, {
+                        headers: { 'Authorization': `Bearer ${env.SENTRY_AUTH_TOKEN}` }
+                    });
+
+                    if (!sentryRes.ok) {
+                        const errText = await sentryRes.text();
+                        throw new Error(`Sentry API Rejected: ${errText}`);
+                    }
+
+                    const sentryData = await sentryRes.json();
+                    
+                    if (Array.isArray(sentryData) && sentryData.length > 0) {
+                        const lastDataPoint = sentryData[sentryData.length - 1];
+                        telemetryData.todayErrors = String(parseInt(lastDataPoint?.[1]) || 0);
+                    } else {
+                        telemetryData.todayErrors = "0"; // 🛡️ GUARDIAN FIX: Changed from 0 to "0" for linter compliance
+                    }
+                } catch (e) {
+                    console.error("Sentry Fetch Error:", e.message);
+                    telemetryData.todayErrors = "ERR"; 
+                    telemetryData.sentryErrorDetail = e.message; 
+                }
+            })());
+        }
+
+        // --- 4.5 SCRAPE CLEVERADS REVENUE DATA (GUARDIAN PHASE 11) ---
+        telemetryTasks.push((async () => {
+            try {
+                const cleverRes = await fetch("https://c2p.cleverwebserver.com/dashboard/ZmI0MWI3OTc5MjkzODk2MWVlZmE2NGZiY2I=", {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+                    }
+                });
+                if (cleverRes.ok) {
+                    const cleverHtml = await cleverRes.text();
+                    
+                    // Regex Bounding: Limit search space to prevent catastrophic backtracking
+                    // Estimated Reven[ue]
+                    const revMatch = cleverHtml.match(/Estimated Reven(?:ue)?[\s\S]{0,200}?([\d.,]+\s*USD)/i);
+                    if (revMatch && revMatch[1]) {
+                        telemetryData.cleverRevenue = revMatch[1].trim();
+                    }
+
+                    // Total Hits
+                    const hitsMatch = cleverHtml.match(/Total Hits[\s\S]{0,200}?(\d+)/i);
+                    if (hitsMatch && hitsMatch[1]) {
+                        telemetryData.cleverHits = hitsMatch[1].trim();
+                    }
+                }
+            } catch (e) {
+                console.error("CleverAds Fetch Error:", e.message);
+            }
+        })());
+
+        // Wait for GA4, Sentry, and CleverAds to fetch concurrently
+        await Promise.allSettled(telemetryTasks);
+
+        // --- 5. RETURN SECURE PAYLOAD ---
+        const finalResponsePayload = JSON.stringify(telemetryData);
+        
+        // 🛡️ GUARDIAN FIX: Store in edge cache for 30 seconds to absorb rapid 10s polling
+        const responseToCache = new Response(finalResponsePayload, {
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 's-maxage=30' }
+        });
+        await cache.put(cacheKey, responseToCache.clone());
+
+        return new Response(finalResponsePayload, {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-Cache-Status': 'MISS' }
+        });
+    }
+};

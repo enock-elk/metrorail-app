@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.02 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.07 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "WAITER" (Controller)
  * * This module handles DOM interaction, Event Listeners, and UI Rendering.
@@ -4358,6 +4358,10 @@ document.addEventListener('DOMContentLoaded', () => {
         else mapImageEl.src = 'images/network-map.png';
     }
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const deepLinkRoute = urlParams.get('route');
+    const hasPlannerOrMapAction = urlParams.has('action') && (urlParams.get('action') === 'planner' || urlParams.get('action') === 'map');
+
     let savedDefault = null;
     try { savedDefault = safeStorage.getItem('defaultRoute_' + currentRegion); } catch(e) {}
     
@@ -4369,21 +4373,43 @@ document.addEventListener('DOMContentLoaded', () => {
             try { safeStorage.setItem('defaultRoute_' + currentRegion, legacyDefault); } catch(e) {}
         }
     }
+
+    // 🛡️ GUARDIAN FIX: Deep Link Welcome Modal Race Condition
+    let isCrossRegionDeepLink = false;
+    if (deepLinkRoute && typeof ROUTES !== 'undefined' && ROUTES[deepLinkRoute]) {
+        if (ROUTES[deepLinkRoute].region === currentRegion) {
+            savedDefault = deepLinkRoute;
+            try { safeStorage.setItem('defaultRoute_' + currentRegion, deepLinkRoute); } catch(e) {}
+        } else {
+            isCrossRegionDeepLink = true;
+        }
+    } else if (!savedDefault && hasPlannerOrMapAction && typeof ROUTES !== 'undefined') {
+        const firstActive = Object.values(ROUTES).find(r => r.region === currentRegion && r.isActive && r.id !== 'special_event');
+        if (firstActive) {
+            savedDefault = firstActive.id;
+            try { safeStorage.setItem('defaultRoute_' + currentRegion, firstActive.id); } catch(e) {}
+        }
+    }
     
     if (savedDefault && typeof ROUTES !== 'undefined' && ROUTES[savedDefault] && ROUTES[savedDefault].region === currentRegion) {
         currentRouteId = savedDefault;
-        if (typeof loadAllSchedules === 'function') {
-            loadAllSchedules().then(() => {
-                if (navigator.permissions && navigator.permissions.query) {
-                    navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
-                        if (result.state === 'granted') {
-                            console.log("Location permission already granted. Auto-locating...");
-                            if (typeof findNearestStation === 'function') findNearestStation(true);
-                        }
-                    });
-                }
-            });
+        
+        if (!deepLinkRoute) {
+            if (typeof loadAllSchedules === 'function') {
+                loadAllSchedules().then(() => {
+                    if (navigator.permissions && navigator.permissions.query) {
+                        navigator.permissions.query({ name: 'geolocation' }).then(function(result) {
+                            if (result.state === 'granted') {
+                                console.log("Location permission already granted. Auto-locating...");
+                                if (typeof findNearestStation === 'function') findNearestStation(true);
+                            }
+                        });
+                    }
+                });
+            }
         }
+    } else if (isCrossRegionDeepLink) {
+        console.log("Region mismatch on deep link. Awaiting handleShortcutActions reload.");
     } else {
         console.log("First time user (or switched regions). Showing Welcome Screen.");
         if (typeof loadingOverlay !== 'undefined' && loadingOverlay) {
@@ -4392,7 +4418,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showWelcomeScreen();
     }
 
-    const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('action')) {
         console.log("Shortcut action detected, ignoring saved tab preference.");
     } else {

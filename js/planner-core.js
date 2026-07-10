@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER CORE (V7_07.02 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER CORE (V7_07.07 - Performance Polish Edition)
  * ----------------------------------------------------------------
  * THE "SOUS-CHEF" (Brain)
  * * This module contains PURE LOGIC for route calculation.
@@ -106,7 +106,6 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false, context 
         if (leg2Options.length === 0) continue;
 
         const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
-        const MAX_HUB_WAIT_SEC = 240 * 60; // 🛡️ GUARDIAN FIX: Clamped to 4 hours to prevent overnight layovers
 
         leg1Options.forEach(leg1 => {
             const arrivalSec = timeToSeconds(leg1.arrTime);
@@ -130,7 +129,10 @@ function planHubTransferTrip(origin, dest, dayType, isRollover = false, context 
                 const departSec = timeToSeconds(leg2.depTime);
                 const waitTime = departSec - arrivalSec;
 
-                if (waitTime >= TRANSFER_BUFFER_SEC && waitTime <= MAX_HUB_WAIT_SEC) {
+                // 🛡️ GUARDIAN PHASE 1: The Midnight Barrier (Blocks cross-day stitching)
+                if (waitTime < 0) return;
+
+                if (waitTime >= TRANSFER_BUFFER_SEC) {
                     allTransferOptions.push({
                         type: 'TRANSFER',
                         route: leg1.route, 
@@ -190,7 +192,6 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false, contex
             if (legs2.length === 0) return;
 
             const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
-            const MAX_WAIT_SEC = 240 * 60; // 4 hours
 
             legs1.forEach(l1 => {
                 const arr1 = timeToSeconds(l1.arrTime);
@@ -199,7 +200,10 @@ function planRelayTransferTrip(origin, dest, dayType, isRollover = false, contex
                     const dep2 = timeToSeconds(l2.depTime);
                     const wait = dep2 - arr1;
 
-                    if (wait >= TRANSFER_BUFFER_SEC && wait <= MAX_WAIT_SEC) {
+                    // 🛡️ GUARDIAN PHASE 1: The Midnight Barrier (Blocks cross-day stitching)
+                    if (wait < 0) return;
+
+                    if (wait >= TRANSFER_BUFFER_SEC) {
                         // GUARDIAN V6.24 BUGFIX: If the same train number continues through the
                         // relay station (e.g. train 9116 runs Waltoo->Koedoespoort->Pretoria
                         // as one service), no passenger transfer is needed. Present as DIRECT.
@@ -464,7 +468,6 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType, co
                 
                 if (legsFromRelay.length > 0) {
                     const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 to catch instant platform transfers
-                    const MAX_RELAY_WAIT = 1080 * 60; // 18 hours
 
                     legsToRelay.forEach(l1 => {
                         const arr1 = timeToSeconds(l1.arrTime);
@@ -473,7 +476,10 @@ function findAllLegsWithRelayExpansion(stationA, stationB, routeSet, dayType, co
                             const dep2 = timeToSeconds(l2.depTime);
                             const wait = dep2 - arr1;
                             
-                            if (wait >= TRANSFER_BUFFER_SEC && wait <= MAX_RELAY_WAIT) {
+                            // 🛡️ GUARDIAN PHASE 1: The Midnight Barrier (Blocks cross-day stitching)
+                            if (wait < 0) return;
+
+                            if (wait >= TRANSFER_BUFFER_SEC) {
                                 if (l1.train === l2.train) {
                                     // GUARDIAN V6.24 BUGFIX: Same train number continues through
                                     // the relay station — the passenger stays seated, this is a
@@ -526,7 +532,6 @@ function findIntersections(routeAId, routeBId) {
 
 function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3, dayType, context = {}) {
     const TRANSFER_BUFFER_SEC = 0; // GUARDIAN Phase 5: Dropped to 0 minutes
-    const MAX_WAIT_SEC = 240 * 60; // 🛡️ GUARDIAN FIX: Clamped to 4 hours to prevent overnight layovers
 
     // 1. Get All Leg Options ONCE for each segment to avoid redundant calculations in nested loops
     const legs1 = findAllLegsBetween(origin, hub1, new Set([route1.id]), dayType, context);
@@ -560,7 +565,10 @@ function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3,
         const arr1 = timeToSeconds(l1.arrTime);
         const validLegs2 = legs2.filter(l2 => {
             const dep2 = timeToSeconds(l2.depTime);
-            return dep2 >= arr1 + TRANSFER_BUFFER_SEC && dep2 <= arr1 + MAX_WAIT_SEC;
+            const wait = dep2 - arr1;
+            // 🛡️ GUARDIAN PHASE 1: The Midnight Barrier (Blocks cross-day stitching)
+            if (wait < 0) return false;
+            return wait >= TRANSFER_BUFFER_SEC;
         });
 
         for (const l2 of validLegs2) {
@@ -580,7 +588,10 @@ function calculateThreeLegTrip(origin, hub1, hub2, dest, route1, route2, route3,
             const arr2 = timeToSeconds(l2.arrTime);
             const validLegs3 = legs3.filter(l3 => {
                 const dep3 = timeToSeconds(l3.depTime);
-                return dep3 >= arr2 + TRANSFER_BUFFER_SEC && dep3 <= arr2 + MAX_WAIT_SEC;
+                const wait = dep3 - arr2;
+                // 🛡️ GUARDIAN PHASE 1: The Midnight Barrier (Blocks cross-day stitching)
+                if (wait < 0) return false;
+                return wait >= TRANSFER_BUFFER_SEC;
             });
 
             for (const l3 of validLegs3) {
@@ -752,7 +763,13 @@ function buildTransitGraph(dayType, dayIdx) {
             const schedule = parseJSONSchedule(fullDatabase[dir.key]);
             const rows     = schedule.rows;
 
-            for (const trainName of schedule.headers.slice(1)) {
+            // 🛡️ PHASE 1: Data Pre-Processing (Graph Pruning)
+            // If the schedule array contains station data but no train columns,
+            // we prune this branch and do not create edges for this specific day.
+            const trainHeaders = schedule.headers.slice(1);
+            if (trainHeaders.length === 0) continue;
+
+            for (const trainName of trainHeaders) {
                 if (isTrainExcluded(trainName, routeId, dayIdx)) continue;
 
                 for (let i = 0; i < rows.length - 1; i++) {
@@ -904,8 +921,8 @@ function mergeConsecutiveLegs(legs) {
         let waitSec = timeToSeconds(curr.depTime) - timeToSeconds(prev.arrTime);
         if (waitSec < 0) waitSec += 86400; // Handle midnight rollover safely
         
-        // THE GOLDEN RULE: If Train IDs match exactly, and layover is logical (<= 2 hours), IT IS THE SAME TRAIN.
-        if (prevEndTrain === currStartTrain && waitSec >= 0 && waitSec <= 7200) {
+        // THE GOLDEN RULE: If Train IDs match exactly, IT IS THE SAME TRAIN (uncapped same-day layover allowed).
+        if (prevEndTrain === currStartTrain && waitSec >= 0) {
             out[out.length - 1] = {
                 ...prev,
                 to: curr.to,
@@ -1011,7 +1028,6 @@ function enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, startSec, c
     if (!mergedLegs || mergedLegs.length === 0) return [];
 
     const TRANSFER_BUFFER_SEC = 0;
-    const MAX_WAIT_SEC        = 14400; // 🛡️ GUARDIAN FIX: Clamped to 4 hours (240 * 60) to prevent overnight layovers
 
     const waypoints = [origin, ...mergedLegs.map(l => l.to)];
     const routeIds  = mergedLegs.map(l => l.route.id);
@@ -1038,8 +1054,10 @@ function enumerateTripsByTemplate(mergedLegs, origin, dest, dayType, startSec, c
             const prevArrSec = timeToSeconds(path[path.length - 1].arrTime);
             const bestNext = nextOptions.find(l => {
                 const depSec = timeToSeconds(l.depTime);
-                return depSec >= prevArrSec + TRANSFER_BUFFER_SEC &&
-                       depSec <= prevArrSec + MAX_WAIT_SEC;
+                const wait = depSec - prevArrSec;
+                // 🛡️ GUARDIAN PHASE 1: The Midnight Barrier (Blocks cross-day stitching)
+                if (wait < 0) return false;
+                return wait >= TRANSFER_BUFFER_SEC;
             });
             if (bestNext) nextPaths.push([...path, bestNext]);
         }
@@ -1222,7 +1240,7 @@ function filterDominatedTrips(trips) {
  * Diagnoses exactly WHY a route failed if the 7-day loop yields 0 trips.
  * GUARDIAN PHASE 5: Upgraded to capture the specific disruption payload on ERR_ACTIVE_SUSPENSION.
  */
-function runHeuristicFailureProbe(origin, dest) {
+function runHeuristicFailureProbe(origin, dest, dayType) {
     const normOrigin = typeof normalizeStationName === 'function' ? normalizeStationName(origin) : origin;
     const normDest = typeof normalizeStationName === 'function' ? normalizeStationName(dest) : dest;
     
@@ -1250,7 +1268,7 @@ function runHeuristicFailureProbe(origin, dest) {
         return null;
     };
 
-    const checkConnectivity = (ignoreSuspended) => {
+    const checkConnectivity = (ignoreSuspended, checkSchedule = false) => {
         const queue = [];
         const visited = new Set();
         
@@ -1258,6 +1276,17 @@ function runHeuristicFailureProbe(origin, dest) {
         const endRoutes = new Set(Array.from(dData.routes).filter(r => ROUTES[r] && ROUTES[r].isActive));
         
         for (const r of startRoutes) {
+            // 🛡️ PHASE 2: Check if route is pruned for this specific day
+            if (checkSchedule && dayType) {
+                const directions = getDirectionsForRoute(ROUTES[r], dayType);
+                const hasTrains = directions.some(dir => {
+                    if (!fullDatabase || !fullDatabase[dir.key]) return false;
+                    const sched = parseJSONSchedule(fullDatabase[dir.key]);
+                    return sched.headers.slice(1).length > 0;
+                });
+                if (!hasTrains) continue;
+            }
+
             if (ignoreSuspended) {
                 const susp = getRouteSuspension(r);
                 if (susp) {
@@ -1278,6 +1307,17 @@ function runHeuristicFailureProbe(origin, dest) {
                 if (otherRoute !== curr.route && ROUTES[otherRoute].isActive) {
                     if (!visited.has(otherRoute)) {
                         if (typeof findIntersections === 'function' && findIntersections(curr.route, otherRoute).length > 0) {
+                            // 🛡️ PHASE 2: Check if adjacent route is pruned
+                            if (checkSchedule && dayType) {
+                                const directions = getDirectionsForRoute(ROUTES[otherRoute], dayType);
+                                const hasTrains = directions.some(dir => {
+                                    if (!fullDatabase || !fullDatabase[dir.key]) return false;
+                                    const sched = parseJSONSchedule(fullDatabase[dir.key]);
+                                    return sched.headers.slice(1).length > 0;
+                                });
+                                if (!hasTrains) continue;
+                            }
+
                             if (ignoreSuspended) {
                                 const susp = getRouteSuspension(otherRoute);
                                 if (susp) {
@@ -1295,13 +1335,16 @@ function runHeuristicFailureProbe(origin, dest) {
         return false;
     };
 
-    // 2. Is there ANY physical path?
-    if (!checkConnectivity(false)) return 'ERR_DISCONNECTED_GRAPH';
+    // 2. Is there ANY physical path? (Ignoring daily schedule)
+    if (!checkConnectivity(false, false)) return 'ERR_DISCONNECTED_GRAPH';
 
-    // 3. Since the routing engine handles physical severances visually, 
+    // 3. 🛡️ PHASE 2: Is there a physical path TODAY? (Checking pruned edges)
+    if (!checkConnectivity(false, true)) return 'ERR_NO_SERVICE_TODAY';
+
+    // 4. Since the routing engine handles physical severances visually, 
     // failing to find a route means it is fundamentally a timetable/schedule gap.
     // We check for suspensions purely to attach context to the mismatch error.
-    const isSevered = !checkConnectivity(true); // Populates blockingDisruption
+    const isSevered = !checkConnectivity(true, true); // Populates blockingDisruption
 
     if (isSevered && blockingDisruption) {
         return {
@@ -1312,7 +1355,7 @@ function runHeuristicFailureProbe(origin, dest) {
         };
     }
 
-    // 4. No physical issues, just sparse timetables
+    // 5. No physical issues, just sparse timetables
     return 'ERR_TIMETABLE_MISMATCH';
 }
 
@@ -1435,8 +1478,11 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
             }
         }
 
-        // Metrorail has zero service on Sundays. Instantly fail to force the loop forward.
-        if (targetDayType === 'sunday') {
+        // 🛡️ GUARDIAN PHASE 2 AUDIT: Custom Holiday Recursion Guard
+        // Metrorail has zero service on Sundays natively. However, if an Admin explicitly deployed
+        // a custom holiday override, or we are specifically evaluating a Sunday template,
+        // we must NOT blindly skip it, otherwise the offset jumps infinitely in a loop trying to find a non-Sunday.
+        if (targetDayType === 'sunday' && !isExplicitOverride) {
             return { status: 'SUNDAY_SKIP', trips: [] };
         }
 
@@ -1494,9 +1540,9 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
 
             const checkLayover = (arrTime, depTime) => {
                 let layover = timeToSeconds(depTime) - timeToSeconds(arrTime);
-                // 🛡️ GUARDIAN FIX: Strictly block layovers that cross midnight (layover < 0)
+                // 🛡️ GUARDIAN PHASE 1: Strictly block layovers that cross midnight (layover < 0)
                 if (layover < 0) return false; 
-                return layover >= 0 && layover <= 14400; // 🛡️ GUARDIAN FIX: Clamped to 4 hours (14,400s)
+                return layover >= 0; // Uncapped wait time for same-day survival routes
             };
 
             if (trip.type === 'TRANSFER')
@@ -1608,20 +1654,25 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
     const MAX_SAFE_ROLLOVER_DAYS = 7;
     let maxOffset = isExplicitOverride ? startOffset : startOffset + MAX_SAFE_ROLLOVER_DAYS;
     
-    // 🛡️ GUARDIAN PHASE 15 & 1: Failsafe Loop Limiter upgraded to a Hard Execution Ceiling
-    let executionCounter = 0;
-    const MAX_EXECUTION_LIMIT = 14;
+    // 🛡️ GUARDIAN PHASE 3: Strict Loop Iteration Counter (Recursion Guard)
+    let cycleCount = 0;
 
     // --- GUARDIAN PHASE 16 (UPGRADE): Eager Partial Journey Evaluator ---
     // Pre-compute the backward station sequence ONCE outside the loop to optimize CPU overhead.
-    const getBackwardStationSequence = (dst) => {
+    const getBackwardStationSequence = (dst, targetDay) => {
         const dNorm = normalizeStationName(dst);
         let possibleStations = [];
         for (const route of Object.values(ROUTES)) {
             if (!route.isActive || route.id === 'special_event') continue;
-            for (const dir of getDirectionsForRoute(route, 'weekday')) {
+            for (const dir of getDirectionsForRoute(route, targetDay)) {
                 if (!fullDatabase || !fullDatabase[dir.key]) continue;
-                const rows = parseJSONSchedule(fullDatabase[dir.key]).rows;
+                const sched = parseJSONSchedule(fullDatabase[dir.key]);
+                
+                // 🛡️ PHASE 1: Data Pre-Processing (Graph Pruning)
+                // Skip backward path mapping if this route has zero scheduled trains today
+                if (sched.headers.slice(1).length === 0) continue;
+
+                const rows = sched.rows;
                 if (!rows) continue;
                 const stationsNorm = rows.map(r => normalizeStationName(r.STATION));
                 const idxD = stationsNorm.indexOf(dNorm);
@@ -1635,17 +1686,18 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
         }
         return [...new Set(possibleStations)];
     };
-    const testStations = getBackwardStationSequence(dest);
+    const testStations = getBackwardStationSequence(dest, dayType);
 
     // We scan up to 7 days ahead from the natively requested start offset
     for (let offset = startOffset; offset <= maxOffset; offset++) {
         
-        // 🛡️ GUARDIAN PHASE 1: Absolute hard ceiling to prevent browser freeze or stack explosions
-        if (executionCounter++ > MAX_EXECUTION_LIMIT) {
-            console.error("🛡️ Guardian: Unified Trip loop threshold critically exceeded. Triggering failsafe abort.");
+        // 🛡️ GUARDIAN PHASE 3: Hard circuit breaker at the top of the offset loop
+        if (cycleCount > 10) {
+            console.error("🛡️ Guardian: Unified Trip loop threshold critically exceeded (>10). Triggering failsafe abort to protect Call Stack.");
             loopStatus = 'ERR_TIMETABLE_MISMATCH'; // Graceful UI fallback
             break;
         }
+        cycleCount++;
 
         // 🛡️ GUARDIAN PHASE 16: Event Loop Yielding (Anti-Freeze)
         // Forces JavaScript to take a 1ms breath per day evaluated, unblocking the UI spinner thread.
@@ -1667,8 +1719,8 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
                 // If it's a hard physical severance (sinkhole, cross-region), there is NO 
                 // mathematical reason to scan the next 6 days. Abort the future scan.
                 if (evalResult.status === 'NO_PATH' && !isExplicitOverride) {
-                    const earlyProbe = runHeuristicFailureProbe(origin, dest);
-                    if (typeof earlyProbe === 'object' || earlyProbe === 'ERR_CROSS_REGION' || earlyProbe === 'ERR_DISCONNECTED_GRAPH') {
+                    const earlyProbe = runHeuristicFailureProbe(origin, dest, targetDayType);
+                    if (typeof earlyProbe === 'object' || earlyProbe === 'ERR_CROSS_REGION' || earlyProbe === 'ERR_DISCONNECTED_GRAPH' || earlyProbe === 'ERR_NO_SERVICE_TODAY') {
                         console.log("🛡️ Guardian: Hard physical block detected on Day 1. Short-circuiting 7-day loop.");
                         // Force the loop to terminate after today's iteration (allowing today's partial journey check to finish)
                         maxOffset = offset;
@@ -1739,7 +1791,7 @@ async function planUnifiedTrip(origin, dest, dayType, externalContext = {}) {
     if (loopTrips.length === 0) {
         // GUARDIAN PHASE 14: THE HEURISTIC FAILURE PROBE
         console.log("[GUARDIAN] Zero trips found after 7-day scan (including partials). Initiating Heuristic Failure Probe...");
-        const probeResult = runHeuristicFailureProbe(origin, dest);
+        const probeResult = runHeuristicFailureProbe(origin, dest, dayType);
         
         // GUARDIAN PHASE 5: Unwrap rich payload
         if (typeof probeResult === 'object' && probeResult !== null) {

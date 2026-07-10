@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_07.02 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_07.07 - Performance Polish Edition)
  * ------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -115,7 +115,7 @@ const Renderer = {
                             <div class="flex items-center min-w-0 pr-2">
                                 <span class="w-3 h-3 rounded-full mr-3 flex-shrink-0 ${dotColor} ${isActive ? 'ring-2 ring-blue-300 dark:ring-blue-700' : ''}"></span>
                                 <span class="text-[10px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest mr-2 flex-shrink-0">Pinned:</span>
-                                <span class="truncate">${r.name.replace('<->', '↔')}</span>
+                                <span class="truncate">${r.name.replace('<->', '•')}</span>
                             </div>
                             ${isActive ? '<svg class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' : ''}
                         </a>
@@ -136,7 +136,7 @@ const Renderer = {
                     const isActive = r.id === activeRouteId;
                     const activeBg = isActive ? 'bg-blue-50 dark:bg-blue-900/20 font-black text-blue-700 dark:text-blue-300' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-200 font-medium';
                     const dotColor = Renderer._getDotColor(r.colorClass);
-                    const displayName = r.name.replace('<->', '↔');
+                    const displayName = r.name.replace('<->', '•');
                     
                     if (!r.isActive) {
                         html += `
@@ -195,7 +195,7 @@ const Renderer = {
             if (route.id === 'special_event') return;
 
             const btn = document.createElement('button');
-            const displayName = route.name.replace('<->', '↔');
+            const displayName = route.name.replace('<->', '•');
             
             if (route.isActive) {
                 let borderColor = 'border-gray-500';
@@ -282,11 +282,11 @@ const Renderer = {
                     <span class="text-3xl">🚧</span>
                 </div>
                 <h3 class="text-xl font-black text-gray-900 dark:text-white mb-2">Route Under Construction</h3>
-                <p class="text-sm text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
-                    We are currently building the digital timetable for the <strong class="text-blue-600 dark:text-blue-400">${routeName.replace('<->', '↔')}</strong> corridor.
-                </p>
-                
-                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800 w-full text-left">
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
+                We are currently building the digital timetable for the <strong class="text-blue-600 dark:text-blue-400">${routeName.replace('<->', '•')}</strong> corridor.
+            </p>
+            
+            <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800 w-full text-left">
                     <p class="text-xs font-bold text-blue-800 dark:text-blue-300 mb-1 uppercase tracking-wider">Do you commute on this line?</p>
                     <p class="text-xs text-gray-700 dark:text-gray-300 mb-4">
                         If you have recent photos of the official station timetables, you can help us launch this route faster!
@@ -506,8 +506,10 @@ const Renderer = {
              // GUARDIAN V6.04.14 FIX: Universal String Split for region-agnostic formatting
              if (rawName.includes('<->')) {
                  routeName = rawName.split('<->')[1].trim();
+             } else if (rawName.includes('•')) {
+                 routeName = rawName.split('•')[1].trim();
              } else if (rawName.includes('↔')) {
-                 routeName = rawName.split('↔')[1].trim();
+                 routeName = rawName.split('↔')[1].trim(); // Legacy fallback
              }
 
              if (journey.isDivergent) {
@@ -944,8 +946,13 @@ const Renderer = {
         // GUARDIAN Phase 4 (Context Engine): Inject UI Grid Notice from memory
         let gridNoticeHtml = '';
         if (!isExport && typeof globalExclusions !== 'undefined' && globalExclusions[routeId] && globalExclusions[routeId]['_grid_notice']) {
-            const noticeText = globalExclusions[routeId]['_grid_notice'].text;
-            if (noticeText && noticeText.trim() !== '') {
+            const noticeObj = globalExclusions[routeId]['_grid_notice'];
+            const noticeText = noticeObj.text;
+            
+            // 🛡️ GUARDIAN PHASE 1: Expiry Verification
+            const isExpired = noticeObj.expiresAt && Date.now() > noticeObj.expiresAt;
+            
+            if (!isExpired && noticeText && noticeText.trim() !== '') {
                 const cleanText = typeof escapeHTML === 'function' ? escapeHTML(noticeText) : noticeText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
                 gridNoticeHtml = `
                     <div class="bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500 p-3 mx-3 my-4 text-[11px] sm:text-xs text-blue-800 dark:text-blue-300 font-medium shadow-sm rounded-r flex items-start">
@@ -967,7 +974,14 @@ const Renderer = {
                         <th class="sticky left-0 z-30 ${stickyHeaderClass} ${paddingClass} border-b border-r font-bold min-w-[140px] shadow-lg text-left pl-3">Station</th>
                         ${sortedCols.map((h, i) => {
                             const isHighlight = i === activeColIndex;
-                            const exclusionType = (typeof isTrainExcluded === 'function') ? isTrainExcluded(h, routeId, dayIdx) : false;
+                            let exclusionType = (typeof isTrainExcluded === 'function') ? isTrainExcluded(h, routeId, dayIdx) : false;
+                            
+                            // 🛡️ GUARDIAN PHASE 1: Export Visibility Stealth Mode
+                            if (isExport && exclusionType && typeof globalExclusions !== 'undefined' && globalExclusions[routeId] && globalExclusions[routeId][h]) {
+                                if (globalExclusions[routeId][h].showOnExport === false) {
+                                    exclusionType = false; // Pretend it's a normal train for the export header
+                                }
+                            }
                             
                             let bgClass = '';
                             let headerContent = h;
@@ -1050,7 +1064,15 @@ const Renderer = {
                         }
 
                         const isHighlight = i === activeColIndex;
-                        const exclusionType = (typeof isTrainExcluded === 'function') ? isTrainExcluded(col, routeId, dayIdx) : false;
+                        let exclusionType = (typeof isTrainExcluded === 'function') ? isTrainExcluded(col, routeId, dayIdx) : false;
+
+                        // 🛡️ GUARDIAN PHASE 1: Export Visibility Stealth Mode
+                        if (isExport && exclusionType && typeof globalExclusions !== 'undefined' && globalExclusions[routeId] && globalExclusions[routeId][col]) {
+                            if (globalExclusions[routeId][col].showOnExport === false) {
+                                exclusionType = false; // Drop the visual badge
+                                val = ""; // Force the cell to be blank (standard stealth cancellation)
+                            }
+                        }
 
                         let cellClass = `${paddingClass} text-center border-r ${borderClass} border-b`;
                         
@@ -1175,7 +1197,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     const scheduleTypeLabel = selectedDay === 'weekday' ? 'WEEKDAY' : 'WEEKEND';
     const finalScheduleTypeLabel = hasExceptions ? `AMENDED ${scheduleTypeLabel}` : scheduleTypeLabel;
     
-    const displayRouteName = route.name.replace('<->', '↔');
+    const displayRouteName = route.name.replace('<->', '•');
     
     let effectiveDateText = "";
     if (schedA && schedA.lastUpdated) {
@@ -1185,8 +1207,14 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
     // GUARDIAN Phase 4: Inject Export-Friendly Grid Notice
     let exportGridNoticeHtml = '';
     if (typeof globalExclusions !== 'undefined' && globalExclusions[currentRouteId] && globalExclusions[currentRouteId]['_grid_notice']) {
-        const noticeText = globalExclusions[currentRouteId]['_grid_notice'].text;
-        if (noticeText && noticeText.trim() !== '') {
+        const noticeObj = globalExclusions[currentRouteId]['_grid_notice'];
+        const noticeText = noticeObj.text;
+        
+        // 🛡️ GUARDIAN PHASE 1: Expiry Verification & Stealth Mode
+        const isExpired = noticeObj.expiresAt && Date.now() > noticeObj.expiresAt;
+        const shouldShow = noticeObj.showOnExport !== false && !isExpired;
+        
+        if (shouldShow && noticeText && noticeText.trim() !== '') {
             const cleanText = typeof escapeHTML === 'function' ? escapeHTML(noticeText) : noticeText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             exportGridNoticeHtml = `
                 <div style="background-color: #eff6ff; border-left: 5px solid ${accentColor}; padding: 12px 16px; margin-bottom: 24px; font-size: 14px; color: #1e3a8a; border-radius: 0 6px 6px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: flex; align-items: flex-start;">
@@ -1364,7 +1392,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
 
         canvas.toBlob(async (blob) => {
             const timestampStr = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 12); 
-            const fileName = `Schedule_${route.name.replace(/\s|<->/g,'_').replace(/_+/g, '_')}_${selectedDay}_${timestampStr}.png`;
+            const fileName = `Schedule_${route.name.replace(/\s|<->|•/g,'_').replace(/_+/g, '_')}_${selectedDay}_${timestampStr}.png`;
             const file = new File([blob], fileName, { type: "image/png" });
             const blobUrl = URL.createObjectURL(blob);
             
@@ -1374,7 +1402,7 @@ window.takeGridSnapshot = async function(direction = 'A', dayType = 'weekday') {
             link.click();
             
             window._pendingShareFile = file;
-            window._pendingShareText = `Commuter Notice: ${route.name.replace('<->', '↔')} (${selectedDay})`;
+            window._pendingShareText = `Commuter Notice: ${route.name.replace('<->', '•')} (${selectedDay})`;
             
             const canShare = navigator.canShare && navigator.canShare({ files: [file] });
             const shareBtnHTML = canShare 

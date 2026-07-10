@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7_07.02 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_07.07 - Performance Polish Edition)
  * --------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * * This module handles user interaction, DOM updates, and event listeners.
@@ -724,20 +724,21 @@ const PlannerRenderer = {
             const isExtended = Math.floor(it.wait / 60) >= 240;
             const iconBg = isExtended ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
             const waitTextColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white';
-            const bridgeTitle = isExtended ? `⚠️ EXTENDED LAYOVER` : `INTERNAL TRANSFER`;
+            const bridgeTitle = isExtended ? `EXTENDED LAYOVER` : `INTERNAL TRANSFER`;
+            const bridgeIcon = isExtended ? `<svg class="w-3 h-3 mr-1 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>` : ``;
             const bridgeTitleColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
             const bigClockSvg = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
             
             combinedHtml += `
                 <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
                     <div class="relative py-2 z-20">
-                        <div class="bg-slate-50 dark:bg-slate-800/40 rounded-r-lg border-l-4 ${isExtended ? 'border-orange-500' : 'border-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-sm">
+                        <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${isExtended ? 'border-l-orange-500' : 'border-l-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
                             <div class="flex items-center min-w-0 pr-3">
                                 <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
                                     ${bigClockSvg}
                                 </div>
                                 <div class="flex flex-col items-start min-w-0">
-                                    <span class="text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle} @ ${sName}">${bridgeTitle} @ ${sName}</span>
+                                    <span class="flex items-center text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle} @ ${sName}">${bridgeIcon}${bridgeTitle} @ ${sName}</span>
                                     <span class="font-bold text-[11px] ${waitTextColor} leading-none truncate">${waitStr} Wait</span>
                                 </div>
                             </div>
@@ -848,7 +849,8 @@ const PlannerRenderer = {
         
         if (maxWaitMins >= 240) {
             const waitStr = PlannerRenderer.formatDuration(maxWaitMins);
-            layoverBanner = `<div class="bg-orange-50 dark:bg-orange-900/30 border-l-4 border-orange-500 text-orange-800 dark:text-orange-300 text-[10px] font-bold p-2.5 mb-3 rounded-r shadow-sm flex items-start"><span class="text-sm mr-2 leading-none">⚠️</span><span>Please be advised that your trip includes a wait time of <b>${waitStr}</b> @ ${Renderer._applyUIIntercepts(hubName)}.</span></div>`;
+            const alertSvg = `<svg class="w-4 h-4 mr-2 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+            layoverBanner = `<div class="bg-orange-50 dark:bg-orange-900/30 border-l-4 border-orange-500 text-orange-800 dark:text-orange-300 text-[10px] font-bold p-2.5 mb-3 rounded-r shadow-sm flex items-start">${alertSvg}<span>Please be advised that your trip includes a wait time of <b>${waitStr}</b> @ ${Renderer._applyUIIntercepts(hubName)}.</span></div>`;
         }
 
         let stateBadge = "";
@@ -856,7 +858,7 @@ const PlannerRenderer = {
         if (isNextDay) {
              const dynamicDayText = step.dayLabel ? `Departure: ${step.dayLabel}` : "Departure: Tomorrow";
              stateBadge = `<div class="flex items-center text-sm font-bold text-orange-600 dark:text-orange-400">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                             ${dynamicDayText}
                           </div>`;
         } else if (isDeparted) {
@@ -873,7 +875,7 @@ const PlannerRenderer = {
             `;
         } else {
             stateBadge = `<div class="flex items-center text-sm font-bold text-blue-600 dark:text-blue-400">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                             ${countdown}
                           </div>`;
         }
@@ -1059,7 +1061,8 @@ const PlannerRenderer = {
                 }
 
                 const transferOpacity = currentSevered ? "opacity-50 grayscale" : "";
-                const bridgeTitle = isExtended ? `⚠️ EXTENDED LAYOVER` : `TRANSFER ${i+1}`;
+                const bridgeTitle = isExtended ? `EXTENDED LAYOVER` : `TRANSFER ${i+1}`;
+                const bridgeIcon = isExtended ? `<svg class="w-3 h-3 mr-1 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>` : ``;
                 const bridgeTitleColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
                 const lineColor = isExtended ? 'bg-orange-500' : 'bg-blue-500';
                 const iconBg = isExtended ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
@@ -1070,13 +1073,13 @@ const PlannerRenderer = {
                 html += `
                     <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
                         <div class="relative py-2 z-20 w-full">
-                            <div class="bg-slate-50 dark:bg-slate-800/40 rounded-r-lg border-l-4 ${isExtended ? 'border-orange-500' : 'border-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-sm">
+                            <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${isExtended ? 'border-l-orange-500' : 'border-l-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
                                 <div class="flex items-center min-w-0 pr-3">
                                     <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
                                         ${bigClockSvg}
                                     </div>
                                     <div class="flex flex-col items-start min-w-0">
-                                        <span class="text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle} @ ${hubName}">${bridgeTitle} @ ${hubName}</span>
+                                        <span class="flex items-center text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle} @ ${hubName}">${bridgeIcon}${bridgeTitle} @ ${hubName}</span>
                                         <span class="font-bold text-[11px] ${waitTextColor} leading-none truncate">${waitStr} Wait</span>
                                     </div>
                                 </div>
@@ -1119,7 +1122,8 @@ const PlannerRenderer = {
             }
         }
 
-        const bridgeTitle = isExtended ? `⚠️ EXTENDED LAYOVER` : `TRANSFER REQUIRED`;
+        const bridgeTitle = isExtended ? `EXTENDED LAYOVER` : `TRANSFER REQUIRED`;
+        const bridgeIcon = isExtended ? `<svg class="w-3 h-3 mr-1 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>` : ``;
         const bridgeTitleColor = isExtended ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
         const lineColor = isExtended ? 'bg-orange-500' : 'bg-blue-500';
         const iconBg = isExtended ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
@@ -1130,13 +1134,13 @@ const PlannerRenderer = {
         const standardTransferBlock = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity}">
                 <div class="relative py-2 z-20 w-full">
-                    <div class="bg-slate-50 dark:bg-slate-800/40 rounded-r-lg border-l-4 ${isExtended ? 'border-orange-500' : 'border-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-sm">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${isExtended ? 'border-l-orange-500' : 'border-l-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
                         <div class="flex items-center min-w-0 pr-3">
                             <div class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
                                 ${bigClockSvg}
                             </div>
                             <div class="flex flex-col items-start min-w-0">
-                                <span class="text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle}">${bridgeTitle}</span>
+                                <span class="flex items-center text-[8px] font-black ${bridgeTitleColor} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle}">${bridgeIcon}${bridgeTitle}</span>
                                 <span class="font-bold text-[11px] ${waitTextColor} leading-none truncate">${waitStr} Wait</span>
                             </div>
                         </div>
@@ -1194,7 +1198,8 @@ const PlannerRenderer = {
             }
         }
 
-        const bridgeTitle1 = isExtended1 ? `⚠️ EXTENDED LAYOVER` : `TRANSFER 1`;
+        const bridgeTitle1 = isExtended1 ? `EXTENDED LAYOVER` : `TRANSFER 1`;
+        const bridgeIcon1 = isExtended1 ? `<svg class="w-3 h-3 mr-1 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>` : ``;
         const bridgeTitleColor1 = isExtended1 ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
         const line1Color = isExtended1 ? 'bg-orange-500' : 'bg-blue-500';
         const iconBg1 = isExtended1 ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
@@ -1204,13 +1209,13 @@ const PlannerRenderer = {
         const transferBlock1 = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity1}">
                 <div class="relative py-2 z-20 w-full">
-                    <div class="bg-slate-50 dark:bg-slate-800/40 rounded-r-lg border-l-4 ${isExtended1 ? 'border-orange-500' : 'border-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-sm">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${isExtended1 ? 'border-l-orange-500' : 'border-l-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
                         <div class="flex items-center min-w-0 pr-3">
                             <div class="w-8 h-8 rounded-full ${iconBg1} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
                                 ${bigClockSvg1}
                             </div>
                             <div class="flex flex-col items-start min-w-0">
-                                <span class="text-[8px] font-black ${bridgeTitleColor1} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle1} @ ${hub1Name}">${bridgeTitle1} @ ${hub1Name}</span>
+                                <span class="flex items-center text-[8px] font-black ${bridgeTitleColor1} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle1} @ ${hub1Name}">${bridgeIcon1}${bridgeTitle1} @ ${hub1Name}</span>
                                 <span class="font-bold text-[11px] ${waitTextColor1} leading-none truncate">${wait1Str} Wait</span>
                             </div>
                         </div>
@@ -1239,7 +1244,8 @@ const PlannerRenderer = {
             }
         }
 
-        const bridgeTitle2 = isExtended2 ? `⚠️ EXTENDED LAYOVER` : `TRANSFER 2`;
+        const bridgeTitle2 = isExtended2 ? `EXTENDED LAYOVER` : `TRANSFER 2`;
+        const bridgeIcon2 = isExtended2 ? `<svg class="w-3 h-3 mr-1 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>` : ``;
         const bridgeTitleColor2 = isExtended2 ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400';
         const line2Color = isExtended2 ? 'bg-orange-500' : 'bg-blue-500';
         const iconBg2 = isExtended2 ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400';
@@ -1249,13 +1255,13 @@ const PlannerRenderer = {
         const transferBlock2 = `
             <div class="border-l-2 border-gray-300 dark:border-gray-600 ml-2 ${transferOpacity2}">
                 <div class="relative py-2 z-20 w-full">
-                    <div class="bg-slate-50 dark:bg-slate-800/40 rounded-r-lg border-l-4 ${isExtended2 ? 'border-orange-500' : 'border-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-sm">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 ${isExtended2 ? 'border-l-orange-500' : 'border-l-blue-500'} p-2.5 flex items-center justify-between w-[calc(100%+2px)] -ml-[2px] shadow-md">
                         <div class="flex items-center min-w-0 pr-3">
                             <div class="w-8 h-8 rounded-full ${iconBg2} flex items-center justify-center shrink-0 mr-2.5 shadow-sm">
                                 ${bigClockSvg2}
                             </div>
                             <div class="flex flex-col items-start min-w-0">
-                                <span class="text-[8px] font-black ${bridgeTitleColor2} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle2} @ ${hub2Name}">${bridgeTitle2} @ ${hub2Name}</span>
+                                <span class="flex items-center text-[8px] font-black ${bridgeTitleColor2} uppercase tracking-widest leading-none mb-1 truncate w-full" title="${bridgeTitle2} @ ${hub2Name}">${bridgeIcon2}${bridgeTitle2} @ ${hub2Name}</span>
                                 <span class="font-bold text-[11px] ${waitTextColor2} leading-none truncate">${wait2Str} Wait</span>
                             </div>
                         </div>
@@ -2133,6 +2139,19 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                         ${suspensionAlertHtml}
                     `;
                     break;
+                case 'ERR_NO_SERVICE_TODAY':
+                    errorTitle = "No Service Scheduled";
+                    errorMsg = `
+                        <div class="text-left space-y-2 mt-2">
+                            <p>There are no trains scheduled to run on this route for the selected day.</p>
+                            <ul class="list-disc pl-5 space-y-1 text-xs">
+                                <li>This usually occurs on weekends or public holidays when specific lines do not operate.</li>
+                                <li>Try selecting a different travel day (e.g., a Weekday) using the dropdown above.</li>
+                            </ul>
+                        </div>
+                    `;
+                    showFeedbackBtn = true;
+                    break;
                 case 'ERR_TIMETABLE_MISMATCH':
                     errorTitle = "Extreme Schedule Gaps";
                     
@@ -2151,9 +2170,9 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                     
                     errorMsg = `
                         <div class="text-left space-y-2 mt-2">
-                            <p>A physical path exists, but the connecting trains have layovers exceeding 4 hours.</p>
+                            <p>A physical path exists, but we couldn't find a viable same-day connection on today's schedule.</p>
                             <ul class="list-disc pl-5 space-y-1 text-xs">
-                                <li>We couldn't find a viable connection on today's schedule (Max 4-hour layover limit reached).</li>
+                                <li>You may need to wait until the next available service tomorrow.</li>
                                 <li>If you know a better way to make this trip, please report it below.</li>
                             </ul>
                         </div>
@@ -2309,7 +2328,7 @@ function updatePlannerHeader(dayLabel, showShare = true) {
         const badge = document.createElement("div");
         badge.id = "planner-header-badge";
         // 🛡️ GUARDIAN UX FIX: Bumped text-xs to text-sm to perfectly align with the Back and Share buttons
-        badge.className = "relative bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-800 dark:text-blue-300 text-sm font-bold rounded-lg border border-blue-100 dark:border-blue-800 shadow-sm flex items-center transition-colors w-full max-w-[150px] cursor-pointer group h-[38px]"; 
+        badge.className = "relative bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-600 dark:text-blue-400 text-sm font-bold rounded-lg border border-blue-100 dark:border-blue-800 shadow-sm flex items-center transition-colors w-full max-w-[150px] cursor-pointer group h-[38px]";
         
         let selDay = selectedPlannerDay || (typeof currentDayType !== 'undefined' ? currentDayType : 'weekday');
         let selText = selDay === 'weekday' ? 'Mon - Fri' : (selDay === 'saturday' ? 'Saturday / Hol' : 'Sunday');
@@ -2553,10 +2572,11 @@ function renderImpossibleTodayResult(container, trips, selectedIndex = 0) {
 }
 
 function renderErrorCard(title, message, actionHtml = "") {
+    const errorAlertSvg = `<svg class="w-8 h-8 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
     return `
         <div class="bg-transparent border-b-4 border-yellow-200 dark:border-yellow-800/50 pb-6 mb-4 text-center">
             <div class="flex items-center justify-center mb-3">
-                <span class="text-3xl mr-2">⚠️</span>
+                ${errorAlertSvg}
                 <h3 class="font-black text-yellow-800 dark:text-yellow-400 text-xl">${title}</h3>
             </div>
             <div class="text-sm text-gray-700 dark:text-gray-300 pt-2">

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  Metrorail Next Train V7_07.02 (Performance Polish Edition - UI/UX Polish)
+  Metrorail Next Train V7_07.07 (Performance Polish Edition - UI/UX Polish)
   - UX: Floated Sidenav Close button, expanded Sidenav internal padding to utilize space.
   - UX: Injected CSS Proportions Fix to stop Pienaarspoort text truncation.
   - UX: Added underlines to Legal footer links.
@@ -403,6 +403,19 @@
             overscroll-behavior: none !important;
         }
 
+        /* 🛡️ GUARDIAN PHASE 4: Third-Party Anchor Ad Shield */
+        /* Prevents Google/DoubleClick auto-injected anchor ads from bleeding over z-[95] modals */
+        body.modal-active ins.adsbygoogle,
+        body.modal-active iframe[src*="doubleclick.net"],
+        body.modal-active iframe[src*="google.com/ads"],
+        body.modal-active [id^="google_ads_iframe"],
+        body.modal-active .google-auto-placed {
+            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
+        }
+
         /* GUARDIAN V6.23 JIT BYPASS: Offline Banner Positioning & Centring */
         #offline-wrapper {
             position: absolute;
@@ -647,7 +660,7 @@
     <div id="main-content" class="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden relative min-h-[600px] flex flex-col border border-gray-200 dark:border-gray-700" style="display: none;">
         
         <!-- THE CLEAN HEADER (Glassmorphism) -->
-        <div class="pt-2 px-3 pb-1 bg-white/85 dark:bg-gray-800/95 backdrop-blur-xl z-20 shadow-sm relative flex flex-col justify-center min-h-[85px] border-b border-gray-200/50 dark:border-gray-800/50">
+        <div class="pt-2 px-3 pb-1 bg-white/85 dark:bg-gray-800/95 backdrop-blur-xl z-20 shadow-sm relative flex flex-col justify-center min-h-[85px] dark:border-b dark:border-gray-800/50">
             
             <!-- GUARDIAN UX V6.08: Flex-Wrapped Drop-Tab (Solves width stretching & clipping) -->
             <div id="offline-wrapper" class="absolute top-0 left-0 right-0 flex justify-center z-[60] pointer-events-none">
@@ -738,7 +751,7 @@
                         <select id="station-select" class="hidden w-full p-4 rounded-xl bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-lg font-medium text-gray-900 dark:text-white shadow-sm focus:border-blue-50 focus:ring-blue-500 transition-colors">
                             <option value="">Loading stations...</option>
                         </select>
-                        <input type="text" readonly id="station-search-input" placeholder="Select Station..." class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl shadow-sm p-3 text-base sm:text-lg font-medium focus:ring-blue-500 focus:border-blue-500 transition-colors h-[54px] appearance-none pr-12 cursor-pointer select-none truncate">
+                        <input type="text" readonly id="station-search-input" placeholder="Select Station..." class="block w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-xl shadow-sm p-3 text-lg font-medium focus:ring-blue-500 focus:border-blue-500 transition-colors h-[54px] appearance-none pr-12 cursor-pointer select-none truncate">
                         <div id="next-train-chevron" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 cursor-pointer p-2 hover:text-blue-500 z-10 transition-colors">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </div>
