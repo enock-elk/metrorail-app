@@ -1345,29 +1345,6 @@ const Admin = {
         // Admin will rely purely on the bottom Sign Out button.
         const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6');
 
-        // 1. Inject Live Clock (Guardian UX Upgrade) precisely above Telemetry
-        let clockContainer = document.getElementById('admin-live-clock');
-        if (!clockContainer) {
-            const telPanel = document.getElementById('telemetry-panel');
-            if (telPanel) {
-                clockContainer = document.createElement('div');
-                clockContainer.id = 'admin-live-clock';
-                clockContainer.className = 'text-center mb-4 shrink-0';
-                clockContainer.innerHTML = `<span class="text-xs font-mono font-bold text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-3.5 py-1.5 rounded-full shadow-sm border border-gray-200 dark:border-gray-700"></span>`;
-                telPanel.parentNode.insertBefore(clockContainer, telPanel);
-            }
-        }
-
-        if (!Admin.clockInterval) {
-            Admin.clockInterval = setInterval(() => {
-                const devModal = document.getElementById('dev-modal');
-                if (devModal && !devModal.classList.contains('hidden') && clockContainer) {
-                    const now = new Date();
-                    clockContainer.querySelector('span').textContent = now.toLocaleString('en-ZA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                }
-            }, 1000);
-        }
-
         // Setup Execution Order
         Admin.setupTelemetry();
         Admin.setupFeedbackManager(); 
@@ -1545,29 +1522,29 @@ const Admin = {
                 const timeBadge = isPermanent ? 'Permanent' : `in ${hrsLeft} hrs`;
                 
                 listHtml += `
-                    <div class="flex flex-col ${bgClass} p-4 rounded-xl border shadow-sm mt-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer relative" onclick="Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')">
+                    <div class="flex flex-col ${bgClass} p-3 rounded-xl border shadow-sm mt-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer relative" onclick="Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')">
                         
-                        <div class="absolute top-4 right-4 text-[10px] font-black ${colorClass} bg-white dark:bg-gray-800 px-2.5 py-1.5 rounded-lg shadow-sm border border-current z-10 whitespace-nowrap">
+                        <div class="absolute top-3 right-3 text-[10px] font-black ${colorClass} bg-white dark:bg-gray-800 px-2 py-1 rounded-lg shadow-sm border border-current z-10 whitespace-nowrap">
                             ${timeBadge}
                         </div>
 
-                        <div class="flex flex-col items-start pr-20 mb-4 w-full">
-                            <span class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2.5">${item.type}</span>
+                        <div class="flex flex-col items-start pr-20 mb-2 w-full">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">${item.type}</span>
                             <div class="mb-2 max-w-full">
                                 <div class="inline-flex items-center flex-wrap">
                                     ${getRegionBadge(item.routeId)}
                                 </div>
                             </div>
-                            <span class="text-sm font-bold text-slate-800 dark:text-slate-200 leading-relaxed break-words w-full">
+                            <span class="text-xs font-bold text-slate-800 dark:text-slate-200 leading-relaxed break-words w-full">
                                 ${item.label}
                             </span>
                         </div>
                         
-                        <div class="flex gap-3 pt-3 border-t border-gray-200/50 dark:border-gray-700/50 mt-auto w-full">
-                            <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-300 text-xs font-bold py-2 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm transition-colors focus:outline-none flex items-center justify-center">
+                        <div class="flex gap-3 pt-2.5 border-t border-gray-200/50 dark:border-gray-700/50 mt-auto w-full">
+                            <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-300 text-xs font-bold py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm transition-colors focus:outline-none flex items-center justify-center">
                                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Resolve
                             </button>
-                            <button onclick="event.stopPropagation(); window._actionRequiredWasOpen = true; Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')" class="flex-1 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold py-2 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center">
+                            <button onclick="event.stopPropagation(); window._actionRequiredWasOpen = true; Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')" class="flex-1 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold py-1.5 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center">
                                 Review &rarr;
                             </button>
                         </div>
@@ -1625,7 +1602,7 @@ const Admin = {
 
             // Hide all children
             Array.from(container.children).forEach(child => {
-                child.style.display = 'none'; // 🛡️ GUARDIAN UX FIX: Hide clock too to save vertical space
+                child.style.display = 'none'; 
             });
 
             // Show target panel and its body
@@ -1637,7 +1614,7 @@ const Admin = {
 
             // 🛡️ GUARDIAN UX FIX: Hide redundant internal accordion header during full-screen drill-down
             const internalHeader = targetPanel.querySelector('[id$="-header-btn"]');
-            if (internalHeader) internalHeader.style.display = 'none';
+            if (internalHeader) internalHeader.style.setProperty('display', 'none', 'important');
 
             // Update Header Title
             const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6') || document.querySelector('#dev-modal .border-b.border-gray-200.pb-2.mb-3');
@@ -2310,7 +2287,7 @@ const Admin = {
                 if (!Admin.isGridMode) return;
                 
                 const card = e.target.closest('.admin-grid-view > div');
-                if (!card || card.id === 'admin-live-clock') return;
+                if (!card) return;
                 
                 // Trigger Drill Down
                 Admin.isGridMode = false;
@@ -2332,7 +2309,7 @@ const Admin = {
                 
                 // Hide sibling cards
                 Array.from(container.children).forEach(child => {
-                    if (child !== card && child.id !== 'admin-live-clock') {
+                    if (child !== card) {
                         child.style.display = 'none';
                     }
                 });
@@ -2342,6 +2319,10 @@ const Admin = {
                 if (body) body.classList.remove('hidden');
                 const chev = card.querySelector('[id$="-chevron"]');
                 if (chev) chev.classList.remove('-rotate-90');
+
+                // 🛡️ GUARDIAN UX FIX: Force hide the inner header to prevent duplicates
+                const innerHeader = card.querySelector('[id$="-header-btn"]');
+                if (innerHeader) innerHeader.style.setProperty('display', 'none', 'important');
                 
                 // Morph Modal Header
                 const titleH3 = devHeaderRow.querySelector('h3');
@@ -2419,7 +2400,7 @@ const Admin = {
                             
                             // 🛡️ GUARDIAN UX FIX: Restore internal accordion header
                             const h = child.querySelector('[id$="-header-btn"]');
-                            if (h) h.style.display = '';
+                            if (h) h.style.removeProperty('display');
                         });
                     
                     // 🛡️ GUARDIAN UX FIX: Recalculate and clear badges locally when returning to grid
@@ -2638,7 +2619,7 @@ const Admin = {
                     
                     let reasonBadge = "bg-gray-100 text-gray-600";
                     let reasonText = "Unknown";
-                    if (item.reason === 'ERR_TIMETABLE_MISMATCH') { reasonBadge = "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400"; reasonText = "Sparse Schedule (>4h)"; }
+                    if (item.reason === 'ERR_TIMETABLE_MISMATCH') { reasonBadge = "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400"; reasonText = "Sparse Schedule"; }
                     else if (item.reason === 'ERR_DISCONNECTED_GRAPH') { reasonBadge = "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400"; reasonText = "No Physical Link"; }
                     else if (item.reason === 'ERR_CROSS_REGION') { reasonBadge = "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400"; reasonText = "Cross Region"; }
                     else if (item.reason === 'ERR_ACTIVE_SUSPENSION') { reasonBadge = "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400"; reasonText = "Line Severed"; }
@@ -3610,23 +3591,22 @@ const Admin = {
                     <h3 class="text-lg font-black text-gray-900 dark:text-white mb-2 tracking-tight flex items-center"><span class="mr-2">💬</span> Reply to Commuter</h3>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Message will be delivered to their personal inbox upon next app launch.</p>
                     
-                    <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 p-1 border-b border-gray-300 dark:border-gray-600">
-                            <button type="button" onclick="Admin.formatAlertText('bold', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Bold">B</button>
-                            <button type="button" onclick="Admin.formatAlertText('italic', 'admin-reply-text')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Italic">I</button>
+                    <div class="flex flex-wrap items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 border-b border-gray-300 dark:border-gray-600">
+                            <button type="button" onclick="Admin.formatAlertText('bold', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Bold">B</button>
+                            <button type="button" onclick="Admin.formatAlertText('italic', 'admin-reply-text')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Italic">I</button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('larger', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Increase Size">A+</button>
-                            <button type="button" onclick="Admin.formatAlertText('smaller', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Decrease Size">A-</button>
+                            <button type="button" onclick="Admin.formatAlertText('larger', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Increase Size">A+</button>
+                            <button type="button" onclick="Admin.formatAlertText('smaller', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Decrease Size">A-</button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('justifyLeft', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path></svg></button>
-                            <button type="button" onclick="Admin.formatAlertText('justifyCenter', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
-                            <button type="button" onclick="Admin.formatAlertText('justifyRight', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onclick="Admin.formatAlertText('justifyLeft', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onclick="Admin.formatAlertText('justifyCenter', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onclick="Admin.formatAlertText('justifyRight', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('link', 'admin-reply-text')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Add Custom Link">🔗 Link</button>
-                            <label for="admin-reply-upload-file" id="admin-reply-upload-label" onmousedown="Admin.saveCursorRange()" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer" title="Upload Image or PDF">📎 Insert Media</label>
+                            <button type="button" onclick="Admin.formatAlertText('link', 'admin-reply-text')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none whitespace-nowrap" title="Add Custom Link">🔗 Link</button>
+                            <label for="admin-reply-upload-file" id="admin-reply-upload-label" onmousedown="Admin.saveCursorRange()" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer whitespace-nowrap" title="Upload Image or PDF">Media 📎</label>
                             <input type="file" id="admin-reply-upload-file" class="hidden" accept="image/*,.pdf">
                         </div>
                         <div contenteditable="true" id="admin-reply-text" class="w-full min-h-[200px] resize-y overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" style="max-height: 50vh;" placeholder="Type your response..."></div>
-                    </div>
 
                     <div class="flex space-x-3 mt-4">
                         <button id="reply-cancel" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors focus:outline-none text-sm">Cancel</button>
@@ -4048,19 +4028,19 @@ const Admin = {
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Message</label>
                     <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
-                        <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 p-1 border-b border-gray-300 dark:border-gray-600">
-                            <button type="button" onclick="Admin.formatAlertText('bold')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Bold">B</button>
-                            <button type="button" onclick="Admin.formatAlertText('italic')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Italic">I</button>
+                        <div class="flex flex-wrap items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 border-b border-gray-300 dark:border-gray-600">
+                            <button type="button" onclick="Admin.formatAlertText('bold')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Bold">B</button>
+                            <button type="button" onclick="Admin.formatAlertText('italic')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Italic">I</button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('larger')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Increase Size">A+</button>
-                            <button type="button" onclick="Admin.formatAlertText('smaller')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Decrease Size">A-</button>
+                            <button type="button" onclick="Admin.formatAlertText('larger')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Increase Size">A+</button>
+                            <button type="button" onclick="Admin.formatAlertText('smaller')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Decrease Size">A-</button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('justifyLeft')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path></svg></button>
-                            <button type="button" onclick="Admin.formatAlertText('justifyCenter')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
-                            <button type="button" onclick="Admin.formatAlertText('justifyRight')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onclick="Admin.formatAlertText('justifyLeft')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onclick="Admin.formatAlertText('justifyCenter')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onclick="Admin.formatAlertText('justifyRight')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('link')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none" title="Add Custom Link">🔗 Link</button>
-                            <label for="alert-upload-file" id="alert-upload-label" onmousedown="Admin.saveCursorRange()" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer" title="Upload Image or PDF">📎 Insert Media</label>
+                            <button type="button" onclick="Admin.formatAlertText('link')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none whitespace-nowrap" title="Add Custom Link">🔗 Link</button>
+                            <label for="alert-upload-file" id="alert-upload-label" onmousedown="Admin.saveCursorRange()" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer whitespace-nowrap" title="Upload Image or PDF">Media 📎</label>
                             <input type="file" id="alert-upload-file" class="hidden" accept="image/*,.pdf">
                         </div>
                         <div contenteditable="true" id="alert-msg" class="w-full min-h-[120px] max-h-[300px] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 border-0 text-gray-900 dark:text-white text-xs focus:ring-0 outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="e.g. Delays of 45min due to cable theft..."></div>

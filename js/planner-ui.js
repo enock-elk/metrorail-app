@@ -2268,7 +2268,7 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                         <div class="text-left space-y-2 mt-2">
                             <p>We couldn't find a viable connection on today's schedule.</p>
                             <ul class="list-disc pl-5 space-y-1 text-xs">
-                                <li>The stations might be on disconnected corridors or require a layover exceeding 4 hours.</li>
+                                <li>The stations might be on completely disconnected corridors.</li>
                                 <li>Check the <strong>Network Map</strong> to visualize active lines.</li>
                                 <li>If a connection does exist, please report it to us below.</li>
                             </ul>

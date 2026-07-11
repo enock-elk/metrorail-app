@@ -1343,14 +1343,14 @@ function runHeuristicFailureProbe(origin, dest, dayType) {
     // 3. 🛡️ PHASE 2: Is there a physical path TODAY? (Checking pruned edges)
     if (!checkConnectivity(false, true)) return 'ERR_NO_SERVICE_TODAY';
 
-    // 4. Since the routing engine handles physical severances visually, 
-    // failing to find a route means it is fundamentally a timetable/schedule gap.
-    // We check for suspensions purely to attach context to the mismatch error.
+    // 4. Check for active suspensions blocking the physical path today.
+    // We explicitly elevate this to an ERR_ACTIVE_SUSPENSION to ensure telemetry
+    // logs the failure as a Line Severance rather than a sparse timetable mismatch.
     const isSevered = !checkConnectivity(true, true); // Populates blockingDisruption
 
     if (isSevered && blockingDisruption) {
         return {
-            code: 'ERR_TIMETABLE_MISMATCH',
+            code: 'ERR_ACTIVE_SUSPENSION',
             disruptionId: blockingDisruption.id,
             buttonText: blockingDisruption.buttonText || 'Line Severed',
             hasIncident: true

@@ -1605,6 +1605,16 @@ function initAdInterceptor() {
                             break;
                         }
                     }
+                    
+                    // 🛡️ GUARDIAN UX FIX: The Instant Render Tripwire
+                    // Catches the exact millisecond the ad injects its iframe/content, even if the user closes it 2 seconds later.
+                    if (!window._adTelemetryFired && m.type === 'childList' && adContainer.childElementCount > 0) {
+                        console.log("📈 🛡️ Guardian Tripwire: Instant Ad Render Detected!");
+                        window._adTelemetryFired = true;
+                        if (typeof trackAnalyticsEvent === 'function') {
+                            trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'instant_tripwire' });
+                        }
+                    }
                 }
             });
             adObserver.observe(adContainer, { attributes: true, childList: true, subtree: true });
@@ -1654,6 +1664,7 @@ function initAdInterceptor() {
                                 isAdSleeping = true;
                                 setTimeout(() => {
                                     isAdSleeping = false;
+                                    adRetryCount++; // 🛡️ THE INFINITE SNOOZE FIX
                                     console.log("🛡️ Guardian: Ad Shield waking up for Phase 2...");
                                     if (window.checkAndUnhide) window.checkAndUnhide(); // Kickstart immediately after sleep
                                 }, 60000);
@@ -3677,9 +3688,9 @@ function showWelcomeScreen() {
     openSmoothModal('welcome-modal');
 }
 
-function selectWelcomeRoute(routeId) {
+async function selectWelcomeRoute(routeId) {
     if (typeof triggerHaptic === 'function') triggerHaptic();
-    
+
     // 🛡️ GUARDIAN RELOAD LOCK: Temporarily disable reloads while we settle the state
     window._suppressReloads = true;
 
@@ -3690,53 +3701,54 @@ function selectWelcomeRoute(routeId) {
     
     currentRouteId = routeId;
 
-    // 2. Clear visual blockers
+    // 2. Trigger data hydration BEFORE UI updates
+    if (typeof loadAllSchedules === 'function') {
+        // 🛡️ GUARDIAN FIX: Await payload resolution to prevent UI hydration race conditions!
+        // Pass 'true' to punch through the _suppressReloads lock and fetch the data.
+        await loadAllSchedules(true);
+    }
+
+    // 3. Clear visual blockers now that data is safe in RAM
     const welcomeModal = document.getElementById('welcome-modal');
     if (welcomeModal) welcomeModal.classList.add('hidden');
     
     const loadingOverlay = document.getElementById('loading-overlay');
     if (loadingOverlay) loadingOverlay.style.display = 'none';
 
-    // 3. Reveal dashboard
+    // 4. Reveal dashboard
     if (mainContent) mainContent.style.display = 'block';
     
-    // 4. Update UI Components without re-triggering init logic
+    // 5. Update UI Components safely
     updateSidebarActiveState();
     updatePinUI();
     
-    // 5. Trigger data hydration
-    if (typeof loadAllSchedules === 'function') {
-        // 🛡️ GUARDIAN FIX: Pass 'true' to punch through the _suppressReloads lock and fetch the data!
-        loadAllSchedules(true).then(() => {
-            // Release reload lock only AFTER schedules are cached to Disk/RAM
-            setTimeout(() => { 
-                window._suppressReloads = false; 
-                
-                // 🛡️ GUARDIAN UX FIX: Phase 6 Map Auto-Return
-                const isOnboardMap = new URLSearchParams(window.location.search).get('onboard') === 'map';
-                if (isOnboardMap) {
-                    // 🛡️ GUARDIAN ONBOARDING FIX: Break the infinite map loop on weak signals
-                    if (typeof fullDatabase === 'undefined' || !fullDatabase) {
-                        console.warn("🛡️ Guardian: Initial fetch failed. Breaking map redirect loop.");
-                        const urlObj = new URL(window.location.href);
-                        urlObj.searchParams.delete('onboard');
-                        window.history.replaceState({}, '', urlObj.toString());
-                        return; // Halt the redirect. Let the Weak Signal modal poll and recover.
-                    }
-
-                    console.log("🛡️ Guardian: Onboarding complete. Auto-returning to Map.");
-                    if (navigator.onLine) {
-                        window.location.href = 'map.html';
-                    } else {
-                        history.pushState({ modal: 'map' }, '', '#map');
-                        openSmoothModal('map-modal');
-                    }
-                }
-            }, 2000);
-        });
-    }
-    
     if (typeof checkServiceAlerts === 'function') checkServiceAlerts();
+
+    // 6. Release Lock & Handle Map Auto-Return
+    setTimeout(() => { 
+        window._suppressReloads = false; 
+        
+        // 🛡️ GUARDIAN UX FIX: Phase 6 Map Auto-Return
+        const isOnboardMap = new URLSearchParams(window.location.search).get('onboard') === 'map';
+        if (isOnboardMap) {
+            // 🛡️ GUARDIAN ONBOARDING FIX: Break the infinite map loop on weak signals
+            if (typeof fullDatabase === 'undefined' || !fullDatabase) {
+                console.warn("🛡️ Guardian: Initial fetch failed. Breaking map redirect loop.");
+                const urlObj = new URL(window.location.href);
+                urlObj.searchParams.delete('onboard');
+                window.history.replaceState({}, '', urlObj.toString());
+                return; // Halt the redirect. Let the Weak Signal modal poll and recover.
+            }
+
+            console.log("🛡️ Guardian: Onboarding complete. Auto-returning to Map.");
+            if (navigator.onLine) {
+                window.location.href = 'map.html';
+            } else {
+                history.pushState({ modal: 'map' }, '', '#map');
+                openSmoothModal('map-modal');
+            }
+        }
+    }, 2000);
 }
 
 window.openLegal = function(type) {
