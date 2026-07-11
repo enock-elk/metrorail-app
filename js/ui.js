@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.11 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.11 - Performance Polish Edition v2)
  * -----------------------------------------------------------------------------
  * This module handles DOM interaction, Event Listeners, and UI Rendering.
  *
@@ -1498,14 +1498,31 @@ window.showCacheClearWarning = function() {
 
 // --- GROWTH MODE PHASE 5: THE MONETIZATION ENGINE ---
 function initAdInterceptor() {
+    let adRetryCount = 0;
+    let isAdSleeping = false;
+    let hasUsedForegroundReset = false;
+    let adPollingTimer = null;
+
+    // 🛡️ GUARDIAN: Foreground Reset Hook
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && !hasUsedForegroundReset && window._adNetworkDestroyed) {
+            console.log("🛡️ Guardian: Foreground Reset. Giving the Ad Network one more chance...");
+            hasUsedForegroundReset = true;
+            window._adNetworkDestroyed = false;
+            adRetryCount = 0;
+            isAdSleeping = false;
+            
+            if (!window._adTelemetryFired && window.checkAndUnhide) {
+                window.checkAndUnhide();
+            }
+        }
+    });
+
     const checkAndInject = () => {
         console.log("🛡️ Guardian: Injecting Fortified CleverAds Payload (Resilient Mode)...");
 
         const adContainer = document.getElementById('ad-container') || document.querySelector('.clever-core-ad') || document.querySelector('[id^="clever-"]');
         
-        // 🛡️ GUARDIAN PHASE 1 (Growth): The Resilient Failure Protocol
-        // Soft fails allow the system to retry if the commuter's signal stabilizes.
-        // Hard fails (isFatal) permanently lock the network for the session.
         const handleAdFailure = (reason, isFatal = false) => {
             console.warn(`🛡️ Guardian Ad Shield: Ad script failed. Reason: ${reason}. Fatal: ${isFatal}`);
             
@@ -1514,12 +1531,9 @@ function initAdInterceptor() {
             window._adScriptInjected = false;
             window._adScriptLoaded = false;
             
-            // 1. Remove the stalled script
             const adScript = document.getElementById("CleverCoreLoader103008");
             if (adScript) adScript.remove();
             
-            // 2. Erase the container contents. 
-            // The `empty:hidden` CSS utility will natively collapse the bar without breaking layouts.
             if (adContainer) {
                 adContainer.innerHTML = '';
                 if (isFatal) {
@@ -1529,38 +1543,34 @@ function initAdInterceptor() {
                 document.querySelectorAll('.view-section').forEach(el => el.classList.remove('ad-active-padding'));
             }
             
-            // 3. Track the failure for our telemetry
             if (typeof trackAnalyticsEvent === 'function') {
                 trackAnalyticsEvent('ad_shield_triggered', { reason: reason, fatal: isFatal });
             }
         };
 
-        // ACTION 1: Dedicated Injection Function (Callable for Retries)
         const injectAdScript = () => {
             if (window._adNetworkDestroyed || window._adScriptInjected) return;
             window._adScriptInjected = true;
 
             try {
-                // Start an 8-second execution fuse
                 const adTimeout = setTimeout(() => {
                     if (!window._adScriptLoaded) {
-                        handleAdFailure("TIMEOUT_8S_EXCEEDED", false); // Soft fail -> Can retry
+                        handleAdFailure("TIMEOUT_8S_EXCEEDED", false);
                     }
                 }, 8000);
 
                 (function (document, window) {
                     var a, c = document.createElement("script"), f;
-                    try { f = window.frameElement; } catch(e) { f = null; } // 🛡️ GUARDIAN FIX: Cross-origin frame shield
+                    try { f = window.frameElement; } catch(e) { f = null; } 
                     c.id = "CleverCoreLoader103008";
                     c.src = "https://scripts.cleverwebserver.com/a399a0d9cfe9817e0ccd10f89b4e320a.js";
                     c.async = !0;
                     c.type = "text/javascript";
                     c.setAttribute("data-target", window.name || (f && f.getAttribute("id")));
                     
-                    // 🛡️ GUARDIAN PHASE 4: Strict Error Boundary
                     c.onerror = () => {
                         clearTimeout(adTimeout);
-                        handleAdFailure("SCRIPT_LOAD_ERROR", false); // Soft fail -> Can retry
+                        handleAdFailure("SCRIPT_LOAD_ERROR", false);
                     };
                     c.onload = () => {
                         clearTimeout(adTimeout);
@@ -1578,14 +1588,12 @@ function initAdInterceptor() {
                 })(document, window);
             } catch(e) { 
                 console.warn("🛡️ Guardian: Ad script injection safely suppressed.", e); 
-                handleAdFailure("EVAL_EXCEPTION", false); // Soft fail -> Can retry
+                handleAdFailure("EVAL_EXCEPTION", false);
             }
         };
 
-        // Initial eager injection attempt
         injectAdScript();
 
-        // 🛡️ GUARDIAN PHASE 4: MutationObserver to trap rogue full-page takeovers
         if (adContainer && window.MutationObserver) {
             const adObserver = new MutationObserver((mutations) => {
                 for (let m of mutations) {
@@ -1593,7 +1601,7 @@ function initAdInterceptor() {
                         const newStyle = adContainer.getAttribute('style') || '';
                         if (newStyle.includes('height: 100vh') || newStyle.includes('height: 100%') || newStyle.includes('position: fixed; top: 0')) {
                             adObserver.disconnect();
-                            handleAdFailure("ROGUE_FULLSCREEN_TAKEOVER", true); // Hard fail -> Permanent lock
+                            handleAdFailure("ROGUE_FULLSCREEN_TAKEOVER", true); 
                             break;
                         }
                     }
@@ -1602,16 +1610,18 @@ function initAdInterceptor() {
             adObserver.observe(adContainer, { attributes: true, childList: true, subtree: true });
         }
 
-        // ACTION 2 & 3: Safe Unhiding & Verified Telemetry
-        const checkAndUnhide = () => {
-            if (window._adNetworkDestroyed) return; // Halt if killed
+        window.checkAndUnhide = () => {
+            if (window._adNetworkDestroyed) return; 
             
-            // State Verification
+            // 🛡️ GUARDIAN: The Golden Lock - If telemetry fired (ad loaded), kill the polling engine!
+            if (window._adTelemetryFired) {
+                console.log("🛡️ Guardian: Ad rendered successfully. Polling engine self-destructing to save CPU.");
+                return;
+            }
+
             const hash = location.hash;
-            // 🛡️ GUARDIAN ELASTIC UI: Expand Safe Zone to include Trip Planner & Results
             const isMainRoute = (hash === '' || hash === '#home' || hash === '#planner' || hash === '#planner-results');
             
-            // 🛡️ GROWTH MODE PHASE 5.1: Ad Armor - Suppress Ad if Reloading or Welcome Screen is active
             const isReloadLocked = typeof window._suppressReloads !== 'undefined' && window._suppressReloads;
             const welcomeModal = document.getElementById('welcome-modal');
             const isWelcomeHidden = !welcomeModal || welcomeModal.classList.contains('hidden');
@@ -1627,44 +1637,44 @@ function initAdInterceptor() {
 
             const isDbReady = typeof fullDatabase !== 'undefined' && fullDatabase !== null;
             
-            // 🛡️ GUARDIAN PHASE 1: Absolute Catch-All Modal Check & Data Stability Guard
             const isAnyModalActive = document.body.classList.contains('modal-active');
             const hasValidRoute = typeof currentRouteId !== 'undefined' && currentRouteId !== null && currentRouteId !== '';
 
-            // 🛡️ GUARDIAN PHASE 12: Ad Prioritization Rebalance.
-            // Root problem: viewership was ~50% partly because the ad was cloaked on ~11 simultaneous
-            // conditions. Two of those (`isMutexLocked` = transient modal/map animation flag, and
-            // `isManualRollover` = transient day-rollover flag) toggle constantly during normal use
-            // and needlessly suppressed a perfectly safe bottom bar. They are REMOVED from the gate.
-            // We KEEP every genuine sensitive-screen protection: welcome screen, full timetable grid,
-            // network map, trip map, reload lock, data-not-ready, no-route, and the catch-all modal
-            // guard. Net effect: more legitimate impressions with zero exposure on protected screens.
             const isSafeZone = isDbReady && hasValidRoute && isMainRoute && isWelcomeHidden && !isReloadLocked && isMapHidden && isTripMapHidden && isGridHidden && !isAnyModalActive;
 
             if (adContainer) {
                 if (isSafeZone) {
-                    // 🛡️ GUARDIAN RETRY MECHANIC: If we are in a safe zone but the script died previously, revive it!
                     if (!window._adScriptInjected && !window._adScriptLoaded) {
-                        console.log("🛡️ Guardian: Safe zone active. Retrying Ad Script injection...");
-                        injectAdScript();
+                        // 🛡️ GUARDIAN: Staggered Pulse Engine (3-Minute Timeline)
+                        if (isAdSleeping) {
+                            console.log("🛡️ Guardian: Ad Shield is in 60-second cooldown sleep...");
+                        } else {
+                            if (adRetryCount === 4) {
+                                console.log("🛡️ Guardian: Pulse 1 complete. Entering 60-second cooldown...");
+                                isAdSleeping = true;
+                                setTimeout(() => {
+                                    isAdSleeping = false;
+                                    console.log("🛡️ Guardian: Ad Shield waking up for Phase 2...");
+                                    if (window.checkAndUnhide) window.checkAndUnhide(); // Kickstart immediately after sleep
+                                }, 60000);
+                            } else if (adRetryCount >= 8) {
+                                console.log("🛡️ Guardian: 8 strikes max reached. Hard failing ad network for session.");
+                                handleAdFailure("8_STRIKES_MAX_REACHED", true);
+                                return; // Permanently halt
+                            } else {
+                                console.log(`🛡️ Guardian: Safe zone active. Retrying Ad Script injection... (Attempt ${adRetryCount + 1}/8)`);
+                                adRetryCount++;
+                                injectAdScript();
+                            }
+                        }
                     }
 
-                    // 🛡️ GUARDIAN ELASTIC UI: Uncloak ad and apply elastic padding to views
-                    adContainer.style.display = ''; // 🛡️ GUARDIAN FIX: Release inline lock
+                    adContainer.style.display = ''; 
                     adContainer.classList.remove('hidden', 'ad-cloaked');
 
-                    // 🛡️ GUARDIAN PHASE 12: Anti-Phantom-Gap Reconciliation.
-                    // The 96px footer padding must track REALITY, not intent. CleverAds frequently fails
-                    // to fill the container on slow networks / old WebViews; `empty:hidden` then collapses
-                    // the bar but the reserved padding used to remain, leaving dead space under
-                    // "© Kazembe CodeWorks." We reserve space ONLY when the bar is genuinely filled.
                     const isAdFilled = adContainer.childElementCount > 0 && adContainer.offsetHeight > 0;
                     document.querySelectorAll('.view-section').forEach(el => el.classList.toggle('ad-active-padding', isAdFilled));
 
-                    // 🛡️ GUARDIAN PHASE 12: Real-Impression Telemetry.
-                    // A filled, uncloaked, in-safe-zone bar IS a genuine impression, so count it directly
-                    // (once per session). This fixes chronic under-counting where the old IntersectionObserver
-                    // needed 50% visibility on a sticky bar that is usually cloaked or scrolled past.
                     if (isAdFilled && !window._adTelemetryFired) {
                         window._adTelemetryFired = true;
                         if (typeof trackAnalyticsEvent === 'function') {
@@ -1673,9 +1683,8 @@ function initAdInterceptor() {
                         }
                     }
 
-                    // Secondary verifier: attach IntersectionObserver only if we still haven't counted.
                     if (!window._adTelemetryFired) {
-                        try { // 🛡️ GUARDIAN FIX: IntersectionObserver Sandbox
+                        try { 
                             if ('IntersectionObserver' in window) {
                                 const observer = new IntersectionObserver((entries, obs) => {
                                     if (entries[0].isIntersecting && adContainer.childElementCount > 0) {
@@ -1684,12 +1693,11 @@ function initAdInterceptor() {
                                             trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: true });
                                             console.log("📈 Ad View Verified via IntersectionObserver.");
                                         }
-                                        obs.disconnect(); // Detach to ensure we only log the view once per session
+                                        obs.disconnect(); 
                                     }
-                                }, { threshold: 0.1 }); // Lowered: a sticky bottom bar rarely reaches 50%
+                                }, { threshold: 0.1 }); 
                                 observer.observe(adContainer);
                             } else {
-                                // Fallback for ancient browsers
                                 window._adTelemetryFired = true;
                                 if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'fallback' });
                             }
@@ -1698,21 +1706,20 @@ function initAdInterceptor() {
                         }
                     }
                 } else {
-                    // 🛡️ GUARDIAN ELASTIC UI: Gracefully cloak the ad off-screen and relax UI padding
                     adContainer.classList.add('ad-cloaked');
                     document.querySelectorAll('.view-section').forEach(el => el.classList.remove('ad-active-padding'));
                 }
             }
 
-            // Keep polling gently to monitor UI state changes (hides ad if a modal opens)
-            setTimeout(checkAndUnhide, 1500);
+            // 🛡️ GUARDIAN: Shifted polling interval from 1.5s to 15s to save CPU & Battery
+            if (!window._adTelemetryFired) {
+                adPollingTimer = setTimeout(window.checkAndUnhide, 15000);
+            }
         };
 
-        // 🛡️ GUARDIAN FIX: Zero-millisecond delay. Intercept instantly.
-        checkAndUnhide();
+        window.checkAndUnhide();
     };
 
-    // Wait for app to stabilize before initiating network fetch (Hooked securely in logic.js)
     const waitForStabilization = setInterval(() => {
         if (window._appStabilized) {
             clearInterval(waitForStabilization);
@@ -3708,6 +3715,15 @@ function selectWelcomeRoute(routeId) {
                 // 🛡️ GUARDIAN UX FIX: Phase 6 Map Auto-Return
                 const isOnboardMap = new URLSearchParams(window.location.search).get('onboard') === 'map';
                 if (isOnboardMap) {
+                    // 🛡️ GUARDIAN ONBOARDING FIX: Break the infinite map loop on weak signals
+                    if (typeof fullDatabase === 'undefined' || !fullDatabase) {
+                        console.warn("🛡️ Guardian: Initial fetch failed. Breaking map redirect loop.");
+                        const urlObj = new URL(window.location.href);
+                        urlObj.searchParams.delete('onboard');
+                        window.history.replaceState({}, '', urlObj.toString());
+                        return; // Halt the redirect. Let the Weak Signal modal poll and recover.
+                    }
+
                     console.log("🛡️ Guardian: Onboarding complete. Auto-returning to Map.");
                     if (navigator.onLine) {
                         window.location.href = 'map.html';
