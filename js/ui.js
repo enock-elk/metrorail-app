@@ -3691,6 +3691,10 @@ function showWelcomeScreen() {
 async function selectWelcomeRoute(routeId) {
     if (typeof triggerHaptic === 'function') triggerHaptic();
 
+    // #region agent log
+    fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'LOOP',location:'ui.js:selectWelcomeRoute-entry',message:'route selected on welcome',data:{routeId,region:typeof currentRegion!=='undefined'?currentRegion:null,onLine:navigator.onLine,onboard:new URLSearchParams(window.location.search).get('onboard')},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     // 🛡️ GUARDIAN RELOAD LOCK: Temporarily disable reloads while we settle the state
     window._suppressReloads = true;
 
@@ -3725,23 +3729,66 @@ async function selectWelcomeRoute(routeId) {
     if (typeof checkServiceAlerts === 'function') checkServiceAlerts();
 
     // 6. Release Lock & Handle Map Auto-Return
-    setTimeout(() => { 
+    setTimeout(async () => { 
         window._suppressReloads = false; 
         
         // 🛡️ GUARDIAN UX FIX: Phase 6 Map Auto-Return
         const isOnboardMap = new URLSearchParams(window.location.search).get('onboard') === 'map';
         if (isOnboardMap) {
+            const hasRam = (typeof fullDatabase !== 'undefined' && fullDatabase);
+
             // 🛡️ GUARDIAN ONBOARDING FIX: Break the infinite map loop on weak signals
-            if (typeof fullDatabase === 'undefined' || !fullDatabase) {
+            if (!hasRam) {
                 console.warn("🛡️ Guardian: Initial fetch failed. Breaking map redirect loop.");
                 const urlObj = new URL(window.location.href);
                 urlObj.searchParams.delete('onboard');
                 window.history.replaceState({}, '', urlObj.toString());
+                // #region agent log
+                fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'LOOP',location:'ui.js:auto-return-nodb',message:'no RAM db, halting redirect',data:{onLine:navigator.onLine},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 return; // Halt the redirect. Let the Weak Signal modal poll and recover.
             }
 
+            // 🛡️ GUARDIAN ONBOARDING FIX: map.html cold-reads the schedule DB from IndexedDB.
+            // If RAM has data but the IndexedDB write never landed, navigating to map.html would
+            // find nothing, throw, and redirect straight back to the Welcome Screen (the loop the
+            // user reported). So only hard-navigate when persistence is CONFIRMED; otherwise fall
+            // back to the in-app static Network Map modal, which renders from a local PNG (no DB).
+            // NOTE: we probe IndexedDB DIRECTLY here (mirroring map.html's fetchLocalDB) rather than
+            // loadFromLocalCache, because that helper short-circuits on an in-RAM copy that is set
+            // even when the IndexedDB write failed — which would be a false "persisted" positive.
+            const probeMapPersistence = (region) => new Promise((resolve) => {
+                try {
+                    if (!window.indexedDB) return resolve(false);
+                    const req = indexedDB.open('NextTrainDB', 1);
+                    req.onerror = () => resolve(false);
+                    req.onsuccess = (e) => {
+                        const db = e.target.result;
+                        if (!db || !db.objectStoreNames.contains('SchedulesStore')) return resolve(false);
+                        try {
+                            const tx = db.transaction('SchedulesStore', 'readonly');
+                            const getReq = tx.objectStore('SchedulesStore').get('full_db_' + region);
+                            getReq.onsuccess = () => resolve(!!(getReq.result && getReq.result.data));
+                            getReq.onerror = () => resolve(false);
+                        } catch (err) { resolve(false); }
+                    };
+                } catch (err) { resolve(false); }
+            });
+
+            let persisted = false;
+            try { persisted = await probeMapPersistence(currentRegion); } catch (e) { persisted = false; }
+
+            // #region agent log
+            fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'LOOP',location:'ui.js:auto-return-decision',message:'map auto-return branch',data:{hasRam:!!hasRam,persisted,onLine:navigator.onLine},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+
+            // Clear the onboarding flag either way so a later refresh never re-forces Welcome.
+            const urlObj = new URL(window.location.href);
+            urlObj.searchParams.delete('onboard');
+            window.history.replaceState({}, '', urlObj.toString());
+
             console.log("🛡️ Guardian: Onboarding complete. Auto-returning to Map.");
-            if (navigator.onLine) {
+            if (navigator.onLine && persisted) {
                 window.location.href = 'map.html';
             } else {
                 history.pushState({ modal: 'map' }, '', '#map');

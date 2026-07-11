@@ -188,7 +188,8 @@ const Admin = {
     telemetryInterval: null, 
     telemetryWeeksAgo: 0, 
     telemetryRange: 'DAU', // GROWTH SPRINT: Default to Daily Active Users Trend
-    clockInterval: null,
+    // [GUARDIAN] Phase 3 cleanup: removed dead `clockInterval` state. The admin live-clock DOM
+    // injection was already purged; this vestigial property had no remaining references.
     
     isGridMode: true,
     gridCols: 2, 
