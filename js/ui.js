@@ -3691,10 +3691,6 @@ function showWelcomeScreen() {
 async function selectWelcomeRoute(routeId) {
     if (typeof triggerHaptic === 'function') triggerHaptic();
 
-    // #region agent log
-    fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'LOOP',location:'ui.js:selectWelcomeRoute-entry',message:'route selected on welcome',data:{routeId,region:typeof currentRegion!=='undefined'?currentRegion:null,onLine:navigator.onLine,onboard:new URLSearchParams(window.location.search).get('onboard')},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     // 🛡️ GUARDIAN RELOAD LOCK: Temporarily disable reloads while we settle the state
     window._suppressReloads = true;
 
@@ -3743,9 +3739,6 @@ async function selectWelcomeRoute(routeId) {
                 const urlObj = new URL(window.location.href);
                 urlObj.searchParams.delete('onboard');
                 window.history.replaceState({}, '', urlObj.toString());
-                // #region agent log
-                fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'LOOP',location:'ui.js:auto-return-nodb',message:'no RAM db, halting redirect',data:{onLine:navigator.onLine},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 return; // Halt the redirect. Let the Weak Signal modal poll and recover.
             }
 
@@ -3776,11 +3769,12 @@ async function selectWelcomeRoute(routeId) {
             });
 
             let persisted = false;
-            try { persisted = await probeMapPersistence(currentRegion); } catch (e) { persisted = false; }
-
-            // #region agent log
-            fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'LOOP',location:'ui.js:auto-return-decision',message:'map auto-return branch',data:{hasRam:!!hasRam,persisted,onLine:navigator.onLine},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
+            // 🛡️ GUARDIAN PHASE 2: Poll IndexedDB up to 5 times (1 second total) to ensure transaction commits before jumping
+            for (let i = 0; i < 5; i++) {
+                try { persisted = await probeMapPersistence(currentRegion); } catch (e) { persisted = false; }
+                if (persisted) break;
+                await new Promise(r => setTimeout(r, 200));
+            }
 
             // Clear the onboarding flag either way so a later refresh never re-forces Welcome.
             const urlObj = new URL(window.location.href);
@@ -4494,6 +4488,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const deepLinkRoute = urlParams.get('route');
     const hasPlannerOrMapAction = urlParams.has('action') && (urlParams.get('action') === 'planner' || urlParams.get('action') === 'map');
     const isOnboardMap = urlParams.get('onboard') === 'map';
+
+    // 🛡️ GUARDIAN PHASE 2: The Circuit Breaker (Infinite Loop Prevention)
+    if (isOnboardMap) {
+        let bounceCount = 0;
+        try { bounceCount = parseInt(sessionStorage.getItem('onboard_bounce_count') || '0', 10); } catch(e) {}
+        bounceCount++;
+        try { sessionStorage.setItem('onboard_bounce_count', bounceCount.toString()); } catch(e) {}
+        
+        if (bounceCount > 2) {
+            console.warn("🛡️ Guardian Circuit Breaker: Bouncing detected! Auto-nuking cache to force recovery.");
+            try { sessionStorage.removeItem('onboard_bounce_count'); } catch(e) {}
+            if (typeof performHardCacheClear === 'function') {
+                performHardCacheClear('auto_recovery');
+            } else {
+                window.location.href = window.location.pathname + '?v=' + Date.now();
+            }
+            return; // Halt execution to let reload take over
+        }
+    } else {
+        try { sessionStorage.removeItem('onboard_bounce_count'); } catch(e) {}
+    }
 
     let savedDefault = null;
     try { savedDefault = safeStorage.getItem('defaultRoute_' + currentRegion); } catch(e) {}

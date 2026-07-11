@@ -1153,10 +1153,6 @@ async function loadAllSchedules(force = false) {
         return;
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'A',location:'logic.js:loadAllSchedules-entry',message:'loadAllSchedules invoked',data:{force:!!force,currentRouteId:typeof currentRouteId!=='undefined'?currentRouteId:null,onLine:navigator.onLine,gen:typeof regionSwapGeneration!=='undefined'?regionSwapGeneration:null,hasFullDb:!!(typeof fullDatabase!=='undefined'&&fullDatabase)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     let usedCache = false; // 🛡️ GUARDIAN FIX: Hoisted to prevent ReferenceError in catch block
     const currentGen = regionSwapGeneration; // 🛡️ GUARDIAN: Capture the lock state!
     
@@ -1488,17 +1484,11 @@ async function loadAllSchedules(force = false) {
                     break; // Exit the waterfall loop on success!
                 } catch (e) {
                     if (e.name === 'AbortError') throw e; // Pass intentional UI aborts up to the main catch block
-                    // #region agent log
-                    fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'B',location:'logic.js:waterfall-catch',message:'source failed',data:{sourceKey,errName:e.name,errMsg:String(e.message),onLine:navigator.onLine,aborted:fetchSignal.aborted},timestamp:Date.now()})}).catch(()=>{});
-                    // #endregion
                     console.warn(`⚠️ Guardian: [${sourceKey}] failed (${e.message}). Cascading to next fallback...`);
                 }
             }
 
             if (!fetchSuccess || !newDatabase) {
-                // #region agent log
-                fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'B',location:'logic.js:waterfall-exhausted',message:'all sources failed',data:{onLine:navigator.onLine,usedCache},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 throw new Error("All data pipeline endpoints failed (Waterfall Exhausted)");
             }
 
@@ -1529,10 +1519,6 @@ async function loadAllSchedules(force = false) {
                     
                     await saveToLocalCache(cacheKey, newDatabase, fetchSignal); 
                     
-                    // #region agent log
-                    fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'PERSIST',location:'logic.js:after-saveToLocalCache',message:'DB committed+persisted',data:{cacheKey,hasFullDb:!!fullDatabase},timestamp:Date.now()})}).catch(()=>{});
-                    // #endregion
-                    
                     buildMasterStationList();
                     updateLastUpdatedText();
                     
@@ -1543,9 +1529,6 @@ async function loadAllSchedules(force = false) {
                         if(typeof initializeApp === 'function') initializeApp(); 
                     }
                 } catch(e) {
-                    // #region agent log
-                    fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'C_PERSIST',location:'logic.js:network-commit-catch',message:'commit/persist threw',data:{errMsg:String(e&&e.message),hasFullDb:!!(typeof fullDatabase!=='undefined'&&fullDatabase)},timestamp:Date.now()})}).catch(()=>{});
-                    // #endregion
                     console.error("Network data parsing failed, reverting to previous state.", e);
                     throw e; // Hit the main catch block for UI handling
                 }
@@ -1560,10 +1543,6 @@ async function loadAllSchedules(force = false) {
     } catch (error) {
         // Ignore AbortErrors natively, as they are expected during rapid route swapping
         if (error.name === 'AbortError') return;
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7608/ingest/eaf885e3-5b93-49d5-9ff4-392552e5e4b2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9b0c75'},body:JSON.stringify({sessionId:'9b0c75',hypothesisId:'MAIN_CATCH',location:'logic.js:main-catch',message:'renderRouteError decision',data:{errName:error&&error.name,errMsg:String(error&&error.message),usedCache,hasFullDb:!!(typeof fullDatabase!=='undefined'&&fullDatabase),onLine:navigator.onLine},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         
         console.error("Fetch Error:", error);
         // 🛡️ GUARDIAN ONBOARDING FIX: Only surface the "Weak Signal / Route Unavailable" blocker
