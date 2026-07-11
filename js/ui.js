@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.10 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.11 - Performance Polish Edition)
  * -----------------------------------------------------------------------------
  * This module handles DOM interaction, Event Listeners, and UI Rendering.
  *
@@ -1499,40 +1499,52 @@ window.showCacheClearWarning = function() {
 // --- GROWTH MODE PHASE 5: THE MONETIZATION ENGINE ---
 function initAdInterceptor() {
     const checkAndInject = () => {
-        console.log("🛡️ Guardian: Injecting Fortified CleverAds Payload unconditionally (iOS ITP Uncapped)...");
+        console.log("🛡️ Guardian: Injecting Fortified CleverAds Payload (Resilient Mode)...");
 
-        // 🛡️ GUARDIAN PHASE 4: The Fallback Destruction Protocol (Nuke)
         const adContainer = document.getElementById('ad-container') || document.querySelector('.clever-core-ad') || document.querySelector('[id^="clever-"]');
         
-        const destroyAdNetwork = (reason) => {
-            console.warn(`🛡️ Guardian Ad Shield: Nuking ad network. Reason: ${reason}`);
-            window._adNetworkDestroyed = true; // Global lock
+        // 🛡️ GUARDIAN PHASE 1 (Growth): The Resilient Failure Protocol
+        // Soft fails allow the system to retry if the commuter's signal stabilizes.
+        // Hard fails (isFatal) permanently lock the network for the session.
+        const handleAdFailure = (reason, isFatal = false) => {
+            console.warn(`🛡️ Guardian Ad Shield: Ad script failed. Reason: ${reason}. Fatal: ${isFatal}`);
             
-            // 1. Remove the script
+            if (isFatal) window._adNetworkDestroyed = true;
+            
+            window._adScriptInjected = false;
+            window._adScriptLoaded = false;
+            
+            // 1. Remove the stalled script
             const adScript = document.getElementById("CleverCoreLoader103008");
             if (adScript) adScript.remove();
             
-            // 2. Erase the container completely to prevent phantom clicks or visual artifacts
+            // 2. Erase the container contents. 
+            // The `empty:hidden` CSS utility will natively collapse the bar without breaking layouts.
             if (adContainer) {
                 adContainer.innerHTML = '';
-                adContainer.style.setProperty('display', 'none', 'important');
-                adContainer.classList.add('hidden', 'ad-cloaked');
+                if (isFatal) {
+                    adContainer.style.setProperty('display', 'none', 'important');
+                    adContainer.classList.add('hidden', 'ad-cloaked');
+                }
                 document.querySelectorAll('.view-section').forEach(el => el.classList.remove('ad-active-padding'));
             }
             
             // 3. Track the failure for our telemetry
             if (typeof trackAnalyticsEvent === 'function') {
-                trackAnalyticsEvent('ad_shield_triggered', { reason: reason });
+                trackAnalyticsEvent('ad_shield_triggered', { reason: reason, fatal: isFatal });
             }
         };
 
-        // ACTION 1: Eager Injection (Pre-load ad payload silently with Timeout Guard)
-        if (!window._adNetworkDestroyed) {
+        // ACTION 1: Dedicated Injection Function (Callable for Retries)
+        const injectAdScript = () => {
+            if (window._adNetworkDestroyed || window._adScriptInjected) return;
+            window._adScriptInjected = true;
+
             try {
                 // Start an 8-second execution fuse
                 const adTimeout = setTimeout(() => {
                     if (!window._adScriptLoaded) {
-                        destroyAdNetwork("TIMEOUT_8S_EXCEEDED");
+                        handleAdFailure("TIMEOUT_8S_EXCEEDED", false); // Soft fail -> Can retry
                     }
                 }, 8000);
 
@@ -1548,7 +1560,7 @@ function initAdInterceptor() {
                     // 🛡️ GUARDIAN PHASE 4: Strict Error Boundary
                     c.onerror = () => {
                         clearTimeout(adTimeout);
-                        destroyAdNetwork("SCRIPT_LOAD_ERROR");
+                        handleAdFailure("SCRIPT_LOAD_ERROR", false); // Soft fail -> Can retry
                     };
                     c.onload = () => {
                         clearTimeout(adTimeout);
@@ -1566,9 +1578,12 @@ function initAdInterceptor() {
                 })(document, window);
             } catch(e) { 
                 console.warn("🛡️ Guardian: Ad script injection safely suppressed.", e); 
-                destroyAdNetwork("EVAL_EXCEPTION");
+                handleAdFailure("EVAL_EXCEPTION", false); // Soft fail -> Can retry
             }
-        }
+        };
+
+        // Initial eager injection attempt
+        injectAdScript();
 
         // 🛡️ GUARDIAN PHASE 4: MutationObserver to trap rogue full-page takeovers
         if (adContainer && window.MutationObserver) {
@@ -1578,7 +1593,7 @@ function initAdInterceptor() {
                         const newStyle = adContainer.getAttribute('style') || '';
                         if (newStyle.includes('height: 100vh') || newStyle.includes('height: 100%') || newStyle.includes('position: fixed; top: 0')) {
                             adObserver.disconnect();
-                            destroyAdNetwork("ROGUE_FULLSCREEN_TAKEOVER");
+                            handleAdFailure("ROGUE_FULLSCREEN_TAKEOVER", true); // Hard fail -> Permanent lock
                             break;
                         }
                     }
@@ -1628,6 +1643,12 @@ function initAdInterceptor() {
 
             if (adContainer) {
                 if (isSafeZone) {
+                    // 🛡️ GUARDIAN RETRY MECHANIC: If we are in a safe zone but the script died previously, revive it!
+                    if (!window._adScriptInjected && !window._adScriptLoaded) {
+                        console.log("🛡️ Guardian: Safe zone active. Retrying Ad Script injection...");
+                        injectAdScript();
+                    }
+
                     // 🛡️ GUARDIAN ELASTIC UI: Uncloak ad and apply elastic padding to views
                     adContainer.style.display = ''; // 🛡️ GUARDIAN FIX: Release inline lock
                     adContainer.classList.remove('hidden', 'ad-cloaked');
@@ -1673,17 +1694,17 @@ function initAdInterceptor() {
                                 if (typeof trackAnalyticsEvent === 'function') trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'fallback' });
                             }
                         } catch (obsError) {
-                                    console.warn("🛡️ Guardian: IntersectionObserver blocked by strict WebView sandbox.", obsError);
-                                }
-                            }
-                        } else {
-                            // 🛡️ GUARDIAN ELASTIC UI: Gracefully cloak the ad off-screen and relax UI padding
-                            adContainer.classList.add('ad-cloaked');
-                            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('ad-active-padding'));
+                            console.warn("🛡️ Guardian: IntersectionObserver blocked by strict WebView sandbox.", obsError);
                         }
                     }
+                } else {
+                    // 🛡️ GUARDIAN ELASTIC UI: Gracefully cloak the ad off-screen and relax UI padding
+                    adContainer.classList.add('ad-cloaked');
+                    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('ad-active-padding'));
+                }
+            }
 
-                    // Keep polling gently to monitor UI state changes (hides ad if a modal opens)
+            // Keep polling gently to monitor UI state changes (hides ad if a modal opens)
             setTimeout(checkAndUnhide, 1500);
         };
 

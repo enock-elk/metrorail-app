@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_07.10 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_07.11 - Performance Polish Edition)
  * -----------------------------------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
@@ -1051,8 +1051,12 @@ const Renderer = {
             let rowClass = isSelectedRow ? 'bg-blue-50 dark:bg-blue-900/20' : (isZebra && !isExport ? 'bg-gray-50 dark:bg-gray-800/40' : '');
             if (isZebra && isExport) rowClass += ' export-zebra';
 
+            // 🛡️ GROWTH MODE PHASE 6: CWV Android Optimization (Main Thread Savior)
+            // Skip layout/paint calculations for off-screen rows. Disabled during export to prevent html2canvas blanking.
+            const cwvStyle = !isExport ? 'style="content-visibility: auto; contain-intrinsic-size: 50px;"' : '';
+
             html += `
-                <tr class="${rowClass.trim()}">
+                <tr class="${rowClass.trim()}" ${cwvStyle}>
                     <td class="sticky left-0 z-10 ${currentStickyCellClass} ${paddingClass} border-r font-bold truncate max-w-[140px] shadow-lg border-b text-left pl-3">${cleanStation}</td>
                     ${sortedCols.map((col, i) => {
                         let val = row[col] || "-";

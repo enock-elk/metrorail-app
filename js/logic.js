@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_07.10 - Performance Polish Edition v1) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_07.11 - Performance Polish Edition v1) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -947,7 +947,9 @@ async function checkKillswitch(force = false) {
     if (!navigator.onLine || (window.isLieFi && !force)) return false;
     try {
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-        const res = await window.guardianFetch(`${dynamicEndpoint}config/killswitch.json?t=${Date.now()}`, {}, 3000);
+        // 🛡️ GROWTH MODE PHASE 6: 5-Minute Time Bucket to drastically cut Firebase bandwidth costs
+        const timeBucket = Math.floor(Date.now() / 300000);
+        const res = await window.guardianFetch(`${dynamicEndpoint}config/killswitch.json?t=${timeBucket}`, {}, 3000);
         if (res.ok) {
             const data = await res.json();
             if (data && data.timestamp) {
@@ -986,7 +988,9 @@ async function fetchSpecialEventConfig(force = false) {
     if (!navigator.onLine || (window.isLieFi && !force)) return;
     try {
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-        const eventResp = await window.guardianFetch(`${dynamicEndpoint}config/special_event.json?t=${Date.now()}`, {}, 4000);
+        // 🛡️ GROWTH MODE PHASE 6: 5-Minute Time Bucket for caching optimization
+        const timeBucket = Math.floor(Date.now() / 300000);
+        const eventResp = await window.guardianFetch(`${dynamicEndpoint}config/special_event.json?t=${timeBucket}`, {}, 4000);
         
         if (eventResp.ok) {
             const eventData = await eventResp.json();
@@ -1334,13 +1338,17 @@ async function loadAllSchedules(force = false) {
         await fetchSpecialEventConfig(force);
         if (fetchSignal.aborted || currentRouteId !== requestedRouteId) return; 
 
+        // 🛡️ GROWTH MODE PHASE 6: 5-Minute Time Bucket for Edge Caching
+        // Groups all requests within a 5-minute window to a single URL to slash CDN/Firebase bandwidth.
+        const edgeCacheBucket = Math.floor(Date.now() / 300000);
+
         try {
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-            const exclResp = await window.guardianFetch(`${dynamicEndpoint}exclusions.json?t=${Date.now()}`, { signal: fetchSignal }, 4000);
+            const exclResp = await window.guardianFetch(`${dynamicEndpoint}exclusions.json?t=${edgeCacheBucket}`, { signal: fetchSignal }, 4000);
             if (exclResp.ok) {
                 const exclData = await exclResp.json();
                 if (exclData) {
-                    const now = Date.now();
+                    const now = Date.now(); // Retain exact time for logic expiry checks
                     globalExclusions = {};
                     
                     // 🛡️ GUARDIAN PHASE 4: Automatic Expiry Sweep for Exclusions & Grid Notices
@@ -1369,11 +1377,11 @@ async function loadAllSchedules(force = false) {
         // GUARDIAN PHASE 2: Disruptions Fetcher (Unwrap Nested JSON)
         try {
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-            const disrResp = await window.guardianFetch(`${dynamicEndpoint}disruptions.json?t=${Date.now()}`, { signal: fetchSignal }, 4000);
+            const disrResp = await window.guardianFetch(`${dynamicEndpoint}disruptions.json?t=${edgeCacheBucket}`, { signal: fetchSignal }, 4000);
             if (disrResp.ok) {
                 const disrData = await disrResp.json();
                 if (disrData) {
-                    const now = Date.now();
+                    const now = Date.now(); // Retain exact time for logic expiry checks
                     globalDisruptions = {};
                     
                     // GUARDIAN FIX: Double-loop to unwrap Firebase's nested route objects
@@ -1405,7 +1413,7 @@ async function loadAllSchedules(force = false) {
                 try {
                     const nodePath = REGIONS[currentRegion].dbNode.replace('.json', '');
                     const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : FIREBASE_BASE_URL;
-                    const pingUrl = `${dynamicEndpoint}${nodePath}/lastUpdated.json?t=${Date.now()}`;
+                    const pingUrl = `${dynamicEndpoint}${nodePath}/lastUpdated.json?t=${edgeCacheBucket}`;
                     
                     const pingRes = await window.guardianFetch(pingUrl, { signal: fetchSignal }, 4000);
                     if (pingRes.ok) {
@@ -1452,10 +1460,10 @@ async function loadAllSchedules(force = false) {
                     regionDbUrl = activeScheduleUrl + REGIONS[currentRegion].dbNode;
                 }
 
-                // 🛡️ GUARDIAN PHASE 1: Aggressive Cache-Busting
-                // Appends a unique timestamp to physically force edge nodes and Service Workers to fetch fresh data.
+                // 🛡️ GUARDIAN PHASE 1: Time-Bucketed Cache-Busting
+                // Appends the 5-minute bucketed timestamp to leverage Edge caching while ensuring relative freshness.
                 const separator = regionDbUrl.includes('?') ? '&' : '?';
-                regionDbUrl += `${separator}t=${Date.now()}`;
+                regionDbUrl += `${separator}t=${edgeCacheBucket}`;
 
                 try {
                     console.log(`🛡️ Guardian: Attempting schedule fetch via [${sourceKey}]...`);

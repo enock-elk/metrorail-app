@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  METRORAIL NEXT TRAIN - COMMUTER APP SHELL (V7_07.10 - Performance Polish Edition)
+  METRORAIL NEXT TRAIN - COMMUTER APP SHELL (V7_07.11 - Performance Polish Edition)
   -----------------------------------------------------------------------------
   This is the primary DOM shell containing all PWA views, modal architectures, and UI styles.
 
@@ -94,6 +94,64 @@
     }
     </script>
 
+    <!-- SEO: Rich Search & FAQ Schemas (Growth Mode Injection) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Metrorail Next Train",
+      "url": "https://nexttrain.co.za/",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://nexttrain.co.za/?route={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Does this app work offline?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes! Once you open the app while connected to the internet, it saves the schedules to your device. You can check times while underground or during loadshedding without using data."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Are you expanding to other provinces?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Absolutely. We are currently actively mapping out the corridors for KwaZulu-Natal (KZN) and the Eastern Cape (EC). We track demand, so be sure to vote for your region in the App Hub!"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How can I help improve the app?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "As a crowdsourced tool, we rely on commuters like you. If you notice a missing train, or if you have a photo of a new timetable at your local station, please use the Feedback button in the app to send it to us so we can update the database."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why is my route showing \"No Physical Connection\"?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "If the Trip Planner fails to find a route, it means our system currently doesn't have a known transfer hub connecting your Origin and Destination. If you know a valid transfer route, please hit the \"Report Missing Route\" button to let us know!"
+          }
+        }
+      ]
+    }
+    </script>
+
     <!-- SOCIAL MEDIA META TAGS -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://nexttrain.co.za/">
@@ -173,32 +231,37 @@
     </script>
 
     <!-- MICROSOFT CLARITY TRACKING CODE (With Dev Filter) -->
+    <!-- 🛡️ GROWTH MODE PHASE 5: Deferred Execution to Unblock Main Thread -->
     <script type="text/javascript">
-        // GUARDIAN: Only load Clarity if NOT in dev mode. Wrapped in try/catch to survive iOS Private Mode
-        var blockClarity = false;
-        try {
-            blockClarity = localStorage.getItem('analytics_ignore') === 'true';
-        } catch(e) {}
-        
-        if (!blockClarity) {
-            (function(c,l,a,r,i,t,y){
-                c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-                t=l.createElement(r);
-                t.async=1;
-                t.src="https://www.clarity.ms/tag/"+i;
-                t.crossOrigin="anonymous"; // GUARDIAN: Unmasks "Script error." in Facebook WebView
-                y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-            })(window, document, "clarity", "script", "v1aj19921i");
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                // GUARDIAN: Only load Clarity if NOT in dev mode. Wrapped in try/catch to survive iOS Private Mode
+                var blockClarity = false;
+                try {
+                    blockClarity = localStorage.getItem('analytics_ignore') === 'true';
+                } catch(e) {}
+                
+                if (!blockClarity) {
+                    (function(c,l,a,r,i,t,y){
+                        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+                        t=l.createElement(r);
+                        t.async=1;
+                        t.src="https://www.clarity.ms/tag/"+i;
+                        t.crossOrigin="anonymous"; // GUARDIAN: Unmasks "Script error." in Facebook WebView
+                        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+                    })(window, document, "clarity", "script", "v1aj19921i");
 
-            // GUARDIAN PHASE 1: Instant Clarity Identity Sync
-            // Instantly stitch passive "bounce" sessions to the user's Device ID without waiting for ui.js
-            if (typeof deviceId !== 'undefined' && deviceId) {
-                clarity("identify", deviceId);
-                clarity("set", "custom_id", deviceId); // GROWTH MODE PHASE 3: Exact duplication prevention synced to head
-            }
-        } else {
-            console.log("🛡️ Clarity: Tracking blocked for Developer Session.");
-        }
+                    // GUARDIAN PHASE 1: Instant Clarity Identity Sync
+                    if (typeof deviceId !== 'undefined' && deviceId) {
+                        clarity("identify", deviceId);
+                        clarity("set", "custom_id", deviceId); 
+                    }
+                    console.log("🛡️ Guardian: Clarity initialized (Deferred).");
+                } else {
+                    console.log("🛡️ Clarity: Tracking blocked for Developer Session.");
+                }
+            }, 2500); // 2.5s post-load delay yields CPU back to commuter
+        });
     </script>
 
     <!-- GUARDIAN PHASE 4: Cloudflare IP Geolocation Auto-Select Hook -->
@@ -245,41 +308,45 @@
     </script>
     
     <!-- GUARDIAN: SENTRY ERROR TRACKING (Defensive Offline Config) -->
+    <!-- 🛡️ GROWTH MODE PHASE 5: Deferred Execution to Unblock Main Thread -->
     <script>
-        // Set up the custom configuration BEFORE the loader script runs
-        window.sentryOnLoad = function () {
-            Sentry.init({
-                // GUARDIAN Phase 3: Sentry DSN (Required to route errors to your dashboard)
-                dsn: "https://ae241b469e4c06ae7644f55c2a796782@o4511038845222912.ingest.us.sentry.io/4511039214518272", 
-                
-                // 🛡️ GUARDIAN SECURITY PHASE 1: Quota Exhaustion Protection
-                // Dropped from 1.0 (100%) to 0.3 (30%) to preserve limits while still catching true errors.
-                sampleRate: 0.3, 
-                
-                // Filter out non-actionable browser noise
-                ignoreErrors: [
-                    "ResizeObserver loop limit exceeded",
-                    "Network request failed",
-                    "Failed to fetch",
-                    "Load failed",
-                    "QuotaExceededError", // GUARDIAN: Drop physical disk full exceptions
-                    "UnknownError: Connection is closing because of: IO error", // GUARDIAN: Drop SQLite corruption events
-                    "Internal error opening backing store", // GUARDIAN: Drop IndexedDB IO startup failures
-                    "DOMException", // GUARDIAN: General DOM timeouts
-                    "TimeoutError", // GUARDIAN: Fetch aborts
-                    // GUARDIAN Phase 1: Noise Filter Injections
-                    "UnknownError",
-                    "Failed to update a ServiceWorker",
-                    "AbortError",
-                    "window.webkit.messageHandlers",
-                    // 🛡️ GUARDIAN PHASE 11: CleverAds / Third-Party Crawler Noise Filters
-                    "Request timeout",
-                    "/api/webviewClick"
-                ]
-            });
-        };
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                // Set up the custom configuration BEFORE the loader script runs
+                window.sentryOnLoad = function () {
+                    Sentry.init({
+                        dsn: "https://ae241b469e4c06ae7644f55c2a796782@o4511038845222912.ingest.us.sentry.io/4511039214518272", 
+                        sampleRate: 0.3, 
+                        ignoreErrors: [
+                            "ResizeObserver loop limit exceeded",
+                            "Network request failed",
+                            "Failed to fetch",
+                            "Load failed",
+                            "QuotaExceededError", 
+                            "UnknownError: Connection is closing because of: IO error", 
+                            "Internal error opening backing store", 
+                            "DOMException", 
+                            "TimeoutError", 
+                            "UnknownError",
+                            "Failed to update a ServiceWorker",
+                            "AbortError",
+                            "window.webkit.messageHandlers",
+                            "Request timeout",
+                            "/api/webviewClick"
+                        ]
+                    });
+                    console.log("🛡️ Guardian: Sentry initialized (Deferred).");
+                };
+
+                // Dynamically inject the Sentry loader script
+                var sentryScript = document.createElement('script');
+                sentryScript.src = "https://js.sentry-cdn.com/ae241b469e4c06ae7644f55c2a796782.min.js";
+                sentryScript.crossOrigin = "anonymous";
+                sentryScript.async = true;
+                document.head.appendChild(sentryScript);
+            }, 3500); // 3.5s post-load stagger ensures Clarity is already done parsing
+        });
     </script>
-    <script src="https://js.sentry-cdn.com/ae241b469e4c06ae7644f55c2a796782.min.js" crossorigin="anonymous" async></script>
 
     <!-- GUARDIAN: UNIVERSAL SMOOTH MODAL ANIMATION ENGINE -->
     <script id="guardian-animation-engine">

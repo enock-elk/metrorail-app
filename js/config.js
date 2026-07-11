@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7_07.10"; // BUMPED: Performance & Precision Polish
+const APP_VERSION = "V7_07.11"; // BUMPED: Performance & Precision Polish
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -730,8 +730,8 @@ const DEFAULT_EXCLUSIONS = {
 // GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
     {
-        version: "V7 07.10 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Performance & Precision Polish</span>",
-        date: "10 Jul 2026",
+        version: "V7 07.11 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Performance & Precision Polish</span>",
+        date: "11 July",
         features: [
             "<b>Smarter Incident Warnings:</b> Fixed a bug where safe journeys ending near a disrupted area (like a sinkhole) would incorrectly flash a 'Line Severed' warning. You will now only see critical alerts if your train actually crosses the danger zone.",
             "<b>Seamless Navigation:</b> When viewing empty schedules late at night or on Sundays, tapping \"See Next Available Day\" now instantly and perfectly syncs your top dropdown menu to the correct future day.",

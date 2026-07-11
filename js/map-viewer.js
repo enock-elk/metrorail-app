@@ -1,4 +1,4 @@
-// --- METRORAIL MAP VIEWER (V7_07.10 - Guardian Edition) ---
+// --- METRORAIL MAP VIEWER (V7_07.11 - Guardian Edition) ---
 // Handles the pinch-to-zoom image viewer for the static network map.
 
 let mapModal, closeMapBtn, closeMapBtn2, viewMapBtn;
