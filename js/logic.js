@@ -1,4 +1,4 @@
-// --- METRORAIL NEXT TRAIN LOGIC (V7_07.11 - Performance Polish Edition v1) ---
+// --- METRORAIL NEXT TRAIN LOGIC (V7_07.12 - Performance Polish Edition v1) ---
 // --- GLOBAL STATE VARIABLES ---
 // Defined here to be shared across scripts
 let currentRegion = safeStorage.getItem('userRegion') || 'GP'; // GUARDIAN: Regional State (Default GP, Safe Storage Protected)
@@ -680,7 +680,7 @@ async function saveToLocalCache(key, data, signal = null) {
         // and AbortController to prevent zombie state resurrection
         memoryFallbackCache[key] = cacheEntry;
 
-        return new Promise((resolve, reject) => {
+        return await new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_NAME, 'readwrite');
             const store = tx.objectStore(STORE_NAME);
             store.put(cacheEntry, key);
@@ -715,7 +715,7 @@ async function loadFromLocalCache(key, signal = null) {
         const db = await initDB();
         if (signal && signal.aborted) return null;
         
-        return new Promise((resolve, reject) => {
+        return await new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_NAME, 'readonly');
             const store = tx.objectStore(STORE_NAME);
             const request = store.get(key);
@@ -763,11 +763,11 @@ window.clearScheduleCache = async function() {
     memoryFallbackCache = {}; 
     try {
         const db = await initDB();
-        return new Promise((resolve) => {
+        return await new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_NAME, 'readwrite');
             tx.objectStore(STORE_NAME).clear();
             tx.oncomplete = () => resolve();
-            tx.onerror = () => resolve();
+            tx.onerror = () => reject(tx.error);
         });
     } catch(e) {} finally {
         if (typeof REGIONS !== 'undefined') {

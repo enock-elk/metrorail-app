@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_07.11 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_07.12 - Performance Polish Edition)
  * -----------------------------------------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -1884,29 +1884,29 @@ const Admin = {
         crashPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         crashPanel.innerHTML = `
-            <button id="crash-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
-                <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">🔥</span> 
-                    <span>Crash Analytics</span>
-                </span>
-                <span id="crash-unread-badge" class="hidden absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-black tracking-normal animate-pulse">0 New</span>
-                <svg id="crash-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-            </button>
-            <div id="crash-body" class="hidden mt-4 space-y-3">
-                <div class="flex border-b border-gray-200 dark:border-gray-700 mb-2">
-                    <button id="crash-tab-inbox" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 transition-colors focus:outline-none tracking-wider">Inbox (<span id="crash-inbox-count">0</span>)</button>
-                    <button id="crash-tab-archive" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-transparent text-gray-400 hover:text-gray-600 transition-colors focus:outline-none tracking-wider">Archive</button>
-                </div>
-                <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
-                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="crash-status-display">Syncing...</span>
-                    <div class="space-x-2 flex">
-                        <button id="crash-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">Refresh</button>
-                        <button id="crash-clear-btn" class="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">Clear DB</button>
+                <button id="crash-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                    <span class="flex flex-col items-center">
+                        <span class="text-2xl mb-2">🔥</span> 
+                        <span>Crash Analytics</span>
+                    </span>
+                    <span id="crash-unread-badge" class="hidden absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-black tracking-normal animate-pulse">0 New</span>
+                    <svg id="crash-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="crash-body" class="hidden mt-3 space-y-2">
+                    <div class="flex border-b border-gray-200 dark:border-gray-700 mb-2">
+                        <button id="crash-tab-inbox" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 transition-colors focus:outline-none tracking-wider">Inbox (<span id="crash-inbox-count">0</span>)</button>
+                        <button id="crash-tab-archive" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-transparent text-gray-400 hover:text-gray-600 transition-colors focus:outline-none tracking-wider">Archive</button>
                     </div>
+                    <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner">
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="crash-status-display">Syncing...</span>
+                        <div class="space-x-2 flex">
+                            <button id="crash-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">Refresh</button>
+                            <button id="crash-clear-btn" class="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">Clear DB</button>
+                        </div>
+                    </div>
+                    <div id="crash-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar"></div>
                 </div>
-                <div id="crash-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar"></div>
-            </div>
-        `;
+            `;
         
         const header = document.getElementById('crash-header-btn');
         const body = document.getElementById('crash-body');
@@ -2036,18 +2036,18 @@ const Admin = {
                     const safeJsCrashId = (crash.id || '').replace(/'/g, "\\'");
                     
                     const actionHtml = isInbox 
-                        ? `<div class="flex space-x-2 w-full mt-3">
-                             ${rawDid !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${safeJsCrashId}', '${safeJsDid}')">Reply</button>` : ''}
-                             <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveCrash('${safeJsCrashId}')">Resolve</button>
+                        ? `<div class="flex space-x-2 w-full mt-2">
+                             ${rawDid !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${safeJsCrashId}', '${safeJsDid}')">Reply</button>` : ''}
+                             <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveCrash('${safeJsCrashId}')">Resolve</button>
                            </div>`
-                        : `<div class="flex justify-between items-center w-full mt-3">
+                        : `<div class="flex justify-between items-center w-full mt-2">
                              <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived</span>
-                             <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteCrash('${safeJsCrashId}')">Delete</button>
+                             <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-2.5 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteCrash('${safeJsCrashId}')">Delete</button>
                            </div>`;
 
                     groupHTML += `
-                        <div class="p-3.5 flex flex-col">
-                            <div class="flex justify-between items-start mb-2">
+                        <div class="p-2.5 flex flex-col">
+                            <div class="flex justify-between items-start mb-1.5">
                                 <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">FATAL DUMP</span>
                                 <span class="text-[9px] text-gray-400 font-mono">${dateStr}</span>
                             </div>
@@ -3588,30 +3588,30 @@ const Admin = {
             modal.id = 'admin-reply-modal';
             modal.className = 'fixed inset-0 bg-black/80 z-[200] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
             modal.innerHTML = `
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
-                    <h3 class="text-lg font-black text-gray-900 dark:text-white mb-2 tracking-tight flex items-center"><span class="mr-2">💬</span> Reply to Commuter</h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Message will be delivered to their personal inbox upon next app launch.</p>
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-3 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
+                    <h3 class="text-lg font-black text-gray-900 dark:text-white mb-1 tracking-tight flex items-center"><span class="mr-2">💬</span> Reply to Commuter</h3>
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-2">Message will be delivered to their personal inbox upon next app launch.</p>
                     
-                    <div class="flex flex-wrap items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 border-b border-gray-300 dark:border-gray-600">
-                            <button type="button" onclick="Admin.formatAlertText('bold', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Bold">B</button>
-                            <button type="button" onclick="Admin.formatAlertText('italic', 'admin-reply-text')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Italic">I</button>
-                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('larger', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Increase Size">A+</button>
-                            <button type="button" onclick="Admin.formatAlertText('smaller', 'admin-reply-text')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Decrease Size">A-</button>
-                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('justifyLeft', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path></svg></button>
-                            <button type="button" onclick="Admin.formatAlertText('justifyCenter', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
-                            <button type="button" onclick="Admin.formatAlertText('justifyRight', 'admin-reply-text')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
-                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('link', 'admin-reply-text')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none whitespace-nowrap" title="Add Custom Link">🔗 Link</button>
-                            <label for="admin-reply-upload-file" id="admin-reply-upload-label" onmousedown="Admin.saveCursorRange()" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer whitespace-nowrap" title="Upload Image or PDF">Media 📎</label>
+                    <div class="flex items-center w-full bg-gray-100 dark:bg-gray-700 p-0.5 border border-gray-300 dark:border-gray-600 rounded-t-lg overflow-x-auto custom-scrollbar space-x-0.5">
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('bold', 'admin-reply-text')" class="px-1.5 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none flex-1" title="Bold">B</button>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('italic', 'admin-reply-text')" class="px-1.5 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none flex-1" title="Italic">I</button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-0.5 shrink-0"></div>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('larger', 'admin-reply-text')" class="px-1.5 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none flex-1" title="Increase Size">A+</button>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('smaller', 'admin-reply-text')" class="px-1.5 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none flex-1" title="Decrease Size">A-</button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-0.5 shrink-0"></div>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('justifyLeft', 'admin-reply-text')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none flex-1 flex justify-center" title="Align Left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('justifyCenter', 'admin-reply-text')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none flex-1 flex justify-center" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('justifyRight', 'admin-reply-text')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none flex-1 flex justify-center" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-0.5 shrink-0"></div>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('link', 'admin-reply-text')" class="px-1.5 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none flex-1" title="Add Custom Link">🔗</button>
+                            <label for="admin-reply-upload-file" id="admin-reply-upload-label" onmousedown="Admin.saveCursorRange()" ontouchstart="Admin.saveCursorRange()" onclick="Admin.saveCursorRange()" class="px-1.5 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none cursor-pointer flex-1 whitespace-nowrap" title="Upload Image or PDF">📎 Media</label>
                             <input type="file" id="admin-reply-upload-file" class="hidden" accept="image/*,.pdf">
                         </div>
-                        <div contenteditable="true" id="admin-reply-text" class="w-full min-h-[200px] resize-y overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" style="max-height: 50vh;" placeholder="Type your response..."></div>
+                        <div contenteditable="true" id="admin-reply-text" class="w-full min-h-[120px] p-2.5 bg-gray-50 dark:bg-gray-900 border border-t-0 border-gray-300 dark:border-gray-600 rounded-b-lg text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="Type your response..."></div>
 
-                    <div class="flex space-x-3 mt-4">
-                        <button id="reply-cancel" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors focus:outline-none text-sm">Cancel</button>
-                        <button id="reply-send" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors focus:outline-none text-sm">Send Reply</button>
+                    <div class="flex space-x-2 mt-2">
+                        <button id="reply-cancel" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2.5 px-3 rounded-lg transition-colors focus:outline-none text-sm">Cancel</button>
+                        <button id="reply-send" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-lg shadow-sm transition-colors focus:outline-none text-sm">Send Reply</button>
                     </div>
                 </div>
             `;
@@ -3941,20 +3941,60 @@ const Admin = {
         const editor = document.getElementById(targetId);
         if (!editor) return;
         
+        // 🛡️ GUARDIAN FIX: Inject CSS overrides for the strict 3-Tier sizing logic (Small, Normal, Large)
+        // Without these !important rules, Tailwind's text-sm class squashes all larger <font> tags back to "normal"
+        if (!document.getElementById('wysiwyg-extended-sizes')) {
+            const style = document.createElement('style');
+            style.id = 'wysiwyg-extended-sizes';
+            style.innerHTML = `
+                font[size="5"] { font-size: 1.15rem !important; font-weight: 700; line-height: 1.4; }
+                font[size="3"] { font-size: inherit !important; font-weight: inherit !important; opacity: 1 !important; line-height: inherit; }
+                font[size="2"] { font-size: 10px !important; opacity: 0.85; line-height: 1.2; }
+            `;
+            document.head.appendChild(style);
+        }
+
         editor.focus();
         
         if (tag === 'bold') { 
             document.execCommand('bold', false, null);
         } else if (tag === 'italic') { 
             document.execCommand('italic', false, null);
-        } else if (tag === 'larger') {
-            let currentSize = parseInt(document.queryCommandValue('fontSize'), 10) || 3;
-            if (currentSize <= 2) document.execCommand('fontSize', false, '3');
-            else document.execCommand('fontSize', false, '5');
-        } else if (tag === 'smaller') {
-            let currentSize = parseInt(document.queryCommandValue('fontSize'), 10) || 3;
-            if (currentSize >= 5) document.execCommand('fontSize', false, '3');
-            else document.execCommand('fontSize', false, '2');
+        } else if (tag === 'larger' || tag === 'smaller') {
+            // 🛡️ GUARDIAN DOM SCANNER: queryCommandValue is broken on mobile WebViews.
+            // We manually traverse the DOM to find the exact font size tag applied to the cursor.
+            let currentSize = 3; // Default to Normal
+            const sel = window.getSelection();
+            
+            if (sel.rangeCount > 0) {
+                let node = sel.anchorNode;
+                while (node && node !== editor) {
+                    if (node.nodeType === 1 && node.tagName.toLowerCase() === 'font' && node.hasAttribute('size')) {
+                        const sizeAttr = parseInt(node.getAttribute('size'), 10);
+                        if (!isNaN(sizeAttr)) {
+                            currentSize = sizeAttr;
+                            break;
+                        }
+                    }
+                    node = node.parentNode;
+                }
+            }
+
+            // Map any chaotic legacy sizes strictly into our 3-Tier baseline
+            if (currentSize < 3) currentSize = 2; // Small
+            else if (currentSize > 3) currentSize = 5; // Large
+            else currentSize = 3; // Normal
+
+            let newSize = 3;
+            if (tag === 'larger') {
+                if (currentSize === 2) newSize = 3; // Small -> Normal
+                else if (currentSize >= 3) newSize = 5; // Normal/Large -> Large
+            } else if (tag === 'smaller') {
+                if (currentSize === 5) newSize = 3; // Large -> Normal
+                else if (currentSize <= 3) newSize = 2; // Normal/Small -> Small
+            }
+
+            document.execCommand('fontSize', false, newSize.toString());
         } else if (tag === 'justifyLeft') {
             document.execCommand('justifyLeft', false, null);
         } else if (tag === 'justifyCenter') {
@@ -3974,6 +4014,28 @@ const Admin = {
 
     // --- 4. SERVICE ALERTS MANAGER ---
     setupServiceAlertsManager: () => {
+        if (!window._adminPremiumDropdownsBound) {
+            document.addEventListener('click', (e) => {
+                const checkClose = (containerId, listId, chevId) => {
+                    const container = document.getElementById(containerId);
+                    const list = document.getElementById(listId);
+                    const chev = document.getElementById(chevId);
+                    if (list && !list.classList.contains('hidden') && (!container || !container.contains(e.target))) {
+                        list.classList.add('hidden');
+                        if (chev) chev.classList.remove('rotate-180');
+                    }
+                };
+                checkClose('alert-target-container', 'alert-target-list', 'alert-target-chevron');
+                checkClose('alert-severity-container', 'alert-severity-list', 'alert-severity-chevron');
+                checkClose('disr-route-container', 'disr-route-list', 'disr-route-chevron');
+                checkClose('disr-tier-container', 'disr-tier-list', 'disr-tier-chevron');
+                checkClose('disr-station-a-container', 'disr-station-a-list', 'disr-station-a-chevron');
+                checkClose('disr-station-b-container', 'disr-station-b-list', 'disr-station-b-chevron');
+                checkClose('excl-route-container', 'excl-route-list', 'excl-route-chevron');
+            });
+            window._adminPremiumDropdownsBound = true;
+        }
+
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel) return;
         
@@ -3995,19 +4057,35 @@ const Admin = {
                 
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Audience (God-Mode)</label>
-                    <select id="alert-target" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
-                        <!-- Populated dynamically with optgroups -->
-                    </select>
+                    <div class="relative" id="alert-target-container">
+                        <select id="alert-target" class="hidden"></select>
+                        <div onclick="document.getElementById('alert-target-list').classList.toggle('hidden'); document.getElementById('alert-target-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
+                            <span id="alert-target-display" class="truncate flex items-center">Select Target...</span>
+                            <svg id="alert-target-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <ul id="alert-target-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-y-auto max-h-60 custom-scrollbar text-left"></ul>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Severity</label>
-                        <select id="alert-severity" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
-                            <option value="info" selected>🔵 Info (General)</option>
-                            <option value="warning">🟡 Warning (Delays)</option>
-                            <option value="critical">🔴 Critical (Suspended)</option>
-                        </select>
+                        <div class="relative" id="alert-severity-container">
+                            <select id="alert-severity" class="hidden">
+                                <option value="info" selected>🔵 Info (General)</option>
+                                <option value="warning">🟡 Warning (Delays)</option>
+                                <option value="critical">🔴 Critical (Suspended)</option>
+                            </select>
+                            <div onclick="document.getElementById('alert-severity-list').classList.toggle('hidden'); document.getElementById('alert-severity-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
+                                <span id="alert-severity-display" class="truncate">🔵 Info (General)</span>
+                                <svg id="alert-severity-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                            <ul id="alert-severity-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-hidden text-left">
+                                <li onclick="document.getElementById('alert-severity').value='info'; document.getElementById('alert-severity-display').innerHTML='🔵 Info (General)'; document.getElementById('alert-severity-list').classList.add('hidden'); document.getElementById('alert-severity-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">🔵 Info (General)</li>
+                                <li onclick="document.getElementById('alert-severity').value='warning'; document.getElementById('alert-severity-display').innerHTML='🟡 Warning (Delays)'; document.getElementById('alert-severity-list').classList.add('hidden'); document.getElementById('alert-severity-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-yellow-50 dark:hover:bg-gray-700 text-yellow-700 dark:text-yellow-400 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">🟡 Warning (Delays)</li>
+                                <li onclick="document.getElementById('alert-severity').value='critical'; document.getElementById('alert-severity-display').innerHTML='🔴 Critical (Suspended)'; document.getElementById('alert-severity-list').classList.add('hidden'); document.getElementById('alert-severity-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-red-50 dark:hover:bg-gray-700 text-red-700 dark:text-red-400 transition-colors cursor-pointer">🔴 Critical (Suspended)</li>
+                            </ul>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Sign-off Name</label>
@@ -4029,22 +4107,22 @@ const Admin = {
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Message</label>
                     <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
-                        <div class="flex flex-wrap items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 border-b border-gray-300 dark:border-gray-600">
-                            <button type="button" onclick="Admin.formatAlertText('bold')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Bold">B</button>
-                            <button type="button" onclick="Admin.formatAlertText('italic')" class="px-2 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Italic">I</button>
-                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('larger')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Increase Size">A+</button>
-                            <button type="button" onclick="Admin.formatAlertText('smaller')" class="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Decrease Size">A-</button>
-                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('justifyLeft')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path></svg></button>
-                            <button type="button" onclick="Admin.formatAlertText('justifyCenter')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
-                            <button type="button" onclick="Admin.formatAlertText('justifyRight')" class="px-2 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
-                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-1"></div>
-                            <button type="button" onclick="Admin.formatAlertText('link')" class="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none whitespace-nowrap" title="Add Custom Link">🔗 Link</button>
-                            <label for="alert-upload-file" id="alert-upload-label" onmousedown="Admin.saveCursorRange()" class="px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center focus:outline-none cursor-pointer whitespace-nowrap" title="Upload Image or PDF">Media 📎</label>
+                        <div class="flex items-center w-full bg-gray-100 dark:bg-gray-700 p-0.5 border-b border-gray-300 dark:border-gray-600 overflow-x-auto custom-scrollbar space-x-0.5">
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('bold')" class="px-1.5 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none flex-1" title="Bold">B</button>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('italic')" class="px-1.5 py-1 text-xs italic text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none flex-1" title="Italic">I</button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-0.5 shrink-0"></div>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('larger')" class="px-1.5 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none flex-1" title="Increase Size">A+</button>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('smaller')" class="px-1.5 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded focus:outline-none flex-1" title="Decrease Size">A-</button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-0.5 shrink-0"></div>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('justifyLeft')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex justify-center focus:outline-none flex-1" title="Align Left"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('justifyCenter')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex justify-center focus:outline-none flex-1" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('justifyRight')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex justify-center focus:outline-none flex-1" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
+                            <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-0.5 shrink-0"></div>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="event.preventDefault();" onclick="Admin.formatAlertText('link')" class="px-1.5 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none flex-1" title="Add Custom Link">🔗</button>
+                            <label for="alert-upload-file" id="alert-upload-label" onmousedown="Admin.saveCursorRange()" ontouchstart="Admin.saveCursorRange()" onclick="Admin.saveCursorRange()" class="px-1.5 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none cursor-pointer flex-1 whitespace-nowrap" title="Upload Image or PDF">📎 Media</label>
                             <input type="file" id="alert-upload-file" class="hidden" accept="image/*,.pdf">
                         </div>
-                        <div contenteditable="true" id="alert-msg" class="w-full min-h-[120px] max-h-[300px] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 border-0 text-gray-900 dark:text-white text-xs focus:ring-0 outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="e.g. Delays of 45min due to cable theft..."></div>
+                        <div contenteditable="true" id="alert-msg" class="w-full min-h-[120px] p-2.5 bg-gray-50 dark:bg-gray-900 border-0 text-gray-900 dark:text-white text-xs focus:ring-0 outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="e.g. Delays of 45min due to cable theft..."></div>
                     </div>
                 </div>
 
@@ -4442,8 +4520,20 @@ const Admin = {
                         expiryDate.setMinutes(expiryDate.getMinutes() - expiryDate.getTimezoneOffset()); 
                         dateInput.value = expiryDate.toISOString().slice(0, 16);
                     }
-                    if (severitySelect && data.severity) severitySelect.value = data.severity;
-                    else if (severitySelect) severitySelect.value = 'info';
+                    
+                    if (severitySelect && data.severity) {
+                        severitySelect.value = data.severity;
+                        const display = document.getElementById('alert-severity-display');
+                        if (display) {
+                            if (data.severity === 'info') display.innerHTML = '🔵 Info (General)';
+                            else if (data.severity === 'warning') display.innerHTML = '🟡 Warning (Delays)';
+                            else if (data.severity === 'critical') display.innerHTML = '🔴 Critical (Suspended)';
+                        }
+                    } else if (severitySelect) {
+                        severitySelect.value = 'info';
+                        const display = document.getElementById('alert-severity-display');
+                        if (display) display.innerHTML = '🔵 Info (General)';
+                    }
 
                     if (data.authorName) signoffInput.value = data.authorName;
                     else signoffInput.value = "Next Train Ops";
@@ -4532,7 +4622,11 @@ const Admin = {
                     
                     const pollResultsPanel = document.getElementById('alert-live-poll-results');
                     if (pollResultsPanel) pollResultsPanel.classList.add('hidden');
-                    if(severitySelect) severitySelect.value = 'info';
+                    if(severitySelect) {
+                        severitySelect.value = 'info';
+                        const display = document.getElementById('alert-severity-display');
+                        if (display) display.innerHTML = '🔵 Info (General)';
+                    }
 
                     signoffInput.value = "Next Train Ops";
                     forcePopupToggle.checked = false;
@@ -4556,53 +4650,104 @@ const Admin = {
             const currentVal = alertTarget.value;
             alertTarget.innerHTML = '';
             
-            const globalGroup = document.createElement('optgroup');
-            globalGroup.label = "Global Alerts";
-            globalGroup.innerHTML = `
-                <option value="all">🌍 Entire Network (All Regions)</option>
-                <option value="all_GP">📍 Gauteng Only</option>
-                <option value="all_WC">📍 Western Cape Only</option>
-                <option value="all_KZN">📍 KwaZulu-Natal Only</option>
-                <option value="all_EC">📍 Eastern Cape Only</option>
-            `;
-            alertTarget.appendChild(globalGroup);
+            const customList = document.getElementById('alert-target-list');
+            if (customList) customList.innerHTML = '';
+            const customDisplay = document.getElementById('alert-target-display');
 
-            const gpGroup = document.createElement('optgroup');
-            gpGroup.label = "Gauteng Routes";
-            const wcGroup = document.createElement('optgroup');
-            wcGroup.label = "Western Cape Routes";
-            const kznGroup = document.createElement('optgroup');
-            kznGroup.label = "KwaZulu-Natal Routes";
-            const ecGroup = document.createElement('optgroup');
-            ecGroup.label = "Eastern Cape Routes";
+            const addGroup = (label) => {
+                const group = document.createElement('optgroup');
+                group.label = label;
+                alertTarget.appendChild(group);
+
+                if (customList) {
+                    const liGroup = document.createElement('li');
+                    liGroup.className = "px-3 py-1.5 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest bg-gray-100 dark:bg-gray-800 select-none sticky top-0 z-10 border-y border-gray-200 dark:border-gray-700";
+                    liGroup.textContent = label;
+                    customList.appendChild(liGroup);
+                }
+                return group;
+            };
+
+            const addOption = (group, value, text, htmlText = text) => {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = text;
+                group.appendChild(opt);
+
+                if (customList) {
+                    const li = document.createElement('li');
+                    // GUARDIAN UX FIX: Added pl-6 for child indentation
+                    li.className = "pl-6 pr-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer flex items-center";
+                    li.innerHTML = htmlText;
+                    li.onclick = () => {
+                        alertTarget.value = value;
+                        if (customDisplay) customDisplay.innerHTML = htmlText;
+                        customList.classList.add('hidden');
+                        const chevron = document.getElementById('alert-target-chevron');
+                        if (chevron) chevron.classList.remove('rotate-180');
+                        alertTarget.dispatchEvent(new Event('change'));
+                    };
+                    customList.appendChild(li);
+                }
+            };
+
+            const globalGroup = addGroup("Global Alerts");
+            addOption(globalGroup, "all", "🌍 Entire Network (All Regions)", "<span class='truncate'>🌍 Entire Network (All Regions)</span>");
+            addOption(globalGroup, "all_GP", "📍 Gauteng Only", "<span class='truncate'>📍 Gauteng Only</span>");
+            addOption(globalGroup, "all_WC", "📍 Western Cape Only", "<span class='truncate'>📍 Western Cape Only</span>");
+            addOption(globalGroup, "all_KZN", "📍 KwaZulu-Natal Only", "<span class='truncate'>📍 KwaZulu-Natal Only</span>");
+            addOption(globalGroup, "all_EC", "📍 Eastern Cape Only", "<span class='truncate'>📍 Eastern Cape Only</span>");
 
             if (typeof ROUTES !== 'undefined') {
-                Object.values(ROUTES).forEach(r => {
-                    if (r.isActive && r.id !== 'special_event') {
-                        const opt = document.createElement('option');
-                        opt.value = r.id;
-                        const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
-                        opt.textContent = `🚂 ${r.name}${cues}`;
-                        if (r.region === 'GP') gpGroup.appendChild(opt);
-                        if (r.region === 'WC') wcGroup.appendChild(opt);
-                        if (r.region === 'KZN') kznGroup.appendChild(opt);
-                        if (r.region === 'EC') ecGroup.appendChild(opt);
+                const regions = [
+                    { code: 'GP', label: "Gauteng Routes" },
+                    { code: 'WC', label: "Western Cape Routes" },
+                    { code: 'KZN', label: "KwaZulu-Natal Routes" },
+                    { code: 'EC', label: "Eastern Cape Routes" }
+                ];
+
+                regions.forEach(regionInfo => {
+                    const regionalRoutes = Object.values(ROUTES).filter(r => r.region === regionInfo.code && r.isActive && r.id !== 'special_event');
+                    if (regionalRoutes.length > 0) {
+                        const group = addGroup(regionInfo.label);
+                        regionalRoutes.forEach(r => {
+                            const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
+                            const text = `🚂 ${r.name}${cues}`;
+                            
+                            let badgeHtml = '';
+                            if (cues) {
+                                if (cues.includes('Notice')) badgeHtml += '<span class="ml-1.5 px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[8px] rounded uppercase flex-shrink-0">📝</span>';
+                                if (cues.includes('Bans')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-[8px] rounded uppercase flex-shrink-0">⛔</span>';
+                                if (cues.includes('Incident')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 text-[8px] rounded uppercase flex-shrink-0">🚧</span>';
+                                if (cues.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">📢</span>';
+                            }
+                            const htmlText = `<span class="truncate mr-1">🚂 ${r.name}</span>${badgeHtml}`;
+                            addOption(group, r.id, text, htmlText);
+                        });
                     }
                 });
             }
-
-            alertTarget.appendChild(gpGroup);
-            alertTarget.appendChild(wcGroup);
-            alertTarget.appendChild(kznGroup);
-            alertTarget.appendChild(ecGroup);
             
+            let selectedOpt = null;
             if (currentVal) {
                 const optionToSelect = alertTarget.querySelector(`option[value="${currentVal}"]`);
-                if (optionToSelect) optionToSelect.selected = true;
+                if (optionToSelect) {
+                    optionToSelect.selected = true;
+                    selectedOpt = optionToSelect;
+                }
             } else {
                 const defOpt = typeof currentRegion !== 'undefined' ? `all_${currentRegion}` : 'all_GP';
                 const optionToSelect = alertTarget.querySelector(`option[value="${defOpt}"]`);
-                if (optionToSelect) optionToSelect.selected = true;
+                if (optionToSelect) {
+                    optionToSelect.selected = true;
+                    selectedOpt = optionToSelect;
+                }
+            }
+
+            if (selectedOpt && customDisplay) {
+                const matchLi = Array.from(customList.querySelectorAll('li')).find(li => li.onclick && li.textContent.includes(selectedOpt.textContent.split(' [')[0]));
+                if (matchLi) customDisplay.innerHTML = matchLi.innerHTML;
+                else customDisplay.textContent = selectedOpt.textContent;
             }
 
             if (!skipFetch) fetchCurrentAlert(alertTarget.value);
@@ -4767,31 +4912,56 @@ const Admin = {
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Route</label>
-                        <select id="disr-route" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
-                            <!-- Populated dynamically -->
-                        </select>
+                        <div class="relative" id="disr-route-container">
+                            <select id="disr-route" class="hidden"></select>
+                            <div onclick="document.getElementById('disr-route-list').classList.toggle('hidden'); document.getElementById('disr-route-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
+                                <span id="disr-route-display" class="truncate flex items-center">Select Route...</span>
+                                <svg id="disr-route-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                            <ul id="disr-route-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-y-auto max-h-60 custom-scrollbar text-left"></ul>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Severity Tier</label>
-                        <select id="disr-tier" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none font-bold">
-                            <option value="CRITICAL" class="text-red-600">🔴 CRITICAL (Sever Line)</option>
-                            <option value="WARNING" class="text-yellow-600">🟡 WARNING (Expect Delays)</option>
-                        </select>
+                        <div class="relative" id="disr-tier-container">
+                            <select id="disr-tier" class="hidden">
+                                <option value="CRITICAL">🔴 CRITICAL (Sever Line)</option>
+                                <option value="WARNING">🟡 WARNING (Expect Delays)</option>
+                            </select>
+                            <div onclick="document.getElementById('disr-tier-list').classList.toggle('hidden'); document.getElementById('disr-tier-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
+                                <span id="disr-tier-display" class="truncate"><span class="text-red-600">🔴 CRITICAL (Sever Line)</span></span>
+                                <svg id="disr-tier-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                            <ul id="disr-tier-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-hidden text-left">
+                                <li onclick="document.getElementById('disr-tier').value='CRITICAL'; document.getElementById('disr-tier-display').innerHTML='<span class=\\'text-red-600\\'>🔴 CRITICAL (Sever Line)</span>'; document.getElementById('disr-tier-list').classList.add('hidden'); document.getElementById('disr-tier-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-red-50 dark:hover:bg-gray-700 text-red-600 dark:text-red-400 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">🔴 CRITICAL (Sever Line)</li>
+                                <li onclick="document.getElementById('disr-tier').value='WARNING'; document.getElementById('disr-tier-display').innerHTML='<span class=\\'text-yellow-600\\'>🟡 WARNING (Expect Delays)</span>'; document.getElementById('disr-tier-list').classList.add('hidden'); document.getElementById('disr-tier-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-yellow-50 dark:hover:bg-gray-700 text-yellow-600 dark:text-yellow-400 transition-colors cursor-pointer">🟡 WARNING (Expect Delays)</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Station A</label>
-                        <select id="disr-station-a" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
-                            <option value="">Route-Wide Advisory</option>
-                        </select>
+                        <div class="relative" id="disr-station-a-container">
+                            <select id="disr-station-a" class="hidden"><option value="">Route-Wide Advisory</option></select>
+                            <div onclick="document.getElementById('disr-station-a-list').classList.toggle('hidden'); document.getElementById('disr-station-a-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
+                                <span id="disr-station-a-display" class="truncate">Route-Wide Advisory</span>
+                                <svg id="disr-station-a-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                            <ul id="disr-station-a-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-y-auto max-h-60 custom-scrollbar text-left"></ul>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Station B</label>
-                        <select id="disr-station-b" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
-                            <option value="">Single Station Only</option>
-                        </select>
+                        <div class="relative" id="disr-station-b-container">
+                            <select id="disr-station-b" class="hidden"><option value="">None (Single Station/Route)</option></select>
+                            <div onclick="document.getElementById('disr-station-b-list').classList.toggle('hidden'); document.getElementById('disr-station-b-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
+                                <span id="disr-station-b-display" class="truncate">None (Single Station/Route)</span>
+                                <svg id="disr-station-b-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                            <ul id="disr-station-b-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-y-auto max-h-60 custom-scrollbar text-left"></ul>
+                        </div>
                     </div>
                 </div>
 
@@ -4861,37 +5031,95 @@ const Admin = {
             const currentVal = routeSelect.value;
             routeSelect.innerHTML = '';
             
-            if (typeof ROUTES !== 'undefined') {
-                const gpGroup = document.createElement('optgroup');
-                gpGroup.label = "Gauteng Routes";
-                const wcGroup = document.createElement('optgroup');
-                wcGroup.label = "Western Cape Routes";
-                const kznGroup = document.createElement('optgroup');
-                kznGroup.label = "KwaZulu-Natal Routes";
-                const ecGroup = document.createElement('optgroup');
-                ecGroup.label = "Eastern Cape Routes";
+            const customList = document.getElementById('disr-route-list');
+            if (customList) customList.innerHTML = '';
+            const customDisplay = document.getElementById('disr-route-display');
 
-                Object.values(ROUTES).forEach(r => {
-                    if (r.isActive && r.id !== 'special_event') {
-                        const opt = document.createElement('option');
-                        opt.value = r.id;
-                        const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
-                        opt.textContent = `${r.name}${cues}`;
-                        if (r.region === 'GP') gpGroup.appendChild(opt);
-                        if (r.region === 'WC') wcGroup.appendChild(opt);
-                        if (r.region === 'KZN') kznGroup.appendChild(opt);
-                        if (r.region === 'EC') ecGroup.appendChild(opt);
+            const addGroup = (label) => {
+                const group = document.createElement('optgroup');
+                group.label = label;
+                routeSelect.appendChild(group);
+
+                if (customList) {
+                    const liGroup = document.createElement('li');
+                    liGroup.className = "px-3 py-1.5 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest bg-gray-100 dark:bg-gray-800 select-none sticky top-0 z-10 border-y border-gray-200 dark:border-gray-700";
+                    liGroup.textContent = label;
+                    customList.appendChild(liGroup);
+                }
+                return group;
+            };
+
+            const addOption = (group, value, text, htmlText = text) => {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = text;
+                group.appendChild(opt);
+
+                if (customList) {
+                    const li = document.createElement('li');
+                    // GUARDIAN UX FIX: Added pl-6 for child indentation
+                    li.className = "pl-6 pr-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer flex items-center";
+                    li.innerHTML = htmlText;
+                    li.onclick = () => {
+                        routeSelect.value = value;
+                        if (customDisplay) customDisplay.innerHTML = htmlText;
+                        customList.classList.add('hidden');
+                        const chevron = document.getElementById('disr-route-chevron');
+                        if (chevron) chevron.classList.remove('rotate-180');
+                        routeSelect.dispatchEvent(new Event('change'));
+                    };
+                    customList.appendChild(li);
+                }
+            };
+            
+            if (typeof ROUTES !== 'undefined') {
+                const regions = [
+                    { code: 'GP', label: "Gauteng Routes" },
+                    { code: 'WC', label: "Western Cape Routes" },
+                    { code: 'KZN', label: "KwaZulu-Natal Routes" },
+                    { code: 'EC', label: "Eastern Cape Routes" }
+                ];
+
+                regions.forEach(regionInfo => {
+                    const regionalRoutes = Object.values(ROUTES).filter(r => r.region === regionInfo.code && r.isActive && r.id !== 'special_event');
+                    if (regionalRoutes.length > 0) {
+                        const group = addGroup(regionInfo.label);
+                        regionalRoutes.forEach(r => {
+                            const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
+                            const text = `${r.name}${cues}`;
+                            
+                            let badgeHtml = '';
+                            if (cues) {
+                                if (cues.includes('Notice')) badgeHtml += '<span class="ml-1.5 px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[8px] rounded uppercase flex-shrink-0">📝</span>';
+                                if (cues.includes('Bans')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-[8px] rounded uppercase flex-shrink-0">⛔</span>';
+                                if (cues.includes('Incident')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 text-[8px] rounded uppercase flex-shrink-0">🚧</span>';
+                                if (cues.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">📢</span>';
+                            }
+                            const htmlText = `<span class="truncate mr-1">${r.name}</span>${badgeHtml}`;
+                            addOption(group, r.id, text, htmlText);
+                        });
                     }
                 });
-                routeSelect.appendChild(gpGroup);
-                routeSelect.appendChild(wcGroup);
-                routeSelect.appendChild(kznGroup);
-                routeSelect.appendChild(ecGroup);
                 
+                let selectedOpt = null;
                 if (currentVal) {
-                    routeSelect.value = currentVal;
+                    const optionToSelect = routeSelect.querySelector(`option[value="${currentVal}"]`);
+                    if (optionToSelect) {
+                        optionToSelect.selected = true;
+                        selectedOpt = optionToSelect;
+                    }
                 } else if (typeof currentRouteId !== 'undefined' && currentRouteId) {
-                    routeSelect.value = currentRouteId;
+                    const optionToSelect = routeSelect.querySelector(`option[value="${currentRouteId}"]`);
+                    if (optionToSelect) {
+                        optionToSelect.selected = true;
+                        selectedOpt = optionToSelect;
+                    }
+                }
+
+                if (selectedOpt && customDisplay) {
+                    const matchLi = Array.from(customList.querySelectorAll('li')).find(li => li.onclick && li.textContent.includes(selectedOpt.textContent.split(' [')[0]));
+                    if (matchLi) customDisplay.innerHTML = matchLi.innerHTML;
+                    else customDisplay.textContent = selectedOpt.textContent;
                 }
             }
         };
@@ -4903,6 +5131,47 @@ const Admin = {
             statASelect.innerHTML = '<option value="">Route-Wide Advisory</option>';
             statBSelect.innerHTML = '<option value="">None (Single Station/Route)</option>';
             
+            const listA = document.getElementById('disr-station-a-list');
+            const listB = document.getElementById('disr-station-b-list');
+            const displayA = document.getElementById('disr-station-a-display');
+            const displayB = document.getElementById('disr-station-b-display');
+
+            if (listA) listA.innerHTML = '';
+            if (listB) listB.innerHTML = '';
+            
+            const addStationOpt = (selectEl, listEl, displayEl, value, text, chevronId, isA = true) => {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = text;
+                selectEl.appendChild(opt);
+
+                if (listEl) {
+                    const li = document.createElement('li');
+                    li.className = "px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer";
+                    li.textContent = text;
+                    li.onclick = () => {
+                        selectEl.value = value;
+                        if (displayEl) displayEl.textContent = text;
+                        listEl.classList.add('hidden');
+                        const chevron = document.getElementById(chevronId);
+                        if (chevron) chevron.classList.remove('rotate-180');
+                        
+                        // Sync display if A is cleared
+                        if (isA && value === "") {
+                            statBSelect.value = "";
+                            if (displayB) displayB.textContent = "None (Single Station/Route)";
+                        }
+                    };
+                    listEl.appendChild(li);
+                }
+            };
+
+            addStationOpt(statASelect, listA, displayA, "", "Route-Wide Advisory", 'disr-station-a-chevron', true);
+            addStationOpt(statBSelect, listB, displayB, "", "None (Single Station/Route)", 'disr-station-b-chevron', false);
+
+            if (displayA) displayA.textContent = "Route-Wide Advisory";
+            if (displayB) displayB.textContent = "None (Single Station/Route)";
+
             if (!rId || typeof globalStationIndex === 'undefined') return;
 
             const stations = [];
@@ -4914,15 +5183,9 @@ const Admin = {
             stations.sort();
 
             stations.forEach(st => {
-                const optA = document.createElement('option');
-                optA.value = st;
-                optA.textContent = st.replace(' STATION', '');
-                statASelect.appendChild(optA);
-
-                const optB = document.createElement('option');
-                optB.value = st;
-                optB.textContent = st.replace(' STATION', '');
-                statBSelect.appendChild(optB);
+                const cleanName = st.replace(' STATION', '');
+                addStationOpt(statASelect, listA, displayA, st, cleanName, 'disr-station-a-chevron', true);
+                addStationOpt(statBSelect, listB, displayB, st, cleanName, 'disr-station-b-chevron', false);
             });
         };
 
@@ -5066,8 +5329,22 @@ const Admin = {
                         
                         setTimeout(() => {
                             document.getElementById('disr-tier').value = data.tier || 'CRITICAL';
-                            if (data.stations && data.stations.length >= 1) document.getElementById('disr-station-a').value = data.stations[0];
-                            if (data.stations && data.stations.length === 2) document.getElementById('disr-station-b').value = data.stations[1];
+                            const tierDisplay = document.getElementById('disr-tier-display');
+                            if (tierDisplay) {
+                                if (data.tier === 'CRITICAL') tierDisplay.innerHTML = '<span class="text-red-600">🔴 CRITICAL (Sever Line)</span>';
+                                else tierDisplay.innerHTML = '<span class="text-yellow-600">🟡 WARNING (Expect Delays)</span>';
+                            }
+
+                            if (data.stations && data.stations.length >= 1) {
+                                document.getElementById('disr-station-a').value = data.stations[0];
+                                const dispA = document.getElementById('disr-station-a-display');
+                                if (dispA) dispA.textContent = data.stations[0].replace(' STATION', '');
+                            }
+                            if (data.stations && data.stations.length === 2) {
+                                document.getElementById('disr-station-b').value = data.stations[1];
+                                const dispB = document.getElementById('disr-station-b-display');
+                                if (dispB) dispB.textContent = data.stations[1].replace(' STATION', '');
+                            }
                             document.getElementById('disr-btn-text').value = data.buttonText || '';
                             document.getElementById('disr-msg').value = (data.message || data.longExplanation || '').replace(/<br>/g, '\n');
                             
@@ -5153,13 +5430,28 @@ const Admin = {
             
             <div id="excl-body" class="hidden mt-4 space-y-3">
                 <div class="flex space-x-2">
-                    <select id="excl-route" class="w-2/3 h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
-                        <!-- Populated dynamically with optgroups -->
-                    </select>
-                    <select id="excl-direction" class="w-1/3 h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
-                        <option value="A">To Dest A</option>
-                        <option value="B">To Dest B</option>
-                    </select>
+                    <div class="relative w-2/3" id="excl-route-container">
+                        <select id="excl-route" class="hidden"></select>
+                        <div onclick="document.getElementById('excl-route-list').classList.toggle('hidden'); document.getElementById('excl-route-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
+                            <span id="excl-route-display" class="truncate flex items-center">Select Route...</span>
+                            <svg id="excl-route-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <ul id="excl-route-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-y-auto max-h-60 custom-scrollbar text-left"></ul>
+                    </div>
+                    <div class="relative w-1/3" id="excl-direction-container">
+                        <select id="excl-direction" class="hidden">
+                            <option value="A">To Dest A</option>
+                            <option value="B">To Dest B</option>
+                        </select>
+                        <div onclick="document.getElementById('excl-direction-list').classList.toggle('hidden'); document.getElementById('excl-direction-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
+                            <span id="excl-direction-display" class="truncate">To Dest A</span>
+                            <svg id="excl-direction-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <ul id="excl-direction-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-hidden text-left">
+                            <li onclick="document.getElementById('excl-direction').value='A'; document.getElementById('excl-direction-display').textContent=this.textContent; document.getElementById('excl-direction-list').classList.add('hidden'); document.getElementById('excl-direction-chevron').classList.remove('rotate-180'); document.getElementById('excl-direction').dispatchEvent(new Event('change'));" id="excl-dir-opt-a" class="px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">To Dest A</li>
+                            <li onclick="document.getElementById('excl-direction').value='B'; document.getElementById('excl-direction-display').textContent=this.textContent; document.getElementById('excl-direction-list').classList.add('hidden'); document.getElementById('excl-direction-chevron').classList.remove('rotate-180'); document.getElementById('excl-direction').dispatchEvent(new Event('change'));" id="excl-dir-opt-b" class="px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer">To Dest B</li>
+                        </ul>
+                    </div>
                 </div>
 
                 <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -5183,11 +5475,22 @@ const Admin = {
                 </div>
 
                 <div class="flex space-x-2 mt-2">
-                    <select id="excl-schedule-type" class="w-2/3 h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs outline-none text-gray-900 dark:text-white">
-                        <option value="weekday">Weekday Schedule</option>
-                        <option value="saturday">Saturday Schedule</option>
-                        <option value="sunday">Sunday Schedule</option>
-                    </select>
+                    <div class="relative w-2/3" id="excl-schedule-type-container">
+                        <select id="excl-schedule-type" class="hidden">
+                            <option value="weekday">Weekday Schedule</option>
+                            <option value="saturday">Saturday Schedule</option>
+                            <option value="sunday">Sunday Schedule</option>
+                        </select>
+                        <div onclick="document.getElementById('excl-schedule-type-list').classList.toggle('hidden'); document.getElementById('excl-schedule-type-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
+                            <span id="excl-schedule-type-display" class="truncate">Weekday Schedule</span>
+                            <svg id="excl-schedule-type-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <ul id="excl-schedule-type-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-hidden text-left">
+                            <li onclick="document.getElementById('excl-schedule-type').value='weekday'; document.getElementById('excl-schedule-type-display').textContent=this.textContent; document.getElementById('excl-schedule-type-list').classList.add('hidden'); document.getElementById('excl-schedule-type-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">Weekday Schedule</li>
+                            <li onclick="document.getElementById('excl-schedule-type').value='saturday'; document.getElementById('excl-schedule-type-display').textContent=this.textContent; document.getElementById('excl-schedule-type-list').classList.add('hidden'); document.getElementById('excl-schedule-type-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">Saturday Schedule</li>
+                            <li onclick="document.getElementById('excl-schedule-type').value='sunday'; document.getElementById('excl-schedule-type-display').textContent=this.textContent; document.getElementById('excl-schedule-type-list').classList.add('hidden'); document.getElementById('excl-schedule-type-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer">Sunday Schedule</li>
+                        </ul>
+                    </div>
                     <button id="excl-load-trains-btn" class="w-1/3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold rounded-lg text-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors focus:outline-none">Load</button>
                 </div>
 
@@ -5267,42 +5570,117 @@ const Admin = {
             }
         };
 
+        // Inject global listener protection for Exception Dropdowns
+        if (!window._adminExceptionsDropdownsBound) {
+            document.addEventListener('click', (e) => {
+                const checkClose = (containerId, listId, chevId) => {
+                    const container = document.getElementById(containerId);
+                    const list = document.getElementById(listId);
+                    const chev = document.getElementById(chevId);
+                    if (list && !list.classList.contains('hidden') && (!container || !container.contains(e.target))) {
+                        list.classList.add('hidden');
+                        if (chev) chev.classList.remove('rotate-180');
+                    }
+                };
+                checkClose('excl-direction-container', 'excl-direction-list', 'excl-direction-chevron');
+                checkClose('excl-schedule-type-container', 'excl-schedule-type-list', 'excl-schedule-type-chevron');
+            });
+            window._adminExceptionsDropdownsBound = true;
+        }
+
         Admin.populateExclusionRoutes = () => {
             const currentVal = routeSelect.value;
             routeSelect.innerHTML = '';
+            
+            const customList = document.getElementById('excl-route-list');
+            if (customList) customList.innerHTML = '';
+            const customDisplay = document.getElementById('excl-route-display');
+
+            const addGroup = (label) => {
+                const group = document.createElement('optgroup');
+                group.label = label;
+                routeSelect.appendChild(group);
+
+                if (customList) {
+                    const liGroup = document.createElement('li');
+                    liGroup.className = "px-3 py-1.5 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest bg-gray-100 dark:bg-gray-800 select-none sticky top-0 z-10 border-y border-gray-200 dark:border-gray-700";
+                    liGroup.textContent = label;
+                    customList.appendChild(liGroup);
+                }
+                return group;
+            };
+
+            const addOption = (group, value, text, htmlText = text) => {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = text;
+                group.appendChild(opt);
+
+                if (customList) {
+                    const li = document.createElement('li');
+                    // GUARDIAN UX FIX: Added pl-6 for child indentation
+                    li.className = "pl-6 pr-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer flex items-center";
+                    li.innerHTML = htmlText;
+                    li.onclick = () => {
+                        routeSelect.value = value;
+                        if (customDisplay) customDisplay.innerHTML = htmlText;
+                        customList.classList.add('hidden');
+                        const chevron = document.getElementById('excl-route-chevron');
+                        if (chevron) chevron.classList.remove('rotate-180');
+                        routeSelect.dispatchEvent(new Event('change'));
+                    };
+                    customList.appendChild(li);
+                }
+            };
 
             if (typeof ROUTES !== 'undefined') {
-                const gpGroup = document.createElement('optgroup');
-                gpGroup.label = "Gauteng Routes";
-                const wcGroup = document.createElement('optgroup');
-                wcGroup.label = "Western Cape Routes";
-                const kznGroup = document.createElement('optgroup');
-                kznGroup.label = "KwaZulu-Natal Routes";
-                const ecGroup = document.createElement('optgroup');
-                ecGroup.label = "Eastern Cape Routes";
+                const regions = [
+                    { code: 'GP', label: "Gauteng Routes" },
+                    { code: 'WC', label: "Western Cape Routes" },
+                    { code: 'KZN', label: "KwaZulu-Natal Routes" },
+                    { code: 'EC', label: "Eastern Cape Routes" }
+                ];
 
-                Object.values(ROUTES).forEach(r => {
-                    if (r.isActive && r.id !== 'special_event') {
-                        const opt = document.createElement('option');
-                        opt.value = r.id;
-                        const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
-                        opt.textContent = `${r.name}${cues}`;
-                        if (r.region === 'GP') gpGroup.appendChild(opt);
-                        if (r.region === 'WC') wcGroup.appendChild(opt);
-                        if (r.region === 'KZN') kznGroup.appendChild(opt);
-                        if (r.region === 'EC') ecGroup.appendChild(opt);
+                regions.forEach(regionInfo => {
+                    const regionalRoutes = Object.values(ROUTES).filter(r => r.region === regionInfo.code && r.isActive && r.id !== 'special_event');
+                    if (regionalRoutes.length > 0) {
+                        const group = addGroup(regionInfo.label);
+                        regionalRoutes.forEach(r => {
+                            const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
+                            const text = `${r.name}${cues}`;
+                            
+                            let badgeHtml = '';
+                            if (cues) {
+                                if (cues.includes('Notice')) badgeHtml += '<span class="ml-1.5 px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[8px] rounded uppercase flex-shrink-0">📝</span>';
+                                if (cues.includes('Bans')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-[8px] rounded uppercase flex-shrink-0">⛔</span>';
+                                if (cues.includes('Incident')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 text-[8px] rounded uppercase flex-shrink-0">🚧</span>';
+                                if (cues.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">📢</span>';
+                            }
+                            const htmlText = `<span class="truncate mr-1">${r.name}</span>${badgeHtml}`;
+                            addOption(group, r.id, text, htmlText);
+                        });
                     }
                 });
                 
-                routeSelect.appendChild(gpGroup);
-                routeSelect.appendChild(wcGroup);
-                routeSelect.appendChild(kznGroup);
-                routeSelect.appendChild(ecGroup);
-                
+                let selectedOpt = null;
                 if (currentVal) {
-                    routeSelect.value = currentVal;
+                    const optionToSelect = routeSelect.querySelector(`option[value="${currentVal}"]`);
+                    if (optionToSelect) {
+                        optionToSelect.selected = true;
+                        selectedOpt = optionToSelect;
+                    }
                 } else if (typeof currentRouteId !== 'undefined' && currentRouteId) {
-                    routeSelect.value = currentRouteId;
+                    const optionToSelect = routeSelect.querySelector(`option[value="${currentRouteId}"]`);
+                    if (optionToSelect) {
+                        optionToSelect.selected = true;
+                        selectedOpt = optionToSelect;
+                    }
+                }
+
+                if (selectedOpt && customDisplay) {
+                    const matchLi = Array.from(customList.querySelectorAll('li')).find(li => li.onclick && li.textContent.includes(selectedOpt.textContent.split(' [')[0]));
+                    if (matchLi) customDisplay.innerHTML = matchLi.innerHTML;
+                    else customDisplay.textContent = selectedOpt.textContent;
                 }
             }
         };
@@ -5313,15 +5691,41 @@ const Admin = {
                 const rId = routeSelect.value;
                 if (rId && ROUTES[rId]) {
                     const r = ROUTES[rId];
+                    
+                    const optA = document.getElementById('excl-dir-opt-a');
+                    const optB = document.getElementById('excl-dir-opt-b');
+                    const display = document.getElementById('excl-direction-display');
+                    
                     if (dirSelect && dirSelect.options.length >= 2) {
-                        dirSelect.options[0].textContent = `To ${r.destA.replace(' STATION','')}`;
-                        dirSelect.options[1].textContent = `To ${r.destB.replace(' STATION','')}`;
+                        const txtA = `To ${r.destA.replace(' STATION','')}`;
+                        const txtB = `To ${r.destB.replace(' STATION','')}`;
+                        
+                        dirSelect.options[0].textContent = txtA;
+                        dirSelect.options[1].textContent = txtB;
+                        
+                        if (optA) optA.textContent = txtA;
+                        if (optB) optB.textContent = txtB;
+                        
+                        if (display) {
+                            display.textContent = dirSelect.value === 'A' ? txtA : txtB;
+                        }
                     }
                     fetchExclusions();
                 } else {
+                    const optA = document.getElementById('excl-dir-opt-a');
+                    const optB = document.getElementById('excl-dir-opt-b');
+                    const display = document.getElementById('excl-direction-display');
+
                     if (dirSelect && dirSelect.options.length >= 2) {
                         dirSelect.options[0].textContent = "To Dest A";
                         dirSelect.options[1].textContent = "To Dest B";
+                        
+                        if (optA) optA.textContent = "To Dest A";
+                        if (optB) optB.textContent = "To Dest B";
+
+                        if (display) {
+                            display.textContent = dirSelect.value === 'A' ? "To Dest A" : "To Dest B";
+                        }
                     }
                 }
             });

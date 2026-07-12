@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.11 - Performance Polish Edition v2)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.12 - Performance Polish Edition v2)
  * -----------------------------------------------------------------------------
  * This module handles DOM interaction, Event Listeners, and UI Rendering.
  *
@@ -274,38 +274,46 @@ window.closeAppHub = function(fromPopState = false) {
     }
 };
 
-// --- GUARDIAN PHASE 6: UNIVERSAL IMAGE LIGHTBOX ---
+// --- GUARDIAN PHASE 6 & 20: UNIVERSAL IMAGE LIGHTBOX (MAP ENGINE HIJACK) ---
 window.openLightbox = function(url) {
+    if (typeof triggerHaptic === 'function') triggerHaptic();
     history.pushState({ modal: 'lightbox' }, '', '#lightbox');
     lockBackgroundScroll();
     
-    let modal = document.getElementById('global-lightbox-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'global-lightbox-modal';
-        modal.className = 'fixed inset-0 bg-black/95 z-[300] hidden flex items-center justify-center p-2 sm:p-4 backdrop-blur-md transition-opacity duration-300';
-        modal.onclick = (e) => {
-            if (e.target === modal || e.target.id === 'lightbox-close-btn' || e.target.closest('#lightbox-close-btn')) {
-                window.closeLightbox();
-            }
+    const mapModal = document.getElementById('map-modal');
+    const mapImg = document.getElementById('map-image');
+    const mapTitle = document.getElementById('map-modal-title');
+    
+    if (mapModal && mapImg) {
+        window._isLightboxMode = true;
+        
+        // Save original map states for the Teardown Hook
+        if (!window._originalMapSrc) window._originalMapSrc = mapImg.src;
+        if (mapTitle && !window._originalMapTitle) window._originalMapTitle = mapTitle.textContent;
+        
+        // Swap in the Alert Image
+        if (mapTitle) mapTitle.textContent = "Image Preview";
+        mapImg.src = url;
+        
+        // Reset Map Pan/Zoom coordinates so the image opens perfectly centered
+        mapImg.style.transform = 'translate(0px, 0px) scale(1)';
+        
+        // Temporarily hijack the map modal close buttons
+        const closeBtn1 = document.getElementById('close-map-btn');
+        const closeBtn2 = document.getElementById('close-map-btn-2');
+        
+        if (!window._originalMapClose1 && closeBtn1) window._originalMapClose1 = closeBtn1.onclick;
+        if (!window._originalMapClose2 && closeBtn2) window._originalMapClose2 = closeBtn2.onclick;
+        
+        const lightboxCloseHandler = (e) => {
+            if (e) e.preventDefault();
+            window.closeLightbox();
         };
-        modal.innerHTML = `
-            <button id="lightbox-close-btn" class="absolute top-4 right-4 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors focus:outline-none z-10 backdrop-blur-sm" aria-label="Close Image">
-                <svg class="w-6 h-6 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </button>
-            <img id="global-lightbox-img" src="" class="max-w-full max-h-[95dvh] object-contain rounded-lg shadow-2xl transform transition-transform scale-95 duration-300" alt="Full screen preview">
-        `;
-        document.body.appendChild(modal);
-    }
-    
-    const img = document.getElementById('global-lightbox-img');
-    if (img) img.src = url;
-    
-    modal.classList.remove('hidden');
-    void modal.offsetWidth; // Force Reflow
-    if (img) {
-        img.classList.remove('scale-95');
-        img.classList.add('scale-100');
+        
+        if (closeBtn1) closeBtn1.onclick = lightboxCloseHandler;
+        if (closeBtn2) closeBtn2.onclick = lightboxCloseHandler;
+        
+        openSmoothModal('map-modal');
     }
 };
 
@@ -316,20 +324,28 @@ window.closeLightbox = function(fromPopState = false) {
     }
     
     unlockBackgroundScroll();
+    closeSmoothModal('map-modal');
     
-    const modal = document.getElementById('global-lightbox-modal');
-    if (!modal) return;
-    const img = document.getElementById('global-lightbox-img');
-    if (img) {
-        img.classList.remove('scale-100');
-        img.classList.add('scale-95');
-    }
-    modal.classList.add('opacity-0');
+    // Teardown Hook: Restore the regional map image and bindings AFTER the fade out
     setTimeout(() => {
-        modal.classList.add('hidden');
-        modal.classList.remove('opacity-0');
-        if (img) img.src = '';
-    }, 300);
+        if (window._isLightboxMode) {
+            const mapImg = document.getElementById('map-image');
+            const mapTitle = document.getElementById('map-modal-title');
+            
+            if (mapImg && window._originalMapSrc) mapImg.src = window._originalMapSrc;
+            if (mapTitle && window._originalMapTitle) mapTitle.textContent = window._originalMapTitle;
+            
+            if (mapImg) mapImg.style.transform = 'translate(0px, 0px) scale(1)';
+            
+            const closeBtn1 = document.getElementById('close-map-btn');
+            const closeBtn2 = document.getElementById('close-map-btn-2');
+            
+            if (closeBtn1 && window._originalMapClose1) closeBtn1.onclick = window._originalMapClose1;
+            if (closeBtn2 && window._originalMapClose2) closeBtn2.onclick = window._originalMapClose2;
+            
+            window._isLightboxMode = false;
+        }
+    }, 350);
 };
 
 // --- GLOBAL ERROR HANDLER (SILENT NINJA PROTOCOL) ---
@@ -832,9 +848,9 @@ function renderRouteError(error) {
     window._networkPollInterval = setInterval(() => {
         if (navigator.onLine) {
             // Lightweight ping to verify actual internet access, defeating false-positive "router-only" Wi-Fi connections
-            fetch('https://nexttrain-telemetry.enock.workers.dev/ping', { method: 'HEAD', cache: 'no-store' })
+            fetch('https://nexttrain-telemetry.enock.workers.dev/ping', { method: 'GET', cache: 'no-store' })
             .then(res => {
-                if (res.ok || res.status === 405 || res.status === 404) {
+                if (res.ok || res.status === 404) {
                     clearInterval(window._networkPollInterval);
                     window._networkPollInterval = null;
                     const pollText = document.getElementById('network-polling-text');
@@ -2483,8 +2499,7 @@ window.addEventListener('popstate', (event) => {
     }, 350);
 
     // 1. EVALUATE LIGHTBOX FIRST (Custom Closer Required)
-    const globalLightbox = document.getElementById('global-lightbox-modal');
-    if (globalLightbox && !globalLightbox.classList.contains('hidden')) {
+    if (window._isLightboxMode) {
         window.closeLightbox(true);
         return;
     }
@@ -2502,6 +2517,8 @@ window.addEventListener('popstate', (event) => {
     // GUARDIAN Phase 2: Router Bleed Lock
     if (window._isModalAnimating) {
         console.log("🛡️ Guardian: Suppressed popstate router bleed during modal animation.");
+        // 🛡️ GUARDIAN GARBAGE COLLECTOR: Forcefully execute unlockBackgroundScroll() to rescue the user from the double-back freeze
+        unlockBackgroundScroll();
         history.pushState(null, '', location.href || '#home'); 
         return;
     }
@@ -3085,6 +3102,25 @@ async function submitFeedback() {
             showToast("Feedback sent! Thank you.", "success");
         }
         closeSmoothModal('feedback-modal');
+
+        // 🛡️ GUARDIAN UX FIX: Auto-Acknowledge Admin Reply Banner
+        if (contextBox && contextBox.dataset.rawMsg) {
+            const adminReplyMatch = contextBox.dataset.rawMsg.match(/\[REPLY TO ADMIN:\s*([-a-zA-Z0-9_]+)\]/i);
+            if (adminReplyMatch && adminReplyMatch[1]) {
+                const adminMsgId = adminReplyMatch[1];
+                const replyBanner = document.getElementById('developer-reply-banner');
+                if (replyBanner) replyBanner.classList.add('hidden'); // Hide instantly for frictionless UX
+
+                // Silently flag as acknowledged in Firebase so it doesn't return on reload
+                try {
+                    const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                    fetch(`${dynamicEndpoint}inbox/${typeof NEXT_TRAIN_DEVICE_ID !== 'undefined' ? NEXT_TRAIN_DEVICE_ID : 'unknown'}/${adminMsgId}.json`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ read: true, readAt: Date.now(), acknowledged: true })
+                    }).catch(()=>{});
+                } catch(e) {}
+            }
+        }
         
         // 🛡️ GUARDIAN 2.4: Smart Polling (20s for 10mins) to catch instant admin replies
         if (window._smartPollInterval) clearInterval(window._smartPollInterval);
@@ -3755,6 +3791,12 @@ async function selectWelcomeRoute(routeId) {
                     if (!window.indexedDB) return resolve(false);
                     const req = indexedDB.open('NextTrainDB', 1);
                     req.onerror = () => resolve(false);
+                    req.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('SchedulesStore')) {
+                            db.createObjectStore('SchedulesStore');
+                        }
+                    };
                     req.onsuccess = (e) => {
                         const db = e.target.result;
                         if (!db || !db.objectStoreNames.contains('SchedulesStore')) return resolve(false);
@@ -3855,13 +3897,26 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-function handleUpdateFound(registration) {
+async function handleUpdateFound(registration) {
     const isForceUpdate = typeof FORCE_UPDATE_REQUIRED !== 'undefined' && FORCE_UPDATE_REQUIRED;
+
+    let incomingVersion = typeof APP_VERSION !== 'undefined' ? APP_VERSION.split(' - ')[0] : 'Latest';
+    try {
+        const res = await fetch(`js/config.js?v=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+            const text = await res.text();
+            const match = text.match(/const APP_VERSION\s*=\s*["']([^"']+)["']/);
+            if (match && match[1]) {
+                incomingVersion = match[1].split(' - ')[0];
+            }
+        }
+    } catch (e) {
+        console.warn("🛡️ Guardian: Failed to peek at incoming update version.", e);
+    }
 
     if (isForceUpdate) {
         console.log("GUARDIAN: Force Update Triggered.");
-        const currentVer = typeof APP_VERSION !== 'undefined' ? APP_VERSION.split(' - ')[0] : 'Unknown';
-        showToast(`Crucial system update incoming: ${currentVer}.`, "error", 5000);
+        showToast(`Crucial system update incoming: ${incomingVersion}.`, "error", 5000);
         
         if (registration.waiting) {
             registration.waiting.postMessage({ type: 'SKIP_WAITING' });
@@ -3880,7 +3935,7 @@ function handleUpdateFound(registration) {
                 UPDATE
             </button>
         `;
-        showToast("New version available.", "info", 10000, actionHTML);
+        showToast(`New version (${incomingVersion}) available.`, "info", 10000, actionHTML);
         
         window._pendingUpdateReg = registration;
     }

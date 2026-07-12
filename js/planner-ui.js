@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7_07.11 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_07.12 - Performance Polish Edition)
  * -----------------------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * This module handles user interaction, DOM updates, and event listeners.
@@ -2164,6 +2164,7 @@ function executeTripPlan(origin, dest, preferredTime = null) {
             let errorTitle = "No Valid Route";
             let errorMsg = "";
             let showFeedbackBtn = false;
+            let extractedDisruptionBtn = ""; // 🛡️ GUARDIAN PHASE 1: Extracted button logic for Side-by-Side Flex
 
             // GUARDIAN PHASE 14 & 6: Map exact failure codes to commuter-friendly UX cards with active Disruption bindings
             switch (currentPlannerStatus) {
@@ -2193,21 +2194,18 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                     `;
                     break;
                 case 'ERR_ACTIVE_SUSPENSION':
-            errorTitle = "Route Suspended";
-            
-            let suspensionAlertHtml = '';
-            if (errorPayload && errorPayload.disruptionId) {
-                const btnText = errorPayload.buttonText || "Line Severed";
-                // 🛡️ GUARDIAN UX FIX: Replaced emoji with premium SVG
-                const brokenChainSvg = `<svg class="w-3.5 h-3.5 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path><line x1="8" y1="8" x2="16" y2="16"></line></svg>`;
-                suspensionAlertHtml = `
-                    <div class="mt-4 flex justify-center w-full">
-                        <button type="button" onclick="openDisruptionModal('${errorPayload.disruptionId}')" class="bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm flex items-center focus:outline-none">
-                            ${brokenChainSvg} <span>${escapeHTML(btnText)}</span>
-                        </button>
-                    </div>
-                `;
-            }
+                    errorTitle = "Route Suspended";
+                    
+                    if (errorPayload && errorPayload.disruptionId) {
+                        const btnText = errorPayload.buttonText || "Line Severed";
+                        // 🛡️ GUARDIAN UX FIX: Replaced emoji with premium SVG and stripped wrapper to allow flex-1 scaling
+                        const brokenChainSvg = `<svg class="w-3.5 h-3.5 mr-1.5 inline-block shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path><line x1="8" y1="8" x2="16" y2="16"></line></svg>`;
+                        extractedDisruptionBtn = `
+                            <button type="button" onclick="openDisruptionModal('${errorPayload.disruptionId}')" class="flex-1 bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700 py-3 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm flex items-center justify-center focus:outline-none min-w-0">
+                                ${brokenChainSvg} <span class="truncate">${escapeHTML(btnText)}</span>
+                            </button>
+                        `;
+                    }
                     
                     errorMsg = `
                         <div class="text-left space-y-2 mt-2">
@@ -2217,7 +2215,6 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                                 <li>Refer to the Service Alerts tab for more details.</li>
                             </ul>
                         </div>
-                        ${suspensionAlertHtml}
                     `;
                     break;
                 case 'ERR_NO_SERVICE_TODAY':
@@ -2239,13 +2236,16 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                     let incidentNoteHtml = '';
                     if (errorPayload && errorPayload.hasIncident) {
                         const btnText = errorPayload.buttonText || "Line Severed";
+                        // Text remains in the body, but the CTA button moves to the master row
                         incidentNoteHtml = `
                             <div class="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 text-left text-[11px] text-red-800 dark:text-red-300 rounded-r shadow-sm">
-                                <b>Note:</b> There is also an active incident on this line:<br>
-                                <button type="button" onclick="openDisruptionModal('${errorPayload.disruptionId}')" class="mt-2 w-full bg-white dark:bg-gray-800 hover:bg-red-100 dark:hover:bg-gray-700 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors shadow-sm focus:outline-none flex justify-center items-center">
-                                    <span class="mr-1">🔴</span> ${escapeHTML(btnText)}
-                                </button>
+                                <b>Note:</b> There is also an active incident on this line.
                             </div>
+                        `;
+                        extractedDisruptionBtn = `
+                            <button type="button" onclick="openDisruptionModal('${errorPayload.disruptionId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-red-100 dark:hover:bg-gray-700 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700 py-3 px-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors shadow-sm focus:outline-none flex justify-center items-center min-w-0">
+                                <span class="mr-1 shrink-0">🔴</span> <span class="truncate">${escapeHTML(btnText)}</span>
+                            </button>
                         `;
                     }
                     
@@ -2278,11 +2278,15 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                     break;
             }
 
+            // 🛡️ GUARDIAN PHASE 1: The Unified Flexbox Action Row
             let actionBtn = `
-                <button onclick="if(navigator.onLine) { window.location.href='map.html'; } else { history.pushState({ modal: 'map' }, '', '#map'); openSmoothModal('map-modal'); }" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors w-full flex items-center justify-center focus:outline-none">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
-                    Open Network Map
-                </button>
+                <div class="flex space-x-2 mt-4 w-full">
+                    <button onclick="if(navigator.onLine) { window.location.href='map.html'; } else { history.pushState({ modal: 'map' }, '', '#map'); openSmoothModal('map-modal'); }" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-2 rounded-lg shadow-md transition-colors flex items-center justify-center focus:outline-none text-[10px] uppercase tracking-wider min-w-0">
+                        <svg class="w-4 h-4 mr-1.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                        <span class="truncate">Network Map</span>
+                    </button>
+                    ${extractedDisruptionBtn}
+                </div>
             `;
 
             // Append the feedback button if the route failure implies a gap in our knowledge
@@ -2290,8 +2294,8 @@ function executeTripPlan(origin, dest, preferredTime = null) {
                 const cleanO = origin.replace(/ STATION/gi, '').trim();
                 const cleanD = dest.replace(/ STATION/gi, '').trim();
                 actionBtn += `
-                    <button onclick="window.openFeedbackForMissingRoute('${cleanO.replace(/'/g, "\\'")}', '${cleanD.replace(/'/g, "\\'")}')" class="mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full flex items-center justify-center focus:outline-none text-sm">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path></svg>
+                    <button onclick="window.openFeedbackForMissingRoute('${cleanO.replace(/'/g, "\\'")}', '${cleanD.replace(/'/g, "\\'")}')" class="mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-bold py-2.5 px-4 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full flex items-center justify-center focus:outline-none text-xs uppercase tracking-wide">
+                        <svg class="w-4 h-4 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path></svg>
                         Report Missing Route
                     </button>
                 `;

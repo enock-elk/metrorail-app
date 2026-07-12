@@ -588,6 +588,12 @@
                     if (!window.indexedDB) reject();
                     const req = indexedDB.open('NextTrainDB', 1);
                     req.onerror = () => reject();
+                    req.onupgradeneeded = (e) => {
+                        const tempDb = e.target.result;
+                        if (!tempDb.objectStoreNames.contains('SchedulesStore')) {
+                            tempDb.createObjectStore('SchedulesStore');
+                        }
+                    };
                     req.onsuccess = (e) => resolve(e.target.result);
                 });
                 if (db && db.objectStoreNames.contains('SchedulesStore')) {
