@@ -308,6 +308,12 @@ window.openLightbox = function(url) {
         if (!window._originalMapClose1 && closeBtn1) window._originalMapClose1 = closeBtn1.onclick;
         if (!window._originalMapClose2 && closeBtn2) window._originalMapClose2 = closeBtn2.onclick;
         
+        // 🛡️ GUARDIAN PHASE 2: The Lightbox Label Polish
+        if (closeBtn2) {
+            if (!window._originalMapCloseText) window._originalMapCloseText = closeBtn2.textContent;
+            closeBtn2.textContent = "Close Preview";
+        }
+
         const lightboxCloseHandler = (e) => {
             if (e) e.preventDefault();
             window.closeLightbox();
@@ -350,6 +356,11 @@ window.closeLightbox = function(fromPopState = false) {
             if (closeBtn1 && window._originalMapClose1) closeBtn1.onclick = window._originalMapClose1;
             if (closeBtn2 && window._originalMapClose2) closeBtn2.onclick = window._originalMapClose2;
             
+            // 🛡️ GUARDIAN PHASE 2: Teardown the Lightbox Label Polish
+            if (closeBtn2 && window._originalMapCloseText) {
+                closeBtn2.textContent = window._originalMapCloseText;
+            }
+
             window._isLightboxMode = false;
         }
     }, 350);
@@ -1386,7 +1397,7 @@ function handleShortcutActions() {
                     const toSelect = document.getElementById('planner-to');
                     const fromInput = document.getElementById('planner-from-search');
                     const toInput = document.getElementById('planner-to-search');
-                    const daySelect = document.getElementById('planner-day-select');
+                    
                     if (fromSelect) fromSelect.value = fromId;
                     if (toSelect) toSelect.value = toId;
                     if (fromInput) {
@@ -1397,7 +1408,33 @@ function handleShortcutActions() {
                         toInput.value = toId.replace(' STATION', '');
                         toInput.dataset.resolvedValue = toId;
                     }
-                    if (daySelect && dayParam) { daySelect.value = dayParam; selectedPlannerDay = dayParam; }
+                    
+                    // 🛡️ GUARDIAN PHASE 1: The Deep Link Restoration
+                    // Bypass purged legacy <select> logic and assign global state unconditionally.
+                    // Synchronize the new Puppeteer dropdown displays instantly.
+                    if (dayParam) { 
+                        selectedPlannerDay = dayParam; 
+                        
+                        const mainDayDisplay = document.getElementById('main-day-display');
+                        const headerDayDisplay = document.getElementById('header-day-display');
+                        
+                        let mainTxt = dayParam === 'weekday' ? 'Weekday (Mon-Fri)' : (dayParam === 'saturday' ? 'Saturday / Public Holiday' : 'Sunday');
+                        let headerTxt = dayParam === 'weekday' ? 'Mon - Fri' : (dayParam === 'saturday' ? 'Saturday / Hol' : 'Sunday');
+                        
+                        if (mainDayDisplay) mainDayDisplay.textContent = mainTxt;
+                        if (headerDayDisplay) headerDayDisplay.textContent = headerTxt;
+
+                        const mList = document.getElementById('main-day-list');
+                        if (mList) {
+                            mList.querySelectorAll('li').forEach(li => {
+                                li.classList.remove('bg-blue-50', 'dark:bg-gray-700', 'text-blue-600', 'dark:text-blue-400');
+                                if (li.textContent === mainTxt) {
+                                    li.classList.add('bg-blue-50', 'dark:bg-gray-700', 'text-blue-600', 'dark:text-blue-400');
+                                }
+                            });
+                        }
+                    }
+
                     if (typeof executeTripPlan === 'function') {
                         executeTripPlan(fromId, toId, timeParam);
                         trackAnalyticsEvent('deep_link_open', { type: 'planner', from: fromId, to: toId });
