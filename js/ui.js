@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.12 - Performance Polish Edition v2)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.13 - Performance Polish Edition v2)
  * -----------------------------------------------------------------------------
  * This module handles DOM interaction, Event Listeners, and UI Rendering.
  *
@@ -287,6 +287,9 @@ window.openLightbox = function(url) {
     if (mapModal && mapImg) {
         window._isLightboxMode = true;
         
+        // 🛡️ GUARDIAN PHASE 3: Elevate Z-Index over Service Alerts
+        mapModal.classList.add('!z-[160]');
+        
         // Save original map states for the Teardown Hook
         if (!window._originalMapSrc) window._originalMapSrc = mapImg.src;
         if (mapTitle && !window._originalMapTitle) window._originalMapTitle = mapTitle.textContent;
@@ -329,8 +332,12 @@ window.closeLightbox = function(fromPopState = false) {
     // Teardown Hook: Restore the regional map image and bindings AFTER the fade out
     setTimeout(() => {
         if (window._isLightboxMode) {
+            const mapModal = document.getElementById('map-modal');
             const mapImg = document.getElementById('map-image');
             const mapTitle = document.getElementById('map-modal-title');
+            
+            // 🛡️ GUARDIAN PHASE 3: Restore Z-Index
+            if (mapModal) mapModal.classList.remove('!z-[160]');
             
             if (mapImg && window._originalMapSrc) mapImg.src = window._originalMapSrc;
             if (mapTitle && window._originalMapTitle) mapTitle.textContent = window._originalMapTitle;

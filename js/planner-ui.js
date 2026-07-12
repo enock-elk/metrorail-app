@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - PLANNER UI (V7_07.12 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - PLANNER UI (V7_07.13 - Performance Polish Edition)
  * -----------------------------------------------------------------------------
  * THE "HEAD CHEF" (Controller)
  * This module handles user interaction, DOM updates, and event listeners.
@@ -807,6 +807,26 @@ const PlannerRenderer = {
             else if (step.type === 'MULTI_TRANSFER' && step.legs) { step.legs.forEach(l => checkStops(l.stops, l.route.id)); }
         }
 
+        // 🛡️ GUARDIAN PHASE 4: The Header Banner Restoration (Partial Journey Bypass)
+        // Mathematically chopped journeys hide the danger zone from the Vector Engine.
+        // We forcefully scan the global registry cross-corridor to resurrect the top banner.
+        if (typeof currentPlannerStatus !== 'undefined' && currentPlannerStatus === 'PARTIAL_JOURNEY' && typeof currentPlannerErrorPayload !== 'undefined' && currentPlannerErrorPayload) {
+            const partialTerminus = currentPlannerErrorPayload.partialDest;
+            if (partialTerminus && typeof globalDisruptions !== 'undefined') {
+                const normTerminus = normalizeStationName(partialTerminus);
+                const globalList = Object.values(globalDisruptions).flat();
+                const criticalSeverance = globalList.find(d => 
+                    d.tier === 'CRITICAL' && 
+                    d.stations && 
+                    d.stations.map(s => normalizeStationName(s)).includes(normTerminus)
+                );
+                
+                if (criticalSeverance) {
+                    activeDisr = criticalSeverance;
+                }
+            }
+        }
+
         let alertBanner = '';
         if (activeDisr) {
             const isCrit = activeDisr.tier === 'CRITICAL';
@@ -1113,7 +1133,7 @@ const PlannerRenderer = {
                                         <span class="font-bold text-[11px] ${waitTextColor} leading-none truncate">${waitStr} Wait</span>
                                     </div>
                                 </div>
-                                <div class="flex flex-col items-end text-right shrink-0 max-w-[45%]">
+                                <div class="flex flex-col items-end text-right min-w-0 flex-1 pl-2">
                                     <span class="text-[8px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider leading-none mb-1">Connect To</span>
                                     <span class="font-bold text-[10px] text-blue-600 dark:text-blue-400 leading-tight truncate w-full" title="${trainDest} Train ${nextLeg.train}">${trainDest} Train ${nextLeg.train}</span>
                                 </div>
@@ -1191,7 +1211,7 @@ const PlannerRenderer = {
                                 <span class="font-bold text-[11px] ${waitTextColor} leading-none truncate">${waitStr} Wait</span>
                             </div>
                         </div>
-                        <div class="flex flex-col items-end text-right shrink-0 max-w-[45%]">
+                        <div class="flex flex-col items-end text-right min-w-0 flex-1 pl-2">
                             <span class="text-[8px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider leading-none mb-1">Connect To</span>
                             <span class="font-bold text-[10px] text-blue-600 dark:text-blue-400 leading-tight truncate w-full" title="${train2Dest} Train ${step.leg2.train}">${train2Dest} Train ${step.leg2.train}</span>
                         </div>
@@ -1283,9 +1303,9 @@ const PlannerRenderer = {
                                 <span class="font-bold text-[11px] ${waitTextColor1} leading-none truncate">${wait1Str} Wait</span>
                             </div>
                         </div>
-                        <div class="flex flex-col items-end text-right shrink-0 max-w-[45%]">
+                        <div class="flex flex-col items-end text-right min-w-0 flex-1 pl-2">
                             <span class="text-[8px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider leading-none mb-1">Connect To</span>
-                            <span class="font-bold text-[10px] text-blue-600 dark:text-blue-400 leading-tight truncate w-full" title="${train2Dest} Train ${step.leg2.train}">${train2Dest} Train ${step.leg2.train}</span>
+                            <span class="font-bold text-[10px] text-blue-600 dark:text-blue-400 leading-tight truncate w-full" title="${train3Dest} Train ${step.leg3.train}">${train3Dest} Train ${step.leg3.train}</span>
                         </div>
                     </div>
                 </div>
@@ -1422,7 +1442,25 @@ function initPlanner() {
         daySelectDiv.className = "mb-4 relative"; // GUARDIAN: Replaced raw select with Puppeteer dropdown
         
         let selDay = (typeof selectedPlannerDay !== 'undefined' && selectedPlannerDay) ? selectedPlannerDay : (typeof currentDayType !== 'undefined' ? currentDayType : 'weekday');
-        let selText = selDay === 'weekday' ? 'Weekday (Mon-Fri)' : (selDay === 'saturday' ? 'Saturday / Public Holiday' : 'Sunday');
+        let selText = "Syncing Calendar...";
+
+        // 🛡️ GUARDIAN UX FIX: Defer Day Dropdown Assignment to await updateTime()
+        setTimeout(() => {
+            let trueDay = typeof selectedPlannerDay !== 'undefined' && selectedPlannerDay ? selectedPlannerDay : (typeof currentDayType !== 'undefined' ? currentDayType : 'weekday');
+            let trueText = trueDay === 'weekday' ? 'Weekday (Mon-Fri)' : (trueDay === 'saturday' ? 'Saturday / Public Holiday' : 'Sunday');
+            const disp = document.getElementById('main-day-display');
+            if (disp) disp.textContent = trueText;
+            
+            const mList = document.getElementById('main-day-list');
+            if (mList) {
+                mList.querySelectorAll('li').forEach(li => {
+                    li.classList.remove('bg-blue-50', 'dark:bg-gray-700', 'text-blue-600', 'dark:text-blue-400');
+                    if (li.textContent === trueText) {
+                        li.classList.add('bg-blue-50', 'dark:bg-gray-700', 'text-blue-600', 'dark:text-blue-400');
+                    }
+                });
+            }
+        }, 600);
 
         daySelectDiv.innerHTML = `
             <label class="block text-xs font-bold text-gray-500 uppercase ml-1 mb-1">Travel Day</label>
@@ -2542,13 +2580,13 @@ function renderTripResult(container, trips, selectedIndex = 0, isPartial = false
             const intended = currentPlannerErrorPayload.intendedDest || "Destination";
             const partial = currentPlannerErrorPayload.partialDest || selectedTrip.to;
             // 🛡️ GUARDIAN UX FIX: Replaced vibe-coded emoji with premium SVG and stripped right-margin
-            const alertSvg = `<svg class="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+            const alertSvg = `<svg class="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
             partialWarningHtml = `
-                <div class="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-3 mb-4 rounded-r shadow-sm animate-fade-in-up">
+                <div class="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-3 mb-4 rounded-r shadow-sm animate-fade-in-up">
                     <div class="flex justify-between items-start w-full">
                         <div class="flex-1 min-w-0 pr-3">
-                            <h4 class="text-xs font-black text-yellow-800 dark:text-yellow-400 uppercase tracking-widest mb-0.5">Line Severed</h4>
-                            <p class="text-xs text-yellow-700 dark:text-yellow-300 leading-snug">
+                            <h4 class="text-xs font-black text-red-800 dark:text-red-400 uppercase tracking-widest mb-0.5">Line Severed</h4>
+                            <p class="text-xs text-red-700 dark:text-red-300 leading-snug">
                                 Cannot reach <b>${intended}</b>.<br>Showing trains terminating at <b>${partial}</b>.
                             </p>
                         </div>
