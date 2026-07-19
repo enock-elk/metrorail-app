@@ -1,0 +1,56 @@
+name: Minify and Obfuscate JS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'js/*.js'
+
+jobs:
+  obfuscate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Terser
+        run: npm install -g terser
+
+      - name: Minify JavaScript
+        run: |
+          cd js
+          
+          # Loop through every .js file
+          for file in *.js; do
+            # Skip files that already end in .min.js, and skip tailwind.js (to save time)
+            if [[ $file != *".min.js" ]] && [[ $file != "tailwind.js" ]]; then
+              echo "Minifying $file..."
+              name="${file%.*}"
+              terser "$file" -o "${name}.min.js" -c -m
+            fi
+          done
+
+      - name: Commit and Push Minified Files
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add the new minified files
+          git add "js/*.min.js"
+          
+          # Check if there are actually any new changes to commit to avoid crashing the robot
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            # The "[skip ci]" tag prevents the robot from triggering itself in an infinite loop!
+            git commit -m "[GUARDIAN] Auto-minify JavaScript files [skip ci]"
+            git push
+          fi

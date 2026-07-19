@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-V7_07.13'; // GUARDIAN: Bumped to v2 for Firebase SDK injection
+const CACHE_NAME = 'metrorail-next-train-V7_07.19_min'; // GUARDIAN: Bumped to trigger Scorched Earth for Minified JS - v1
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.
@@ -10,16 +10,16 @@ const ASSETS_TO_CACHE = [
   './status.html',
   './offline.html',
   './css/custom.css',
-  './js/grid-order.js', 
-  './js/config.js',
-  './js/utils.js',
-  './js/logic.js',
-  './js/planner-core.js',
-  './js/planner-ui.js',
-  './js/map-viewer.js',
-  './js/renderer.js',
-  './js/admin.js',
-  './js/ui.js',
+  './js/grid-order.min.js', 
+  './js/config.min.js',
+  './js/utils.min.js',
+  './js/logic.min.js',
+  './js/planner-core.min.js',
+  './js/planner-ui.min.js',
+  './js/map-viewer.min.js',
+  './js/renderer.min.js',
+  './js/admin.min.js',
+  './js/ui.min.js',
   './js/tailwind.js', 
   './manifest.json',
 
