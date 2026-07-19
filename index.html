@@ -66,6 +66,44 @@
         })();
     </script>
 
+    <!-- 🛡️ GUARDIAN PHASE 1: THE BLACK BOX LOGGER (Catches early iOS Ad Blocker / ITP Errors) -->
+    <script>
+        (function() {
+            const MAX_LOGS = 500; // ~3 Days worth of critical events
+            const LOG_KEY = 'nt_blackbox_logs';
+            
+            function saveLog(type, args) {
+                try {
+                    const msg = Array.from(args).map(a => {
+                        if (a instanceof Error) return a.message + ' ' + a.stack;
+                        return typeof a === 'object' ? JSON.stringify(a) : String(a);
+                    }).join(' ');
+                    
+                    const logEntry = { t: Date.now(), type: type, msg: msg };
+                    let logs = [];
+                    try { logs = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch(e) {}
+                    
+                    logs.push(logEntry);
+                    
+                    // Prune old logs (older than 72 hours) and cap at MAX_LOGS to protect storage quotas
+                    const threeDaysAgo = Date.now() - (72 * 60 * 60 * 1000);
+                    logs = logs.filter(l => l.t > threeDaysAgo);
+                    if (logs.length > MAX_LOGS) logs = logs.slice(logs.length - MAX_LOGS);
+                    
+                    localStorage.setItem(LOG_KEY, JSON.stringify(logs));
+                } catch(e) { /* Ignore quota errors silently to prevent recursive crash loops */ }
+            }
+
+            const origLog = console.log;
+            const origWarn = console.warn;
+            const origError = console.error;
+
+            console.log = function() { saveLog('LOG', arguments); origLog.apply(console, arguments); };
+            console.warn = function() { saveLog('WARN', arguments); origWarn.apply(console, arguments); };
+            console.error = function() { saveLog('ERROR', arguments); origError.apply(console, arguments); };
+        })();
+    </script>
+
     <!-- SEO: Freshness Signal -->
     <title>Metrorail Next Train | 2026 Train Schedules for South Africa</title>
     
@@ -880,7 +918,7 @@
                 </div>
                 <div class="mt-3 mb-3">
                     <button id="install-app-btn" class="hidden flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors text-sm">
-                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App In The Background (&lt; 1 MB)
+                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App In Background (&lt; 1 MB)
                     </button>
                 </div>
                 <div id="copied-message" class="hidden text-center text-green-500 font-medium mt-2 text-xs">Link copied to clipboard!</div>
@@ -972,7 +1010,7 @@
                 
                 <div class="mt-3 mb-3">
                     <button id="install-app-btn-planner" class="hidden flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors text-sm">
-                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App In The Background (&lt; 1 MB)
+                        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg> Install App In Background (&lt; 1 MB)
                     </button>
                 </div>
 
@@ -1140,7 +1178,7 @@
 
     <!-- SCHEDULE MODAL -->
     <div id="schedule-modal" class="fixed inset-0 bg-black bg-opacity-70 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[80dvh] flex flex-col transform transition-transform duration-300 scale-95" id="modal-content">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[95dvh] flex flex-col transform transition-transform duration-300 scale-95" id="modal-content">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-xl">
                 <h3 id="modal-title" class="text-lg font-bold text-gray-900 dark:text-white">Full Schedule</h3>
                 <button id="close-modal-btn" class="p-2 rounded-full hover:bg-gray-200 dark:bg-gray-700 text-gray-50 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition" aria-label="Close Schedule">
@@ -1294,6 +1332,29 @@
     </div>
     
     <!-- REGION COMING SOON MODAL PURGED - ALL REGIONS LIVE -->
+
+    <!-- 🛡️ GUARDIAN: BLACK BOX TERMINAL MODAL -->
+    <div id="blackbox-modal" class="fixed inset-0 bg-black/95 z-[9999] hidden flex items-center justify-center p-2 sm:p-4 backdrop-blur-lg transition-opacity duration-300">
+        <div class="bg-gray-900 rounded-xl shadow-[0_0_40px_rgba(0,0,0,0.8)] w-full max-w-2xl flex flex-col transform transition-all scale-95 h-[90dvh] border border-gray-700">
+            <div class="p-3 border-b border-gray-800 flex justify-between items-center bg-black rounded-t-xl shrink-0">
+                <div class="flex items-center space-x-2">
+                    <span class="text-green-500 animate-pulse">▶</span>
+                    <h3 class="text-sm font-mono font-bold text-green-500 tracking-widest uppercase">System Terminal [Black Box]</h3>
+                </div>
+                <button onclick="closeSmoothModal('blackbox-modal')" class="p-1.5 rounded bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition focus:outline-none">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div id="blackbox-console" class="p-3 overflow-y-auto flex-grow space-y-1.5 bg-[#0a0a0a] text-[10px] sm:text-xs font-mono text-gray-300 custom-scrollbar break-words whitespace-pre-wrap select-text">
+                <!-- Logs injected here -->
+            </div>
+            <div class="p-3 border-t border-gray-800 bg-black rounded-b-xl shrink-0 flex gap-2">
+                <button id="bb-clear-btn" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-mono font-bold py-2.5 rounded shadow-sm transition-colors text-xs uppercase focus:outline-none">Clear</button>
+                <button id="bb-copy-btn" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-mono font-bold py-2.5 rounded shadow-sm transition-colors text-xs uppercase focus:outline-none">Copy All</button>
+                <button id="bb-send-btn" class="flex-1 bg-green-900/40 hover:bg-green-800/60 text-green-500 border border-green-800/50 font-mono font-bold py-2.5 rounded shadow-sm transition-colors text-xs uppercase focus:outline-none">Send to Cloud</button>
+            </div>
+        </div>
+    </div>
 
     <!-- EXIT APP MODAL (App Router) -->
     <div id="exit-modal" class="fixed inset-0 bg-black bg-opacity-80 z-[140] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
@@ -1493,7 +1554,7 @@
 
         <div class="w-full max-w-md px-6 pb-12 flex flex-col items-center text-center animate-fade-in-up">
             <img src="icons/loading-logo.png" class="w-20 h-20 mb-4 shadow-lg rounded-full" alt="Next Train Logo" onerror="this.style.display='none'">
-            <h2 class="text-3xl font-black text-gray-900 dark:text-white mb-2">Next Train</h2>
+            <h2 id="about-app-title" class="text-3xl font-black text-gray-900 dark:text-white mb-2 select-none cursor-pointer">Next Train</h2>
             <div class="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-bold uppercase tracking-wider mb-6">
                 Unofficial & Independent
             </div>
@@ -1505,7 +1566,7 @@
                     The idea for <strong>Next Train</strong> first sparked in 2023, but it was during mid-November 2025, that I finally began building the WebApp with a simple mission: to replace blurry notice photos and crowded station boards with clear, digital accuracy.
                 </p>
                 <p>
-                    What began as a tool for my own family has rapidly grown to help thousands of commuters, racking up over 120,000 page views in just a few months. While this remains an <strong>independent passion project</strong> (not an official PRASA tool), it is built with the reliability and care our growing community deserves.
+                    What began as a tool for my own family has rapidly grown to help thousands of commuters, racking up a lot of page views in just a few months. While this remains an <strong>independent passion project</strong> (not an official PRASA tool), it is built with the reliability and care our growing community deserves.
                 </p>
             </div>
             

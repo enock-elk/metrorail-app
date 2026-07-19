@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.19 - Performance Polish Edition v2)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.19 - Performance Polish Edition v3)
  * -----------------------------------------------------------------------------
  * This module handles DOM interaction, Event Listeners, and UI Rendering.
  *
@@ -4317,6 +4317,195 @@ window.handleUpdateClick = async function(newVersion) {
     window.location.href = window.location.pathname + '?v=' + Date.now();
 };
 
+// --- 🛡️ GUARDIAN PHASE 1: BLACK BOX LOGGER SETUP ---
+window.renderBlackBoxLogs = function() {
+    const bbConsole = document.getElementById('blackbox-console');
+    if (!bbConsole) return;
+    try {
+        const logs = JSON.parse(localStorage.getItem('nt_blackbox_logs') || '[]');
+        if (logs.length === 0) {
+            bbConsole.innerHTML = '<span class="text-gray-500">System Nominal. No logs recorded.</span>';
+            return;
+        }
+        
+        bbConsole.innerHTML = logs.map(l => {
+            const d = new Date(l.t);
+            const timeStr = `${d.getDate()}/${d.getMonth()+1} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+            let color = "text-blue-400";
+            if (l.type === 'WARN') color = "text-yellow-400";
+            if (l.type === 'ERROR') color = "text-red-400";
+            
+            const safeMsg = typeof escapeHTML === 'function' ? escapeHTML(l.msg) : l.msg;
+            return `<div class="mb-1.5 border-b border-gray-800/50 pb-1.5"><span class="text-gray-500">[${timeStr}]</span> <span class="${color} font-bold">${l.type}</span>: ${safeMsg}</div>`;
+        }).reverse().join('');
+    } catch(e) {
+        bbConsole.innerHTML = '<span class="text-red-500">Failed to parse local logs.</span>';
+    }
+};
+
+window.clearBlackBoxLogs = function() {
+    if (confirm("Wipe all system logs?")) {
+        localStorage.removeItem('nt_blackbox_logs');
+        window.renderBlackBoxLogs();
+    }
+};
+
+window.copyBlackBoxLogs = function() {
+    const rawLogs = localStorage.getItem('nt_blackbox_logs') || '[]';
+    if (typeof copyToClipboard === 'function') copyToClipboard(rawLogs);
+};
+
+window.sendBlackBoxLogsToCloud = async function() {
+    const sendBtn = document.getElementById('bb-send-btn');
+    if (!sendBtn) return;
+    
+    sendBtn.textContent = "SENDING...";
+    sendBtn.disabled = true;
+    try {
+        const rawLogs = localStorage.getItem('nt_blackbox_logs') || '[]';
+        const payload = {
+            error: "BLACK_BOX_EXPORT_IOS",
+            stack: rawLogs, // Pass stringified array into stack to match existing Crash panel UI
+            line: "0:0",
+            url: "Admin Override",
+            timestamp: Date.now(),
+            userAgent: navigator.userAgent,
+            appVersion: typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown',
+            deviceId: typeof NEXT_TRAIN_DEVICE_ID !== 'undefined' ? NEXT_TRAIN_DEVICE_ID : 'unknown'
+        };
+        
+        const crashId = 'bb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        
+        // Directly PUT to the crashes endpoint using the same bypass approach as Safe Mode
+        const res = await fetch(`${dynamicEndpoint}sys_logs/crashes/${crashId}.json`, {
+            method: 'PUT',
+            body: JSON.stringify(payload)
+        });
+        
+        if (res.ok) {
+            if (typeof showToast === 'function') showToast("Logs beamed to Crash Analytics!", "success");
+        } else {
+            throw new Error("HTTP " + res.status);
+        }
+    } catch(e) {
+        if (typeof showToast === 'function') showToast("Transmission failed.", "error");
+    } finally {
+        sendBtn.textContent = "Send to Cloud";
+        sendBtn.disabled = false;
+    }
+};
+
+function setupBlackBoxLogger() {
+    // Attach listeners to the Black Box UI buttons
+    const clearBtn = document.getElementById('bb-clear-btn');
+    const copyBtn = document.getElementById('bb-copy-btn');
+    const sendBtn = document.getElementById('bb-send-btn');
+    const bbCloseBtn = document.querySelector('#blackbox-modal button.text-gray-400');
+
+    if (clearBtn) clearBtn.addEventListener('click', window.clearBlackBoxLogs);
+    if (copyBtn) copyBtn.addEventListener('click', window.copyBlackBoxLogs);
+    if (sendBtn) sendBtn.addEventListener('click', window.sendBlackBoxLogsToCloud);
+    
+    if (bbCloseBtn) {
+        bbCloseBtn.onclick = (e) => {
+            e.preventDefault();
+            if (location.hash === '#blackbox') history.back();
+            else closeSmoothModal('blackbox-modal');
+        };
+    }
+
+    // 🛡️ GUARDIAN PHASE 3: Custom PWA-Safe Modal Trigger
+    const aboutTitle = document.getElementById('about-app-title');
+    if (aboutTitle) {
+        let bbClickCount = 0;
+        let bbClickTimer = null;
+
+        aboutTitle.addEventListener('click', (e) => {
+            e.preventDefault(); 
+            bbClickCount++;
+            
+            if (bbClickTimer) clearTimeout(bbClickTimer);
+            bbClickTimer = setTimeout(() => { bbClickCount = 0; }, 2000);
+            
+            if (bbClickCount >= 5) {
+                bbClickCount = 0;
+                if (typeof triggerHaptic === 'function') triggerHaptic();
+                
+                let pinModal = document.getElementById('bb-pin-modal');
+                if (!pinModal) {
+                    pinModal = document.createElement('div');
+                    pinModal.id = 'bb-pin-modal';
+                    pinModal.className = 'fixed inset-0 bg-black/90 z-[200] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+                    pinModal.innerHTML = `
+                        <div class="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-xs p-6 transform transition-all scale-95 border border-gray-700">
+                            <div class="text-center">
+                                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-900/30 mb-4 shadow-inner ring-2 ring-green-500/50">
+                                    <span class="text-2xl">📟</span>
+                                </div>
+                                <h3 class="text-lg font-mono font-black text-green-500 mb-2 tracking-tight">System Terminal</h3>
+                                <p class="text-xs font-mono text-gray-400 mb-6">Enter access PIN.</p>
+                                
+                                <input type="password" id="bb-pin-input" class="w-full text-center tracking-[0.5em] text-lg p-3 rounded-xl bg-black border border-gray-700 text-green-500 focus:ring-2 focus:ring-green-500 focus:outline-none transition-all mb-4 placeholder-gray-700" placeholder="•••••">
+                                
+                                <div class="flex space-x-3">
+                                    <button id="bb-pin-cancel" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-2.5 px-4 rounded-xl transition-colors focus:outline-none text-sm">Abort</button>
+                                    <button id="bb-pin-submit" class="flex-1 bg-green-800 hover:bg-green-700 text-green-400 hover:text-green-300 border border-green-700 font-bold py-2.5 px-4 rounded-xl shadow-md transition-colors focus:outline-none text-sm">Verify</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(pinModal);
+
+                    const pinInput = document.getElementById('bb-pin-input');
+                    const btnSubmit = document.getElementById('bb-pin-submit');
+                    const btnCancel = document.getElementById('bb-pin-cancel');
+
+                    const processPin = () => {
+                        const val = pinInput.value;
+                        if (val === "10101") {
+                            if (typeof triggerHaptic === 'function') triggerHaptic();
+                            closeSmoothModal('bb-pin-modal');
+                            closeSmoothModal('about-modal');
+                            pinInput.value = ''; // clear for next time
+                            
+                            // Delay allows modals to finish closing before opening Black Box.
+                            setTimeout(() => {
+                                history.pushState({ modal: 'blackbox' }, '', '#blackbox');
+                                openSmoothModal('blackbox-modal');
+                                window.renderBlackBoxLogs();
+                            }, 350);
+                        } else {
+                            if (typeof showToast === 'function') showToast("Access Denied", "error");
+                            pinInput.value = '';
+                            closeSmoothModal('bb-pin-modal');
+                        }
+                    };
+
+                    btnSubmit.addEventListener('click', processPin);
+                    btnCancel.addEventListener('click', () => {
+                        pinInput.value = '';
+                        closeSmoothModal('bb-pin-modal');
+                    });
+                    pinInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') processPin();
+                    });
+                }
+                
+                // Push state and animate the modal
+                history.pushState({ modal: 'bb-pin-modal' }, '', '#bb-pin');
+                openSmoothModal('bb-pin-modal');
+                
+                // Delay focus slightly so the modal animation finishes.
+                setTimeout(() => {
+                    const input = document.getElementById('bb-pin-input');
+                    if (input) input.focus();
+                }, 300);
+            }
+        });
+    }
+}
+
 // --- DOM READY ---
 document.addEventListener('DOMContentLoaded', () => {
     enforceAppVersion();
@@ -4683,6 +4872,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    setupBlackBoxLogger();
     initializeApp();
 });
 
