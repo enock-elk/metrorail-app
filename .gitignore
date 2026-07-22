@@ -12,3 +12,6 @@ Thumbs.db
 
 # Editor settings (Optional but recommended)
 .vscode/
+
+#Ignore minified JS files (Scorched Earth)
+*.min.js
