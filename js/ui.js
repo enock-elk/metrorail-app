@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.19 - Performance Polish Edition v3)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.21 - Performance Polish Edition v1)
  * -----------------------------------------------------------------------------
  * This module handles DOM interaction, Event Listeners, and UI Rendering.
  *
@@ -1591,15 +1591,19 @@ function initAdInterceptor() {
             window._adScriptInjected = false;
             window._adScriptLoaded = false;
             
-            const adScript = document.getElementById("CleverCoreLoader103008");
-            if (adScript) adScript.remove();
+            // 🛡️ GUARDIAN UX FIX: Do not instantly destroy the script/container on a non-fatal timeout.
+            // Apple WebKit throttles scripts; if we wipe it, the Late-Arrival Rescue hook cannot fire.
+            if (isFatal) {
+                const adScript = document.getElementById("CleverCoreLoader103008");
+                if (adScript) adScript.remove();
+            }
             
             if (adContainer) {
-                adContainer.innerHTML = '';
                 if (isFatal) {
+                    adContainer.innerHTML = '';
                     adContainer.style.setProperty('display', 'none', 'important');
-                    adContainer.classList.add('hidden', 'ad-cloaked');
                 }
+                adContainer.classList.add('hidden', 'ad-cloaked');
                 document.querySelectorAll('.view-section').forEach(el => el.classList.remove('ad-active-padding'));
             }
             
@@ -1613,11 +1617,12 @@ function initAdInterceptor() {
             window._adScriptInjected = true;
 
             try {
+                // 🛡️ GUARDIAN FIX: Extended to 15s to bypass strict iOS Safari Network Throttling
                 const adTimeout = setTimeout(() => {
                     if (!window._adScriptLoaded) {
-                        handleAdFailure("TIMEOUT_8S_EXCEEDED", false);
+                        handleAdFailure("TIMEOUT_15S_EXCEEDED", false);
                     }
-                }, 8000);
+                }, 15000);
 
                 (function (document, window) {
                     var a, c = document.createElement("script"), f;
@@ -1636,6 +1641,16 @@ function initAdInterceptor() {
                         clearTimeout(adTimeout);
                         window._adScriptLoaded = true;
                         console.log("🛡️ Guardian: Ad Script initialized successfully.");
+
+                        // 🛡️ GUARDIAN FIX: Late-Arrival Rescue Hook
+                        if (adContainer && adContainer.classList.contains('ad-cloaked') && !window._adNetworkDestroyed) {
+                            console.log("🛡️ Guardian: Late-Arrival Ad Rescue triggered (iOS Throttling bypass).");
+                            adContainer.style.display = '';
+                            adContainer.classList.remove('hidden', 'ad-cloaked');
+                            
+                            const isAdFilled = adContainer.childElementCount > 0 && adContainer.offsetHeight > 0;
+                            document.querySelectorAll('.view-section').forEach(el => el.classList.toggle('ad-active-padding', isAdFilled));
+                        }
                     };
 
                     try {

@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_07.19 - Performance Polish Edition)
+ * METRORAIL NEXT TRAIN - RENDERER ENGINE (V7_07.21 - Performance Polish Edition)
  * -----------------------------------------------------------------------------
  * This module handles all DOM injection and HTML string generation.
  * It separates the "View" from the "Logic" (ui.js/logic.js).
