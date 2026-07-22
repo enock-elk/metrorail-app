@@ -1,4 +1,4 @@
-const CACHE_NAME = 'metrorail-next-train-V7_07.21'; // GUARDIAN: Bumped to trigger Scorched Earth for Minified JS - v1
+const CACHE_NAME = 'metrorail-next-train-V7_07.21'; // GUARDIAN: Bumped to trigger Scorched Earth for Minified JS - v2
 const ASSETS_TO_CACHE = [
   // GUARDIAN: Strictly core shell files only. 
   // Heavy images/maps removed to prevent atomic install failures on 404s.
