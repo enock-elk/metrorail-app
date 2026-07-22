@@ -43,8 +43,8 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Add the new minified files
-          git add "js/*.min.js"
+          # 🛡️ GUARDIAN FIX: Force add minified files, overriding .gitignore restrictions
+          git add -f "js/*.min.js"
           
           # Check if there are actually any new changes to commit to avoid crashing the robot
           if git diff --staged --quiet; then
