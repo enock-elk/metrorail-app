@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.21 - Performance Polish Edition v1)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.27 - Performance Polish Edition v1)
  * -----------------------------------------------------------------------------
  * This module handles DOM interaction, Event Listeners, and UI Rendering.
  *
@@ -1581,7 +1581,7 @@ function initAdInterceptor() {
     const checkAndInject = () => {
         console.log("🛡️ Guardian: Injecting Fortified CleverAds Payload (Resilient Mode)...");
 
-        const adContainer = document.getElementById('ad-container') || document.querySelector('.clever-core-ad') || document.querySelector('[id^="clever-"]');
+        const adContainer = document.getElementById('clever-core');
         
         const handleAdFailure = (reason, isFatal = false) => {
             console.warn(`🛡️ Guardian Ad Shield: Ad script failed. Reason: ${reason}. Fatal: ${isFatal}`);
@@ -1643,24 +1643,21 @@ function initAdInterceptor() {
                         console.log("🛡️ Guardian: Ad Script initialized successfully.");
 
                         // 🛡️ GUARDIAN FIX: Late-Arrival Rescue Hook
-                        if (adContainer && adContainer.classList.contains('ad-cloaked') && !window._adNetworkDestroyed) {
-                            console.log("🛡️ Guardian: Late-Arrival Ad Rescue triggered (iOS Throttling bypass).");
-                            adContainer.style.display = '';
-                            adContainer.classList.remove('hidden', 'ad-cloaked');
-                            
-                            const isAdFilled = adContainer.childElementCount > 0 && adContainer.offsetHeight > 0;
-                            document.querySelectorAll('.view-section').forEach(el => el.classList.toggle('ad-active-padding', isAdFilled));
-                        }
-                    };
+                            if (adContainer && adContainer.classList.contains('ad-cloaked') && !window._adNetworkDestroyed) {
+                                console.log("🛡️ Guardian: Late-Arrival Ad Rescue triggered (iOS Throttling bypass).");
+                                adContainer.style.display = '';
+                                adContainer.classList.remove('hidden', 'ad-cloaked');
+                                
+                                const isAdFilled = adContainer.childElementCount > 0 && adContainer.offsetHeight > 0;
+                                document.querySelectorAll('.view-section').forEach(el => el.classList.toggle('ad-active-padding', isAdFilled));
+                            }
+                        };
 
-                    try {
-                        a = parent.document.getElementsByTagName("script")[0] || document.getElementsByTagName("script")[0];
-                    } catch (e) {
-                        a = !1;
-                    }
-                    a || (a = document.getElementsByTagName("head")[0] || document.getElementsByTagName("body")[0]);
-                    a.parentNode.insertBefore(c, a);
-                })(document, window);
+                        // 🛡️ GUARDIAN PHASE 2 FIX: Sandbox Bypass. 
+                        // Strip the cross-origin parent.document lookup that crashes strict iOS WebKit.
+                        // Append cleanly and directly to the document head.
+                        document.head.appendChild(c);
+                    })(document, window);
             } catch(e) { 
                 console.warn("🛡️ Guardian: Ad script injection safely suppressed.", e); 
                 handleAdFailure("EVAL_EXCEPTION", false);
@@ -1675,8 +1672,19 @@ function initAdInterceptor() {
                     if (m.type === 'attributes' && m.attributeName === 'style') {
                         const newStyle = adContainer.getAttribute('style') || '';
                         if (newStyle.includes('height: 100vh') || newStyle.includes('height: 100%') || newStyle.includes('position: fixed; top: 0')) {
-                            adObserver.disconnect();
-                            handleAdFailure("ROGUE_FULLSCREEN_TAKEOVER", true); 
+                            // 🛡️ GUARDIAN PHASE 2: MutationObserver Amnesty Buffer (500ms)
+                            // iOS WebKit spikes iframes to 100% height for milliseconds during layout calculation.
+                            if (!window._rogueAdCheckPending) {
+                                window._rogueAdCheckPending = true;
+                                setTimeout(() => {
+                                    window._rogueAdCheckPending = false;
+                                    const currentStyle = adContainer.getAttribute('style') || '';
+                                    if (currentStyle.includes('height: 100vh') || currentStyle.includes('height: 100%') || currentStyle.includes('position: fixed; top: 0')) {
+                                        adObserver.disconnect();
+                                        handleAdFailure("ROGUE_FULLSCREEN_TAKEOVER", true); 
+                                    }
+                                }, 500);
+                            }
                             break;
                         }
                     }

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 
-  METRORAIL NEXT TRAIN - COMMUTER APP SHELL (V7_07.21 - Performance Polish Edition v1)
+  METRORAIL NEXT TRAIN - COMMUTER APP SHELL (V7_07.27 - Performance Polish Edition v1)
   -----------------------------------------------------------------------------
   This is the primary DOM shell containing all PWA views, modal architectures, and UI styles.
 
@@ -547,12 +547,12 @@
         }
 
         /* GUARDIAN MONETIZATION ARMOR: CSS Handcuffs & Cloaking */
-        #clever-core-ad {
+        #clever-core {
             max-height: 90px !important;
             overflow: hidden !important;
             transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
         }
-        #clever-core-ad.ad-cloaked {
+        #clever-core.ad-cloaked {
             transform: translateY(150%) !important;
             pointer-events: none !important;
             opacity: 0;
@@ -1990,6 +1990,6 @@
     <script src="js/ui.min.js"></script>
     
     <!-- GUARDIAN PHASE 5: Unified Clever Ads Target Container -->
-    <div id="clever-core-ad" class="hidden fixed bottom-0 left-0 w-full z-[80] flex justify-center items-center bg-gray-100/90 dark:bg-gray-900/90 backdrop-blur-sm border-t border-gray-200 dark:border-gray-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] min-h-[50px] empty:hidden"></div>
+    <div id="clever-core" class="ad-cloaked fixed bottom-0 left-0 w-full z-[80] flex justify-center items-center bg-gray-100/90 dark:bg-gray-900/90 backdrop-blur-sm border-t border-gray-200 dark:border-gray-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] min-h-[50px]"></div>
 </body>
 </html>

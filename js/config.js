@@ -1,7 +1,7 @@
 // --- CONFIGURATION & CONSTANTS ---
 
 // 0. Version Control
-const APP_VERSION = "V7_07.21"; // Bumped to trigger Scorched Earth, for Minified JS - v2
+const APP_VERSION = "V7_07.27"; // Bumped to trigger Scorched Earth, for Minified JS - v2
 // GUARDIAN: Set to 'true' to force an immediate hard reload on startup. 
 // Set to 'false' for silent background updates (Stale-While-Revalidate).
 // V6.00.10: Set to false to prevent infinite reload loops if SW caching fails.
@@ -91,7 +91,7 @@ const LEGAL_TEXTS = {
         </ul>
         
         <h4 class="font-bold text-lg mb-2 mt-4">3. Your POPIA Rights (South Africa)</h4>
-        <p class="mb-3">Under the Protection of Personal Information Act (POPIA), you have the right to request access to, correction of, or deletion of any personal data you have voluntarily provided to us (such as feedback emails). To exercise these rights, or if you have any privacy concerns, please contact our Lead Developer at <strong>enock@nexttrain.co.za</strong>.</p>
+        <p class="mb-3">Under the Protection of Personal Information Act (POPIA), you have the right to request access to, correction of, or deletion of any personal data you have voluntarily provided to us (such as feedback emails). To exercise these rights, or if you have any privacy concerns, please contact our Admin Team at <a href="mailto:admin@nexttrain.co.za" class="text-blue-600 dark:text-blue-400 underline font-medium">admin@nexttrain.co.za</a>.</p>
     `
 };
 
