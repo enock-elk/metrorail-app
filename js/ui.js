@@ -1653,10 +1653,10 @@ function initAdInterceptor() {
                             }
                         };
 
-                        // 🛡️ GUARDIAN PHASE 2 FIX: Sandbox Bypass. 
-                        // Strip the cross-origin parent.document lookup that crashes strict iOS WebKit.
-                        // Append cleanly and directly to the document head.
-                        document.head.appendChild(c);
+                        // 🛡️ GUARDIAN PHASE 3 FIX: Container Anchor. 
+                        // Ad networks often rely on document.currentScript.parentNode to mount the iframe.
+                        // By appending it directly into our naked container, we guarantee it renders in the UI, not the <head>.
+                        adContainer.appendChild(c);
                     })(document, window);
             } catch(e) { 
                 console.warn("🛡️ Guardian: Ad script injection safely suppressed.", e); 
