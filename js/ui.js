@@ -1737,45 +1737,59 @@ function initAdInterceptor() {
 
             if (adContainer) {
                 if (isSafeZone) {
-                    if (!window._adScriptInjected && !window._adScriptLoaded) {
-                        // 🛡️ GUARDIAN: Staggered Pulse Engine (3-Minute Timeline)
-                        if (isAdSleeping) {
-                            console.log("🛡️ Guardian: Ad Shield is in 60-second cooldown sleep...");
-                        } else {
-                            if (adRetryCount === 4) {
-                                console.log("🛡️ Guardian: Pulse 1 complete. Entering 60-second cooldown...");
-                                isAdSleeping = true;
-                                setTimeout(() => {
-                                    isAdSleeping = false;
-                                    adRetryCount++; // 🛡️ THE INFINITE SNOOZE FIX
-                                    console.log("🛡️ Guardian: Ad Shield waking up for Phase 2...");
-                                    if (window.checkAndUnhide) window.checkAndUnhide(); // Kickstart immediately after sleep
-                                }, 60000);
-                            } else if (adRetryCount >= 8) {
-                                console.log("🛡️ Guardian: 8 strikes max reached. Hard failing ad network for session.");
-                                handleAdFailure("8_STRIKES_MAX_REACHED", true);
-                                return; // Permanently halt
+                        if (!window._adScriptInjected && !window._adScriptLoaded) {
+                            // 🛡️ GUARDIAN: Staggered Pulse Engine (3-Minute Timeline)
+                            if (isAdSleeping) {
+                                console.log("🛡️ Guardian: Ad Shield is in 60-second cooldown sleep...");
                             } else {
-                                console.log(`🛡️ Guardian: Safe zone active. Retrying Ad Script injection... (Attempt ${adRetryCount + 1}/8)`);
-                                adRetryCount++;
-                                injectAdScript();
+                                if (adRetryCount === 4) {
+                                    console.log("🛡️ Guardian: Pulse 1 complete. Entering 60-second cooldown...");
+                                    isAdSleeping = true;
+                                    setTimeout(() => {
+                                        isAdSleeping = false;
+                                        adRetryCount++; // 🛡️ THE INFINITE SNOOZE FIX
+                                        console.log("🛡️ Guardian: Ad Shield waking up for Phase 2...");
+                                        if (window.checkAndUnhide) window.checkAndUnhide(); // Kickstart immediately after sleep
+                                    }, 60000);
+                                } else if (adRetryCount >= 8) {
+                                    console.log("🛡️ Guardian: 8 strikes max reached. Hard failing ad network for session.");
+                                    handleAdFailure("8_STRIKES_MAX_REACHED", true);
+                                    return; // Permanently halt
+                                } else {
+                                    console.log(`🛡️ Guardian: Safe zone active. Retrying Ad Script injection... (Attempt ${adRetryCount + 1}/8)`);
+                                    adRetryCount++;
+                                    injectAdScript();
+                                }
                             }
                         }
-                    }
 
-                    adContainer.style.display = ''; 
-                    adContainer.classList.remove('hidden', 'ad-cloaked');
+                        adContainer.style.display = ''; 
+                        adContainer.classList.remove('hidden', 'ad-cloaked');
 
-                    const isAdFilled = adContainer.childElementCount > 0 && adContainer.offsetHeight > 0;
-                    document.querySelectorAll('.view-section').forEach(el => el.classList.toggle('ad-active-padding', isAdFilled));
-
-                    if (isAdFilled && !window._adTelemetryFired) {
-                        window._adTelemetryFired = true;
-                        if (typeof trackAnalyticsEvent === 'function') {
-                            trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'filled' });
-                            console.log("📈 Ad View counted (container filled & uncloaked).");
+                        // 🛡️ GUARDIAN UX FIX: The Smart Tripwire (Phase 1)
+                        // Ignore invisible 1x1 tracking pixels injected by blocked ad scripts.
+                        // We check the actual bounding height of the iframe inside the container.
+                        let isAdFilled = false;
+                        if (adContainer.childElementCount > 0) {
+                            const iframe = adContainer.querySelector('iframe');
+                            if (iframe) {
+                                const rect = iframe.getBoundingClientRect();
+                                isAdFilled = rect.height > 20; // Must be taller than a 1x1 pixel tracker
+                            } else {
+                                // Fallback: If it's a div structure, ensure it has real physical mass
+                                isAdFilled = adContainer.offsetHeight > 20;
+                            }
                         }
-                    }
+
+                        document.querySelectorAll('.view-section').forEach(el => el.classList.toggle('ad-active-padding', isAdFilled));
+
+                        if (isAdFilled && !window._adTelemetryFired) {
+                            window._adTelemetryFired = true;
+                            if (typeof trackAnalyticsEvent === 'function') {
+                                trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'filled' });
+                                console.log("📈 Ad View counted (container filled & uncloaked).");
+                            }
+                        }
 
                     if (!window._adTelemetryFired) {
                         try { 
