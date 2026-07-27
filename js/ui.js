@@ -1692,10 +1692,28 @@ function initAdInterceptor() {
                     // 🛡️ GUARDIAN UX FIX: The Instant Render Tripwire
                     // Catches the exact millisecond the ad injects its iframe/content, even if the user closes it 2 seconds later.
                     if (!window._adTelemetryFired && m.type === 'childList' && adContainer.childElementCount > 0) {
-                        console.log("📈 🛡️ Guardian Tripwire: Instant Ad Render Detected!");
-                        window._adTelemetryFired = true;
-                        if (typeof trackAnalyticsEvent === 'function') {
-                            trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'instant_tripwire' });
+                        const iframe = adContainer.querySelector('iframe');
+                        let isRealAd = false;
+                        if (iframe) {
+                            isRealAd = iframe.getBoundingClientRect().height > 20;
+                        } else {
+                            isRealAd = adContainer.offsetHeight > 20;
+                        }
+
+                        if (isRealAd) {
+                            console.log("📈 🛡️ Guardian Tripwire: Instant Ad Render Detected!");
+                            window._adTelemetryFired = true;
+                            
+                            adContainer.style.background = '';
+                            adContainer.style.backdropFilter = '';
+                            adContainer.style.borderTop = '';
+                            adContainer.style.boxShadow = '';
+                            adContainer.style.pointerEvents = 'auto';
+                            document.querySelectorAll('.view-section').forEach(el => el.classList.add('ad-active-padding'));
+
+                            if (typeof trackAnalyticsEvent === 'function') {
+                                trackAnalyticsEvent('view_clever_ad', { location: 'main_dashboard', verified: 'instant_tripwire' });
+                            }
                         }
                     }
                 }
@@ -1774,11 +1792,28 @@ function initAdInterceptor() {
                             const iframe = adContainer.querySelector('iframe');
                             if (iframe) {
                                 const rect = iframe.getBoundingClientRect();
-                                isAdFilled = rect.height > 20; // Must be taller than a 1x1 pixel tracker
+                                isAdFilled = rect.height > 20; 
                             } else {
                                 // Fallback: If it's a div structure, ensure it has real physical mass
                                 isAdFilled = adContainer.offsetHeight > 20;
                             }
+                        }
+
+                        // 🛡️ GUARDIAN UX FIX: The Naked Container Protocol
+                        // Completely destroy the blurry placeholder background when empty.
+                        // The ad will seamlessly float into place *only* if it has mass.
+                        if (isAdFilled) {
+                            adContainer.style.background = '';
+                            adContainer.style.backdropFilter = '';
+                            adContainer.style.borderTop = '';
+                            adContainer.style.boxShadow = '';
+                            adContainer.style.pointerEvents = 'auto';
+                        } else {
+                            adContainer.style.background = 'transparent';
+                            adContainer.style.backdropFilter = 'none';
+                            adContainer.style.borderTop = 'none';
+                            adContainer.style.boxShadow = 'none';
+                            adContainer.style.pointerEvents = 'none';
                         }
 
                         document.querySelectorAll('.view-section').forEach(el => el.classList.toggle('ad-active-padding', isAdFilled));
