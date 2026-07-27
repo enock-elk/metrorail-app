@@ -5,7 +5,7 @@
  *
  * CHRONOLOGICAL CHANGE LOG:
  * * GUARDIAN PHASE 1 [15 Nov 2025]: Configured early analytics event triggers and added explicit tracking for 'check_updates_click' metrics.
- * * GUARDIAN PHASE 1.2 [20 Nov 2025]: Reordered popstate history logic to prioritize modal dismissals over Planner results.
+ * * GUARDIAN PHASE 1.2 [20 Nov 2025]: Reordered popstate history logic to prioritize modal dismissals over Planner results..
  * * GUARDIAN PHASE 2 [04 Dec 2025]: Rewrote legacy, problematic loops in 'renderNoService' and 'renderNextAvailableTrain' to hook directly into the True Day simulation engine.
  * * GUARDIAN PHASE 2 [12 Dec 2025]: Swapped plain-text localStorage methods for POPIA-compliant safeStorage wrappers and added strict bounds checking to prevent index-out-of-bounds crashes.
  * * GUARDIAN PHASE 2 [18 Dec 2025]: Deployed the in-house Feedback submission system, complete with Firebase file attachment pipelines and a 15-second upload timeout race guardian.
