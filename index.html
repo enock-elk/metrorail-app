@@ -1698,53 +1698,6 @@
             <!-- ADMIN MODULES WRAPPER (Injections by admin.js load here) -->
             <div id="admin-modules-container">
                 
-                <!-- SECTION 2: TIME SIMULATION (Converted to Accordion Card) -->
-                <div id="simulation-panel" class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300">
-                    <button id="sim-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-between focus:outline-none">
-                        <span class="flex items-center"><span class="mr-2">⏳</span> Time Simulation</span>
-                        <svg id="sim-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
-                    
-                    <div id="sim-body" class="hidden mt-4 space-y-4">
-                        <div class="bg-gray-100 dark:bg-gray-700/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4">
-                            <div class="flex items-center justify-between">
-                                <label class="text-sm font-bold text-gray-700 dark:text-gray-300">Enable Sim Mode</label>
-                                <input type="checkbox" id="sim-enabled" class="h-5 w-5 text-blue-600 rounded focus:ring-blue-500 bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500">
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Time (HH:MM)</label>
-                                    <input type="time" id="sim-time" step="1" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Day Type</label>
-                                    <select id="sim-day" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                                        <option value="1">Weekday (Mon)</option>
-                                        <option value="6">Saturday</option>
-                                        <option value="0">Sunday</option>
-                                        <option value="specific">Specific Date...</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div id="sim-date-container" class="hidden">
-                                <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Select Date (2026)</label>
-                                <input type="date" id="sim-date" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                            </div>
-
-                            <div class="flex gap-2 pt-2">
-                                <button id="sim-apply-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm focus:outline-none">
-                                    Apply
-                                </button>
-                                <button id="sim-exit-btn" class="flex-1 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm focus:outline-none">
-                                    Exit
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- SECTION 3: SERVICE ALERTS (Admin Only) -->
                 <!-- Re-injected dynamically by admin.js into admin-modules-container -->
                 <div id="alert-panel" data-admin-loaded="false"></div>

@@ -1,15 +1,13 @@
 /**
- * METRORAIL NEXT TRAIN - CLOUDFLARE WORKER (V1.7 - Growth Edition)
+ * METRORAIL NEXT TRAIN - CLOUDFLARE WORKER (V1.8 - Performance Sliding Window Edition)
  * --------------------------------------------------------------------------
  * Path B: Secure Telemetry Bridge & OpenGraph Interceptor
- * * GROWTH SPRINT PHASE 7: 
- * - Transparent SPA Passthrough added to allow Worker deployment on main domain.
- * - Telemetry Engine Scaled: Dual-Query architecture expanded to support 
- * WAU (Weekly), MAU (Monthly), and All-Time metric aggregation.
- * - Date-Bucketing logic implemented for dynamic SVG chart pagination (DAU/WAU/MAU/ALL).
- * * GROWTH SPRINT PHASE 11: CleverAds Dashboard Scraper Engine injected into Telemetry payload.
- * * GUARDIAN PHASE 1: Social Bot Interceptor migrated fully to virality-interceptor. 
- * Sequential fetches parallelized via Promise.allSettled for lower dashboard latency.
+ * * GROWTH SPRINT PHASE 12: 
+ * - Upgraded Edge Payload to fetch large "Sliding Windows" (14-day, 14-week, 14-month)
+ *   to eliminate pagination latency on the frontend and drastically reduce GA4 API calls.
+ * - INTRADAY upgraded to Cumulative Mathematics (running totals) ensuring perfect
+ *   parity with "Today" user counts, and expanded to fetch 48 hours to support
+ *   instant frontend 'Compare' overlays.
  */
 
 // --- UTILITY: EDGE-COMPATIBLE JWT SIGNER FOR GOOGLE OAUTH ---
@@ -87,7 +85,7 @@ export default {
 
         const url = new URL(request.url);
 
-        // --- NEW: IP GEOLOCATION ECHO ENDPOINT (GUARDIAN PHASE 5) ---
+        // --- IP GEOLOCATION ECHO ENDPOINT (GUARDIAN PHASE 5) ---
         if (url.pathname === '/region' && request.method === 'GET') {
             let region = 'GP'; // Default to Gauteng
             
@@ -166,12 +164,12 @@ export default {
             mauUsers: '--',
             allTimeUsers: '--', 
             todayErrors: '--',
-            cleverRevenue: '--', // GUARDIAN PHASE 11: Monetization tracker
-            cleverHits: '--',    // GUARDIAN PHASE 11: Monetization tracker
+            cleverRevenue: '--', 
+            cleverHits: '--',    
             sevenDayTrend: [0, 0, 0, 0, 0, 0, 0], // Kept for backward compatibility
             chartData: [],                        // Dynamic payload for new Admin UI
             chartLabels: [],                      // Dynamic X-Axis labels for new Admin UI
-            regionalBreakdown: { GP: 0, WC: 0, KZN: 0, EC: 0, OTHER: 0 } // GROWTH SPRINT: Regional Distribution
+            regionalBreakdown: { GP: 0, WC: 0, KZN: 0, EC: 0, OTHER: 0 } 
         };
 
         // 🛡️ GUARDIAN FIX: Short TTL Cache to protect GA4 Quotas
@@ -187,7 +185,6 @@ export default {
             });
         }
 
-        // Array to hold our concurrent data-fetching promises
         const telemetryTasks = [];
 
         // --- 3. FETCH GA4 TELEMETRY DATA (UPGRADED MASS-BATCHING) ---
@@ -198,40 +195,37 @@ export default {
                     const gaHeaders = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
                     // Range parsing for Date-Bucketing Logic (INTRADAY, DAU, WAU, MAU, ALL)
+                    // We now completely ignore the frontend's 'weeksAgo' offset when fetching data,
+                    // and instead fetch massive Sliding Windows to allow instant client-side pagination.
                     const range = url.searchParams.get('range') || 'DAU';
                     let trendDimensions = [{ name: "date" }];
                     let trendOrderBys = [{ dimension: { dimensionName: "date" } }];
-                    let trendStartDate = "6daysAgo";
+                    let trendStartDate = "13daysAgo"; // Default 14-day Sliding Window for DAU
                     let trendEndDate = "today";
                     
                     if (range === 'INTRADAY') {
-                        trendDimensions = [{ name: "hour" }, { name: "minute" }];
+                        // We fetch yesterday AND today to allow for instant Compare overlays
+                        trendDimensions = [{ name: "date" }, { name: "hour" }, { name: "minute" }];
                         trendOrderBys = [
+                            { dimension: { dimensionName: "date" } },
                             { dimension: { dimensionName: "hour" } },
                             { dimension: { dimensionName: "minute" } }
                         ];
-                        trendStartDate = "today";
+                        trendStartDate = "yesterday";
                         trendEndDate = "today";
                     } else if (range === 'WAU') {
                         trendDimensions = [{ name: "isoYearIsoWeek" }];
                         trendOrderBys = [{ dimension: { dimensionName: "isoYearIsoWeek" } }];
-                        trendStartDate = "27daysAgo"; // Fetch 4 weeks
+                        trendStartDate = "97daysAgo"; // ~14 Weeks Sliding Window
                     } else if (range === 'MAU') {
                         trendDimensions = [{ name: "yearMonth" }];
                         trendOrderBys = [{ dimension: { dimensionName: "yearMonth" } }];
-                        trendStartDate = "179daysAgo"; // Fetch roughly 6 months
+                        trendStartDate = "426daysAgo"; // ~14 Months Sliding Window
                     } else if (range === 'ALL') {
                         trendDimensions = [{ name: "yearMonth" }];
                         trendOrderBys = [{ dimension: { dimensionName: "yearMonth" } }];
                         trendStartDate = "2026-01-01"; // Fetch from launch 
-                    } else {
-                        // DAU pagination logic (Default)
-                        const weeksAgo = parseInt(url.searchParams.get('weeksAgo')) || 0;
-                        const startDays = (weeksAgo * 7) + 6;
-                        const endDays = weeksAgo * 7;
-                        trendStartDate = `${startDays}daysAgo`;
-                        trendEndDate = endDays === 0 ? "today" : `${endDays}daysAgo`;
-                    }
+                    } 
 
                     // 🚀 Mass Promise.all Execution: Resolves 8 APIs concurrently at the Edge
                     const responses = await Promise.all([
@@ -275,7 +269,7 @@ export default {
                                 dateRanges: [{ startDate: "2026-01-01", endDate: "today" }], metrics: [{ name: "activeUsers" }]
                             })
                         }),
-                        // Query 6: Dynamic Trend Graph
+                        // Query 6: Dynamic Trend Graph (The Sliding Window)
                         fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${env.GA_PROPERTY_ID}:runReport`, {
                             method: 'POST', headers: gaHeaders, body: JSON.stringify({
                                 dateRanges: [{ startDate: trendStartDate, endDate: trendEndDate }],
@@ -304,9 +298,6 @@ export default {
                         dailyData, wauData, mauData, allTimeData, 
                         trendData, regionalData
                     ] = await Promise.all(responses.map(r => r.json()));
-                    
-                    // 🛡️ GUARDIAN FIX: Wrapped values in String() to appease strict Cloudflare ts(2322) linter 
-                    // This guarantees they remain the identical type as their initialized states ('--') 
                     
                     // Parse Query 0 (30m)
                     telemetryData.active30m = String(parseInt(realtime30Data?.rows?.[0]?.metricValues?.[0]?.value) || 0);
@@ -338,40 +329,82 @@ export default {
                     let labelsArray = [];
                     
                     if (range === 'INTRADAY') {
-                        // 24 hours * 2 (30-min intervals) = 48 buckets
-                        const totalBuckets = 48; 
+                        // We are fetching BOTH yesterday and today. 
+                        // 2 days * 24 hours * 2 (30-min intervals) = 96 buckets
+                        const totalBuckets = 96; 
                         activeCountsArray = Array(totalBuckets).fill(0);
                         
+                        // We need to identify the exact date strings for 'yesterday' and 'today' dynamically 
+                        // by looking at the data itself, so we don't have to worry about timezones.
+                        let datesFound = new Set();
                         if (trendData?.rows) {
                             trendData.rows.forEach(row => {
-                                const h = parseInt(row.dimensionValues?.[0]?.value, 10);
-                                const m = parseInt(row.dimensionValues?.[1]?.value, 10);
+                                const dStr = row.dimensionValues?.[0]?.value;
+                                if (dStr) datesFound.add(dStr);
+                            });
+                        }
+                        const sortedDates = Array.from(datesFound).sort();
+                        // If we only got data for today (e.g. at 00:01), ensure today is mapped to the second half of the array
+                        const yesterdayStr = sortedDates.length > 1 ? sortedDates[0] : null;
+                        const todayStr = sortedDates.length > 1 ? sortedDates[1] : (sortedDates[0] || null);
+
+                        if (trendData?.rows) {
+                            trendData.rows.forEach(row => {
+                                const dStr = row.dimensionValues?.[0]?.value;
+                                const h = parseInt(row.dimensionValues?.[1]?.value, 10);
+                                const m = parseInt(row.dimensionValues?.[2]?.value, 10);
                                 const users = parseInt(row.metricValues?.[0]?.value, 10) || 0;
                                 
                                 // Map exact minute to a 0-1 bucket slot (30 mins each)
                                 const mBucket = Math.floor(m / 30); 
-                                const bucketIndex = (h * 2) + mBucket;
+                                let bucketIndex = (h * 2) + mBucket;
+                                
+                                // Offset 'today' buckets by 48 so they sit in the second half of the array
+                                if (dStr === todayStr) {
+                                    bucketIndex += 48;
+                                } else if (yesterdayStr && dStr !== yesterdayStr) {
+                                    // Safety net: ignore rows that somehow fall outside our 2-day target
+                                    return; 
+                                }
+                                
                                 activeCountsArray[bucketIndex] += users;
                             });
                         }
                         
-                        // Generate labels (show only every 3 hours -> 6 buckets)
+                        // CUMULATIVE MATH: Convert velocity into running totals for each day independently
+                        for (let i = 1; i < 48; i++) {
+                            activeCountsArray[i] = activeCountsArray[i - 1] + activeCountsArray[i]; // Yesterday
+                        }
+                        for (let i = 49; i < 96; i++) {
+                            activeCountsArray[i] = activeCountsArray[i - 1] + activeCountsArray[i]; // Today
+                        }
+                        
+                        // Generate identical labels for both days
                         for (let i = 0; i < totalBuckets; i++) {
-                            if (i % 6 === 0) {
-                                const h = Math.floor(i / 2).toString().padStart(2, '0');
+                            if ((i % 48) % 6 === 0) {
+                                const h = Math.floor((i % 48) / 2).toString().padStart(2, '0');
                                 labelsArray.push(`${h}:00`);
                             } else {
                                 labelsArray.push(""); // Invisible label to preserve geometric spacing
                             }
                         }
                         
-                        // GROWTH SPRINT PHASE 8: Clip the unprocessed 3-hour lag window
-                        // 🛡️ GUARDIAN FIX: Adjust to SAST (UTC+2) to prevent prematurely dropping evening traffic
+                        // Clip the unprocessed future lag window for TODAY only
                         const nowHourSAST = (new Date().getUTCHours() + 2) % 24; 
                         const lagBuffer = 3;
-                        const cutoffBucket = Math.max(0, (nowHourSAST - lagBuffer) * 2);
-                        activeCountsArray = activeCountsArray.slice(0, cutoffBucket);
-                        labelsArray = labelsArray.slice(0, cutoffBucket);
+                        const cutoffHour = Math.max(0, nowHourSAST - lagBuffer);
+                        const cutoffBucketToday = (cutoffHour * 2) + 48;
+                        
+                        // Fill all future buckets today with the last known running total 
+                        // so the graph draws a flat line to the current time, instead of dropping to zero.
+                        let lastKnownTotal = activeCountsArray[cutoffBucketToday];
+                        for(let i = cutoffBucketToday + 1; i < 96; i++) {
+                             activeCountsArray[i] = lastKnownTotal;
+                        }
+                        // Then slice the array entirely at the cutoff point so the SVG engine doesn't draw the future.
+                        activeCountsArray = activeCountsArray.slice(0, cutoffBucketToday + 1);
+                        labelsArray = labelsArray.slice(0, cutoffBucketToday + 1);
+
                     } else {
                         if (trendData?.rows) {
                             activeCountsArray = trendData.rows.map(row => parseInt(row.metricValues?.[0]?.value) || 0);
@@ -381,10 +414,13 @@ export default {
                     
                     // Maintain backward compatibility for Phase 6 Admin UI until Phase 8 drops
                     if (range === 'DAU' || !url.searchParams.has('range')) {
-                        telemetryData.sevenDayTrend = [...Array(7).fill(0), ...activeCountsArray].slice(-7);
+                        // Just give them the last 7 days of the Sliding Window
+                        const recent7 = activeCountsArray.slice(-7);
+                        telemetryData.sevenDayTrend = [...Array(7).fill(0), ...recent7].slice(-7);
                     }
 
-                    // New arrays directly consumed by the Phase 8 scalable chart
+                    // Expose the raw, massive Sliding Window payload directly to the frontend.
+                    // The frontend admin.js file will be responsible for slicing it via pagination.
                     telemetryData.chartData = activeCountsArray;
                     telemetryData.chartLabels = labelsArray;
 
@@ -420,7 +456,7 @@ export default {
                         const lastDataPoint = sentryData[sentryData.length - 1];
                         telemetryData.todayErrors = String(parseInt(lastDataPoint?.[1]) || 0);
                     } else {
-                        telemetryData.todayErrors = "0"; // 🛡️ GUARDIAN FIX: Changed from 0 to "0" for linter compliance
+                        telemetryData.todayErrors = "0"; 
                     }
                 } catch (e) {
                     console.error("Sentry Fetch Error:", e.message);

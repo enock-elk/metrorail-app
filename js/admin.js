@@ -188,6 +188,7 @@ const Admin = {
     telemetryInterval: null, 
     telemetryWeeksAgo: 0, 
     telemetryRange: 'DAU', // GROWTH SPRINT: Default to Daily Active Users Trend
+    isComparing: false, // GROWTH SPRINT PHASE 9: Dual-Draw Overlay State
     // [GUARDIAN] Phase 3 cleanup: removed dead `clockInterval` state. The admin live-clock DOM
     // injection was already purged; this vestigial property had no remaining references.
     
@@ -414,6 +415,9 @@ const Admin = {
                                 </button>
                             </div>
                             <div class="flex items-center space-x-2">
+                                <button id="modal-trend-compare-btn" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors focus:outline-none" title="Compare Previous Period">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                                </button>
                                 <button id="modal-trend-export" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-slate-700 transition-colors focus:outline-none" title="Export Chart">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 </button>
@@ -447,6 +451,22 @@ const Admin = {
                 document.getElementById('modal-trend-next').onclick = () => { if(Admin.telemetryWeeksAgo > 0) { Admin.telemetryWeeksAgo--; Admin.refreshTelemetry(); } };
                 document.getElementById('modal-trend-export').onclick = () => Admin.exportTrendGraph();
                 document.getElementById('modal-trend-cycle').onclick = Admin.cycleTelemetryRange;
+                
+                // Compare Toggle Binding
+                const compareBtn = document.getElementById('modal-trend-compare-btn');
+                if (compareBtn) {
+                    compareBtn.onclick = () => {
+                        Admin.isComparing = !Admin.isComparing;
+                        if (Admin.isComparing) {
+                            compareBtn.classList.replace('text-slate-400', 'text-blue-600');
+                            compareBtn.classList.replace('dark:bg-slate-800', 'dark:bg-slate-700');
+                        } else {
+                            compareBtn.classList.replace('text-blue-600', 'text-slate-400');
+                            compareBtn.classList.replace('dark:bg-slate-700', 'dark:bg-slate-800');
+                        }
+                        Admin.refreshTelemetry();
+                    };
+                }
             }
 
             let regionModal = document.getElementById('telemetry-region-modal');
@@ -484,14 +504,29 @@ const Admin = {
                                     <span id="region-stat-ec" class="text-2xl font-black text-purple-700 dark:text-purple-300">--</span>
                                 </div>
                             </div>
-                            <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-1">
+                            <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-1 mb-4">
                                 <span class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center">Uncategorized / Global</span>
                                 <span id="region-stat-other" class="text-lg font-black text-slate-700 dark:text-slate-300">--</span>
                             </div>
+                            
+                            <!-- GROWTH SPRINT PHASE 12: Pivot to Graph CTA -->
+                            <button id="region-view-graph-btn" class="w-full bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-xs uppercase tracking-widest focus:outline-none flex items-center justify-center border border-slate-700 dark:border-slate-600">
+                                <svg class="w-4 h-4 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                                View Global Trends
+                            </button>
                         </div>
                     </div>
                 `;
                 document.body.appendChild(regionModal);
+                
+                // Bind the Pivot action
+                document.getElementById('region-view-graph-btn').onclick = () => {
+                    closeSmoothModal('telemetry-region-modal');
+                    // Give the modal 300ms to visually close before opening the full-screen chart
+                    setTimeout(() => {
+                        openSmoothModal('telemetry-chart-modal');
+                    }, 300);
+                };
             }
 
             const cycleBtn = document.getElementById('trend-cycle-btn');
@@ -540,7 +575,7 @@ const Admin = {
     },
 
     // --- DYNAMIC SVG LINE GRAPH BUILDER (GROWTH PHASE 8: SCALE AWARE) ---
-    _buildLineGraphSVG: (dataArray, labelsArray, title, isTodayIdx, isMini = false) => {
+    _buildLineGraphSVG: (dataArray, labelsArray, title, isTodayIdx, isMini = false, compareDataArray = null) => {
         const numPoints = Math.max(1, dataArray.length);
         
         // SVG dimensions
@@ -554,7 +589,12 @@ const Admin = {
         const uh = h - pt - pb;
         
         // Exaggerated Y-Axis scale logic to defeat "Zero-Baseline Compression"
-        const validData = dataArray.filter(v => v > 0);
+        let allData = [...dataArray];
+        if (Array.isArray(compareDataArray)) {
+            allData = allData.concat(compareDataArray);
+        }
+        
+        const validData = allData.filter(v => v !== null && v > 0);
         const maxVal = validData.length > 0 ? Math.max(...validData) : 10;
         const minVal = validData.length > 0 ? Math.min(...validData) : 0;
         
@@ -563,7 +603,7 @@ const Admin = {
         let yMin = Math.max(0, Math.floor(minVal - (spread > 0 ? spread * 0.2 : minVal * 0.5)));
         
         // 🛡️ GUARDIAN UX FIX: Clamp Y-Axis to 0 if dataset contains 0s to stop negative baseline rendering
-        if (dataArray.includes(0)) {
+        if (allData.includes(0)) {
             yMin = 0;
         }
 
@@ -602,6 +642,15 @@ const Admin = {
             });
         }
         
+        // 🛡️ COMPARE OVERLAY: Draw the faded comparison line first so it sits underneath
+        if (compareDataArray && numPoints > 1) {
+            let comparePathD = `M ${getX(0)} ${getY(compareDataArray[0] || 0)}`;
+            for(let i=1; i<numPoints; i++) {
+                comparePathD += ` L ${getX(i)} ${getY(compareDataArray[i] || 0)}`;
+            }
+            svg += `<path d="${comparePathD}" fill="none" stroke="#94a3b8" stroke-width="${isMini ? '2' : '3'}" stroke-dasharray="6,4" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" />`;
+        }
+
         // Fill Area & Stroke Line (Hide area if only 1 point exists)
         if (numPoints > 1) {
             svg += `<path d="${areaD}" fill="url(#lineGrad_${isMini ? 'mini' : 'full'})" />`;
@@ -611,6 +660,7 @@ const Admin = {
         // Points and X-Axis
         for(let i=0; i<numPoints; i++) {
             const val = dataArray[i];
+            const compareVal = compareDataArray ? (compareDataArray[i] || 0) : null;
             const vx = getX(i);
             const vy = getY(val);
             const isToday = (i === isTodayIdx);
@@ -627,7 +677,7 @@ const Admin = {
                 hoverLabel = `${hh}:${mm}`;
             }
             
-            const tooltipText = `${val} Sessions (${hoverLabel})`;
+            const tooltipText = compareVal !== null ? `${val} Sessions (Prev: ${compareVal}) [${hoverLabel}]` : `${val} Sessions (${hoverLabel})`;
             
             // GUARDIAN: Numbers hidden by default to declutter. Click dot to reveal exact stats!
             svg += `
@@ -635,6 +685,12 @@ const Admin = {
                     <title>${tooltipText}</title>
                 </circle>
             `;
+
+            // Draw faint compare point on top of the dashed line
+            if (compareDataArray && !isMini) {
+                const cvy = getY(compareVal);
+                svg += `<circle cx="${vx}" cy="${cvy}" r="2" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5" opacity="0.8"><title>Prev: ${compareVal}</title></circle>`;
+            }
             
             // X-Axis Labels (Dynamic formatting from worker)
             if (!isMini && labelsArray[i]) {
@@ -716,12 +772,57 @@ const Admin = {
                 }
 
                 // GROWTH SPRINT PHASE 8: Dynamic Multi-Range Scalable SVG Line Graph Engine
-                let activeCountsArray = data.chartData && data.chartData.length > 0 ? data.chartData : (data.sevenDayTrend || []);
-                let labelsArray = data.chartLabels || [];
+                let rawCountsArray = data.chartData && data.chartData.length > 0 ? data.chartData : (data.sevenDayTrend || []);
+                let rawLabelsArray = data.chartLabels || [];
+                
+                // 🛡️ GUARDIAN PHASE 2: RAM Array Slicer Engine
+                let pointsPerView = Admin.telemetryRange === 'INTRADAY' ? 48 : 7;
+                let offset = Admin.telemetryWeeksAgo;
+                
+                let masterLen = rawCountsArray.length;
+                let endIndex = masterLen - (offset * pointsPerView);
+                let startIndex = endIndex - pointsPerView;
+                
+                // Pagination bounds
+                if (startIndex < 0) startIndex = 0;
+                if (endIndex < 0) endIndex = 0;
+                
+                let activeCountsArray = rawCountsArray.slice(startIndex, endIndex);
+                let labelsArray = rawLabelsArray.slice(startIndex, endIndex);
+                
+                // Keep chart consistently scaled even if data runs out early
+                if (activeCountsArray.length < pointsPerView && masterLen > 0) {
+                    const padLen = pointsPerView - activeCountsArray.length;
+                    activeCountsArray = [...Array(padLen).fill(0), ...activeCountsArray];
+                    labelsArray = [...Array(padLen).fill(''), ...labelsArray];
+                }
+
+                // 🛡️ GUARDIAN PHASE 3: Comparison Array Slicer
+                let compareCountsArray = null;
+                if (Admin.isComparing) {
+                    let compareOffset = offset + 1;
+                    let compEndIndex = masterLen - (compareOffset * pointsPerView);
+                    let compStartIndex = compEndIndex - pointsPerView;
+                    
+                    if (compStartIndex < 0) compStartIndex = 0;
+                    if (compEndIndex < 0) compEndIndex = 0;
+                    
+                    // If we have any data to compare against
+                    if (compEndIndex > compStartIndex) {
+                        compareCountsArray = rawCountsArray.slice(compStartIndex, compEndIndex);
+                        if (compareCountsArray.length < pointsPerView) {
+                            const padLen = pointsPerView - compareCountsArray.length;
+                            compareCountsArray = [...Array(padLen).fill(0), ...compareCountsArray];
+                        }
+                    } else {
+                        // Out of historical bounds for comparison
+                        compareCountsArray = Array(pointsPerView).fill(0);
+                    }
+                }
                 
                 let displayLabels = [];
                 if (Admin.telemetryRange === 'INTRADAY') {
-                    // Force 48 points for full 24-hour timeline (30-min intervals)
+                    // Safety check, array is already padded by RAM Slicer
                     if (activeCountsArray.length !== 48) {
                         const padded = Array(48).fill(0);
                         for(let i=0; i<Math.min(activeCountsArray.length, 48); i++) {
@@ -776,6 +877,46 @@ const Admin = {
                 }
 
                 let titleStr = "";
+                
+                // 🛡️ GUARDIAN PHASE 4: Dynamic Title Extractor based on raw data labels
+                let firstValidRaw = null;
+                let lastValidRaw = null;
+                
+                for (let i = 0; i < labelsArray.length; i++) {
+                    if (labelsArray[i] && labelsArray[i].trim() !== '') {
+                        firstValidRaw = labelsArray[i];
+                        break;
+                    }
+                }
+                
+                for (let i = labelsArray.length - 1; i >= 0; i--) {
+                    if (labelsArray[i] && labelsArray[i].trim() !== '') {
+                        lastValidRaw = labelsArray[i];
+                        break;
+                    }
+                }
+
+                const formatDateLabel = (raw) => {
+                    if (!raw) return '';
+                    if (raw.length === 8) { // YYYYMMDD
+                        const d = new Date(raw.substring(0,4), parseInt(raw.substring(4,6))-1, raw.substring(6,8));
+                        return `${d.getDate()} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]}`;
+                    } else if (raw.length === 6 && Admin.telemetryRange === 'WAU') { // YYYYWW
+                        const y = parseInt(raw.substring(0,4));
+                        const w = parseInt(raw.substring(4,6));
+                        const d = new Date(y, 0, 1 + (w - 1) * 7);
+                        d.setDate(d.getDate() + (1 - d.getDay()));
+                        return `${d.getDate()} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]}`;
+                    } else if (raw.length === 6 && Admin.telemetryRange === 'MAU') { // YYYYMM
+                        return `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(raw.substring(4,6))-1]} ${raw.substring(0,4)}`;
+                    }
+                    return raw;
+                };
+
+                const titleStart = formatDateLabel(firstValidRaw);
+                const titleEnd = formatDateLabel(lastValidRaw);
+                const rangeStr = (titleStart && titleEnd && titleStart !== titleEnd) ? ` (${titleStart} - ${titleEnd})` : (titleStart ? ` (${titleStart})` : '');
+
                 if (Admin.telemetryRange === 'INTRADAY') {
                     if (Admin.telemetryWeeksAgo === 0) {
                         titleStr = "Intraday Hourly Trend (Today)";
@@ -788,17 +929,11 @@ const Admin = {
                         titleStr = `Intraday Trend (${d.getDate()} ${monthNames[d.getMonth()]})`;
                     }
                 } else if (Admin.telemetryRange === 'DAU' || !Admin.telemetryRange) {
-                    const endDate = new Date();
-                    endDate.setDate(endDate.getDate() - (Admin.telemetryWeeksAgo * 7));
-                    const endDay = endDate.getDay(); 
-                    const satDate = new Date(endDate);
-                    satDate.setDate(satDate.getDate() + (6 - endDay));
-                    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                    titleStr = `DAU for week ending ${satDate.getDate()} ${monthNames[satDate.getMonth()]} (Sat)`;
+                    titleStr = `Daily Active Users${rangeStr}`;
                 } else if (Admin.telemetryRange === 'WAU') {
-                    titleStr = `Weekly Active Users (WAU)`;
+                    titleStr = `Weekly Active Users${rangeStr}`;
                 } else if (Admin.telemetryRange === 'MAU') {
-                    titleStr = `Monthly Active Users (MAU)`;
+                    titleStr = `Monthly Active Users${rangeStr}`;
                 } else {
                     titleStr = `All-Time Active Users`;
                 }
@@ -808,13 +943,31 @@ const Admin = {
                 
                 const nextBtn = document.getElementById('modal-trend-next');
                 const inlineNextBtn = document.getElementById('trend-next-btn');
+                const prevBtn = document.getElementById('modal-trend-prev');
                 
+                // Forward-in-time guard (Next)
                 [nextBtn, inlineNextBtn].forEach(btn => {
                     if (btn) {
-                        if (Admin.telemetryWeeksAgo === 0) btn.classList.add('opacity-30', 'cursor-not-allowed');
-                        else btn.classList.remove('opacity-30', 'cursor-not-allowed');
+                        if (Admin.telemetryWeeksAgo === 0) {
+                            btn.classList.add('opacity-30', 'cursor-not-allowed');
+                            btn.disabled = true;
+                        } else {
+                            btn.classList.remove('opacity-30', 'cursor-not-allowed');
+                            btn.disabled = false;
+                        }
                     }
                 });
+                
+                // Backward-in-time guard (Prev)
+                if (prevBtn) {
+                    if (masterLen === 0 || (masterLen - ((Admin.telemetryWeeksAgo + 1) * pointsPerView)) <= 0) {
+                        prevBtn.classList.add('opacity-30', 'cursor-not-allowed');
+                        prevBtn.disabled = true;
+                    } else {
+                        prevBtn.classList.remove('opacity-30', 'cursor-not-allowed');
+                        prevBtn.disabled = false;
+                    }
+                }
 
                 // Lock the orange "Today" indicator to the correct 30-minute bucket
                 let isTodayIdx = -1;
@@ -829,11 +982,11 @@ const Admin = {
                 
                 // Render Inline Miniature SVG
                 const inlineContainer = document.getElementById('tel-trend-container');
-                if (inlineContainer) inlineContainer.innerHTML = Admin._buildLineGraphSVG(activeCountsArray, displayLabels, titleStr, isTodayIdx, true);
+                if (inlineContainer) inlineContainer.innerHTML = Admin._buildLineGraphSVG(activeCountsArray, displayLabels, titleStr, isTodayIdx, true, compareCountsArray);
                 
                 // Render Full-Screen Modal SVG
                 const modalSvgContainer = document.getElementById('modal-chart-svg-container');
-                if (modalSvgContainer) modalSvgContainer.innerHTML = Admin._buildLineGraphSVG(activeCountsArray, displayLabels, titleStr, isTodayIdx, false);
+                if (modalSvgContainer) modalSvgContainer.innerHTML = Admin._buildLineGraphSVG(activeCountsArray, displayLabels, titleStr, isTodayIdx, false, compareCountsArray);
 
                 [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
                     if(el) el.classList.remove('animate-pulse');
@@ -1089,7 +1242,6 @@ const Admin = {
         // 🛡️ GUARDIAN FIX: Uncouple UI bindings from Firebase to survive offline/cached race conditions
         if (!Admin._coreEventsBound) {
             Admin.setupLoginAccess();
-            Admin.setupSimulationControls();
             Admin._coreEventsBound = true;
         }
 
@@ -1350,16 +1502,14 @@ const Admin = {
         Admin.setupTelemetry();
         Admin.setupFeedbackManager(); 
         Admin.setupDeadEndsManager(); 
-        Admin.setupCrashReportsManager(); 
-        Admin.setupSimulationControls(); 
+        Admin.setupCrashReportsManager();  
         Admin.setupServiceAlertsManager();
         Admin.setupDisruptionsManager(); 
         Admin.setupExclusionManager();
         Admin.setupMaintenanceManager();
         Admin.setupSpecialEventManager(); 
         Admin.setupDiagnosticsManager(); 
-        Admin.setupGrowthManager(); 
-        Admin.setupNuclearManager(); 
+        Admin.setupRoadmapManager(); // 🛡️ GUARDIAN PHASE: Operations Roadmap
 
         // 🛡️ GROWTH SPRINT PHASE 5: Transform Dev Hub into native Grid / Drill-Down Dashboard
         Admin.initGridView();
@@ -1369,6 +1519,30 @@ const Admin = {
 
         // 🛡️ GUARDIAN PHASE 14: Action Required Expiry Dashboard
         Admin.fetchActionRequired();
+        
+        // 🛡️ GUARDIAN PHASE 6.3: Post-Render Initialization for Transplanted UI Components
+        // Because the HTML for these elements was moved OUT of the monolithic UI.js string 
+        // and IN to the dynamic setup functions, we must manually trigger their setup logic here
+        // so they attach to the newly generated DOM elements on first load.
+        Admin.initSimulationUI();
+    },
+    
+    initSimulationUI: () => {
+        const simApplyBtn = document.getElementById('sim-apply-btn');
+        if (simApplyBtn && !document.getElementById('sim-pipeline-override')) {
+            const pipelineHtml = `
+                <div class="mt-4 pt-4 pb-4 border-t border-gray-200 dark:border-gray-700 w-full">
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Data Pipeline Override (Local)</label>
+                    <select id="sim-pipeline-override" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
+                        <option value="AUTO">AUTO (Default Waterfall)</option>
+                        <option value="CLOUDFLARE">Force Edge Cache (Cloudflare)</option>
+                        <option value="GITHUB">Force CDN (GitHub)</option>
+                        <option value="FIREBASE">Force Direct (Firebase)</option>
+                    </select>
+                </div>
+            `;
+            simApplyBtn.parentElement.insertAdjacentHTML('beforebegin', pipelineHtml);
+        }
     },
 
     fetchActionRequired: async () => {
@@ -1381,7 +1555,6 @@ const Admin = {
         if (!actionBanner && adminContainer) {
             actionBanner = document.createElement('div');
             actionBanner.id = 'action-required-panel';
-            // Insert at the very top of the grid view
             adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
         }
 
@@ -1409,12 +1582,12 @@ const Admin = {
                         if (targetNotices && typeof targetNotices === 'object') {
                             if (targetNotices.id) {
                                 if (!targetNotices.expiresAt || targetNotices.expiresAt > now) {
-                                    activeItems.push({ type: 'Alert', label: targetNotices.severity === 'critical' ? 'Critical Advisory' : 'General Advisory', expiresAt: targetNotices.expiresAt, id: targetNotices.id, panelId: 'alert-panel', routeId: target });
+                                    activeItems.push({ type: 'Alert', label: targetNotices.severity === 'critical' ? 'Critical Advisory Active' : 'General Advisory Active', expiresAt: targetNotices.expiresAt, id: targetNotices.id, panelId: 'alert-panel', routeId: target });
                                 }
                             } else {
                                 Object.values(targetNotices).forEach(item => {
                                     if (!item.expiresAt || item.expiresAt > now) {
-                                        activeItems.push({ type: 'Alert', label: item.severity === 'critical' ? 'Critical Advisory' : 'General Advisory', expiresAt: item.expiresAt, id: item.id, panelId: 'alert-panel', routeId: target });
+                                        activeItems.push({ type: 'Alert', label: item.severity === 'critical' ? 'Critical Advisory Active' : 'General Advisory Active', expiresAt: item.expiresAt, id: item.id, panelId: 'alert-panel', routeId: target });
                                     }
                                 });
                             }
@@ -1431,8 +1604,8 @@ const Admin = {
                         Object.values(disrData[rId]).forEach(item => {
                             if (!item.expiresAt || item.expiresAt > now) {
                                 const targetStr = item.stations ? item.stations.join(' - ').replace(/ STATION/g, '') : 'Route-Wide';
-                                const routeName = (typeof ROUTES !== 'undefined' && ROUTES[rId]) ? ROUTES[rId].name : rId;
-                                activeItems.push({ type: 'Disruption', label: `${routeName} — ${targetStr}`, expiresAt: item.expiresAt, id: item.id, panelId: 'disruption-panel', routeId: rId });
+                                const prefix = item.tier === 'CRITICAL' ? 'Critical Incident' : 'Warning';
+                                activeItems.push({ type: 'Disruption', label: `${prefix}: ${targetStr}`, expiresAt: item.expiresAt, id: item.id, panelId: 'disruption-panel', routeId: rId });
                             }
                         });
                     });
@@ -1446,19 +1619,19 @@ const Admin = {
                     Object.keys(exclData).forEach(rId => {
                         Object.keys(exclData[rId]).forEach(tNum => {
                             const item = exclData[rId][tNum];
-                            const routeName = (typeof ROUTES !== 'undefined' && ROUTES[rId]) ? ROUTES[rId].name : rId;
                             
                             // 🛡️ GUARDIAN PHASE 1: Capture Grid Notices
                             if (tNum === '_grid_notice') {
                                 if (!item.expiresAt || item.expiresAt > now) {
-                                    activeItems.push({ type: 'Grid Notice', label: `${routeName} — Active Notice`, expiresAt: item.expiresAt, id: '_grid_notice', panelId: 'exclusion-panel', routeId: rId });
+                                    activeItems.push({ type: 'Grid Notice', label: `Grid Notice Active`, expiresAt: item.expiresAt, id: '_grid_notice', panelId: 'exclusion-panel', routeId: rId });
                                 }
                                 return;
                             }
                             
                             // Standard Exclusions
                             if (!item.expiresAt || item.expiresAt > now) {
-                                activeItems.push({ type: 'Exception', label: `${routeName} — Train #${tNum}`, expiresAt: item.expiresAt, id: tNum, panelId: 'exclusion-panel', routeId: rId });
+                                const typeStr = item.type === 'special' ? 'Marked Special' : 'Banned';
+                                activeItems.push({ type: 'Exception', label: `Train #${tNum} ${typeStr}`, expiresAt: item.expiresAt, id: tNum, panelId: 'exclusion-panel', routeId: rId });
                             }
                         });
                     });
@@ -1496,20 +1669,22 @@ const Admin = {
                 if (item.type === 'Exception') Admin._routeFlags[item.routeId].hasExclusion = true;
             });
 
-            // Re-render dropdowns with new cues
             if (typeof Admin.populateAlertTargets === 'function') Admin.populateAlertTargets(true);
             if (typeof Admin.populateDisruptionRoutes === 'function') Admin.populateDisruptionRoutes();
             if (typeof Admin.populateExclusionRoutes === 'function') Admin.populateExclusionRoutes();
 
-            // 🛡️ GUARDIAN FIX: Dynamic Region Badge Extractor
+            // 🛡️ GUARDIAN UX REDESIGN: Action Required 3-Row Layout with Route Stripping
             const getRegionBadge = (rId) => {
                 if (!rId) return '';
-                if (rId.includes('_GP')) return '<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">GP</span>';
-                if (rId.includes('_WC')) return '<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">WC</span>';
-                if (rId.includes('_KZN')) return '<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">KZN</span>';
-                if (rId.includes('_EC')) return '<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">EC</span>';
-                if (rId === 'all') return '<span class="bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded mr-1.5">ALL</span>';
-                if (typeof ROUTES !== 'undefined' && ROUTES[rId]) return `<span class="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1.5">${ROUTES[rId].region} ${ROUTES[rId].name}</span>`;
+                const badgeClass = "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-black uppercase tracking-wider text-[9px] mr-1.5";
+                const textClass = "text-xs font-bold text-gray-700 dark:text-gray-300";
+                
+                if (rId.includes('_GP')) return `<span class="${badgeClass}">GP</span> <span class="${textClass}">Global Network</span>`;
+                if (rId.includes('_WC')) return `<span class="${badgeClass}">WC</span> <span class="${textClass}">Global Network</span>`;
+                if (rId.includes('_KZN')) return `<span class="${badgeClass}">KZN</span> <span class="${textClass}">Global Network</span>`;
+                if (rId.includes('_EC')) return `<span class="${badgeClass}">EC</span> <span class="${textClass}">Global Network</span>`;
+                if (rId === 'all') return `<span class="bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded font-black uppercase tracking-wider text-[9px] mr-1.5">ALL</span> <span class="${textClass}">Entire Network</span>`;
+                if (typeof ROUTES !== 'undefined' && ROUTES[rId]) return `<span class="${badgeClass}">${ROUTES[rId].region}</span> <span class="${textClass}">${ROUTES[rId].name.replace('<->', '•')}</span>`;
                 return '';
             };
 
@@ -1518,33 +1693,39 @@ const Admin = {
                 const isPermanent = !item.expiresAt;
                 const hrsLeft = isPermanent ? null : Math.max(0, Math.floor((item.expiresAt - now) / (1000 * 60 * 60)));
                 
-                const colorClass = isPermanent ? 'text-blue-600 dark:text-blue-400' : (hrsLeft < 4 ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400');
-                const bgClass = isPermanent ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : (hrsLeft < 4 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800');
-                const timeBadge = isPermanent ? 'Permanent' : `in ${hrsLeft} hrs`;
+                const timeBadge = isPermanent ? 'Permanent' : `Expires: in ${hrsLeft} hrs`;
                 
-                listHtml += `
-                    <div class="flex flex-col ${bgClass} p-3 rounded-xl border shadow-sm mt-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer relative" onclick="Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')">
-                        
-                        <div class="absolute top-3 right-3 text-[10px] font-black ${colorClass} bg-white dark:bg-gray-800 px-2 py-1 rounded-lg shadow-sm border border-current z-10 whitespace-nowrap">
-                            ${timeBadge}
-                        </div>
+                // Disable +24h button if permanent
+                const extendBtnHtml = isPermanent 
+                    ? `<button disabled class="flex-1 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-600 text-xs font-bold py-1.5 rounded-lg border border-transparent shadow-sm flex items-center justify-center cursor-not-allowed"><svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> +24 Hrs</button>`
+                    : `<button onclick="event.stopPropagation(); Admin.extendActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-300 text-xs font-bold py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm transition-colors focus:outline-none flex items-center justify-center"><svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> +24 Hrs</button>`;
 
-                        <div class="flex flex-col items-start pr-20 mb-2 w-full">
-                            <span class="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">${item.type}</span>
-                            <div class="mb-2 max-w-full">
-                                <div class="inline-flex items-center flex-wrap">
-                                    ${getRegionBadge(item.routeId)}
-                                </div>
-                            </div>
-                            <span class="text-xs font-bold text-slate-800 dark:text-slate-200 leading-relaxed break-words w-full">
-                                ${item.label}
-                            </span>
+                listHtml += `
+                    <div class="flex flex-col bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mt-2 transition-colors hover:border-blue-300 dark:hover:border-blue-500 cursor-pointer relative" onclick="Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')">
+                        
+                        <!-- Top Row: Route Context -->
+                        <div class="flex items-center mb-1.5 w-full">
+                            ${getRegionBadge(item.routeId)}
                         </div>
                         
-                        <div class="flex gap-3 pt-2.5 border-t border-gray-200/50 dark:border-gray-700/50 mt-auto w-full">
-                            <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-300 text-xs font-bold py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm transition-colors focus:outline-none flex items-center justify-center">
-                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Resolve
+                        <!-- Second Row: Bold Payload -->
+                        <span class="text-sm font-black text-slate-900 dark:text-white leading-tight break-words w-full mb-1.5">
+                            ${item.label}
+                        </span>
+
+                        <!-- Third Row: Type & Expiry -->
+                        <div class="flex items-center text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-3 w-full">
+                            <span class="uppercase tracking-widest text-slate-500">Type: ${item.type}</span>
+                            <span class="mx-2 text-gray-300 dark:text-gray-600">|</span>
+                            <span class="${isPermanent ? 'text-blue-500' : (hrsLeft < 4 ? 'text-red-500' : 'text-orange-500')} uppercase tracking-widest">${timeBadge}</span>
+                        </div>
+                        
+                        <!-- Action Row -->
+                        <div class="flex gap-2 pt-2.5 border-t border-gray-100 dark:border-gray-700 mt-auto w-full">
+                            <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-600 text-xs font-bold py-1.5 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center">
+                                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Resolve
                             </button>
+                            ${extendBtnHtml}
                             <button onclick="event.stopPropagation(); window._actionRequiredWasOpen = true; Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')" class="flex-1 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold py-1.5 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center">
                                 Review &rarr;
                             </button>
@@ -1584,6 +1765,50 @@ const Admin = {
 
         } catch(e) {
             actionBanner.classList.add('hidden');
+        }
+    },
+
+    extendActionRequired: async (type, id, routeId) => {
+        if (typeof triggerHaptic === 'function') triggerHaptic();
+        const secret = await Admin.getAuthKey();
+        if (!secret) return;
+
+        try {
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            let url = '';
+
+            if (type === 'Disruption') url = `${dynamicEndpoint}disruptions/${routeId}/${id}.json?auth=${secret}`;
+            else if (type === 'Exception') url = `${dynamicEndpoint}exclusions/${routeId}/${id}.json?auth=${secret}`;
+            else if (type === 'Grid Notice') url = `${dynamicEndpoint}exclusions/${routeId}/_grid_notice.json?auth=${secret}`;
+            else if (type === 'Alert') {
+                url = `${dynamicEndpoint}notices/${routeId}.json?auth=${secret}`;
+            }
+
+            if (!url) return;
+
+            const fetchRes = await fetch(url);
+            if (!fetchRes.ok) throw new Error("Fetch failed");
+            const data = await fetchRes.json();
+            
+            if (type === 'Alert' && data && !data.id && data[id]) {
+                url = `${dynamicEndpoint}notices/${routeId}/${id}.json?auth=${secret}`;
+                const nestedData = data[id];
+                if (nestedData.expiresAt) {
+                    const newExpiry = nestedData.expiresAt + 86400000;
+                    await fetch(url, { method: 'PATCH', body: JSON.stringify({ expiresAt: newExpiry }) });
+                }
+            } else if (data && data.expiresAt) {
+                const newExpiry = data.expiresAt + 86400000;
+                await fetch(url, { method: 'PATCH', body: JSON.stringify({ expiresAt: newExpiry }) });
+            } else {
+                if (typeof showToast === 'function') showToast("Item has no expiry to extend.", "warning");
+                return;
+            }
+
+            if (typeof showToast === 'function') showToast("Extended by +24 Hours!", "success");
+            Admin.fetchActionRequired(); 
+        } catch (e) {
+            if (typeof showToast === 'function') showToast("Failed to extend time.", "error");
         }
     },
 
@@ -1754,115 +1979,6 @@ const Admin = {
         }
     },
 
-    // --- 3. SIMULATION CONTROLS (RESTORED) ---
-    setupSimulationControls: () => {
-        const simApplyBtn = document.getElementById('sim-apply-btn');
-        const simExitBtn = document.getElementById('sim-exit-btn');
-        
-        // 🛡️ GUARDIAN PHASE 4: Inject Pipeline Simulator UI
-        if (simApplyBtn && !document.getElementById('sim-pipeline-override')) {
-            const pipelineHtml = `
-                <div class="mt-4 pt-4 pb-4 border-t border-gray-200 dark:border-gray-700 w-full">
-                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Data Pipeline Override (Local)</label>
-                    <select id="sim-pipeline-override" class="w-full h-10 px-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none">
-                        <option value="AUTO">AUTO (Default Waterfall)</option>
-                        <option value="CLOUDFLARE">Force Edge Cache (Cloudflare)</option>
-                        <option value="GITHUB">Force CDN (GitHub)</option>
-                        <option value="FIREBASE">Force Direct (Firebase)</option>
-                    </select>
-                </div>
-            `;
-            simApplyBtn.parentElement.insertAdjacentHTML('beforebegin', pipelineHtml);
-        }
-
-        const simEnabledCheckbox = document.getElementById('sim-enabled');
-        const simTimeInput = document.getElementById('sim-time');
-        const dayDropdown = document.getElementById('sim-day');
-        const dateContainer = document.getElementById('sim-date-container');
-        const dateInput = document.getElementById('sim-date');
-        const pipelineDropdown = document.getElementById('sim-pipeline-override');
-
-        if (dayDropdown && dateContainer && dateInput) {
-            dayDropdown.addEventListener('change', () => {
-                if (dayDropdown.value === 'specific') {
-                    dateContainer.classList.remove('hidden');
-                    dateInput.focus();
-                } else {
-                    dateContainer.classList.add('hidden');
-                }
-            });
-        }
-
-        if (simApplyBtn) {
-            simApplyBtn.addEventListener('click', () => {
-                if (!simTimeInput || !simEnabledCheckbox) return;
-                
-                // If they hit apply, we assume they want to turn it ON
-                simEnabledCheckbox.checked = true;
-
-                window.isSimMode = true;
-                window.simTimeStr = simTimeInput.value + (simTimeInput.value.length === 5 ? ":00" : "");
-                
-                // 🛡️ GUARDIAN PHASE 4: Save Pipeline Override to sessionStorage
-                if (pipelineDropdown && pipelineDropdown.value !== 'AUTO') {
-                    try { sessionStorage.setItem('dev_force_source', pipelineDropdown.value); } catch(e){}
-                } else {
-                    try { sessionStorage.removeItem('dev_force_source'); } catch(e){}
-                }
-                
-                if (dayDropdown && dayDropdown.value === 'specific') {
-                    if (dateInput && dateInput.value) {
-                        const d = new Date(dateInput.value);
-                        window.simDayIndex = d.getDay(); 
-                    } else {
-                        if (typeof showToast === 'function') showToast("Please select a valid date.", "error");
-                        return;
-                    }
-                } else if (dayDropdown) {
-                    window.simDayIndex = parseInt(dayDropdown.value);
-                } else {
-                    window.simDayIndex = 1;
-                }
-
-                if (typeof showToast === 'function') showToast("Dev Simulation Active! Fetching data...", "success");
-                
-                // GUARDIAN FIX: Proper Router-aware Exit. Closes Hub, lets you see the result.
-                if (location.hash === '#dev') history.back();
-                else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
-                
-                // 🛡️ GUARDIAN HOTFIX: Force network sync to apply Pipeline Overrides, then update UI
-                if (typeof loadAllSchedules === 'function') {
-                    loadAllSchedules(true).then(() => {
-                        if (typeof updateTime === 'function') updateTime(); 
-                        if (typeof findNextTrains === 'function') findNextTrains();
-                    });
-                } else {
-                    if (typeof updateTime === 'function') updateTime(); 
-                    if (typeof findNextTrains === 'function') findNextTrains();
-                }
-            });
-        }
-
-        if (simExitBtn) {
-            simExitBtn.addEventListener('click', () => {
-                window.isSimMode = false;
-                if(simEnabledCheckbox) simEnabledCheckbox.checked = false;
-                
-                // 🛡️ GUARDIAN PHASE 4: Clear Pipeline Override on exit
-                try { sessionStorage.removeItem('dev_force_source'); } catch(e){}
-                const pipelineDropdown = document.getElementById('sim-pipeline-override');
-                if (pipelineDropdown) pipelineDropdown.value = 'AUTO';
-
-                if (typeof showToast === 'function') showToast("Exited Developer Mode", "info");
-                
-                if (location.hash === '#dev') history.back();
-                else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
-
-                if (typeof updateTime === 'function') updateTime(); 
-                if (typeof findNextTrains === 'function') findNextTrains();
-            });
-        }
-    },
     // --- GROWTH SPRINT PHASE 7: CRASH REPORTS DASHBOARD ---
     setupCrashReportsManager: () => {
         const adminContainer = document.getElementById('admin-modules-container');
@@ -2035,9 +2151,11 @@ const Admin = {
                     const safeAppVersion = secureEscape(crash.appVersion || 'Unknown');
                     const safeJsCrashId = (crash.id || '').replace(/'/g, "\\'");
                     
+                    const safeTicketDesc = safeErr.replace(/['"\n\r]/g, ' ');
                     const actionHtml = isInbox 
                         ? `<div class="flex space-x-2 w-full mt-2">
                              ${rawDid !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${safeJsCrashId}', '${safeJsDid}')">Reply</button>` : ''}
+                             <button class="flex-1 text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.escalateToRoadmap({type:'bug', severity:'high', title:'Crash on ${safeRoute}', description:'${safeTicketDesc}', source:'Crash ${safeJsCrashId}'})">Escalate</button>
                              <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveCrash('${safeJsCrashId}')">Resolve</button>
                            </div>`
                         : `<div class="flex justify-between items-center w-full mt-2">
@@ -2412,6 +2530,7 @@ const Admin = {
                 if (card.id === 'feedback-panel') Admin.fetchFeedback();
                 if (card.id === 'deadends-panel') Admin.fetchDeadEnds();
                 if (card.id === 'crashes-panel') Admin.fetchCrashes(); // 🛡️ GUARDIAN PHASE 7
+                if (card.id === 'roadmap-panel') Admin.fetchRoadmap(); // 🛡️ GUARDIAN PHASE 14
                 if (card.id === 'alert-panel') {
                     const targetEl = document.getElementById('alert-target');
                     if (targetEl) targetEl.dispatchEvent(new Event('change'));
@@ -2628,6 +2747,9 @@ const Admin = {
                     // Apply strict XSS isolation to raw commuter telemetry
                     const safeOrigin = secureEscape(item.origin);
                     const safeDest = secureEscape(item.dest);
+                    
+                    const safeOriginRoute = safeOrigin.replace(/['"\n\r]/g, ''); 
+                    const safeDestRoute = safeDest.replace(/['"\n\r]/g, '');
 
                     // GUARDIAN PHASE 11: Decoupled whitespace for long route names so they wrap dynamically instead of truncating
                     card.innerHTML = `
@@ -2638,9 +2760,12 @@ const Admin = {
                                 <span class="text-[9px] text-gray-400 font-mono">Last: ${dateStr}</span>
                             </div>
                         </div>
-                        <div class="flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg p-2 min-w-[44px]">
-                            <span class="text-[9px] text-gray-400 uppercase font-bold mb-0.5">Hits</span>
-                            <span class="text-sm font-black text-gray-700 dark:text-gray-300 leading-none">${item.count}</span>
+                        <div class="flex flex-row items-center shrink-0 gap-2">
+                            <div class="flex items-center justify-center bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg px-2.5 py-1.5 shadow-sm">
+                                <span class="text-[9px] text-gray-400 uppercase font-bold mr-1.5">Hits</span>
+                                <span class="text-sm font-black text-gray-700 dark:text-gray-300 leading-none">${item.count}</span>
+                            </div>
+                            <button class="text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[9px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-widest shadow-sm shrink-0" onclick="Admin.escalateToRoadmap({type:'route', severity:'medium', title:'Routing Fail: ${safeOriginRoute} to ${safeDestRoute}', description:'Failed with reason: ${item.reason}. Logged ${item.count} times.', source:'Telemetry Data'})">Ticket</button>
                         </div>
                     `;
                     listDiv.appendChild(card);
@@ -2912,7 +3037,8 @@ const Admin = {
                 
                 // 🛡️ GUARDIAN UX FIX: Relocate Alias button into the native Title bar to free up the Action Menu
                 const editAliasBtn = did !== 'Anonymous / Legacy' ? `<button onclick="event.stopPropagation(); Admin.setCommuterAlias('${did}', '${alias || ''}')" class="ml-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-800 p-1 rounded-md transition-colors focus:outline-none flex-shrink-0 shadow-sm border border-orange-200 dark:border-orange-800" title="Edit Alias"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>` : '';
-                const commuterTitle = alias ? `${alias} <span class="text-gray-400 text-[10px] font-normal ml-1">(${displayDid})</span>${editAliasBtn}` : `${displayDid}${editAliasBtn}`;
+                // 🛡️ GUARDIAN UX FIX: Hide raw device ID entirely if an alias is present
+                const commuterTitle = alias ? `${alias}${editAliasBtn}` : `${displayDid}${editAliasBtn}`;
                 
                 // 🛡️ GUARDIAN UX FIX: Detect attachments in thread for 📎 icon
                 const hasAttachments = groupItems.some(i => i.attachmentUrl || (i.attachmentUrls && i.attachmentUrls.length > 0));
@@ -2942,7 +3068,7 @@ const Admin = {
 
                 let contactHtml = '';
                 if (allEmails.size > 0 || allPhones.size > 0) {
-                    contactHtml = '<div class="flex flex-wrap gap-1.5 mt-1.5">';
+                    contactHtml = '<div class="flex flex-wrap gap-1.5">';
                     allEmails.forEach(em => {
                         contactHtml += `
                             <div class="flex items-center bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded px-1.5 py-0.5 max-w-[220px] sm:max-w-[300px]">
@@ -2971,18 +3097,21 @@ const Admin = {
                     <div class="feedback-group-header scroll-mt-[110px] cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 border-b border-transparent transition-colors">
                         <div class="flex-grow flex flex-col items-start min-w-0 pr-2">
                             <span class="text-xs font-bold text-gray-900 dark:text-white truncate w-full flex items-center">Commuter: <span class="text-blue-600 ml-1 flex items-center">${commuterTitle}</span></span>
-                            ${contactHtml}
-                            <span class="text-[9px] text-gray-500 font-mono mt-1.5">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} ${hasAttachments ? '📎 ' : ''}| Last: ${latestDate}</span>
+                            <span class="text-[9px] text-gray-500 font-mono mt-1">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} ${hasAttachments ? '📎 ' : ''}| Last: ${latestDate}</span>
                         </div>
-                        <div class="flex items-center justify-end gap-1.5 shrink-0 flex-wrap sm:flex-nowrap self-start mt-1">
-                            <button onclick="Admin.exportThreadForAI('${did}')" class="p-1.5 bg-white dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900/30 text-gray-500 hover:text-green-600 dark:hover:text-green-400 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm" title="Download Thread for AI (.txt)">📥</button>
+                        <div class="flex items-center justify-end shrink-0 self-center">
                             <button class="pointer-events-none focus:outline-none p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors border border-transparent">
                                 <svg class="chevron-icon w-4 h-4 text-gray-400 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
                         </div>
                     </div>
                     <div class="feedback-thread-body hidden bg-white dark:bg-gray-900 p-2 sm:p-3">
-                        <!-- 🛡️ GUARDIAN UX FIX: Removed max-h-[60vh] and overflow-y-auto to stop double scrollbars -->
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-3 bg-gray-50 dark:bg-gray-800/50 p-2 rounded-lg border border-gray-100 dark:border-gray-700">
+                            <div class="flex-grow min-w-0">
+                                ${contactHtml || '<span class="text-[10px] text-gray-400 italic font-medium px-1">No contact info provided</span>'}
+                            </div>
+                            <button onclick="Admin.exportThreadForAI('${did}')" class="shrink-0 flex items-center px-2 py-1.5 bg-white dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900/30 text-gray-500 hover:text-green-600 dark:hover:text-green-400 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm text-[10px] font-bold uppercase tracking-wider" title="Download Thread for AI (.txt)"><span class="mr-1.5 text-base leading-none">📥</span> Export</button>
+                        </div>
                         <div class="space-y-3 mb-2 h-auto min-h-[50px] flex flex-col">
                 `;
 
@@ -3183,11 +3312,15 @@ const Admin = {
                             </div>
                         `;
                 } });
+                const safeTicketDesc = secureEscape(latestCommuterMsg.text || 'No description').replace(/['"\n\r]/g, ' ');
+                const ticketType = latestCommuterMsg.type === 'bug' ? 'bug' : 'feature';
+                
                 // Bottom Action Bar (Contextual)
                 const actionHtml = isInbox 
                     ? `<div class="flex space-x-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
                          ${did !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${feedbackId}', '${did}')">Reply</button>` : ''}
-                         <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${unresolvedIds}')">Resolve Thread</button>
+                         <button class="flex-1 text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.escalateToRoadmap({type:'${ticketType}', severity:'medium', title:'Feedback from ${did.substring(0,8)}', description:'${safeTicketDesc}', source:'Feedback ${feedbackId}'})">Escalate</button>
+                         <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${unresolvedIds}')">Resolve</button>
                        </div>`
                     : `<div class="flex justify-between items-center w-full mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
                          <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived Thread</span>
@@ -6315,6 +6448,53 @@ const Admin = {
                         <div id="diag-results" class="mt-3 space-y-1 max-h-60 overflow-y-auto custom-scrollbar"></div>
                     </div>
                 </div>
+
+                <!-- 🛡️ GUARDIAN PHASE 6.3: Transplated Time Simulation Engine -->
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm transition-all">
+                    <button id="sim-header-btn" class="w-full px-3 py-3 bg-gray-100/50 dark:bg-gray-800/40 text-left text-[10px] font-black text-gray-800 dark:text-gray-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-gray-200/50 dark:hover:bg-gray-700/60">
+                        <span class="flex items-center">
+                            <span class="text-base mr-2">⏳</span> Time Simulation Engine
+                        </span>
+                        <svg id="sim-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    
+                    <div id="sim-body" class="p-3 hidden space-y-4">
+                        <div class="flex items-center justify-between">
+                            <label class="text-sm font-bold text-gray-700 dark:text-gray-300">Enable Sim Mode</label>
+                            <input type="checkbox" id="sim-enabled" class="h-5 w-5 text-blue-600 rounded focus:ring-blue-500 bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500">
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Time (HH:MM)</label>
+                                <input type="time" id="sim-time" step="1" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Day Type</label>
+                                <select id="sim-day" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="1">Weekday (Mon)</option>
+                                    <option value="6">Saturday</option>
+                                    <option value="0">Sunday</option>
+                                    <option value="specific">Specific Date...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="sim-date-container" class="hidden">
+                            <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Select Date (2026)</label>
+                            <input type="date" id="sim-date" class="w-full p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+
+                        <div class="flex gap-2 pt-2">
+                            <button id="sim-apply-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm focus:outline-none">
+                                Apply
+                            </button>
+                            <button id="sim-exit-btn" class="flex-1 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm focus:outline-none">
+                                Exit
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
 
@@ -6332,6 +6512,109 @@ const Admin = {
         const deepscanHeader = document.getElementById('deepscan-header-btn');
         const deepscanBody = document.getElementById('deepscan-body');
         const deepscanChevron = document.getElementById('deepscan-chevron');
+        
+        const simHeader = document.getElementById('sim-header-btn');
+        const simBody = document.getElementById('sim-body');
+        const simChevron = document.getElementById('sim-chevron');
+
+        if (simHeader) {
+            simHeader.onclick = () => {
+                simBody.classList.toggle('hidden');
+                if (simBody.classList.contains('hidden')) simChevron.classList.add('-rotate-90');
+                else simChevron.classList.remove('-rotate-90');
+            };
+        }
+
+        // Transplanted Simulation Control Logic
+        const simApplyBtn = document.getElementById('sim-apply-btn');
+        const simExitBtn = document.getElementById('sim-exit-btn');
+        const simEnabledCheckbox = document.getElementById('sim-enabled');
+        const simTimeInput = document.getElementById('sim-time');
+        const dayDropdown = document.getElementById('sim-day');
+        const dateContainer = document.getElementById('sim-date-container');
+        const dateInput = document.getElementById('sim-date');
+        const pipelineDropdown = document.getElementById('sim-pipeline-override');
+
+        if (dayDropdown && dateContainer && dateInput) {
+            dayDropdown.addEventListener('change', () => {
+                if (dayDropdown.value === 'specific') {
+                    dateContainer.classList.remove('hidden');
+                    dateInput.focus();
+                } else {
+                    dateContainer.classList.add('hidden');
+                }
+            });
+        }
+
+        if (simApplyBtn) {
+            simApplyBtn.addEventListener('click', () => {
+                if (!simTimeInput || !simEnabledCheckbox) return;
+                
+                // If they hit apply, we assume they want to turn it ON
+                simEnabledCheckbox.checked = true;
+
+                window.isSimMode = true;
+                window.simTimeStr = simTimeInput.value + (simTimeInput.value.length === 5 ? ":00" : "");
+                
+                // 🛡️ GUARDIAN PHASE 4: Save Pipeline Override to sessionStorage
+                if (pipelineDropdown && pipelineDropdown.value !== 'AUTO') {
+                    try { sessionStorage.setItem('dev_force_source', pipelineDropdown.value); } catch(e){}
+                } else {
+                    try { sessionStorage.removeItem('dev_force_source'); } catch(e){}
+                }
+                
+                if (dayDropdown && dayDropdown.value === 'specific') {
+                    if (dateInput && dateInput.value) {
+                        const d = new Date(dateInput.value);
+                        window.simDayIndex = d.getDay(); 
+                    } else {
+                        if (typeof showToast === 'function') showToast("Please select a valid date.", "error");
+                        return;
+                    }
+                } else if (dayDropdown) {
+                    window.simDayIndex = parseInt(dayDropdown.value);
+                } else {
+                    window.simDayIndex = 1;
+                }
+
+                if (typeof showToast === 'function') showToast("Dev Simulation Active! Fetching data...", "success");
+                
+                // GUARDIAN FIX: Proper Router-aware Exit. Closes Hub, lets you see the result.
+                if (location.hash === '#dev') history.back();
+                else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
+                
+                // 🛡️ GUARDIAN HOTFIX: Force network sync to apply Pipeline Overrides, then update UI
+                if (typeof loadAllSchedules === 'function') {
+                    loadAllSchedules(true).then(() => {
+                        if (typeof updateTime === 'function') updateTime(); 
+                        if (typeof findNextTrains === 'function') findNextTrains();
+                    });
+                } else {
+                    if (typeof updateTime === 'function') updateTime(); 
+                    if (typeof findNextTrains === 'function') findNextTrains();
+                }
+            });
+        }
+
+        if (simExitBtn) {
+            simExitBtn.addEventListener('click', () => {
+                window.isSimMode = false;
+                if(simEnabledCheckbox) simEnabledCheckbox.checked = false;
+                
+                // 🛡️ GUARDIAN PHASE 4: Clear Pipeline Override on exit
+                try { sessionStorage.removeItem('dev_force_source'); } catch(e){}
+                const pipelineDropdown = document.getElementById('sim-pipeline-override');
+                if (pipelineDropdown) pipelineDropdown.value = 'AUTO';
+
+                if (typeof showToast === 'function') showToast("Exited Developer Mode", "info");
+                
+                if (location.hash === '#dev') history.back();
+                else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
+
+                if (typeof updateTime === 'function') updateTime(); 
+                if (typeof findNextTrains === 'function') findNextTrains();
+            });
+        }
 
         if (matrixHeader) {
             matrixHeader.onclick = () => {
@@ -6753,17 +7036,40 @@ const Admin = {
                     </div>
                 </div>
 
-                <!-- Third-Party Ads Controls -->
-                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200 dark:border-blue-800">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <span class="font-bold text-blue-800 dark:text-blue-200 text-sm">Third-Party Ads</span>
-                            <p class="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5">Enable/Disable the CleverAds Monetization Engine.</p>
+                <!-- Transplanted Growth & Promo -->
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-indigo-800 overflow-hidden shadow-sm transition-all">
+                    <button id="promo-header-btn" class="w-full px-3 py-3 bg-blue-100/50 dark:bg-indigo-900/40 text-left text-[10px] font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-blue-200/50 dark:hover:bg-indigo-900/60">
+                        <span class="flex items-center">
+                            <span class="text-base mr-2">🚀</span> Growth & Promo
+                        </span>
+                        <svg id="promo-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="promo-body" class="hidden p-4">
+                        <p class="text-[10px] text-indigo-800 dark:text-indigo-300 font-medium leading-snug mb-4 text-center px-2">Let commuters scan this to instantly open and install the app without typing the URL.</p>
+                        <div class="flex flex-col items-center justify-center bg-white p-3 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-800 w-max mx-auto">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://nexttrain.co.za&color=1e3a8a&bgcolor=ffffff" alt="Next Train QR Code" class="w-40 h-40 object-contain rounded-lg">
                         </div>
-                        <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                            <input type="checkbox" name="ad-toggle" id="ad-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
-                            <label for="ad-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        <div class="text-center mt-4 mb-1">
+                            <span class="text-xs font-bold text-indigo-900 dark:text-indigo-100 bg-white/60 dark:bg-black/20 px-4 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-800 shadow-sm">nexttrain.co.za</span>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Transplanted Nuclear Cache Wipe -->
+                <div class="bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800 overflow-hidden shadow-sm transition-all">
+                    <button id="nuke-header-btn" class="w-full px-3 py-3 bg-red-100/50 dark:bg-red-900/40 text-left text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-red-200/50 dark:hover:bg-red-900/60">
+                        <span class="flex items-center">
+                            <span class="text-base mr-2">☢️</span> Nuclear Cache Wipe
+                        </span>
+                        <svg id="nuke-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    
+                    <div id="nuke-body" class="p-3 hidden space-y-3">
+                        <p class="text-[11px] text-red-600 dark:text-red-300 font-bold leading-snug">WARNING: This will instantly force ALL users globally to wipe their caches and hard-reload the app on their next boot.</p>
+                        <p class="text-[10px] text-red-500 dark:text-red-400 mb-2">Use only for catastrophic data corruption to force an update immediately without waiting for Service Worker lifecycles.</p>
+                        <button id="nuke-fire-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors text-xs uppercase tracking-wide focus:outline-none">
+                            Fire Killswitch
+                        </button>
                     </div>
                 </div>
             </div>
@@ -6774,7 +7080,31 @@ const Admin = {
         const chevron = document.getElementById('maint-chevron');
         const toggle = document.getElementById('maint-toggle');
         const maintMsg = document.getElementById('maint-message');
-        const adToggle = document.getElementById('ad-toggle');
+        
+        const nukeHeader = document.getElementById('nuke-header-btn');
+        const nukeBody = document.getElementById('nuke-body');
+        const nukeChevron = document.getElementById('nuke-chevron');
+        const nukeFireBtn = document.getElementById('nuke-fire-btn');
+
+        const promoHeader = document.getElementById('promo-header-btn');
+        const promoBody = document.getElementById('promo-body');
+        const promoChevron = document.getElementById('promo-chevron');
+
+        if (nukeHeader) {
+            nukeHeader.onclick = () => {
+                nukeBody.classList.toggle('hidden');
+                if (nukeBody.classList.contains('hidden')) nukeChevron.classList.add('-rotate-90');
+                else nukeChevron.classList.remove('-rotate-90');
+            };
+        }
+
+        if (promoHeader) {
+            promoHeader.onclick = () => {
+                promoBody.classList.toggle('hidden');
+                if (promoBody.classList.contains('hidden')) promoChevron.classList.add('-rotate-90');
+                else promoChevron.classList.remove('-rotate-90');
+            };
+        }
 
         header.onclick = () => {
             if (Admin.isGridMode) return;
@@ -6803,14 +7133,7 @@ const Admin = {
                     if (maintMsg) maintMsg.value = "";
                 }
 
-                // Fetch Ads Payload
-                const resAds = await fetch(`${dynamicEndpoint}config/ads_enabled.json`);
-                const adsData = await resAds.json();
-                if (adToggle) {
-                    adToggle.checked = !!adsData;
-                }
-                
-            } catch(e) { console.warn("Failed to check system status"); }
+                } catch(e) { console.warn("Failed to check system status"); }
         }
         checkStatus();
 
@@ -6840,71 +7163,160 @@ const Admin = {
             });
         }
 
-        if (adToggle) {
-            adToggle.addEventListener('change', async () => {
+        if (nukeFireBtn) {
+            nukeFireBtn.onclick = async () => {
+                const secret = await Admin.getAuthKey(); 
+                if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
+                
+                const confirmed = await Admin.secureConfirm("Nuclear Cache Wipe", "Type 'NUKE' to confirm mass cache wipe:", "NUKE");
+                if (!confirmed) return;
+                
+                nukeFireBtn.textContent = "Firing...";
+                nukeFireBtn.disabled = true;
+
                 try {
-                    const secret = await Admin.getAuthKey();
-                    if (!secret) {
-                        if (typeof showToast === 'function') showToast("Authentication required.", "error");
-                        adToggle.checked = !adToggle.checked;
-                        return;
-                    }
                     const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                    const res = await window.guardianFetch(`${dynamicEndpoint}config/ads_enabled.json?auth=${secret}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(adToggle.checked)
-                    }, 10000);
+                    const url = `${dynamicEndpoint}config/killswitch.json?auth=${secret}`;
+                    const payload = { timestamp: Date.now(), triggeredBy: Admin.currentUser ? Admin.currentUser.email : 'Admin' };
+                    
+                    const res = await window.guardianFetch(url, { method: 'PUT', body: JSON.stringify(payload) }, 10000);
                     if (res.ok) {
-                        if (typeof showToast === 'function') showToast(`Third-Party Ads: ${adToggle.checked ? "ENABLED" : "DISABLED"}`, "success");
+                        try {
+                            await fetch('https://nexttrain-telemetry.enock.workers.dev/admin/purge', { 
+                                method: 'POST', 
+                                headers: {'Authorization': `Bearer ${secret}`} 
+                            });
+                        } catch(pe) { console.warn("Purge failed", pe); }
+
+                        if (typeof showToast === 'function') showToast("Nuclear Wipe Triggered Globally!", "success", 5000);
                     } else {
-                        throw new Error("Auth failed");
+                        if (typeof showToast === 'function') showToast("Auth failed.", "error");
                     }
                 } catch(e) {
-                    if (typeof showToast === 'function') showToast("Failed to update ad status.", "error");
-                    adToggle.checked = !adToggle.checked; 
+                    if (typeof showToast === 'function') showToast("Network Error", "error");
+                } finally {
+                    nukeFireBtn.textContent = "Fire Killswitch";
+                    nukeFireBtn.disabled = false;
                 }
-            });
+            };
         }
     },
 
-    // --- 9. NUCLEAR CACHE WIPE ---
-    setupNuclearManager: () => {
-        const alertPanel = document.getElementById('alert-panel');
-        if (!alertPanel || !alertPanel.parentNode) return;
+    // --- 10. OPERATIONS ROADMAP (JIRA BOARD) ---
+    setupRoadmapManager: () => {
+        const adminContainer = document.getElementById('admin-modules-container');
+        if (!adminContainer) return;
 
-        let nukePanel = document.getElementById('nuke-panel');
-        if (!nukePanel) {
-            nukePanel = document.createElement('div');
-            nukePanel.id = 'nuke-panel';
-            alertPanel.parentNode.appendChild(nukePanel);
+        let roadmapPanel = document.getElementById('roadmap-panel');
+        if (!roadmapPanel) {
+            roadmapPanel = document.createElement('div');
+            roadmapPanel.id = 'roadmap-panel';
+            adminContainer.appendChild(roadmapPanel);
         }
 
-        if (nukePanel.dataset.loaded === "true") return;
-        nukePanel.dataset.loaded = "true";
+        if (roadmapPanel.dataset.adminLoaded === "true") return;
+        roadmapPanel.dataset.adminLoaded = "true";
 
-        nukePanel.className = "bg-red-50 dark:bg-red-900/20 rounded-xl shadow-md border border-red-200 dark:border-red-800 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+        Admin.cachedRoadmapData = [];
 
-        nukePanel.innerHTML = `
-            <button id="nuke-header-btn" class="w-full text-left text-xs font-bold text-red-500 dark:text-red-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+        roadmapPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+
+        roadmapPanel.innerHTML = `
+            <button id="roadmap-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">☢️</span> 
-                    <span>Nuclear Cache Wipe</span>
+                    <span class="text-2xl mb-2">🗺️</span> 
+                    <span>Operations Roadmap</span>
                 </span>
-                <svg id="nuke-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                <svg id="roadmap-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
-            <div id="nuke-body" class="hidden mt-4 space-y-3">
-                <p class="text-[11px] text-red-600 dark:text-red-300 font-bold leading-snug">WARNING: This will instantly force ALL users globally to wipe their caches and hard-reload the app on their next boot.</p>
-                <p class="text-[10px] text-red-500 dark:text-red-400 mb-2">Use only for catastrophic data corruption to force an update immediately without waiting for Service Worker lifecycles.</p>
-                <button id="nuke-fire-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg shadow-md transition-colors text-xs uppercase tracking-wide focus:outline-none">
-                    Fire Killswitch
-                </button>
+            <div id="roadmap-body" class="hidden mt-4 flex flex-col space-y-3">
+                <!-- Controls Header -->
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-inner">
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="roadmap-status-display">Syncing Board...</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <!-- Search Bar -->
+                        <div class="relative flex-grow sm:w-48">
+                            <svg class="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            <input type="text" id="roadmap-search-input" placeholder="Search tickets..." class="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block pl-8 p-2 shadow-sm outline-none transition-colors">
+                        </div>
+                        
+                        <button id="roadmap-refresh-btn" class="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-500 hover:text-blue-500 transition-colors focus:outline-none shadow-sm shrink-0" title="Refresh">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
+                        </button>
+                        <button onclick="Admin.openTicketModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-md focus:outline-none shrink-0">
+                            <span>➕</span> New Ticket
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Kanban Board Area (Responsive Grid) -->
+                <div class="overflow-x-auto pb-4 custom-scrollbar snap-x flex-grow w-full">
+                    <!-- 🛡️ GUARDIAN UX FIX: Fluid Grid on Desktop, Snap Flex on Mobile -->
+                    <div class="flex md:grid md:grid-cols-3 gap-4 h-full items-start px-1 w-full min-w-max md:min-w-0" id="roadmap-kanban-board">
+                        
+                        <!-- Column: Backlog -->
+                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm snap-center shrink-0 md:shrink">
+                            <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50 rounded-t-xl shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-gray-400 shadow-sm"></span>
+                                    <h2 class="text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">To-Do / Backlog</h2>
+                                    <span id="roadmap-count-backlog" class="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-[9px] py-0.5 px-2 rounded-full font-bold">0</span>
+                                </div>
+                                <button onclick="Admin.exportColumn('backlog')" class="text-gray-400 hover:text-blue-500 p-1 focus:outline-none transition-colors" title="Export Backlog">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                </button>
+                            </div>
+                            <div id="roadmap-col-backlog" class="flex-1 p-2 overflow-y-auto space-y-2 min-h-[150px] custom-scrollbar bg-gray-50/50 dark:bg-gray-900/20 rounded-b-xl">
+                                <div class="text-center text-gray-400 dark:text-gray-500 text-xs py-6 italic" id="empty-backlog">No tickets</div>
+                            </div>
+                        </div>
+
+                        <!-- Column: In Progress -->
+                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-white dark:bg-gray-800 rounded-xl border border-blue-200 dark:border-blue-900/50 shadow-sm snap-center shrink-0 md:shrink">
+                            <div class="p-3 border-b border-blue-100 dark:border-blue-800/50 flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 rounded-t-xl shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm ring-2 ring-blue-200 dark:ring-blue-900"></span>
+                                    <h2 class="text-[10px] font-black uppercase tracking-widest text-blue-800 dark:text-blue-300">In Progress</h2>
+                                    <span id="roadmap-count-progress" class="bg-blue-200 dark:bg-blue-800/80 text-blue-800 dark:text-blue-200 text-[9px] py-0.5 px-2 rounded-full font-bold">0</span>
+                                </div>
+                                <button onclick="Admin.exportColumn('progress')" class="text-blue-400 hover:text-blue-600 p-1 focus:outline-none transition-colors" title="Export In Progress">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                </button>
+                            </div>
+                            <div id="roadmap-col-progress" class="flex-1 p-2 overflow-y-auto space-y-2 min-h-[150px] custom-scrollbar bg-blue-50/10 dark:bg-blue-900/10 rounded-b-xl">
+                                <div class="text-center text-gray-400 dark:text-gray-500 text-xs py-6 italic hidden" id="empty-inprogress">No tickets</div>
+                            </div>
+                        </div>
+
+                        <!-- Column: Completed -->
+                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-white dark:bg-gray-800 rounded-xl border border-green-200 dark:border-green-900/50 shadow-sm snap-center shrink-0 md:shrink">
+                            <div class="p-3 border-b border-green-100 dark:border-green-800/50 flex justify-between items-center bg-green-50 dark:bg-green-900/20 rounded-t-xl shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm ring-2 ring-green-200 dark:ring-green-900"></span>
+                                    <h2 class="text-[10px] font-black uppercase tracking-widest text-green-800 dark:text-green-300">Completed</h2>
+                                    <span id="roadmap-count-done" class="bg-green-200 dark:bg-green-800/80 text-green-800 dark:text-green-200 text-[9px] py-0.5 px-2 rounded-full font-bold">0</span>
+                                </div>
+                                <button onclick="Admin.exportColumn('done')" class="text-green-400 hover:text-green-600 p-1 focus:outline-none transition-colors" title="Export Completed">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                </button>
+                            </div>
+                            <div id="roadmap-col-done" class="flex-1 p-2 overflow-y-auto space-y-2 min-h-[150px] custom-scrollbar bg-green-50/10 dark:bg-green-900/10 rounded-b-xl">
+                                <div class="text-center text-gray-400 dark:text-gray-500 text-xs py-6 italic hidden" id="empty-completed">No tickets</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
             </div>
         `;
 
-        const header = document.getElementById('nuke-header-btn');
-        const body = document.getElementById('nuke-body');
-        const chevron = document.getElementById('nuke-chevron');
-        const fireBtn = document.getElementById('nuke-fire-btn');
+        const header = document.getElementById('roadmap-header-btn');
+        const body = document.getElementById('roadmap-body');
+        const chevron = document.getElementById('roadmap-chevron');
+        const refreshBtn = document.getElementById('roadmap-refresh-btn');
 
         header.onclick = () => {
             if (Admin.isGridMode) return;
@@ -6915,43 +7327,494 @@ const Admin = {
             } else {
                 chevron.classList.remove('-rotate-90');
                 header.classList.add('mb-4');
+                Admin.fetchRoadmap();
             }
         };
 
-        fireBtn.onclick = async () => {
-            const secret = await Admin.getAuthKey(); 
-            if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
+        refreshBtn.onclick = () => Admin.fetchRoadmap();
+
+        Admin.renderRoadmapList = () => {
+            const colBacklog = document.getElementById('roadmap-col-backlog');
+            const colProgress = document.getElementById('roadmap-col-progress');
+            const colDone = document.getElementById('roadmap-col-done');
+
+            // Clear columns except for empty state markers
+            Array.from(colBacklog.children).forEach(c => { if (c.id !== 'empty-backlog') c.remove(); });
+            Array.from(colProgress.children).forEach(c => { if (c.id !== 'empty-inprogress') c.remove(); });
+            Array.from(colDone.children).forEach(c => { if (c.id !== 'empty-completed') c.remove(); });
+
+            let counts = { backlog: 0, progress: 0, done: 0 };
             
-            const confirmed = await Admin.secureConfirm("Nuclear Cache Wipe", "Type 'NUKE' to confirm mass cache wipe:", "NUKE");
-            if (!confirmed) return;
+            const searchInput = document.getElementById('roadmap-search-input');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+            // Quick escapeHTML helper
+            const safeHTML = (str) => {
+                if (!str) return '';
+                return String(str).replace(/[&<>"']/g, function(m) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+                });
+            };
+
+            const getPriorityStyles = (priority) => {
+                const styles = {
+                    low: { bg: 'bg-gray-100 dark:bg-gray-800', border: 'border-gray-200 dark:border-gray-600', text: 'text-gray-600 dark:text-gray-300', icon: 'M19 14l-7 7m0 0l-7-7m7 7V3' }, // Arrow down
+                    medium: { bg: 'bg-blue-50 dark:bg-blue-900/30', border: 'border-blue-200 dark:border-blue-700/50', text: 'text-blue-700 dark:text-blue-300', icon: 'M20 12H4' }, // Minus
+                    high: { bg: 'bg-orange-50 dark:bg-orange-900/30', border: 'border-orange-200 dark:border-orange-700/50', text: 'text-orange-700 dark:text-orange-300', icon: 'M5 10l7-7m0 0l7 7m-7-7v18' }, // Arrow up
+                    critical: { bg: 'bg-red-50 dark:bg-red-900/30', border: 'border-red-200 dark:border-red-700/50', text: 'text-red-700 dark:text-red-400', icon: 'M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z' } // Fire
+                };
+                return styles[priority] || styles.medium;
+            };
+
+            Admin.cachedRoadmapData.forEach(ticket => {
+                // Search filtering
+                if (searchTerm) {
+                    const searchableText = `${ticket.title} ${ticket.description || ''} ${ticket.source || ''}`.toLowerCase();
+                    if (!searchableText.includes(searchTerm)) return; // Skip if no match
+                }
+
+                const status = ticket.status || 'backlog';
+                if (!counts.hasOwnProperty(status)) return; // Failsafe
+                
+                counts[status]++;
+
+                const dateStr = Admin.formatDate(ticket.timestamp);
+                const safeTitle = safeHTML(ticket.title || 'Untitled');
+                let shortDesc = safeHTML(ticket.description || 'No description provided.');
+                
+                // Truncate description for card view
+                if (shortDesc.length > 80) shortDesc = shortDesc.substring(0, 80) + '...';
+                
+                const pStyles = getPriorityStyles(ticket.severity || 'medium');
+                
+                let sourceBadge = '';
+                if (ticket.source) {
+                    sourceBadge = `<div class="mt-1 text-[9px] text-blue-500 dark:text-blue-400 font-mono truncate">Ref: ${safeHTML(ticket.source)}</div>`;
+                }
+                
+                let typeIcon = "📌"; 
+                if (ticket.type === 'bug') typeIcon = "🐛"; 
+                else if (ticket.type === 'feature') typeIcon = "🚀"; 
+                else if (ticket.type === 'route') typeIcon = "🗺️";
+
+                // Native SVG icons replacing FontAwesome
+                const editIcon = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>`;
+                const trashIcon = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+                const leftArrowIcon = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>`;
+                const rightArrowIcon = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>`;
+                const prioritySvg = `<svg class="w-2.5 h-2.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${pStyles.icon}"></path></svg>`;
+
+                let moveControls = '';
+                if (status === 'backlog') {
+                    moveControls = `<button class="text-gray-400 hover:text-blue-500 p-2 md:p-1 rounded hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'progress')" title="Move to Progress">${rightArrowIcon}</button>`;
+                } else if (status === 'progress') {
+                    moveControls = `
+                        <button class="text-gray-400 hover:text-blue-500 p-2 md:p-1 rounded hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'backlog')" title="Move to Backlog">${leftArrowIcon}</button>
+                        <button class="text-gray-400 hover:text-green-500 p-2 md:p-1 rounded hover:bg-green-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'done')" title="Move to Done">${rightArrowIcon}</button>
+                    `;
+                } else if (status === 'done') {
+                    moveControls = `<button class="text-gray-400 hover:text-blue-500 p-2 md:p-1 rounded hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'progress')" title="Move to Progress">${leftArrowIcon}</button>`;
+                }
+
+                const cardHtml = `
+                    <div class="bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-gray-700 p-3 rounded-lg shadow-sm hover:border-blue-400 dark:hover:border-blue-500/50 transition-colors cursor-pointer group flex flex-col gap-2 relative overflow-hidden" onclick="Admin.openViewModal('${ticket.id}')">
+                        <div class="flex justify-between items-start gap-2">
+                            <div class="flex items-start min-w-0 pr-1">
+                                <span class="mr-1.5 text-sm leading-none shrink-0 mt-0.5" title="${ticket.type}">${typeIcon}</span>
+                                <h4 class="font-bold text-gray-900 dark:text-gray-200 text-sm leading-tight line-clamp-2 break-words">${safeTitle}</h4>
+                            </div>
+                            <div class="flex gap-1 md:gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 bg-white dark:bg-[#1e293b] pl-1 relative z-10">
+                                ${moveControls}
+                                <div class="w-px h-4 bg-gray-200 dark:bg-gray-600 my-auto mx-1 md:mx-0.5"></div>
+                                <button class="text-gray-400 hover:text-blue-500 p-2 md:p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.openTicketModal('${ticket.id}')" title="Edit Ticket">
+                                    ${editIcon}
+                                </button>
+                                <button class="text-gray-400 hover:text-red-500 p-2 md:p-1 rounded hover:bg-red-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.deleteTicket('${ticket.id}')" title="Delete Ticket">
+                                    ${trashIcon}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <p class="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">${shortDesc}</p>
+                        ${sourceBadge}
+                        
+                        <div class="flex items-center justify-between mt-1 pt-2 border-t border-gray-100 dark:border-gray-700/50">
+                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider flex items-center ${pStyles.bg} ${pStyles.border} ${pStyles.text}">
+                                ${prioritySvg} ${(ticket.severity || 'medium')}
+                            </span>
+                            <span class="text-[9px] text-gray-400 dark:text-gray-500 font-mono">
+                                ${dateStr.split(',')[0]}
+                            </span>
+                        </div>
+                    </div>
+                `;
+
+                if (status === 'backlog') colBacklog.insertAdjacentHTML('beforeend', cardHtml);
+                else if (status === 'progress') colProgress.insertAdjacentHTML('beforeend', cardHtml);
+                else if (status === 'done') colDone.insertAdjacentHTML('beforeend', cardHtml);
+            });
+
+            // Update Counts
+            document.getElementById('roadmap-count-backlog').textContent = counts.backlog;
+            document.getElementById('roadmap-count-progress').textContent = counts.progress;
+            document.getElementById('roadmap-count-done').textContent = counts.done;
+
+            // Handle Empty States
+            document.getElementById('empty-backlog').classList.toggle('hidden', counts.backlog > 0);
+            document.getElementById('empty-inprogress').classList.toggle('hidden', counts.progress > 0);
+            document.getElementById('empty-completed').classList.toggle('hidden', counts.done > 0);
+        };
+
+        const searchInput = document.getElementById('roadmap-search-input');
+        if (searchInput) {
+            searchInput.addEventListener('input', Admin.renderRoadmapList);
+        }
+
+        Admin.fetchRoadmap = async () => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+
+            document.getElementById('roadmap-status-display').textContent = 'Syncing Board...';
             
-            fireBtn.textContent = "Firing...";
-            fireBtn.disabled = true;
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                // 🛡️ GUARDIAN FIX: Added cache-buster ?t=Date.now() to prevent ghost syncs
+                const res = await window.guardianFetch(`${dynamicEndpoint}roadmap.json?auth=${secret}&t=${Date.now()}`, {}, 10000);
+                
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const data = await res.json();
+                
+                Admin.cachedRoadmapData = (data && typeof data === 'object') ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+                
+                // Sort by timestamp desc
+                Admin.cachedRoadmapData.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+                Admin.renderRoadmapList();
+                document.getElementById('roadmap-status-display').textContent = 'Board Synced';
+            } catch(e) {
+                console.error("Roadmap fetch error:", e);
+                document.getElementById('roadmap-status-display').textContent = 'Sync Failed';
+            }
+        };
+
+        Admin.updateTicketStatus = async (ticketId, newStatus) => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
 
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const url = `${dynamicEndpoint}config/killswitch.json?auth=${secret}`;
-                const payload = { timestamp: Date.now(), triggeredBy: Admin.currentUser ? Admin.currentUser.email : 'Admin' };
+                const res = await fetch(`${dynamicEndpoint}roadmap/${ticketId}.json?auth=${secret}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: newStatus, updatedAt: Date.now() })
+                });
                 
-                const res = await window.guardianFetch(url, { method: 'PUT', body: JSON.stringify(payload) }, 10000);
-                if (res.ok) {
-                    try {
-                        await fetch('https://nexttrain-telemetry.enock.workers.dev/admin/purge', { 
-                            method: 'POST', 
-                            headers: {'Authorization': `Bearer ${secret}`} 
-                        });
-                    } catch(pe) { console.warn("Purge failed", pe); }
-
-                    if (typeof showToast === 'function') showToast("Nuclear Wipe Triggered Globally!", "success", 5000);
-                } else {
-                    if (typeof showToast === 'function') showToast("Auth failed.", "error");
-                }
+                // 🛡️ GUARDIAN FIX: Catch silent HTTP rejections
+                if (!res.ok) throw new Error("Failed to patch ticket.");
+                
+                // Update local RAM and re-render instantly
+                const ticket = Admin.cachedRoadmapData.find(t => t.id === ticketId);
+                if (ticket) ticket.status = newStatus;
+                Admin.renderRoadmapList();
+                
+                if (typeof showToast === 'function') showToast(`Ticket moved to ${newStatus}`, "success");
             } catch(e) {
-                if (typeof showToast === 'function') showToast("Network Error", "error");
-            } finally {
-                fireBtn.textContent = "Fire Killswitch";
-                fireBtn.disabled = false;
+                if (typeof showToast === 'function') showToast("Failed to move ticket.", "error");
             }
+        };
+
+        Admin.deleteTicket = async (ticketId) => {
+            const confirmed = await Admin.secureConfirm("Delete Ticket", "Permanently remove this ticket from the Roadmap?");
+            if (!confirmed) return;
+
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await fetch(`${dynamicEndpoint}roadmap/${ticketId}.json?auth=${secret}`, { method: 'DELETE' });
+                
+                // 🛡️ GUARDIAN FIX: Catch silent HTTP rejections
+                if (!res.ok) throw new Error("Failed to delete ticket.");
+
+                Admin.cachedRoadmapData = Admin.cachedRoadmapData.filter(t => t.id !== ticketId);
+                Admin.renderRoadmapList();
+                
+                if (typeof showToast === 'function') showToast("Ticket deleted.", "success");
+            } catch(e) {
+                if (typeof showToast === 'function') showToast("Failed to delete ticket.", "error");
+            }
+        };
+
+        // Ticket View Modal UI (Read Only / Long Description)
+        Admin.openViewModal = (ticketId) => {
+            const ticket = Admin.cachedRoadmapData.find(t => t.id === ticketId);
+            if (!ticket) return;
+
+            let modal = document.getElementById('admin-ticket-view-modal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'admin-ticket-view-modal';
+                modal.className = 'fixed inset-0 bg-black/80 z-[250] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+                document.body.appendChild(modal);
+            }
+
+            const getPriorityStyles = (priority) => {
+                const styles = {
+                    low: { bg: 'bg-gray-100 dark:bg-gray-800', border: 'border-gray-200 dark:border-gray-600', text: 'text-gray-600 dark:text-gray-300', icon: 'M19 14l-7 7m0 0l-7-7m7 7V3' },
+                    medium: { bg: 'bg-blue-50 dark:bg-blue-900/30', border: 'border-blue-200 dark:border-blue-700/50', text: 'text-blue-700 dark:text-blue-300', icon: 'M20 12H4' },
+                    high: { bg: 'bg-orange-50 dark:bg-orange-900/30', border: 'border-orange-200 dark:border-orange-700/50', text: 'text-orange-700 dark:text-orange-300', icon: 'M5 10l7-7m0 0l7 7m-7-7v18' },
+                    critical: { bg: 'bg-red-50 dark:bg-red-900/30', border: 'border-red-200 dark:border-red-700/50', text: 'text-red-700 dark:text-red-400', icon: 'M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z' }
+                };
+                return styles[priority] || styles.medium;
+            };
+
+            const safeHTML = (str) => {
+                if (!str) return '';
+                return String(str).replace(/[&<>"']/g, function(m) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+                });
+            };
+
+            const pStyles = getPriorityStyles(ticket.severity || 'medium');
+            const statusMap = { backlog: 'To-Do / Backlog', progress: 'In Progress', done: 'Completed' };
+            const statusText = statusMap[ticket.status || 'backlog'];
+            const safeTitle = safeHTML(ticket.title);
+            const safeDesc = safeHTML(ticket.description || 'No description provided.');
+
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
+                    <div class="p-4 sm:p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-start gap-4 shrink-0 bg-gray-50 dark:bg-gray-900/50 rounded-t-xl">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-2 flex-wrap">
+                                <span class="text-[10px] px-2 py-0.5 rounded border uppercase tracking-wider font-bold flex items-center ${pStyles.bg} ${pStyles.border} ${pStyles.text}">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${pStyles.icon}"></path></svg>
+                                    ${(ticket.severity || 'medium')}
+                                </span>
+                                <span class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider flex items-center">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    ${statusText}
+                                </span>
+                            </div>
+                            <h3 class="text-lg sm:text-xl font-black text-gray-900 dark:text-white leading-tight break-words">${safeTitle}</h3>
+                        </div>
+                        <div class="flex gap-1 sm:gap-2 shrink-0">
+                            <button id="view-export-btn" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-800 transition-colors focus:outline-none shadow-sm" title="Export this ticket">
+                                <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            </button>
+                            <button id="view-edit-btn" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border border-indigo-200 dark:border-indigo-800 transition-colors focus:outline-none shadow-sm" title="Edit">
+                                <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            </button>
+                            <button onclick="closeSmoothModal('admin-ticket-view-modal')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors focus:outline-none shadow-sm" title="Close">
+                                <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 sm:p-6 overflow-y-auto flex-1 bg-white dark:bg-gray-800 custom-scrollbar">
+                        <h4 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">Description</h4>
+                        <div class="text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 font-mono text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words min-h-[150px]">
+                            ${safeDesc}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            openSmoothModal('admin-ticket-view-modal');
+
+            // Wire up internal buttons
+            document.getElementById('view-edit-btn').onclick = () => {
+                closeSmoothModal('admin-ticket-view-modal');
+                setTimeout(() => Admin.openTicketModal(ticketId), 300); // Wait for transition
+            };
+
+            document.getElementById('view-export-btn').onclick = () => {
+                // Ensure array format for compatibility with the export engine
+                Admin.exportColumn(null, [ticket], `ticket-${ticket.id}`);
+            };
+        };
+
+        // Ticket Editor Modal UI
+        Admin.openTicketModal = (ticketId = null, prefillData = null) => {
+            let modal = document.getElementById('admin-ticket-modal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'admin-ticket-modal';
+                modal.className = 'fixed inset-0 bg-black/80 z-[250] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+                document.body.appendChild(modal);
+            }
+
+            let ticket = { type: 'bug', severity: 'low', title: '', description: '', source: '', status: 'backlog' };
+            
+            if (ticketId) {
+                const found = Admin.cachedRoadmapData.find(t => t.id === ticketId);
+                if (found) ticket = { ...found };
+            } else if (prefillData) {
+                ticket = { ...ticket, ...prefillData };
+            }
+            
+            // Quick escapeHTML helper for modal payload
+            const safeHTML = (str) => {
+                if (!str) return '';
+                return String(str).replace(/[&<>"']/g, function(m) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+                });
+            };
+
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-5 transform transition-all scale-95 border border-gray-200 dark:border-gray-700 flex flex-col max-h-[90vh]">
+                    <div class="flex items-center justify-between mb-4 shrink-0">
+                        <h3 class="text-lg font-black text-gray-900 dark:text-white tracking-tight flex items-center">
+                            <span class="mr-2">📝</span> ${ticketId ? 'Edit Ticket' : 'New Ticket'}
+                        </h3>
+                        <button onclick="closeSmoothModal('admin-ticket-modal')" class="text-gray-400 hover:text-gray-500 focus:outline-none bg-gray-100 dark:bg-gray-700 rounded-full p-1.5">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    
+                    <div class="overflow-y-auto custom-scrollbar flex-grow space-y-3 pr-1 pb-2">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Title</label>
+                            <input type="text" id="tkt-title" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none" value="${safeHTML(ticket.title)}" placeholder="Short summary">
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 sm:gap-3">
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Type</label>
+                                <select id="tkt-type" class="w-full h-10 px-2 sm:px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-[10px] sm:text-xs text-gray-900 dark:text-white outline-none">
+                                    <option value="bug" ${ticket.type === 'bug' ? 'selected' : ''}>🐛 Bug</option>
+                                    <option value="feature" ${ticket.type === 'feature' ? 'selected' : ''}>🚀 Feature</option>
+                                    <option value="route" ${ticket.type === 'route' ? 'selected' : ''}>🗺️ Route Update</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Severity</label>
+                                <select id="tkt-severity" class="w-full h-10 px-2 sm:px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-[10px] sm:text-xs text-gray-900 dark:text-white outline-none">
+                                    <option value="low" ${ticket.severity === 'low' ? 'selected' : ''}>🟢 Low</option>
+                                    <option value="high" ${ticket.severity === 'high' ? 'selected' : ''}>🟠 High</option>
+                                    <option value="critical" ${ticket.severity === 'critical' ? 'selected' : ''}>🔴 Critical</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Status</label>
+                                <select id="tkt-status" class="w-full h-10 px-2 sm:px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-[10px] sm:text-xs text-gray-900 dark:text-white outline-none">
+                                    <option value="backlog" ${ticket.status === 'backlog' ? 'selected' : ''}>📌 Backlog</option>
+                                    <option value="progress" ${ticket.status === 'progress' ? 'selected' : ''}>⏳ Progress</option>
+                                    <option value="done" ${ticket.status === 'done' ? 'selected' : ''}>✅ Done</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Description</label>
+                            <textarea id="tkt-desc" rows="4" class="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none resize-none">${safeHTML(ticket.description)}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Source / Reference (Optional)</label>
+                            <input type="text" id="tkt-source" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-[10px] font-mono text-gray-900 dark:text-white outline-none" value="${safeHTML(ticket.source)}" placeholder="e.g. Feedback ID: 12345">
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 shrink-0 flex gap-2">
+                        <button onclick="closeSmoothModal('admin-ticket-modal')" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2.5 rounded-lg transition-colors text-xs">Cancel</button>
+                        <button id="tkt-save-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors text-xs">Save Ticket</button>
+                    </div>
+                </div>
+            `;
+
+            openSmoothModal('admin-ticket-modal');
+
+            document.getElementById('tkt-save-btn').onclick = async () => {
+                const title = document.getElementById('tkt-title').value.trim();
+                const desc = document.getElementById('tkt-desc').value.trim();
+                if (!title) { if (typeof showToast === 'function') showToast("Title required", "error"); return; }
+
+                const secret = await Admin.getAuthKey();
+                if (!secret) return;
+
+                const payload = {
+                    title: title,
+                    description: desc,
+                    type: document.getElementById('tkt-type').value,
+                    severity: document.getElementById('tkt-severity').value,
+                    source: document.getElementById('tkt-source').value.trim(),
+                    status: document.getElementById('tkt-status').value,
+                    timestamp: ticketId ? ticket.timestamp : Date.now(),
+                    updatedAt: Date.now()
+                };
+
+                const targetId = ticketId || Date.now().toString();
+
+                try {
+                    document.getElementById('tkt-save-btn').disabled = true;
+                    document.getElementById('tkt-save-btn').textContent = "Saving...";
+
+                    const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                    const res = await fetch(`${dynamicEndpoint}roadmap/${targetId}.json?auth=${secret}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(payload)
+                    });
+
+                    // 🛡️ GUARDIAN FIX: Catch silent HTTP rejections
+                    if (!res.ok) throw new Error("Failed to PUT ticket data.");
+
+                    if (typeof showToast === 'function') showToast("Ticket saved!", "success");
+                    closeSmoothModal('admin-ticket-modal');
+                    Admin.fetchRoadmap();
+                } catch(e) {
+                    if (typeof showToast === 'function') showToast("Failed to save.", "error");
+                    document.getElementById('tkt-save-btn').disabled = false;
+                    document.getElementById('tkt-save-btn').textContent = "Save Ticket";
+                }
+            };
+        };
+
+        // Escalate Hook Export
+        Admin.escalateToRoadmap = (prefillData) => {
+            // Triggered from other panels (like Feedback or Crashes)
+            Admin.openTicketModal(null, prefillData);
+        };
+
+        // Export Engine
+        Admin.exportColumn = (statusColumn, targetArray = null, filenameOverride = null) => {
+            let dataToExport = [];
+            
+            if (targetArray) {
+                // If a specific array is passed (e.g., from the View Modal single ticket export)
+                dataToExport = targetArray;
+            } else {
+                // Otherwise, filter by column status
+                if (!Admin.cachedRoadmapData || Admin.cachedRoadmapData.length === 0) {
+                    if (typeof showToast === 'function') showToast("No data to export.", "warning");
+                    return;
+                }
+                dataToExport = Admin.cachedRoadmapData.filter(t => (t.status || 'backlog') === statusColumn);
+            }
+
+            if (dataToExport.length === 0) {
+                if (typeof showToast === 'function') showToast("No tickets in this column to export.", "warning");
+                return;
+            }
+
+            // Create JSON blob
+            const jsonStr = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([jsonStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            // Format Filename
+            const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+            const defaultFilename = `roadmap_${statusColumn}_${dateStr}.json`;
+            const finalFilename = filenameOverride ? `${filenameOverride}_${dateStr}.json` : defaultFilename;
+
+            // Trigger download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = finalFilename;
+            document.body.appendChild(a);
+            a.click();
+            
+            // Cleanup
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            if (typeof showToast === 'function') showToast(`Exported ${dataToExport.length} ticket(s) successfully!`, "success");
         };
     }
 };

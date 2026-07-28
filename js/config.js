@@ -730,8 +730,18 @@ const DEFAULT_EXCLUSIONS = {
 // GUARDIAN: HTML spans injected to force flexbox wrapping in renderer.js without altering the parent UI structure.
 const CHANGELOG_DATA = [
     {
+        version: "V7 07.28 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Performance Polish Edition</span>",
+        date: "28 Jul",
+        features: [
+            "<b>Smoother App Navigation:</b> We've fine-tuned how the app handles rapid taps and screen transitions, making everything feel much faster and more responsive.",
+            "<b>Smarter Connectivity Checks:</b> The app is now better at realizing when your internet struggles, safely falling back to your saved offline schedules without freezing.",
+            "<b>Cleaner Visuals:</b> We’ve tightened up the layout for route cards and simplified the timeline view to make reading your trip plan easier on the eyes.",
+            "<b>Background Improvements:</b> We’ve upgraded the internal data engine, meaning the app uses less battery and fetches schedule updates much more reliably."
+        ]
+    },
+    {
         version: "V7 07.11 <br><span class='text-sm text-blue-600 dark:text-blue-400'>Performance & Precision Polish</span>",
-        date: "11 July",
+        date: "11 July 2026",
         features: [
             "<b>Smarter Incident Warnings:</b> Fixed a bug where safe journeys ending near a disrupted area (like a sinkhole) would incorrectly flash a 'Line Severed' warning. You will now only see critical alerts if your train actually crosses the danger zone.",
             "<b>Seamless Navigation:</b> When viewing empty schedules late at night or on Sundays, tapping \"See Next Available Day\" now instantly and perfectly syncs your top dropdown menu to the correct future day.",
