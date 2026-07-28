@@ -1,5 +1,5 @@
 /**
- * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.27 - Performance Polish Edition v2)
+ * METRORAIL NEXT TRAIN - UI CONTROLLER (V7_07.28 - Performance Polish Edition v1)
  * -----------------------------------------------------------------------------
  * This module handles DOM interaction, Event Listeners, and UI Rendering.
  *
