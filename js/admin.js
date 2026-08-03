@@ -1,5 +1,28 @@
-/**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V7_07.28 - Performance Polish Edition)
+﻿/**
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V8_08.02 - Weekend Clarity Edition)
+ * -----------------------------------------------------------------------------
+ *
+ * ## ADMIN ISLAND ROADMAP (for future AI / ops)
+ * Current stage: SHORT-TERM isolation via src/lib/admin-bridge.js
+ *   - admin.js is NOT loaded on commuter boot; 5-tap title unlock lazy-fetches it.
+ *   - Excluded from the service-worker precache (astro globIgnores for admin.js).
+ *   - window.__ntAdminSessionActive lets global crash reporting skip admin noise.
+ *   - Admin init failures must never take down the trip planner / live board.
+ *
+ * MEDIUM-TERM (next):
+ *   - Dedicated noindex AdminDashboard page (e.g. /admin.html), robots Disallow,
+ *     not in sitemap; main app has zero admin DOM/modals beyond a tiny unlock stub.
+ *   - Stronger quarantine: run admin UI in a separate tab/window so a hung admin
+ *     panel cannot freeze schedule UI.
+ *
+ * LONG-TERM (ideal OPSEC):
+ *   - Auth-gated delivery of this bundle (Cloudflare Worker / Firebase Hosting
+ *     rewrite) so guessing /js/admin.js without an admin JWT returns 404/401.
+ *   - Until then: Firebase Security Rules + Worker JWT remain the real lock;
+ *     lazy-load only reduces blueprint exposure and payload bloat.
+ *
+ * Do NOT re-add a global <script src="/js/admin.js"> or initAdminBridge() that
+ * eagerly fetches this file — that undoes Zero-Bloat and schema OPSEC.
  * -----------------------------------------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -10,6 +33,7 @@
  * 6. Exceptions Manager (God-Mode + Banned/Special Types + EXPIRY + Grid Notice Engine)
  * 7. Special Event Route Manager
  * 8. System Health / Diagnostics Scanner
+ * 8b. Schedule Data QA (timetable content — standalone from diagnostics)
  * 9. Nuclear Cache Wipe (Killswitch)
  * 10. Live Telemetry Bridge & Snapshot Export
  * 11. User Feedback Manager (Inbox & Archive Protocol Tabs)
@@ -42,11 +66,100 @@ const Admin = {
         if (!Admin._routeFlags || !Admin._routeFlags[routeId]) return '';
         const flags = Admin._routeFlags[routeId];
         let cues = [];
-        if (flags.hasNotice) cues.push('[📝 Notice]');
-        if (flags.hasExclusion) cues.push('[⛔ Bans]');
-        if (flags.hasDisruption) cues.push('[🚧 Incident]');
-        if (flags.hasAlert) cues.push('[📢 Alert]');
+        if (flags.hasNotice) cues.push('[Notice]');
+        if (flags.hasExclusion) cues.push('[Bans]');
+        if (flags.hasDisruption) cues.push('[Incident]');
+        if (flags.hasAlert) cues.push('[Alert]');
         return cues.length ? ` ${cues.join(' ')}` : '';
+    },
+
+    /** Repair UTF-8-as-Latin1 mojibake (delegates to app helper when available). */
+    repairMojibake: (str) => {
+        if (typeof window.repairMojibake === 'function' && window.repairMojibake !== Admin.repairMojibake) {
+            try { return window.repairMojibake(str); } catch { /* fall through */ }
+        }
+        if (str == null) return '';
+        let s = String(str);
+        // Prefer escapes so scanners cannot rewrite the lookup keys
+        const pairs = [
+            ['\u00E2\u20AC\u201D', '\u2014'], // â€" → —
+            ['\u00E2\u0080\u0094', '\u2014'],
+            ['\u00E2\u20AC\u00A2', '\u2022'],
+            ['\u00E2\u02DC\u00A2\uFE0F', '☢️'],
+            ['\u00E2\u0098\u00A2\uFE0F', '☢️'],
+        ];
+        for (const [bad, good] of pairs) {
+            if (s.includes(bad)) s = s.split(bad).join(good);
+        }
+        return s;
+    },
+
+    /** SVG bidirectional arrow for route labels (matches app formatRouteLabelHtml). */
+    routeArrowSvg: (className = 'inline-block w-3.5 h-3.5 mx-0.5 align-[-2px] text-current shrink-0') =>
+        `<svg class="${className}" viewBox="0 0 24 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5 6h14M8 3L5 6l3 3M16 3l3 3-3 3" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+
+    /** Lucide-style stroke icons for admin grid tiles and in-panel chrome. */
+    icon: (name, className = 'w-7 h-7') => {
+        const paths = {
+            flame: '<path d="M12 3c1.5 3 4 4.2 4 8a4 4 0 01-8 0c0-2.2 1.2-3.8 2.2-5.2.4 1.8 1.6 2.8 1.8 2.8"/><path d="M9.5 15.5A3.5 3.5 0 0012 19a3.5 3.5 0 002.5-3.5"/>',
+            rocket: '<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-9.5c4 0 7.5 3.5 7.5 7.5a22 22 0 01-9.5 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>',
+            ban: '<circle cx="12" cy="12" r="9"/><path d="M5.5 5.5l13 13"/>',
+            message: '<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>',
+            alert: '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+            shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+            user: '<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+            megaphone: '<path d="M3 11l18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 11-5.8-1.6"/>',
+            construction: '<rect x="2" y="6" width="20" height="8" rx="1"/><path d="M17 14v7"/><path d="M7 14v7"/><path d="M17 3v3"/><path d="M7 3v3"/><path d="M10 14l4-4"/><path d="M6 10l4 4"/><path d="M14 10l4 4"/>',
+            stop: '<path d="M12 2l9 4.5v6.7c0 5.4-3.7 10.1-9 11.3-5.3-1.2-9-5.9-9-11.3V6.5L12 2z"/><path d="M9 12h6"/>',
+            star: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
+            activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+            wrench: '<path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>',
+            map: '<path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15"/><path d="M15 6v15"/>',
+            chart: '<path d="M3 3v18h18"/><path d="M7 14v4"/><path d="M12 10v8"/><path d="M17 6v12"/>',
+            trending: '<path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/>',
+            plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+            check: '<path d="M20 6L9 17l-5-5"/>',
+            note: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+            globe: '<circle cx="12" cy="12" r="9"/><path d="M2 12h20"/><path d="M12 2a15 15 0 014 10 15 15 0 01-4 10 15 15 0 01-4-10 15 15 0 014-10z"/>',
+            camera: '<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>',
+            siren: '<path d="M12 2v2"/><path d="M6 6l-1.5-1.5"/><path d="M18 6l1.5-1.5"/><path d="M5 14a7 7 0 0114 0"/><path d="M4 20h16"/><path d="M9 20v-2a3 3 0 016 0v2"/>',
+            refresh: '<path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>',
+            download: '<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+            search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+            mail: '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/>',
+            phone: '<path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>',
+            paperclip: '<path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>',
+            bug: '<path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 116 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a6 6 0 0112 0v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.53 9C4.6 9.9 3 11.6 3 14M17.47 9c1.93.9 3.53 2.6 3.53 5M3 13h2M19 13h2M4 18h2M18 18h2"/>',
+            lightbulb: '<path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z"/>',
+            clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+            hourglass: '<path d="M5 2h14M5 22h14M5 2v4l5.5 6L5 18v4M19 2v4l-5.5 6L19 18v4"/>',
+            pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24V16h14v-.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V7a1 1 0 00-1-1H10a1 1 0 00-1 1v3.76z"/>',
+            copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>',
+            reply: '<path d="M9 17l-5-5 5-5"/><path d="M20 18v-2a4 4 0 00-4-4H4"/>',
+            file: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>',
+            circle: '<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>',
+        };
+        const body = paths[name];
+        if (!body) return '';
+        return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+    },
+
+    tileIcon: (name, colorClass = 'text-blue-600 dark:text-blue-400') =>
+        `<span class="admin-tile-icon mb-2 inline-flex items-center justify-center ${colorClass}">${Admin.icon(name, 'w-7 h-7')}</span>`,
+
+    formatRouteLabelHtml: (raw) => {
+        if (typeof raw !== 'string' || !raw) return '';
+        const esc = (typeof escapeHTML === 'function')
+            ? escapeHTML
+            : (t) => String(t).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        const parts = raw.split(/\s*<->\s*|\s*\u2194\s*/);
+        if (parts.length < 2) return esc(raw.trim());
+        return parts.map((p) => esc(p.trim())).filter(Boolean).join(Admin.routeArrowSvg());
+    },
+
+    formatRouteLabelPlain: (raw) => {
+        if (typeof raw !== 'string' || !raw) return '';
+        return raw.replace(/\s*<->\s*/g, ' \u2194 ').replace(/\s*\u2194\s*/g, ' \u2194 ').trim();
     },
 
     // --- 0.1 GLOBAL AUTH KEY HELPER (GUARDIAN PHASE 9) ---
@@ -61,6 +174,108 @@ const Admin = {
             }
         }
         return null;
+    },
+
+    /** Safe escalate payload for data-escalate attrs (avoids onclick SyntaxError → app reload). */
+    encodeEscalatePayload: (payload) => encodeURIComponent(JSON.stringify(payload || {})),
+    copyCrashLog: async (crashId) => {
+        const text = (Admin._crashRawById && Admin._crashRawById[crashId]) || '';
+        if (!text) {
+            if (typeof showToast === 'function') showToast('No log text for this entry', 'warning');
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(text);
+            if (typeof showToast === 'function') showToast('Full log copied', 'success');
+        } catch {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                if (typeof showToast === 'function') showToast('Full log copied', 'success');
+            } catch {
+                if (typeof showToast === 'function') showToast('Copy failed', 'error');
+            }
+        }
+    },
+    openDiagnosticErrorsModal: async () => {
+        const SENTRY_SAMPLE = 0.3;
+        let modal = document.getElementById('admin-diag-errors-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'admin-diag-errors-modal';
+            modal.className = 'fixed inset-0 bg-black/80 z-[220] hidden flex items-center justify-center p-4 backdrop-blur-sm';
+            document.body.appendChild(modal);
+        }
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col border border-gray-200 dark:border-gray-700">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
+                    <div>
+                        <h3 class="text-base font-black text-gray-900 dark:text-white">Diagnostic Errors (24h)</h3>
+                        <p id="diag-errors-meta" class="text-[10px] text-gray-500 mt-0.5">Loading…</p>
+                    </div>
+                    <button type="button" id="diag-errors-close" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">✕</button>
+                </div>
+                <div id="diag-errors-list" class="p-3 overflow-y-auto flex-grow space-y-2 custom-scrollbar text-sm">Loading…</div>
+            </div>`;
+        modal.classList.remove('hidden');
+        document.getElementById('diag-errors-close').onclick = () => modal.classList.add('hidden');
+
+        const list = document.getElementById('diag-errors-list');
+        const meta = document.getElementById('diag-errors-meta');
+        try {
+            const secret = await Admin.getAuthKey();
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const res = await window.guardianFetch(`${dynamicEndpoint}sys_logs/crashes.json?auth=${secret}`, {}, 10000);
+            const data = res.ok ? await res.json() : null;
+            const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+            const items = data
+                ? Object.keys(data).map((id) => ({ id, ...data[id] })).filter((c) => (c.timestamp || 0) >= cutoff)
+                : [];
+            items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            const n = items.length;
+            const est = Math.round(n / SENTRY_SAMPLE);
+            meta.textContent = `${n} captured · ~${est} estimated at Sentry sampleRate ${SENTRY_SAMPLE} (n ÷ ${SENTRY_SAMPLE})`;
+            if (!n) {
+                list.innerHTML = '<p class="text-xs text-gray-500 text-center py-6">No crash / black-box entries in the last 24h.</p>';
+                return;
+            }
+            list.innerHTML = items.map((c) => {
+                const when = c.timestamp ? new Date(c.timestamp).toLocaleString() : '—';
+                const err = String(c.error || 'Unknown').replace(/</g, '&lt;').slice(0, 180);
+                return `<div class="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                    <div class="flex justify-between text-[9px] text-gray-400 font-mono mb-1"><span>${when}</span><span>${(c.routeId || 'global').toString().replace(/</g, '&lt;')}</span></div>
+                    <div class="text-xs font-mono text-gray-800 dark:text-gray-200 break-words">${err}</div>
+                </div>`;
+            }).join('');
+        } catch (e) {
+            list.innerHTML = `<p class="text-xs text-red-500 text-center py-6">Failed to load: ${e.message || e}</p>`;
+        }
+    },
+    escalateFromEl: (el) => {
+        try {
+            const raw = el?.getAttribute?.('data-escalate');
+            if (!raw) throw new Error('Missing escalate payload');
+            const data = JSON.parse(decodeURIComponent(raw));
+            if (typeof Admin.escalateToRoadmap === 'function') Admin.escalateToRoadmap(data);
+            else if (typeof Admin.openTicketModal === 'function') Admin.openTicketModal(null, data);
+            else throw new Error('Roadmap UI not ready');
+        } catch (e) {
+            console.error('Escalate failed', e);
+            if (typeof showToast === 'function') showToast('Could not open ticket form', 'error');
+        }
+    },
+    escalateToRoadmap: (prefillData) => {
+        try {
+            if (typeof Admin.openTicketModal === 'function') Admin.openTicketModal(null, prefillData);
+            else if (typeof showToast === 'function') showToast('Roadmap not ready yet', 'warning');
+        } catch (e) {
+            console.error(e);
+            if (typeof showToast === 'function') showToast('Could not open ticket form', 'error');
+        }
     },
 
     // --- 0.15 SECURE ASYNC CONFIRMATION MODAL (PWA SANDBOX SAFE) ---
@@ -193,8 +408,30 @@ const Admin = {
     // injection was already purged; this vestigial property had no remaining references.
     
     isGridMode: true,
-    gridCols: 2, 
+    gridCols: 3,
     _modulesRendered: false,
+
+    /** Compact unread count for tile badges (number only). */
+    formatBadgeCount: (n) => {
+        const c = Number(n) || 0;
+        if (c <= 0) return '';
+        return c > 99 ? '99+' : String(c);
+    },
+
+    /** Keep the column-cycle button icon in sync with Admin.gridCols. */
+    syncGridToggleIcon: (btn = document.getElementById('grid-view-toggle')) => {
+        if (!btn) return;
+        if (Admin.gridCols === 1) {
+            btn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>`;
+            btn.title = 'List view · tap for 2 columns';
+        } else if (Admin.gridCols === 2) {
+            btn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>`;
+            btn.title = '2 columns · tap for 3 columns';
+        } else {
+            btn.innerHTML = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h4v14H4zM10 5h4v14h-4zM16 5h4v14h-4z"></path></svg>`;
+            btn.title = '3 columns · tap for list view';
+        }
+    },
 
     // --- UNIVERSAL NUMBER FORMATTER ---
     formatNumber: (val) => {
@@ -247,8 +484,7 @@ const Admin = {
                 totalUnread += fbUnread;
                 const fbBadge = document.getElementById('fb-unread-badge');
                 if (fbBadge) {
-                    fbBadge.textContent = `${fbUnread} New`;
-                    // 🛡️ GUARDIAN FIX: Safely toggle 'hidden' without destroying Tailwind utility classes
+                    fbBadge.textContent = Admin.formatBadgeCount(fbUnread);
                     fbBadge.classList.toggle('hidden', fbUnread === 0);
                 }
             }
@@ -268,7 +504,7 @@ const Admin = {
                 totalUnread += crUnread;
                 const crBadge = document.getElementById('crash-unread-badge');
                 if (crBadge) {
-                    crBadge.textContent = `${crUnread} New`;
+                    crBadge.textContent = Admin.formatBadgeCount(crUnread);
                     crBadge.classList.toggle('hidden', crUnread === 0);
                 }
             }
@@ -288,8 +524,48 @@ const Admin = {
                 totalUnread += deUnread;
                 const deBadge = document.getElementById('de-unread-badge');
                 if (deBadge) {
-                    deBadge.textContent = `${deUnread} New`;
+                    deBadge.textContent = Admin.formatBadgeCount(deUnread);
                     deBadge.classList.toggle('hidden', deUnread === 0);
+                }
+            }
+
+            // 4. Delay reports (Phase 5)
+            const drRes = await window.guardianFetch(`${dynamicEndpoint}delay_reports.json?auth=${secret}`, {}, 6000);
+            if (drRes.ok) {
+                const drData = await drRes.json();
+                let drUnread = 0;
+                const localDrChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('dr_last_checked') || '0') : '0');
+                const lastChecked = Math.max(localDrChecked, parseInt(adminState.dr_last_checked || '0'));
+                if (drData && typeof drData === 'object') {
+                    Object.values(drData).forEach((i) => {
+                        if (i && i.status !== 'closed' && (i.timestamp || 0) > lastChecked) drUnread++;
+                    });
+                }
+                totalUnread += drUnread;
+                const drBadge = document.getElementById('dr-unread-badge');
+                if (drBadge) {
+                    drBadge.textContent = Admin.formatBadgeCount(drUnread);
+                    drBadge.classList.toggle('hidden', drUnread === 0);
+                }
+            }
+
+            // 5. Moderation queue (Phase 6)
+            const mqRes = await window.guardianFetch(`${dynamicEndpoint}moderation_queue.json?auth=${secret}`, {}, 6000);
+            if (mqRes.ok) {
+                const mqData = await mqRes.json();
+                let mqUnread = 0;
+                const localMqChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('mq_last_checked') || '0') : '0');
+                const lastChecked = Math.max(localMqChecked, parseInt(adminState.mq_last_checked || '0'));
+                if (mqData && typeof mqData === 'object') {
+                    Object.values(mqData).forEach((i) => {
+                        if (i && i.status !== 'closed' && i.status !== 'resolved' && (i.timestamp || 0) > lastChecked) mqUnread++;
+                    });
+                }
+                totalUnread += mqUnread;
+                const mqBadge = document.getElementById('mq-unread-badge');
+                if (mqBadge) {
+                    mqBadge.textContent = Admin.formatBadgeCount(mqUnread);
+                    mqBadge.classList.toggle('hidden', mqUnread === 0);
                 }
             }
             
@@ -309,10 +585,10 @@ const Admin = {
         Admin.telemetryRange = ranges[(ranges.indexOf(Admin.telemetryRange) + 1) % ranges.length];
         
         const cycleBtn = document.getElementById('trend-cycle-btn');
-        if (cycleBtn) cycleBtn.innerHTML = `📈 ${Admin.telemetryRange} Trend`;
+        if (cycleBtn) cycleBtn.innerHTML = `${Admin.icon('trending', 'w-3.5 h-3.5 inline-block mr-1 align-[-2px]')} ${Admin.telemetryRange} Trend`;
         
         const modalCycleBtn = document.getElementById('modal-trend-cycle');
-        if (modalCycleBtn) modalCycleBtn.innerHTML = `📈 ${Admin.telemetryRange}`;
+        if (modalCycleBtn) modalCycleBtn.innerHTML = `${Admin.icon('trending', 'w-3.5 h-3.5 inline-block mr-1 align-[-2px]')} ${Admin.telemetryRange}`;
         
         Admin.telemetryWeeksAgo = 0; // Reset pagination context
         
@@ -358,14 +634,16 @@ const Admin = {
                 if (value) value.className = "text-2xl font-black text-slate-800 dark:text-slate-200 animate-pulse";
             });
 
-            const errorBox = telBody.querySelector('.bg-red-50');
+            const errorBox = telBody.querySelector('.bg-red-50') || telBody.querySelector('#stat-errors')?.closest('div');
             if (errorBox) {
-                errorBox.className = "bg-slate-50 dark:bg-slate-800/80 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-3 transition-colors";
+                errorBox.className = "bg-slate-50 dark:bg-slate-800/80 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-3 transition-colors cursor-pointer hover:border-red-400 dark:hover:border-red-500 hover:shadow-md";
+                errorBox.title = 'View diagnostic errors (24h) · Sentry sample rate 0.3';
+                errorBox.onclick = () => Admin.openDiagnosticErrorsModal();
                 const label = errorBox.querySelector('span:first-child');
                 const value = errorBox.querySelector('span:last-child');
                 if (label) {
                     label.className = "text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center";
-                    label.innerHTML = `<span class="mr-1.5 text-base leading-none">⚠️</span> Diagnostic Errors (24h)`;
+                    label.innerHTML = `<span class="mr-1.5 inline-flex text-amber-500">${Admin.icon('alert', 'w-4 h-4')}</span> Diagnostic Errors (24h) · tap`;
                 }
                 if (value) value.className = "text-lg font-black text-slate-800 dark:text-slate-200 animate-pulse";
             }
@@ -478,7 +756,7 @@ const Admin = {
                     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-all scale-95 border border-slate-200 dark:border-slate-700">
                         <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900 rounded-t-2xl shrink-0">
                             <h3 class="text-lg font-black text-slate-900 dark:text-white flex items-center tracking-tight">
-                                <span class="mr-2">🌍</span> Regional Breakdown
+                                <span class="mr-2 inline-flex">${Admin.icon('globe', 'w-4 h-4')}</span> Regional Breakdown
                             </h3>
                             <button onclick="closeSmoothModal('telemetry-region-modal'); if(location.hash === '#region-breakdown') history.replaceState({ adminPanel: 'telemetry-panel' }, '', '#dev-telemetry-panel');" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors focus:outline-none">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -603,23 +881,32 @@ const Admin = {
         let yMin = Math.max(0, Math.floor(minVal - (spread > 0 ? spread * 0.2 : minVal * 0.5)));
         
         // 🛡️ GUARDIAN UX FIX: Clamp Y-Axis to 0 if dataset contains 0s to stop negative baseline rendering
-        if (allData.includes(0)) {
+        if (allData.some((v) => v === 0)) {
             yMin = 0;
         }
 
         const yRange = yMax - yMin || 10;
 
         const getX = (i) => pl + (i * (uw / Math.max(1, numPoints - 1)));
-        const getY = (v) => pt + uh - (((v - yMin) / yRange) * uh);
-        
-        // Start Path
-        let pathD = `M ${getX(0)} ${getY(dataArray[0])}`;
-        for(let i=1; i<numPoints; i++) {
-            pathD += ` L ${getX(i)} ${getY(dataArray[i])}`;
+        const getY = (v) => pt + uh - ((((Number(v) || 0) - yMin) / yRange) * uh);
+
+        // Build path only across known buckets (null = future / unreported — do not draw to 0)
+        const knownIdx = [];
+        for (let i = 0; i < numPoints; i++) {
+            if (dataArray[i] !== null && dataArray[i] !== undefined) knownIdx.push(i);
         }
-        
-        // Area Fill Path
-        let areaD = pathD + ` L ${getX(numPoints - 1)} ${pt+uh} L ${getX(0)} ${pt+uh} Z`;
+        let pathD = '';
+        if (knownIdx.length > 0) {
+            pathD = `M ${getX(knownIdx[0])} ${getY(dataArray[knownIdx[0]])}`;
+            for (let k = 1; k < knownIdx.length; k++) {
+                pathD += ` L ${getX(knownIdx[k])} ${getY(dataArray[knownIdx[k]])}`;
+            }
+        }
+        const firstKnown = knownIdx[0] ?? 0;
+        const lastKnown = knownIdx[knownIdx.length - 1] ?? 0;
+        let areaD = pathD
+            ? `${pathD} L ${getX(lastKnown)} ${pt+uh} L ${getX(firstKnown)} ${pt+uh} Z`
+            : '';
         
         // Colors & Theme Independence (hardcoded hex for perfect exportability)
         const lineColor = '#3b82f6';
@@ -644,15 +931,21 @@ const Admin = {
         
         // 🛡️ COMPARE OVERLAY: Draw the faded comparison line first so it sits underneath
         if (compareDataArray && numPoints > 1) {
-            let comparePathD = `M ${getX(0)} ${getY(compareDataArray[0] || 0)}`;
-            for(let i=1; i<numPoints; i++) {
-                comparePathD += ` L ${getX(i)} ${getY(compareDataArray[i] || 0)}`;
+            const cKnown = [];
+            for (let i = 0; i < numPoints; i++) {
+                if (compareDataArray[i] !== null && compareDataArray[i] !== undefined) cKnown.push(i);
             }
-            svg += `<path d="${comparePathD}" fill="none" stroke="#94a3b8" stroke-width="${isMini ? '2' : '3'}" stroke-dasharray="6,4" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" />`;
+            if (cKnown.length > 0) {
+                let comparePathD = `M ${getX(cKnown[0])} ${getY(compareDataArray[cKnown[0]])}`;
+                for (let k = 1; k < cKnown.length; k++) {
+                    comparePathD += ` L ${getX(cKnown[k])} ${getY(compareDataArray[cKnown[k]])}`;
+                }
+                svg += `<path d="${comparePathD}" fill="none" stroke="#94a3b8" stroke-width="${isMini ? '2' : '3'}" stroke-dasharray="6,4" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" />`;
+            }
         }
 
         // Fill Area & Stroke Line (Hide area if only 1 point exists)
-        if (numPoints > 1) {
+        if (knownIdx.length > 1 && pathD) {
             svg += `<path d="${areaD}" fill="url(#lineGrad_${isMini ? 'mini' : 'full'})" />`;
             svg += `<path d="${pathD}" fill="none" stroke="${lineColor}" stroke-width="${isMini ? '3' : '4'}" stroke-linecap="round" stroke-linejoin="round" />`;
         }
@@ -660,7 +953,10 @@ const Admin = {
         // Points and X-Axis
         for(let i=0; i<numPoints; i++) {
             const val = dataArray[i];
-            const compareVal = compareDataArray ? (compareDataArray[i] || 0) : null;
+            if (val === null || val === undefined) continue;
+            const compareVal = compareDataArray && compareDataArray[i] !== null && compareDataArray[i] !== undefined
+                ? compareDataArray[i]
+                : null;
             const vx = getX(i);
             const vy = getY(val);
             const isToday = (i === isTodayIdx);
@@ -677,7 +973,11 @@ const Admin = {
                 hoverLabel = `${hh}:${mm}`;
             }
             
-            const tooltipText = compareVal !== null ? `${val} Sessions (Prev: ${compareVal}) [${hoverLabel}]` : `${val} Sessions (${hoverLabel})`;
+            // Worker metric is GA4 activeUsers. INTRADAY = actives in that half-hour bucket.
+            const metricWord = Admin.telemetryRange === 'INTRADAY' ? 'active / 30m' : 'Active users';
+            const tooltipText = compareVal !== null
+                ? `${val} ${metricWord} (Prev: ${compareVal}) [${hoverLabel}]`
+                : `${val} ${metricWord} (${hoverLabel})`;
             
             // GUARDIAN: Numbers hidden by default to declutter. Click dot to reveal exact stats!
             svg += `
@@ -774,24 +1074,78 @@ const Admin = {
                 // GROWTH SPRINT PHASE 8: Dynamic Multi-Range Scalable SVG Line Graph Engine
                 let rawCountsArray = data.chartData && data.chartData.length > 0 ? data.chartData : (data.sevenDayTrend || []);
                 let rawLabelsArray = data.chartLabels || [];
+
+                // Legacy workers emitted cumulative INTRADAY totals. Convert to per-bucket
+                // velocity until the edge sets intradayMode: 'perBucket'.
+                const toPerBucket = (arr) => {
+                    if (!Array.isArray(arr) || arr.length === 0) return arr;
+                    const out = new Array(arr.length);
+                    let prev = 0;
+                    for (let i = 0; i < arr.length; i++) {
+                        const v = arr[i];
+                        if (v === null || v === undefined) {
+                            out[i] = v;
+                            continue;
+                        }
+                        const n = Number(v) || 0;
+                        out[i] = Math.max(0, n - prev);
+                        prev = n;
+                    }
+                    return out;
+                };
+                if (Admin.telemetryRange === 'INTRADAY' && data.intradayMode !== 'perBucket') {
+                    if (rawCountsArray.length > 48) {
+                        rawCountsArray = [
+                            ...toPerBucket(rawCountsArray.slice(0, 48)),
+                            ...toPerBucket(rawCountsArray.slice(48)),
+                        ];
+                    } else {
+                        rawCountsArray = toPerBucket(rawCountsArray);
+                    }
+                }
                 
                 // 🛡️ GUARDIAN PHASE 2: RAM Array Slicer Engine
+                // INTRADAY worker packs [yesterday 0..47 | today 48..cutoff]. Never take
+                // "last 48" for Today — that straddles midnight and draws a fake cliff.
                 let pointsPerView = Admin.telemetryRange === 'INTRADAY' ? 48 : 7;
                 let offset = Admin.telemetryWeeksAgo;
                 
                 let masterLen = rawCountsArray.length;
-                let endIndex = masterLen - (offset * pointsPerView);
-                let startIndex = endIndex - pointsPerView;
-                
-                // Pagination bounds
-                if (startIndex < 0) startIndex = 0;
-                if (endIndex < 0) endIndex = 0;
+                let endIndex, startIndex;
+                if (Admin.telemetryRange === 'INTRADAY') {
+                    const todayStart = masterLen > 48 ? 48 : 0;
+                    if (offset === 0) {
+                        startIndex = todayStart;
+                        endIndex = masterLen;
+                    } else if (offset === 1 && masterLen > 48) {
+                        startIndex = 0;
+                        endIndex = 48;
+                    } else {
+                        startIndex = 0;
+                        endIndex = 0;
+                    }
+                } else {
+                    endIndex = masterLen - (offset * pointsPerView);
+                    startIndex = endIndex - pointsPerView;
+                    if (startIndex < 0) startIndex = 0;
+                    if (endIndex < 0) endIndex = 0;
+                }
                 
                 let activeCountsArray = rawCountsArray.slice(startIndex, endIndex);
                 let labelsArray = rawLabelsArray.slice(startIndex, endIndex);
                 
                 // Keep chart consistently scaled even if data runs out early
-                if (activeCountsArray.length < pointsPerView && masterLen > 0) {
+                if (Admin.telemetryRange === 'INTRADAY') {
+                    // Pad FUTURE buckets (end), not the morning — zeros at the start fake a dawn climb.
+                    if (activeCountsArray.length < 48) {
+                        const padLen = 48 - activeCountsArray.length;
+                        activeCountsArray = [...activeCountsArray, ...Array(padLen).fill(null)];
+                        labelsArray = [...labelsArray, ...Array(padLen).fill('')];
+                    } else if (activeCountsArray.length > 48) {
+                        activeCountsArray = activeCountsArray.slice(0, 48);
+                        labelsArray = labelsArray.slice(0, 48);
+                    }
+                } else if (activeCountsArray.length < pointsPerView && masterLen > 0) {
                     const padLen = pointsPerView - activeCountsArray.length;
                     activeCountsArray = [...Array(padLen).fill(0), ...activeCountsArray];
                     labelsArray = [...Array(padLen).fill(''), ...labelsArray];
@@ -800,37 +1154,33 @@ const Admin = {
                 // 🛡️ GUARDIAN PHASE 3: Comparison Array Slicer
                 let compareCountsArray = null;
                 if (Admin.isComparing) {
-                    let compareOffset = offset + 1;
-                    let compEndIndex = masterLen - (compareOffset * pointsPerView);
-                    let compStartIndex = compEndIndex - pointsPerView;
-                    
-                    if (compStartIndex < 0) compStartIndex = 0;
-                    if (compEndIndex < 0) compEndIndex = 0;
-                    
-                    // If we have any data to compare against
-                    if (compEndIndex > compStartIndex) {
-                        compareCountsArray = rawCountsArray.slice(compStartIndex, compEndIndex);
-                        if (compareCountsArray.length < pointsPerView) {
-                            const padLen = pointsPerView - compareCountsArray.length;
-                            compareCountsArray = [...Array(padLen).fill(0), ...compareCountsArray];
+                    if (Admin.telemetryRange === 'INTRADAY' && offset === 0 && masterLen > 48) {
+                        compareCountsArray = rawCountsArray.slice(0, 48);
+                        if (compareCountsArray.length < 48) {
+                            compareCountsArray = [...compareCountsArray, ...Array(48 - compareCountsArray.length).fill(null)];
                         }
                     } else {
-                        // Out of historical bounds for comparison
-                        compareCountsArray = Array(pointsPerView).fill(0);
+                        let compareOffset = offset + 1;
+                        let compEndIndex = masterLen - (compareOffset * pointsPerView);
+                        let compStartIndex = compEndIndex - pointsPerView;
+                        
+                        if (compStartIndex < 0) compStartIndex = 0;
+                        if (compEndIndex < 0) compEndIndex = 0;
+                        
+                        if (compEndIndex > compStartIndex) {
+                            compareCountsArray = rawCountsArray.slice(compStartIndex, compEndIndex);
+                            if (compareCountsArray.length < pointsPerView) {
+                                const padLen = pointsPerView - compareCountsArray.length;
+                                compareCountsArray = [...Array(padLen).fill(0), ...compareCountsArray];
+                            }
+                        } else {
+                            compareCountsArray = Array(pointsPerView).fill(0);
+                        }
                     }
                 }
                 
                 let displayLabels = [];
                 if (Admin.telemetryRange === 'INTRADAY') {
-                    // Safety check, array is already padded by RAM Slicer
-                    if (activeCountsArray.length !== 48) {
-                        const padded = Array(48).fill(0);
-                        for(let i=0; i<Math.min(activeCountsArray.length, 48); i++) {
-                            padded[i] = activeCountsArray[i] || 0;
-                        }
-                        activeCountsArray = padded;
-                    }
-
                     // Generate exact 3-hour labels at buckets 0, 6, 12, 18, 24, 30, 36, 42
                     displayLabels = activeCountsArray.map((_, idx) => {
                         if (idx % 6 === 0) { 
@@ -919,14 +1269,14 @@ const Admin = {
 
                 if (Admin.telemetryRange === 'INTRADAY') {
                     if (Admin.telemetryWeeksAgo === 0) {
-                        titleStr = "Intraday Hourly Trend (Today)";
+                        titleStr = "Intraday activity / 30 min (Today)";
                     } else if (Admin.telemetryWeeksAgo === 1) {
-                        titleStr = "Intraday Hourly Trend (Yesterday)";
+                        titleStr = "Intraday activity / 30 min (Yesterday)";
                     } else {
                         const d = new Date();
                         d.setDate(d.getDate() - Admin.telemetryWeeksAgo);
                         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                        titleStr = `Intraday Trend (${d.getDate()} ${monthNames[d.getMonth()]})`;
+                        titleStr = `Intraday activity / 30 min (${d.getDate()} ${monthNames[d.getMonth()]})`;
                     }
                 } else if (Admin.telemetryRange === 'DAU' || !Admin.telemetryRange) {
                     titleStr = `Daily Active Users${rangeStr}`;
@@ -960,7 +1310,13 @@ const Admin = {
                 
                 // Backward-in-time guard (Prev)
                 if (prevBtn) {
-                    if (masterLen === 0 || (masterLen - ((Admin.telemetryWeeksAgo + 1) * pointsPerView)) <= 0) {
+                    let canGoPrev = false;
+                    if (Admin.telemetryRange === 'INTRADAY') {
+                        canGoPrev = Admin.telemetryWeeksAgo === 0 && masterLen > 48;
+                    } else {
+                        canGoPrev = masterLen > 0 && (masterLen - ((Admin.telemetryWeeksAgo + 1) * pointsPerView)) > 0;
+                    }
+                    if (!canGoPrev) {
                         prevBtn.classList.add('opacity-30', 'cursor-not-allowed');
                         prevBtn.disabled = true;
                     } else {
@@ -969,13 +1325,15 @@ const Admin = {
                     }
                 }
 
-                // Lock the orange "Today" indicator to the correct 30-minute bucket
+                // Orange marker = last known INTRADAY bucket (worker clips ~3h of lag)
                 let isTodayIdx = -1;
                 if (Admin.telemetryRange === 'INTRADAY' && Admin.telemetryWeeksAgo === 0) {
-                    const now = new Date();
-                    const h = now.getHours();
-                    const mBucket = Math.floor(now.getMinutes() / 30);
-                    isTodayIdx = (h * 2) + mBucket;
+                    for (let i = activeCountsArray.length - 1; i >= 0; i--) {
+                        if (activeCountsArray[i] !== null && activeCountsArray[i] !== undefined) {
+                            isTodayIdx = i;
+                            break;
+                        }
+                    }
                 } else if (Admin.telemetryRange !== 'INTRADAY' && (Admin.telemetryWeeksAgo === 0 || Admin.telemetryRange === 'MAU' || Admin.telemetryRange === 'ALL')) {
                     isTodayIdx = activeCountsArray.length - 1;
                 }
@@ -1364,12 +1722,14 @@ const Admin = {
                     if (typeof showToast === 'function') showToast("Developer Session Active", "info");
                 } else {
                     if (loginModal) {
-                        // 🛡️ GUARDIAN FIX: Router-aware Smooth Modal Engine integration
-                        if (location.hash !== '#login') history.pushState({ modal: 'login' }, '', '#login');
+                        // Set hash first; openSmoothModal skips a second push when already on #login
+                        try {
+                            if (location.hash !== '#login') history.pushState({ modal: 'login' }, '', '#login');
+                        } catch (e) { /* ignore */ }
                         if (typeof openSmoothModal === 'function') openSmoothModal('login-modal');
                         else loginModal.classList.remove('hidden');
                         
-                        if(emailInput) setTimeout(() => emailInput.focus(), 150); // Delay focus for smooth animation
+                        if(emailInput) setTimeout(() => emailInput.focus(), 150);
                     }
                 }
             }
@@ -1411,14 +1771,15 @@ const Admin = {
 
                 window.firebaseSignIn(window.firebaseAuth, email, password)
                     .then((userCredential) => {
-                        // 🛡️ GUARDIAN FIX: Smooth exit via Router
-                        if (location.hash === '#login') history.back();
-                        else if (typeof closeSmoothModal === 'function') closeSmoothModal('login-modal');
+                        // Close login WITHOUT history.back() — that raced popstate and closed admin
+                        if (typeof closeSmoothModal === 'function') closeSmoothModal('login-modal', true);
                         else loginModal.classList.add('hidden');
+                        try {
+                            history.replaceState({ modal: 'dev' }, '', '#dev');
+                        } catch (e) { /* ignore */ }
 
                         passInput.value = ''; 
                         if (devModal) {
-                            if (location.hash !== '#dev') history.pushState({ modal: 'dev' }, '', '#dev');
                             if (typeof openSmoothModal === 'function') openSmoothModal('dev-modal');
                             else devModal.classList.remove('hidden');
                             
@@ -1501,6 +1862,9 @@ const Admin = {
         // Setup Execution Order
         Admin.setupTelemetry();
         Admin.setupFeedbackManager(); 
+        Admin.setupDelayReportsManager();
+        Admin.setupModerationQueueManager();
+        Admin.setupUserTrustManager();
         Admin.setupDeadEndsManager(); 
         Admin.setupCrashReportsManager();  
         Admin.setupServiceAlertsManager();
@@ -1508,7 +1872,8 @@ const Admin = {
         Admin.setupExclusionManager();
         Admin.setupMaintenanceManager();
         Admin.setupSpecialEventManager(); 
-        Admin.setupDiagnosticsManager(); 
+        Admin.setupDiagnosticsManager();
+        Admin.setupScheduleQaManager();
         Admin.setupRoadmapManager(); // 🛡️ GUARDIAN PHASE: Operations Roadmap
 
         // 🛡️ GROWTH SPRINT PHASE 5: Transform Dev Hub into native Grid / Drill-Down Dashboard
@@ -1684,7 +2049,7 @@ const Admin = {
                 if (rId.includes('_KZN')) return `<span class="${badgeClass}">KZN</span> <span class="${textClass}">Global Network</span>`;
                 if (rId.includes('_EC')) return `<span class="${badgeClass}">EC</span> <span class="${textClass}">Global Network</span>`;
                 if (rId === 'all') return `<span class="bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded font-black uppercase tracking-wider text-[9px] mr-1.5">ALL</span> <span class="${textClass}">Entire Network</span>`;
-                if (typeof ROUTES !== 'undefined' && ROUTES[rId]) return `<span class="${badgeClass}">${ROUTES[rId].region}</span> <span class="${textClass}">${ROUTES[rId].name.replace('<->', '•')}</span>`;
+                if (typeof ROUTES !== 'undefined' && ROUTES[rId]) return `<span class="${badgeClass}">${ROUTES[rId].region}</span> <span class="${textClass} inline-flex items-center flex-wrap">${Admin.formatRouteLabelHtml(ROUTES[rId].name)}</span>`;
                 return '';
             };
 
@@ -1852,14 +2217,16 @@ const Admin = {
                 if (titleH3) {
                     let titleClone = targetPanel.querySelector('[id$="-header-btn"] > span').cloneNode(true);
                     titleClone.querySelectorAll('span[id$="-last-sync"], span[id$="-unread-badge"]').forEach(el => el.remove());
-                    let cardTitle = titleClone.textContent.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '').trim();
+                    const cardTitle = (titleClone.textContent || '').replace(/\s+/g, ' ').trim();
 
                     titleH3.innerHTML = `
                         <button id="drill-back-btn" class="mr-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors focus:outline-none shadow-sm shrink-0">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                         </button>
-                        <span class="truncate flex-grow text-lg min-w-0">${cardTitle}</span>
+                        <span class="truncate flex-grow text-lg min-w-0" style="font-family: 'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif"></span>
                     `;
+                    const titleSpan = titleH3.querySelector('span.truncate');
+                    if (titleSpan) titleSpan.textContent = cardTitle;
 
                     // Rebind the drill-back button to the master logic
                     const newDrillBack = document.getElementById('drill-back-btn');
@@ -1906,6 +2273,9 @@ const Admin = {
 
             // Auto-Fetch data upon drill-down
             if (targetPanel.id === 'feedback-panel') Admin.fetchFeedback();
+            if (targetPanel.id === 'delay-reports-panel') Admin.fetchDelayReports();
+            if (targetPanel.id === 'moderation-queue-panel') Admin.fetchModerationQueue();
+            if (targetPanel.id === 'user-trust-panel') { /* lookup is on-demand */ }
             if (targetPanel.id === 'deadends-panel') Admin.fetchDeadEnds();
             if (targetPanel.id === 'crashes-panel') Admin.fetchCrashes();
         }
@@ -2002,10 +2372,10 @@ const Admin = {
         crashPanel.innerHTML = `
                 <button id="crash-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                     <span class="flex flex-col items-center">
-                        <span class="text-2xl mb-2">🔥</span> 
+                        ${Admin.tileIcon('flame', 'text-orange-500 dark:text-orange-400')}
                         <span>Crash Analytics</span>
                     </span>
-                    <span id="crash-unread-badge" class="hidden absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-black tracking-normal animate-pulse">0 New</span>
+                    <span id="crash-unread-badge" class="admin-unread-badge hidden" aria-label="Unread crashes"></span>
                     <svg id="crash-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
                 <div id="crash-body" class="hidden mt-3 space-y-2">
@@ -2092,7 +2462,7 @@ const Admin = {
             document.getElementById('crash-status-display').textContent = isInbox ? `Active Crashes: ${targetData.length}` : `Archived Crashes: ${targetData.length}`;
             
             if (targetData.length === 0) {
-                listDiv.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${isInbox ? 'No new crashes! 🎉' : 'Archive empty.'}</div>`;
+                listDiv.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${isInbox ? 'No new crashes.' : 'Archive empty.'}</div>`;
                 return;
             }
 
@@ -2126,7 +2496,7 @@ const Admin = {
                 
                 // 🛡️ GUARDIAN PHASE 1: Bulk Resolve Button & HTML Fix (button inside button is invalid, changed outer to div)
                 const resolveAllHtml = isInbox 
-                    ? `<button onclick="event.stopPropagation(); Admin.resolveAllDeviceCrashes('${safeJsDid}')" class="mr-3 bg-green-100 dark:bg-green-900/50 hover:bg-green-200 dark:hover:bg-green-800 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors shadow-sm focus:outline-none flex items-center shrink-0"><span class="mr-1">✅</span> Resolve All (${groupCrashes.length})</button>` 
+                    ? `<button onclick="event.stopPropagation(); Admin.resolveAllDeviceCrashes('${safeJsDid}')" class="mr-3 bg-green-100 dark:bg-green-900/50 hover:bg-green-200 dark:hover:bg-green-800 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors shadow-sm focus:outline-none flex items-center shrink-0"><span class="mr-1 inline-flex">${Admin.icon('check', 'w-3 h-3')}</span> Resolve All (${groupCrashes.length})</button>` 
                     : '';
 
                 let groupHTML = `
@@ -2150,31 +2520,79 @@ const Admin = {
                     const safeOS = secureEscape(crash.userAgent || "Unknown OS");
                     const safeAppVersion = secureEscape(crash.appVersion || 'Unknown');
                     const safeJsCrashId = (crash.id || '').replace(/'/g, "\\'");
+                    const safeLine = secureEscape(crash.line || '');
+                    const safeUrl = secureEscape(crash.url || '');
+
+                    // Full raw details (stack / raw / logs) — never truncate to a one-line summary
+                    let rawDetail = '';
+                    if (crash.stack && crash.stack !== 'N/A') rawDetail = String(crash.stack);
+                    else if (crash.raw) rawDetail = typeof crash.raw === 'string' ? crash.raw : JSON.stringify(crash.raw, null, 2);
+                    else if (crash.logs) rawDetail = JSON.stringify(crash.logs, null, 2);
+                    else {
+                        try {
+                            const clone = { ...crash };
+                            delete clone.id;
+                            rawDetail = JSON.stringify(clone, null, 2);
+                        } catch (_) {
+                            rawDetail = String(crash.error || '');
+                        }
+                    }
+                    // Pretty-print JSON stacks (blackbox exports)
+                    if (rawDetail && (rawDetail.trim().startsWith('[') || rawDetail.trim().startsWith('{'))) {
+                        try { rawDetail = JSON.stringify(JSON.parse(rawDetail), null, 2); } catch (_) {}
+                    }
+                    const safeRaw = secureEscape(rawDetail);
                     
-                    const safeTicketDesc = safeErr.replace(/['"\n\r]/g, ' ');
+                    const isBlackBox = crash.kind === 'blackbox_full' || String(crash.error || '').startsWith('BLACK_BOX_EXPORT');
+                    const ticketDesc = isBlackBox
+                        ? String(rawDetail || crash.stack || crash.raw || crash.error || '').slice(0, 12000)
+                        : String(crash.error || '').slice(0, 240);
+                    const escalateAttr = Admin.encodeEscalatePayload({
+                        type: 'bug',
+                        severity: isBlackBox ? 'medium' : 'high',
+                        title: isBlackBox
+                            ? `Black Box (${(Array.isArray(crash.logs) ? crash.logs.length : 'full')} lines) · ${crash.deviceId || crash.routeId || 'device'}`
+                            : `Crash on ${crash.routeId || 'Global'}`,
+                        description: ticketDesc,
+                        source: `Crash ${crash.id || ''}`
+                    });
+                    // Store raw text for copy buttons (avoid huge data-attrs on every button)
+                    if (!Admin._crashRawById) Admin._crashRawById = {};
+                    Admin._crashRawById[crash.id] = String(rawDetail || '');
+
                     const actionHtml = isInbox 
-                        ? `<div class="flex space-x-2 w-full mt-2">
-                             ${rawDid !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${safeJsCrashId}', '${safeJsDid}')">Reply</button>` : ''}
-                             <button class="flex-1 text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.escalateToRoadmap({type:'bug', severity:'high', title:'Crash on ${safeRoute}', description:'${safeTicketDesc}', source:'Crash ${safeJsCrashId}'})">Escalate</button>
-                             <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveCrash('${safeJsCrashId}')">Resolve</button>
+                        ? `<div class="flex flex-wrap gap-2 w-full mt-2">
+                             <button class="flex-1 min-w-[4.5rem] text-slate-700 dark:text-slate-200 hover:text-white hover:bg-slate-700 text-[10px] font-bold bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.copyCrashLog('${safeJsCrashId}')">Copy Log</button>
+                             ${rawDid !== 'Anonymous / Legacy' ? `<button class="flex-1 min-w-[4.5rem] text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${safeJsCrashId}', '${safeJsDid}')">Reply</button>` : ''}
+                             <button class="flex-1 min-w-[4.5rem] text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.escalateFromEl(this)" data-escalate="${escalateAttr}">Escalate</button>
+                             <button class="flex-1 min-w-[4.5rem] text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-2.5 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveCrash('${safeJsCrashId}')">Resolve</button>
                            </div>`
-                        : `<div class="flex justify-between items-center w-full mt-2">
+                        : `<div class="flex justify-between items-center w-full mt-2 gap-2">
                              <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived</span>
+                             <button class="text-slate-600 hover:text-white hover:bg-slate-700 text-[10px] font-bold px-2.5 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-slate-200 shadow-sm" onclick="Admin.copyCrashLog('${safeJsCrashId}')">Copy Log</button>
                              <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-2.5 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteCrash('${safeJsCrashId}')">Delete</button>
                            </div>`;
+
+                    const kindLabel = isBlackBox ? 'BLACK BOX LOG' : 'FATAL DUMP';
 
                     groupHTML += `
                         <div class="p-2.5 flex flex-col">
                             <div class="flex justify-between items-start mb-1.5">
-                                <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">FATAL DUMP</span>
+                                <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">${kindLabel}</span>
                                 <span class="text-[9px] text-gray-400 font-mono">${dateStr}</span>
                             </div>
                             <div class="text-[10px] font-mono text-gray-800 dark:text-gray-200 break-words bg-gray-50 dark:bg-gray-800 p-2 rounded border border-gray-100 dark:border-gray-700 leading-snug mb-2">
                                 ${safeErr}
                             </div>
+                            <details class="mb-2 group/raw" ${isBlackBox ? 'open' : ''}>
+                                <summary class="cursor-pointer text-[9px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-1 select-none">Raw crash details</summary>
+                                <pre class="text-[9px] font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words bg-black/5 dark:bg-black/40 p-2 rounded border border-gray-200 dark:border-gray-700 max-h-64 overflow-y-auto custom-scrollbar leading-snug">${safeRaw}</pre>
+                            </details>
                             <div class="flex flex-col space-y-1 bg-gray-50 dark:bg-gray-800/50 p-2 rounded border border-gray-100 dark:border-gray-700">
                                 <span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider">Route: <span class="text-blue-500">${safeRoute}</span></span>
                                 <span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider">App: <span class="text-gray-800 dark:text-gray-200">${safeAppVersion.split(' - ')[0]}</span></span>
+                                ${safeLine ? `<span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider">Line: <span class="text-gray-800 dark:text-gray-200">${safeLine}</span></span>` : ''}
+                                ${safeUrl ? `<span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider leading-tight">URL: <span class="text-gray-800 dark:text-gray-200 whitespace-normal break-words">${safeUrl}</span></span>` : ''}
                                 <span class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider leading-tight">OS: <span class="text-gray-800 dark:text-gray-200 whitespace-normal break-words">${safeOS}</span></span>
                             </div>
                             ${actionHtml}
@@ -2333,8 +2751,9 @@ const Admin = {
             // Inject Grid Toggle Button
             const toggleBtn = document.createElement('button');
             toggleBtn.id = 'grid-view-toggle';
+            toggleBtn.type = 'button';
             toggleBtn.className = "ml-auto mr-3 p-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 hover:text-blue-500 transition-colors focus:outline-none shadow-sm flex items-center";
-            toggleBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>`;
+            Admin.syncGridToggleIcon(toggleBtn);
             
             const closeBtn = devHeaderRow.querySelector('button[aria-label="Close Dev Modal"]');
             if (closeBtn) {
@@ -2349,16 +2768,63 @@ const Admin = {
                 style.id = 'admin-grid-styles';
                 style.innerHTML = `
                     .admin-grid-view { display: grid; gap: 12px; align-items: start; padding-bottom: 20px; transition: grid-template-columns 0.3s ease; }
-                    .admin-grid-view > div { margin-bottom: 0 !important; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; height: 110px; display: flex; flex-direction: column; justify-content: center; }
+                    .admin-grid-view > div { margin-bottom: 0 !important; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; height: 110px; display: flex; flex-direction: column; justify-content: center; position: relative; overflow: visible !important; }
                     .admin-grid-view > div:hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #3b82f6; }
                     .admin-grid-view > div [id$="-body"] { display: none !important; }
-                    .admin-grid-view > div [id$="-header-btn"] { flex-direction: column; justify-content: center; height: 100%; align-items: center; text-align: center; margin-bottom: 0 !important; position: relative; }
-                    .admin-grid-view > div [id$="-header-btn"] > span { flex-direction: column; align-items: center; width: 100%; }
-                    .admin-grid-view > div [id$="-header-btn"] > span > span:first-child { margin-right: 0 !important; margin-bottom: 8px; font-size: 28px; display: block; }
+                    .admin-grid-view > div [id$="-header-btn"] { flex-direction: column; justify-content: center; height: 100%; align-items: center; text-align: center; margin-bottom: 0 !important; position: relative; overflow: visible; }
+                    .admin-grid-view > div [id$="-header-btn"] > span:not(.admin-unread-badge) { flex-direction: column; align-items: center; width: 100%; display: flex; }
+                    .admin-grid-view > div [id$="-header-btn"] > span > span.admin-tile-icon,
+                    .admin-grid-view > div [id$="-header-btn"] > span > span:first-child {
+                      margin-right: 0 !important;
+                      margin-bottom: 8px;
+                      line-height: 1;
+                      display: inline-flex;
+                      align-items: center;
+                      justify-content: center;
+                    }
+                    .admin-grid-view > div [id$="-header-btn"] .admin-tile-icon svg {
+                      width: 1.75rem;
+                      height: 1.75rem;
+                    }
                     .admin-grid-view > div [id$="-header-btn"] svg[id$="-chevron"] { display: none !important; }
                     .admin-grid-view > div [id$="-header-btn"] span[id$="-last-sync"] { display: none !important; }
-                    .admin-grid-view > div [id$="-header-btn"] span[id$="-unread-badge"]:not(.hidden) { display: block !important; }
                     .admin-grid-view .grid-hidden-actions { display: none !important; }
+
+                    /* Compact corner unread pills — never stretch across the tile */
+                    .admin-unread-badge {
+                      position: absolute;
+                      top: 6px;
+                      right: 6px;
+                      z-index: 5;
+                      min-width: 1.35rem;
+                      height: 1.35rem;
+                      padding: 0 5px;
+                      display: none;
+                      align-items: center;
+                      justify-content: center;
+                      border-radius: 9999px;
+                      font-size: 10px;
+                      font-weight: 800;
+                      letter-spacing: -0.02em;
+                      line-height: 1;
+                      color: #fff;
+                      background: #ef4444;
+                      box-shadow: 0 0 0 2px #ffffff, 0 1px 2px rgba(0,0,0,0.18);
+                      pointer-events: none;
+                      white-space: nowrap;
+                      flex: none !important;
+                      width: auto !important;
+                      max-width: none !important;
+                    }
+                    .dark .admin-unread-badge {
+                      box-shadow: 0 0 0 2px #1f2937, 0 1px 2px rgba(0,0,0,0.45);
+                    }
+                    .admin-unread-badge.admin-unread-badge--amber {
+                      background: #f59e0b;
+                    }
+                    .admin-unread-badge:not(.hidden) {
+                      display: inline-flex !important;
+                    }
                 `;
                 document.head.appendChild(style);
             }
@@ -2391,14 +2857,7 @@ const Admin = {
                 
                 Admin.gridCols = Admin.gridCols === 1 ? 2 : (Admin.gridCols === 2 ? 3 : 1);
                 container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
-                
-                if (Admin.gridCols === 1) {
-                    toggleBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>`;
-                } else if (Admin.gridCols === 2) {
-                    toggleBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>`;
-                } else {
-                    toggleBtn.innerHTML = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 5h4v14H4zM10 5h4v14h-4zM16 5h4v14h-4z"></path></svg>`;
-                }
+                Admin.syncGridToggleIcon(toggleBtn);
             };
 
             // Global Interceptor: The Drill-Down Engine
@@ -2447,19 +2906,19 @@ const Admin = {
                 const titleH3 = devHeaderRow.querySelector('h3');
                 devHeaderRow.dataset.originalHtml = titleH3.innerHTML;
                 
-                // Isolate the title by removing trailing badges/timestamps before extracting text
+                // Keep native emoji in drill title (stop stripping — was causing broken headers)
                 let titleClone = card.querySelector('[id$="-header-btn"] > span').cloneNode(true);
                 titleClone.querySelectorAll('span[id$="-last-sync"], span[id$="-unread-badge"]').forEach(el => el.remove());
-                
-                // Strip emojis safely using textContent (innerText behaves unpredictably on unattached clones)
-                let cardTitle = titleClone.textContent.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '').trim();
+                const cardTitle = (titleClone.textContent || '').replace(/\s+/g, ' ').trim();
                 
                 titleH3.innerHTML = `
                     <button id="drill-back-btn" class="mr-3 p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors focus:outline-none shadow-sm shrink-0">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                     </button>
-                    <span class="truncate flex-grow text-lg min-w-0">${cardTitle}</span>
+                    <span class="truncate flex-grow text-lg min-w-0" style="font-family: 'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif"></span>
                 `;
+                const titleSpan = titleH3.querySelector('span.truncate');
+                if (titleSpan) titleSpan.textContent = cardTitle;
                 
                 toggleBtn.style.display = 'none';
                 
@@ -2528,6 +2987,8 @@ const Admin = {
                 
                 // Auto-Fetch data upon drill-down
                 if (card.id === 'feedback-panel') Admin.fetchFeedback();
+                if (card.id === 'delay-reports-panel') Admin.fetchDelayReports();
+                if (card.id === 'moderation-queue-panel') Admin.fetchModerationQueue();
                 if (card.id === 'deadends-panel') Admin.fetchDeadEnds();
                 if (card.id === 'crashes-panel') Admin.fetchCrashes(); // 🛡️ GUARDIAN PHASE 7
                 if (card.id === 'roadmap-panel') Admin.fetchRoadmap(); // 🛡️ GUARDIAN PHASE 14
@@ -2564,7 +3025,7 @@ const Admin = {
 
         growthPanel.innerHTML = `
             <button id="growth-header-btn" class="w-full text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
-                <span class="flex flex-col items-center"><span class="text-2xl mb-2">🚀</span> <span>Growth & Promo</span></span>
+                <span class="flex flex-col items-center">${Admin.tileIcon('rocket', 'text-violet-500 dark:text-violet-400')} <span>Growth & Promo</span></span>
                 <svg id="growth-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             
@@ -2616,10 +3077,10 @@ const Admin = {
         dePanel.innerHTML = `
             <button id="de-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">🛑</span>
+                    ${Admin.tileIcon('ban', 'text-red-500 dark:text-red-400')}
                     <span>Dead Ends & Fails</span>
                 </span>
-                <span id="de-unread-badge" class="hidden absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-black tracking-normal animate-pulse">0 New</span>
+                <span id="de-unread-badge" class="admin-unread-badge hidden" aria-label="Unread dead ends"></span>
                 <svg id="de-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             <div id="de-body" class="hidden mt-4 space-y-3">
@@ -2632,10 +3093,17 @@ const Admin = {
                         <button id="de-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
                             Refresh
                         </button>
+                        <button id="de-export-btn" class="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-800 border border-emerald-200 dark:border-emerald-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
+                            Export All
+                        </button>
                         <button id="de-clear-btn" class="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800 border border-red-200 dark:border-red-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
                             Clear DB
                         </button>
                     </div>
+                </div>
+                <div class="flex gap-1 p-0.5 bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <button type="button" id="de-tab-fails" class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm">Fails</button>
+                    <button type="button" id="de-tab-trips" class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md text-gray-500 dark:text-gray-400">Trip Plans</button>
                 </div>
                 <div id="de-list" class="space-y-2 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar"></div>
             </div>
@@ -2646,8 +3114,25 @@ const Admin = {
         const chevron = document.getElementById('de-chevron');
         const refreshBtn = document.getElementById('de-refresh-btn');
         const clearBtn = document.getElementById('de-clear-btn');
+        const exportBtn = document.getElementById('de-export-btn');
         const sortBtn = document.getElementById('de-sort-btn');
         const listDiv = document.getElementById('de-list');
+        Admin._deActiveTab = 'fails';
+        document.getElementById('de-tab-fails')?.addEventListener('click', () => {
+            Admin._deActiveTab = 'fails';
+            document.getElementById('de-tab-fails')?.classList.add('bg-white', 'dark:bg-gray-800', 'text-gray-900', 'dark:text-white', 'shadow-sm');
+            document.getElementById('de-tab-trips')?.classList.remove('bg-white', 'dark:bg-gray-800', 'text-gray-900', 'dark:text-white', 'shadow-sm');
+            Admin.fetchDeadEnds();
+        });
+        document.getElementById('de-tab-trips')?.addEventListener('click', () => {
+            Admin._deActiveTab = 'trips';
+            document.getElementById('de-tab-trips')?.classList.add('bg-white', 'dark:bg-gray-800', 'text-gray-900', 'dark:text-white', 'shadow-sm');
+            document.getElementById('de-tab-fails')?.classList.remove('bg-white', 'dark:bg-gray-800', 'text-gray-900', 'dark:text-white', 'shadow-sm');
+            Admin.fetchDeadEnds();
+        });
+        if (exportBtn) {
+            exportBtn.onclick = () => Admin.exportDeadEndsAll();
+        }
 
         // 🛡️ GUARDIAN PHASE 2: Dynamic Sorting State
         Admin._deSortMode = Admin._deSortMode || 'recent'; 
@@ -2703,19 +3188,37 @@ const Admin = {
                     return;
                 }
                 
-                // Aggregate heavily by Origin|Dest|Reason to create a powerful heatmap
+                Admin._cachedRoutingFails = data;
+
+                if (Admin._deActiveTab === 'trips') {
+                    await Admin.renderTripPlanBatches(listDiv, secret);
+                    return;
+                }
+
+                // Aggregate by Origin|Dest|Reason|DayType — hits = unique logged attempts (client debounces retries)
                 const heatMap = {};
                 Object.values(data).forEach(entry => {
                     if (!entry.origin || !entry.destination) return;
-                    const key = `${entry.origin}|${entry.destination}|${entry.reason || 'UNKNOWN'}`;
+                    const dayType = entry.dayType || 'unknown';
+                    const key = `${entry.origin}|${entry.destination}|${entry.reason || 'UNKNOWN'}|${dayType}`;
                     if (!heatMap[key]) {
-                        heatMap[key] = { origin: entry.origin, dest: entry.destination, reason: entry.reason, count: 0, lastSeen: 0 };
+                        heatMap[key] = {
+                            origin: entry.origin,
+                            dest: entry.destination,
+                            reason: entry.reason,
+                            dayType,
+                            timeOfDay: entry.timeOfDay || null,
+                            count: 0,
+                            lastSeen: 0,
+                        };
                     }
                     heatMap[key].count++;
-                    if (entry.timestamp > heatMap[key].lastSeen) heatMap[key].lastSeen = entry.timestamp;
+                    if (entry.timestamp > heatMap[key].lastSeen) {
+                        heatMap[key].lastSeen = entry.timestamp;
+                        if (entry.timeOfDay) heatMap[key].timeOfDay = entry.timeOfDay;
+                    }
                 });
                 
-                // 🛡️ GUARDIAN PHASE 2: Apply dynamic sort selection
                 const sorted = Object.values(heatMap).sort((a, b) => {
                     if (Admin._deSortMode === 'recent') return b.lastSeen - a.lastSeen;
                     return b.count - a.count;
@@ -2723,7 +3226,6 @@ const Admin = {
                 
                 listDiv.innerHTML = '';
                 
-                // 🛡️ GUARDIAN PHASE 1: Sanitization Armor for Telemetry
                 const secureEscape = (str) => {
                     if (!str) return '';
                     if (typeof escapeHTML === 'function') return escapeHTML(str);
@@ -2743,20 +3245,28 @@ const Admin = {
                     else if (item.reason === 'ERR_DISCONNECTED_GRAPH') { reasonBadge = "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400"; reasonText = "No Physical Link"; }
                     else if (item.reason === 'ERR_CROSS_REGION') { reasonBadge = "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400"; reasonText = "Cross Region"; }
                     else if (item.reason === 'ERR_ACTIVE_SUSPENSION') { reasonBadge = "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400"; reasonText = "Line Severed"; }
+                    else if (item.reason === 'ERR_NO_SERVICE_TODAY') { reasonBadge = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"; reasonText = "No Service"; }
 
-                    // Apply strict XSS isolation to raw commuter telemetry
                     const safeOrigin = secureEscape(item.origin);
                     const safeDest = secureEscape(item.dest);
+                    const dayLabel = secureEscape(item.dayType || 'unknown');
+                    const timeLabel = secureEscape(item.timeOfDay || '—');
                     
-                    const safeOriginRoute = safeOrigin.replace(/['"\n\r]/g, ''); 
-                    const safeDestRoute = safeDest.replace(/['"\n\r]/g, '');
+                    const escalateAttr = Admin.encodeEscalatePayload({
+                        type: 'route',
+                        severity: 'medium',
+                        title: `Routing Fail: ${item.origin} to ${item.dest}`,
+                        description: `Failed with reason: ${item.reason || 'UNKNOWN'} (${item.dayType || 'day?'}, ~${item.timeOfDay || 'time?'}). Logged ${item.count} times.`,
+                        source: 'Telemetry Data'
+                    });
 
-                    // GUARDIAN PHASE 11: Decoupled whitespace for long route names so they wrap dynamically instead of truncating
                     card.innerHTML = `
                         <div class="min-w-0 flex-1 pr-2">
                             <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${safeOrigin} <span class="text-gray-400 mx-1">→</span> ${safeDest}</div>
-                            <div class="flex items-center mt-1.5 space-x-2">
+                            <div class="flex flex-wrap items-center mt-1.5 gap-1.5">
                                 <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${reasonBadge}">${reasonText}</span>
+                                <span class="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">${dayLabel}</span>
+                                <span class="text-[9px] text-gray-400 font-mono">${timeLabel}</span>
                                 <span class="text-[9px] text-gray-400 font-mono">Last: ${dateStr}</span>
                             </div>
                         </div>
@@ -2765,7 +3275,7 @@ const Admin = {
                                 <span class="text-[9px] text-gray-400 uppercase font-bold mr-1.5">Hits</span>
                                 <span class="text-sm font-black text-gray-700 dark:text-gray-300 leading-none">${item.count}</span>
                             </div>
-                            <button class="text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[9px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-widest shadow-sm shrink-0" onclick="Admin.escalateToRoadmap({type:'route', severity:'medium', title:'Routing Fail: ${safeOriginRoute} to ${safeDestRoute}', description:'Failed with reason: ${item.reason}. Logged ${item.count} times.', source:'Telemetry Data'})">Ticket</button>
+                            <button class="text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[9px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-widest shadow-sm shrink-0" onclick="Admin.escalateFromEl(this)" data-escalate="${escalateAttr}">Ticket</button>
                         </div>
                     `;
                     listDiv.appendChild(card);
@@ -2776,8 +3286,64 @@ const Admin = {
             }
         };
 
+        Admin.renderTripPlanBatches = async (listDiv, secret) => {
+            listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Loading trip plan batches…</div>';
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await window.guardianFetch(`${dynamicEndpoint}sys_logs/trip_plans.json?auth=${secret}`, {}, 10000);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                Admin._cachedTripPlans = data;
+                if (!data) {
+                    listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">No batched trip plans yet.<br><span class="text-[9px]">Clients flush every 10 successful plans.</span></div>';
+                    return;
+                }
+                const batches = Object.keys(data).map((id) => ({ id, ...data[id] })).sort((a, b) => (b.flushedAt || 0) - (a.flushedAt || 0));
+                listDiv.innerHTML = '';
+                batches.slice(0, 40).forEach((batch) => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm';
+                    const trips = Array.isArray(batch.trips) ? batch.trips : [];
+                    const preview = trips.slice(0, 3).map((t) => `${t.origin || '?'} → ${t.destination || '?'} (${t.dayType || '?'})`).join('<br>');
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-emerald-600">Batch · ${batch.count || trips.length} trips</span>
+                            <span class="text-[9px] text-gray-400 font-mono">${Admin.formatDate(batch.flushedAt)}</span>
+                        </div>
+                        <div class="text-[10px] text-gray-700 dark:text-gray-300 leading-snug">${preview || '—'}${trips.length > 3 ? `<br><span class="text-gray-400">+${trips.length - 3} more</span>` : ''}</div>
+                    `;
+                    listDiv.appendChild(card);
+                });
+            } catch (e) {
+                listDiv.innerHTML = `<div class="text-xs text-red-500 text-center py-4">Failed to load trip plans.</div>`;
+            }
+        };
+
+        Admin.exportDeadEndsAll = () => {
+            const fails = Admin._cachedRoutingFails || {};
+            const trips = Admin._cachedTripPlans || {};
+            const payload = {
+                exportedAt: Date.now(),
+                routing_fails: fails,
+                trip_plans: trips,
+            };
+            const jsonStr = JSON.stringify(payload, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `deadends_export_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            if (typeof showToast === 'function') showToast('Exported dead ends + trip plans', 'success');
+        };
+
         clearBtn.onclick = async () => {
-            const confirmed = await Admin.secureConfirm("Clear Telemetry", "Permanently delete all Dead End logs from the server?");
+            const path = Admin._deActiveTab === 'trips' ? 'sys_logs/trip_plans' : 'sys_logs/routing_fails';
+            const label = Admin._deActiveTab === 'trips' ? 'trip plan batches' : 'Dead End logs';
+            const confirmed = await Admin.secureConfirm('Clear Telemetry', `Permanently delete all ${label} from the server?`);
             if (!confirmed) return;
             const secret = await Admin.getAuthKey();
             if (!secret) return;
@@ -2785,11 +3351,11 @@ const Admin = {
             clearBtn.disabled = true;
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                await window.guardianFetch(`${dynamicEndpoint}sys_logs/routing_fails.json?auth=${secret}`, { method: 'DELETE' }, 10000);
-                if (typeof showToast === 'function') showToast("Dead End logs wiped.", "success");
+                await window.guardianFetch(`${dynamicEndpoint}${path}.json?auth=${secret}`, { method: 'DELETE' }, 10000);
+                if (typeof showToast === 'function') showToast(`${label} wiped.`, 'success');
                 Admin.fetchDeadEnds();
             } catch (e) {
-                if (typeof showToast === 'function') showToast("Failed to clear logs", "error");
+                if (typeof showToast === 'function') showToast('Failed to clear logs', 'error');
             } finally {
                 clearBtn.disabled = false;
             }
@@ -2820,10 +3386,10 @@ const Admin = {
         fbPanel.innerHTML = `
             <div id="fb-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative cursor-pointer">
                 <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">💬</span> 
+                    ${Admin.tileIcon('message', 'text-sky-500 dark:text-sky-400')}
                     <span>Commuter Feedback</span>
                 </span>
-                <span id="fb-unread-badge" class="hidden absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-black tracking-normal animate-pulse">0 New</span>
+                <span id="fb-unread-badge" class="admin-unread-badge hidden" aria-label="Unread feedback"></span>
                 <svg id="fb-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             
@@ -2840,19 +3406,19 @@ const Admin = {
 
                 <!-- 🛡️ GUARDIAN UX FIX: Search Bar -->
                 <div class="mb-3 relative px-1">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <span class="text-xs">🔍</span>
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                        ${Admin.icon('search', 'w-3.5 h-3.5')}
                     </div>
                     <input type="text" id="fb-search-input" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block pl-10 p-3 shadow-inner outline-none transition-colors" placeholder="Search aliases, IDs, or messages...">
                 </div>
 
                 <!-- 🛡️ GUARDIAN UX FIX: Relocated Action Buttons -->
                 <div class="grid-hidden-actions flex space-x-2 mb-3 px-1">
-                    <button id="fb-export-global-btn" onclick="event.stopPropagation()" class="flex-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800 border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none flex items-center justify-center">
-                        <span class="mr-1.5 text-sm leading-none">📥</span> Export All
+                    <button id="fb-export-global-btn" onclick="event.stopPropagation()" class="flex-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800 border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none flex items-center justify-center gap-1.5">
+                        ${Admin.icon('download', 'w-3.5 h-3.5')} Export All
                     </button>
-                    <button id="fb-refresh-btn" onclick="event.stopPropagation()" class="flex-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none flex items-center justify-center">
-                        <span class="mr-1.5 text-sm leading-none">🔄</span> Refresh
+                    <button id="fb-refresh-btn" onclick="event.stopPropagation()" class="flex-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none flex items-center justify-center gap-1.5">
+                        ${Admin.icon('refresh', 'w-3.5 h-3.5')} Refresh
                     </button>
                 </div>
                 
@@ -2985,7 +3551,7 @@ const Admin = {
             });
 
             if (displayGroups.length === 0) {
-                listContainer.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${isInbox ? 'Inbox is completely clean! ✨' : 'No archived threads yet.'}</div>`;
+                listContainer.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${isInbox ? 'Inbox is completely clean.' : 'No archived threads yet.'}</div>`;
                 return;
             }
 
@@ -3035,12 +3601,13 @@ const Admin = {
                 const alias = Admin.cachedAliases && Admin.cachedAliases[did] ? Admin.cachedAliases[did] : null;
                 const displayDid = did === 'Anonymous / Legacy' ? did : did.substring(0,15) + '...';
                 
-                // 🛡️ GUARDIAN UX FIX: Relocate Alias button into the native Title bar to free up the Action Menu
-                const editAliasBtn = did !== 'Anonymous / Legacy' ? `<button onclick="event.stopPropagation(); Admin.setCommuterAlias('${did}', '${alias || ''}')" class="ml-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-800 p-1 rounded-md transition-colors focus:outline-none flex-shrink-0 shadow-sm border border-orange-200 dark:border-orange-800" title="Edit Alias"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>` : '';
-                // 🛡️ GUARDIAN UX FIX: Hide raw device ID entirely if an alias is present
-                const commuterTitle = alias ? `${alias}${editAliasBtn}` : `${displayDid}${editAliasBtn}`;
-                
-                // 🛡️ GUARDIAN UX FIX: Detect attachments in thread for 📎 icon
+                // Clickable ID / alias opens rename modal (no separate pencil chrome)
+                const titleText = alias || displayDid;
+                const titleTitle = alias ? `Alias for ${displayDid} — click to rename` : 'Click to set alias';
+                const commuterTitle = did !== 'Anonymous / Legacy'
+                    ? `<button type="button" onclick="event.stopPropagation(); Admin.setCommuterAlias('${did}', '${(alias || '').replace(/'/g, "\\'")}')" class="text-blue-600 dark:text-blue-400 hover:underline font-mono truncate max-w-full text-left focus:outline-none" title="${titleTitle}">${titleText}</button>`
+                    : `<span class="text-blue-600 dark:text-blue-400 font-mono truncate">${displayDid}</span>`;
+
                 const hasAttachments = groupItems.some(i => i.attachmentUrl || (i.attachmentUrls && i.attachmentUrls.length > 0));
 
                 // 🛡️ GUARDIAN PHASE 2: The "Rolodex" Contact Aggregator
@@ -3066,27 +3633,41 @@ const Admin = {
                     }
                 });
 
+                // Scan chips outside the open thread (email / phone / both)
+                let contactScanHtml = '';
+                if (allEmails.size > 0) {
+                    contactScanHtml += `<span class="inline-flex text-blue-500 dark:text-blue-400" title="${allEmails.size} email${allEmails.size > 1 ? 's' : ''}">${Admin.icon('mail', 'w-3 h-3')}</span>`;
+                }
+                if (allPhones.size > 0) {
+                    contactScanHtml += `<span class="inline-flex text-emerald-600 dark:text-emerald-400" title="${allPhones.size} phone${allPhones.size > 1 ? 's' : ''}">${Admin.icon('phone', 'w-3 h-3')}</span>`;
+                }
+                if (hasAttachments) {
+                    contactScanHtml += `<span class="inline-flex text-purple-500 dark:text-purple-400" title="Has attachments">${Admin.icon('paperclip', 'w-3 h-3')}</span>`;
+                }
+                const contactScanBlock = contactScanHtml
+                    ? `<span class="inline-flex items-center gap-1 mx-1 align-middle">${contactScanHtml}</span>`
+                    : '';
+
                 let contactHtml = '';
                 if (allEmails.size > 0 || allPhones.size > 0) {
                     contactHtml = '<div class="flex flex-wrap gap-1.5">';
                     allEmails.forEach(em => {
                         contactHtml += `
                             <div class="flex items-center bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded px-1.5 py-0.5 max-w-[220px] sm:max-w-[300px]">
-                                <a href="mailto:${em}" onclick="event.stopPropagation()" class="text-[10px] text-blue-500 hover:underline font-mono tracking-tight lowercase truncate">✉️ ${em}</a>
-                                <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${em}'); if(typeof showToast === 'function') showToast('Copied!', 'success', 1000);" class="ml-1.5 text-[10px] text-gray-400 hover:text-blue-500 transition-colors focus:outline-none" title="Copy">📋</button>
+                                <a href="mailto:${em}" onclick="event.stopPropagation()" class="text-[10px] text-blue-500 hover:underline font-mono tracking-tight lowercase truncate inline-flex items-center gap-1">${Admin.icon('mail', 'w-3 h-3 shrink-0')} ${em}</a>
+                                <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${em}'); if(typeof showToast === 'function') showToast('Copied!', 'success', 1000);" class="ml-1.5 text-gray-400 hover:text-blue-500 transition-colors focus:outline-none inline-flex" title="Copy">${Admin.icon('copy', 'w-3 h-3')}</button>
                             </div>`;
                     });
                     allPhones.forEach(ph => {
                         const isNum = /^\d+$/.test(ph);
-                        const icon = isNum ? '💬' : '📞';
                         const link = isNum ? `https://wa.me/${ph}` : '#';
                         const target = isNum ? `target="_blank"` : '';
                         const aClass = isNum ? 'text-emerald-700 dark:text-emerald-300 hover:underline' : 'text-gray-500 dark:text-gray-400';
                         
                         contactHtml += `
                             <div class="flex items-center bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded px-2 py-1 max-w-[220px] sm:max-w-[300px] shadow-sm">
-                                <a href="${link}" ${target} onclick="event.stopPropagation()" class="text-[10px] ${aClass} font-mono tracking-tight truncate">${icon} ${ph}</a>
-                                <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${ph}'); if(typeof showToast === 'function') showToast('Copied!', 'success', 1000);" class="ml-1.5 text-[10px] text-gray-400 hover:text-emerald-500 transition-colors focus:outline-none" title="Copy">📋</button>
+                                <a href="${link}" ${target} onclick="event.stopPropagation()" class="text-[10px] ${aClass} font-mono tracking-tight truncate inline-flex items-center gap-1">${Admin.icon(isNum ? 'message' : 'phone', 'w-3 h-3 shrink-0')} ${ph}</a>
+                                <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${ph}'); if(typeof showToast === 'function') showToast('Copied!', 'success', 1000);" class="ml-1.5 text-gray-400 hover:text-emerald-500 transition-colors focus:outline-none inline-flex" title="Copy">${Admin.icon('copy', 'w-3 h-3')}</button>
                             </div>`;
                     });
                     contactHtml += '</div>';
@@ -3096,8 +3677,8 @@ const Admin = {
                 let groupHTML = `
                     <div class="feedback-group-header scroll-mt-[110px] cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 border-b border-transparent transition-colors">
                         <div class="flex-grow flex flex-col items-start min-w-0 pr-2">
-                            <span class="text-xs font-bold text-gray-900 dark:text-white truncate w-full flex items-center">Commuter: <span class="text-blue-600 ml-1 flex items-center">${commuterTitle}</span></span>
-                            <span class="text-[9px] text-gray-500 font-mono mt-1">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''} ${hasAttachments ? '📎 ' : ''}| Last: ${latestDate}</span>
+                            <span class="text-xs font-bold text-gray-900 dark:text-white truncate w-full flex items-center">${commuterTitle}</span>
+                            <span class="text-[9px] text-gray-500 font-mono mt-1 inline-flex items-center flex-wrap gap-y-0.5">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''}${contactScanBlock} <span class="opacity-40 mx-0.5">|</span> Last: ${latestDate}</span>
                         </div>
                         <div class="flex items-center justify-end shrink-0 self-center">
                             <button class="pointer-events-none focus:outline-none p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors border border-transparent">
@@ -3110,7 +3691,7 @@ const Admin = {
                             <div class="flex-grow min-w-0">
                                 ${contactHtml || '<span class="text-[10px] text-gray-400 italic font-medium px-1">No contact info provided</span>'}
                             </div>
-                            <button onclick="Admin.exportThreadForAI('${did}')" class="shrink-0 flex items-center px-2 py-1.5 bg-white dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900/30 text-gray-500 hover:text-green-600 dark:hover:text-green-400 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm text-[10px] font-bold uppercase tracking-wider" title="Download Thread for AI (.txt)"><span class="mr-1.5 text-base leading-none">📥</span> Export</button>
+                            <button onclick="Admin.exportThreadForAI('${did}')" class="shrink-0 flex items-center gap-1.5 px-2 py-1.5 bg-white dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900/30 text-gray-500 hover:text-green-600 dark:hover:text-green-400 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm text-[10px] font-bold uppercase tracking-wider" title="Download Thread for AI (.txt)">${Admin.icon('download', 'w-3.5 h-3.5')} Export</button>
                         </div>
                         <div class="space-y-3 mb-2 h-auto min-h-[50px] flex flex-col">
                 `;
@@ -3162,8 +3743,10 @@ const Admin = {
                         // REGEX: Extract Admin Signoff Name ("— Enock")
                         let parsedAdminText = item.text || "";
                         let adminName = "Admin";
-                        const signoffRegex = /(?:<br>|\n)*<span[^>]*>—\s*(.*?)<\/span>$/i;
-                        const fallbackRegex = /(?:<br>|\n)*—\s*([a-zA-Z]+)$/i;
+                        parsedAdminText = Admin.repairMojibake(parsedAdminText);
+                        // Match em dash and legacy UTF-8 mojibake of "—"
+                        const signoffRegex = /(?:<br>|\n)*<span[^>]*>(?:\u2014|\u00E2\u20AC\u201D|\u00E2\u0080\u0094|&mdash;)\s*(.*?)<\/span>$/i;
+                        const fallbackRegex = /(?:<br>|\n)*(?:\u2014|\u00E2\u20AC\u201D|\u00E2\u0080\u0094|&mdash;)\s*([a-zA-Z]+)$/i;
                         
                         let match = parsedAdminText.match(signoffRegex) || parsedAdminText.match(fallbackRegex);
                         if (match) {
@@ -3205,7 +3788,7 @@ const Admin = {
                             const fullNum = `27${p1}${p2}${p3}`;
                             const displayNum = `0${p1} ${p2} ${p3}`;
                             const prefix = match.charAt(0).match(/\s|\(/) ? match.charAt(0) : ''; 
-                            return `${prefix}<a href="https://wa.me/${fullNum}" target="_blank" class="text-green-600 dark:text-green-400 font-bold underline" onclick="event.stopPropagation()">💬 ${displayNum}</a>`;
+                            return `${prefix}<a href="https://wa.me/${fullNum}" target="_blank" class="text-green-600 dark:text-green-400 font-bold underline inline-flex items-center gap-1" onclick="event.stopPropagation()">${Admin.icon('message', 'w-3 h-3')} ${displayNum}</a>`;
                         });
                         
                         rawText = rawText.replace(/\n/g, "<br>");
@@ -3273,7 +3856,7 @@ const Admin = {
                                 if (isImageExt) {
                                     attachmentHtml += `<button type="button" onclick="event.stopPropagation(); Admin.openLightbox('${url}')" class="block focus:outline-none w-full text-left"><img src="${url}" class="w-full h-24 object-cover rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:opacity-90 transition-opacity cursor-zoom-in" alt="Attachment ${idx + 1}"></button>`;
                                 } else {
-                                    attachmentHtml += `<a href="${url}" target="_blank" onclick="event.stopPropagation();" class="flex items-center justify-center text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-xs font-bold w-full h-24"><span class="mr-1">📄</span> View Doc ${idx + 1}</a>`;
+                                    attachmentHtml += `<a href="${url}" target="_blank" onclick="event.stopPropagation();" class="flex items-center justify-center gap-1 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors text-xs font-bold w-full h-24">${Admin.icon('file', 'w-4 h-4')} View Doc ${idx + 1}</a>`;
                                 }
                             });
                             attachmentHtml += `</div>`;
@@ -3281,18 +3864,20 @@ const Admin = {
 
                         // METADATA: Integrated Bubble Header
                         let typeLabel = "General";
-                        let typeIcon = "💬";
-                        if (item.type === 'schedule_error') { typeLabel = "Schedule Error"; typeIcon = "⏱️"; }
-                        else if (item.type === 'bug') { typeLabel = "App Bug"; typeIcon = "🐛"; }
-                        else if (item.type === 'suggestion') { typeLabel = "Suggestion"; typeIcon = "💡"; }
+                        let typeIconName = "message";
+                        if (item.type === 'schedule_error') { typeLabel = "Schedule Error"; typeIconName = "clock"; }
+                        else if (item.type === 'bug') { typeLabel = "App Bug"; typeIconName = "bug"; }
+                        else if (item.type === 'suggestion') { typeLabel = "Suggestion"; typeIconName = "lightbulb"; }
 
                         // 🛡️ GUARDIAN UX FIX: Shortened "Commuter Reply" to "Reply:" to fit on 1 row
-                        let headerLabelText = isReply ? `↩️ Reply:` : `${typeIcon} ${typeLabel}`;
+                        const headerLabelText = isReply
+                            ? `${Admin.icon('reply', 'w-3 h-3')} Reply:`
+                            : `${Admin.icon(typeIconName, 'w-3 h-3')} ${typeLabel}`;
                         let headerColorClass = isReply ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400";
 
                         const integratedHeaderHtml = `
                             <div class="text-[9px] font-black ${headerColorClass} uppercase tracking-widest mb-1.5 border-b border-gray-200 dark:border-gray-700 pb-1 flex justify-between items-center w-full">
-                                <span class="whitespace-nowrap">${headerLabelText}</span>
+                                <span class="whitespace-nowrap inline-flex items-center gap-1">${headerLabelText}</span>
                                 <span class="font-mono font-medium opacity-60 ml-2 truncate">${safeAppVersion.split(' - ')[0]} • ${safeRouteId}</span>
                             </div>
                         `;
@@ -3312,14 +3897,20 @@ const Admin = {
                             </div>
                         `;
                 } });
-                const safeTicketDesc = secureEscape(latestCommuterMsg.text || 'No description').replace(/['"\n\r]/g, ' ');
                 const ticketType = latestCommuterMsg.type === 'bug' ? 'bug' : 'feature';
+                const escalateAttr = Admin.encodeEscalatePayload({
+                    type: ticketType,
+                    severity: 'medium',
+                    title: `Feedback from ${String(did).substring(0, 8)}`,
+                    description: String(latestCommuterMsg.text || 'No description').slice(0, 400),
+                    source: `Feedback ${feedbackId}`
+                });
                 
                 // Bottom Action Bar (Contextual)
                 const actionHtml = isInbox 
                     ? `<div class="flex space-x-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
                          ${did !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${feedbackId}', '${did}')">Reply</button>` : ''}
-                         <button class="flex-1 text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.escalateToRoadmap({type:'${ticketType}', severity:'medium', title:'Feedback from ${did.substring(0,8)}', description:'${safeTicketDesc}', source:'Feedback ${feedbackId}'})">Escalate</button>
+                         <button class="flex-1 text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.escalateFromEl(this)" data-escalate="${escalateAttr}">Escalate</button>
                          <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${unresolvedIds}')">Resolve</button>
                        </div>`
                     : `<div class="flex justify-between items-center w-full mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
@@ -3708,6 +4299,642 @@ const Admin = {
         };
     },
 
+    // --- PHASE 5: DELAY / ISSUE REPORTS (CRUDE OPS INBOX) ---
+    setupDelayReportsManager: () => {
+        const alertPanel = document.getElementById('alert-panel');
+        if (!alertPanel || !alertPanel.parentNode) return;
+
+        let drPanel = document.getElementById('delay-reports-panel');
+        if (!drPanel) {
+            drPanel = document.createElement('div');
+            drPanel.id = 'delay-reports-panel';
+            const fb = document.getElementById('feedback-panel');
+            if (fb && fb.parentNode) fb.parentNode.insertBefore(drPanel, fb.nextSibling);
+            else alertPanel.parentNode.insertBefore(drPanel, alertPanel);
+        }
+        if (drPanel.dataset.adminLoaded === 'true') return;
+        drPanel.dataset.adminLoaded = 'true';
+
+        drPanel.className = 'bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300';
+        drPanel.innerHTML = `
+            <div id="dr-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative cursor-pointer">
+                <span class="flex flex-col items-center">
+                    ${Admin.tileIcon('alert', 'text-amber-500 dark:text-amber-400')}
+                    <span>Delay Reports</span>
+                </span>
+                <span id="dr-unread-badge" class="admin-unread-badge admin-unread-badge--amber hidden" aria-label="Unread delay reports"></span>
+                <svg id="dr-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            <div id="dr-body" class="hidden mt-4 flex flex-col">
+                <div class="grid-hidden-actions flex space-x-2 mb-3 px-1">
+                    <button type="button" id="dr-refresh-btn" class="flex-1 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none">Refresh</button>
+                </div>
+                <div id="dr-list" class="space-y-2 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar"></div>
+            </div>
+        `;
+
+        const header = document.getElementById('dr-header-btn');
+        const body = document.getElementById('dr-body');
+        const chevron = document.getElementById('dr-chevron');
+        const refreshBtn = document.getElementById('dr-refresh-btn');
+
+        header.onclick = () => {
+            if (Admin.isGridMode) return;
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+                header.classList.remove('mb-4');
+            } else {
+                chevron.classList.remove('-rotate-90');
+                header.classList.add('mb-4');
+                Admin.fetchDelayReports();
+            }
+        };
+        refreshBtn.onclick = () => Admin.fetchDelayReports();
+
+        Admin.fetchDelayReports = async () => {
+            const list = document.getElementById('dr-list');
+            if (!list) return;
+            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Loading…</p>';
+            try {
+                const secret = await Admin.getAuthKey();
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const authQ = secret ? `?auth=${secret}` : '';
+                const res = await window.guardianFetch(`${dynamicEndpoint}delay_reports.json${authQ}`, {}, 8000);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const items = data
+                    ? Object.entries(data).map(([key, v]) => ({ ...v, _key: key })).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+                    : [];
+                Admin.cachedDelayReports = items;
+
+                if (typeof safeStorage !== 'undefined') {
+                    safeStorage.setItem('dr_last_checked', String(Date.now()));
+                }
+                try {
+                    const stateUrl = `${dynamicEndpoint}admin_state/${Admin.currentUser.uid}/dr_last_checked.json?auth=${secret}`;
+                    await fetch(stateUrl, { method: 'PUT', body: JSON.stringify(Date.now()) });
+                } catch (e) { /* optional */ }
+
+                const badge = document.getElementById('dr-unread-badge');
+                if (badge) badge.classList.add('hidden');
+
+                if (!items.length) {
+                    list.innerHTML = '<p class="text-xs text-gray-400 text-center py-6">No delay reports yet.</p>';
+                    return;
+                }
+
+                const routeName = (id) => {
+                    try {
+                        if (typeof ROUTES !== 'undefined' && ROUTES[id]) return ROUTES[id].name || id;
+                    } catch (e) {}
+                    return id || 'Unknown route';
+                };
+
+                list.innerHTML = items.slice(0, 80).map((r) => {
+                    const when = r.timestamp ? new Date(r.timestamp).toLocaleString() : '—';
+                    const sev = (r.severity || 'moderate').toUpperCase();
+                    const sevColor = r.severity === 'severe' ? 'text-red-600 dark:text-red-400' : (r.severity === 'minor' ? 'text-yellow-700 dark:text-yellow-400' : 'text-amber-700 dark:text-amber-400');
+                    const status = r.status || 'open';
+                    const note = r.note ? String(r.note).replace(/</g, '&lt;').replace(/>/g, '&gt;') : '<span class="italic text-gray-400">No note</span>';
+                    const who = r.isGuest ? `guest · ${(r.deviceId || '').slice(0, 8)}` : `uid · ${(r.uid || '').slice(0, 10)}`;
+                    const closedCls = status === 'closed' ? 'opacity-50' : '';
+                    return `
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-left ${closedCls}" data-report-id="${r.reportId || r._key}">
+                            <div class="flex justify-between items-start gap-2 mb-1">
+                                <div class="min-w-0">
+                                    <p class="text-xs font-black text-gray-900 dark:text-white truncate">${routeName(r.routeId)}</p>
+                                    <p class="text-[10px] font-bold ${sevColor}">${sev} · ${status} · ${r.source || 'app'}</p>
+                                </div>
+                                <span class="text-[9px] font-mono text-gray-400 shrink-0">${when}</span>
+                            </div>
+                            <p class="text-[11px] text-gray-700 dark:text-gray-300 mb-1">${note}</p>
+                            <p class="text-[9px] text-gray-400 font-mono mb-2">${who}${r.station ? ` · near ${String(r.station).replace(/</g, '')}` : ''} · ${r.reportId || r._key}${r.verified ? ' · ✓ verified' : ''}</p>
+                            <div class="flex flex-wrap gap-3">
+                            ${status !== 'closed' ? `<button type="button" class="dr-close-btn text-[10px] font-bold text-gray-600 dark:text-gray-300 underline" data-id="${r.reportId || r._key}">Mark closed</button>` : '<span class="text-[10px] text-gray-400">Closed</span>'}
+                            ${!r.verified && r.uid ? `<button type="button" class="dr-verify-btn text-[10px] font-bold text-green-700 dark:text-green-400 underline" data-id="${r.reportId || r._key}" data-uid="${r.uid}">Mark verified (+trust)</button>` : (r.verified ? '<span class="text-[10px] text-green-600">Verified</span>' : '')}
+                            ${r.uid ? `<button type="button" class="dr-flag-user text-[10px] font-bold text-red-600 dark:text-red-400 underline" data-uid="${r.uid}">Flag user</button>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                list.querySelectorAll('.dr-close-btn').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const id = btn.getAttribute('data-id');
+                        if (!id) return;
+                        btn.disabled = true;
+                        try {
+                            const secret2 = await Admin.getAuthKey();
+                            const url = `${dynamicEndpoint}delay_reports/${id}/status.json?auth=${secret2}`;
+                            const put = await fetch(url, { method: 'PUT', body: JSON.stringify('closed') });
+                            if (!put.ok) throw new Error('Failed');
+                            if (typeof showToast === 'function') showToast('Report marked closed', 'success');
+                            Admin.fetchDelayReports();
+                        } catch (e) {
+                            if (typeof showToast === 'function') showToast('Could not update report', 'error');
+                            btn.disabled = false;
+                        }
+                    };
+                });
+
+                list.querySelectorAll('.dr-verify-btn').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const id = btn.getAttribute('data-id');
+                        const uid = btn.getAttribute('data-uid');
+                        if (!id || !uid) return;
+                        btn.disabled = true;
+                        try {
+                            await Admin.verifyDelayReport(id, uid);
+                            Admin.fetchDelayReports();
+                        } catch (e) {
+                            if (typeof showToast === 'function') showToast('Verify failed', 'error');
+                            btn.disabled = false;
+                        }
+                    };
+                });
+
+                list.querySelectorAll('.dr-flag-user').forEach((btn) => {
+                    btn.onclick = () => Admin.applyShadowBan(btn.getAttribute('data-uid'));
+                });
+            } catch (e) {
+                list.innerHTML = `<p class="text-xs text-red-500 text-center py-4">Failed to load: ${e.message || e}</p>`;
+            }
+        };
+    },
+
+    // --- PHASE 6: COMMUNITY MODERATION QUEUE ---
+    setupModerationQueueManager: () => {
+        const alertPanel = document.getElementById('alert-panel');
+        if (!alertPanel || !alertPanel.parentNode) return;
+
+        let mqPanel = document.getElementById('moderation-queue-panel');
+        if (!mqPanel) {
+            mqPanel = document.createElement('div');
+            mqPanel.id = 'moderation-queue-panel';
+            const after = document.getElementById('delay-reports-panel') || document.getElementById('feedback-panel');
+            if (after && after.parentNode) after.parentNode.insertBefore(mqPanel, after.nextSibling);
+            else alertPanel.parentNode.insertBefore(mqPanel, alertPanel);
+        }
+        if (mqPanel.dataset.adminLoaded === 'true') return;
+        mqPanel.dataset.adminLoaded = 'true';
+
+        mqPanel.className = 'bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300';
+        mqPanel.innerHTML = `
+            <div id="mq-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative cursor-pointer">
+                <span class="flex flex-col items-center">
+                    ${Admin.tileIcon('shield', 'text-emerald-500 dark:text-emerald-400')}
+                    <span>Moderation Queue</span>
+                </span>
+                <span id="mq-unread-badge" class="admin-unread-badge hidden" aria-label="Unread moderation items"></span>
+                <svg id="mq-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            <div id="mq-body" class="hidden mt-4 flex flex-col">
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Community reports (message / user). Hide posts or shadow-ban without schema rewrites.</p>
+                <div class="grid-hidden-actions flex space-x-2 mb-3 px-1">
+                    <button type="button" id="mq-refresh-btn" class="flex-1 bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none">Refresh</button>
+                </div>
+                <div id="mq-list" class="space-y-2 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar"></div>
+            </div>
+        `;
+
+        const header = document.getElementById('mq-header-btn');
+        const body = document.getElementById('mq-body');
+        const chevron = document.getElementById('mq-chevron');
+        const refreshBtn = document.getElementById('mq-refresh-btn');
+
+        header.onclick = () => {
+            if (Admin.isGridMode) return;
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+                header.classList.remove('mb-4');
+            } else {
+                chevron.classList.remove('-rotate-90');
+                header.classList.add('mb-4');
+                Admin.fetchModerationQueue();
+            }
+        };
+        refreshBtn.onclick = () => Admin.fetchModerationQueue();
+
+        Admin.fetchModerationQueue = async () => {
+            const list = document.getElementById('mq-list');
+            if (!list) return;
+            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Loading…</p>';
+            try {
+                const secret = await Admin.getAuthKey();
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const authQ = secret ? `?auth=${secret}` : '';
+                const res = await window.guardianFetch(`${dynamicEndpoint}moderation_queue.json${authQ}`, {}, 8000);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const items = data
+                    ? Object.entries(data).map(([key, v]) => ({ ...v, _key: key })).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+                    : [];
+
+                if (typeof safeStorage !== 'undefined') safeStorage.setItem('mq_last_checked', String(Date.now()));
+                try {
+                    await fetch(`${dynamicEndpoint}admin_state/${Admin.currentUser.uid}/mq_last_checked.json?auth=${secret}`, {
+                        method: 'PUT', body: JSON.stringify(Date.now())
+                    });
+                } catch (e) { /* optional */ }
+
+                const badge = document.getElementById('mq-unread-badge');
+                if (badge) badge.classList.add('hidden');
+
+                if (!items.length) {
+                    list.innerHTML = '<p class="text-xs text-gray-400 text-center py-6">Queue is empty.</p>';
+                    return;
+                }
+
+                list.innerHTML = items.slice(0, 100).map((r) => {
+                    const when = r.timestamp ? new Date(r.timestamp).toLocaleString() : '—';
+                    const type = (r.type || 'message').toUpperCase();
+                    const status = r.status || 'open';
+                    const snippet = r.snippet ? String(r.snippet).replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+                    const closed = status === 'closed' || status === 'resolved';
+                    return `
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-left ${closed ? 'opacity-50' : ''}" data-mq-id="${r.reportId || r._key}">
+                            <div class="flex justify-between gap-2 mb-1">
+                                <p class="text-xs font-black text-gray-900 dark:text-white">${type} · ${r.routeId || '—'}</p>
+                                <span class="text-[9px] font-mono text-gray-400 shrink-0">${when}</span>
+                            </div>
+                            <p class="text-[10px] text-gray-500 font-mono mb-1">target uid: ${(r.targetUid || '—').toString().slice(0, 16)} · post: ${(r.targetPostId || '—').toString().slice(0, 18)}</p>
+                            ${snippet ? `<p class="text-[11px] text-gray-700 dark:text-gray-300 mb-2">“${snippet}”</p>` : ''}
+                            ${closed ? '<span class="text-[10px] text-gray-400">Closed</span>' : `
+                            <div class="flex flex-wrap gap-2 mt-1">
+                                <button type="button" class="mq-hide-post text-[10px] font-bold text-amber-700 dark:text-amber-400 underline" data-route="${r.routeId || ''}" data-post="${r.targetPostId || ''}">Hide post</button>
+                                <button type="button" class="mq-shadow-ban text-[10px] font-bold text-red-600 dark:text-red-400 underline" data-uid="${r.targetUid || ''}">Shadow ban</button>
+                                <button type="button" class="mq-close text-[10px] font-bold text-gray-600 dark:text-gray-300 underline" data-id="${r.reportId || r._key}">Close</button>
+                            </div>`}
+                        </div>`;
+                }).join('');
+
+                list.querySelectorAll('.mq-close').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const id = btn.getAttribute('data-id');
+                        if (!id) return;
+                        btn.disabled = true;
+                        try {
+                            const s = await Admin.getAuthKey();
+                            const put = await fetch(`${dynamicEndpoint}moderation_queue/${id}/status.json?auth=${s}`, {
+                                method: 'PUT', body: JSON.stringify('closed')
+                            });
+                            if (!put.ok) throw new Error('fail');
+                            if (typeof showToast === 'function') showToast('Report closed', 'success');
+                            Admin.fetchModerationQueue();
+                        } catch (e) {
+                            if (typeof showToast === 'function') showToast('Could not close', 'error');
+                            btn.disabled = false;
+                        }
+                    };
+                });
+
+                list.querySelectorAll('.mq-hide-post').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const routeId = btn.getAttribute('data-route');
+                        const postId = btn.getAttribute('data-post');
+                        if (!routeId || !postId) {
+                            if (typeof showToast === 'function') showToast('Missing route/post id', 'error');
+                            return;
+                        }
+                        btn.disabled = true;
+                        try {
+                            const s = await Admin.getAuthKey();
+                            const put = await fetch(`${dynamicEndpoint}route_community/${routeId}/posts/${postId}/hidden.json?auth=${s}`, {
+                                method: 'PUT', body: JSON.stringify(true)
+                            });
+                            if (!put.ok) throw new Error('fail');
+                            if (typeof showToast === 'function') showToast('Post hidden', 'success');
+                        } catch (e) {
+                            if (typeof showToast === 'function') showToast('Hide failed', 'error');
+                            btn.disabled = false;
+                        }
+                    };
+                });
+
+                list.querySelectorAll('.mq-shadow-ban').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const uid = btn.getAttribute('data-uid');
+                        const mqId = btn.closest('[data-mq-id]')?.getAttribute('data-mq-id');
+                        const ok = await Admin.applyShadowBan(uid);
+                        if (ok && mqId) {
+                            try {
+                                const s = await Admin.getAuthKey();
+                                await fetch(`${dynamicEndpoint}moderation_queue/${mqId}/status.json?auth=${s}`, {
+                                    method: 'PUT', body: JSON.stringify('closed')
+                                });
+                                Admin.fetchModerationQueue();
+                            } catch (e) { /* optional */ }
+                        }
+                    };
+                });
+            } catch (e) {
+                list.innerHTML = `<p class="text-xs text-red-500 text-center py-4">Failed to load: ${e.message || e}</p>`;
+            }
+        };
+    },
+
+    /** Phase 7 — timed shadow ban with duration picker. opts.deviceId also writes devices/{id}/flags. */
+    applyShadowBan: async (uid, opts = {}) => {
+        if (!uid) {
+            if (typeof showToast === 'function') showToast('No target uid', 'error');
+            return false;
+        }
+        const deviceId = opts.deviceId || (/^usr_/i.test(uid) ? uid : null);
+        const durations = (typeof SHADOW_BAN_DURATIONS !== 'undefined' && SHADOW_BAN_DURATIONS)
+            ? SHADOW_BAN_DURATIONS
+            : [
+                { label: '1 hour', ms: 3600000 },
+                { label: '6 hours', ms: 21600000 },
+                { label: '24 hours', ms: 86400000 },
+                { label: '7 days', ms: 604800000 },
+                { label: '30 days', ms: 2592000000 },
+                { label: 'Permanent', ms: 0 },
+            ];
+
+        const choice = await new Promise((resolve) => {
+            const modalId = 'admin-shadow-ban-modal';
+            let modal = document.getElementById(modalId);
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = modalId;
+                modal.className = 'fixed inset-0 bg-black/80 z-[210] hidden flex items-center justify-center p-4 backdrop-blur-sm';
+                document.body.appendChild(modal);
+            }
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-5 border border-gray-200 dark:border-gray-700">
+                    <h3 class="text-base font-black text-gray-900 dark:text-white mb-1">Shadow ban user</h3>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-3 font-mono break-all">${uid}</p>
+                    <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Duration</label>
+                    <select id="admin-ban-duration" class="w-full p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm mb-4">
+                        ${durations.map((d, i) => `<option value="${i}" ${d.ms === 86400000 ? 'selected' : ''}>${d.label}</option>`).join('')}
+                    </select>
+                    <div class="flex gap-2">
+                        <button type="button" id="admin-ban-cancel" class="flex-1 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-sm font-bold">Cancel</button>
+                        <button type="button" id="admin-ban-confirm" class="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold">Ban</button>
+                    </div>
+                </div>`;
+            modal.classList.remove('hidden');
+            document.getElementById('admin-ban-cancel').onclick = () => { modal.classList.add('hidden'); resolve(null); };
+            document.getElementById('admin-ban-confirm').onclick = () => {
+                const idx = parseInt(document.getElementById('admin-ban-duration').value, 10) || 0;
+                modal.classList.add('hidden');
+                resolve(durations[idx] || durations[durations.length - 1]);
+            };
+        });
+        if (!choice) return false;
+
+        const confirmed = await Admin.secureConfirm(
+            'Confirm shadow ban',
+            `Ban ${uid.slice(0, 12)}… for ${choice.label}? They will appear silenced on community writes.`
+        );
+        if (!confirmed) return false;
+
+        try {
+            const secret = await Admin.getAuthKey();
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const until = (typeof trustComputeBanUntil === 'function')
+                ? trustComputeBanUntil(choice.ms)
+                : (choice.ms > 0 ? Date.now() + choice.ms : 0);
+            const now = Date.now();
+            const putFlag = async (basePath) => {
+                await fetch(`${dynamicEndpoint}${basePath}/shadowBanned.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(true) });
+                await fetch(`${dynamicEndpoint}${basePath}/shadowBannedUntil.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(until) });
+                await fetch(`${dynamicEndpoint}${basePath}/shadowBannedAt.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(now) });
+                if (Admin.currentUser?.uid) {
+                    await fetch(`${dynamicEndpoint}${basePath}/shadowBannedBy.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(Admin.currentUser.uid) });
+                }
+            };
+            // Always write users/{uid}/flags (works for Firebase uid OR device-id stub keys)
+            await putFlag(`users/${encodeURIComponent(uid)}/flags`);
+            // Also stamp device path so guest devices are blocked even before account link
+            if (deviceId) {
+                await putFlag(`devices/${encodeURIComponent(deviceId)}/flags`);
+                await fetch(`${dynamicEndpoint}devices/${encodeURIComponent(deviceId)}/bannedAt.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(now) });
+            }
+            if (typeof window.trustAddToBlockList === 'function') {
+                window.trustAddToBlockList(uid);
+                if (deviceId) window.trustAddToBlockList(deviceId);
+            } else if (window.trustLocalBlockList) {
+                window.trustLocalBlockList.add(uid);
+                if (deviceId) window.trustLocalBlockList.add(deviceId);
+            }
+            if (typeof showToast === 'function') showToast(`Shadow-banned (${choice.label})`, 'success');
+            return true;
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Shadow ban failed', 'error');
+            return false;
+        }
+    },
+
+    liftShadowBan: async (uid, opts = {}) => {
+        if (!uid) return false;
+        const deviceId = opts.deviceId || (/^usr_/i.test(uid) ? uid : null);
+        const confirmed = await Admin.secureConfirm('Lift shadow ban', `Restore posting for ${uid.slice(0, 12)}…?`);
+        if (!confirmed) return false;
+        try {
+            const secret = await Admin.getAuthKey();
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const clearFlag = async (basePath) => {
+                await fetch(`${dynamicEndpoint}${basePath}/shadowBanned.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(false) });
+                await fetch(`${dynamicEndpoint}${basePath}/shadowBannedUntil.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(0) });
+            };
+            await clearFlag(`users/${encodeURIComponent(uid)}/flags`);
+            if (deviceId) await clearFlag(`devices/${encodeURIComponent(deviceId)}/flags`);
+            if (typeof window.trustRemoveFromBlockList === 'function') {
+                window.trustRemoveFromBlockList(uid);
+                if (deviceId) window.trustRemoveFromBlockList(deviceId);
+            }
+            if (typeof showToast === 'function') showToast('Ban lifted', 'success');
+            return true;
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Lift failed', 'error');
+            return false;
+        }
+    },
+
+    verifyDelayReport: async (reportId, uid) => {
+        const secret = await Admin.getAuthKey();
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const adminUid = Admin.currentUser?.uid || 'admin';
+        const now = Date.now();
+        await fetch(`${dynamicEndpoint}delay_reports/${reportId}/verified.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(true) });
+        await fetch(`${dynamicEndpoint}delay_reports/${reportId}/verifiedBy.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(adminUid) });
+        await fetch(`${dynamicEndpoint}delay_reports/${reportId}/verifiedAt.json?auth=${secret}`, { method: 'PUT', body: JSON.stringify(now) });
+        let score = 0;
+        try {
+            const sRes = await fetch(`${dynamicEndpoint}users/${uid}/trustScore.json?auth=${secret}`);
+            if (sRes.ok) {
+                const v = await sRes.json();
+                if (typeof v === 'number') score = v;
+            }
+        } catch (e) {}
+        await fetch(`${dynamicEndpoint}users/${uid}/trustScore.json?auth=${secret}`, {
+            method: 'PUT', body: JSON.stringify(score + 1)
+        });
+        if (typeof showToast === 'function') showToast(`Verified — trust score → ${score + 1}`, 'success');
+    },
+
+    // --- PHASE 7: USER TRUST / SHADOW-BAN LOOKUP ---
+    setupUserTrustManager: () => {
+        const alertPanel = document.getElementById('alert-panel');
+        if (!alertPanel || !alertPanel.parentNode) return;
+
+        let panel = document.getElementById('user-trust-panel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'user-trust-panel';
+            const after = document.getElementById('moderation-queue-panel') || document.getElementById('delay-reports-panel');
+            if (after && after.parentNode) after.parentNode.insertBefore(panel, after.nextSibling);
+            else alertPanel.parentNode.insertBefore(panel, alertPanel);
+        }
+        if (panel.dataset.adminLoaded === 'true') return;
+        panel.dataset.adminLoaded = 'true';
+
+        panel.className = 'bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300';
+        panel.innerHTML = `
+            <div id="ut-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative cursor-pointer">
+                <span class="flex flex-col items-center">
+                    ${Admin.tileIcon('user', 'text-indigo-500 dark:text-indigo-400')}
+                    <span>User Trust &amp; Bans</span>
+                </span>
+                <svg id="ut-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            <div id="ut-body" class="hidden mt-4 flex flex-col text-left">
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Lookup by UID. Flag with optional duration, lift bans, see trust score from verified delay reports.</p>
+                <div class="flex gap-2 mb-3 px-1">
+                    <input type="text" id="ut-uid-input" class="flex-1 p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-mono" placeholder="UID, device ID (usr_…), or email…" />
+                    <button type="button" id="ut-lookup-btn" class="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold">Lookup</button>
+                </div>
+                <div id="ut-result" class="px-1 text-xs text-gray-500">Enter a UID to inspect.</div>
+            </div>
+        `;
+
+        const header = document.getElementById('ut-header-btn');
+        const body = document.getElementById('ut-body');
+        const chevron = document.getElementById('ut-chevron');
+        header.onclick = () => {
+            if (Admin.isGridMode) return;
+            body.classList.toggle('hidden');
+            chevron.classList.toggle('-rotate-90', body.classList.contains('hidden'));
+            header.classList.toggle('mb-4', !body.classList.contains('hidden'));
+        };
+
+        document.getElementById('ut-lookup-btn').onclick = () => Admin.lookupUserTrust();
+        document.getElementById('ut-uid-input')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') Admin.lookupUserTrust();
+        });
+
+        Admin.resolveTrustTarget = async (query) => {
+            const q = String(query || '').trim();
+            if (!q) return null;
+            const secret = await Admin.getAuthKey();
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const auth = secret ? `?auth=${secret}` : '';
+
+            const fetchJson = async (path) => {
+                const res = await fetch(`${dynamicEndpoint}${path}${auth}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            };
+
+            // 1) Direct users/{id}
+            let user = await fetchJson(`users/${encodeURIComponent(q)}.json`);
+            if (user) {
+                return { uid: q, user, via: 'uid', deviceId: null };
+            }
+
+            // 2) Device ID → linked Firebase uid (devices/{deviceId}.uid)
+            const looksLikeDevice = /^usr_/i.test(q);
+            if (looksLikeDevice) {
+                const device = await fetchJson(`devices/${encodeURIComponent(q)}.json`);
+                if (device?.uid) {
+                    user = await fetchJson(`users/${encodeURIComponent(device.uid)}.json`);
+                    if (user) {
+                        return { uid: device.uid, user, via: 'device→uid', deviceId: q };
+                    }
+                }
+                // Guest / pre-account: allow banning the device id itself
+                const deviceFlags = device?.flags || null;
+                return {
+                    uid: q,
+                    user: {
+                        displayName: device?.uid ? `Device linked to ${device.uid}` : 'Device (no account yet)',
+                        email: null,
+                        trustScore: 0,
+                        flags: deviceFlags || { shadowBanned: false, shadowBannedUntil: 0, role: 'device' },
+                        deviceIds: { [q]: true },
+                        _isDeviceStub: true,
+                    },
+                    via: 'device',
+                    deviceId: q,
+                };
+            }
+
+            // 3) Email lookup (for future accounts + any already-linked emails)
+            if (q.includes('@')) {
+                const users = await fetchJson('users.json');
+                if (users && typeof users === 'object') {
+                    const needle = q.toLowerCase();
+                    for (const [uid, u] of Object.entries(users)) {
+                        if (u && String(u.email || '').toLowerCase() === needle) {
+                            return { uid, user: u, via: 'email', deviceId: null };
+                        }
+                    }
+                }
+            }
+
+            return null;
+        };
+
+        Admin.lookupUserTrust = async () => {
+            const query = (document.getElementById('ut-uid-input')?.value || '').trim();
+            const out = document.getElementById('ut-result');
+            if (!query || !out) return;
+            out.innerHTML = '<p class="animate-pulse text-gray-400">Loading…</p>';
+            try {
+                const resolved = await Admin.resolveTrustTarget(query);
+                if (!resolved) {
+                    out.innerHTML = '<p class="text-red-500">Not found. Try a Firebase UID, device ID (<code class="font-mono">usr_…</code>), or account email.</p>';
+                    return;
+                }
+                const { uid, user, via, deviceId } = resolved;
+                const flags = user.flags || {};
+                const banned = flags.shadowBanned === true;
+                const until = Number(flags.shadowBannedUntil || 0);
+                const expired = banned && until > 0 && Date.now() > until;
+                const untilStr = until > 0 ? new Date(until).toLocaleString() : (banned ? 'permanent' : '—');
+                const score = typeof user.trustScore === 'number' ? user.trustScore : 0;
+                const name = (user.displayName || (user._isDeviceStub ? 'Device guest' : '—')).toString().replace(/</g, '&lt;');
+                const email = (user.email || '—').toString().replace(/</g, '&lt;');
+                const viaLabel = via === 'email' ? 'matched by email' : (via === 'device' ? 'device record' : (via === 'device→uid' ? 'device → account' : 'user id'));
+                out.innerHTML = `
+                    <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-2">
+                        <p class="font-black text-gray-900 dark:text-white">${name}</p>
+                        <p class="font-mono text-[10px] text-gray-400 break-all">${uid}</p>
+                        <p class="text-[11px]">Email: <b>${email}</b> · Found via <b>${viaLabel}</b>${deviceId && deviceId !== uid ? ` · device <span class="font-mono">${deviceId}</span>` : ''}</p>
+                        <p class="text-[11px]">Role: <b>${flags.role || 'user'}</b> · Trust score: <b>${score}</b></p>
+                        <p class="text-[11px]">Shadow banned: <b class="${banned && !expired ? 'text-red-600' : 'text-green-600'}">${banned ? (expired ? 'expired' : 'yes') : 'no'}</b>${banned ? ` · until ${untilStr}` : ''}</p>
+                        <div class="flex flex-wrap gap-3 pt-1">
+                            <button type="button" id="ut-ban-btn" class="text-[10px] font-bold text-red-600 underline">Shadow ban…</button>
+                            <button type="button" id="ut-lift-btn" class="text-[10px] font-bold text-blue-600 underline">Lift ban</button>
+                        </div>
+                    </div>`;
+                document.getElementById('ut-ban-btn').onclick = async () => {
+                    await Admin.applyShadowBan(uid, { deviceId: deviceId || (/^usr_/i.test(uid) ? uid : null) });
+                    Admin.lookupUserTrust();
+                };
+                document.getElementById('ut-lift-btn').onclick = async () => {
+                    await Admin.liftShadowBan(uid, { deviceId: deviceId || (/^usr_/i.test(uid) ? uid : null) });
+                    Admin.lookupUserTrust();
+                };
+            } catch (e) {
+                out.innerHTML = `<p class="text-red-500">Lookup failed: ${e.message || e}</p>`;
+            }
+        };
+    },
+
     // --- GROWTH SPRINT PHASE 8: ADMIN REPLY INBOX PROTOCOL ---
     openReplyModal: (feedbackId, deviceId) => {
         if (!deviceId) {
@@ -3722,7 +4949,7 @@ const Admin = {
             modal.className = 'fixed inset-0 bg-black/80 z-[200] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
             modal.innerHTML = `
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-3 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
-                    <h3 class="text-lg font-black text-gray-900 dark:text-white mb-1 tracking-tight flex items-center"><span class="mr-2">💬</span> Reply to Commuter</h3>
+                    <h3 class="text-lg font-black text-gray-900 dark:text-white mb-1 tracking-tight flex items-center gap-2"><span class="text-sky-500">${Admin.icon('message', 'w-5 h-5')}</span> Reply to Commuter</h3>
                     <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-2">Message will be delivered to their personal inbox upon next app launch.</p>
                     
                     <div class="flex items-center w-full bg-gray-100 dark:bg-gray-700 p-0.5 border border-gray-300 dark:border-gray-600 rounded-t-lg overflow-x-auto custom-scrollbar space-x-0.5">
@@ -3737,7 +4964,7 @@ const Admin = {
                             <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('justifyRight', 'admin-reply-text')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex justify-center focus:outline-none flex-1" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-0.5 shrink-0"></div>
                             <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('link', 'admin-reply-text')" class="px-1.5 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none flex-1" title="Add Custom Link">🔗</button>
-                            <label for="admin-reply-upload-file" id="admin-reply-upload-label" onmousedown="Admin.saveCursorRange()" ontouchstart="Admin.saveCursorRange()" onclick="Admin.saveCursorRange()" class="px-1.5 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none cursor-pointer flex-1 whitespace-nowrap" title="Upload Image or PDF">📎 Media</label>
+                            <label for="admin-reply-upload-file" id="admin-reply-upload-label" onmousedown="Admin.saveCursorRange()" ontouchstart="Admin.saveCursorRange()" onclick="Admin.saveCursorRange()" class="px-1.5 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center gap-1 focus:outline-none cursor-pointer flex-1 whitespace-nowrap" title="Upload Image or PDF">${Admin.icon('paperclip', 'w-3.5 h-3.5')} Media</label>
                             <input type="file" id="admin-reply-upload-file" class="hidden" accept="image/*,.pdf">
                         </div>
                         <div contenteditable="true" id="admin-reply-text" class="w-full min-h-[120px] p-2.5 bg-gray-50 dark:bg-gray-900 border border-t-0 border-gray-300 dark:border-gray-600 rounded-b-lg text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="Type your response..."></div>
@@ -3796,12 +5023,12 @@ const Admin = {
                         
                         const uploadTask = window.firebaseUploadBytesResumable(storageReference, file);
                         const labelEl = document.getElementById('admin-reply-upload-label');
-                        const originalLabel = labelEl ? labelEl.innerHTML : '📎 Insert Media';
+                        const originalLabel = labelEl ? labelEl.innerHTML : `${Admin.icon('paperclip', 'w-3.5 h-3.5')} Media`;
                         
                         uploadTask.on('state_changed', 
                             (snapshot) => {
                                 const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-                                if (labelEl) labelEl.innerHTML = `⏳ ${progress}%`;
+                                if (labelEl) labelEl.innerHTML = `${Admin.icon('hourglass', 'w-3.5 h-3.5')} ${progress}%`;
                             }, 
                             (error) => {
                                 if (typeof showToast === 'function') showToast("Upload failed", "error");
@@ -3816,7 +5043,7 @@ const Admin = {
                                     
                                     let htmlToInsert = '';
                                     if (isPdf) {
-                                        htmlToInsert = `&nbsp;<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline font-bold px-1">📄 View Attached PDF</a>&nbsp;`;
+                                        htmlToInsert = `&nbsp;<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline font-bold px-1 inline-flex items-center gap-1">${Admin.icon('file', 'w-3.5 h-3.5')} View Attached PDF</a>&nbsp;`;
                                     } else {
                                         htmlToInsert = `<br><button type="button" onclick="window.openLightbox('${url}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${url}" class="w-full h-auto object-cover hover:opacity-90 transition-opacity" alt="Admin Attachment"><div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-2 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button><br>`;
                                     }
@@ -4047,7 +5274,7 @@ const Admin = {
             } else {
                 contentDiv.innerHTML = `
                     <div class="text-center py-4">
-                        <span class="text-3xl mb-2 block">📭</span>
+                        <span class="text-3xl mb-2 block">📡</span>
                         <p class="text-gray-500 text-sm font-bold">Alert not found in database.</p>
                         <p class="text-xs text-gray-400 mt-2">It may have been permanently deleted or too old to retrieve. Here is the snippet we have:</p>
                         <div class="mt-3 p-3 bg-gray-100 dark:bg-gray-800 rounded italic text-xs text-gray-600 dark:text-gray-400">"${fallbackText}"</div>
@@ -4188,7 +5415,7 @@ const Admin = {
         alertPanel.innerHTML = `
             <button id="alert-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">📢</span> 
+                    ${Admin.tileIcon('megaphone', 'text-rose-500 dark:text-rose-400')}
                     <span>Service Alerts Manager</span>
                 </span>
                 <svg id="alert-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -4271,14 +5498,14 @@ const Admin = {
                 <!-- 🛡️ SUPERCHARGED: Rich Media Inputs with Live Preview (HIDDEN IN ADVANCED TOGGLE) -->
                 <div class="mt-2 border-t border-gray-100 dark:border-gray-700 pt-3">
                     <button type="button" id="alert-advanced-toggle-btn" class="w-full text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center justify-between focus:outline-none">
-                        <span>➕ Add Media & Links (Advanced)</span>
+                        <span class="inline-flex items-center gap-1.5">${Admin.icon('plus', 'w-3.5 h-3.5')} Add Media & Links (Advanced)</span>
                         <svg id="alert-advanced-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     <div id="alert-advanced-body" class="hidden mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50/50 dark:bg-gray-900/30 p-3 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-inner">
                         <div class="sm:col-span-2">
                             <div class="flex items-center justify-between mb-1">
                                 <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">Hero Image URL</label>
-                                <label for="alert-image-file" class="cursor-pointer text-[9px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded font-bold hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors shadow-sm focus:outline-none">📸 Upload</label>
+                                <label for="alert-image-file" class="cursor-pointer text-[9px] bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded font-bold hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors shadow-sm focus:outline-none inline-flex items-center gap-1">${Admin.icon('camera', 'w-3 h-3')} Upload</label>
                                 <input type="file" id="alert-image-file" class="hidden" accept="image/*">
                             </div>
                             <input type="text" id="alert-image-url" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" placeholder="https://... or click Upload">
@@ -4361,7 +5588,7 @@ const Admin = {
                 </div>
 
                 <div id="alert-live-poll-results" class="hidden pt-4 border-t border-gray-100 dark:border-gray-700 mt-4">
-                    <h4 class="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-3 flex items-center"><span class="mr-1.5">📊</span> Live Poll Results</h4>
+                    <h4 class="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-3 flex items-center"><span class="mr-1.5 inline-flex">${Admin.icon('chart', 'w-3.5 h-3.5')}</span> Live Poll Results</h4>
                     <div class="bg-gray-50 dark:bg-gray-900 rounded-xl p-3 border border-gray-200 dark:border-gray-700">
                         <p id="poll-result-question" class="text-xs font-bold text-gray-800 dark:text-gray-200 mb-3 leading-snug">Question...</p>
                         
@@ -4506,7 +5733,7 @@ const Admin = {
                         
                         const uploadTask = window.firebaseUploadBytesResumable(storageReference, file);
                         const labelEl = document.querySelector('label[for="alert-image-file"]');
-                        const originalLabel = labelEl ? labelEl.innerHTML : '📸 Upload';
+                        const originalLabel = labelEl ? labelEl.innerHTML : `${Admin.icon('camera', 'w-3 h-3')} Upload`;
                         
                         uploadTask.on('state_changed', 
                             (snapshot) => {
@@ -4649,7 +5876,7 @@ const Admin = {
                 const data = await res.json();
                 
                 if (data && data.message) {
-                    let cleanedMsg = data.message;
+                    let cleanedMsg = Admin.repairMojibake(data.message);
                     cleanedMsg = cleanedMsg.replace(/(<br\s*\/?>\s*){1,2}<span[^>]*>.*?<\/span>\s*$/i, '');
                     cleanedMsg = cleanedMsg.replace(/<span[^>]*>.*?<\/span>\s*$/i, '');
                     
@@ -4833,7 +6060,7 @@ const Admin = {
             };
 
             const globalGroup = addGroup("Global Alerts");
-            addOption(globalGroup, "all", "🌍 Entire Network (All Regions)", "<span class='truncate'>🌍 Entire Network (All Regions)</span>");
+            addOption(globalGroup, "all", "Entire Network (All Regions)", `<span class='truncate inline-flex items-center gap-1'>${Admin.icon('globe', 'w-3.5 h-3.5 shrink-0')} Entire Network (All Regions)</span>`);
             addOption(globalGroup, "all_GP", "📍 Gauteng Only", "<span class='truncate'>📍 Gauteng Only</span>");
             addOption(globalGroup, "all_WC", "📍 Western Cape Only", "<span class='truncate'>📍 Western Cape Only</span>");
             addOption(globalGroup, "all_KZN", "📍 KwaZulu-Natal Only", "<span class='truncate'>📍 KwaZulu-Natal Only</span>");
@@ -4853,16 +6080,17 @@ const Admin = {
                         const group = addGroup(regionInfo.label);
                         regionalRoutes.forEach(r => {
                             const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
-                            const text = `🚂 ${r.name}${cues}`;
+                            const plainName = Admin.formatRouteLabelPlain(r.name);
+                            const text = `🚂 ${plainName}${cues}`;
                             
                             let badgeHtml = '';
                             if (cues) {
-                                if (cues.includes('Notice')) badgeHtml += '<span class="ml-1.5 px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[8px] rounded uppercase flex-shrink-0">📝</span>';
-                                if (cues.includes('Bans')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-[8px] rounded uppercase flex-shrink-0">⛔</span>';
-                                if (cues.includes('Incident')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 text-[8px] rounded uppercase flex-shrink-0">🚧</span>';
-                                if (cues.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">📢</span>';
+                                if (cues.includes('Notice')) badgeHtml += '<span class="ml-1.5 px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[8px] rounded uppercase flex-shrink-0">Note</span>';
+                                if (cues.includes('Bans')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-[8px] rounded uppercase flex-shrink-0">Ban</span>';
+                                if (cues.includes('Incident')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 text-[8px] rounded uppercase flex-shrink-0">Inc</span>';
+                                if (cues.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">Alert</span>';
                             }
-                            const htmlText = `<span class="truncate mr-1">🚂 ${r.name}</span>${badgeHtml}`;
+                            const htmlText = `<span class="truncate mr-1 inline-flex items-center">🚂 ${Admin.formatRouteLabelHtml(r.name)}</span>${badgeHtml}`;
                             addOption(group, r.id, text, htmlText);
                         });
                     }
@@ -4917,6 +6145,7 @@ const Admin = {
             if (!msg || msg === '<br>') { if (typeof showToast === 'function') showToast("Message required!", "error"); return; }
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required! Sign in again.", "error"); return; }
 
+            msg = Admin.repairMojibake(msg);
             msg += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">— ${signoff}</span>`;
 
 
@@ -5037,7 +6266,7 @@ const Admin = {
         disrPanel.innerHTML = `
             <button id="disr-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">🚧</span> 
+                    ${Admin.tileIcon('construction', 'text-orange-600 dark:text-orange-400')}
                     <span>Transit Incident Manager</span>
                 </span>
                 <svg id="disr-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -5227,16 +6456,17 @@ const Admin = {
                         const group = addGroup(regionInfo.label);
                         regionalRoutes.forEach(r => {
                             const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
-                            const text = `${r.name}${cues}`;
+                            const plainName = Admin.formatRouteLabelPlain(r.name);
+                            const text = `${plainName}${cues}`;
                             
                             let badgeHtml = '';
                             if (cues) {
-                                if (cues.includes('Notice')) badgeHtml += '<span class="ml-1.5 px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[8px] rounded uppercase flex-shrink-0">📝</span>';
-                                if (cues.includes('Bans')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-[8px] rounded uppercase flex-shrink-0">⛔</span>';
-                                if (cues.includes('Incident')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 text-[8px] rounded uppercase flex-shrink-0">🚧</span>';
-                                if (cues.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">📢</span>';
+                                if (cues.includes('Notice')) badgeHtml += '<span class="ml-1.5 px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[8px] rounded uppercase flex-shrink-0">Note</span>';
+                                if (cues.includes('Bans')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-[8px] rounded uppercase flex-shrink-0">Ban</span>';
+                                if (cues.includes('Incident')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 text-[8px] rounded uppercase flex-shrink-0">Inc</span>';
+                                if (cues.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">Alert</span>';
                             }
-                            const htmlText = `<span class="truncate mr-1">${r.name}</span>${badgeHtml}`;
+                            const htmlText = `<span class="truncate mr-1 inline-flex items-center">${Admin.formatRouteLabelHtml(r.name)}</span>${badgeHtml}`;
                             addOption(group, r.id, text, htmlText);
                         });
                     }
@@ -5563,7 +6793,7 @@ const Admin = {
         exclPanel.innerHTML = `
             <button id="excl-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">⛔</span> 
+                    ${Admin.tileIcon('stop', 'text-red-600 dark:text-red-400')}
                     <span>Schedule Exceptions</span>
                 </span>
                 <svg id="excl-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -5788,16 +7018,17 @@ const Admin = {
                         const group = addGroup(regionInfo.label);
                         regionalRoutes.forEach(r => {
                             const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
-                            const text = `${r.name}${cues}`;
+                            const plainName = Admin.formatRouteLabelPlain(r.name);
+                            const text = `${plainName}${cues}`;
                             
                             let badgeHtml = '';
                             if (cues) {
-                                if (cues.includes('Notice')) badgeHtml += '<span class="ml-1.5 px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[8px] rounded uppercase flex-shrink-0">📝</span>';
-                                if (cues.includes('Bans')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-[8px] rounded uppercase flex-shrink-0">⛔</span>';
-                                if (cues.includes('Incident')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 text-[8px] rounded uppercase flex-shrink-0">🚧</span>';
-                                if (cues.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">📢</span>';
+                                if (cues.includes('Notice')) badgeHtml += '<span class="ml-1.5 px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[8px] rounded uppercase flex-shrink-0">Note</span>';
+                                if (cues.includes('Bans')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-[8px] rounded uppercase flex-shrink-0">Ban</span>';
+                                if (cues.includes('Incident')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 text-[8px] rounded uppercase flex-shrink-0">Inc</span>';
+                                if (cues.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">Alert</span>';
                             }
-                            const htmlText = `<span class="truncate mr-1">${r.name}</span>${badgeHtml}`;
+                            const htmlText = `<span class="truncate mr-1 inline-flex items-center">${Admin.formatRouteLabelHtml(r.name)}</span>${badgeHtml}`;
                             addOption(group, r.id, text, htmlText);
                         });
                     }
@@ -6073,10 +7304,10 @@ const Admin = {
                         const expStr = `${expDate.toLocaleDateString()} ${expDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
                         
                         if (isExpired) {
-                            expiryHtml = `<div class="text-[9px] text-red-500 font-bold mt-0.5">⚠️ EXPIRED: ${expStr}</div>`;
+                            expiryHtml = `<div class="text-[9px] text-red-500 font-bold mt-0.5">EXPIRED: ${expStr}</div>`;
                             rowOpacityClass = 'opacity-60 grayscale';
                         } else {
-                            expiryHtml = `<div class="text-[9px] text-blue-500 font-medium mt-0.5">⏳ Expires: ${expStr}</div>`;
+                            expiryHtml = `<div class="text-[9px] text-blue-500 font-medium mt-0.5 inline-flex items-center gap-1">${Admin.icon('hourglass', 'w-3 h-3')} Expires: ${expStr}</div>`;
                         }
                     }
 
@@ -6228,7 +7459,7 @@ const Admin = {
         eventPanel.innerHTML = `
             <button id="event-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">⭐</span> 
+                    ${Admin.tileIcon('star', 'text-amber-500 dark:text-amber-400')}
                     <span>Special Event Route</span>
                 </span>
                 <svg id="event-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -6362,7 +7593,7 @@ const Admin = {
         diagPanel.innerHTML = `
             <button id="diag-header-btn" class="w-full text-left text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">🩺</span> 
+                    ${Admin.tileIcon('activity', 'text-teal-500 dark:text-teal-400')}
                     <span>System Health Diagnostics</span>
                 </span>
                 <svg id="diag-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -6452,8 +7683,8 @@ const Admin = {
                 <!-- 🛡️ GUARDIAN PHASE 6.3: Transplated Time Simulation Engine -->
                 <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm transition-all">
                     <button id="sim-header-btn" class="w-full px-3 py-3 bg-gray-100/50 dark:bg-gray-800/40 text-left text-[10px] font-black text-gray-800 dark:text-gray-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-gray-200/50 dark:hover:bg-gray-700/60">
-                        <span class="flex items-center">
-                            <span class="text-base mr-2">⏳</span> Time Simulation Engine
+                        <span class="flex items-center gap-2">
+                            <span class="text-amber-600 dark:text-amber-400">${Admin.icon('hourglass', 'w-4 h-4')}</span> Time Simulation Engine
                         </span>
                         <svg id="sim-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
@@ -6555,6 +7786,7 @@ const Admin = {
 
                 window.isSimMode = true;
                 window.simTimeStr = simTimeInput.value + (simTimeInput.value.length === 5 ? ":00" : "");
+                try { window.__ntLastSimKey = null; } catch (e) {}
                 
                 // 🛡️ GUARDIAN PHASE 4: Save Pipeline Override to sessionStorage
                 if (pipelineDropdown && pipelineDropdown.value !== 'AUTO') {
@@ -6599,6 +7831,9 @@ const Admin = {
         if (simExitBtn) {
             simExitBtn.addEventListener('click', () => {
                 window.isSimMode = false;
+                window.simTimeStr = null;
+                window.simDayIndex = null;
+                try { window.__ntLastSimKey = null; } catch (e) {}
                 if(simEnabledCheckbox) simEnabledCheckbox.checked = false;
                 
                 // 🛡️ GUARDIAN PHASE 4: Clear Pipeline Override on exit
@@ -6943,7 +8178,7 @@ const Admin = {
                             healthyCount++;
                             html += `
                                 <div class="flex justify-between items-center bg-green-50 dark:bg-green-900/20 p-2.5 rounded-lg text-xs border border-green-100 dark:border-green-800/50 mt-1.5">
-                                    <span class="font-bold text-green-800 dark:text-green-300">${route.name}</span>
+                                    <span class="font-bold text-green-800 dark:text-green-300 inline-flex items-center">${Admin.formatRouteLabelHtml(route.name)}</span>
                                     <span class="bg-green-500 text-white px-2 py-0.5 rounded shadow-sm text-[9px] uppercase tracking-wider font-bold">Healthy</span>
                                 </div>
                             `;
@@ -6956,7 +8191,7 @@ const Admin = {
                             html += `
                                 <div class="flex flex-col bg-red-50 dark:bg-red-900/20 p-2.5 rounded-lg text-xs border border-red-100 dark:border-red-800/50 mt-1.5">
                                     <div class="flex justify-between items-center mb-1.5">
-                                        <span class="font-bold text-red-800 dark:text-red-300">${route.name}</span>
+                                        <span class="font-bold text-red-800 dark:text-red-300 inline-flex items-center">${Admin.formatRouteLabelHtml(route.name)}</span>
                                         <span class="bg-red-500 text-white px-2 py-0.5 rounded shadow-sm text-[9px] uppercase tracking-wider font-bold">Errors Found</span>
                                     </div>
                                     ${errorsHtml}
@@ -6977,7 +8212,7 @@ const Admin = {
 
                 const summary = `
                     <div class="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800/50 mb-3 shadow-sm">
-                        <span class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-widest flex items-center"><span class="mr-1.5">⏱️</span> Source Data Age</span>
+                        <span class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-widest flex items-center gap-1.5">${Admin.icon('clock', 'w-3.5 h-3.5')} Source Data Age</span>
                         <span class="font-mono text-[10px] font-black text-blue-700 dark:text-blue-400 bg-white dark:bg-gray-800 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-700/50">${dataAgeStr}</span>
                     </div>
                     <div class="flex justify-between bg-gray-50 dark:bg-gray-700/50 p-3 rounded-xl mb-4 border border-gray-100 dark:border-gray-600">
@@ -6990,6 +8225,263 @@ const Admin = {
                 resultsDiv.innerHTML = summary + html;
             }, 400);
         };
+    },
+
+    /**
+     * Standalone Schedule QA — data quality (duplicate adjacent times, regressions,
+     * delta variance). Kept separate from System Health Diagnostics (cache/network).
+     */
+    setupScheduleQaManager: () => {
+        const diagPanel = document.getElementById('diag-panel');
+        const alertPanel = document.getElementById('alert-panel');
+        const parent = diagPanel?.parentNode || alertPanel?.parentNode;
+        if (!parent) return;
+
+        let qaPanel = document.getElementById('sched-qa-panel');
+        if (!qaPanel) {
+            qaPanel = document.createElement('div');
+            qaPanel.id = 'sched-qa-panel';
+            if (diagPanel?.nextSibling) parent.insertBefore(qaPanel, diagPanel.nextSibling);
+            else parent.appendChild(qaPanel);
+        }
+
+        if (qaPanel.dataset.loaded === 'true') return;
+        qaPanel.dataset.loaded = 'true';
+
+        qaPanel.className = 'bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300';
+
+        qaPanel.innerHTML = `
+            <button id="sched-qa-header-btn" class="w-full text-left text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    ${Admin.tileIcon('search', 'text-violet-500 dark:text-violet-400')}
+                    <span>Schedule Data QA</span>
+                </span>
+                <svg id="sched-qa-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+
+            <div id="sched-qa-body" class="hidden mt-4 space-y-4">
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                    Flags impossible or suspicious timetable cells: identical adjacent stops, time going backwards,
+                    inconsistent inter-station deltas across trains, non-time cells, and thin trains.
+                    Diagnostics (above) covers cache/network health — this panel is schedule content only.
+                </p>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Region</label>
+                        <select id="sched-qa-region" class="w-full h-10 px-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500 outline-none">
+                            <option value="CURRENT">Active region</option>
+                            <option value="GP">Gauteng</option>
+                            <option value="WC">Western Cape</option>
+                            <option value="KZN">KwaZulu-Natal</option>
+                            <option value="EC">Eastern Cape</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Source</label>
+                        <select id="sched-qa-source" class="w-full h-10 px-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500 outline-none">
+                            <option value="RAM">RAM cache</option>
+                            <option value="CLOUDFLARE">Cloudflare</option>
+                            <option value="GITHUB">GitHub CDN</option>
+                            <option value="FIREBASE">Firebase</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <label class="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <input type="checkbox" id="sched-qa-show-info" class="rounded text-violet-600" /> Include info
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <input type="checkbox" id="sched-qa-delta-only" class="rounded text-violet-600" /> Deltas only
+                    </label>
+                </div>
+
+                <div class="flex gap-2">
+                    <button id="sched-qa-run-btn" class="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2.5 rounded-lg shadow-md transition-colors text-[10px] uppercase tracking-wide focus:outline-none flex justify-center items-center gap-1.5">
+                        ${Admin.icon('search', 'w-3.5 h-3.5')} Run QA report
+                    </button>
+                    <button id="sched-qa-export-btn" class="px-3 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 font-bold py-2.5 rounded-lg text-[10px] uppercase tracking-wide focus:outline-none inline-flex items-center gap-1" title="Download last report as JSON">
+                        ${Admin.icon('download', 'w-3.5 h-3.5')} Export
+                    </button>
+                </div>
+
+                <div id="sched-qa-summary" class="hidden"></div>
+                <div id="sched-qa-results" class="space-y-1.5 max-h-80 overflow-y-auto custom-scrollbar"></div>
+            </div>
+        `;
+
+        const header = document.getElementById('sched-qa-header-btn');
+        const body = document.getElementById('sched-qa-body');
+        const chevron = document.getElementById('sched-qa-chevron');
+        const runBtn = document.getElementById('sched-qa-run-btn');
+        const exportBtn = document.getElementById('sched-qa-export-btn');
+        const resultsDiv = document.getElementById('sched-qa-results');
+        const summaryDiv = document.getElementById('sched-qa-summary');
+
+        let lastReport = null;
+
+        if (header && body) {
+            header.onclick = () => {
+                body.classList.toggle('hidden');
+                if (chevron) {
+                    if (body.classList.contains('hidden')) chevron.classList.add('-rotate-90');
+                    else chevron.classList.remove('-rotate-90');
+                }
+            };
+        }
+
+        const fetchDbForQa = async (targetRegion, scanSource) => {
+            if (scanSource === 'RAM') {
+                if (typeof fullDatabase === 'undefined' || !fullDatabase) {
+                    throw new Error('Offline cache (RAM) is empty for this session.');
+                }
+                return fullDatabase;
+            }
+
+            const paths = {
+                GP: scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/gauteng.json',
+                WC: scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/westerncape.json',
+                KZN: scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/kzn.json',
+                EC: scanSource === 'GITHUB' ? 'full-database.json' : 'schedules/easterncape.json',
+            };
+            const dbPath = paths[targetRegion];
+            let fetchUrl = '';
+            if (scanSource === 'GITHUB') {
+                fetchUrl = `https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/data/${dbPath}?t=${Date.now()}`;
+            } else if (scanSource === 'FIREBASE') {
+                fetchUrl = `https://metrorail-next-train-default-rtdb.firebaseio.com/${dbPath}?t=${Date.now()}`;
+            } else {
+                fetchUrl = `https://nexttrain-cache.enock.workers.dev/${dbPath}?t=${Date.now()}`;
+            }
+
+            const res = await fetch(fetchUrl);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const rawData = await res.json();
+
+            if (targetRegion === 'GP' && rawData.gauteng) return rawData.gauteng;
+            if (targetRegion === 'WC' && rawData.westerncape) return rawData.westerncape;
+            if (targetRegion === 'KZN' && rawData.kzn) return rawData.kzn;
+            if (targetRegion === 'EC' && rawData.easterncape) return rawData.easterncape;
+            if (targetRegion === 'GP' && rawData.schedules && !rawData.gauteng) return rawData.schedules;
+            return rawData;
+        };
+
+        const severityStyles = {
+            error: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50 text-red-800 dark:text-red-300',
+            warn: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/50 text-amber-900 dark:text-amber-200',
+            info: 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300',
+        };
+
+        const renderReport = (report) => {
+            lastReport = report;
+            const showInfo = !!document.getElementById('sched-qa-show-info')?.checked;
+            const deltaOnly = !!document.getElementById('sched-qa-delta-only')?.checked;
+            let findings = report.findings || [];
+            if (!showInfo) findings = findings.filter((f) => f.severity !== 'info');
+            if (deltaOnly) findings = findings.filter((f) => f.code === 'DELTA_VARIANCE');
+
+            const { summary } = report;
+            if (summaryDiv) {
+                summaryDiv.classList.remove('hidden');
+                summaryDiv.innerHTML = `
+                    <div class="grid grid-cols-4 gap-1.5 mb-2">
+                        <div class="text-center bg-violet-50 dark:bg-violet-900/20 rounded-lg p-2 border border-violet-100 dark:border-violet-800/40">
+                            <span class="block text-[8px] uppercase font-bold text-violet-600 tracking-wider">Sheets</span>
+                            <span class="text-sm font-black text-violet-800 dark:text-violet-200">${summary.sheetsScanned}</span>
+                        </div>
+                        <div class="text-center bg-red-50 dark:bg-red-900/20 rounded-lg p-2 border border-red-100 dark:border-red-800/40">
+                            <span class="block text-[8px] uppercase font-bold text-red-600 tracking-wider">Errors</span>
+                            <span class="text-sm font-black text-red-700 dark:text-red-300">${summary.errors}</span>
+                        </div>
+                        <div class="text-center bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 border border-amber-100 dark:border-amber-800/40">
+                            <span class="block text-[8px] uppercase font-bold text-amber-600 tracking-wider">Warns</span>
+                            <span class="text-sm font-black text-amber-700 dark:text-amber-300">${summary.warnings}</span>
+                        </div>
+                        <div class="text-center bg-slate-50 dark:bg-slate-900/40 rounded-lg p-2 border border-slate-200 dark:border-slate-700">
+                            <span class="block text-[8px] uppercase font-bold text-slate-500 tracking-wider">Shown</span>
+                            <span class="text-sm font-black text-slate-700 dark:text-slate-200">${findings.length}</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (!findings.length) {
+                resultsDiv.innerHTML = `<div class="text-xs text-green-700 dark:text-green-400 font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 rounded-lg text-center">No issues in the current filter. ${summary.errors + summary.warnings === 0 ? 'Schedule looks clean.' : 'Try enabling Info or clearing Deltas only.'}</div>`;
+                return;
+            }
+
+            resultsDiv.innerHTML = findings.map((f) => {
+                const style = severityStyles[f.severity] || severityStyles.info;
+                const routeBit = f.routeName ? Admin.formatRouteLabelHtml(f.routeName) : (f.routeId || '');
+                const meta = [f.sheetKey, f.dayDir, f.train].filter(Boolean).join(' · ');
+                return `
+                    <div class="p-2.5 rounded-lg border text-[10px] leading-snug ${style}">
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <span class="font-black uppercase tracking-wider text-[9px]">${f.severity} · ${f.code}</span>
+                            <span class="font-mono text-[9px] opacity-70 truncate">${meta}</span>
+                        </div>
+                        <div class="font-semibold mb-0.5">${routeBit}</div>
+                        <div>${String(f.message || '').replace(/</g, '&lt;')}</div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        if (runBtn) {
+            runBtn.onclick = async () => {
+                const regionSelect = document.getElementById('sched-qa-region');
+                const sourceSelect = document.getElementById('sched-qa-source');
+                const scanRegion = regionSelect?.value || 'CURRENT';
+                const scanSourceRaw = sourceSelect?.value || 'RAM';
+                const activeRegion = typeof currentRegion !== 'undefined' ? currentRegion : 'GP';
+                const targetRegion = scanRegion === 'CURRENT' ? activeRegion : scanRegion;
+                const scanSource = (scanSourceRaw === 'RAM' && targetRegion !== activeRegion) ? 'CLOUDFLARE' : scanSourceRaw;
+
+                resultsDiv.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center">${Admin.icon('hourglass', 'w-5 h-5 mb-2 animate-pulse')} Loading ${targetRegion} from ${scanSource}…</div>`;
+                if (summaryDiv) summaryDiv.classList.add('hidden');
+
+                try {
+                    if (typeof runScheduleQaReport !== 'function') {
+                        throw new Error('QA engine not loaded (runScheduleQaReport missing).');
+                    }
+                    const db = await fetchDbForQa(targetRegion, scanSource);
+                    const report = runScheduleQaReport(db, targetRegion, typeof parseJSONSchedule === 'function' ? parseJSONSchedule : null);
+                    report.meta = {
+                        region: targetRegion,
+                        source: scanSource,
+                        generatedAt: new Date().toISOString(),
+                        dataAge: db?.lastUpdated || null,
+                    };
+                    renderReport(report);
+                    if (typeof showToast === 'function') {
+                        showToast(`QA: ${report.summary.errors} errors, ${report.summary.warnings} warnings`, report.summary.errors ? 'error' : 'success', 2500);
+                    }
+                } catch (e) {
+                    resultsDiv.innerHTML = `<div class="text-xs text-red-600 font-bold bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">QA failed: ${String(e.message || e)}</div>`;
+                }
+            };
+        }
+
+        ['sched-qa-show-info', 'sched-qa-delta-only'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.onchange = () => { if (lastReport) renderReport(lastReport); };
+        });
+
+        if (exportBtn) {
+            exportBtn.onclick = () => {
+                if (!lastReport) {
+                    if (typeof showToast === 'function') showToast('Run a QA report first', 'info', 1500);
+                    return;
+                }
+                const blob = new Blob([JSON.stringify(lastReport, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `schedule-qa-${lastReport.meta?.region || 'region'}-${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+            };
+        }
     },
 
 // --- 8. MAINTENANCE MODE MANAGER ---
@@ -7012,7 +8504,7 @@ const Admin = {
         maintPanel.innerHTML = `
             <button id="maint-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">🛠️</span> 
+                    ${Admin.tileIcon('wrench', 'text-slate-500 dark:text-slate-300')}
                     <span>System Controls</span>
                 </span>
                 <svg id="maint-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -7039,8 +8531,8 @@ const Admin = {
                 <!-- Transplanted Growth & Promo -->
                 <div class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-indigo-800 overflow-hidden shadow-sm transition-all">
                     <button id="promo-header-btn" class="w-full px-3 py-3 bg-blue-100/50 dark:bg-indigo-900/40 text-left text-[10px] font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-blue-200/50 dark:hover:bg-indigo-900/60">
-                        <span class="flex items-center">
-                            <span class="text-base mr-2">🚀</span> Growth & Promo
+                        <span class="flex items-center gap-2">
+                            <span class="text-indigo-600 dark:text-indigo-300">${Admin.icon('rocket', 'w-4 h-4')}</span> Growth & Promo
                         </span>
                         <svg id="promo-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
@@ -7059,7 +8551,7 @@ const Admin = {
                 <div class="bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800 overflow-hidden shadow-sm transition-all">
                     <button id="nuke-header-btn" class="w-full px-3 py-3 bg-red-100/50 dark:bg-red-900/40 text-left text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-red-200/50 dark:hover:bg-red-900/60">
                         <span class="flex items-center">
-                            <span class="text-base mr-2">☢️</span> Nuclear Cache Wipe
+                            <span class="text-red-500 dark:text-red-400 mr-2 inline-flex">${Admin.icon('siren', 'w-4 h-4')}</span> Nuclear Cache Wipe
                         </span>
                         <svg id="nuke-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
@@ -7224,14 +8716,14 @@ const Admin = {
         roadmapPanel.innerHTML = `
             <button id="roadmap-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
-                    <span class="text-2xl mb-2">🗺️</span> 
+                    ${Admin.tileIcon('map', 'text-blue-600 dark:text-blue-400')}
                     <span>Operations Roadmap</span>
                 </span>
                 <svg id="roadmap-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             <div id="roadmap-body" class="hidden mt-4 flex flex-col space-y-3">
                 <!-- Controls Header -->
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-inner">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-gray-100 dark:bg-gray-900 p-3 rounded-xl border border-gray-300 dark:border-gray-700 shadow-inner">
                     <div class="flex items-center gap-2 w-full sm:w-auto">
                         <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="roadmap-status-display">Syncing Board...</span>
                     </div>
@@ -7247,7 +8739,7 @@ const Admin = {
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                         </button>
                         <button onclick="Admin.openTicketModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-md focus:outline-none shrink-0">
-                            <span>➕</span> New Ticket
+                            ${Admin.icon('plus', 'w-3.5 h-3.5')} New Ticket
                         </button>
                     </div>
                 </div>
@@ -7258,52 +8750,52 @@ const Admin = {
                     <div class="flex md:grid md:grid-cols-3 gap-4 h-full items-start px-1 w-full min-w-max md:min-w-0" id="roadmap-kanban-board">
                         
                         <!-- Column: Backlog -->
-                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm snap-center shrink-0 md:shrink">
-                            <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50 rounded-t-xl shrink-0">
+                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-gray-100 dark:bg-gray-900 rounded-xl border border-gray-300 dark:border-gray-700 shadow-inner overflow-hidden snap-center shrink-0 md:shrink">
+                            <div class="p-3 border-b border-gray-300 dark:border-gray-700 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0">
                                 <div class="flex items-center gap-2">
                                     <span class="w-2.5 h-2.5 rounded-full bg-gray-400 shadow-sm"></span>
                                     <h2 class="text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">To-Do / Backlog</h2>
-                                    <span id="roadmap-count-backlog" class="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-[9px] py-0.5 px-2 rounded-full font-bold">0</span>
+                                    <span id="roadmap-count-backlog" class="hidden bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-[9px] py-0.5 px-2 rounded-full font-bold"></span>
                                 </div>
                                 <button onclick="Admin.exportColumn('backlog')" class="text-gray-400 hover:text-blue-500 p-1 focus:outline-none transition-colors" title="Export Backlog">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 </button>
                             </div>
-                            <div id="roadmap-col-backlog" class="flex-1 p-2 overflow-y-auto space-y-2 min-h-[150px] custom-scrollbar bg-gray-50/50 dark:bg-gray-900/20 rounded-b-xl">
+                            <div id="roadmap-col-backlog" class="flex-1 p-2 overflow-y-auto space-y-2 min-h-[150px] custom-scrollbar">
                                 <div class="text-center text-gray-400 dark:text-gray-500 text-xs py-6 italic" id="empty-backlog">No tickets</div>
                             </div>
                         </div>
 
                         <!-- Column: In Progress -->
-                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-white dark:bg-gray-800 rounded-xl border border-blue-200 dark:border-blue-900/50 shadow-sm snap-center shrink-0 md:shrink">
-                            <div class="p-3 border-b border-blue-100 dark:border-blue-800/50 flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 rounded-t-xl shrink-0">
+                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-gray-100 dark:bg-gray-900 rounded-xl border border-blue-300 dark:border-blue-800 shadow-inner overflow-hidden snap-center shrink-0 md:shrink">
+                            <div class="p-3 border-b border-blue-300 dark:border-blue-800 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0">
                                 <div class="flex items-center gap-2">
                                     <span class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm ring-2 ring-blue-200 dark:ring-blue-900"></span>
                                     <h2 class="text-[10px] font-black uppercase tracking-widest text-blue-800 dark:text-blue-300">In Progress</h2>
-                                    <span id="roadmap-count-progress" class="bg-blue-200 dark:bg-blue-800/80 text-blue-800 dark:text-blue-200 text-[9px] py-0.5 px-2 rounded-full font-bold">0</span>
+                                    <span id="roadmap-count-progress" class="hidden bg-blue-200 dark:bg-blue-800/80 text-blue-800 dark:text-blue-200 text-[9px] py-0.5 px-2 rounded-full font-bold"></span>
                                 </div>
                                 <button onclick="Admin.exportColumn('progress')" class="text-blue-400 hover:text-blue-600 p-1 focus:outline-none transition-colors" title="Export In Progress">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 </button>
                             </div>
-                            <div id="roadmap-col-progress" class="flex-1 p-2 overflow-y-auto space-y-2 min-h-[150px] custom-scrollbar bg-blue-50/10 dark:bg-blue-900/10 rounded-b-xl">
+                            <div id="roadmap-col-progress" class="flex-1 p-2 overflow-y-auto space-y-2 min-h-[150px] custom-scrollbar">
                                 <div class="text-center text-gray-400 dark:text-gray-500 text-xs py-6 italic hidden" id="empty-inprogress">No tickets</div>
                             </div>
                         </div>
 
                         <!-- Column: Completed -->
-                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-white dark:bg-gray-800 rounded-xl border border-green-200 dark:border-green-900/50 shadow-sm snap-center shrink-0 md:shrink">
-                            <div class="p-3 border-b border-green-100 dark:border-green-800/50 flex justify-between items-center bg-green-50 dark:bg-green-900/20 rounded-t-xl shrink-0">
+                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-gray-100 dark:bg-gray-900 rounded-xl border border-green-300 dark:border-green-800 shadow-inner overflow-hidden snap-center shrink-0 md:shrink">
+                            <div class="p-3 border-b border-green-300 dark:border-green-800 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0">
                                 <div class="flex items-center gap-2">
                                     <span class="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm ring-2 ring-green-200 dark:ring-green-900"></span>
                                     <h2 class="text-[10px] font-black uppercase tracking-widest text-green-800 dark:text-green-300">Completed</h2>
-                                    <span id="roadmap-count-done" class="bg-green-200 dark:bg-green-800/80 text-green-800 dark:text-green-200 text-[9px] py-0.5 px-2 rounded-full font-bold">0</span>
+                                    <span id="roadmap-count-done" class="hidden bg-green-200 dark:bg-green-800/80 text-green-800 dark:text-green-200 text-[9px] py-0.5 px-2 rounded-full font-bold"></span>
                                 </div>
                                 <button onclick="Admin.exportColumn('done')" class="text-green-400 hover:text-green-600 p-1 focus:outline-none transition-colors" title="Export Completed">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 </button>
                             </div>
-                            <div id="roadmap-col-done" class="flex-1 p-2 overflow-y-auto space-y-2 min-h-[150px] custom-scrollbar bg-green-50/10 dark:bg-green-900/10 rounded-b-xl">
+                            <div id="roadmap-col-done" class="flex-1 p-2 overflow-y-auto space-y-2 min-h-[150px] custom-scrollbar">
                                 <div class="text-center text-gray-400 dark:text-gray-500 text-xs py-6 italic hidden" id="empty-completed">No tickets</div>
                             </div>
                         </div>
@@ -7392,10 +8884,11 @@ const Admin = {
                     sourceBadge = `<div class="mt-1 text-[9px] text-blue-500 dark:text-blue-400 font-mono truncate">Ref: ${safeHTML(ticket.source)}</div>`;
                 }
                 
-                let typeIcon = "📌"; 
-                if (ticket.type === 'bug') typeIcon = "🐛"; 
-                else if (ticket.type === 'feature') typeIcon = "🚀"; 
-                else if (ticket.type === 'route') typeIcon = "🗺️";
+                let typeIconName = 'pin';
+                if (ticket.type === 'bug') typeIconName = 'bug';
+                else if (ticket.type === 'feature') typeIconName = 'rocket';
+                else if (ticket.type === 'route') typeIconName = 'map';
+                const typeIcon = `<span class="inline-flex text-gray-500 dark:text-gray-400 shrink-0 mt-0.5" title="${ticket.type || 'task'}">${Admin.icon(typeIconName, 'w-3.5 h-3.5')}</span>`;
 
                 // Native SVG icons replacing FontAwesome
                 const editIcon = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>`;
@@ -7417,13 +8910,13 @@ const Admin = {
                 }
 
                 const cardHtml = `
-                    <div class="bg-white dark:bg-[#1e293b] border border-gray-200 dark:border-gray-700 p-3 rounded-lg shadow-sm hover:border-blue-400 dark:hover:border-blue-500/50 transition-colors cursor-pointer group flex flex-col gap-2 relative overflow-hidden" onclick="Admin.openViewModal('${ticket.id}')">
+                    <div class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-3 rounded-lg shadow-sm hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer group flex flex-col gap-2 relative overflow-hidden" onclick="Admin.openViewModal('${ticket.id}')">
                         <div class="flex justify-between items-start gap-2">
-                            <div class="flex items-start min-w-0 pr-1">
-                                <span class="mr-1.5 text-sm leading-none shrink-0 mt-0.5" title="${ticket.type}">${typeIcon}</span>
+                            <div class="flex items-start min-w-0 pr-1 gap-1.5">
+                                ${typeIcon}
                                 <h4 class="font-bold text-gray-900 dark:text-gray-200 text-sm leading-tight line-clamp-2 break-words">${safeTitle}</h4>
                             </div>
-                            <div class="flex gap-1 md:gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 bg-white dark:bg-[#1e293b] pl-1 relative z-10">
+                            <div class="flex gap-1 md:gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 bg-white dark:bg-gray-800 pl-1 relative z-10">
                                 ${moveControls}
                                 <div class="w-px h-4 bg-gray-200 dark:bg-gray-600 my-auto mx-1 md:mx-0.5"></div>
                                 <button class="text-gray-400 hover:text-blue-500 p-2 md:p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.openTicketModal('${ticket.id}')" title="Edit Ticket">
@@ -7454,10 +8947,16 @@ const Admin = {
                 else if (status === 'done') colDone.insertAdjacentHTML('beforeend', cardHtml);
             });
 
-            // Update Counts
-            document.getElementById('roadmap-count-backlog').textContent = counts.backlog;
-            document.getElementById('roadmap-count-progress').textContent = counts.progress;
-            document.getElementById('roadmap-count-done').textContent = counts.done;
+            // Update Counts — hide badges when zero
+            const setRoadmapCount = (id, n) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.textContent = String(n);
+                el.classList.toggle('hidden', !n);
+            };
+            setRoadmapCount('roadmap-count-backlog', counts.backlog);
+            setRoadmapCount('roadmap-count-progress', counts.progress);
+            setRoadmapCount('roadmap-count-done', counts.done);
 
             // Handle Empty States
             document.getElementById('empty-backlog').classList.toggle('hidden', counts.backlog > 0);
@@ -7660,11 +9159,32 @@ const Admin = {
                 });
             };
 
+            const typeOpts = [
+                { value: 'bug', label: 'Bug', icon: 'bug', active: 'border-rose-400 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300' },
+                { value: 'feature', label: 'Feature', icon: 'rocket', active: 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300' },
+                { value: 'route', label: 'Route', icon: 'map', active: 'border-sky-400 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300' },
+            ];
+            const sevOpts = [
+                { value: 'low', label: 'Low', icon: 'circle', active: 'border-gray-400 bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300' },
+                { value: 'high', label: 'High', icon: 'alert', active: 'border-orange-400 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300' },
+                { value: 'critical', label: 'Critical', icon: 'flame', active: 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300' },
+            ];
+            const statusOpts = [
+                { value: 'backlog', label: 'Backlog', icon: 'pin', active: 'border-gray-400 bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300' },
+                { value: 'progress', label: 'Progress', icon: 'hourglass', active: 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' },
+                { value: 'done', label: 'Done', icon: 'check', active: 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' },
+            ];
+            const chipBtn = (group, opt, selected) => {
+                const base = 'tkt-chip flex flex-col items-center justify-center gap-1 px-1 py-2 rounded-lg border text-[9px] font-bold uppercase tracking-wide transition-colors focus:outline-none';
+                const idle = 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:border-gray-300';
+                return `<button type="button" data-group="${group}" data-value="${opt.value}" class="${base} ${selected === opt.value ? opt.active : idle}">${Admin.icon(opt.icon, 'w-4 h-4')}<span>${opt.label}</span></button>`;
+            };
+
             modal.innerHTML = `
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-5 transform transition-all scale-95 border border-gray-200 dark:border-gray-700 flex flex-col max-h-[90vh]">
                     <div class="flex items-center justify-between mb-4 shrink-0">
-                        <h3 class="text-lg font-black text-gray-900 dark:text-white tracking-tight flex items-center">
-                            <span class="mr-2">📝</span> ${ticketId ? 'Edit Ticket' : 'New Ticket'}
+                        <h3 class="text-lg font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
+                            <span class="inline-flex text-blue-500">${Admin.icon('note', 'w-5 h-5')}</span> ${ticketId ? 'Edit Ticket' : 'New Ticket'}
                         </h3>
                         <button onclick="closeSmoothModal('admin-ticket-modal')" class="text-gray-400 hover:text-gray-500 focus:outline-none bg-gray-100 dark:bg-gray-700 rounded-full p-1.5">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -7676,30 +9196,25 @@ const Admin = {
                             <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Title</label>
                             <input type="text" id="tkt-title" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none" value="${safeHTML(ticket.title)}" placeholder="Short summary">
                         </div>
-                        <div class="grid grid-cols-3 gap-2 sm:gap-3">
-                            <div>
-                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Type</label>
-                                <select id="tkt-type" class="w-full h-10 px-2 sm:px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-[10px] sm:text-xs text-gray-900 dark:text-white outline-none">
-                                    <option value="bug" ${ticket.type === 'bug' ? 'selected' : ''}>🐛 Bug</option>
-                                    <option value="feature" ${ticket.type === 'feature' ? 'selected' : ''}>🚀 Feature</option>
-                                    <option value="route" ${ticket.type === 'route' ? 'selected' : ''}>🗺️ Route Update</option>
-                                </select>
+                        <input type="hidden" id="tkt-type" value="${safeHTML(ticket.type || 'bug')}">
+                        <input type="hidden" id="tkt-severity" value="${safeHTML(ticket.severity || 'low')}">
+                        <input type="hidden" id="tkt-status" value="${safeHTML(ticket.status || 'backlog')}">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1.5">Type</label>
+                            <div class="grid grid-cols-3 gap-1.5" id="tkt-type-chips">
+                                ${typeOpts.map((o) => chipBtn('type', o, ticket.type || 'bug')).join('')}
                             </div>
-                            <div>
-                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Severity</label>
-                                <select id="tkt-severity" class="w-full h-10 px-2 sm:px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-[10px] sm:text-xs text-gray-900 dark:text-white outline-none">
-                                    <option value="low" ${ticket.severity === 'low' ? 'selected' : ''}>🟢 Low</option>
-                                    <option value="high" ${ticket.severity === 'high' ? 'selected' : ''}>🟠 High</option>
-                                    <option value="critical" ${ticket.severity === 'critical' ? 'selected' : ''}>🔴 Critical</option>
-                                </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1.5">Severity</label>
+                            <div class="grid grid-cols-3 gap-1.5" id="tkt-severity-chips">
+                                ${sevOpts.map((o) => chipBtn('severity', o, ticket.severity || 'low')).join('')}
                             </div>
-                            <div>
-                                <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Status</label>
-                                <select id="tkt-status" class="w-full h-10 px-2 sm:px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-[10px] sm:text-xs text-gray-900 dark:text-white outline-none">
-                                    <option value="backlog" ${ticket.status === 'backlog' ? 'selected' : ''}>📌 Backlog</option>
-                                    <option value="progress" ${ticket.status === 'progress' ? 'selected' : ''}>⏳ Progress</option>
-                                    <option value="done" ${ticket.status === 'done' ? 'selected' : ''}>✅ Done</option>
-                                </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1.5">Status</label>
+                            <div class="grid grid-cols-3 gap-1.5" id="tkt-status-chips">
+                                ${statusOpts.map((o) => chipBtn('status', o, ticket.status || 'backlog')).join('')}
                             </div>
                         </div>
                         <div>
@@ -7718,6 +9233,23 @@ const Admin = {
                     </div>
                 </div>
             `;
+
+            // Wire chip selectors → hidden inputs
+            const chipMaps = { type: typeOpts, severity: sevOpts, status: statusOpts };
+            modal.querySelectorAll('.tkt-chip').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const group = btn.dataset.group;
+                    const value = btn.dataset.value;
+                    const hidden = document.getElementById(`tkt-${group}`);
+                    if (hidden) hidden.value = value;
+                    const opts = chipMaps[group] || [];
+                    modal.querySelectorAll(`.tkt-chip[data-group="${group}"]`).forEach((b) => {
+                        const opt = opts.find((o) => o.value === b.dataset.value);
+                        const idle = 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:border-gray-300';
+                        b.className = `tkt-chip flex flex-col items-center justify-center gap-1 px-1 py-2 rounded-lg border text-[9px] font-bold uppercase tracking-wide transition-colors focus:outline-none ${b.dataset.value === value && opt ? opt.active : idle}`;
+                    });
+                });
+            });
 
             openSmoothModal('admin-ticket-modal');
 
@@ -7766,11 +9298,7 @@ const Admin = {
             };
         };
 
-        // Escalate Hook Export
-        Admin.escalateToRoadmap = (prefillData) => {
-            // Triggered from other panels (like Feedback or Crashes)
-            Admin.openTicketModal(null, prefillData);
-        };
+        // Escalate hook kept on Admin root (see Admin.escalateToRoadmap / escalateFromEl)
 
         // Export Engine
         Admin.exportColumn = (statusColumn, targetArray = null, filenameOverride = null) => {
@@ -7820,7 +9348,4 @@ const Admin = {
 };
 
 window.Admin = Admin;
-
-document.addEventListener('DOMContentLoaded', () => {
-    Admin.init();
-});
+// Astro bootstrap calls Admin.init() after Firebase + globals are ready

@@ -1,111 +1,94 @@
-<!DOCTYPE html>
-<html lang="en" class="dark">
-<head>
-    <!-- SEO: Canonical Tag (Self-referencing to prevent issues, but noindex is primary) -->
-    <link rel="canonical" href="https://nexttrain.co.za/offline.html">
-    <!-- SEO: Prevent indexing of offline pages -->
-    <meta name="robots" content="noindex, nofollow">
+<!DOCTYPE html><html lang="en" class> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>You&#39;re Offline | Metrorail Next Train</title><meta name="description" content="You appear to be offline. Reconnect to check live Metrorail train times."><meta name="robots" content="noindex, nofollow"><link rel="canonical" href="https://nexttrain.co.za/offline.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/offline.html"><meta property="og:title" content="You're Offline | Metrorail Next Train"><meta property="og:description" content="You appear to be offline. Reconnect to check live Metrorail train times."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="You're Offline | Metrorail Next Train"><meta name="twitter:description" content="You appear to be offline. Reconnect to check live Metrorail train times."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>(function(){const base = "/";
 
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, minimum-scale=1.0, viewport-fit=cover">
-    <title>Signal Lost | Metrorail Next Train</title>
-    
-    <!-- ICONS: Stable URLs -->
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-    <link rel="apple-touch-icon" href="icons/icon-192.png">
-    <link rel=\"shortcut icon\" href=\"icons/icon-192.png\" type=\"image/png\">
-    
-    <!-- CRITICAL: Google Analytics 4 (Measurement ID: G-JM5DH6ERVX) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-JM5DH6ERVX');
-    </script>
+      window.__NT_BASE__ = base;
+    })();</script><meta name="application-name" content="Next Train"><meta name="apple-mobile-web-app-title" content="Next Train"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet"><script>(function(){const forceDark = false;
+const forceLight = false;
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        if (typeof tailwind !== 'undefined') {
-            tailwind.config = { darkMode: 'class' }
+      try {
+        if (forceLight) {
+          document.documentElement.classList.remove('dark');
+        } else if (forceDark) {
+          document.documentElement.classList.add('dark');
+        } else {
+          let theme = null;
+          try { theme = localStorage.getItem('theme'); } catch (e) {}
+          const isDark = theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) document.documentElement.classList.add('dark');
+          else document.documentElement.classList.remove('dark');
         }
-    </script>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); }
-        .animate-float { animation: float 6s ease-in-out infinite; }
-        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
-    </style>
-</head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col overflow-hidden relative">
-
-    <!-- TOP NAV -->
-    <div class="absolute top-0 left-0 w-full p-6 z-20 flex justify-between items-center">
-        <div class="text-sm font-bold tracking-widest uppercase opacity-70">Offline Mode</div>
-        <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
-    </div>
-
-    <!-- MAIN VISUAL -->
-    <main class="flex-grow flex flex-col items-center justify-center relative z-10 px-6">
-        
-        <!-- Illustration Container -->
-        <div class="relative w-full max-w-sm aspect-square mb-8">
-            <div class="absolute inset-0 bg-blue-600 rounded-full opacity-10 blur-3xl animate-pulse"></div>
-            
-            <div class="relative w-full h-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-                <!-- High Quality Unsplash Image (Train Track / Tunnel) -->
-                <picture>
-                    <source srcset="images/offline-port.jpg" media="(max-width: 600px)">
-                    <img src="images/offline-land.jpg" 
-                        onerror="this.src='https://images.unsplash.com/photo-1474487548417-781cb71495f3?auto=format&fit=crop&q=80&w=800&h=800'" 
-                        alt="Train Tunnel" 
-                        class="object-cover w-full h-full grayscale opacity-60"
-                    >
-                </picture>
-                
-                <!-- Overlay Gradient -->
-                <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                
-                <!-- Floating Element on Image -->
-                <div class="absolute bottom-6 left-6 right-6 p-4 glass rounded-xl border border-white/10 shadow-lg backdrop-blur-md animate-float">
-                    <div class="flex items-center gap-3">
-                        <div class="p-2 bg-yellow-100 dark:bg-yellow-900/50 rounded-lg text-yellow-600 dark:text-yellow-400">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.121-17.72"></path></svg>
-                        </div>
-                        <div>
-                            <div class="text-xs font-bold uppercase tracking-wider text-gray-400">Connection</div>
-                            <div class="text-sm font-bold text-white">Signal Lost</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Text Content -->
-        <div class="text-center max-w-xs mx-auto">
-            <h1 class="text-4xl font-black mb-2 tracking-tight">You're Offline</h1>
-            <p class="text-gray-400 text-sm mb-8 leading-relaxed">
-                We can't load the latest schedule right now. Check your internet connection and try again.
-            </p>
-            
-            <button onclick="window.location.href='/'" class="w-full bg-white text-gray-900 font-bold py-4 rounded-xl hover:bg-gray-100 transition-transform active:scale-95 shadow-xl flex items-center justify-center gap-2 group">
-                <svg class="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
-                Retry Connection
-            </button>
-            
-            <button onclick="window.history.back()" class="mt-4 text-sm text-gray-500 hover:text-white font-medium transition-colors">
-                Go Back
-            </button>
-        </div>
-
-    </main>
-
-    <!-- FOOTER -->
-    <footer class="p-6 text-center z-10">
-        <p class="text-[10px] text-gray-600 font-mono">ERR_INTERNET_DISCONNECTED</p>
-    </footer>
-
-</body>
-</html>
+        let pack = null;
+        try { pack = localStorage.getItem('colourPack'); } catch (e) {}
+        const valid = pack === 'midnight' || pack === 'contrast' || pack === 'classic' || pack === 'signal' || pack === 'ember';
+        document.documentElement.setAttribute('data-colour-pack', valid ? pack : 'classic');
+        try {
+          if (!localStorage.getItem('next_train_device_id')) {
+            localStorage.setItem('next_train_device_id', 'usr_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now());
+          }
+        } catch (e) {}
+        // Strip cache-bust ?v= after load so shared secondary-page links stay clean
+        var params = new URLSearchParams(window.location.search);
+        if (params.has('v')) {
+          params.delete('v');
+          var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+          window.history.replaceState({}, '', clean);
+        }
+      } catch (e) {}
+    })();</script><!-- Google Analytics 4 --><script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script><script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      var gaConfig = {};
+      var isDevAnalytics = false;
+      try { isDevAnalytics = localStorage.getItem('analytics_ignore') === 'true'; } catch(e) {}
+      if (isDevAnalytics) gaConfig['traffic_type'] = 'internal';
+      gtag('config', 'G-JM5DH6ERVX', gaConfig);
+    </script><!-- Microsoft Clarity --><script>
+      var blockClarity = false;
+      try { blockClarity = localStorage.getItem('analytics_ignore') === 'true'; } catch(e) {}
+      if (!blockClarity) {
+        (function(c,l,a,r,i,t,y){
+          c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+          t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+          t.crossOrigin="anonymous";
+          y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "v1aj19921i");
+      }
+    </script><!-- GUARDIAN: Sentry (deferred — SPA parity on secondary pages) --><script>
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          window.sentryOnLoad = function () {
+            Sentry.init({
+              dsn: 'https://ae241b469e4c06ae7644f55c2a796782@o4511038845222912.ingest.us.sentry.io/4511039214518272',
+              sampleRate: 0.3,
+              ignoreErrors: [
+                'ResizeObserver loop limit exceeded',
+                'Network request failed',
+                'Failed to fetch',
+                'Load failed',
+                'QuotaExceededError',
+                'UnknownError: Connection is closing because of: IO error',
+                'Internal error opening backing store',
+                'DOMException',
+                'TimeoutError',
+                'UnknownError',
+                'Failed to update a ServiceWorker',
+                'AbortError',
+                'window.webkit.messageHandlers',
+                'Request timeout',
+                '/api/webviewClick'
+              ]
+            });
+          };
+          var sentryScript = document.createElement('script');
+          sentryScript.src = 'https://js.sentry-cdn.com/ae241b469e4c06ae7644f55c2a796782.min.js';
+          sentryScript.crossOrigin = 'anonymous';
+          sentryScript.async = true;
+          document.head.appendChild(sentryScript);
+        }, 3500);
+      });
+    </script><link rel="stylesheet" href="/_astro/vendor.rCU0qcgT.css">
+<link rel="stylesheet" href="/_astro/_slug_.CmVSyhgm.css"></head> <body class="font-[Inter,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300 bg-slate-50 dark:bg-gray-900 min-h-screen flex items-center justify-center p-6">  <main class="max-w-md text-center"> <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-3">You're offline</h1> <p class="text-gray-600 dark:text-gray-400 mb-6">
+This page isn't available without a connection. Check your network, then try again.
+</p> <a href="/" class="inline-flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 transition-colors">
+Back to Home
+</a> </main>  </body></html>
