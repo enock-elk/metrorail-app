@@ -2273,7 +2273,7 @@ const Admin = {
             if (targetPanel.id === 'feedback-panel') Admin.fetchFeedback();
             if (targetPanel.id === 'delay-reports-panel') Admin.fetchDelayReports();
             if (targetPanel.id === 'moderation-queue-panel') Admin.fetchModerationQueue();
-            if (targetPanel.id === 'user-trust-panel') { /* lookup is on-demand */ }
+            if (targetPanel.id === 'user-trust-panel' && typeof Admin.fetchActiveBans === 'function') Admin.fetchActiveBans();
             if (targetPanel.id === 'deadends-panel') Admin.fetchDeadEnds();
             if (targetPanel.id === 'crashes-panel') Admin.fetchCrashes();
         }
@@ -2991,6 +2991,7 @@ const Admin = {
                 if (card.id === 'feedback-panel') Admin.fetchFeedback();
                 if (card.id === 'delay-reports-panel') Admin.fetchDelayReports();
                 if (card.id === 'moderation-queue-panel') Admin.fetchModerationQueue();
+                if (card.id === 'user-trust-panel' && typeof Admin.fetchActiveBans === 'function') Admin.fetchActiveBans();
                 if (card.id === 'deadends-panel') Admin.fetchDeadEnds();
                 if (card.id === 'crashes-panel') Admin.fetchCrashes(); // 🛡️ GUARDIAN PHASE 7
                 if (card.id === 'roadmap-panel') Admin.fetchRoadmap(); // 🛡️ GUARDIAN PHASE 14
@@ -3180,6 +3181,12 @@ const Admin = {
             
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+
+                if (Admin._deActiveTab === 'trips') {
+                    await Admin.renderTripPlanBatches(listDiv, secret);
+                    return;
+                }
+
                 const res = await window.guardianFetch(`${dynamicEndpoint}sys_logs/routing_fails.json?auth=${secret}`, {}, 10000);
                 
                 if (!res.ok) throw new Error("HTTP " + res.status);
@@ -3191,11 +3198,6 @@ const Admin = {
                 }
                 
                 Admin._cachedRoutingFails = data;
-
-                if (Admin._deActiveTab === 'trips') {
-                    await Admin.renderTripPlanBatches(listDiv, secret);
-                    return;
-                }
 
                 // Aggregate by Origin|Dest|Reason|DayType — hits = unique logged attempts (client debounces retries)
                 const heatMap = {};
@@ -3289,7 +3291,7 @@ const Admin = {
         };
 
         Admin.renderTripPlanBatches = async (listDiv, secret) => {
-            listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Loading trip plan batches…</div>';
+            listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Loading trip plans…</div>';
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 const res = await window.guardianFetch(`${dynamicEndpoint}sys_logs/trip_plans.json?auth=${secret}`, {}, 10000);
@@ -3300,19 +3302,84 @@ const Admin = {
                     listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">No batched trip plans yet.<br><span class="text-[9px]">Clients flush every 10 successful plans.</span></div>';
                     return;
                 }
-                const batches = Object.keys(data).map((id) => ({ id, ...data[id] })).sort((a, b) => (b.flushedAt || 0) - (a.flushedAt || 0));
-                listDiv.innerHTML = '';
-                batches.slice(0, 40).forEach((batch) => {
-                    const card = document.createElement('div');
-                    card.className = 'bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm';
+
+                // Merge across batches/users: Origin|Dest|DayType → tally (same pattern as routing fails)
+                const heatMap = {};
+                let batchCount = 0;
+                Object.values(data).forEach((batch) => {
+                    if (!batch || typeof batch !== 'object') return;
+                    batchCount++;
                     const trips = Array.isArray(batch.trips) ? batch.trips : [];
-                    const preview = trips.slice(0, 3).map((t) => `${t.origin || '?'} → ${t.destination || '?'} (${t.dayType || '?'})`).join('<br>');
+                    const batchTs = Number(batch.flushedAt || 0);
+                    trips.forEach((entry) => {
+                        if (!entry?.origin || !entry?.destination) return;
+                        const dayType = entry.dayType || 'unknown';
+                        const key = `${entry.origin}|${entry.destination}|${dayType}`;
+                        if (!heatMap[key]) {
+                            heatMap[key] = {
+                                origin: entry.origin,
+                                dest: entry.destination,
+                                dayType,
+                                count: 0,
+                                lastSeen: 0,
+                                depSample: entry.depTime || null,
+                            };
+                        }
+                        heatMap[key].count++;
+                        const ts = Number(entry.timestamp || batchTs || 0);
+                        if (ts > heatMap[key].lastSeen) {
+                            heatMap[key].lastSeen = ts;
+                            if (entry.depTime) heatMap[key].depSample = entry.depTime;
+                        }
+                    });
+                });
+
+                const sorted = Object.values(heatMap).sort((a, b) => {
+                    if (Admin._deSortMode === 'recent') return b.lastSeen - a.lastSeen;
+                    return b.count - a.count;
+                });
+
+                if (!sorted.length) {
+                    listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Batches present but no trip rows to merge.</div>';
+                    return;
+                }
+
+                const secureEscape = (str) => {
+                    if (!str) return '';
+                    if (typeof escapeHTML === 'function') return escapeHTML(str);
+                    return String(str).replace(/[&<>"']/g, (m) => ({
+                        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+                    }[m]));
+                };
+
+                listDiv.innerHTML = `
+                    <div class="text-[9px] text-gray-400 px-1 mb-1">
+                        Merged from ${batchCount} flush${batchCount === 1 ? '' : 'es'} · ${sorted.length} unique OD+day
+                    </div>
+                `;
+
+                sorted.forEach((item) => {
+                    const dateStr = Admin.formatDate(item.lastSeen);
+                    const card = document.createElement('div');
+                    card.className = 'bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between transition-colors hover:border-emerald-300';
+                    const safeOrigin = secureEscape(item.origin);
+                    const safeDest = secureEscape(item.dest);
+                    const dayLabel = secureEscape(item.dayType || 'unknown');
+                    const depLabel = secureEscape(item.depSample || '—');
                     card.innerHTML = `
-                        <div class="flex justify-between items-start mb-1">
-                            <span class="text-[10px] font-black uppercase tracking-wider text-emerald-600">Batch · ${batch.count || trips.length} trips</span>
-                            <span class="text-[9px] text-gray-400 font-mono">${Admin.formatDate(batch.flushedAt)}</span>
+                        <div class="min-w-0 flex-1 pr-2">
+                            <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${safeOrigin} <span class="text-gray-400 mx-1">→</span> ${safeDest}</div>
+                            <div class="flex flex-wrap items-center mt-1.5 gap-1.5">
+                                <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">Trip</span>
+                                <span class="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">${dayLabel}</span>
+                                <span class="text-[9px] text-gray-400 font-mono">dep ${depLabel}</span>
+                                <span class="text-[9px] text-gray-400 font-mono">Last: ${dateStr}</span>
+                            </div>
                         </div>
-                        <div class="text-[10px] text-gray-700 dark:text-gray-300 leading-snug">${preview || '—'}${trips.length > 3 ? `<br><span class="text-gray-400">+${trips.length - 3} more</span>` : ''}</div>
+                        <div class="flex items-center justify-center bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg px-2.5 py-1.5 shadow-sm shrink-0">
+                            <span class="text-[9px] text-gray-400 uppercase font-bold mr-1.5">Hits</span>
+                            <span class="text-sm font-black text-gray-700 dark:text-gray-300 leading-none">${item.count}</span>
+                        </div>
                     `;
                     listDiv.appendChild(card);
                 });
@@ -4665,6 +4732,14 @@ const Admin = {
                 { label: 'Permanent', ms: 0 },
             ];
 
+        const banModes = (typeof SHADOW_BAN_MODES !== 'undefined' && Array.isArray(SHADOW_BAN_MODES) && SHADOW_BAN_MODES.length)
+            ? SHADOW_BAN_MODES
+            : [
+                { id: 'offline', label: 'Fake offline / lie-fi' },
+                { id: 'freeze', label: 'Freeze / unresponsive' },
+                { id: 'fouc', label: 'True FOUC (unstyled)' },
+            ];
+
         const choice = await new Promise((resolve) => {
             const modalId = 'admin-shadow-ban-modal';
             let modal = document.getElementById(modalId);
@@ -4679,9 +4754,14 @@ const Admin = {
                     <h3 class="text-base font-black text-gray-900 dark:text-white mb-1">Shadow ban user</h3>
                     <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-3 font-mono break-all">${uid}</p>
                     <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Duration</label>
-                    <select id="admin-ban-duration" class="w-full p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm mb-4">
+                    <select id="admin-ban-duration" class="w-full p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm mb-3">
                         ${durations.map((d, i) => `<option value="${i}" ${d.ms === 86400000 ? 'selected' : ''}>${d.label}</option>`).join('')}
                     </select>
+                    <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Ban experience</label>
+                    <select id="admin-ban-mode" class="w-full p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm mb-2">
+                        ${banModes.map((m) => `<option value="${m.id}">${m.label}</option>`).join('')}
+                    </select>
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-4 leading-snug">They are never told they are banned. Offline = lie-fi banner. Freeze = no taps work. FOUC = styles stripped (raw HTML).</p>
                     <div class="flex gap-2">
                         <button type="button" id="admin-ban-cancel" class="flex-1 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-sm font-bold">Cancel</button>
                         <button type="button" id="admin-ban-confirm" class="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold">Ban</button>
@@ -4691,15 +4771,21 @@ const Admin = {
             document.getElementById('admin-ban-cancel').onclick = () => { modal.classList.add('hidden'); resolve(null); };
             document.getElementById('admin-ban-confirm').onclick = () => {
                 const idx = parseInt(document.getElementById('admin-ban-duration').value, 10) || 0;
+                const modeEl = document.getElementById('admin-ban-mode');
+                const mode = (typeof trustNormalizeShadowBanMode === 'function')
+                    ? trustNormalizeShadowBanMode(modeEl?.value)
+                    : (modeEl?.value || 'offline');
                 modal.classList.add('hidden');
-                resolve(durations[idx] || durations[durations.length - 1]);
+                const duration = durations[idx] || durations[durations.length - 1];
+                resolve({ ...duration, mode });
             };
         });
         if (!choice) return false;
 
+        const modeLabel = banModes.find((m) => m.id === choice.mode)?.label || choice.mode;
         const confirmed = await Admin.secureConfirm(
             'Confirm shadow ban',
-            `Ban ${uid} for ${choice.label}? Their app will look broken (bad network / FOUC) — they won’t be told they’re banned.`
+            `Ban ${uid} for ${choice.label} with “${modeLabel}”? They won’t be told they’re banned.`
         );
         if (!confirmed) return false;
 
@@ -4710,11 +4796,15 @@ const Admin = {
                 ? trustComputeBanUntil(choice.ms)
                 : (choice.ms > 0 ? Date.now() + choice.ms : 0);
             const now = Date.now();
+            const banMode = (typeof trustNormalizeShadowBanMode === 'function')
+                ? trustNormalizeShadowBanMode(choice.mode)
+                : (choice.mode || 'offline');
             const putFlag = async (basePath) => {
                 const paths = [
                     [`${basePath}/shadowBanned.json`, true],
                     [`${basePath}/shadowBannedUntil.json`, until],
                     [`${basePath}/shadowBannedAt.json`, now],
+                    [`${basePath}/shadowBanMode.json`, banMode],
                 ];
                 if (Admin.currentUser?.uid) {
                     paths.push([`${basePath}/shadowBannedBy.json`, Admin.currentUser.uid]);
@@ -4747,7 +4837,8 @@ const Admin = {
                 window.trustLocalBlockList.add(uid);
                 if (deviceId) window.trustLocalBlockList.add(deviceId);
             }
-            if (typeof showToast === 'function') showToast(`Shadow-banned (${choice.label}) — cloaked as bad network`, 'success');
+            if (typeof showToast === 'function') showToast(`Shadow-banned (${choice.label}) — mode: ${modeLabel}`, 'success');
+            if (typeof Admin.fetchActiveBans === 'function') Admin.fetchActiveBans();
             return true;
         } catch (e) {
             console.error('Shadow ban failed', e);
@@ -4768,6 +4859,7 @@ const Admin = {
                 for (const [path, body] of [
                     [`${basePath}/shadowBanned.json`, false],
                     [`${basePath}/shadowBannedUntil.json`, 0],
+                    [`${basePath}/shadowBanMode.json`, 'offline'],
                 ]) {
                     const res = await fetch(`${dynamicEndpoint}${path}?auth=${secret}`, {
                         method: 'PUT',
@@ -4783,6 +4875,7 @@ const Admin = {
                 if (deviceId) window.trustRemoveFromBlockList(deviceId);
             }
             if (typeof showToast === 'function') showToast('Ban lifted', 'success');
+            if (typeof Admin.fetchActiveBans === 'function') Admin.fetchActiveBans();
             return true;
         } catch (e) {
             if (typeof showToast === 'function') showToast('Lift failed', 'error');
@@ -4838,7 +4931,17 @@ const Admin = {
                 <svg id="ut-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             <div id="ut-body" class="hidden mt-4 flex flex-col text-left">
-                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Lookup by UID. Flag with optional duration, lift bans, see trust score from verified delay reports.</p>
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Active bans below. Lookup by UID / device / email to ban, lift, or inspect trust score.</p>
+                <div class="flex items-center justify-between gap-2 mb-2 px-1">
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Active shadow bans</span>
+                    <button type="button" id="ut-bans-refresh" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">Refresh</button>
+                </div>
+                <div id="ut-bans-list" class="space-y-2 max-h-[280px] overflow-y-auto mb-4 px-1 custom-scrollbar">
+                    <p class="text-xs text-gray-400 text-center py-3">Open panel to load bans…</p>
+                </div>
+                <div class="border-t border-gray-100 dark:border-gray-700 pt-3 mb-2 px-1">
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Lookup</span>
+                </div>
                 <div class="flex gap-2 mb-3 px-1">
                     <input type="text" id="ut-uid-input" class="flex-1 p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-mono" placeholder="UID, device ID (usr_…), or email…" />
                     <button type="button" id="ut-lookup-btn" class="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold">Lookup</button>
@@ -4855,12 +4958,125 @@ const Admin = {
             body.classList.toggle('hidden');
             chevron.classList.toggle('-rotate-90', body.classList.contains('hidden'));
             header.classList.toggle('mb-4', !body.classList.contains('hidden'));
+            if (!body.classList.contains('hidden')) Admin.fetchActiveBans();
         };
 
         document.getElementById('ut-lookup-btn').onclick = () => Admin.lookupUserTrust();
+        document.getElementById('ut-bans-refresh')?.addEventListener('click', () => Admin.fetchActiveBans());
         document.getElementById('ut-uid-input')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') Admin.lookupUserTrust();
         });
+
+        const banModeLabel = (mode) => {
+            const id = (typeof trustNormalizeShadowBanMode === 'function')
+                ? trustNormalizeShadowBanMode(mode)
+                : (mode || 'offline');
+            const modes = (typeof SHADOW_BAN_MODES !== 'undefined' && Array.isArray(SHADOW_BAN_MODES))
+                ? SHADOW_BAN_MODES
+                : [
+                    { id: 'offline', label: 'Fake offline / lie-fi' },
+                    { id: 'freeze', label: 'Freeze / unresponsive' },
+                    { id: 'fouc', label: 'True FOUC (unstyled)' },
+                ];
+            return modes.find((m) => m.id === id)?.label || id;
+        };
+
+        Admin.fetchActiveBans = async () => {
+            const list = document.getElementById('ut-bans-list');
+            if (!list) return;
+            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-3 animate-pulse">Scanning bans…</p>';
+            try {
+                const secret = await Admin.getAuthKey();
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const auth = secret ? `?auth=${secret}` : '';
+                const [usersRes, devicesRes] = await Promise.all([
+                    fetch(`${dynamicEndpoint}users.json${auth}`),
+                    fetch(`${dynamicEndpoint}devices.json${auth}`),
+                ]);
+                if (!usersRes.ok) throw new Error(`users HTTP ${usersRes.status}`);
+                const users = await usersRes.json() || {};
+                const devices = devicesRes.ok ? (await devicesRes.json() || {}) : {};
+                const now = Date.now();
+                const seen = new Set();
+                const bans = [];
+
+                const pushBan = (id, record, source) => {
+                    if (!id || seen.has(id)) return;
+                    const flags = record?.flags || {};
+                    if (flags.shadowBanned !== true) return;
+                    const until = Number(flags.shadowBannedUntil || 0);
+                    if (until > 0 && now > until) return; // expired
+                    seen.add(id);
+                    bans.push({
+                        id,
+                        source,
+                        displayName: record.displayName || (source === 'device' ? 'Device guest' : '—'),
+                        email: record.email || null,
+                        until,
+                        bannedAt: Number(flags.shadowBannedAt || 0),
+                        mode: flags.shadowBanMode || 'offline',
+                        bannedBy: flags.shadowBannedBy || null,
+                        deviceId: source === 'device' ? id : null,
+                    });
+                };
+
+                Object.entries(users).forEach(([uid, u]) => pushBan(uid, u, /^usr_/i.test(uid) ? 'device-stub' : 'user'));
+                Object.entries(devices).forEach(([deviceId, d]) => {
+                    // Prefer linked account if already listed; else show device-level ban
+                    if (d?.uid && seen.has(d.uid)) return;
+                    pushBan(deviceId, { flags: d?.flags || {}, displayName: d?.uid ? `Device → ${d.uid}` : 'Device' }, 'device');
+                });
+
+                bans.sort((a, b) => (b.bannedAt || 0) - (a.bannedAt || 0));
+
+                if (!bans.length) {
+                    list.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">No active shadow bans.</p>';
+                    return;
+                }
+
+                list.innerHTML = '';
+                bans.forEach((b) => {
+                    const untilStr = b.until > 0 ? new Date(b.until).toLocaleString() : 'Permanent';
+                    const remaining = b.until > 0
+                        ? (() => {
+                            const ms = b.until - now;
+                            if (ms <= 0) return 'expired';
+                            const h = Math.floor(ms / 3600000);
+                            if (h < 48) return `${h}h left`;
+                            return `${Math.ceil(h / 24)}d left`;
+                        })()
+                        : 'no expiry';
+                    const modeStr = banModeLabel(b.mode);
+                    const name = String(b.displayName || '—').replace(/</g, '&lt;');
+                    const email = b.email ? String(b.email).replace(/</g, '&lt;') : '';
+                    const card = document.createElement('div');
+                    card.className = 'border border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20 rounded-xl p-3 space-y-1';
+                    card.innerHTML = `
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="text-xs font-black text-gray-900 dark:text-white truncate">${name}</p>
+                                <p class="font-mono text-[9px] text-gray-400 break-all">${b.id}</p>
+                                ${email ? `<p class="text-[10px] text-gray-500">${email}</p>` : ''}
+                            </div>
+                            <button type="button" class="ut-lift-from-list shrink-0 text-[9px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 px-2 py-1 rounded-lg bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-800">Lift</button>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5 pt-0.5">
+                            <span class="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">${modeStr}</span>
+                            <span class="text-[9px] font-bold text-gray-600 dark:text-gray-300">${untilStr}</span>
+                            <span class="text-[9px] text-gray-400">${remaining}</span>
+                        </div>
+                    `;
+                    card.querySelector('.ut-lift-from-list').onclick = async () => {
+                        const deviceId = b.deviceId || (/^usr_/i.test(b.id) ? b.id : null);
+                        const ok = await Admin.liftShadowBan(b.id, { deviceId });
+                        if (ok) Admin.fetchActiveBans();
+                    };
+                    list.appendChild(card);
+                });
+            } catch (e) {
+                list.innerHTML = `<p class="text-xs text-red-500 text-center py-3">Failed to load bans: ${e.message || e}</p>`;
+            }
+        };
 
         Admin.resolveTrustTarget = async (query) => {
             const q = String(query || '').trim();
@@ -4941,6 +5157,8 @@ const Admin = {
                 const until = Number(flags.shadowBannedUntil || 0);
                 const expired = banned && until > 0 && Date.now() > until;
                 const untilStr = until > 0 ? new Date(until).toLocaleString() : (banned ? 'permanent' : '—');
+                const modeRaw = flags.shadowBanMode || 'offline';
+                const modeStr = banModeLabel(modeRaw);
                 const score = typeof user.trustScore === 'number' ? user.trustScore : 0;
                 const name = (user.displayName || (user._isDeviceStub ? 'Device guest' : '—')).toString().replace(/</g, '&lt;');
                 const email = (user.email || '—').toString().replace(/</g, '&lt;');
@@ -4952,6 +5170,7 @@ const Admin = {
                         <p class="text-[11px]">Email: <b>${email}</b> · Found via <b>${viaLabel}</b>${deviceId && deviceId !== uid ? ` · device <span class="font-mono">${deviceId}</span>` : ''}</p>
                         <p class="text-[11px]">Role: <b>${flags.role || 'user'}</b> · Trust score: <b>${score}</b></p>
                         <p class="text-[11px]">Shadow banned: <b class="${banned && !expired ? 'text-red-600' : 'text-green-600'}">${banned ? (expired ? 'expired' : 'yes') : 'no'}</b>${banned ? ` · until ${untilStr}` : ''}</p>
+                        ${banned && !expired ? `<p class="text-[11px]">Ban type: <b>${modeStr}</b></p>` : ''}
                         <div class="flex flex-wrap gap-3 pt-1">
                             <button type="button" id="ut-ban-btn" class="text-[10px] font-bold text-red-600 underline">Shadow ban…</button>
                             <button type="button" id="ut-lift-btn" class="text-[10px] font-bold text-blue-600 underline">Lift ban</button>
@@ -4960,10 +5179,12 @@ const Admin = {
                 document.getElementById('ut-ban-btn').onclick = async () => {
                     await Admin.applyShadowBan(uid, { deviceId: deviceId || (/^usr_/i.test(uid) ? uid : null) });
                     Admin.lookupUserTrust();
+                    Admin.fetchActiveBans();
                 };
                 document.getElementById('ut-lift-btn').onclick = async () => {
                     await Admin.liftShadowBan(uid, { deviceId: deviceId || (/^usr_/i.test(uid) ? uid : null) });
                     Admin.lookupUserTrust();
+                    Admin.fetchActiveBans();
                 };
             } catch (e) {
                 out.innerHTML = `<p class="text-red-500">Lookup failed: ${e.message || e}</p>`;
@@ -8581,6 +8802,18 @@ const Admin = {
                     </div>
                 </div>
 
+                <!-- Shadow-ban default experience -->
+                <div class="bg-violet-50 dark:bg-violet-900/20 p-4 rounded-xl border border-violet-200 dark:border-violet-800">
+                    <span class="font-bold text-violet-800 dark:text-violet-200 text-sm">Shadow-ban default mode</span>
+                    <p class="text-[10px] text-violet-600 dark:text-violet-400 mt-0.5 mb-3 leading-snug">Used when a ban has no per-user mode set. Per-ban choice in the Shadow ban dialog always wins.</p>
+                    <select id="shadow-ban-default-mode" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-violet-200 dark:border-violet-700/50 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-violet-500 outline-none shadow-sm mb-2">
+                        <option value="offline">Fake offline / lie-fi</option>
+                        <option value="freeze">Freeze / unresponsive</option>
+                        <option value="fouc">True FOUC (unstyled)</option>
+                    </select>
+                    <button type="button" id="shadow-ban-default-save" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wide focus:outline-none">Save default mode</button>
+                </div>
+
                 <!-- Transplanted Growth & Promo -->
                 <div class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-indigo-800 overflow-hidden shadow-sm transition-all">
                     <button id="promo-header-btn" class="w-full px-3 py-3 bg-blue-100/50 dark:bg-indigo-900/40 text-left text-[10px] font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-blue-200/50 dark:hover:bg-indigo-900/60">
@@ -8634,6 +8867,8 @@ const Admin = {
         const promoHeader = document.getElementById('promo-header-btn');
         const promoBody = document.getElementById('promo-body');
         const promoChevron = document.getElementById('promo-chevron');
+        const banModeSelect = document.getElementById('shadow-ban-default-mode');
+        const banModeSave = document.getElementById('shadow-ban-default-save');
 
         if (nukeHeader) {
             nukeHeader.onclick = () => {
@@ -8678,9 +8913,48 @@ const Admin = {
                     if (maintMsg) maintMsg.value = "";
                 }
 
+                try {
+                    const resBan = await fetch(`${dynamicEndpoint}config/shadow_ban_mode.json`);
+                    if (resBan.ok) {
+                        const banCfg = await resBan.json();
+                        const mode = (typeof trustNormalizeShadowBanMode === 'function')
+                            ? trustNormalizeShadowBanMode(banCfg?.mode || banCfg)
+                            : (banCfg?.mode || 'offline');
+                        if (banModeSelect) banModeSelect.value = mode;
+                    }
+                } catch (be) { /* optional config */ }
+
                 } catch(e) { console.warn("Failed to check system status"); }
         }
         checkStatus();
+
+        if (banModeSave && banModeSelect) {
+            banModeSave.onclick = async () => {
+                try {
+                    const secret = await Admin.getAuthKey();
+                    if (!secret) {
+                        if (typeof showToast === 'function') showToast('Authentication required.', 'error');
+                        return;
+                    }
+                    const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                    const mode = (typeof trustNormalizeShadowBanMode === 'function')
+                        ? trustNormalizeShadowBanMode(banModeSelect.value)
+                        : (banModeSelect.value || 'offline');
+                    const res = await window.guardianFetch(`${dynamicEndpoint}config/shadow_ban_mode.json?auth=${secret}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({
+                            mode,
+                            updatedAt: Date.now(),
+                            updatedBy: Admin.currentUser ? Admin.currentUser.email : 'Admin',
+                        }),
+                    }, 10000);
+                    if (!res.ok) throw new Error('Auth failed');
+                    if (typeof showToast === 'function') showToast(`Shadow-ban default: ${mode}`, 'success');
+                } catch (e) {
+                    if (typeof showToast === 'function') showToast('Failed to save ban mode.', 'error');
+                }
+            };
+        }
 
         if (toggle) {
             toggle.addEventListener('change', async () => {
