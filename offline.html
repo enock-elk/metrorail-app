@@ -25,9 +25,10 @@ const forceLight = false;
             localStorage.setItem('next_train_device_id', 'usr_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now());
           }
         } catch (e) {}
-        // Strip cache-bust ?v= after load so shared secondary-page links stay clean
+        // Strip numeric cache-bust ?v=123… only — keep share flags like ?v=g
         var params = new URLSearchParams(window.location.search);
-        if (params.has('v')) {
+        var vParam = params.get('v');
+        if (vParam && /^\d{8,}$/.test(vParam)) {
           params.delete('v');
           var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
           window.history.replaceState({}, '', clean);
@@ -39,8 +40,15 @@ const forceLight = false;
       gtag('js', new Date());
       var gaConfig = {};
       var isDevAnalytics = false;
-      try { isDevAnalytics = localStorage.getItem('analytics_ignore') === 'true'; } catch(e) {}
+      var userRegion = 'GP';
+      try {
+        isDevAnalytics = localStorage.getItem('analytics_ignore') === 'true';
+        var saved = localStorage.getItem('userRegion');
+        if (saved === 'GP' || saved === 'WC' || saved === 'KZN' || saved === 'EC') userRegion = saved;
+      } catch(e) {}
       if (isDevAnalytics) gaConfig['traffic_type'] = 'internal';
+      // Selected app region (not IP) — keeps SEO pages in the same regional buckets
+      gaConfig['user_properties'] = { crm_region: userRegion };
       gtag('config', 'G-JM5DH6ERVX', gaConfig);
     </script><!-- Microsoft Clarity --><script>
       var blockClarity = false;
@@ -86,8 +94,8 @@ const forceLight = false;
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><link rel="stylesheet" href="/_astro/vendor.BD3xaoSI.css">
-<link rel="stylesheet" href="/_astro/_slug_.Dn3wVfSC.css"></head> <body class="font-[Inter,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300 bg-slate-50 dark:bg-gray-900 min-h-screen flex items-center justify-center p-6">  <main class="max-w-md text-center"> <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-3">You're offline</h1> <p class="text-gray-600 dark:text-gray-400 mb-6">
+    </script><link rel="stylesheet" href="/_astro/vendor.DPUm72HY.css">
+<link rel="stylesheet" href="/_astro/_slug_.Cy6tKTBe.css"></head> <body class="font-[Inter,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300 bg-slate-50 dark:bg-gray-900 min-h-screen flex items-center justify-center p-6">  <main class="max-w-md text-center"> <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-3">You're offline</h1> <p class="text-gray-600 dark:text-gray-400 mb-6">
 This page isn't available without a connection. Check your network, then try again.
 </p> <a href="/" class="inline-flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 transition-colors">
 Back to Home
