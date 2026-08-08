@@ -1,5 +1,5 @@
-﻿/**
- * METRORAIL NEXT TRAIN - ADMIN TOOLS (V8_08.05 - Planner UI & Bugfix)
+/**
+ * METRORAIL NEXT TRAIN - ADMIN TOOLS (V8_08.08)
  * -----------------------------------------------------------------------------
  *
  * ## ADMIN ISLAND ROADMAP (for future AI / ops)
@@ -22,7 +22,7 @@
  *     lazy-load only reduces blueprint exposure and payload bloat.
  *
  * Do NOT re-add a global <script src="/js/admin.js"> or initAdminBridge() that
- * eagerly fetches this file — that undoes Zero-Bloat and schema OPSEC.
+ * eagerly fetches this file - that undoes Zero-Bloat and schema OPSEC.
  * -----------------------------------------------------------------------------
  * This module handles Developer Mode features:
  * 1. Service Alerts Manager (God-Mode Regional Sync + Rich Text Formatting + Live Preview)
@@ -34,7 +34,7 @@
  * 7. Special Event Route Manager
  * 8. System Health / Diagnostics Scanner
  *    (includes Zone Distance Audit accordion for fare-zone / km review)
- * 8b. Schedule Data QA (timetable content — standalone from diagnostics)
+ * 8b. Schedule Data QA (timetable content - standalone from diagnostics)
  * 9. Nuclear Cache Wipe (Killswitch)
  * 10. Live Telemetry Bridge & Snapshot Export
  * 11. User Feedback Manager (Inbox & Archive Protocol Tabs)
@@ -57,11 +57,11 @@
  * * GROWTH SPRINT PHASE 10 [05 Jul 2026]: Swapped telemetry, crash, and routing failure endpoints from '/metrics/' to '/sys_logs/' to secure tracking channels against active client adblockers.
  * * GUARDIAN PHASE 13 [09 Jul 2026]: Built the Action Required active state monitor to scan, list, and instantly resolve expiring/live incidents across the entire system.
  * * GUARDIAN PHASE 14 [09 Jul 2026]: Resolved a malformed URL typo inside 'viewContextAlert' that threw unhandled exceptions during the disruption graveyard sweep.
- * * GUARDIAN PHASE 15 [10 Jul 2026]: Appended standard [📝], [⛔], [🚧], and [📢] route cues directly to the drop-down selectors by cross-referencing live Firebase payloads.
+ * * GUARDIAN PHASE 15 [10 Jul 2026]: Appended standard route-status cues directly to the drop-down selectors by cross-referencing live Firebase payloads.
 */
 const Admin = {
     
-    // 🛡️ GUARDIAN PHASE 2: Dropdown Breadcrumbs State
+    // GUARDIAN PHASE 2: Dropdown Breadcrumbs State
     _routeFlags: {},
     getRouteCues: (routeId) => {
         if (!Admin._routeFlags || !Admin._routeFlags[routeId]) return '';
@@ -83,11 +83,11 @@ const Admin = {
         let s = String(str);
         // Prefer escapes so scanners cannot rewrite the lookup keys
         const pairs = [
-            ['\u00E2\u20AC\u201D', '\u2014'], // â€" → —
+            ['\u00E2\u20AC\u201D', '\u2014'], // mojibake em dash
             ['\u00E2\u0080\u0094', '\u2014'],
             ['\u00E2\u20AC\u00A2', '\u2022'],
-            ['\u00E2\u02DC\u00A2\uFE0F', '☢️'],
-            ['\u00E2\u0098\u00A2\uFE0F', '☢️'],
+            ['\u00E2\u02DC\u00A2\uFE0F', '\u26A0\uFE0F'], // warning emoji
+            ['\u00E2\u0098\u00A2\uFE0F', '\u26A0\uFE0F'], // warning emoji
         ];
         for (const [bad, good] of pairs) {
             if (s.includes(bad)) s = s.split(bad).join(good);
@@ -96,7 +96,7 @@ const Admin = {
     },
 
     /** SVG bidirectional arrow for route labels (matches app formatRouteLabelHtml). */
-    routeArrowSvg: (className = 'inline-block w-3.5 h-3.5 mx-0.5 align-[-2px] text-current shrink-0') =>
+    routeArrowSvg: (className = 'inline-block w-3.5 h-3.5 mx-0.5 align-middle text-current shrink-0') =>
         `<svg class="${className}" viewBox="0 0 24 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5 6h14M8 3L5 6l3 3M16 3l3 3-3 3" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 
     /** Lucide-style stroke icons for admin grid tiles and in-panel chrome. */
@@ -121,6 +121,9 @@ const Admin = {
             trending: '<path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/>',
             plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
             check: '<path d="M20 6L9 17l-5-5"/>',
+            x: '<path d="M18 6L6 18"/><path d="M6 6l12 12"/>',
+            checks: '<path d="M18 6L7 17l-5-5"/><path d="M22 10l-11 11-3-3"/>',
+            calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
             note: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
             globe: '<circle cx="12" cy="12" r="9"/><path d="M2 12h20"/><path d="M12 2a15 15 0 014 10 15 15 0 01-4 10 15 15 0 01-4-10 15 15 0 014-10z"/>',
             camera: '<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>',
@@ -139,6 +142,7 @@ const Admin = {
             copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>',
             reply: '<path d="M9 17l-5-5 5-5"/><path d="M20 18v-2a4 4 0 00-4-4H4"/>',
             file: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>',
+            more: '<circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
             circle: '<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>',
         };
         const body = paths[name];
@@ -146,8 +150,28 @@ const Admin = {
         return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
     },
 
+
+    /** WhatsApp-style read receipts (crisp at ~12-14px). */
+    receiptTicks: (variant = 'double', className = 'w-3.5 h-3.5') => {
+        // variant: 'single' | 'double'
+        if (variant === 'single') {
+            return `<svg class="${className}" viewBox="0 0 12 11" width="12" height="11" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M1.75 5.75L4.6 8.5 10.25 2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        }
+        return `<svg class="${className}" viewBox="0 0 16 11" width="16" height="11" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M1.2 6.1L3.85 8.7 8.9 2.35" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.35 6.1L9 8.7 14.05 2.35" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    },
+
     tileIcon: (name, colorClass = 'text-blue-600 dark:text-blue-400') =>
         `<span class="admin-tile-icon mb-2 inline-flex items-center justify-center ${colorClass}">${Admin.icon(name, 'w-7 h-7')}</span>`,
+
+    _severityLabelHtml: (severity) => {
+        if (severity === 'warning') {
+            return `<span class="inline-flex items-center gap-1.5"><span class="inline-flex text-amber-500">${Admin.icon('alert', 'w-3 h-3')}</span> Warning (Delays)</span>`;
+        }
+        if (severity === 'critical') {
+            return `<span class="inline-flex items-center gap-1.5"><span class="inline-flex text-red-500">${Admin.icon('siren', 'w-3 h-3')}</span> Critical (Suspended)</span>`;
+        }
+        return `<span class="inline-flex items-center gap-1.5"><span class="inline-flex text-blue-500">${Admin.icon('circle', 'w-3 h-3')}</span> Info (General)</span>`;
+    },
 
     formatRouteLabelHtml: (raw) => {
         if (typeof raw !== 'string' || !raw) return '';
@@ -171,14 +195,14 @@ const Admin = {
                 // Force token refresh to ensure it's valid for database rules
                 return await window.firebaseGetIdToken(window.firebaseAuth.currentUser, true);
             } catch(e) {
-                console.warn("🛡️ Guardian: Failed to securely fetch ID Token", e);
+                console.warn("Guardian: Failed to securely fetch ID Token", e);
                 return null;
             }
         }
         return null;
     },
 
-    /** Safe escalate payload for data-escalate attrs (avoids onclick SyntaxError → app reload). */
+    /** Safe escalate payload for data-escalate attrs (avoids onclick SyntaxError ? app reload). */
     encodeEscalatePayload: (payload) => encodeURIComponent(JSON.stringify(payload || {})),
     copyCrashLog: async (crashId) => {
         const text = (Admin._crashRawById && Admin._crashRawById[crashId]) || '';
@@ -216,12 +240,12 @@ const Admin = {
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col border border-gray-200 dark:border-gray-700">
                 <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
                     <div>
-                        <h3 class="text-base font-black text-gray-900 dark:text-white">Diagnostic Errors (24h)</h3>
-                        <p id="diag-errors-meta" class="text-[10px] text-gray-500 mt-0.5">Loading…</p>
+                        <h3 class="text-base font-black text-gray-900 dark:text-white">System Errors 24H</h3>
+                        <p id="diag-errors-meta" class="text-[10px] text-gray-500 mt-0.5">Loading...</p>
                     </div>
-                    <button type="button" id="diag-errors-close" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">✕</button>
+                    <button type="button" id="diag-errors-close" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300" aria-label="Close">${Admin.icon('x', 'w-4 h-4')}</button>
                 </div>
-                <div id="diag-errors-list" class="p-3 overflow-y-auto flex-grow space-y-2 custom-scrollbar text-sm">Loading…</div>
+                <div id="diag-errors-list" class="p-3 overflow-y-auto flex-grow space-y-2 custom-scrollbar text-sm">Loading...</div>
             </div>`;
         modal.classList.remove('hidden');
         document.getElementById('diag-errors-close').onclick = () => modal.classList.add('hidden');
@@ -234,28 +258,54 @@ const Admin = {
             const res = await window.guardianFetch(`${dynamicEndpoint}sys_logs/crashes.json?auth=${secret}`, {}, 10000);
             const data = res.ok ? await res.json() : null;
             const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-            const items = data
+            const all = data
                 ? Object.keys(data).map((id) => ({ id, ...data[id] })).filter((c) => (c.timestamp || 0) >= cutoff)
                 : [];
+            const isDistress = (c) => c.kind === 'distress' || String(c.error || '').startsWith('DISTRESS:');
+            const distressCount = all.filter(isDistress).length;
+            // Distress / help belongs in Crash Analytics - keep this modal for JS/black-box noise only
+            const items = all.filter((c) => !isDistress(c));
             items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
             const n = items.length;
             const est = Math.round(n / SENTRY_SAMPLE);
-            meta.textContent = `${n} captured · ~${est} estimated at Sentry sampleRate ${SENTRY_SAMPLE} (n ÷ ${SENTRY_SAMPLE})`;
+            meta.textContent = `${n} JS/crash captures (~${est} est. @ sample ${SENTRY_SAMPLE}). Distress: use Crash Analytics.`;
             if (!n) {
-                list.innerHTML = '<p class="text-xs text-gray-500 text-center py-6">No crash / black-box entries in the last 24h.</p>';
+                list.innerHTML = `
+                    <p class="text-xs text-gray-500 text-center py-4">No JS / black-box diagnostic entries in the last 24h.</p>
+                    ${distressCount ? `<button type="button" id="diag-open-distress" class="w-full mt-2 text-xs font-bold py-2.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800">${distressCount} distress / help report(s) - open Crash Analytics</button>` : ''}
+                `;
+                document.getElementById('diag-open-distress')?.addEventListener('click', () => {
+                    modal.classList.add('hidden');
+                    Admin.openCrashDistressPanel();
+                });
                 return;
             }
             list.innerHTML = items.map((c) => {
-                const when = c.timestamp ? new Date(c.timestamp).toLocaleString() : '—';
+                const when = c.timestamp ? new Date(c.timestamp).toLocaleString() : '-';
                 const err = String(c.error || 'Unknown').replace(/</g, '&lt;').slice(0, 180);
                 return `<div class="p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
                     <div class="flex justify-between text-[9px] text-gray-400 font-mono mb-1"><span>${when}</span><span>${(c.routeId || 'global').toString().replace(/</g, '&lt;')}</span></div>
                     <div class="text-xs font-mono text-gray-800 dark:text-gray-200 break-words">${err}</div>
                 </div>`;
-            }).join('');
+            }).join('') + (distressCount
+                ? `<button type="button" id="diag-open-distress" class="w-full mt-2 text-xs font-bold py-2.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800">${distressCount} distress / help report(s) - open Crash Analytics</button>`
+                : '');
+            document.getElementById('diag-open-distress')?.addEventListener('click', () => {
+                modal.classList.add('hidden');
+                Admin.openCrashDistressPanel();
+            });
         } catch (e) {
             list.innerHTML = `<p class="text-xs text-red-500 text-center py-6">Failed to load: ${e.message || e}</p>`;
         }
+    },
+
+    openCrashDistressPanel: () => {
+        Admin.currentCrashTab = 'distress';
+        Admin.deepLinkToPanel('crashes-panel');
+        setTimeout(() => {
+            document.getElementById('crash-tab-distress')?.click();
+            if (typeof Admin.renderCrashList === 'function') Admin.renderCrashList();
+        }, 200);
     },
     escalateFromEl: (el) => {
         try {
@@ -505,6 +555,126 @@ const Admin = {
     gridCols: 3,
     _modulesRendered: false,
 
+    /**
+     * Leave a drilled admin panel and restore the Dev Mode grid.
+     * Uses replaceState(#dev) — never history.back() — so popstate cannot close Dev Mode / jump home.
+     */
+    exitDrillToGrid: (opts = {}) => {
+        const fromPopState = !!opts.fromPopState;
+        if (window._adminLightboxOpen && typeof Admin.closeLightbox === 'function') {
+            Admin.closeLightbox();
+            return true;
+        }
+        if (Admin.isGridMode) return false;
+
+        const container = document.getElementById('admin-modules-container');
+        const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6')
+            || document.querySelector('#dev-modal .border-b.border-gray-200.pb-2.mb-3')
+            || document.querySelector('#dev-panel-temp .border-b.border-gray-200.pb-4.mb-6')
+            || document.querySelector('#dev-panel-temp .border-b.border-gray-200.pb-2.mb-3');
+        const titleH3 = devHeaderRow?.querySelector('h3');
+        const toggleBtn = document.getElementById('grid-view-toggle');
+        const signoutContainer = document.getElementById('admin-signout-container');
+
+        window._adminDrillBackLock = true;
+        Admin.isGridMode = true;
+
+        if (container) {
+            container.classList.add('admin-grid-view');
+            container.style.gridTemplateColumns = `repeat(${Admin.gridCols || 3}, minmax(0, 1fr))`;
+            Array.from(container.children).forEach((child) => {
+                child.style.display = '';
+                if (child.dataset.originalClasses) {
+                    child.className = child.dataset.originalClasses;
+                }
+                const b = child.querySelector('[id$="-body"]');
+                if (b) b.classList.add('hidden');
+                const h = child.querySelector('[id$="-header-btn"]');
+                if (h) h.style.removeProperty('display');
+            });
+        }
+
+        if (titleH3 && devHeaderRow?.dataset.originalHtml) {
+            titleH3.innerHTML = devHeaderRow.dataset.originalHtml;
+        }
+        if (devHeaderRow) {
+            devHeaderRow.classList.add('pb-4', 'mb-6');
+            devHeaderRow.classList.remove('pb-2', 'mb-3');
+        }
+        if (toggleBtn) toggleBtn.style.display = '';
+        if (signoutContainer) signoutContainer.style.display = '';
+
+        if (window._actionRequiredWasOpen) {
+            const actionBody = document.getElementById('action-body');
+            const actionChevron = document.getElementById('action-chevron');
+            if (actionBody) actionBody.classList.remove('hidden');
+            if (actionChevron) actionChevron.classList.remove('-rotate-90');
+            window._actionRequiredWasOpen = false;
+        }
+
+        // Keep Dev Mode on #dev without popping history (avoids closing the modal / home jump)
+        const hashNow = location.hash || '';
+        if (!(fromPopState && hashNow === '#dev')) {
+            try { history.replaceState({ modal: 'dev' }, '', '#dev'); } catch (_) {}
+        }
+
+        if (typeof Admin.syncAllBadges === 'function') Admin.syncAllBadges();
+        if (typeof Admin.syncGridToggleIcon === 'function') Admin.syncGridToggleIcon(toggleBtn);
+
+        setTimeout(() => { window._adminDrillBackLock = false; }, 200);
+        return true;
+    },
+
+    /** Re-sync grid mode after Dev Mode re-open (fixes tiles that look active but ignore taps). */
+    ensureGridViewEngaged: () => {
+        const container = document.getElementById('admin-modules-container');
+        const devModal = document.getElementById('dev-modal');
+        if (!container || !devModal || devModal.classList.contains('hidden')) return;
+
+        const hash = location.hash || '';
+        const drilled = hash.startsWith('#dev-') && hash !== '#dev';
+        if (drilled && Admin.isGridMode === false) return;
+
+        Admin.isGridMode = true;
+        container.classList.add('admin-grid-view');
+        container.style.gridTemplateColumns = `repeat(${Admin.gridCols || 3}, minmax(0, 1fr))`;
+
+        Array.from(container.children).forEach((child) => {
+            child.style.display = '';
+            if (child.dataset.originalClasses) {
+                child.className = child.dataset.originalClasses;
+            }
+            const body = child.querySelector('[id$="-body"]');
+            if (body) body.classList.add('hidden');
+            const header = child.querySelector('[id$="-header-btn"]');
+            if (header) header.style.removeProperty('display');
+        });
+
+        const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6')
+            || document.querySelector('#dev-modal .border-b.border-gray-200.pb-2.mb-3');
+        const titleH3 = devHeaderRow?.querySelector('h3');
+        if (titleH3 && devHeaderRow?.dataset.originalHtml) {
+            titleH3.innerHTML = devHeaderRow.dataset.originalHtml;
+        }
+        const toggleBtn = document.getElementById('grid-view-toggle');
+        if (toggleBtn) toggleBtn.style.display = '';
+        const signoutContainer = document.getElementById('admin-signout-container');
+        if (signoutContainer) signoutContainer.style.display = '';
+    },
+
+    /** Close Developer Mode reliably (no history.back() race that can no-op the X button). */
+    closeDevModal: () => {
+        if (!Admin.isGridMode && typeof Admin.exitDrillToGrid === 'function') {
+            Admin.exitDrillToGrid();
+            return;
+        }
+        window._adminDrillBackLock = true;
+        if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal', true);
+        else document.getElementById('dev-modal')?.classList.add('hidden');
+        try { history.replaceState({ view: 'home' }, '', '#home'); } catch (_) {}
+        setTimeout(() => { window._adminDrillBackLock = false; }, 200);
+    },
+
     /** Compact unread count for tile badges (number only). */
     formatBadgeCount: (n) => {
         const c = Number(n) || 0;
@@ -517,13 +687,13 @@ const Admin = {
         if (!btn) return;
         if (Admin.gridCols === 1) {
             btn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>`;
-            btn.title = 'List view · tap for 2 columns';
+            btn.title = 'List view - tap for 2 columns';
         } else if (Admin.gridCols === 2) {
             btn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>`;
-            btn.title = '2 columns · tap for 3 columns';
+            btn.title = '2 columns - tap for 3 columns';
         } else {
             btn.innerHTML = `<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h4v14H4zM10 5h4v14h-4zM16 5h4v14h-4z"></path></svg>`;
-            btn.title = '3 columns · tap for list view';
+            btn.title = '3 columns - tap for list view';
         }
     },
 
@@ -669,7 +839,7 @@ const Admin = {
                 else navigator.clearAppBadge();
             }
         } catch(e) {
-            console.warn("🛡️ Guardian: Badge sync failed", e);
+            console.warn("Guardian: Badge sync failed", e);
         }
     },
 
@@ -679,10 +849,10 @@ const Admin = {
         Admin.telemetryRange = ranges[(ranges.indexOf(Admin.telemetryRange) + 1) % ranges.length];
         
         const cycleBtn = document.getElementById('trend-cycle-btn');
-        if (cycleBtn) cycleBtn.innerHTML = `${Admin.icon('trending', 'w-3.5 h-3.5 inline-block mr-1 align-[-2px]')} ${Admin.telemetryRange} Trend`;
+        if (cycleBtn) cycleBtn.innerHTML = `${Admin.icon('trending', 'w-3.5 h-3.5 inline-block mr-1 align-middle')} ${Admin.telemetryRange} Trend`;
         
         const modalCycleBtn = document.getElementById('modal-trend-cycle');
-        if (modalCycleBtn) modalCycleBtn.innerHTML = `${Admin.icon('trending', 'w-3.5 h-3.5 inline-block mr-1 align-[-2px]')} ${Admin.telemetryRange}`;
+        if (modalCycleBtn) modalCycleBtn.innerHTML = `${Admin.icon('trending', 'w-3.5 h-3.5 inline-block mr-1 align-middle')} ${Admin.telemetryRange}`;
         
         Admin.telemetryWeeksAgo = 0; // Reset pagination context
         
@@ -707,7 +877,7 @@ const Admin = {
 
         const telBody = document.getElementById('telemetry-body');
         
-        // 🛡️ GUARDIAN UX FIX: Dynamically strip "vibe coded" rainbow colors and apply sleek monochromatic corporate theme
+        // GUARDIAN UX FIX: Dynamically strip "vibe coded" rainbow colors and apply sleek monochromatic corporate theme
         if (telBody && !telBody.dataset.devibed) {
             telBody.dataset.devibed = "true";
             
@@ -717,7 +887,7 @@ const Admin = {
                 const label = box.querySelector('span:first-child');
                 const value = box.querySelector('span:last-child');
                 
-                // 🛡️ GUARDIAN: Identify the "Today" tile to make it interactive for Regional Breakdown
+                // GUARDIAN: Identify the "Today" tile to make it interactive for Regional Breakdown
                 if (value && value.id === 'stat-today') {
                     box.classList.add('cursor-pointer', 'hover:border-indigo-400', 'dark:hover:border-indigo-500', 'hover:shadow-md');
                     box.title = "View Regional Breakdown";
@@ -725,24 +895,25 @@ const Admin = {
                 }
 
                 if (label) label.className = "text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1";
-                if (value) value.className = "text-2xl font-black text-slate-800 dark:text-slate-200 animate-pulse";
+                // No permanent pulse on Today / WAU - only refreshTelemetry adds a short loading pulse
+                if (value) value.className = "text-2xl font-black text-slate-800 dark:text-slate-200";
             });
 
             const errorBox = telBody.querySelector('.bg-red-50') || telBody.querySelector('#stat-errors')?.closest('div');
             if (errorBox) {
                 errorBox.className = "bg-slate-50 dark:bg-slate-800/80 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-3 transition-colors cursor-pointer hover:border-red-400 dark:hover:border-red-500 hover:shadow-md";
-                errorBox.title = 'View diagnostic errors (24h) · Sentry sample rate 0.3';
+                errorBox.title = 'System / Sentry diagnostic errors (24h). Distress/help lives under Crash Analytics.';
                 errorBox.onclick = () => Admin.openDiagnosticErrorsModal();
                 const label = errorBox.querySelector('span:first-child');
                 const value = errorBox.querySelector('span:last-child');
                 if (label) {
                     label.className = "text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center";
-                    label.innerHTML = `<span class="mr-1.5 inline-flex text-amber-500">${Admin.icon('alert', 'w-4 h-4')}</span> Diagnostic Errors (24h) · tap`;
+                    label.innerHTML = `<span class="mr-1.5 inline-flex text-amber-500">${Admin.icon('alert', 'w-4 h-4')}</span> SYSTEM ERRORS 24H`;
                 }
-                if (value) value.className = "text-lg font-black text-slate-800 dark:text-slate-200 animate-pulse";
+                if (value) value.className = "text-lg font-black text-slate-800 dark:text-slate-200";
             }
             
-            // 🛡️ GUARDIAN FIX: Removed the regex SVG-replacement block here to allow the native 📊 emoji to display.
+            // GUARDIAN FIX: Removed the regex SVG-replacement block here to allow the native emoji to display.
         }
 
         // GUARDIAN: Inject HTML elements dynamically if they don't exist
@@ -771,7 +942,7 @@ const Admin = {
             `;
             telBody.appendChild(trendWrapper);
             
-            // 🛡️ GUARDIAN PHASE 11: Reordered Title Below Graph for interactive airspace
+            // GUARDIAN PHASE 11: Reordered Title Below Graph for interactive airspace
             let chartModal = document.getElementById('telemetry-chart-modal');
             if (!chartModal) {
                 chartModal = document.createElement('div');
@@ -800,9 +971,9 @@ const Admin = {
                         </div>
                         
                         <div id="modal-pagination-controls" class="p-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex justify-center items-center space-x-4 shrink-0 shadow-inner">
-                            <button id="modal-trend-prev" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95">◀</button>
+                            <button id="modal-trend-prev" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95" aria-label="Previous period"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></button>
                             <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest w-24 text-center">Navigate</span>
-                            <button id="modal-trend-next" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95 disabled:opacity-30">▶</button>
+                            <button id="modal-trend-next" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95 disabled:opacity-30" aria-label="Next period"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>
                         </div>
                         
                         <div class="flex-grow p-2 md:p-6 flex flex-col items-center justify-center relative bg-white dark:bg-gray-800 min-h-0">
@@ -946,6 +1117,59 @@ const Admin = {
         Admin.telemetryInterval = setInterval(Admin.refreshTelemetry, 10000);
     },
 
+    /**
+     * Steffen monotone cubic → SVG path through chart points.
+     * Local peaks/troughs get zero tangent (crest is the data point; no overshoot).
+     * Slope changes at joins — S-curve inflection sits on the shared vertex.
+     */
+    _smoothSvgPathD: (points) => {
+        if (!points.length) return '';
+        const fmt = (n) => (Math.round(n * 100) / 100);
+        if (points.length === 1) return `M ${fmt(points[0].x)} ${fmt(points[0].y)}`;
+        if (points.length === 2) {
+            return `M ${fmt(points[0].x)} ${fmt(points[0].y)} L ${fmt(points[1].x)} ${fmt(points[1].y)}`;
+        }
+
+        const n = points.length;
+        const segSlope = new Array(n - 1);
+        for (let i = 0; i < n - 1; i++) {
+            const dx = points[i + 1].x - points[i].x;
+            const dy = points[i + 1].y - points[i].y;
+            segSlope[i] = dx === 0 ? 0 : dy / dx;
+        }
+
+        const m = new Array(n);
+        m[0] = segSlope[0];
+        m[n - 1] = segSlope[n - 2];
+        for (let i = 1; i < n - 1; i++) {
+            const s0 = segSlope[i - 1];
+            const s1 = segSlope[i];
+            if (s0 === 0 || s1 === 0 || (s0 > 0) !== (s1 > 0)) {
+                // Local extremum or flat — horizontal tangent so peak/trough is the crest
+                m[i] = 0;
+            } else {
+                const h0 = points[i].x - points[i - 1].x;
+                const h1 = points[i + 1].x - points[i].x;
+                const weighted = (h0 + h1) ? Math.abs((h0 * s1 + h1 * s0) / (h0 + h1)) : 0;
+                const sign = s0 > 0 ? 1 : -1;
+                m[i] = sign * Math.min(Math.abs(s0), Math.abs(s1), 0.5 * weighted);
+            }
+        }
+
+        let d = `M ${fmt(points[0].x)} ${fmt(points[0].y)}`;
+        for (let i = 0; i < n - 1; i++) {
+            const p1 = points[i];
+            const p2 = points[i + 1];
+            const dx = p2.x - p1.x;
+            const cp1x = p1.x + dx / 3;
+            const cp1y = p1.y + (m[i] * dx) / 3;
+            const cp2x = p2.x - dx / 3;
+            const cp2y = p2.y - (m[i + 1] * dx) / 3;
+            d += ` C ${fmt(cp1x)} ${fmt(cp1y)}, ${fmt(cp2x)} ${fmt(cp2y)}, ${fmt(p2.x)} ${fmt(p2.y)}`;
+        }
+        return d;
+    },
+
     // --- DYNAMIC SVG LINE GRAPH BUILDER (GROWTH PHASE 8: SCALE AWARE) ---
     _buildLineGraphSVG: (dataArray, labelsArray, title, isTodayIdx, isMini = false, compareDataArray = null) => {
         const numPoints = Math.max(1, dataArray.length);
@@ -974,7 +1198,7 @@ const Admin = {
         const yMax = Math.ceil(maxVal + (spread > 0 ? spread * 0.2 : maxVal * 0.2));
         let yMin = Math.max(0, Math.floor(minVal - (spread > 0 ? spread * 0.2 : minVal * 0.5)));
         
-        // 🛡️ GUARDIAN UX FIX: Clamp Y-Axis to 0 if dataset contains 0s to stop negative baseline rendering
+        // GUARDIAN UX FIX: Clamp Y-Axis to 0 if dataset contains 0s to stop negative baseline rendering
         if (allData.some((v) => v === 0)) {
             yMin = 0;
         }
@@ -984,18 +1208,13 @@ const Admin = {
         const getX = (i) => pl + (i * (uw / Math.max(1, numPoints - 1)));
         const getY = (v) => pt + uh - ((((Number(v) || 0) - yMin) / yRange) * uh);
 
-        // Build path only across known buckets (null = future / unreported — do not draw to 0)
+        // Build path only across known buckets (null = future / unreported - do not draw to 0)
         const knownIdx = [];
         for (let i = 0; i < numPoints; i++) {
             if (dataArray[i] !== null && dataArray[i] !== undefined) knownIdx.push(i);
         }
-        let pathD = '';
-        if (knownIdx.length > 0) {
-            pathD = `M ${getX(knownIdx[0])} ${getY(dataArray[knownIdx[0]])}`;
-            for (let k = 1; k < knownIdx.length; k++) {
-                pathD += ` L ${getX(knownIdx[k])} ${getY(dataArray[knownIdx[k]])}`;
-            }
-        }
+        const knownPts = knownIdx.map((i) => ({ x: getX(i), y: getY(dataArray[i]) }));
+        let pathD = Admin._smoothSvgPathD(knownPts);
         const firstKnown = knownIdx[0] ?? 0;
         const lastKnown = knownIdx[knownIdx.length - 1] ?? 0;
         let areaD = pathD
@@ -1023,17 +1242,16 @@ const Admin = {
             });
         }
         
-        // 🛡️ COMPARE OVERLAY: Draw the faded comparison line first so it sits underneath
+        // COMPARE OVERLAY: Draw the faded comparison line first so it sits underneath
         if (compareDataArray && numPoints > 1) {
             const cKnown = [];
             for (let i = 0; i < numPoints; i++) {
                 if (compareDataArray[i] !== null && compareDataArray[i] !== undefined) cKnown.push(i);
             }
             if (cKnown.length > 0) {
-                let comparePathD = `M ${getX(cKnown[0])} ${getY(compareDataArray[cKnown[0]])}`;
-                for (let k = 1; k < cKnown.length; k++) {
-                    comparePathD += ` L ${getX(cKnown[k])} ${getY(compareDataArray[cKnown[k]])}`;
-                }
+                const comparePathD = Admin._smoothSvgPathD(
+                    cKnown.map((i) => ({ x: getX(i), y: getY(compareDataArray[i]) }))
+                );
                 svg += `<path d="${comparePathD}" fill="none" stroke="#94a3b8" stroke-width="${isMini ? '2' : '3'}" stroke-dasharray="6,4" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" />`;
             }
         }
@@ -1091,7 +1309,7 @@ const Admin = {
                 const dayColor = isToday ? todayColor : labelColor;
                 svg += `<text x="${vx}" y="${pt+uh+20}" font-family="sans-serif" font-size="11" font-weight="800" fill="${dayColor}" text-anchor="middle">${labelsArray[i]}</text>`;
                 
-                // 🛡️ GUARDIAN UX FIX: Restore data counts directly on the graph for macro reports
+                // GUARDIAN UX FIX: Restore data counts directly on the graph for macro reports
                 if (Admin.telemetryRange !== 'INTRADAY') {
                     svg += `<text x="${vx}" y="${vy - 10}" font-family="sans-serif" font-size="11" font-weight="900" fill="${dayColor}" text-anchor="middle">${val}</text>`;
                 }
@@ -1117,7 +1335,7 @@ const Admin = {
             if (Admin.telemetryInterval) {
                 clearInterval(Admin.telemetryInterval);
                 Admin.telemetryInterval = null;
-                console.log("🛡️ Guardian: Dev Modal closed. Telemetry polling suspended.");
+                console.log("Guardian: Dev Modal closed. Telemetry polling suspended.");
             }
             return;
         }
@@ -1125,8 +1343,11 @@ const Admin = {
         const secret = await Admin.getAuthKey();
         if (!secret) return;
 
+        // Soft loading pulse only while values are still placeholders
         [stat5m, stat30m, statToday, statWeekly, statMonthly, statAllTime, statErrors].forEach(el => {
-            if (el && !el.classList.contains('animate-pulse')) el.classList.add('animate-pulse');
+            if (!el) return;
+            const t = (el.textContent || '').trim();
+            if (t === '--' || t === '' || t === 'Wait') el.classList.add('animate-pulse');
         });
 
         const CLOUDFLARE_WORKER_URL = 'https://nexttrain-telemetry.enock.workers.dev/';
@@ -1152,7 +1373,7 @@ const Admin = {
                 if(statAllTime) statAllTime.textContent = data.allTimeUsers !== undefined ? Admin.formatNumber(data.allTimeUsers) : '--';
                 if(statErrors) statErrors.textContent = data.todayErrors !== undefined ? Admin.formatNumber(data.todayErrors) : '--';
                 
-                // 🛡️ GUARDIAN: Store and update regional breakdown seamlessly
+                // GUARDIAN: Store and update regional breakdown seamlessly
                 if (data.regionalBreakdown) {
                     Admin.currentRegionalBreakdown = data.regionalBreakdown;
                     Admin.updateRegionalModal();
@@ -1198,9 +1419,9 @@ const Admin = {
                     }
                 }
                 
-                // 🛡️ GUARDIAN PHASE 2: RAM Array Slicer Engine
+                // GUARDIAN PHASE 2: RAM Array Slicer Engine
                 // INTRADAY worker packs [yesterday 0..47 | today 48..cutoff]. Never take
-                // "last 48" for Today — that straddles midnight and draws a fake cliff.
+                // "last 48" for Today - that straddles midnight and draws a fake cliff.
                 let pointsPerView = Admin.telemetryRange === 'INTRADAY' ? 48 : 7;
                 let offset = Admin.telemetryWeeksAgo;
                 
@@ -1230,7 +1451,7 @@ const Admin = {
                 
                 // Keep chart consistently scaled even if data runs out early
                 if (Admin.telemetryRange === 'INTRADAY') {
-                    // Pad FUTURE buckets (end), not the morning — zeros at the start fake a dawn climb.
+                    // Pad FUTURE buckets (end), not the morning - zeros at the start fake a dawn climb.
                     if (activeCountsArray.length < 48) {
                         const padLen = 48 - activeCountsArray.length;
                         activeCountsArray = [...activeCountsArray, ...Array(padLen).fill(null)];
@@ -1245,7 +1466,7 @@ const Admin = {
                     labelsArray = [...Array(padLen).fill(''), ...labelsArray];
                 }
 
-                // 🛡️ GUARDIAN PHASE 3: Comparison Array Slicer
+                // GUARDIAN PHASE 3: Comparison Array Slicer
                 let compareCountsArray = null;
                 if (Admin.isComparing) {
                     if (Admin.telemetryRange === 'INTRADAY' && offset === 0 && masterLen > 48) {
@@ -1322,7 +1543,7 @@ const Admin = {
 
                 let titleStr = "";
                 
-                // 🛡️ GUARDIAN PHASE 4: Dynamic Title Extractor based on raw data labels
+                // GUARDIAN PHASE 4: Dynamic Title Extractor based on raw data labels
                 let firstValidRaw = null;
                 let lastValidRaw = null;
                 
@@ -1440,14 +1661,14 @@ const Admin = {
                 const modalSvgContainer = document.getElementById('modal-chart-svg-container');
                 if (modalSvgContainer) modalSvgContainer.innerHTML = Admin._buildLineGraphSVG(activeCountsArray, displayLabels, titleStr, isTodayIdx, false, compareCountsArray);
 
-                [stat5m, stat30m, statToday, statAllTime, statErrors].forEach(el => {
-                    if(el) el.classList.remove('animate-pulse');
+                [stat5m, stat30m, statToday, statWeekly, statMonthly, statAllTime, statErrors].forEach(el => {
+                    if (el) el.classList.remove('animate-pulse');
                 });
             } else {
                 throw new Error("Worker returned status: " + res.status);
             }
         } catch(e) {
-            console.warn("🛡️ Telemetry Fetch Failed:", e.message);
+            console.warn("Telemetry Fetch Failed:", e.message);
             
             if(stat5m && stat5m.textContent === '--') stat5m.textContent = "Wait";
             if(stat30m && stat30m.textContent === '--') stat30m.textContent = "Wait";
@@ -1691,7 +1912,7 @@ const Admin = {
 
     // --- 1. INITIALIZATION ---
     init: () => {
-        // 🛡️ GUARDIAN FIX: Uncouple UI bindings from Firebase to survive offline/cached race conditions
+        // GUARDIAN FIX: Uncouple UI bindings from Firebase to survive offline/cached race conditions
         if (!Admin._coreEventsBound) {
             Admin.setupLoginAccess();
             Admin._coreEventsBound = true;
@@ -1713,11 +1934,11 @@ const Admin = {
 
     // --- 2. AUTH LISTENER (PHASE 9) ---
     setupAuthListener: () => {
-        // 🛡️ GUARDIAN PHASE 4: Upgrade to onIdTokenChanged to survive token refreshes and prevent random drops
+        // GUARDIAN PHASE 4: Upgrade to onIdTokenChanged to survive token refreshes and prevent random drops
         const authListenerFn = typeof window.firebaseOnIdTokenChanged === 'function' ? window.firebaseOnIdTokenChanged : window.firebaseOnAuthStateChanged;
         
         if (typeof authListenerFn !== 'function') {
-            console.warn("🛡️ Guardian: Firebase Auth not loaded. Skipping auth listener.");
+            console.warn("Guardian: Firebase Auth not loaded. Skipping auth listener.");
             return;
         }
 
@@ -1725,13 +1946,13 @@ const Admin = {
             const signoutContainer = document.getElementById('admin-signout-container');
             
             if (user) {
-                console.log("🛡️ Guardian: Admin Authenticated. Analytics blocked.");
+                console.log("Guardian: Admin Authenticated. Analytics blocked.");
                 try { localStorage.setItem('analytics_ignore', 'true'); } catch(e){}
-                // 🛡️ GUARDIAN UX: Mirror session to safeStorage to persist Dev Mode
+                // GUARDIAN UX: Mirror session to safeStorage to persist Dev Mode
                 try { safeStorage.setItem('dev_session_active', 'true'); } catch(e){}
                 Admin.currentUser = user;
 
-                // 🛡️ GUARDIAN UX: Dynamic Email-Prefix Extractor for Admin Names
+                // GUARDIAN UX: Dynamic Email-Prefix Extractor for Admin Names
                 let displayName = user.email;
                 if (user.email && user.email.includes('@')) {
                     const prefix = user.email.split('@')[0];
@@ -1764,9 +1985,9 @@ const Admin = {
                 Admin.syncAllBadges();
 
             } else {
-                console.log("🛡️ Guardian: Admin Logged Out. Analytics restored.");
+                console.log("Guardian: Admin Logged Out. Analytics restored.");
                 try { localStorage.removeItem('analytics_ignore'); } catch(e){}
-                // 🛡️ GUARDIAN UX: Wipe mirrored session on secure signout
+                // GUARDIAN UX: Wipe mirrored session on secure signout
                 try { safeStorage.removeItem('dev_session_active'); } catch(e){}
                 Admin.currentUser = null;
                 if (signoutContainer) signoutContainer.innerHTML = '';
@@ -1822,6 +2043,12 @@ const Admin = {
                         } catch (e) { /* ignore */ }
                         if (typeof openSmoothModal === 'function') openSmoothModal('login-modal');
                         else loginModal.classList.remove('hidden');
+
+                        if (loginBtn) {
+                            loginBtn.disabled = false;
+                            loginBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        }
+                        if (spinner) spinner.classList.add('hidden');
                         
                         if(emailInput) setTimeout(() => emailInput.focus(), 150);
                     }
@@ -1829,7 +2056,7 @@ const Admin = {
             }
         });
 
-        // 🛡️ GUARDIAN FIX: Smooth exit via Router/Back Button
+        // GUARDIAN FIX: Smooth exit via Router/Back Button
         if (cancelBtn) {
             cancelBtn.addEventListener('click', () => { 
                 if (location.hash === '#login') history.back();
@@ -1854,7 +2081,7 @@ const Admin = {
                     return;
                 }
 
-                // 🛡️ GUARDIAN PHASE 1: Network-request-failed crash immunity
+                // GUARDIAN PHASE 1: Network-request-failed crash immunity
                 if (!navigator.onLine || window.isLieFi) {
                     if (typeof showToast === 'function') showToast("Network disconnected. Cannot authenticate.", "error");
                     return;
@@ -1865,7 +2092,7 @@ const Admin = {
 
                 window.firebaseSignIn(window.firebaseAuth, email, password)
                     .then((userCredential) => {
-                        // Close login WITHOUT history.back() — that raced popstate and closed admin
+                        // Close login WITHOUT history.back() - that raced popstate and closed admin
                         if (typeof closeSmoothModal === 'function') closeSmoothModal('login-modal', true);
                         else loginModal.classList.add('hidden');
                         try {
@@ -1884,7 +2111,7 @@ const Admin = {
                     })
                     .catch((error) => {
                         if (typeof showToast === 'function') showToast("Authentication Failed", "error");
-                        console.error("🛡️ Guardian Login Error:", error);
+                        console.error("Guardian Login Error:", error);
                     })
                     .finally(() => {
                         if (spinner) spinner.classList.add('hidden');
@@ -1930,14 +2157,30 @@ const Admin = {
 
     // --- HELPER: RENDER ALL DYNAMIC MODULES ---
     renderAdminModules: () => {
-        // 🛡️ GUARDIAN UX FIX: Singleton rendering lock absolutely eradicates the module duplication bug
+        // GUARDIAN UX FIX: Singleton rendering lock absolutely eradicates the module duplication bug
         if (Admin._modulesRendered) {
+            // Rebuild any empty/broken shells left by a prior failed setup (grid otherwise shows blank cards)
+            try {
+                const alertPanel = document.getElementById('alert-panel');
+                const alertBroken = alertPanel && (
+                    !(alertPanel.innerHTML || '').trim()
+                    || !(alertPanel.querySelector('#alert-header-btn')?.textContent || '').trim()
+                );
+                if (alertBroken) {
+                    delete alertPanel.dataset.adminLoaded;
+                    alertPanel.dataset.adminShell = 'empty';
+                    alertPanel.classList.add('hidden');
+                    Admin.setupServiceAlertsManager();
+                }
+            } catch (e) { console.error('[Admin] alert rebuild failed:', e); }
+            Admin.ensureGlobalStateMonitorTile();
             Admin.initGridView(); // Ensure grid is bound if re-opened
+            Admin.fetchActionRequired();
             return;
         }
         Admin._modulesRendered = true;
 
-        // 🛡️ GUARDIAN PHASE 11 (UX FIX): Convert Modal to Native Full-Screen App Architecture
+        // GUARDIAN PHASE 11 (UX FIX): Convert Modal to Native Full-Screen App Architecture
         const devModalCard = document.querySelector('#dev-modal > div');
         if (devModalCard) {
             devModalCard.className = "bg-gray-50 dark:bg-gray-900 w-full min-h-screen max-w-5xl mx-auto p-4 sm:p-6 flex flex-col relative transition-all duration-300";
@@ -1949,37 +2192,47 @@ const Admin = {
         }
 
         // --- AFTER ---
-        // 🛡️ GUARDIAN UX FIX: Removed the top "Secure Sign Out" button to prevent accidental 6th-tap clicks. 
+        // GUARDIAN UX FIX: Removed the top "Secure Sign Out" button to prevent accidental 6th-tap clicks. 
         // Admin will rely purely on the bottom Sign Out button.
         const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6');
 
-        // Setup Execution Order
-        Admin.setupTelemetry();
-        Admin.setupFeedbackManager(); 
-        Admin.setupDelayReportsManager();
-        Admin.setupModerationQueueManager();
-        Admin.setupUserTrustManager();
-        Admin.setupDeadEndsManager(); 
-        Admin.setupCrashReportsManager();  
-        Admin.setupServiceAlertsManager();
-        Admin.setupDisruptionsManager(); 
-        Admin.setupExclusionManager();
-        Admin.setupMaintenanceManager();
-        Admin.setupSpecialEventManager(); 
-        Admin.setupDiagnosticsManager();
-        Admin.setupScheduleQaManager();
-        Admin.setupRoadmapManager(); // 🛡️ GUARDIAN PHASE: Operations Roadmap
+        // Setup Execution Order (isolated so one panel failure cannot blank the rest of the grid)
+        const runAdminSetup = (label, fn) => {
+            try { fn(); }
+            catch (err) {
+                console.error(`[Admin] ${label} failed:`, err);
+            }
+        };
+        runAdminSetup('telemetry', () => Admin.setupTelemetry());
+        runAdminSetup('feedback', () => Admin.setupFeedbackManager());
+        runAdminSetup('delayReports', () => Admin.setupDelayReportsManager());
+        runAdminSetup('moderation', () => Admin.setupModerationQueueManager());
+        runAdminSetup('userTrust', () => Admin.setupUserTrustManager());
+        runAdminSetup('deadEnds', () => Admin.setupDeadEndsManager());
+        runAdminSetup('crashes', () => Admin.setupCrashReportsManager());
+        runAdminSetup('serviceAlerts', () => Admin.setupServiceAlertsManager());
+        runAdminSetup('disruptions', () => Admin.setupDisruptionsManager());
+        runAdminSetup('exclusions', () => Admin.setupExclusionManager());
+        runAdminSetup('holidayApprovals', () => Admin.setupHolidayApprovalsManager());
+        runAdminSetup('maintenance', () => Admin.setupMaintenanceManager());
+        runAdminSetup('specialEvent', () => Admin.setupSpecialEventManager());
+        runAdminSetup('diagnostics', () => Admin.setupDiagnosticsManager());
+        runAdminSetup('scheduleQa', () => Admin.setupScheduleQaManager());
+        runAdminSetup('roadmap', () => Admin.setupRoadmapManager());
 
-        // 🛡️ GROWTH SPRINT PHASE 5: Transform Dev Hub into native Grid / Drill-Down Dashboard
+        // Stub Global State Monitor before grid packs tiles (fetch fills body async)
+        Admin.ensureGlobalStateMonitorTile();
+
+        // GROWTH SPRINT PHASE 5: Transform Dev Hub into native Grid / Drill-Down Dashboard
         Admin.initGridView();
         
         // Final Universal Sync
         Admin.syncAllBadges();
 
-        // 🛡️ GUARDIAN PHASE 14: Action Required Expiry Dashboard
+        // GUARDIAN PHASE 14: Action Required Expiry Dashboard
         Admin.fetchActionRequired();
         
-        // 🛡️ GUARDIAN PHASE 6.3: Post-Render Initialization for Transplanted UI Components
+        // GUARDIAN PHASE 6.3: Post-Render Initialization for Transplanted UI Components
         // Because the HTML for these elements was moved OUT of the monolithic UI.js string 
         // and IN to the dynamic setup functions, we must manually trigger their setup logic here
         // so they attach to the newly generated DOM elements on first load.
@@ -2004,29 +2257,88 @@ const Admin = {
         }
     },
 
-    fetchActionRequired: async () => {
-        const secret = await Admin.getAuthKey();
-        if (!secret) return;
 
+    ensureGlobalStateMonitorTile: () => {
         const adminContainer = document.getElementById('admin-modules-container');
+        if (!adminContainer) return null;
         let actionBanner = document.getElementById('action-required-panel');
-
-        if (!actionBanner && adminContainer) {
+        if (!actionBanner) {
             actionBanner = document.createElement('div');
             actionBanner.id = 'action-required-panel';
             adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
         }
+        // Match other tiles: visible overflow so grid titles/icons are never clipped
+        actionBanner.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-visible transition-all duration-300";
+        actionBanner.classList.remove('hidden');
+        const hadHeader = !!actionBanner.querySelector('#action-header-btn');
+        const headerEmpty = hadHeader && !(actionBanner.querySelector('#action-header-btn')?.textContent || '').trim();
+        if (!hadHeader || headerEmpty) {
+            actionBanner.innerHTML = `
+                <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                    <span class="flex flex-col items-center">
+                        ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
+                        <span class="text-blue-600 dark:text-blue-400">Global State Monitor</span>
+                    </span>
+                    <svg id="action-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="action-body" class="hidden mt-4 space-y-2">
+                    <div class="animate-pulse text-xs text-center text-gray-500 py-3">Scanning for expiring entities...</div>
+                </div>
+            `;
+        }
+        if (adminContainer.firstElementChild !== actionBanner) {
+            adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
+        }
+        return actionBanner;
+    },
 
+    fetchActionRequired: async () => {
+        const actionBanner = Admin.ensureGlobalStateMonitorTile();
         if (!actionBanner) return;
-        actionBanner.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
-        actionBanner.innerHTML = `<div class="animate-pulse text-xs text-center text-gray-500">Scanning for expiring entities...</div>`;
+
+        const secret = await Admin.getAuthKey();
+        if (!secret) {
+            const body = document.getElementById('action-body');
+            if (body) {
+                body.innerHTML = `<div class="text-xs text-center text-amber-600 dark:text-amber-400 py-4 px-2 leading-relaxed">Sign in required to scan active network state.</div>`;
+            }
+            return;
+        }
+
+        const adminContainer = document.getElementById('admin-modules-container');
+        // Refresh chrome while scanning (preserve tile presence — never leave an empty card)
+        actionBanner.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-visible transition-all duration-300";
+        actionBanner.classList.remove('hidden');
+        const gsmHeaderHtml = `
+            <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
+                    <span class="text-blue-600 dark:text-blue-400">Global State Monitor</span>
+                </span>
+                <svg id="action-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>`;
+        // Prefer updating body only so grid title never blanks mid-fetch
+        let actionBody = document.getElementById('action-body');
+        if (!document.getElementById('action-header-btn') || !actionBody) {
+            actionBanner.innerHTML = `${gsmHeaderHtml}
+                <div id="action-body" class="hidden mt-4 space-y-2">
+                    <div class="animate-pulse text-xs text-center text-gray-500 py-3">Scanning for expiring entities...</div>
+                </div>`;
+            actionBody = document.getElementById('action-body');
+        } else if (actionBody) {
+            actionBody.innerHTML = `<div class="animate-pulse text-xs text-center text-gray-500 py-3">Scanning for expiring entities...</div>`;
+        }
+        if (adminContainer && adminContainer.firstElementChild !== actionBanner) {
+            adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
+        }
 
         try {
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-            const [noticesRes, disrRes, exclRes] = await Promise.all([
+            const [noticesRes, disrRes, exclRes, maintRes] = await Promise.all([
                 fetch(`${dynamicEndpoint}notices.json?auth=${secret}`).catch(() => null),
                 fetch(`${dynamicEndpoint}disruptions.json?auth=${secret}`).catch(() => null),
-                fetch(`${dynamicEndpoint}exclusions.json?auth=${secret}`).catch(() => null)
+                fetch(`${dynamicEndpoint}exclusions.json?auth=${secret}`).catch(() => null),
+                fetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`).catch(() => null)
             ]);
 
             const now = Date.now();
@@ -2079,7 +2391,7 @@ const Admin = {
                         Object.keys(exclData[rId]).forEach(tNum => {
                             const item = exclData[rId][tNum];
                             
-                            // 🛡️ GUARDIAN PHASE 1: Capture Grid Notices
+                            // GUARDIAN PHASE 1: Capture Grid Notices
                             if (tNum === '_grid_notice') {
                                 if (!item.expiresAt || item.expiresAt > now) {
                                     activeItems.push({ type: 'Grid Notice', label: `Grid Notice Active`, expiresAt: item.expiresAt, id: '_grid_notice', panelId: 'exclusion-panel', routeId: rId });
@@ -2097,13 +2409,75 @@ const Admin = {
                 }
             }
 
+            // 4. Scan Maintenance banners
+            if (maintRes && maintRes.ok) {
+                try {
+                    const maintData = await maintRes.json();
+                    const rootOn = maintData === true || (maintData && typeof maintData === 'object' && maintData.active !== false);
+                    if (rootOn) {
+                        let items = [];
+                        if (typeof window.listMaintenanceItems === 'function') {
+                            items = window.listMaintenanceItems(maintData === true ? true : maintData);
+                        } else if (maintData === true) {
+                            items = [{ id: '_legacy', active: true, message: 'MAINTENANCE IN PROGRESS', regions: [], routes: [] }];
+                        } else if (maintData?.items && typeof maintData.items === 'object') {
+                            items = Object.keys(maintData.items).map((k) => ({ id: k, ...maintData.items[k] }));
+                        } else if (maintData && typeof maintData === 'object') {
+                            items = [{
+                                id: '_legacy',
+                                active: !!maintData.active,
+                                message: maintData.message || 'MAINTENANCE IN PROGRESS',
+                                regions: maintData.regions || [],
+                                routes: maintData.routes || [],
+                                expiresAt: maintData.expiresAt || null,
+                            }];
+                        }
+                        items.forEach((it) => {
+                            if (it.active === false) return;
+                            if (it.expiresAt && Number(it.expiresAt) <= now) return;
+                            const scopeLabel = it.routes?.length
+                                ? `${it.routes.length} route(s)`
+                                : (it.regions?.length ? it.regions.join('+') : 'Network');
+                            const routeId = it.routes?.[0]
+                                || (it.regions?.[0] ? `all_${it.regions[0]}` : 'all');
+                            const msg = String(it.message || 'Maintenance').slice(0, 80);
+                            activeItems.push({
+                                type: 'Maintenance',
+                                label: `${msg}${msg.length >= 80 ? '…' : ''} (${scopeLabel})`,
+                                expiresAt: it.expiresAt || null,
+                                id: it.id,
+                                panelId: 'maint-panel',
+                                routeId,
+                            });
+                        });
+                    }
+                } catch (me) { /* optional */ }
+            }
+
+            Admin._routeFlags = {};
             if (activeItems.length === 0) {
-                Admin._routeFlags = {};
                 if (typeof Admin.populateAlertTargets === 'function') Admin.populateAlertTargets(true);
                 if (typeof Admin.populateDisruptionRoutes === 'function') Admin.populateDisruptionRoutes();
                 if (typeof Admin.populateExclusionRoutes === 'function') Admin.populateExclusionRoutes();
 
-                actionBanner.classList.add('hidden');
+                actionBanner.classList.remove('hidden');
+                actionBanner.innerHTML = `
+                    <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                        <span class="flex flex-col items-center">
+                            ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
+                            <span class="text-blue-600 dark:text-blue-400">Global State Monitor (0)</span>
+                        </span>
+                        <svg id="action-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="action-body" class="hidden mt-4 space-y-2">
+                        <div class="text-xs text-center text-slate-500 dark:text-slate-400 py-4 px-2 leading-relaxed">
+                            All clear - no active alerts, incidents, grid notices, schedule exceptions, or maintenance banners.
+                        </div>
+                    </div>
+                `;
+                if (adminContainer.firstElementChild !== actionBanner) {
+                    adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
+                }
                 return;
             }
 
@@ -2115,7 +2489,7 @@ const Admin = {
                 return a.expiresAt - b.expiresAt;
             });
 
-            // 🛡️ GUARDIAN PHASE 2: Cross-reference active states for Dropdown Breadcrumbs
+            // GUARDIAN PHASE 2: Cross-reference active states for Dropdown Breadcrumbs
             Admin._routeFlags = {};
             activeItems.forEach(item => {
                 if (!item.routeId || item.routeId === 'all' || item.routeId.startsWith('all_')) return;
@@ -2132,7 +2506,7 @@ const Admin = {
             if (typeof Admin.populateDisruptionRoutes === 'function') Admin.populateDisruptionRoutes();
             if (typeof Admin.populateExclusionRoutes === 'function') Admin.populateExclusionRoutes();
 
-            // 🛡️ GUARDIAN UX REDESIGN: Action Required 3-Row Layout with Route Stripping
+            // GUARDIAN UX REDESIGN: Action Required 3-Row Layout with Route Stripping
             const getRegionBadge = (rId) => {
                 if (!rId) return '';
                 const badgeClass = "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-black uppercase tracking-wider text-[9px] mr-1.5";
@@ -2192,36 +2566,39 @@ const Admin = {
             });
 
             actionBanner.innerHTML = `
-                <button id="action-header-btn" class="w-full text-left text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between focus:outline-none relative">
-                    <span class="flex items-center">
-                        <span class="mr-3 relative flex h-4 w-4">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                            <span class="relative inline-flex rounded-full h-4 w-4 bg-blue-500 items-center justify-center">
-                                <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            </span>
-                        </span>
+                <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                    <span class="flex flex-col items-center">
+                        ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
                         <span class="text-blue-600 dark:text-blue-400">Global State Monitor (${activeItems.length})</span>
                     </span>
-                    <svg id="action-chevron" class="w-4 h-4 transform transition-transform text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    <span class="admin-unread-badge ${activeItems.length ? '' : 'hidden'}" aria-label="Active items">${activeItems.length || ''}</span>
+                    <svg id="action-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
-                <div id="action-body" class="mt-4 space-y-2">
+                <div id="action-body" class="hidden mt-4 space-y-2">
                     ${listHtml}
                 </div>
             `;
-
-            const header = document.getElementById('action-header-btn');
-            const body = document.getElementById('action-body');
-            const chevron = document.getElementById('action-chevron');
-            
-            header.onclick = () => {
-                if (Admin.isGridMode) return; 
-                body.classList.toggle('hidden');
-                if (body.classList.contains('hidden')) chevron.classList.add('-rotate-90');
-                else chevron.classList.remove('-rotate-90');
-            };
+            if (adminContainer.firstElementChild !== actionBanner) {
+                adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
+            }
 
         } catch(e) {
-            actionBanner.classList.add('hidden');
+            // Stay visible - never delete the tile on fetch failure
+            actionBanner.classList.remove('hidden');
+            actionBanner.innerHTML = `
+                <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                    <span class="flex flex-col items-center">
+                        ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
+                        <span class="text-blue-600 dark:text-blue-400">Global State Monitor</span>
+                    </span>
+                </button>
+                <div id="action-body" class="hidden mt-4 space-y-2">
+                    <div class="text-xs text-center text-red-500 py-4">Could not refresh active entities. Tap Refresh from another panel or reopen Dev Mode.</div>
+                </div>
+            `;
+            if (adminContainer?.firstElementChild !== actionBanner) {
+                adminContainer?.insertBefore(actionBanner, adminContainer.firstChild);
+            }
         }
     },
 
@@ -2233,6 +2610,52 @@ const Admin = {
         try {
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
             let url = '';
+
+            if (type === 'Maintenance') {
+                const maintUrl = `${dynamicEndpoint}config/maintenance.json?auth=${secret}`;
+                const fetchRes = await fetch(maintUrl);
+                if (!fetchRes.ok) throw new Error('Fetch failed');
+                const maintData = await fetchRes.json();
+                if (!maintData || typeof maintData !== 'object') {
+                    if (typeof showToast === 'function') showToast('No maintenance config.', 'warning');
+                    return;
+                }
+                // Flat legacy (no items map yet)
+                if (!maintData.items || typeof maintData.items !== 'object') {
+                    if (!maintData.expiresAt) {
+                        if (typeof showToast === 'function') showToast('Item has no expiry to extend.', 'warning');
+                        return;
+                    }
+                    const newExpiry = Number(maintData.expiresAt) + 86400000;
+                    await fetch(maintUrl, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ expiresAt: newExpiry, updatedAt: Date.now() }),
+                    });
+                    if (typeof showToast === 'function') showToast('Extended by +24 Hours!', 'success');
+                    Admin.fetchActionRequired();
+                    return;
+                }
+                const item = maintData.items[id];
+                if (!item || !item.expiresAt) {
+                    if (typeof showToast === 'function') showToast('Item has no expiry to extend.', 'warning');
+                    return;
+                }
+                const newExpiry = Number(item.expiresAt) + 86400000;
+                await fetch(`${dynamicEndpoint}config/maintenance/items/${encodeURIComponent(id)}.json?auth=${secret}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ expiresAt: newExpiry, updatedAt: Date.now() }),
+                });
+                // Keep root shim expiresAt in sync when this is the primary
+                if (maintData.expiresAt && Number(maintData.expiresAt) === Number(item.expiresAt)) {
+                    await fetch(maintUrl, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ expiresAt: newExpiry, updatedAt: Date.now() }),
+                    });
+                }
+                if (typeof showToast === 'function') showToast('Extended by +24 Hours!', 'success');
+                Admin.fetchActionRequired();
+                return;
+            }
 
             if (type === 'Disruption') url = `${dynamicEndpoint}disruptions/${routeId}/${id}.json?auth=${secret}`;
             else if (type === 'Exception') url = `${dynamicEndpoint}exclusions/${routeId}/${id}.json?auth=${secret}`;
@@ -2269,12 +2692,97 @@ const Admin = {
         }
     },
 
+    /** Sync a premium dropdown's visible label to match the hidden <select> value. */
+    _syncAdminSelectDisplay: (selectId, routeId) => {
+        const selectEl = document.getElementById(selectId);
+        if (!selectEl) return;
+        const opt = selectEl.querySelector(`option[value="${CSS.escape ? CSS.escape(routeId) : routeId}"]`)
+            || Array.from(selectEl.options).find((o) => o.value === routeId);
+        if (!opt) return;
+
+        const displayId = selectId === 'alert-target' ? 'alert-target-display'
+            : selectId === 'disr-route' ? 'disr-route-display'
+            : selectId === 'excl-route' ? 'excl-route-display'
+            : null;
+        const listId = selectId === 'alert-target' ? 'alert-target-list'
+            : selectId === 'disr-route' ? 'disr-route-list'
+            : selectId === 'excl-route' ? 'excl-route-list'
+            : null;
+        const display = displayId ? document.getElementById(displayId) : null;
+        const list = listId ? document.getElementById(listId) : null;
+        if (!display) return;
+
+        // Prefer the matching custom-list row HTML (badges / route arrows)
+        if (list) {
+            const matchLi = Array.from(list.querySelectorAll('li.cursor-pointer, li[class*="cursor-pointer"]'))
+                .find((li) => typeof li.onclick === 'function' && (
+                    (li.getAttribute('data-value') === routeId)
+                    || (opt.textContent && li.textContent.includes(String(opt.textContent).split(' [')[0].trim()))
+                ));
+            if (matchLi) {
+                display.innerHTML = matchLi.innerHTML;
+                return;
+            }
+        }
+
+        if (typeof ROUTES !== 'undefined' && ROUTES[routeId]) {
+            const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(routeId) : '';
+            let badgeHtml = '';
+            if (cues?.includes('Notice')) badgeHtml += '<span class="ml-1.5 px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[8px] rounded uppercase flex-shrink-0">Note</span>';
+            if (cues?.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">Alert</span>';
+            display.innerHTML = `<span class="truncate mr-1 inline-flex items-center">${Admin.formatRouteLabelHtml(ROUTES[routeId].name)}</span>${badgeHtml}`;
+        } else {
+            display.textContent = opt.textContent || routeId;
+        }
+    },
+
+    /** Apply GSM / Review route to admin selects without touching the live board. */
+    applyPendingAdminRoute: (panelId) => {
+        const routeId = Admin._pendingAdminRoute;
+        if (!routeId) return;
+
+        // Review always lands on New Alert (not leftover Schedule / Archive tab)
+        if (panelId === 'alert-panel' && typeof Admin.setAlertManagerTab === 'function') {
+            Admin.setAlertManagerTab('compose');
+        }
+
+        let selectId = '';
+        if (panelId === 'alert-panel') selectId = 'alert-target';
+        else if (panelId === 'disruption-panel') selectId = 'disr-route';
+        else if (panelId === 'exclusion-panel') selectId = 'excl-route';
+        if (!selectId) return;
+        const selectEl = document.getElementById(selectId);
+        if (!selectEl) return;
+        const opt = selectEl.querySelector(`option[value="${CSS.escape ? CSS.escape(routeId) : routeId}"]`)
+            || Array.from(selectEl.options).find((o) => o.value === routeId);
+        if (!opt) return;
+
+        const changed = selectEl.value !== routeId;
+        if (changed) selectEl.value = routeId;
+        Admin._syncAdminSelectDisplay(selectId, routeId);
+        if (changed) selectEl.dispatchEvent(new Event('change'));
+
+        if (selectId === 'excl-route') {
+            const banner = document.getElementById('excl-review-banner');
+            if (banner && typeof ROUTES !== 'undefined' && ROUTES[routeId]) {
+                banner.classList.remove('hidden');
+                banner.innerHTML = `<span class="font-black text-blue-700 dark:text-blue-300">Reviewing</span> <span class="inline-flex items-center">${Admin.formatRouteLabelHtml(ROUTES[routeId].name)}</span> <span class="text-slate-500 dark:text-slate-400 font-medium">- live board route unchanged</span>`;
+            }
+        }
+    },
+
     deepLinkToPanel: (panelId, routeId) => {
         const targetPanel = document.getElementById(panelId);
         if (!targetPanel) return;
 
         const container = document.getElementById('admin-modules-container');
         if (!container) return;
+
+        // Pin admin route selection (never mutate live-board currentRouteId)
+        if (routeId) {
+            Admin._pendingAdminRoute = routeId;
+            Admin._adminRouteDeepLinkActive = true;
+        }
 
         // If we are currently in Grid Mode, we can just click it naturally
         if (Admin.isGridMode) {
@@ -2295,7 +2803,7 @@ const Admin = {
             const chev = targetPanel.querySelector('[id$="-chevron"]');
             if (chev) chev.classList.remove('-rotate-90');
 
-            // 🛡️ GUARDIAN UX FIX: Hide redundant internal accordion header during full-screen drill-down
+            // GUARDIAN UX FIX: Hide redundant internal accordion header during full-screen drill-down
             const internalHeader = targetPanel.querySelector('[id$="-header-btn"]');
             if (internalHeader) internalHeader.style.setProperty('display', 'none', 'important');
 
@@ -2303,7 +2811,7 @@ const Admin = {
             const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6') || document.querySelector('#dev-modal .border-b.border-gray-200.pb-2.mb-3');
             if (devHeaderRow) {
                 devHeaderRow.classList.remove('pb-4', 'mb-6');
-                devHeaderRow.classList.add('pb-2', 'mb-3'); // 🛡️ GUARDIAN UX: Slim header padding
+                devHeaderRow.classList.add('pb-2', 'mb-3'); // GUARDIAN UX: Slim header padding
 
                 const titleH3 = devHeaderRow.querySelector('h3');
                 if (titleH3) {
@@ -2325,36 +2833,7 @@ const Admin = {
                     if (newDrillBack) {
                         newDrillBack.onclick = (evt) => {
                             evt.stopPropagation();
-                            window._adminDrillBackLock = true;
-
-                            if (location.hash.startsWith('#dev-')) {
-                                const devModal = document.getElementById('dev-modal');
-                                if (devModal) devModal.id = 'dev-panel-temp';
-                                history.back();
-                                setTimeout(() => {
-                                    const tempModal = document.getElementById('dev-panel-temp');
-                                    if (tempModal) tempModal.id = 'dev-modal';
-                                    window._adminDrillBackLock = false;
-                                }, 150);
-                            }
-
-                            Admin.isGridMode = true;
-                            container.classList.add('admin-grid-view');
-                            container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
-                            titleH3.innerHTML = devHeaderRow.dataset.originalHtml;
-                            devHeaderRow.classList.add('pb-4', 'mb-6'); // 🛡️ GUARDIAN UX: Restore padding
-                            devHeaderRow.classList.remove('pb-2', 'mb-3');
-                            const toggleBtn = document.getElementById('grid-view-toggle');
-                            if (toggleBtn) toggleBtn.style.display = '';
-                            const signoutContainer = document.getElementById('admin-signout-container');
-                            if (signoutContainer) signoutContainer.style.display = '';
-
-                            Array.from(container.children).forEach(child => {
-                                child.style.display = '';
-                                const b = child.querySelector('[id$="-body"]');
-                                if (b) b.classList.add('hidden');
-                            });
-                            Admin.syncAllBadges();
+                            Admin.exitDrillToGrid();
                         };
                     }
                 }
@@ -2372,21 +2851,22 @@ const Admin = {
             if (targetPanel.id === 'crashes-panel') Admin.fetchCrashes();
         }
 
-        if (routeId) {
-            setTimeout(() => {
-                let selectId = '';
-                if (panelId === 'alert-panel') selectId = 'alert-target';
-                else if (panelId === 'disruption-panel') selectId = 'disr-route';
-                else if (panelId === 'exclusion-panel') selectId = 'excl-route';
+        // Review → Service Alerts must open Compose (not sticky Schedule/Archive)
+        if (panelId === 'alert-panel' && typeof Admin.setAlertManagerTab === 'function') {
+            Admin.setAlertManagerTab('compose');
+        }
 
-                if (selectId) {
-                    const selectEl = document.getElementById(selectId);
-                    if (selectEl) {
-                        selectEl.value = routeId;
-                        selectEl.dispatchEvent(new Event('change'));
-                    }
-                }
+        if (panelId === 'maint-panel') {
+            setTimeout(() => {
+                if (typeof Admin.openMaintenanceAccordion === 'function') Admin.openMaintenanceAccordion();
             }, 100);
+        }
+
+        if (routeId) {
+            // Re-apply after panel mount + async populate*Routes (live board must not win)
+            setTimeout(() => Admin.applyPendingAdminRoute(panelId), 80);
+            setTimeout(() => Admin.applyPendingAdminRoute(panelId), 280);
+            setTimeout(() => Admin.applyPendingAdminRoute(panelId), 700);
         }
     },
 
@@ -2423,6 +2903,62 @@ const Admin = {
                 } catch (ae) {
                     if (typeof showToast === 'function') showToast("Failed to clear alert.", "error");
                 }
+            } else if (type === 'Maintenance') {
+                const res = await fetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`);
+                const maintData = res.ok ? await res.json() : null;
+                if (maintData && typeof maintData === 'object' && (!maintData.items || typeof maintData.items !== 'object')) {
+                    // Flat legacy — turn off
+                    await fetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({
+                            active: false,
+                            message: '',
+                            updatedAt: Date.now(),
+                            updatedBy: Admin.currentUser?.email || 'Admin',
+                        }),
+                    });
+                } else {
+                    await fetch(`${dynamicEndpoint}config/maintenance/items/${encodeURIComponent(id)}.json?auth=${secret}`, { method: 'DELETE' });
+                    // Rebuild root shim so legacy clients don't keep a stale banner
+                    try {
+                        const res2 = await fetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`);
+                        const md = res2.ok ? await res2.json() : null;
+                        if (md && typeof md === 'object') {
+                            const items = md.items && typeof md.items === 'object' ? { ...md.items } : {};
+                            delete items[id];
+                            const nowTs = Date.now();
+                            const live = Object.values(items).filter((it) => {
+                                if (!it || it.active === false) return false;
+                                if (it.expiresAt && Number(it.expiresAt) <= nowTs) return false;
+                                return true;
+                            });
+                            live.sort((a, b) => {
+                                const sa = (a.routes?.length ? 2 : a.regions?.length ? 1 : 0);
+                                const sb = (b.routes?.length ? 2 : b.regions?.length ? 1 : 0);
+                                return sb - sa;
+                            });
+                            const primary = live[0];
+                            const payload = {
+                                active: !!(md.active !== false && primary),
+                                items,
+                                message: primary ? (primary.message || 'MAINTENANCE IN PROGRESS') : '',
+                                updatedAt: nowTs,
+                                updatedBy: Admin.currentUser?.email || 'Admin',
+                            };
+                            if (primary?.regions?.length) payload.regions = primary.regions;
+                            else payload.regions = null;
+                            if (primary?.routes?.length) payload.routes = primary.routes;
+                            else payload.routes = null;
+                            if (primary?.expiresAt) payload.expiresAt = primary.expiresAt;
+                            else payload.expiresAt = null;
+                            await fetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
+                                method: 'PUT',
+                                body: JSON.stringify(payload),
+                            });
+                        }
+                    } catch (re) { /* best-effort shim */ }
+                }
+                if (typeof showToast === 'function') showToast('Maintenance banner resolved.', 'success');
             }
             Admin.fetchActionRequired();
         } catch(e) {
@@ -2462,6 +2998,7 @@ const Admin = {
                 <div id="crash-body" class="hidden mt-3 space-y-2">
                     <div class="flex border-b border-gray-200 dark:border-gray-700 mb-2">
                         <button id="crash-tab-inbox" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 transition-colors focus:outline-none tracking-wider">Inbox (<span id="crash-inbox-count">0</span>)</button>
+                        <button id="crash-tab-distress" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-transparent text-gray-400 hover:text-gray-600 transition-colors focus:outline-none tracking-wider">Distress (<span id="crash-distress-count">0</span>)</button>
                         <button id="crash-tab-archive" class="flex-1 py-2 text-[10px] uppercase font-black border-b-2 border-transparent text-gray-400 hover:text-gray-600 transition-colors focus:outline-none tracking-wider">Archive</button>
                     </div>
                     <div class="flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-inner gap-2">
@@ -2484,7 +3021,9 @@ const Admin = {
         const clearBtn = document.getElementById('crash-clear-btn');
         const listDiv = document.getElementById('crash-list');
         const tabInbox = document.getElementById('crash-tab-inbox');
+        const tabDistress = document.getElementById('crash-tab-distress');
         const tabArchive = document.getElementById('crash-tab-archive');
+        const isDistressCrash = (c) => c?.kind === 'distress' || String(c?.error || '').startsWith('DISTRESS:');
 
         header.onclick = () => {
             if (Admin.isGridMode) return;
@@ -2502,53 +3041,64 @@ const Admin = {
         refreshBtn.onclick = () => Admin.fetchCrashes();
 
         Admin.exportCrashesTxt = () => {
-            const isInbox = Admin.currentCrashTab === 'inbox';
-            const rows = (Admin.cachedCrashData || []).filter((c) =>
-                isInbox ? c.status !== 'resolved' : c.status === 'resolved'
-            );
+            const tab = Admin.currentCrashTab || 'inbox';
+            const rows = (Admin.cachedCrashData || []).filter((c) => {
+                if (tab === 'distress') return isDistressCrash(c);
+                if (tab === 'inbox') return c.status !== 'resolved' && !isDistressCrash(c);
+                return c.status === 'resolved';
+            });
             if (!rows.length) {
                 if (typeof showToast === 'function') showToast('No crashes to export', 'info');
                 return;
             }
-            let txt = `NEXT TRAIN — CRASH ANALYTICS\nTab: ${isInbox ? 'Inbox' : 'Archive'}\nExported: ${Admin.formatDate(Date.now())}\nRows: ${rows.length}\n${'='.repeat(48)}\n\n`;
+            const tabLabel = tab === 'distress' ? 'Distress' : (tab === 'inbox' ? 'Inbox' : 'Archive');
+            let txt = `NEXT TRAIN - CRASH ANALYTICS\nTab: ${tabLabel}\nExported: ${Admin.formatDate(Date.now())}\nRows: ${rows.length}\n${'='.repeat(48)}\n\n`;
             rows.forEach((c, i) => {
                 txt += `#${i + 1}  ${Admin.formatDate(c.timestamp)}\n`;
-                txt += `  ID: ${c.id || '—'}\n`;
-                txt += `  Device: ${c.deviceId || c.device_id || '—'}\n`;
-                txt += `  Route: ${c.routeId || 'Global'} · Region: ${c.region || '—'} · Version: ${c.appVersion || '—'}\n`;
+                txt += `  ID: ${c.id || '-'}\n`;
+                txt += `  Device: ${c.deviceId || c.device_id || '-'}\n`;
+                txt += `  Route: ${c.routeId || 'Global'} - Region: ${c.region || '-'} - Version: ${c.appVersion || '-'}\n`;
                 txt += `  Status: ${c.status || 'open'}\n`;
+                if (c.contact) txt += `  Contact: ${c.contact}\n`;
+                if (c.reason) txt += `  Reason: ${c.reason}\n`;
+                if (c.note) txt += `  Note: ${c.note}\n`;
                 const msg = String(c.message || c.error || c.stack || '').replace(/\r/g, '');
                 if (msg) txt += `  Message:\n${msg.split('\n').map((l) => `    ${l}`).join('\n')}\n`;
                 txt += `\n`;
             });
             const dateStr = new Date().toISOString().slice(0, 10);
-            const ok = Admin.downloadFile(`crashes_${isInbox ? 'inbox' : 'archive'}_${dateStr}.txt`, txt);
-            if (ok && typeof showToast === 'function') showToast(`Downloaded ${rows.length} crash(es)`, 'success');
+            const ok = Admin.downloadFile(`crashes_${tab}_${dateStr}.txt`, txt);
+            if (ok && typeof showToast === 'function') showToast(`Downloaded ${rows.length} item(s)`, 'success');
         };
         if (exportBtn) exportBtn.onclick = () => Admin.exportCrashesTxt();
 
+        const styleCrashTab = (el, on) => {
+            if (!el) return;
+            if (on) {
+                el.classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+                el.classList.remove('border-transparent', 'text-gray-400');
+            } else {
+                el.classList.add('border-transparent', 'text-gray-400');
+                el.classList.remove('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+            }
+        };
+
         const switchTab = (tab) => {
             Admin.currentCrashTab = tab;
-            if (tab === 'inbox') {
-                tabInbox.classList.replace('border-transparent', 'border-blue-500');
-                tabInbox.classList.replace('text-gray-400', 'text-blue-600');
-                tabArchive.classList.replace('border-blue-500', 'border-transparent');
-                tabArchive.classList.replace('text-blue-600', 'text-gray-400');
-            } else {
-                tabArchive.classList.replace('border-transparent', 'border-blue-500');
-                tabArchive.classList.replace('text-gray-400', 'text-blue-600');
-                tabInbox.classList.replace('border-blue-500', 'border-transparent');
-                tabInbox.classList.replace('text-blue-600', 'text-gray-400');
-            }
+            styleCrashTab(tabInbox, tab === 'inbox');
+            styleCrashTab(tabDistress, tab === 'distress');
+            styleCrashTab(tabArchive, tab === 'archive');
             Admin.renderCrashList();
         };
 
         tabInbox.onclick = () => switchTab('inbox');
+        tabDistress?.addEventListener('click', () => switchTab('distress'));
         tabArchive.onclick = () => switchTab('archive');
 
-        // 🛡️ GUARDIAN UX: Native Swipe Navigation for Crash Tabs
+        // GUARDIAN UX: Native Swipe Navigation for Crash Tabs
         let crashTouchStartX = 0;
         let crashTouchStartY = 0;
+        const crashTabOrder = ['inbox', 'distress', 'archive'];
         if (body) {
             body.addEventListener('touchstart', (e) => {
                 crashTouchStartX = e.changedTouches[0].screenX;
@@ -2558,24 +3108,34 @@ const Admin = {
                 const diffX = e.changedTouches[0].screenX - crashTouchStartX;
                 const diffY = e.changedTouches[0].screenY - crashTouchStartY;
                 if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
-                    if (diffX > 0 && Admin.currentCrashTab === 'archive') switchTab('inbox'); // Swipe Right
-                    else if (diffX < 0 && Admin.currentCrashTab === 'inbox') switchTab('archive'); // Swipe Left
+                    const idx = crashTabOrder.indexOf(Admin.currentCrashTab || 'inbox');
+                    if (diffX > 0 && idx > 0) switchTab(crashTabOrder[idx - 1]);
+                    else if (diffX < 0 && idx < crashTabOrder.length - 1) switchTab(crashTabOrder[idx + 1]);
                 }
             }, {passive: true});
         }
 
         Admin.renderCrashList = () => {
             listDiv.innerHTML = '';
-            const isInbox = Admin.currentCrashTab === 'inbox';
-            const targetData = Admin.cachedCrashData.filter(c => isInbox ? c.status !== 'resolved' : c.status === 'resolved');
-            document.getElementById('crash-status-display').textContent = isInbox ? `Active Crashes: ${targetData.length}` : `Archived Crashes: ${targetData.length}`;
+            const tab = Admin.currentCrashTab || 'inbox';
+            const targetData = Admin.cachedCrashData.filter((c) => {
+                if (tab === 'distress') return isDistressCrash(c);
+                if (tab === 'inbox') return c.status !== 'resolved' && !isDistressCrash(c);
+                return c.status === 'resolved';
+            });
+            const distressN = (Admin.cachedCrashData || []).filter(isDistressCrash).length;
+            const distressCountEl = document.getElementById('crash-distress-count');
+            if (distressCountEl) distressCountEl.textContent = String(distressN);
+            document.getElementById('crash-status-display').textContent =
+                tab === 'distress' ? `Distress / Help: ${targetData.length}`
+                : (tab === 'inbox' ? `Active Crashes: ${targetData.length}` : `Archived Crashes: ${targetData.length}`);
             
             if (targetData.length === 0) {
-                listDiv.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${isInbox ? 'No new crashes.' : 'Archive empty.'}</div>`;
+                listDiv.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${tab === 'distress' ? 'No distress / help reports.' : (tab === 'inbox' ? 'No new crashes.' : 'Archive empty.')}</div>`;
                 return;
             }
 
-            // 🛡️ GUARDIAN PHASE 1: Sanitization Armor (XSS Protection)
+            // GUARDIAN PHASE 1: Sanitization Armor (XSS Protection)
             const secureEscape = (str) => {
                 if (!str) return '';
                 if (typeof escapeHTML === 'function') return escapeHTML(str);
@@ -2603,7 +3163,7 @@ const Admin = {
                 const did = secureEscape(rawDid);
                 const safeJsDid = rawDid.replace(/'/g, "\\'");
                 
-                // 🛡️ GUARDIAN PHASE 1: Bulk Resolve Button & HTML Fix (button inside button is invalid, changed outer to div)
+                // GUARDIAN PHASE 1: Bulk Resolve Button & HTML Fix (button inside button is invalid, changed outer to div)
                 const resolveAllHtml = isInbox 
                     ? `<button onclick="event.stopPropagation(); Admin.resolveAllDeviceCrashes('${safeJsDid}')" class="mr-3 bg-green-100 dark:bg-green-900/50 hover:bg-green-200 dark:hover:bg-green-800 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors shadow-sm focus:outline-none flex items-center shrink-0"><span class="mr-1 inline-flex">${Admin.icon('check', 'w-3 h-3')}</span> Resolve All (${groupCrashes.length})</button>` 
                     : '';
@@ -2632,7 +3192,7 @@ const Admin = {
                     const safeLine = secureEscape(crash.line || '');
                     const safeUrl = secureEscape(crash.url || '');
 
-                    // Full raw details (stack / raw / logs) — never truncate to a one-line summary
+                    // Full raw details (stack / raw / logs) - never truncate to a one-line summary
                     let rawDetail = '';
                     if (crash.stack && crash.stack !== 'N/A') rawDetail = String(crash.stack);
                     else if (crash.raw) rawDetail = typeof crash.raw === 'string' ? crash.raw : JSON.stringify(crash.raw, null, 2);
@@ -2653,14 +3213,17 @@ const Admin = {
                     const safeRaw = secureEscape(rawDetail);
                     
                     const isBlackBox = crash.kind === 'blackbox_full' || String(crash.error || '').startsWith('BLACK_BOX_EXPORT');
+                    const isDistress = crash.kind === 'distress' || String(crash.error || '').startsWith('DISTRESS:');
                     const ticketDesc = isBlackBox
                         ? String(rawDetail || crash.stack || crash.raw || crash.error || '').slice(0, 12000)
                         : String(crash.error || '').slice(0, 240);
                     const escalateAttr = Admin.encodeEscalatePayload({
-                        type: 'bug',
-                        severity: isBlackBox ? 'medium' : 'high',
-                        title: isBlackBox
-                            ? `Black Box (${(Array.isArray(crash.logs) ? crash.logs.length : 'full')} lines) · ${crash.deviceId || crash.routeId || 'device'}`
+                        type: isDistress ? 'general' : 'bug',
+                        severity: isBlackBox ? 'medium' : (isDistress ? 'medium' : 'high'),
+                        title: isDistress
+                            ? `Distress - ${crash.contact || crash.deviceId || 'user'} - ${crash.reason || 'help'}`
+                            : isBlackBox
+                            ? `Black Box (${(Array.isArray(crash.logs) ? crash.logs.length : 'full')} lines) - ${crash.deviceId || crash.routeId || 'device'}`
                             : `Crash on ${crash.routeId || 'Global'}`,
                         description: ticketDesc,
                         source: `Crash ${crash.id || ''}`
@@ -2682,14 +3245,49 @@ const Admin = {
                              <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-2.5 py-1 rounded transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteCrash('${safeJsCrashId}')">Delete</button>
                            </div>`;
 
-                    const kindLabel = isBlackBox ? 'BLACK BOX LOG' : 'FATAL DUMP';
+                    const kindLabel = isDistress ? 'DISTRESS / HELP' : (isBlackBox ? 'BLACK BOX LOG' : 'FATAL DUMP');
+                    const kindBadgeClass = isDistress
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+                    const safeContact = secureEscape(crash.contact || '');
+                    const safeReason = secureEscape(crash.reason || '');
+                    const safeNote = secureEscape(crash.note || '');
+                    let distressBlock = '';
+                    if (isDistress && (safeContact || safeNote || safeReason)) {
+                        const rawContact = String(crash.contact || '').trim();
+                        const contactHref = rawContact.includes('@')
+                            ? ('mailto:' + rawContact)
+                            : ('https://wa.me/' + rawContact.replace(/\D/g, ''));
+                        const safeContactHref = secureEscape(contactHref);
+                        distressBlock =
+                            '<div class="text-[11px] text-gray-900 dark:text-gray-100 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-2 mb-2 leading-snug">' +
+                            (safeContact
+                                ? '<div class="font-bold">Contact: <a class="text-blue-600 dark:text-blue-400 underline break-all" href="' +
+                                  safeContactHref +
+                                  '" target="_blank" rel="noopener">' +
+                                  safeContact +
+                                  '</a></div>'
+                                : '') +
+                            (safeReason
+                                ? '<div class="text-[10px] text-amber-800 dark:text-amber-300 mt-0.5 uppercase tracking-wide font-bold">' +
+                                  safeReason +
+                                  '</div>'
+                                : '') +
+                            (safeNote
+                                ? '<div class="mt-1 text-[10px] text-gray-700 dark:text-gray-300">' +
+                                  safeNote +
+                                  '</div>'
+                                : '') +
+                            '</div>';
+                    }
 
                     groupHTML += `
                         <div class="p-2.5 flex flex-col">
                             <div class="flex justify-between items-start mb-1.5">
-                                <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">${kindLabel}</span>
+                                <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${kindBadgeClass}">${kindLabel}</span>
                                 <span class="text-[9px] text-gray-400 font-mono">${dateStr}</span>
                             </div>
+                            ${distressBlock}
                             <div class="text-[10px] font-mono text-gray-800 dark:text-gray-200 break-words bg-gray-50 dark:bg-gray-800 p-2 rounded border border-gray-100 dark:border-gray-700 leading-snug mb-2">
                                 ${safeErr}
                             </div>
@@ -2765,7 +3363,7 @@ const Admin = {
             }
         };
 
-        // 🛡️ GUARDIAN PHASE 1: Bulk Resolve Engine
+        // GUARDIAN PHASE 1: Bulk Resolve Engine
         Admin.resolveAllDeviceCrashes = async (deviceId) => {
             const confirmed = await Admin.secureConfirm("Resolve All Crashes", `Mark all active crashes for device ${deviceId.substring(0,10)}... as resolved?`);
             if (!confirmed) return;
@@ -2818,7 +3416,7 @@ const Admin = {
         };
 
         Admin.clearCrashes = async () => {
-            const confirmed = await Admin.secureConfirm("Clear Logs", "Permanently delete all crash reports from the server?");
+            const confirmed = await Admin.secureConfirm("Clear Crash DB", "Type 'CLEAR' to permanently delete all crash reports from the server:", "CLEAR");
             if (!confirmed) return;
             
             const secret = await Admin.getAuthKey();
@@ -2854,6 +3452,9 @@ const Admin = {
             container.insertBefore(telPanel, container.firstElementChild);
         }
 
+        // Re-open path: grid toggle already exists — still re-engage so tiles stay tappable.
+        Admin.ensureGridViewEngaged();
+
         const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6');
         if (devHeaderRow && !document.getElementById('grid-view-toggle')) {
             
@@ -2872,13 +3473,18 @@ const Admin = {
             }
 
             // Inject Custom Layout CSS
-            if (!document.getElementById('admin-grid-styles')) {
-                const style = document.createElement('style');
-                style.id = 'admin-grid-styles';
-                style.innerHTML = `
+            let gridStyleEl = document.getElementById('admin-grid-styles');
+            if (!gridStyleEl) {
+                gridStyleEl = document.createElement('style');
+                gridStyleEl.id = 'admin-grid-styles';
+                gridStyleEl.innerHTML = `
                     .admin-grid-view { display: grid; gap: 12px; align-items: start; padding-bottom: 20px; transition: grid-template-columns 0.3s ease; }
-                    .admin-grid-view > div { margin-bottom: 0 !important; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; height: 110px; display: flex; flex-direction: column; justify-content: center; position: relative; overflow: visible !important; }
-                    .admin-grid-view > div:hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #3b82f6; }
+                    /* Hide empty HubModals shells — .hidden loses to this rule's display:flex otherwise */
+                    .admin-grid-view > div.hidden,
+                    .admin-grid-view > div:empty,
+                    .admin-grid-view > div[data-admin-shell="empty"] { display: none !important; height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; pointer-events: none !important; }
+                    .admin-grid-view > div:not(.hidden):not(:empty):not([data-admin-shell="empty"]) { margin-bottom: 0 !important; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; height: 110px; display: flex; flex-direction: column; justify-content: center; position: relative; overflow: visible !important; }
+                    .admin-grid-view > div:not(.hidden):not(:empty):not([data-admin-shell="empty"]):hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #3b82f6; }
                     .admin-grid-view > div [id$="-body"] { display: none !important; }
                     .admin-grid-view > div [id$="-header-btn"] { flex-direction: column; justify-content: center; height: 100%; align-items: center; text-align: center; margin-bottom: 0 !important; position: relative; overflow: visible; }
                     .admin-grid-view > div [id$="-header-btn"] > span:not(.admin-unread-badge) { flex-direction: column; align-items: center; width: 100%; display: flex; }
@@ -2899,7 +3505,7 @@ const Admin = {
                     .admin-grid-view > div [id$="-header-btn"] span[id$="-last-sync"] { display: none !important; }
                     .admin-grid-view .grid-hidden-actions { display: none !important; }
 
-                    /* Compact corner unread pills — never stretch across the tile */
+                    /* Compact corner unread pills - never stretch across the tile */
                     .admin-unread-badge {
                       position: absolute;
                       top: 6px;
@@ -2934,33 +3540,56 @@ const Admin = {
                     .admin-unread-badge:not(.hidden) {
                       display: inline-flex !important;
                     }
+                    /* Ensure tile titles stay readable in dark grid cards */
+                    .admin-grid-view > div [id$="-header-btn"] {
+                      color: #64748b;
+                    }
+                    .dark .admin-grid-view > div [id$="-header-btn"] {
+                      color: #94a3b8;
+                    }
+                    .admin-grid-view > div [id$="-header-btn"] > span > span:not(.admin-tile-icon):not(.admin-unread-badge) {
+                      opacity: 1 !important;
+                      color: inherit !important;
+                      max-width: 100%;
+                      padding: 0 4px;
+                      line-height: 1.15;
+                      font-size: 10px;
+                      font-weight: 800;
+                      letter-spacing: 0.04em;
+                      text-transform: uppercase;
+                    }
                 `;
-                document.head.appendChild(style);
+                document.head.appendChild(gridStyleEl);
+            } else {
+                if (!gridStyleEl.textContent.includes('text-transform: uppercase')) {
+                    gridStyleEl.textContent += `
+                    .admin-grid-view > div [id$="-header-btn"] > span > span:not(.admin-tile-icon):not(.admin-unread-badge) {
+                      opacity: 1 !important; max-width: 100%; padding: 0 4px; line-height: 1.15;
+                      font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+                    }`;
+                }
+                // Patch live sessions that still force display:flex onto empty/hidden shells
+                if (!gridStyleEl.textContent.includes('data-admin-shell')) {
+                    gridStyleEl.textContent += `
+                    .admin-grid-view > div.hidden,
+                    .admin-grid-view > div:empty,
+                    .admin-grid-view > div[data-admin-shell="empty"] { display: none !important; height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; pointer-events: none !important; }`;
+                }
+                if (!gridStyleEl.textContent.includes('color: #64748b')) {
+                    gridStyleEl.textContent += `
+                    .admin-grid-view > div [id$="-header-btn"] { color: #64748b; }
+                    .dark .admin-grid-view > div [id$="-header-btn"] { color: #94a3b8; }
+                    .admin-grid-view > div [id$="-header-btn"] > span > span:not(.admin-tile-icon):not(.admin-unread-badge) { color: inherit !important; }`;
+                }
             }
 
-            // 🛡️ GUARDIAN UX FIX: Drill-Down "X" Interceptor
-            // Drilled-in → X acts as Back. Grid (or missing drill-back) → always close.
-            // Previously X silently no-oped when !isGridMode but #drill-back-btn was gone,
-            // and history.back() on #dev sometimes left the modal open.
+            // Drill-Down "X": inside a panel → grid only; on grid → close Dev Mode (no history.back race)
             if (closeBtn) {
                 closeBtn.removeAttribute('onclick');
-                
                 closeBtn.onclick = (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-
-                    const drillBack = document.getElementById('drill-back-btn');
-                    if (!Admin.isGridMode && drillBack) {
-                        drillBack.click();
-                        return;
-                    }
-
-                    if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
-                    else document.getElementById('dev-modal')?.classList.add('hidden');
-
-                    if (location.hash === '#dev' || location.hash.startsWith('#dev-')) {
-                        try { history.replaceState({ view: 'home' }, '', '#home'); } catch (_) {}
-                    }
+                    Admin.closeDevModal();
                 };
             }
 
@@ -2975,7 +3604,11 @@ const Admin = {
 
             // Global Interceptor: The Drill-Down Engine
             container.addEventListener('click', (e) => {
-                if (!Admin.isGridMode) return;
+                if (!Admin.isGridMode) {
+                    // Stale drill flag while grid chrome is still visible — recover taps.
+                    if (container.classList.contains('admin-grid-view')) Admin.isGridMode = true;
+                    else return;
+                }
                 
                 const card = e.target.closest('.admin-grid-view > div');
                 if (!card) return;
@@ -2985,17 +3618,17 @@ const Admin = {
                 container.classList.remove('admin-grid-view');
                 container.style.gridTemplateColumns = ''; // Clear inline styles
                 
-                // 🛡️ GUARDIAN UX FIX: Edge-to-Edge Expansion
+                // GUARDIAN UX FIX: Edge-to-Edge Expansion
                 // Strip padding, borders, and margins so the module touches the exact edge of the screen
                 card.dataset.originalClasses = card.className;
                 card.classList.remove('rounded-xl', 'border', 'shadow-md', 'p-4', 'mb-4', 'border-gray-200', 'dark:border-gray-700', 'bg-white', 'dark:bg-gray-800');
                 card.classList.add('!border-none', '!shadow-none', '!rounded-none', '!p-0', '!mb-0', 'bg-transparent');
                 
-                // 🛡️ GUARDIAN UX FIX: Hide Sign Out container to maximize panel airspace
+                // GUARDIAN UX FIX: Hide Sign Out container to maximize panel airspace
                 const signoutContainer = document.getElementById('admin-signout-container');
                 if (signoutContainer) signoutContainer.style.display = 'none';
                 
-                // 🛡️ GUARDIAN PHASE 11: Admin Router Bug Fix
+                // GUARDIAN PHASE 11: Admin Router Bug Fix
                 history.pushState({ adminPanel: card.id }, '', `#dev-${card.id}`);
                 
                 // Hide sibling cards
@@ -3011,7 +3644,7 @@ const Admin = {
                 const chev = card.querySelector('[id$="-chevron"]');
                 if (chev) chev.classList.remove('-rotate-90');
 
-                // 🛡️ GUARDIAN UX FIX: Force hide the inner header to prevent duplicates
+                // GUARDIAN UX FIX: Force hide the inner header to prevent duplicates
                 const innerHeader = card.querySelector('[id$="-header-btn"]');
                 if (innerHeader) innerHeader.style.setProperty('display', 'none', 'important');
                 
@@ -3019,7 +3652,7 @@ const Admin = {
                 const titleH3 = devHeaderRow.querySelector('h3');
                 devHeaderRow.dataset.originalHtml = titleH3.innerHTML;
                 
-                // Keep native emoji in drill title (stop stripping — was causing broken headers)
+                // Keep native emoji in drill title (stop stripping - was causing broken headers)
                 let titleClone = card.querySelector('[id$="-header-btn"] > span').cloneNode(true);
                 titleClone.querySelectorAll('span[id$="-last-sync"], span[id$="-unread-badge"]').forEach(el => el.remove());
                 const cardTitle = (titleClone.textContent || '').replace(/\s+/g, ' ').trim();
@@ -3035,67 +3668,10 @@ const Admin = {
                 
                 toggleBtn.style.display = 'none';
                 
-                // Bind the Drill Back Action
-                    document.getElementById('drill-back-btn').onclick = (evt) => {
-                        evt.stopPropagation();
-                        
-                        // 🛡️ GUARDIAN PHASE 1: Lightbox Router Trap
-                        if (window._adminLightboxOpen) {
-                            Admin.closeLightbox();
-                            return; // Halt cascade, stay in the panel
-                        }
-
-                        // 🛡️ GUARDIAN PHASE 1: The UI.js Blindfold & Router Lock
-                        // Temporarily rename the modal ID so ui.js's popstate listener doesn't see it
-                        // and close it during the asynchronous history.back() event.
-                        window._adminDrillBackLock = true;
-                    
-                    if (location.hash.startsWith('#dev-')) {
-                        const devModal = document.getElementById('dev-modal');
-                        if (devModal) devModal.id = 'dev-panel-temp';
-                        
-                        history.back(); // Pops the state cleanly
-                        
-                        setTimeout(() => { 
-                            const tempModal = document.getElementById('dev-panel-temp');
-                            if (tempModal) tempModal.id = 'dev-modal';
-                            window._adminDrillBackLock = false; 
-                        }, 150); // 150ms is plenty for popstate to fire and miss it
-                    }
-                    
-                    Admin.isGridMode = true;
-                        container.classList.add('admin-grid-view');
-                        container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
-                        titleH3.innerHTML = devHeaderRow.dataset.originalHtml;
-                        toggleBtn.style.display = '';
-                        
-                        // 🛡️ GUARDIAN UX FIX: Restore Card Borders & Padding
-                        card.className = card.dataset.originalClasses;
-
-                        // 🛡️ GUARDIAN UX FIX: Restore Action Required accordion state if it was open
-                        if (window._actionRequiredWasOpen) {
-                            const actionBody = document.getElementById('action-body');
-                            const actionChevron = document.getElementById('action-chevron');
-                            if (actionBody) actionBody.classList.remove('hidden');
-                            if (actionChevron) actionChevron.classList.remove('-rotate-90');
-                            window._actionRequiredWasOpen = false; // Reset lock
-                        }
-                        
-                        // 🛡️ GUARDIAN UX FIX: Restore Sign Out container when returning to grid
-                        if (signoutContainer) signoutContainer.style.display = '';
-                        
-                        Array.from(container.children).forEach(child => {
-                            child.style.display = '';
-                            const b = child.querySelector('[id$="-body"]');
-                            if (b) b.classList.add('hidden');
-                            
-                            // 🛡️ GUARDIAN UX FIX: Restore internal accordion header
-                            const h = child.querySelector('[id$="-header-btn"]');
-                            if (h) h.style.removeProperty('display');
-                        });
-                    
-                    // 🛡️ GUARDIAN UX FIX: Recalculate and clear badges locally when returning to grid
-                    Admin.syncAllBadges();
+                // Bind the Drill Back Action (replaceState — no history.back race)
+                document.getElementById('drill-back-btn').onclick = (evt) => {
+                    evt.stopPropagation();
+                    Admin.exitDrillToGrid();
                 };
                 
                 // Auto-Fetch data upon drill-down
@@ -3103,12 +3679,22 @@ const Admin = {
                 if (card.id === 'delay-reports-panel') Admin.fetchDelayReports();
                 if (card.id === 'moderation-queue-panel') Admin.fetchModerationQueue();
                 if (card.id === 'user-trust-panel' && typeof Admin.fetchActiveBans === 'function') Admin.fetchActiveBans();
-                if (card.id === 'deadends-panel') Admin.fetchDeadEnds();
-                if (card.id === 'crashes-panel') Admin.fetchCrashes(); // 🛡️ GUARDIAN PHASE 7
-                if (card.id === 'roadmap-panel') Admin.fetchRoadmap(); // 🛡️ GUARDIAN PHASE 14
+                if (card.id === 'deadends-panel') {
+                    Admin._deSortMode = 'count';
+                    const sortBtn = document.getElementById('de-sort-btn');
+                    if (sortBtn) sortBtn.textContent = 'Sort: Count';
+                    Admin.fetchDeadEnds();
+                }
+                if (card.id === 'crashes-panel') Admin.fetchCrashes(); // GUARDIAN PHASE 7
+                if (card.id === 'roadmap-panel') Admin.fetchRoadmap(); // GUARDIAN PHASE 14
+                if (card.id === 'holiday-approvals-panel' && typeof Admin.fetchHolidayApprovals === 'function') Admin.fetchHolidayApprovals();
                 if (card.id === 'alert-panel') {
+                    if (typeof Admin.setAlertManagerTab === 'function' && Admin._pendingAdminRoute) {
+                        Admin.setAlertManagerTab('compose');
+                    }
+                    Admin.applyPendingAdminRoute('alert-panel');
                     const targetEl = document.getElementById('alert-target');
-                    if (targetEl) targetEl.dispatchEvent(new Event('change'));
+                    if (targetEl && !Admin._pendingAdminRoute) targetEl.dispatchEvent(new Event('change'));
                 }
             });
 
@@ -3117,6 +3703,17 @@ const Admin = {
                 container.classList.add('admin-grid-view');
                 container.style.gridTemplateColumns = `repeat(${Admin.gridCols}, minmax(0, 1fr))`;
             }
+        }
+
+        // Always (re)bind X — HubModals inline onclick can race with history.back()
+        const alwaysCloseBtn = document.querySelector('#dev-modal button[aria-label="Close Dev Modal"]');
+        if (alwaysCloseBtn) {
+            alwaysCloseBtn.removeAttribute('onclick');
+            alwaysCloseBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                Admin.closeDevModal();
+            };
         }
     },
 
@@ -3202,7 +3799,10 @@ const Admin = {
                     <span class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-0.5">Silent Routing Telemetry</span>
                     <div class="flex flex-wrap gap-2">
                         <button id="de-sort-btn" class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
-                            Sort: Hits
+                            Sort: Recent
+                        </button>
+                        <button id="de-count-mode-btn" class="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800 border border-indigo-200 dark:border-indigo-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
+                            Users
                         </button>
                         <button id="de-refresh-btn" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">
                             Refresh
@@ -3244,11 +3844,16 @@ const Admin = {
                                 <option value="sunday">Sunday</option>
                             </select>
                         </div>
-                        <div>
+                        <div class="relative" id="de-filter-userid-container">
                             <label class="block text-[9px] font-bold text-gray-400 uppercase mb-0.5">User ID</label>
-                            <select id="de-filter-userid" class="w-full h-9 px-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-xs text-gray-900 dark:text-white outline-none font-mono">
+                            <select id="de-filter-userid" class="hidden">
                                 <option value="">All users</option>
                             </select>
+                            <div id="de-filter-userid-trigger" class="w-full h-9 px-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
+                                <span id="de-filter-userid-display" class="truncate font-mono text-[11px]">All users</span>
+                                <svg id="de-filter-userid-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
+                            <ul id="de-filter-userid-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-y-auto max-h-48 custom-scrollbar text-left"></ul>
                         </div>
                     </div>
                 </div>
@@ -3263,9 +3868,11 @@ const Admin = {
         const clearBtn = document.getElementById('de-clear-btn');
         const exportBtn = document.getElementById('de-export-btn');
         const sortBtn = document.getElementById('de-sort-btn');
+        const countModeBtn = document.getElementById('de-count-mode-btn');
         const listDiv = document.getElementById('de-list');
         Admin._deActiveTab = 'fails';
         Admin._deTripFilters = { region: '', dayType: '', userId: '' };
+        Admin._deCountMode = Admin._deCountMode || 'users'; // users | hits
 
         const syncDeFiltersVisibility = () => {
             const wrap = document.getElementById('de-trip-filters');
@@ -3297,7 +3904,7 @@ const Admin = {
             chev?.classList.toggle('-rotate-90', !open);
         });
 
-        // Swipe between Fails ↔ Trip Plans (tabs + list surface)
+        // Swipe between Fails ? Trip Plans (tabs + list surface)
         const bindDeSwipe = (el) => {
             if (!el || el.dataset.deSwipeBound === '1') return;
             el.dataset.deSwipeBound = '1';
@@ -3330,19 +3937,48 @@ const Admin = {
         bindTripFilter('de-filter-day', 'dayType');
         bindTripFilter('de-filter-userid', 'userId');
 
+        // Premium custom dropdown for User ID (matches excl-route pattern)
+        const uidTrigger = document.getElementById('de-filter-userid-trigger');
+        const uidList = document.getElementById('de-filter-userid-list');
+        const uidChevron = document.getElementById('de-filter-userid-chevron');
+        if (uidTrigger && uidList && uidTrigger.dataset.bound !== '1') {
+            uidTrigger.dataset.bound = '1';
+            uidTrigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                uidList.classList.toggle('hidden');
+                uidChevron?.classList.toggle('rotate-180');
+            });
+            document.addEventListener('click', (e) => {
+                const wrap = document.getElementById('de-filter-userid-container');
+                if (wrap && !wrap.contains(e.target)) {
+                    uidList.classList.add('hidden');
+                    uidChevron?.classList.remove('rotate-180');
+                }
+            });
+        }
+
         if (exportBtn) {
             exportBtn.onclick = () => Admin.exportPlannerTelemetryTab();
         }
 
-        // 🛡️ GUARDIAN PHASE 2: Dynamic Sorting State
-        Admin._deSortMode = Admin._deSortMode || 'recent'; 
+        // Default: sort corridors by volume (count), not most recent.
+        Admin._deSortMode = 'count';
 
         if (sortBtn) {
-            sortBtn.textContent = Admin._deSortMode === 'hits' ? 'Sort: Hits' : 'Sort: Recent';
+            sortBtn.textContent = Admin._deSortMode === 'count' ? 'Sort: Count' : 'Sort: Recent';
             sortBtn.onclick = () => {
-                Admin._deSortMode = Admin._deSortMode === 'hits' ? 'recent' : 'hits';
-                sortBtn.textContent = Admin._deSortMode === 'hits' ? 'Sort: Hits' : 'Sort: Recent';
-                if (listDiv.innerHTML !== '') Admin.fetchDeadEnds(); // Re-render with new sort
+                Admin._deSortMode = Admin._deSortMode === 'count' ? 'recent' : 'count';
+                sortBtn.textContent = Admin._deSortMode === 'count' ? 'Sort: Count' : 'Sort: Recent';
+                if (listDiv.innerHTML !== '') Admin.fetchDeadEnds();
+            };
+        }
+
+        if (countModeBtn) {
+            countModeBtn.textContent = Admin._deCountMode === 'hits' ? 'Hits' : 'Users';
+            countModeBtn.onclick = () => {
+                Admin._deCountMode = Admin._deCountMode === 'hits' ? 'users' : 'hits';
+                countModeBtn.textContent = Admin._deCountMode === 'hits' ? 'Hits' : 'Users';
+                if (listDiv.innerHTML !== '') Admin.fetchDeadEnds();
             };
         }
 
@@ -3396,7 +4032,7 @@ const Admin = {
                 
                 Admin._cachedRoutingFails = data;
 
-                // Aggregate by Origin|Dest|Reason|DayType — hits = unique logged attempts (client debounces retries)
+                // Aggregate by Origin|Dest|Reason|DayType - track hits + unique users
                 const heatMap = {};
                 Object.values(data).forEach(entry => {
                     if (!entry.origin || !entry.destination) return;
@@ -3409,20 +4045,28 @@ const Admin = {
                             reason: entry.reason,
                             dayType,
                             timeOfDay: entry.timeOfDay || null,
-                            count: 0,
+                            hitCount: 0,
+                            userIds: new Set(),
                             lastSeen: 0,
                         };
                     }
-                    heatMap[key].count++;
+                    heatMap[key].hitCount++;
+                    const uid = entry.userId || entry.deviceId || entry.authUid || '';
+                    if (uid) heatMap[key].userIds.add(uid);
                     if (entry.timestamp > heatMap[key].lastSeen) {
                         heatMap[key].lastSeen = entry.timestamp;
                         if (entry.timeOfDay) heatMap[key].timeOfDay = entry.timeOfDay;
                     }
                 });
-                
-                const sorted = Object.values(heatMap).sort((a, b) => {
+
+                const countMode = Admin._deCountMode === 'hits' ? 'hits' : 'users';
+                const sorted = Object.values(heatMap).map((item) => ({
+                    ...item,
+                    userCount: item.userIds.size,
+                    displayCount: countMode === 'hits' ? item.hitCount : item.userIds.size,
+                })).sort((a, b) => {
                     if (Admin._deSortMode === 'recent') return b.lastSeen - a.lastSeen;
-                    return b.count - a.count;
+                    return b.displayCount - a.displayCount;
                 });
                 
                 listDiv.innerHTML = '';
@@ -3442,7 +4086,8 @@ const Admin = {
                     
                     let reasonBadge = "bg-gray-100 text-gray-600";
                     let reasonText = "Unknown";
-                    if (item.reason === 'ERR_TIMETABLE_MISMATCH') { reasonBadge = "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400"; reasonText = "Sparse Schedule"; }
+                    if (item.reason === 'SAME_STATION') { reasonBadge = "bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300"; reasonText = "Same Station"; }
+                    else if (item.reason === 'ERR_TIMETABLE_MISMATCH') { reasonBadge = "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400"; reasonText = "Sparse Schedule"; }
                     else if (item.reason === 'ERR_DISCONNECTED_GRAPH') { reasonBadge = "bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400"; reasonText = "No Physical Link"; }
                     else if (item.reason === 'ERR_CROSS_REGION') { reasonBadge = "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400"; reasonText = "Cross Region"; }
                     else if (item.reason === 'ERR_ACTIVE_SUSPENSION') { reasonBadge = "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400"; reasonText = "Line Severed"; }
@@ -3451,19 +4096,20 @@ const Admin = {
                     const safeOrigin = secureEscape(item.origin);
                     const safeDest = secureEscape(item.dest);
                     const dayLabel = secureEscape(item.dayType || 'unknown');
-                    const timeLabel = secureEscape(item.timeOfDay || '—');
+                    const timeLabel = secureEscape(item.timeOfDay || '-');
+                    const countLabel = countMode === 'hits' ? 'Hits' : 'Users';
                     
                     const escalateAttr = Admin.encodeEscalatePayload({
                         type: 'route',
                         severity: 'medium',
                         title: `Routing Fail: ${item.origin} to ${item.dest}`,
-                        description: `Failed with reason: ${item.reason || 'UNKNOWN'} (${item.dayType || 'day?'}, ~${item.timeOfDay || 'time?'}). Logged ${item.count} times.`,
+                        description: `Failed with reason: ${item.reason || 'UNKNOWN'} (${item.dayType || 'day?'}, ~${item.timeOfDay || 'time?'}). ${item.hitCount} hits / ${item.userCount} users.`,
                         source: 'Telemetry Data'
                     });
 
                     card.innerHTML = `
                         <div class="min-w-0 flex-1 pr-2">
-                            <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${safeOrigin} <span class="text-gray-400 mx-1">→</span> ${safeDest}</div>
+                            <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${safeOrigin} ${Admin.routeArrowSvg('inline-block w-3.5 h-3.5 mx-1 align-middle text-gray-400 shrink-0')} ${safeDest}</div>
                             <div class="flex flex-wrap items-center mt-1.5 gap-1.5">
                                 <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${reasonBadge}">${reasonText}</span>
                                 <span class="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">${dayLabel}</span>
@@ -3471,12 +4117,12 @@ const Admin = {
                                 <span class="text-[9px] text-gray-400 font-mono">Last: ${dateStr}</span>
                             </div>
                         </div>
-                        <div class="flex flex-row items-center shrink-0 gap-2">
-                            <div class="flex items-center justify-center bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg px-2.5 py-1.5 shadow-sm">
-                                <span class="text-[9px] text-gray-400 uppercase font-bold mr-1.5">Hits</span>
-                                <span class="text-sm font-black text-gray-700 dark:text-gray-300 leading-none">${item.count}</span>
+                        <div class="flex flex-col items-end shrink-0 gap-1.5 ml-2">
+                            <div class="flex items-center justify-center bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg px-2.5 py-1.5 shadow-sm min-w-[4.5rem]">
+                                <span class="text-[9px] text-gray-400 uppercase font-bold mr-1.5">${countLabel}</span>
+                                <span class="text-sm font-black text-gray-700 dark:text-gray-300 leading-none">${item.displayCount}</span>
                             </div>
-                            <button class="text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[9px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-widest shadow-sm shrink-0" onclick="Admin.escalateFromEl(this)" data-escalate="${escalateAttr}">Ticket</button>
+                            <button class="text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[9px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-widest shadow-sm w-full text-center" onclick="Admin.escalateFromEl(this)" data-escalate="${escalateAttr}">Ticket</button>
                         </div>
                     `;
                     listDiv.appendChild(card);
@@ -3534,7 +4180,7 @@ const Admin = {
 
         Admin.renderTripPlanBatches = async (listDiv, secret, useCacheOnly = false) => {
             if (!useCacheOnly) {
-                listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Loading trip plans…</div>';
+                listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Loading trip plans...</div>';
             }
             try {
                 if (!useCacheOnly) {
@@ -3550,8 +4196,10 @@ const Admin = {
                 }
 
                 const allRows = Admin.flattenTripPlanRows();
-                // Populate user dropdown from full (unfiltered) set
+                // Populate premium user dropdown from full (unfiltered) set
                 const userSel = document.getElementById('de-filter-userid');
+                const uidList = document.getElementById('de-filter-userid-list');
+                const uidDisplay = document.getElementById('de-filter-userid-display');
                 if (userSel) {
                     const prev = Admin._deTripFilters?.userId || userSel.value || '';
                     const users = [...new Set(allRows.map((r) => r.userId).filter(Boolean))].sort();
@@ -3559,13 +4207,39 @@ const Admin = {
                         `<option value="${String(u).replace(/"/g, '&quot;')}">${String(u).replace(/</g, '&lt;')}</option>`
                     ).join('');
                     if (prev && users.includes(prev)) userSel.value = prev;
-                    else Admin._deTripFilters.userId = '';
+                    else {
+                        userSel.value = '';
+                        Admin._deTripFilters.userId = '';
+                    }
+                    if (uidList) {
+                        const esc = (s) => String(s).replace(/</g, '&lt;');
+                        uidList.innerHTML = '';
+                        const addLi = (value, label) => {
+                            const li = document.createElement('li');
+                            li.className = 'px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer font-mono';
+                            li.textContent = label;
+                            li.onclick = () => {
+                                userSel.value = value;
+                                if (uidDisplay) uidDisplay.textContent = label;
+                                uidList.classList.add('hidden');
+                                document.getElementById('de-filter-userid-chevron')?.classList.remove('rotate-180');
+                                userSel.dispatchEvent(new Event('change'));
+                            };
+                            uidList.appendChild(li);
+                        };
+                        addLi('', 'All users');
+                        users.forEach((u) => addLi(u, esc(u)));
+                    }
+                    if (uidDisplay) {
+                        uidDisplay.textContent = userSel.value || 'All users';
+                    }
                 }
 
                 const filtered = Admin.getFilteredTripPlanRows();
+                // Group by trip corridor - uniqueUsers = unique userId/batchId (same user, new batch counts again)
                 const heatMap = {};
                 filtered.forEach((entry) => {
-                    const key = `${entry.origin}|${entry.destination}|${entry.dayType}|${entry.region}|${entry.userId}`;
+                    const key = `${entry.origin}|${entry.destination}|${entry.dayType}|${entry.region}`;
                     if (!heatMap[key]) {
                         heatMap[key] = {
                             origin: entry.origin,
@@ -3573,27 +4247,36 @@ const Admin = {
                             dayType: entry.dayType,
                             region: entry.region,
                             userId: entry.userId,
+                            uniqueKeys: new Set(),
                             count: 0,
                             lastSeen: 0,
                             depSample: entry.depTime || null,
                             hits: [],
                         };
                     }
-                    heatMap[key].count++;
+                    const uniq = `${entry.userId || 'anon'}::${entry.batchId || entry.timestamp || 0}`;
+                    heatMap[key].uniqueKeys.add(uniq);
+                    heatMap[key].count = heatMap[key].uniqueKeys.size;
                     heatMap[key].hits.push(entry);
                     if (entry.timestamp > heatMap[key].lastSeen) {
                         heatMap[key].lastSeen = entry.timestamp;
+                        heatMap[key].userId = entry.userId;
                         if (entry.depTime) heatMap[key].depSample = entry.depTime;
                     }
                 });
 
-                const sorted = Object.values(heatMap).sort((a, b) => {
+                const countMode = Admin._deCountMode === 'hits' ? 'hits' : 'users';
+                const sorted = Object.values(heatMap).map((item) => ({
+                    ...item,
+                    hitCount: (item.hits || []).length,
+                    displayCount: countMode === 'hits' ? (item.hits || []).length : item.count,
+                })).sort((a, b) => {
                     if (Admin._deSortMode === 'recent') return b.lastSeen - a.lastSeen;
-                    return b.count - a.count;
+                    return b.displayCount - a.displayCount;
                 });
 
                 const totalRows = allRows.length;
-                const userCount = new Set(filtered.map((r) => r.userId).filter(Boolean)).size;
+                const userCount = new Set(filtered.map((r) => `${r.userId || ''}::${r.batchId || ''}`).filter(Boolean)).size;
                 if (!sorted.length) {
                     listDiv.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-4">${totalRows ? 'No trip plans match these filters.' : 'Batches present but no trip rows to merge.'}</div>`;
                     return;
@@ -3609,7 +4292,7 @@ const Admin = {
 
                 listDiv.innerHTML = `
                     <div class="text-[9px] text-gray-400 px-1 mb-1">
-                        Showing ${filtered.length} trips · ${sorted.length} grouped rows · ${userCount} user${userCount === 1 ? '' : 's'} reported
+                        Showing ${filtered.length} logged trips / ${sorted.length} unique corridors / ${userCount} unique user-batches (export uses current filters)
                     </div>
                 `;
 
@@ -3620,32 +4303,33 @@ const Admin = {
                     const safeOrigin = secureEscape(item.origin);
                     const safeDest = secureEscape(item.dest);
                     const dayLabel = secureEscape(item.dayType || 'unknown');
-                    const depLabel = secureEscape(item.depSample || '—');
-                    const regionLabel = secureEscape(item.region || '—');
-                    const uidLabel = secureEscape(item.userId || '—');
+                    const depLabel = secureEscape(item.depSample || '-');
+                    const regionLabel = secureEscape(item.region || '-');
+                    const uidLabel = secureEscape(item.userId || '-');
+                    const countLabel = countMode === 'hits' ? 'Hits' : 'Users';
                     const hitsSorted = [...(item.hits || [])].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
                     const hitsHtml = hitsSorted.map((h) => `
                         <div class="flex justify-between gap-2 py-1.5 border-b border-gray-100 dark:border-gray-800 last:border-0 text-[10px]">
-                            <span class="font-mono text-gray-500 truncate">${secureEscape(Admin.formatDate(h.timestamp))}</span>
-                            <span class="font-mono text-gray-600 dark:text-gray-300 shrink-0">dep ${secureEscape(h.depTime || '—')}</span>
+                            <span class="font-mono text-gray-500 truncate">${secureEscape(Admin.formatDate(h.timestamp))} / ${secureEscape((h.userId || '').slice(0, 14))}</span>
+                            <span class="font-mono text-gray-600 dark:text-gray-300 shrink-0">dep ${secureEscape(h.depTime || '-')}</span>
                         </div>
                     `).join('');
                     card.innerHTML = `
                         <button type="button" class="de-trip-card-btn w-full text-left p-3 flex items-center justify-between focus:outline-none" data-trip-idx="${idx}" aria-expanded="false">
                             <div class="min-w-0 flex-1 pr-2">
-                                <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${safeOrigin} <span class="text-gray-400 mx-1">→</span> ${safeDest}</div>
+                                <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${safeOrigin} ${Admin.routeArrowSvg('inline-block w-3.5 h-3.5 mx-1 align-middle text-gray-400 shrink-0')} ${safeDest}</div>
                                 <div class="flex flex-wrap items-center mt-1.5 gap-1.5">
                                     <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">Trip</span>
                                     <span class="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">${dayLabel}</span>
                                     <span class="text-[9px] font-bold text-slate-600 dark:text-slate-300 uppercase">${regionLabel}</span>
                                     <span class="text-[9px] text-gray-500 dark:text-gray-400 font-mono">dep ${depLabel}</span>
                                 </div>
-                                <div class="mt-1.5 text-[10px] font-mono text-gray-500 dark:text-gray-400 truncate" title="${uidLabel}">${uidLabel}</div>
+                                <div class="mt-1.5 text-[10px] font-mono text-gray-500 dark:text-gray-400 truncate" title="${uidLabel}">Latest user: ${uidLabel}</div>
                                 <div class="text-[9px] text-gray-400 font-mono mt-0.5">Last: ${dateStr}</div>
                             </div>
                             <div class="flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg px-2.5 py-1.5 shadow-sm shrink-0">
-                                <span class="text-[9px] text-gray-400 uppercase font-bold">Hits</span>
-                                <span class="text-sm font-black text-gray-700 dark:text-gray-300 leading-none">${item.count}</span>
+                                <span class="text-[9px] text-gray-400 uppercase font-bold">${countLabel}</span>
+                                <span class="text-sm font-black text-gray-700 dark:text-gray-300 leading-none">${item.displayCount}</span>
                             </div>
                         </button>
                         <div class="de-trip-hits hidden px-3 pb-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/40">
@@ -3701,13 +4385,13 @@ const Admin = {
                     });
                     Admin.downloadFile(`trip_plans_${dateStr}.csv`, lines.join('\n'), 'text/csv;charset=utf-8');
                 } else {
-                    let txt = `NEXT TRAIN — TRIP PLANS EXPORT\nExported: ${Admin.formatDate(Date.now())}\nRows: ${rows.length}\n${'='.repeat(48)}\n\n`;
+                    let txt = `NEXT TRAIN - TRIP PLANS EXPORT\nExported: ${Admin.formatDate(Date.now())}\nRows: ${rows.length}\n${'='.repeat(48)}\n\n`;
                     rows.forEach((r, i) => {
                         txt += `#${i + 1}  ${Admin.formatDate(r.timestamp)}\n`;
-                        txt += `  ${r.origin} → ${r.destination}\n`;
-                        txt += `  Region: ${r.region || '—'} · Day: ${r.dayType || '—'} · User: ${r.userId || '—'}\n`;
+                        txt += `  ${r.origin} -> ${r.destination}\n`;
+                        txt += `  Region: ${r.region || '-'} - Day: ${r.dayType || '-'} - User: ${r.userId || '-'}\n`;
                         if (r.authUid) txt += `  Auth UID: ${r.authUid}\n`;
-                        txt += `  Dep: ${r.depTime || '—'} · Arr: ${r.arrTime || '—'} · Transfers: ${r.transfers ?? '—'}\n\n`;
+                        txt += `  Dep: ${r.depTime || '-'} - Arr: ${r.arrTime || '-'} - Transfers: ${r.transfers ?? '-'}\n\n`;
                     });
                     Admin.downloadFile(`trip_plans_${dateStr}.txt`, txt);
                 }
@@ -3740,12 +4424,12 @@ const Admin = {
                 });
                 Admin.downloadFile(`routing_fails_${dateStr}.csv`, lines.join('\n'), 'text/csv;charset=utf-8');
             } else {
-                let txt = `NEXT TRAIN — ROUTING FAILS EXPORT\nExported: ${Admin.formatDate(Date.now())}\nRows: ${entries.length}\n${'='.repeat(48)}\n\n`;
+                let txt = `NEXT TRAIN - ROUTING FAILS EXPORT\nExported: ${Admin.formatDate(Date.now())}\nRows: ${entries.length}\n${'='.repeat(48)}\n\n`;
                 entries.forEach((r, i) => {
                     txt += `#${i + 1}  ${Admin.formatDate(r.timestamp)}\n`;
-                    txt += `  ${(r.origin || '?')} → ${(r.destination || r.dest || '?')}\n`;
-                    txt += `  Reason: ${r.reason || 'UNKNOWN'} · Day: ${r.dayType || '—'} · Region: ${r.region || '—'}\n`;
-                    txt += `  User: ${r.userId || r.deviceId || '—'} · Time: ${r.timeOfDay || '—'}\n\n`;
+                    txt += `  ${(r.origin || '-')} -> ${(r.destination || r.dest || '-')}\n`;
+                    txt += `  Reason: ${r.reason || 'UNKNOWN'} - Day: ${r.dayType || '-'} - Region: ${r.region || '-'}\n`;
+                    txt += `  User: ${r.userId || r.deviceId || '-'} - Time: ${r.timeOfDay || '-'}\n\n`;
                 });
                 Admin.downloadFile(`routing_fails_${dateStr}.txt`, txt);
             }
@@ -3755,7 +4439,7 @@ const Admin = {
         clearBtn.onclick = async () => {
             const path = Admin._deActiveTab === 'trips' ? 'sys_logs/trip_plans' : 'sys_logs/routing_fails';
             const label = Admin._deActiveTab === 'trips' ? 'trip plan batches' : 'routing fail logs';
-            const confirmed = await Admin.secureConfirm('Clear Telemetry', `Permanently delete all ${label} from the server?`);
+            const confirmed = await Admin.secureConfirm('Clear Telemetry DB', `Type 'CLEAR' to permanently delete all ${label} from the server:`, 'CLEAR');
             if (!confirmed) return;
             const secret = await Admin.getAuthKey();
             if (!secret) return;
@@ -3806,7 +4490,7 @@ const Admin = {
             </div>
             
             <div id="fb-body" class="hidden mt-4 flex flex-col">
-                <!-- 🛡️ GUARDIAN UX FIX: Next Train Style Tabs -->
+                <!-- GUARDIAN UX FIX: Next Train Style Tabs -->
                 <div class="flex border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-30 pt-1 mb-3">
                     <button id="fb-tab-inbox" class="flex-1 py-3 text-sm font-bold text-center border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 transition-colors focus:outline-none">
                         Inbox
@@ -3816,7 +4500,7 @@ const Admin = {
                     </button>
                 </div>
 
-                <!-- 🛡️ GUARDIAN UX FIX: Search Bar -->
+                <!-- GUARDIAN UX FIX: Search Bar -->
                 <div class="mb-3 relative px-1">
                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
                         ${Admin.icon('search', 'w-3.5 h-3.5')}
@@ -3824,7 +4508,7 @@ const Admin = {
                     <input type="text" id="fb-search-input" class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block pl-10 p-3 shadow-inner outline-none transition-colors" placeholder="Search aliases, IDs, or messages...">
                 </div>
 
-                <!-- 🛡️ GUARDIAN UX FIX: Relocated Action Buttons -->
+                <!-- GUARDIAN UX FIX: Relocated Action Buttons -->
                 <div class="grid-hidden-actions flex space-x-2 mb-3 px-1">
                     <button id="fb-export-global-btn" onclick="event.stopPropagation()" class="flex-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800 border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none flex items-center justify-center gap-1.5">
                         ${Admin.icon('download', 'w-3.5 h-3.5')} Export All
@@ -3894,7 +4578,7 @@ const Admin = {
         tabInbox.onclick = () => switchTab('inbox');
         tabArchive.onclick = () => switchTab('archive');
 
-        // 🛡️ GUARDIAN UX: Native Swipe Navigation for Feedback Tabs
+        // GUARDIAN UX: Native Swipe Navigation for Feedback Tabs
         let fbTouchStartX = 0;
         let fbTouchStartY = 0;
         if (body) {
@@ -3925,7 +4609,7 @@ const Admin = {
                 groups[did].push(item);
             });
 
-            // 🛡️ GUARDIAN UX FIX: Dynamic Tab Counters
+            // GUARDIAN UX FIX: Dynamic Tab Counters
             let totalInbox = 0;
             let totalArchive = 0;
             Object.keys(groups).forEach(did => {
@@ -3982,7 +4666,7 @@ const Admin = {
                 });
             };
             
-            // 🛡️ GUARDIAN UX FIX: Universal CRM Date Formatter
+            // GUARDIAN UX FIX: Universal CRM Date Formatter
             const formatNiceDateTime = (ts) => {
                 const d = new Date(ts);
                 const day = d.getDate();
@@ -4024,7 +4708,7 @@ const Admin = {
 
                 const hasAttachments = groupItems.some(i => i.attachmentUrl || (i.attachmentUrls && i.attachmentUrls.length > 0));
 
-                // 🛡️ GUARDIAN PHASE 2: The "Rolodex" Contact Aggregator
+                // GUARDIAN PHASE 2: The "Rolodex" Contact Aggregator
                 const allEmails = new Set();
                 const allPhones = new Set();
                 
@@ -4062,6 +4746,15 @@ const Admin = {
                     ? `<span class="inline-flex items-center gap-1 mx-1 align-middle">${contactScanHtml}</span>`
                     : '';
 
+                const ticketType = latestCommuterMsg.type === 'bug' ? 'bug' : 'feature';
+                const escalateAttr = Admin.encodeEscalatePayload({
+                    type: ticketType,
+                    severity: 'medium',
+                    title: `Feedback from ${String(did).substring(0, 8)}`,
+                    description: String(latestCommuterMsg.text || 'No description').slice(0, 400),
+                    source: `Feedback ${feedbackId}`
+                });
+
                 let contactHtml = '';
                 if (allEmails.size > 0 || allPhones.size > 0) {
                     contactHtml = '<div class="flex flex-wrap gap-1.5">';
@@ -4087,7 +4780,7 @@ const Admin = {
                     contactHtml += '</div>';
                 }
 
-                // 🛡️ GUARDIAN UX FIX: Removed wrapping <button> to prevent invalid nested buttons
+                // GUARDIAN UX FIX: Removed wrapping <button> to prevent invalid nested buttons
                 let groupHTML = `
                     <div class="feedback-group-header scroll-mt-[110px] cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 border-b border-transparent transition-colors">
                         <div class="flex-grow flex flex-col items-start min-w-0 pr-2">
@@ -4105,9 +4798,16 @@ const Admin = {
                             <div class="flex-grow min-w-0">
                                 ${contactHtml || '<span class="text-[10px] text-gray-400 italic font-medium px-1">No contact info provided</span>'}
                             </div>
-                            <div class="flex items-center gap-1.5 shrink-0">
-                                ${did !== 'Anonymous / Legacy' ? `<button type="button" onclick="event.stopPropagation(); Admin.applyShadowBan('${safeDidAttr}', { deviceId: '${safeDidAttr}' })" class="flex items-center gap-1 px-2 py-1.5 bg-white dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg transition-colors focus:outline-none shadow-sm text-[10px] font-bold uppercase tracking-wider" title="Shadow-ban this Next Train ID (app looks broken to them)">${Admin.icon('ban', 'w-3.5 h-3.5')} Ban</button>` : ''}
-                                <button type="button" onclick="event.stopPropagation(); Admin.exportThreadForAI('${safeDidAttr}')" class="flex items-center gap-1.5 px-2 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors focus:outline-none shadow-sm text-[10px] font-bold uppercase tracking-wider" title="Download Thread for AI (.txt)">${Admin.icon('download', 'w-3.5 h-3.5')} Export</button>
+                            <div class="relative shrink-0" data-fb-more-wrap>
+                                <button type="button" data-fb-more-toggle class="flex items-center gap-1.5 px-2.5 py-1.5 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors focus:outline-none shadow-sm text-[10px] font-bold uppercase tracking-wider" title="More options">
+                                    ${Admin.icon('more', 'w-3.5 h-3.5')} More Options
+                                    <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                <div data-fb-more-menu class="hidden absolute right-0 top-full mt-1 z-[40] w-44 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl py-1 text-left">
+                                    <button type="button" onclick="event.stopPropagation(); Admin.exportThreadForAI('${safeDidAttr}')" class="w-full px-3 py-2 text-left text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('download', 'w-3.5 h-3.5')} Export</button>
+                                    <button type="button" data-escalate="${escalateAttr}" onclick="event.stopPropagation(); Admin.escalateFromEl(this)" class="w-full px-3 py-2 text-left text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('alert', 'w-3.5 h-3.5')} Escalate</button>
+                                    ${did !== 'Anonymous / Legacy' ? `<button type="button" onclick="event.stopPropagation(); Admin.applyShadowBan('${safeDidAttr}', { deviceId: '${safeDidAttr}' })" class="w-full px-3 py-2 text-left text-[11px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('ban', 'w-3.5 h-3.5')} Ban</button>` : ''}
+                                </div>
                             </div>
                         </div>
                         <div class="space-y-3 mb-2 h-auto min-h-[50px] flex flex-col">
@@ -4147,21 +4847,21 @@ const Admin = {
                     
                     if (item.isFromAdmin) {
                         // ADMIN BUBBLE (Right)
-                        // 🛡️ GUARDIAN PHASE 4: Polished Read Receipts & Acknowledged State
-                        let receiptHtml = '<span class="text-[11px] text-gray-400 font-bold ml-1">✓</span>';
+                        // GUARDIAN PHASE 4: Polished Read Receipts & Acknowledged State
+                        let receiptHtml = `<span class="inline-flex items-center text-gray-400 ml-1 shrink-0" title="Sent">${Admin.receiptTicks('single', 'w-3 h-2.5')}</span>`;
                         if (item.acknowledged) {
-                            receiptHtml = '<span class="text-[11px] text-blue-400 tracking-tighter font-bold ml-1">✓✓</span><span class="text-[9px] font-black bg-green-500 text-white rounded-sm px-1 ml-1.5 leading-none py-[1px]" title="Acknowledged by Commuter">R</span>';
+                            receiptHtml = `<span class="inline-flex items-center text-sky-400 ml-1 shrink-0" title="Read">${Admin.receiptTicks('double', 'w-3.5 h-2.5')}</span><span class="text-[9px] font-black bg-green-500 text-white rounded-sm px-1 ml-1.5 leading-none py-[1px]" title="Acknowledged by Commuter">R</span>`;
                         } else if (item.read) {
-                            receiptHtml = '<span class="text-[11px] text-blue-400 tracking-tighter font-bold ml-1">✓✓</span>';
+                            receiptHtml = `<span class="inline-flex items-center text-sky-400 ml-1 shrink-0" title="Read">${Admin.receiptTicks('double', 'w-3.5 h-2.5')}</span>`;
                         } else if (item.delivered) {
-                            receiptHtml = '<span class="text-[11px] text-gray-400 tracking-tighter font-bold ml-1">✓✓</span>';
+                            receiptHtml = `<span class="inline-flex items-center text-gray-400 ml-1 shrink-0" title="Delivered">${Admin.receiptTicks('double', 'w-3.5 h-2.5')}</span>`;
                         }
 
-                        // REGEX: Extract Admin Signoff Name ("— Enock")
+                        // REGEX: Extract Admin Signoff Name ("- Enock")
                         let parsedAdminText = item.text || "";
                         let adminName = "Admin";
                         parsedAdminText = Admin.repairMojibake(parsedAdminText);
-                        // Match em dash and legacy UTF-8 mojibake of "—"
+                        // Match em dash and legacy UTF-8 mojibake of "-"
                         const signoffRegex = /(?:<br>|\n)*<span[^>]*>(?:\u2014|\u00E2\u20AC\u201D|\u00E2\u0080\u0094|&mdash;)\s*(.*?)<\/span>$/i;
                         const fallbackRegex = /(?:<br>|\n)*(?:\u2014|\u00E2\u20AC\u201D|\u00E2\u0080\u0094|&mdash;)\s*([a-zA-Z]+)$/i;
                         
@@ -4173,15 +4873,18 @@ const Admin = {
 
                         parsedAdminText = parsedAdminText.replace(/^(?:<br>|\s)+/, '');
 
-                        // 🛡️ GROWTH SPRINT PHASE 1: Retroactive Lightbox Wrapper for legacy admin inline images
+                        // GROWTH SPRINT PHASE 1: Retroactive Lightbox Wrapper for legacy admin inline images
                         parsedAdminText = parsedAdminText.replace(/(<button[^>]*>)?\s*(<img[^>]+src=["']([^"']+)["'][^>]*>)\s*(<\/button>)?/gi, (match, btnStart, imgTag, srcUrl, btnEnd) => {
                             if (btnStart || btnEnd) return match; // Already wrapped in a button
-                            return `<button type="button" onclick="event.stopPropagation(); window.openLightbox('${srcUrl}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-slate-600 dark:border-slate-700 shadow-sm active:scale-[0.98] transition-transform">${imgTag}<div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-1.5 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button>`;
+                            return `<button type="button" onclick="event.stopPropagation(); window.openLightbox('${srcUrl}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-slate-600 dark:border-slate-700 shadow-sm active:scale-[0.98] transition-transform">${imgTag}<span class="nt-zoom-plus absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-black/40 text-white text-xs font-bold leading-none flex items-center justify-center border border-white/20 pointer-events-none select-none shadow-sm" aria-hidden="true">+</span></button>`;
                         });
 
-                        // 🛡️ GUARDIAN UX FIX: Professional, high-contrast Admin message bubble
+                        // GUARDIAN UX FIX: Professional, high-contrast Admin message bubble
+                        // id/data use raw inbox key (same as [REPLY TO ADMIN: key]) for quote jump
+                        const rawMsgKey = String(item.id || item.key || '').trim();
+                        const msgAnchor = secureEscape(rawMsgKey);
                         groupHTML += `
-                            <div class="flex flex-col items-end mb-1.5 pl-2 sm:pl-4">
+                            <div class="flex flex-col items-end mb-1.5 pl-2 sm:pl-4" id="fb-msg-${msgAnchor}" data-fb-msg-id="${msgAnchor}" data-fb-admin-plain="${secureEscape((item.text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 280))}">
                                 <div class="flex flex-col bg-slate-700 dark:bg-slate-800 text-white pt-1.5 pb-2 px-3 rounded-2xl rounded-tr-sm shadow-md border border-slate-600 dark:border-slate-700 text-sm leading-relaxed text-left w-fit max-w-[95%] sm:max-w-[90%] relative">
                                     <div class="mb-0.5 text-[10px] font-black text-slate-300 uppercase tracking-wider">${adminName}</div>
                                     <div>${parsedAdminText}</div>
@@ -4193,77 +4896,217 @@ const Admin = {
                             </div>
                         `;
                     } else {
-                        // COMMUTER BUBBLE (Left)
-                        // TRAILING WHITESPACE PURGE: .trim() before replace
-                        let rawText = item.text ? secureEscape(item.text.trim()) : "No content";
-                        
-                        // 🛡️ GUARDIAN PHASE 6: SMART REGEX (Emails & WhatsApp Auto-Linking)
+                        // COMMUTER BUBBLE (Left) — WhatsApp-style quote chip + reply body
+                        let plainBody = item.text ? String(item.text).trim() : '';
+                        let quoteBlockHtml = '';
+                        let isReply = false;
+
+                        const stripOuterQuotes = (s) => String(s || '').replace(/^["'\u201c\u201d\s]+|["'\u201c\u201d\s]+$/g, '').trim();
+                        const toQuotePlain = (raw) => {
+                            let s = String(raw ?? '');
+                            try {
+                                const d = document.createElement('div');
+                                d.innerHTML = s;
+                                s = d.textContent || d.innerText || '';
+                            } catch {
+                                s = s.replace(/<[^>]*>/g, '');
+                            }
+                            s = s
+                                .replace(/\u00a0/g, ' ')
+                                .replace(/&nbsp;/gi, ' ')
+                                .replace(/&amp;/gi, '&')
+                                .replace(/&lt;/gi, '<')
+                                .replace(/&gt;/gi, '>')
+                                .replace(/&quot;/gi, '"')
+                                .replace(/&#39;/gi, "'");
+                            s = stripOuterQuotes(s);
+                            const wrapped = s.match(/^\[\s*([\s\S]*)\s*\]$/);
+                            if (wrapped) s = stripOuterQuotes(wrapped[1]);
+                            // Drop leftover wrapper crumbs: "] Bathong…" / "Bathong…"]" from broken legacy wraps
+                            s = s.replace(/^[\[\]"'“”\s]+/, '').replace(/[\[\]"'“”]+$/g, '');
+                            return s.replace(/\s+/g, ' ').trim();
+                        };
+                        const isJunkQuoteLine = (line) => {
+                            const t = String(line || '').trim();
+                            if (!t) return true;
+                            // Stray bracket / quote crumbs from broken legacy wrappers
+                            if (/^[\[\]"'“”.…\s]+$/.test(t)) return true;
+                            if (t.length <= 2 && /[\[\]]/.test(t)) return true;
+                            return false;
+                        };
+                        const stripDupQuoteFromBody = (body, snippet) => {
+                            let rest = String(body || '').replace(/^\s+/, '');
+                            const snip = toQuotePlain(snippet);
+                            // Drop junk / duplicate quote lines that leaked below the header
+                            const lines = rest.split(/\r?\n/);
+                            while (lines.length) {
+                                const head = lines[0];
+                                const plainHead = toQuotePlain(head);
+                                if (isJunkQuoteLine(head)) { lines.shift(); continue; }
+                                if (snip && plainHead && (plainHead === snip || snip.startsWith(plainHead) || plainHead.startsWith(snip))) {
+                                    lines.shift();
+                                    continue;
+                                }
+                                // One-line `[quoted text]` / `"quoted text"` duplicate
+                                if (snip && (/^\s*\[/.test(head) || /^\s*["“]/.test(head)) && plainHead && (plainHead === snip || snip.includes(plainHead))) {
+                                    lines.shift();
+                                    continue;
+                                }
+                                break;
+                            }
+                            return lines.join('\n').replace(/^\s+/, '');
+                        };
+                        // data-* only — never embed snippet in onclick (breaks on quotes/apostrophes)
+                        const waQuoteChip = ({ author, snippet, replyKey = '', alertId = '', alertFallback = '', accent = 'blue' }) => {
+                            const bar = accent === 'blue'
+                                ? 'border-blue-500 dark:border-blue-400'
+                                : 'border-gray-400 dark:border-gray-500';
+                            const nameCls = accent === 'blue'
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : 'text-gray-600 dark:text-gray-300';
+                            const cleanAuthor = toQuotePlain(author) || 'Enock';
+                            const cleanSnippet = toQuotePlain(snippet) || 'Message';
+                            const attrs = [
+                                'type="button"',
+                                'data-fb-quote-jump="1"',
+                                `data-reply-key="${secureEscape(replyKey || '')}"`,
+                                `data-reply-snippet="${secureEscape(cleanSnippet)}"`,
+                                `data-alert-id="${secureEscape(alertId || '')}"`,
+                                `data-alert-fallback="${secureEscape(alertFallback || '')}"`,
+                                `class="text-left -mx-1 mb-1.5 mt-1 w-full rounded-r-md bg-black/5 dark:bg-white/10 border-l-4 ${bar} py-1.5 px-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors focus:outline-none shadow-sm cursor-pointer"`,
+                            ].join(' ');
+                            return `<button ${attrs}>
+                                    <div class="text-[10px] font-bold ${nameCls} not-italic leading-tight">${secureEscape(cleanAuthor)}</div>
+                                    <div class="text-[11px] text-gray-800 dark:text-gray-100 not-italic leading-snug line-clamp-3 mt-0.5">${secureEscape(cleanSnippet)}</div>
+                                </button>`;
+                        };
+
+                        // 1) Modern: [REPLY TO ADMIN: key | snippet]\nbody  (hub.js) — snippet cannot contain ]
+                        const replyWithPipe = plainBody.match(/^\[REPLY TO ADMIN:\s*([^|\]]+?)\s*\|\s*([^\]]*)\]\s*([\s\S]*)$/i);
+                        // 2) Legacy header only: [REPLY TO ADMIN: key]\n(optional snippet lines)\nbody
+                        const replyHeaderOnly = !replyWithPipe
+                            ? plainBody.match(/^\[REPLY TO ADMIN:\s*([^\]]+)\]\s*([\s\S]*)$/i)
+                            : null;
+
+                        if (replyWithPipe || replyHeaderOnly) {
+                            isReply = true;
+                            const replyKey = String((replyWithPipe || replyHeaderOnly)[1] || '').trim();
+                            let snippet = '';
+                            let bodyRest = '';
+                            if (replyWithPipe) {
+                                snippet = toQuotePlain(replyWithPipe[2] || '');
+                                bodyRest = String(replyWithPipe[3] || '');
+                            } else {
+                                bodyRest = String(replyHeaderOnly[2] || '');
+                                // Prefer a dedicated quote line; never treat a lone "[" as the quote
+                                const lines = bodyRest.split(/\r?\n/);
+                                let i = 0;
+                                while (i < lines.length && isJunkQuoteLine(lines[i])) i++;
+                                if (i < lines.length) {
+                                    const candidate = toQuotePlain(lines[i]);
+                                    const after = lines.slice(i + 1).join('\n').replace(/^\s+/, '');
+                                    // First real line is the quote only when a reply body remains after it
+                                    if (candidate && after) {
+                                        snippet = candidate;
+                                        bodyRest = after;
+                                    }
+                                    // else: single remaining line is the commuter reply (no separate quote line)
+                                }
+                            }
+                            bodyRest = stripDupQuoteFromBody(bodyRest, snippet);
+                            snippet = (snippet || 'Admin message').slice(0, 240);
+                            quoteBlockHtml = waQuoteChip({
+                                author: 'Enock',
+                                snippet,
+                                replyKey,
+                                accent: 'blue',
+                            });
+                            plainBody = bodyRest;
+                        } else if (plainBody.startsWith('[')) {
+                            // 3) Legacy bracket quote: find matching ] for the opening [ (not first ] only)
+                            let depth = 0;
+                            let end = -1;
+                            for (let i = 0; i < plainBody.length; i++) {
+                                const ch = plainBody[i];
+                                if (ch === '[') depth++;
+                                else if (ch === ']') {
+                                    depth--;
+                                    if (depth === 0) { end = i; break; }
+                                }
+                            }
+                            if (end > 0) {
+                                const rawQuoteContent = plainBody.slice(1, end);
+                                let bodyRest = plainBody.slice(end + 1).replace(/^\s+/, '');
+                                // Require a separator or end — avoid eating normal sentences
+                                if (bodyRest || rawQuoteContent) {
+                                    isReply = true;
+                                    let quoteAuthor = 'Enock';
+                                    let quoteSnippet = toQuotePlain(
+                                        rawQuoteContent
+                                            .replace(/REPLY TO ADMIN:\s*[^\]|]*/i, '')
+                                            .replace(/Replying to:\s*/i, '')
+                                            .replace(/Failed Route Attempt:\s*/i, 'Failed Route: ')
+                                    );
+                                    const named = quoteSnippet.match(/^([A-Za-z][\w.\s]{0,40}?):\s*([\s\S]+)$/);
+                                    if (named) {
+                                        quoteAuthor = toQuotePlain(named[1]) || quoteAuthor;
+                                        quoteSnippet = toQuotePlain(named[2]);
+                                    }
+                                    quoteSnippet = (quoteSnippet || 'Quoted message').slice(0, 240);
+                                    bodyRest = stripDupQuoteFromBody(bodyRest, quoteSnippet);
+                                    const alertIdMatch = rawQuoteContent.match(/Alert ID:\s*(\d+)/i);
+                                    const isAlertQuote = !!(alertIdMatch || /Advisory|Line Severed|Expect Delays/i.test(rawQuoteContent));
+                                    quoteBlockHtml = waQuoteChip({
+                                        author: quoteAuthor,
+                                        snippet: quoteSnippet,
+                                        replyKey: '',
+                                        alertId: isAlertQuote ? (alertIdMatch ? alertIdMatch[1] : '') : '',
+                                        alertFallback: isAlertQuote ? `${quoteAuthor}: ${quoteSnippet}` : '',
+                                        accent: 'blue',
+                                    });
+                                    plainBody = bodyRest;
+                                }
+                            }
+                        }
+
+                        plainBody = String(plainBody || '')
+                            .replace(/&nbsp;/gi, ' ')
+                            .replace(/\u00a0/g, ' ')
+                            .replace(/&amp;/gi, '&')
+                            .replace(/&lt;/gi, '<')
+                            .replace(/&gt;/gi, '>')
+                            .replace(/&quot;/gi, '"')
+                            .replace(/&#39;/gi, "'")
+                            .trim();
+
+                        let rawText = plainBody ? secureEscape(plainBody) : (quoteBlockHtml ? '' : 'No content');
+
+                        // GUARDIAN PHASE 6: SMART REGEX (Emails & WhatsApp Auto-Linking)
                         rawText = rawText.replace(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi, '<a href="mailto:$1" class="text-blue-600 dark:text-blue-400 underline font-bold" onclick="event.stopPropagation()">$1</a>');
-                        
+
                         // Captures SA formats: 082 123 4567, +27 82 123 4567, 27821234567
                         rawText = rawText.replace(/(?:^|\s|\()(?:\+?27|0)[\s-]*([6-8]\d)[\s-]*(\d{3})[\s-]*(\d{4})(?=\s|$|[.,!?\)])/g, (match, p1, p2, p3) => {
                             const fullNum = `27${p1}${p2}${p3}`;
                             const displayNum = `0${p1} ${p2} ${p3}`;
-                            const prefix = match.charAt(0).match(/\s|\(/) ? match.charAt(0) : ''; 
+                            const prefix = match.charAt(0).match(/\s|\(/) ? match.charAt(0) : '';
                             return `${prefix}<a href="https://wa.me/${fullNum}" target="_blank" class="text-green-600 dark:text-green-400 font-bold underline inline-flex items-center gap-1" onclick="event.stopPropagation()">${Admin.icon('message', 'w-3 h-3')} ${displayNum}</a>`;
                         });
-                        
-                        rawText = rawText.replace(/\n/g, "<br>");
-                        
+
+                        rawText = rawText.replace(/\n/g, '<br>');
+
                         const safeAppVersion = secureEscape(item.appVersion || 'Unknown');
                         const safeRouteId = secureEscape(item.routeId || 'None');
                         const safeAttachUrl = item.attachmentUrl ? secureEscape(item.attachmentUrl) : null;
-                        const safeAttachUrls = item.attachmentUrls && Array.isArray(item.attachmentUrls) 
-                            ? item.attachmentUrls.map(url => secureEscape(url)) 
+                        const safeAttachUrls = item.attachmentUrls && Array.isArray(item.attachmentUrls)
+                            ? item.attachmentUrls.map(url => secureEscape(url))
                             : (safeAttachUrl ? [safeAttachUrl] : []);
 
-                        // REGEX: Extract Context Block ("[Replying to: ...]")
-                        let quoteBlockHtml = "";
-                        // 🛡️ GUARDIAN UX FIX: Relaxed regex to catch replies without explicit <br> tags
-                        const quoteRegex = /^\[(.*?)\](?:\s*<br>\s*|\s+)/i;
-                        const quoteMatch = rawText.match(quoteRegex);
-                        let isReply = false;
-                        
-                        if (quoteMatch && quoteMatch[1] !== undefined) {
-                            isReply = true;
-                            // 🛡️ GUARDIAN UX FIX: Force string cast to ensure .replace() and .includes() never throw TypeErrors
-                            const rawQuoteContent = String(quoteMatch[1]);
-                            let quoteContent = rawQuoteContent
-                                .replace(/REPLY TO ADMIN:\s*[-a-zA-Z0-9_]+/i, 'Reply to Enock:')
-                                .replace(/Replying to:\s*/i, '')
-                                .replace(/Failed Route Attempt:\s*/i, 'Failed Route: ');
-                                
-                            // 🛡️ GUARDIAN PHASE 7: Clickable Context Bubble
-                            // Determines if this is an alert reply (either legacy text match or future ID format)
-                            let alertIdMatch = rawQuoteContent.match(/Alert ID:\s*(\d+)/i);
-                            let isAlertQuote = alertIdMatch || rawQuoteContent.includes('Advisory') || rawQuoteContent.includes('Line Severed') || rawQuoteContent.includes('Expect Delays');
-                            
-                            if (isAlertQuote) {
-                                let alertIdParam = alertIdMatch ? `'${alertIdMatch[1]}'` : 'null';
-                                let safeQuoteText = escapeHTML(quoteContent.replace(/'/g, "\\'"));
-                                quoteBlockHtml = `
-                                    <button type="button" onclick="Admin.viewContextAlert(${alertIdParam}, '${safeQuoteText}')" class="text-left -mx-1 mb-1.5 mt-1 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 dark:border-blue-500 py-1.5 px-2 rounded-r text-[10px] text-blue-800 dark:text-blue-300 italic w-full hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors focus:outline-none group shadow-sm">
-                                        <div class="flex items-start justify-between">
-                                            <span class="line-clamp-2">${quoteContent}</span>
-                                            <svg class="w-3 h-3 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-1 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                                        </div>
-                                    </button>
-                                `;
-                            } else {
-                                quoteBlockHtml = `
-                                    <div class="-mx-1 mb-1.5 mt-1 bg-black/5 dark:bg-white/10 border-l-4 border-gray-400 dark:border-gray-500 py-1 px-2 rounded-r text-[10px] text-gray-700 dark:text-gray-300 italic line-clamp-3 w-full">
-                                        ${quoteContent}
-                                    </div>
-                                `;
-                            }
-                            rawText = rawText.replace(quoteRegex, '').trim(); // Remove from main body
-                        }
-
                         // Safeguard rawText in case the replace cleared it completely
-                        if (typeof rawText !== 'string') rawText = "";
+                        if (typeof rawText !== 'string') rawText = '';
                         rawText = rawText.replace(/^(?:<br>|\s)+/, '');
 
-                        // 🛡️ GUARDIAN PHASE 3: Dynamic Visual Attachment Previewer (Multi-File Grid & Lightbox)
+
+                        // GUARDIAN PHASE 3: Dynamic Visual Attachment Previewer (Multi-File Grid & Lightbox)
                         let attachmentHtml = '';
                         if (safeAttachUrls.length > 0) {
                             const gridCols = safeAttachUrls.length > 1 ? 'grid-cols-2' : 'grid-cols-1';
@@ -4286,7 +5129,7 @@ const Admin = {
                         else if (item.type === 'bug') { typeLabel = "App Bug"; typeIconName = "bug"; }
                         else if (item.type === 'suggestion') { typeLabel = "Suggestion"; typeIconName = "lightbulb"; }
 
-                        // 🛡️ GUARDIAN UX FIX: Shortened "Commuter Reply" to "Reply:" to fit on 1 row
+                        // GUARDIAN UX FIX: Shortened "Commuter Reply" to "Reply:" to fit on 1 row
                         const headerLabelText = isReply
                             ? `${Admin.icon('reply', 'w-3 h-3')} Reply:`
                             : `${Admin.icon(typeIconName, 'w-3 h-3')} ${typeLabel}`;
@@ -4295,11 +5138,11 @@ const Admin = {
                         const integratedHeaderHtml = `
                             <div class="text-[9px] font-black ${headerColorClass} uppercase tracking-widest mb-1.5 border-b border-gray-200 dark:border-gray-700 pb-1 flex justify-between items-center w-full">
                                 <span class="whitespace-nowrap inline-flex items-center gap-1">${headerLabelText}</span>
-                                <span class="font-mono font-medium opacity-60 ml-2 truncate">${safeAppVersion.split(' - ')[0]} • ${safeRouteId}</span>
+                                <span class="font-mono font-medium opacity-60 ml-2 truncate">${safeAppVersion.split(' - ')[0]} · ${safeRouteId}</span>
                             </div>
                         `;
 
-                        // 🛡️ GUARDIAN UX FIX: Removed extreme padding (pr-12 -> pr-2) and expanded bubble width (max-w-[85%] -> max-w-[95%]) to fix squeezed text.
+                        // GUARDIAN UX FIX: Removed extreme padding (pr-12 -> pr-2) and expanded bubble width (max-w-[85%] -> max-w-[95%]) to fix squeezed text.
                         groupHTML += `
                             <div class="flex flex-col items-start mb-1.5 pr-2 sm:pr-4">
                                 <div class="flex flex-col bg-gray-100 dark:bg-gray-800/80 text-gray-900 dark:text-gray-100 pt-1.5 pb-2 px-3 rounded-2xl rounded-tl-sm shadow-sm border border-gray-200 dark:border-gray-700 text-sm leading-relaxed text-left w-fit max-w-[95%] sm:max-w-[90%] relative">
@@ -4314,21 +5157,11 @@ const Admin = {
                             </div>
                         `;
                 } });
-                const ticketType = latestCommuterMsg.type === 'bug' ? 'bug' : 'feature';
-                const escalateAttr = Admin.encodeEscalatePayload({
-                    type: ticketType,
-                    severity: 'medium',
-                    title: `Feedback from ${String(did).substring(0, 8)}`,
-                    description: String(latestCommuterMsg.text || 'No description').slice(0, 400),
-                    source: `Feedback ${feedbackId}`
-                });
-                
-                // Bottom Action Bar (Contextual)
+                // Bottom Action Bar — Resolve // Reply only (Escalate/Ban/Export live in More Options)
                 const actionHtml = isInbox 
                     ? `<div class="flex space-x-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
-                         ${did !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${feedbackId}', '${did}')">Reply</button>` : ''}
-                         <button class="flex-1 text-orange-600 dark:text-orange-400 hover:text-white hover:bg-orange-600 text-[10px] font-bold bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.escalateFromEl(this)" data-escalate="${escalateAttr}">Escalate</button>
                          <button class="flex-1 text-green-600 dark:text-green-400 hover:text-white hover:bg-green-600 text-[10px] font-bold bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.resolveFeedback('${unresolvedIds}')">Resolve</button>
+                         ${did !== 'Anonymous / Legacy' ? `<button class="flex-1 text-blue-600 dark:text-blue-400 hover:text-white hover:bg-blue-600 text-[10px] font-bold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 rounded-lg transition-colors focus:outline-none uppercase tracking-wide shadow-sm" onclick="Admin.openReplyModal('${feedbackId}', '${did}')">Reply</button>` : ''}
                        </div>`
                     : `<div class="flex justify-between items-center w-full mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
                          <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived Thread</span>
@@ -4347,8 +5180,48 @@ const Admin = {
                 listContainer.appendChild(groupCard);
             });
 
-            // 🛡️ GUARDIAN PHASE 1: The Auto-Collapse "Accordion Rule" & Delegated Listener
+            // GUARDIAN PHASE 1: The Auto-Collapse "Accordion Rule" & Delegated Listener
             listContainer.onclick = (e) => {
+                // More Options dropdown
+                const moreToggle = e.target.closest('[data-fb-more-toggle]');
+                if (moreToggle && listContainer.contains(moreToggle)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const wrap = moreToggle.closest('[data-fb-more-wrap]');
+                    const menu = wrap?.querySelector('[data-fb-more-menu]');
+                    listContainer.querySelectorAll('[data-fb-more-menu]').forEach((m) => {
+                        if (m !== menu) m.classList.add('hidden');
+                    });
+                    menu?.classList.toggle('hidden');
+                    return;
+                }
+                if (e.target.closest('[data-fb-more-menu]')) {
+                    // Close after choosing an action (Export / Escalate / Ban)
+                    e.target.closest('[data-fb-more-menu]')?.classList.add('hidden');
+                } else if (!e.target.closest('[data-fb-more-wrap]')) {
+                    listContainer.querySelectorAll('[data-fb-more-menu]').forEach((m) => m.classList.add('hidden'));
+                }
+
+                // WhatsApp quote chip — data-* attrs (no fragile inline onclick)
+                const quoteBtn = e.target.closest('[data-fb-quote-jump]');
+                if (quoteBtn && listContainer.contains(quoteBtn)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const alertId = quoteBtn.getAttribute('data-alert-id') || '';
+                    const alertFallback = quoteBtn.getAttribute('data-alert-fallback') || '';
+                    if (alertId || alertFallback) {
+                        Admin.viewContextAlert(alertId || null, alertFallback);
+                    } else {
+                        const threadBody = quoteBtn.closest('.feedback-thread-body');
+                        Admin.jumpToQuotedFeedback(
+                            quoteBtn.getAttribute('data-reply-key') || null,
+                            quoteBtn.getAttribute('data-reply-snippet') || '',
+                            threadBody || listContainer
+                        );
+                    }
+                    return;
+                }
+
                 const header = e.target.closest('.feedback-group-header');
                 if (!header) return;
 
@@ -4503,7 +5376,7 @@ const Admin = {
             }
         };
 
-        // 🛡️ GUARDIAN PHASE 11: Restore from Archive
+        // GUARDIAN PHASE 11: Restore from Archive
         Admin.restoreFeedback = async (id) => {
             const secret = await Admin.getAuthKey();
             if (!secret) return;
@@ -4552,13 +5425,13 @@ const Admin = {
             }
         };
 
-        // 🛡️ GUARDIAN PHASE 13: Admin Address Book (Commuter Aliases)
+        // GUARDIAN PHASE 13: Admin Address Book (Commuter Aliases)
         Admin.setCommuterAlias = async (deviceId, currentAlias) => {
             // Prefill with existing alias, else the full Next Train ID so admin can
             // copy/edit/clear it instead of starting from a blank field.
             const initial = (currentAlias && String(currentAlias).trim()) ? String(currentAlias) : String(deviceId || '');
             const newName = prompt(
-                `Set a friendly alias for this commuter.\n\nThe field starts with their Next Train ID — delete it to type a name, or copy it for bans.\nLeave blank to remove any alias.`,
+                `Set a friendly alias for this commuter.\n\nThe field starts with their Next Train ID - delete it to type a name, or copy it for bans.\nLeave blank to remove any alias.`,
                 initial
             );
             if (newName === null) return; // Action cancelled by user
@@ -4569,7 +5442,7 @@ const Admin = {
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 const trimmed = newName.trim();
-                // Saving the raw device ID as "alias" is pointless — treat as no alias
+                // Saving the raw device ID as "alias" is pointless - treat as no alias
                 if (trimmed === '' || trimmed === deviceId) {
                     await fetch(`${dynamicEndpoint}admin_state/aliases/${deviceId}.json?auth=${secret}`, { method: 'DELETE' });
                     if (Admin.cachedAliases) delete Admin.cachedAliases[deviceId];
@@ -4591,7 +5464,7 @@ const Admin = {
             }
         };
 
-        // 🛡️ GUARDIAN PHASE 6: AI Thread Exporter (.txt Blob Generator)
+        // GUARDIAN PHASE 6: AI Thread Exporter (.txt Blob Generator)
         Admin.exportThreadForAI = (did) => {
             const items = Admin.cachedFeedbackData.filter(i => (i.device_id === did || i.deviceId === did || (did === 'Anonymous / Legacy' && !i.device_id && !i.deviceId)));
             items.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
@@ -4623,7 +5496,7 @@ const Admin = {
             if (ok && typeof showToast === 'function') showToast("Downloaded thread (.txt)", "success");
         };
 
-        // 🛡️ GROWTH SPRINT PHASE 11: Global AI Thread Exporter (.txt Blob Generator)
+        // GROWTH SPRINT PHASE 11: Global AI Thread Exporter (.txt Blob Generator)
         Admin.exportGlobalThreadsForAI = () => {
             const isInbox = Admin.currentFeedbackTab === 'inbox';
             
@@ -4765,7 +5638,7 @@ const Admin = {
         Admin.fetchDelayReports = async () => {
             const list = document.getElementById('dr-list');
             if (!list) return;
-            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Loading…</p>';
+            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Loading...</p>';
             try {
                 const secret = await Admin.getAuthKey();
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -4802,24 +5675,24 @@ const Admin = {
                 };
 
                 list.innerHTML = items.slice(0, 80).map((r) => {
-                    const when = r.timestamp ? new Date(r.timestamp).toLocaleString() : '—';
+                    const when = r.timestamp ? new Date(r.timestamp).toLocaleString() : '-';
                     const sev = (r.severity || 'moderate').toUpperCase();
                     const sevColor = r.severity === 'severe' ? 'text-red-600 dark:text-red-400' : (r.severity === 'minor' ? 'text-yellow-700 dark:text-yellow-400' : 'text-amber-700 dark:text-amber-400');
                     const status = r.status || 'open';
                     const note = r.note ? String(r.note).replace(/</g, '&lt;').replace(/>/g, '&gt;') : '<span class="italic text-gray-400">No note</span>';
-                    const who = r.isGuest ? `guest · ${(r.deviceId || '').slice(0, 8)}` : `uid · ${(r.uid || '').slice(0, 10)}`;
+                    const who = r.isGuest ? `guest - ${(r.deviceId || '').slice(0, 8)}` : `uid - ${(r.uid || '').slice(0, 10)}`;
                     const closedCls = status === 'closed' ? 'opacity-50' : '';
                     return `
                         <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-left ${closedCls}" data-report-id="${r.reportId || r._key}">
                             <div class="flex justify-between items-start gap-2 mb-1">
                                 <div class="min-w-0">
                                     <p class="text-xs font-black text-gray-900 dark:text-white truncate">${routeName(r.routeId)}</p>
-                                    <p class="text-[10px] font-bold ${sevColor}">${sev} · ${status} · ${r.source || 'app'}</p>
+                                    <p class="text-[10px] font-bold ${sevColor}">${sev} - ${status} - ${r.source || 'app'}</p>
                                 </div>
                                 <span class="text-[9px] font-mono text-gray-400 shrink-0">${when}</span>
                             </div>
                             <p class="text-[11px] text-gray-700 dark:text-gray-300 mb-1">${note}</p>
-                            <p class="text-[9px] text-gray-400 font-mono mb-2">${who}${r.station ? ` · near ${String(r.station).replace(/</g, '')}` : ''} · ${r.reportId || r._key}${r.verified ? ' · ✓ verified' : ''}</p>
+                            <p class="text-[9px] text-gray-400 font-mono mb-2">${who}${r.station ? ` - near ${String(r.station).replace(/</g, '')}` : ''} - ${r.reportId || r._key}${r.verified ? ' - verified' : ''}</p>
                             <div class="flex flex-wrap gap-3">
                             ${status !== 'closed' ? `<button type="button" class="dr-close-btn text-[10px] font-bold text-gray-600 dark:text-gray-300 underline" data-id="${r.reportId || r._key}">Mark closed</button>` : '<span class="text-[10px] text-gray-400">Closed</span>'}
                             ${!r.verified && r.uid ? `<button type="button" class="dr-verify-btn text-[10px] font-bold text-green-700 dark:text-green-400 underline" data-id="${r.reportId || r._key}" data-uid="${r.uid}">Mark verified (+trust)</button>` : (r.verified ? '<span class="text-[10px] text-green-600">Verified</span>' : '')}
@@ -4930,7 +5803,7 @@ const Admin = {
         Admin.fetchModerationQueue = async () => {
             const list = document.getElementById('mq-list');
             if (!list) return;
-            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Loading…</p>';
+            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Loading...</p>';
             try {
                 const secret = await Admin.getAuthKey();
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -4958,7 +5831,7 @@ const Admin = {
                 }
 
                 list.innerHTML = items.slice(0, 100).map((r) => {
-                    const when = r.timestamp ? new Date(r.timestamp).toLocaleString() : '—';
+                    const when = r.timestamp ? new Date(r.timestamp).toLocaleString() : '-';
                     const type = (r.type || 'message').toUpperCase();
                     const status = r.status || 'open';
                     const snippet = r.snippet ? String(r.snippet).replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
@@ -4966,11 +5839,11 @@ const Admin = {
                     return `
                         <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-left ${closed ? 'opacity-50' : ''}" data-mq-id="${r.reportId || r._key}">
                             <div class="flex justify-between gap-2 mb-1">
-                                <p class="text-xs font-black text-gray-900 dark:text-white">${type} · ${r.routeId || '—'}</p>
+                                <p class="text-xs font-black text-gray-900 dark:text-white">${type} - ${r.routeId || '-'}</p>
                                 <span class="text-[9px] font-mono text-gray-400 shrink-0">${when}</span>
                             </div>
-                            <p class="text-[10px] text-gray-500 font-mono mb-1">target uid: ${(r.targetUid || '—').toString().slice(0, 16)} · post: ${(r.targetPostId || '—').toString().slice(0, 18)}</p>
-                            ${snippet ? `<p class="text-[11px] text-gray-700 dark:text-gray-300 mb-2">“${snippet}”</p>` : ''}
+                            <p class="text-[10px] text-gray-500 font-mono mb-1">target uid: ${(r.targetUid || '-').toString().slice(0, 16)} - post: ${(r.targetPostId || '-').toString().slice(0, 18)}</p>
+                            ${snippet ? `<p class="text-[11px] text-gray-700 dark:text-gray-300 mb-2">"${snippet}"</p>` : ''}
                             ${closed ? '<span class="text-[10px] text-gray-400">Closed</span>' : `
                             <div class="flex flex-wrap gap-2 mt-1">
                                 <button type="button" class="mq-hide-post text-[10px] font-bold text-amber-700 dark:text-amber-400 underline" data-route="${r.routeId || ''}" data-post="${r.targetPostId || ''}">Hide post</button>
@@ -5045,7 +5918,7 @@ const Admin = {
         };
     },
 
-    /** Phase 7 — timed shadow ban with duration picker. opts.deviceId also writes devices/{id}/flags. */
+    /** Phase 7 - timed shadow ban with duration picker. opts.deviceId also writes devices/{id}/flags. */
     applyShadowBan: async (uid, opts = {}) => {
         if (!uid) {
             if (typeof showToast === 'function') showToast('No target uid', 'error');
@@ -5100,6 +5973,15 @@ const Admin = {
                     </div>
                 </div>`;
             modal.classList.remove('hidden');
+            // Prefill from System Controls default when available
+            const defaultModeEl = document.getElementById('shadow-ban-default-mode');
+            const banModeEl = document.getElementById('admin-ban-mode');
+            if (banModeEl && defaultModeEl?.value) {
+                const preferred = (typeof trustNormalizeShadowBanMode === 'function')
+                    ? trustNormalizeShadowBanMode(defaultModeEl.value)
+                    : defaultModeEl.value;
+                if ([...banModeEl.options].some((o) => o.value === preferred)) banModeEl.value = preferred;
+            }
             document.getElementById('admin-ban-cancel').onclick = () => { modal.classList.add('hidden'); resolve(null); };
             document.getElementById('admin-ban-confirm').onclick = () => {
                 const idx = parseInt(document.getElementById('admin-ban-duration').value, 10) || 0;
@@ -5117,7 +5999,7 @@ const Admin = {
         const modeLabel = banModes.find((m) => m.id === choice.mode)?.label || choice.mode;
         const confirmed = await Admin.secureConfirm(
             'Confirm shadow ban',
-            `Ban ${uid} for ${choice.label} with “${modeLabel}”? They won’t be told they’re banned.`
+            `Ban ${uid} for ${choice.label} with "${modeLabel}"? They won't be told they're banned.`
         );
         if (!confirmed) return false;
 
@@ -5169,7 +6051,7 @@ const Admin = {
                 window.trustLocalBlockList.add(uid);
                 if (deviceId) window.trustLocalBlockList.add(deviceId);
             }
-            if (typeof showToast === 'function') showToast(`Shadow-banned (${choice.label}) — mode: ${modeLabel}`, 'success');
+            if (typeof showToast === 'function') showToast(`Shadow-banned (${choice.label}) - mode: ${modeLabel}`, 'success');
             if (typeof Admin.fetchActiveBans === 'function') Admin.fetchActiveBans();
             return true;
         } catch (e) {
@@ -5182,7 +6064,7 @@ const Admin = {
     liftShadowBan: async (uid, opts = {}) => {
         if (!uid) return false;
         const deviceId = opts.deviceId || (/^usr_/i.test(uid) ? uid : null);
-        const confirmed = await Admin.secureConfirm('Lift shadow ban', `Restore posting for ${uid.slice(0, 12)}…?`);
+        const confirmed = await Admin.secureConfirm('Lift shadow ban', `Restore posting for ${uid.slice(0, 12)}-?`);
         if (!confirmed) return false;
         try {
             const secret = await Admin.getAuthKey();
@@ -5234,7 +6116,7 @@ const Admin = {
         await fetch(`${dynamicEndpoint}users/${uid}/trustScore.json?auth=${secret}`, {
             method: 'PUT', body: JSON.stringify(score + 1)
         });
-        if (typeof showToast === 'function') showToast(`Verified — trust score → ${score + 1}`, 'success');
+        if (typeof showToast === 'function') showToast(`Verified - trust score: ${score + 1}`, 'success');
     },
 
     // --- PHASE 7: USER TRUST / SHADOW-BAN LOOKUP ---
@@ -5263,7 +6145,7 @@ const Admin = {
                 <svg id="ut-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             <div id="ut-body" class="hidden mt-4 flex flex-col text-left">
-                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Ban list and lookup stay separate — switch tabs below.</p>
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Ban list and lookup stay separate - switch tabs below.</p>
                 <div class="flex gap-1 p-1 mb-3 rounded-xl bg-gray-100 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700" role="tablist" aria-label="User trust sections">
                     <button type="button" id="ut-tab-bans" role="tab" aria-selected="true" class="ut-tab flex-1 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-200 dark:border-indigo-800">Active bans</button>
                     <button type="button" id="ut-tab-lookup" role="tab" aria-selected="false" class="ut-tab flex-1 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">Lookup</button>
@@ -5274,12 +6156,12 @@ const Admin = {
                         <button type="button" id="ut-bans-refresh" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">Refresh</button>
                     </div>
                     <div id="ut-bans-list" class="space-y-2 max-h-[320px] overflow-y-auto px-1 custom-scrollbar">
-                        <p class="text-xs text-gray-400 text-center py-3">Open panel to load bans…</p>
+                        <p class="text-xs text-gray-400 text-center py-3">Open panel to load bans...</p>
                     </div>
                 </div>
                 <div id="ut-pane-lookup" role="tabpanel" class="ut-pane hidden">
                     <div class="flex gap-2 mb-3 px-1">
-                        <input type="text" id="ut-uid-input" class="flex-1 p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-mono" placeholder="UID, device ID (usr_…), or email…" />
+                        <input type="text" id="ut-uid-input" class="flex-1 p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-mono" placeholder="UID, device ID (usr_…), or email" />
                         <button type="button" id="ut-lookup-btn" class="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold">Lookup</button>
                     </div>
                     <div id="ut-result" class="px-1 text-xs text-gray-500">Enter a UID to inspect.</div>
@@ -5354,10 +6236,10 @@ const Admin = {
         Admin.fetchActiveBans = async () => {
             const list = document.getElementById('ut-bans-list');
             if (!list) return;
-            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-3 animate-pulse">Scanning bans…</p>';
+            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-3 animate-pulse">Scanning bans...</p>';
             try {
                 const secret = await Admin.getAuthKey();
-                if (!secret) throw new Error('not signed in — open Admin while logged in as an admin account');
+                if (!secret) throw new Error('not signed in - open Admin while logged in as an admin account');
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 const auth = `?auth=${encodeURIComponent(secret)}`;
                 const [usersRes, devicesRes] = await Promise.all([
@@ -5381,7 +6263,7 @@ const Admin = {
                     bans.push({
                         id,
                         source,
-                        displayName: record.displayName || (source === 'device' ? 'Device guest' : '—'),
+                        displayName: record.displayName || (source === 'device' ? 'Device guest' : '-'),
                         email: record.email || null,
                         until,
                         bannedAt: Number(flags.shadowBannedAt || 0),
@@ -5395,7 +6277,7 @@ const Admin = {
                 Object.entries(devices).forEach(([deviceId, d]) => {
                     // Prefer linked account if already listed; else show device-level ban
                     if (d?.uid && seen.has(d.uid)) return;
-                    pushBan(deviceId, { flags: d?.flags || {}, displayName: d?.uid ? `Device → ${d.uid}` : 'Device' }, 'device');
+                    pushBan(deviceId, { flags: d?.flags || {}, displayName: d?.uid ? `Device / ${d.uid}` : 'Device' }, 'device');
                 });
 
                 bans.sort((a, b) => (b.bannedAt || 0) - (a.bannedAt || 0));
@@ -5418,7 +6300,7 @@ const Admin = {
                         })()
                         : 'no expiry';
                     const modeStr = banModeLabel(b.mode);
-                    const name = String(b.displayName || '—').replace(/</g, '&lt;');
+                    const name = String(b.displayName || '-').replace(/</g, '&lt;');
                     const email = b.email ? String(b.email).replace(/</g, '&lt;') : '';
                     const card = document.createElement('div');
                     card.className = 'border border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20 rounded-xl p-3 space-y-1';
@@ -5468,14 +6350,14 @@ const Admin = {
                 return { uid: q, user, via: 'uid', deviceId: null };
             }
 
-            // 2) Device ID → linked Firebase uid (devices/{deviceId}.uid)
+            // 2) Device ID ? linked Firebase uid (devices/{deviceId}.uid)
             const looksLikeDevice = /^usr_/i.test(q);
             if (looksLikeDevice) {
                 const device = await fetchJson(`devices/${encodeURIComponent(q)}.json`);
                 if (device?.uid) {
                     user = await fetchJson(`users/${encodeURIComponent(device.uid)}.json`);
                     if (user) {
-                        return { uid: device.uid, user, via: 'device→uid', deviceId: q };
+                        return { uid: device.uid, user, via: 'device?uid', deviceId: q };
                     }
                 }
                 // Guest / pre-account: allow banning the device id itself
@@ -5515,7 +6397,7 @@ const Admin = {
             const query = (document.getElementById('ut-uid-input')?.value || '').trim();
             const out = document.getElementById('ut-result');
             if (!query || !out) return;
-            out.innerHTML = '<p class="animate-pulse text-gray-400">Loading…</p>';
+            out.innerHTML = '<p class="animate-pulse text-gray-400">Loading...</p>';
             try {
                 const resolved = await Admin.resolveTrustTarget(query);
                 if (!resolved) {
@@ -5527,23 +6409,23 @@ const Admin = {
                 const banned = flags.shadowBanned === true;
                 const until = Number(flags.shadowBannedUntil || 0);
                 const expired = banned && until > 0 && Date.now() > until;
-                const untilStr = until > 0 ? new Date(until).toLocaleString() : (banned ? 'permanent' : '—');
+                const untilStr = until > 0 ? new Date(until).toLocaleString() : (banned ? 'permanent' : '-');
                 const modeRaw = flags.shadowBanMode || 'offline';
                 const modeStr = banModeLabel(modeRaw);
                 const score = typeof user.trustScore === 'number' ? user.trustScore : 0;
-                const name = (user.displayName || (user._isDeviceStub ? 'Device guest' : '—')).toString().replace(/</g, '&lt;');
-                const email = (user.email || '—').toString().replace(/</g, '&lt;');
-                const viaLabel = via === 'email' ? 'matched by email' : (via === 'device' ? 'device record' : (via === 'device→uid' ? 'device → account' : 'user id'));
+                const name = (user.displayName || (user._isDeviceStub ? 'Device guest' : '-')).toString().replace(/</g, '&lt;');
+                const email = (user.email || '-').toString().replace(/</g, '&lt;');
+                const viaLabel = via === 'email' ? 'matched by email' : (via === 'device' ? 'device record' : (via === 'device?uid' ? 'device ? account' : 'user id'));
                 out.innerHTML = `
                     <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-2">
                         <p class="font-black text-gray-900 dark:text-white">${name}</p>
                         <p class="font-mono text-[10px] text-gray-400 break-all">${uid}</p>
-                        <p class="text-[11px]">Email: <b>${email}</b> · Found via <b>${viaLabel}</b>${deviceId && deviceId !== uid ? ` · device <span class="font-mono">${deviceId}</span>` : ''}</p>
-                        <p class="text-[11px]">Role: <b>${flags.role || 'user'}</b> · Trust score: <b>${score}</b></p>
-                        <p class="text-[11px]">Shadow banned: <b class="${banned && !expired ? 'text-red-600' : 'text-green-600'}">${banned ? (expired ? 'expired' : 'yes') : 'no'}</b>${banned ? ` · until ${untilStr}` : ''}</p>
+                        <p class="text-[11px]">Email: <b>${email}</b> - Found via <b>${viaLabel}</b>${deviceId && deviceId !== uid ? ` - device <span class="font-mono">${deviceId}</span>` : ''}</p>
+                        <p class="text-[11px]">Role: <b>${flags.role || 'user'}</b> - Trust score: <b>${score}</b></p>
+                        <p class="text-[11px]">Shadow banned: <b class="${banned && !expired ? 'text-red-600' : 'text-green-600'}">${banned ? (expired ? 'expired' : 'yes') : 'no'}</b>${banned ? ` - until ${untilStr}` : ''}</p>
                         ${banned && !expired ? `<p class="text-[11px]">Ban type: <b>${modeStr}</b></p>` : ''}
                         <div class="flex flex-wrap gap-3 pt-1">
-                            <button type="button" id="ut-ban-btn" class="text-[10px] font-bold text-red-600 underline">Shadow ban…</button>
+                            <button type="button" id="ut-ban-btn" class="text-[10px] font-bold text-red-600 underline">Shadow ban</button>
                             <button type="button" id="ut-lift-btn" class="text-[10px] font-bold text-blue-600 underline">Lift ban</button>
                         </div>
                     </div>`;
@@ -5572,7 +6454,7 @@ const Admin = {
 
         const alias = Admin.cachedAliases && Admin.cachedAliases[deviceId] ? Admin.cachedAliases[deviceId] : null;
         const recipientHtml = alias
-            ? `<span class="font-bold text-gray-800 dark:text-gray-100">${String(alias).replace(/</g, '&lt;')}</span><span class="text-gray-400 mx-1">·</span><span class="font-mono">${String(deviceId).replace(/</g, '&lt;')}</span>`
+            ? `<span class="font-bold text-gray-800 dark:text-gray-100">${String(alias).replace(/</g, '&lt;')}</span><span class="text-gray-400 mx-1">-</span><span class="font-mono">${String(deviceId).replace(/</g, '&lt;')}</span>`
             : `<span class="font-mono text-gray-800 dark:text-gray-100">${String(deviceId).replace(/</g, '&lt;')}</span>`;
         
         let modal = document.getElementById('admin-reply-modal');
@@ -5598,7 +6480,7 @@ const Admin = {
                             <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('justifyCenter', 'admin-reply-text')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex justify-center focus:outline-none flex-1" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
                             <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('justifyRight', 'admin-reply-text')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex justify-center focus:outline-none flex-1" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-0.5 shrink-0"></div>
-                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('link', 'admin-reply-text')" class="px-1.5 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none flex-1" title="Add Custom Link">🔗</button>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('link', 'admin-reply-text')" class="px-1.5 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none flex-1" title="Add Custom Link">${Admin.icon('globe', 'w-3.5 h-3.5')}</button>
                             <label for="admin-reply-upload-file" id="admin-reply-upload-label" onmousedown="Admin.saveCursorRange()" ontouchstart="Admin.saveCursorRange()" onclick="Admin.saveCursorRange()" class="px-1.5 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center gap-1 focus:outline-none cursor-pointer flex-1 whitespace-nowrap" title="Upload Image or PDF">${Admin.icon('paperclip', 'w-3.5 h-3.5')} Media</label>
                             <input type="file" id="admin-reply-upload-file" class="hidden" accept="image/*,.pdf">
                         </div>
@@ -5649,12 +6531,12 @@ const Admin = {
             modal.firstElementChild.classList.add('scale-95');
         };
 
-        // 🛡️ GUARDIAN PHASE 3: Inline WYSIWYG File Uploader (Admin Inbox Reply)
+        // GUARDIAN PHASE 3: Inline WYSIWYG File Uploader (Admin Inbox Reply)
         const replyUploadFile = document.getElementById('admin-reply-upload-file');
         if (replyUploadFile) {
             replyUploadFile.addEventListener('change', async function() {
                 const editor = document.getElementById('admin-reply-text');
-                // 🛡️ GUARDIAN UX FIX: Retrieve pre-upload cursor position locked via mousedown
+                // GUARDIAN UX FIX: Retrieve pre-upload cursor position locked via mousedown
                 const savedRange = Admin._savedRange;
                 if (editor) editor.focus();
 
@@ -5704,7 +6586,7 @@ const Admin = {
                                     if (isPdf) {
                                         htmlToInsert = `&nbsp;<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline font-bold px-1 inline-flex items-center gap-1">${Admin.icon('file', 'w-3.5 h-3.5')} View Attached PDF</a>&nbsp;`;
                                     } else {
-                                        htmlToInsert = `<br><button type="button" onclick="window.openLightbox('${url}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${url}" class="w-full h-auto object-cover hover:opacity-90 transition-opacity" alt="Admin Attachment"><div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-2 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button><br>`;
+                                        htmlToInsert = `<br><button type="button" onclick="window.openLightbox('${url}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${url}" class="w-full h-auto object-cover hover:opacity-90 transition-opacity" alt="Admin Attachment"><span class="nt-zoom-plus absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-black/40 text-white text-xs font-bold leading-none flex items-center justify-center border border-white/20 pointer-events-none select-none shadow-sm" aria-hidden="true">+</span></button><br>`;
                                     }
                                     
                                     if (editor) {
@@ -5744,7 +6626,7 @@ const Admin = {
             // Auto-Signoff Logic
             const adminEmail = Admin.currentUser?.email || '';
             const adminName = adminEmail.includes('enock') ? 'Enock' : (adminEmail.includes('thandeka') ? 'Thandeka' : 'Admin');
-            text += `<br><br><span style="color: #9ca3af; font-style: italic;">— ${adminName}</span>`;
+            text += `<br><br><span style="color: #9ca3af; font-style: italic;">- ${adminName}</span>`;
             
             const btn = document.getElementById('reply-send');
             btn.textContent = "Sending...";
@@ -5789,6 +6671,69 @@ const Admin = {
     },
 
     // --- GUARDIAN PHASE 7: CONTEXTUAL ALERT VIEWER ---
+    jumpToQuotedFeedback: (replyKey, snippetHint = '', scopeEl = null) => {
+        const root = scopeEl && scopeEl.querySelectorAll ? scopeEl : document;
+        const cleanKey = String(replyKey || '').trim();
+        let el = null;
+
+        if (cleanKey) {
+            // Prefer scoped lookup (open thread), then document — keys may be HTML-escaped in id attrs
+            const tryIds = [cleanKey, cleanKey.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')];
+            for (const k of tryIds) {
+                el = (root.getElementById && root.getElementById(`fb-msg-${k}`))
+                    || document.getElementById(`fb-msg-${k}`)
+                    || root.querySelector?.(`[data-fb-msg-id="${CSS.escape ? CSS.escape(k) : k}"]`)
+                    || document.querySelector(`[data-fb-msg-id="${CSS.escape ? CSS.escape(k) : k}"]`);
+                if (el) break;
+            }
+        }
+
+        // Fuzzy-match quoted text against admin bubbles (scoped to this thread when possible)
+        if (!el && snippetHint) {
+            const normalize = (s) => String(s || '')
+                .replace(/<[^>]*>/g, ' ')
+                .replace(/^[\[\]"'“”\s]+/, '')
+                .replace(/[\[\]"'“”]+$/g, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+            const needle = normalize(snippetHint).slice(0, 80);
+            const shortNeedle = needle.replace(/[^\p{L}\p{N}\s]/gu, '').trim().slice(0, 48);
+            if (needle) {
+                const bubbles = root.querySelectorAll
+                    ? root.querySelectorAll('[id^="fb-msg-"], [data-fb-msg-id]')
+                    : document.querySelectorAll('[id^="fb-msg-"], [data-fb-msg-id]');
+                let best = null;
+                let bestScore = 0;
+                for (const node of bubbles) {
+                    const plainAttr = normalize(node.getAttribute('data-fb-admin-plain') || '');
+                    const t = plainAttr || normalize(node.textContent || '');
+                    if (!t) continue;
+                    if (t.includes(needle) || (shortNeedle && t.includes(shortNeedle))) {
+                        el = node;
+                        break;
+                    }
+                    // Soft match: share significant token from quote
+                    const tokens = shortNeedle.split(/\s+/).filter((w) => w.length >= 4);
+                    const hits = tokens.filter((w) => t.includes(w)).length;
+                    if (hits >= 2 && hits > bestScore) {
+                        bestScore = hits;
+                        best = node;
+                    }
+                }
+                if (!el && best) el = best;
+            }
+        }
+
+        if (!el) {
+            if (typeof showToast === 'function') showToast('Original message not in this thread view', 'info', 2000);
+            return;
+        }
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-blue-400', 'rounded-xl');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400', 'rounded-xl'), 1600);
+    },
+
     viewContextAlert: async (alertId, fallbackText) => {
         const secret = await Admin.getAuthKey();
         if (!secret) return;
@@ -5804,7 +6749,7 @@ const Admin = {
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 transform transition-all scale-95 border border-blue-200 dark:border-blue-900/50 flex flex-col max-h-[85vh]">
                     <div class="flex items-center justify-between mb-4 shrink-0">
                         <div class="flex items-center space-x-2">
-                            <span class="text-xl">🔍</span>
+                            <span class="inline-flex text-amber-500">${Admin.icon('alert', 'w-5 h-5')}</span>
                             <h3 class="text-lg font-black text-gray-900 dark:text-white tracking-tight">Original Advisory</h3>
                         </div>
                         <button onclick="closeSmoothModal('admin-context-modal')" class="text-gray-400 hover:text-gray-500 focus:outline-none">
@@ -5835,7 +6780,7 @@ const Admin = {
                 if (data && !data.error) Object.values(data).forEach(alert => { if (alert.id === String(alertId)) foundData = alert; });
                 
                 if (!foundData) {
-                    res = await fetch(`${dynamicEndpoint}notices_archive.json?auth=${secret}`); // 🛡️ GUARDIAN FIX: Removed REST index constraint to prevent 400 Bad Request
+                    res = await fetch(`${dynamicEndpoint}notices_archive.json?auth=${secret}`); // GUARDIAN FIX: Removed REST index constraint to prevent 400 Bad Request
                     data = await res.json();
                     if (data && !data.error) {
                         Object.values(data).forEach(alert => { if (alert.id === String(alertId)) foundData = alert; });
@@ -5906,7 +6851,7 @@ const Admin = {
                 }
             }
 
-            // 🛡️ GUARDIAN PHASE 14: Disruption Graveyard Sweep
+            // GUARDIAN PHASE 14: Disruption Graveyard Sweep
             if (!foundData && fallbackText) {
                 const cleanFallback = fallbackText.replace(/['"]/g, '').toLowerCase().substring(0, 30);
                 
@@ -5958,7 +6903,7 @@ const Admin = {
             } else {
                 contentDiv.innerHTML = `
                     <div class="text-center py-4">
-                        <span class="text-3xl mb-2 block">📡</span>
+                        <span class="inline-flex justify-center text-gray-400 mb-2">${Admin.icon('search', 'w-8 h-8')}</span>
                         <p class="text-gray-500 text-sm font-bold">Alert not found in database.</p>
                         <p class="text-xs text-gray-400 mt-2">It may have been permanently deleted or too old to retrieve. Here is the snippet we have:</p>
                         <div class="mt-3 p-3 bg-gray-100 dark:bg-gray-800 rounded italic text-xs text-gray-600 dark:text-gray-400">"${fallbackText}"</div>
@@ -5971,7 +6916,7 @@ const Admin = {
         }
     },
 
-// --- 🛡️ GUARDIAN PHASE 2: WYSIWYG CURSOR LOCK ---
+// --- GUARDIAN PHASE 2: WYSIWYG CURSOR LOCK ---
     _savedRange: null,
     saveCursorRange: () => {
         const sel = window.getSelection();
@@ -5985,7 +6930,7 @@ const Admin = {
         const editor = document.getElementById(targetId);
         if (!editor) return;
         
-        // 🛡️ GUARDIAN FIX: Inject CSS overrides for the strict 3-Tier sizing logic (Small, Normal, Large)
+        // GUARDIAN FIX: Inject CSS overrides for the strict 3-Tier sizing logic (Small, Normal, Large)
         // Without these !important rules, Tailwind's text-sm class squashes all larger <font> tags back to "normal"
         if (!document.getElementById('wysiwyg-extended-sizes')) {
             const style = document.createElement('style');
@@ -6000,7 +6945,7 @@ const Admin = {
 
         editor.focus();
         
-        // 🛡️ GUARDIAN UX FIX: Restore mobile cursor selection before formatting
+        // GUARDIAN UX FIX: Restore mobile cursor selection before formatting
         if (Admin._savedRange) {
             const sel = window.getSelection();
             sel.removeAllRanges();
@@ -6013,7 +6958,7 @@ const Admin = {
         } else if (tag === 'italic') { 
             document.execCommand('italic', false, null);
         } else if (tag === 'larger' || tag === 'smaller') {
-            // 🛡️ GUARDIAN DOM SCANNER: queryCommandValue is broken on mobile WebViews.
+            // GUARDIAN DOM SCANNER: queryCommandValue is broken on mobile WebViews.
             // We manually traverse the DOM to find the exact font size tag applied to the cursor.
             let currentSize = 3; // Default to Normal
             const sel = window.getSelection();
@@ -6065,7 +7010,7 @@ const Admin = {
 
 
     // --- 4. SERVICE ALERTS MANAGER ---
-    /** Tally votes from polls/{id} payload → { A, B, C, total }. */
+    /** Tally votes from polls/{id} payload ? { A, B, C, total }. */
     tallyPollVotes: (pollData) => {
         let A = 0, B = 0, C = 0;
         if (pollData && typeof pollData === 'object') {
@@ -6364,11 +7309,11 @@ const Admin = {
         if (!listEl) return;
         const rows = Array.isArray(items) ? items : [];
         if (!rows.length) {
-            listEl.innerHTML = `<div class="text-center py-6 text-xs text-gray-400">No scheduled alerts. Add one under New Alert → Recurring schedule.</div>`;
+            listEl.innerHTML = `<div class="text-center py-6 text-xs text-gray-400">No scheduled alerts. Add one under New Alert ? Recurring schedule.</div>`;
             return;
         }
         listEl.innerHTML = rows.map((job) => {
-            const nextStr = job.nextRunAt ? Admin.formatDate(job.nextRunAt) : '—';
+            const nextStr = job.nextRunAt ? Admin.formatDate(job.nextRunAt) : '-';
             const lastStr = job.lastRunAt ? Admin.formatDate(job.lastRunAt) : 'never';
             const liveFor = Admin.formatScheduleDurationLabel(job.notice?.expiresInMs || 2 * 3600 * 1000);
             const paused = job.enabled === false;
@@ -6380,7 +7325,7 @@ const Admin = {
                 } catch { return '(empty)'; }
             })();
             const freq = escapeHTML(String(job.frequency || 'once'));
-            const target = escapeHTML(String(job.target || '—'));
+            const target = escapeHTML(String(job.target || '-'));
             const idSafe = escapeHTML(String(job.id || ''));
             return `
                 <div class="p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 shadow-sm ${paused ? 'opacity-70' : ''}" data-sched-id="${idSafe}">
@@ -6392,7 +7337,7 @@ const Admin = {
                     </div>
                     <p class="text-xs text-gray-800 dark:text-gray-200 leading-snug line-clamp-2 mb-1">${escapeHTML(plain)}</p>
                     <div class="flex justify-between items-center gap-2 text-[9px] font-mono text-gray-400">
-                        <span>Next ${escapeHTML(nextStr)} · Last ${escapeHTML(lastStr)}</span>
+                        <span>Next ${escapeHTML(nextStr)} - Last ${escapeHTML(lastStr)}</span>
                         <span class="flex gap-2 shrink-0">
                             <button type="button" class="alert-sched-toggle font-bold uppercase tracking-wider focus:outline-none ${paused ? 'text-emerald-600' : 'text-amber-600'}" data-sched-id="${idSafe}" data-enabled="${paused ? '1' : '0'}">${paused ? 'Resume' : 'Pause'}</button>
                             <button type="button" class="alert-sched-delete text-red-500 hover:text-red-700 font-bold uppercase tracking-wider focus:outline-none" data-sched-id="${idSafe}">Clear</button>
@@ -6432,7 +7377,7 @@ const Admin = {
 
     refreshScheduledAlerts: async () => {
         const statusEl = document.getElementById('alert-schedule-status');
-        if (statusEl) statusEl.textContent = 'Checking due…';
+        if (statusEl) statusEl.textContent = 'Checking due...';
         try {
             const secret = await Admin.getAuthKey();
             const due = await Admin.publishDueScheduledAlerts(secret);
@@ -6440,7 +7385,7 @@ const Admin = {
             Admin.renderScheduledAlertsList(items);
             if (statusEl) {
                 statusEl.textContent = due.published
-                    ? `${items.length} scheduled · posted ${due.published}`
+                    ? `${items.length} scheduled - posted ${due.published}`
                     : `${items.length} scheduled`;
             }
         } catch (e) {
@@ -6475,13 +7420,16 @@ const Admin = {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel) return;
         
-        if (alertPanel.dataset.adminLoaded === "true") return;
-        alertPanel.dataset.adminLoaded = "true";
-
-        alertPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
+        const alertHeaderLen = (alertPanel.querySelector('#alert-header-btn')?.textContent || '').trim().length;
+        const alertShellEmpty = !(alertPanel.innerHTML || '').trim() || alertHeaderLen < 3;
+        if (alertPanel.dataset.adminLoaded === "true" && !alertShellEmpty) {
+            return;
+        }
+        // Rebuild tile chrome — mark loaded only after HTML lands (prevents permanent blank grid card)
+        alertPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-visible transition-all duration-300";
 
         alertPanel.innerHTML = `
-            <button id="alert-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+            <button id="alert-header-btn" class="w-full text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
                     ${Admin.tileIcon('megaphone', 'text-rose-500 dark:text-rose-400')}
                     <span>Service Alerts Manager</span>
@@ -6514,18 +7462,18 @@ const Admin = {
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Severity</label>
                         <div class="relative" id="alert-severity-container">
                             <select id="alert-severity" class="hidden">
-                                <option value="info" selected>🔵 Info (General)</option>
-                                <option value="warning">🟡 Warning (Delays)</option>
-                                <option value="critical">🔴 Critical (Suspended)</option>
+                                <option value="info" selected>Info (General)</option>
+                                <option value="warning">Warning (Delays)</option>
+                                <option value="critical">Critical (Suspended)</option>
                             </select>
                             <div onclick="document.getElementById('alert-severity-list').classList.toggle('hidden'); document.getElementById('alert-severity-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
-                                <span id="alert-severity-display" class="truncate">🔵 Info (General)</span>
+                                <span id="alert-severity-display" class="truncate inline-flex items-center gap-1.5"><span class="inline-flex text-blue-500">${Admin.icon('circle', 'w-3 h-3')}</span> Info (General)</span>
                                 <svg id="alert-severity-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </div>
                             <ul id="alert-severity-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-hidden text-left">
-                                <li onclick="document.getElementById('alert-severity').value='info'; document.getElementById('alert-severity-display').innerHTML='🔵 Info (General)'; document.getElementById('alert-severity-list').classList.add('hidden'); document.getElementById('alert-severity-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">🔵 Info (General)</li>
-                                <li onclick="document.getElementById('alert-severity').value='warning'; document.getElementById('alert-severity-display').innerHTML='🟡 Warning (Delays)'; document.getElementById('alert-severity-list').classList.add('hidden'); document.getElementById('alert-severity-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-yellow-50 dark:hover:bg-gray-700 text-yellow-700 dark:text-yellow-400 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">🟡 Warning (Delays)</li>
-                                <li onclick="document.getElementById('alert-severity').value='critical'; document.getElementById('alert-severity-display').innerHTML='🔴 Critical (Suspended)'; document.getElementById('alert-severity-list').classList.add('hidden'); document.getElementById('alert-severity-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-red-50 dark:hover:bg-gray-700 text-red-700 dark:text-red-400 transition-colors cursor-pointer">🔴 Critical (Suspended)</li>
+                                <li onclick="document.getElementById('alert-severity').value='info'; document.getElementById('alert-severity-display').innerHTML=Admin._severityLabelHtml('info'); document.getElementById('alert-severity-list').classList.add('hidden'); document.getElementById('alert-severity-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer inline-flex items-center gap-1.5 w-full"><span class="inline-flex text-blue-500">${Admin.icon('circle', 'w-3 h-3')}</span> Info (General)</li>
+                                <li onclick="document.getElementById('alert-severity').value='warning'; document.getElementById('alert-severity-display').innerHTML=Admin._severityLabelHtml('warning'); document.getElementById('alert-severity-list').classList.add('hidden'); document.getElementById('alert-severity-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-yellow-50 dark:hover:bg-gray-700 text-yellow-700 dark:text-yellow-400 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer inline-flex items-center gap-1.5 w-full"><span class="inline-flex text-amber-500">${Admin.icon('alert', 'w-3 h-3')}</span> Warning (Delays)</li>
+                                <li onclick="document.getElementById('alert-severity').value='critical'; document.getElementById('alert-severity-display').innerHTML=Admin._severityLabelHtml('critical'); document.getElementById('alert-severity-list').classList.add('hidden'); document.getElementById('alert-severity-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-red-50 dark:hover:bg-gray-700 text-red-700 dark:text-red-400 transition-colors cursor-pointer inline-flex items-center gap-1.5 w-full"><span class="inline-flex text-red-500">${Admin.icon('siren', 'w-3 h-3')}</span> Critical (Suspended)</li>
                             </ul>
                         </div>
                     </div>
@@ -6560,8 +7508,8 @@ const Admin = {
                             <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('justifyCenter')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex justify-center focus:outline-none flex-1" title="Align Center"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"></path></svg></button>
                             <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('justifyRight')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex justify-center focus:outline-none flex-1" title="Align Right"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"></path></svg></button>
                             <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-0.5 shrink-0"></div>
-                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('link')" class="px-1.5 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none flex-1" title="Add Custom Link">🔗</button>
-                            <label for="alert-upload-file" id="alert-upload-label" onmousedown="Admin.saveCursorRange()" ontouchstart="Admin.saveCursorRange()" onclick="Admin.saveCursorRange()" class="px-1.5 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none cursor-pointer flex-1 whitespace-nowrap" title="Upload Image or PDF">📎 Media</label>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('link')" class="px-1.5 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none flex-1" title="Add Custom Link">${Admin.icon('globe', 'w-3.5 h-3.5')}</button>
+                            <label for="alert-upload-file" id="alert-upload-label" onmousedown="Admin.saveCursorRange()" ontouchstart="Admin.saveCursorRange()" onclick="Admin.saveCursorRange()" class="px-1.5 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center gap-1 focus:outline-none cursor-pointer flex-1 whitespace-nowrap" title="Upload Image or PDF">${Admin.icon('paperclip', 'w-3.5 h-3.5')} Media</label>
                             <input type="file" id="alert-upload-file" class="hidden" accept="image/*,.pdf">
                         </div>
                         <div contenteditable="true" id="alert-msg" class="w-full min-h-[120px] p-2.5 bg-gray-50 dark:bg-gray-900 border-0 text-gray-900 dark:text-white text-xs focus:ring-0 outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="e.g. Delays of 45min due to cable theft..."></div>
@@ -6569,10 +7517,10 @@ const Admin = {
                 </div>
 
 
-                <!-- 🛡️ SUPERCHARGED: Data Source (HIDDEN IN ADVANCED TOGGLE) -->
+                <!-- SUPERCHARGED: Data Source (HIDDEN IN ADVANCED TOGGLE) -->
                 <div class="mt-2 border-t border-gray-100 dark:border-gray-700 pt-3">
                     <button type="button" id="alert-source-toggle-btn" class="w-full text-left text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center justify-between focus:outline-none">
-                        <span>📰 Add Data Source (Advanced)</span>
+                        <span class="inline-flex items-center gap-1.5">${Admin.icon('note', 'w-3.5 h-3.5')} Add Data Source (Advanced)</span>
                         <svg id="alert-source-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     <div id="alert-source-body" class="hidden mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50/50 dark:bg-gray-900/30 p-3 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-inner">
@@ -6587,7 +7535,7 @@ const Admin = {
                     </div>
                 </div>
 
-                <!-- 🛡️ SUPERCHARGED: Interactive Poll Manager -->
+                <!-- SUPERCHARGED: Interactive Poll Manager -->
                 <div class="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 p-3 rounded-xl border border-purple-200 dark:border-purple-800 mt-2">
                     <div>
                         <span class="font-bold text-purple-800 dark:text-purple-200 text-sm">Interactive Poll Mode</span>
@@ -6622,7 +7570,7 @@ const Admin = {
                     <div class="flex items-center justify-between bg-white dark:bg-gray-900/60 p-3 rounded-xl border border-purple-200 dark:border-purple-800">
                         <div>
                             <span class="font-bold text-purple-800 dark:text-purple-200 text-xs">Show results to users</span>
-                            <p class="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5">Percentages only · after they vote (or while viewing)</p>
+                            <p class="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5">Percentages only - after they vote (or while viewing)</p>
                         </div>
                         <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
                             <input type="checkbox" id="alert-poll-show-results" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
@@ -6655,7 +7603,7 @@ const Admin = {
                                     <option value="once">Once</option>
                                     <option value="hourly">Hourly</option>
                                     <option value="daily">Daily</option>
-                                    <option value="weekdays">Weekdays (Mon–Fri)</option>
+                                    <option value="weekdays">Weekdays (Mon-Fri)</option>
                                     <option value="weekly">Weekly</option>
                                 </select>
                             </div>
@@ -6731,7 +7679,7 @@ const Admin = {
                 <div id="alert-schedule-pane" class="hidden space-y-3">
                     <div class="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-200 dark:border-indigo-800">
                         <p class="text-[10px] text-indigo-800 dark:text-indigo-300 font-medium leading-snug">
-                            Live queue of scheduled alerts. Create recipes under <b>New Alert → Recurring schedule</b>. Refresh publishes any that are due.
+                            Live queue of scheduled alerts. Create recipes under <b>New Alert ? Recurring schedule</b>. Refresh publishes any that are due.
                         </p>
                     </div>
                     <div class="flex justify-between items-center">
@@ -6784,6 +7732,11 @@ const Admin = {
                 </div>
             </div>
         `;
+        // Only expose tile once chrome exists
+        delete alertPanel.dataset.adminShell;
+        alertPanel.removeAttribute('aria-hidden');
+        alertPanel.classList.remove('hidden');
+        alertPanel.dataset.adminLoaded = "true";
 
         // --- Logic Wiring ---
         const header = document.getElementById('alert-header-btn');
@@ -6867,7 +7820,7 @@ const Admin = {
                 .forEach((r) => {
                     const opt = document.createElement('option');
                     opt.value = r.id;
-                    opt.textContent = `${r.region || '?'} · ${Admin.formatRouteLabelPlain ? Admin.formatRouteLabelPlain(r.name) : r.name}`;
+                    opt.textContent = `${r.region || '?'} - ${Admin.formatRouteLabelPlain ? Admin.formatRouteLabelPlain(r.name) : r.name}`;
                     archRouteSel.appendChild(opt);
                 });
         }
@@ -6921,7 +7874,7 @@ const Admin = {
                 once: 'once',
                 hourly: 'every hour',
                 daily: 'every day',
-                weekdays: 'on weekdays (Mon–Fri)',
+                weekdays: 'on weekdays (Mon-Fri)',
                 weekly: 'every week',
             })[freq] || freq;
             const when = Admin.formatDate(firstMs);
@@ -6956,7 +7909,7 @@ const Admin = {
             const signoff = (signoffInput?.value || '').trim() || 'Next Train Ops';
             msg = Admin.repairMojibake(msg);
             if (!/<span[^>]*>.*?<\/span>\s*$/i.test(msg)) {
-                msg += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">— ${signoff}</span>`;
+                msg += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">- ${signoff}</span>`;
             }
             const optCVal = pollToggle?.checked && pollOptC && !pollOptCWrap?.classList.contains('hidden')
                 ? (pollOptC.value.trim() || null) : null;
@@ -7049,9 +8002,7 @@ const Admin = {
                 severitySelect.value = item.severity || 'info';
                 const display = document.getElementById('alert-severity-display');
                 if (display) {
-                    if (item.severity === 'warning') display.innerHTML = '🟡 Warning (Delays)';
-                    else if (item.severity === 'critical') display.innerHTML = '🔴 Critical (Suspended)';
-                    else display.innerHTML = '🔵 Info (General)';
+                    display.innerHTML = Admin._severityLabelHtml(item.severity || 'info');
                 }
             }
             if (signoffInput) signoffInput.value = item.authorName || item.signoff || 'Next Train Ops';
@@ -7077,7 +8028,7 @@ const Admin = {
             }
 
             if (sendBtn) sendBtn.textContent = 'Repost Alert';
-            if (typeof showToast === 'function') showToast('Draft ready — review and tap Repost Alert.', 'success');
+            if (typeof showToast === 'function') showToast('Draft ready - review and tap Repost Alert.', 'success');
             composePane?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         };
 
@@ -7089,7 +8040,7 @@ const Admin = {
             };
         }
 
-        // 🛡️ GUARDIAN WYSIWYG FIX: Strip formatting on paste to prevent CSS corruption
+        // GUARDIAN WYSIWYG FIX: Strip formatting on paste to prevent CSS corruption
         if (alertMsg) {
             alertMsg.addEventListener('paste', (e) => {
                 e.preventDefault();
@@ -7120,12 +8071,12 @@ const Admin = {
             };
         }
 
-        // 🛡️ GUARDIAN PHASE 3: Inline WYSIWYG File Uploader (Service Alerts)
+        // GUARDIAN PHASE 3: Inline WYSIWYG File Uploader (Service Alerts)
         const inlineUploadFile = document.getElementById('alert-upload-file');
         if (inlineUploadFile) {
             inlineUploadFile.addEventListener('change', async function() {
                 const editor = document.getElementById('alert-msg');
-                // 🛡️ GUARDIAN UX FIX: Retrieve pre-upload cursor position locked via mousedown
+                // GUARDIAN UX FIX: Retrieve pre-upload cursor position locked via mousedown
                 const savedRange = Admin._savedRange;
                 if (editor) editor.focus();
 
@@ -7153,12 +8104,12 @@ const Admin = {
                         
                         const uploadTask = window.firebaseUploadBytesResumable(storageReference, file);
                         const labelEl = document.getElementById('alert-upload-label');
-                        const originalLabel = labelEl ? labelEl.innerHTML : '📎 Insert Media';
+                        const originalLabel = labelEl ? labelEl.innerHTML : `${Admin.icon('paperclip', 'w-3.5 h-3.5')} Insert Media`;
                         
                         uploadTask.on('state_changed', 
                             (snapshot) => {
                                 const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-                                if (labelEl) labelEl.innerHTML = `⏳ ${progress}%`;
+                                if (labelEl) labelEl.innerHTML = `${progress}%`;
                             }, 
                             (error) => {
                                 if (typeof showToast === 'function') showToast("Upload failed", "error");
@@ -7173,9 +8124,9 @@ const Admin = {
                                     
                                     let htmlToInsert = '';
                                     if (isPdf) {
-                                        htmlToInsert = `&nbsp;<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline font-bold px-1">📄 View Attached PDF</a>&nbsp;`;
+                                        htmlToInsert = `&nbsp;<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline font-bold px-1">View Attached PDF</a>&nbsp;`;
                                     } else {
-                                        htmlToInsert = `<br><button type="button" onclick="window.openLightbox('${url}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${url}" class="w-full h-auto object-cover hover:opacity-90 transition-opacity" alt="Admin Attachment"><div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-2 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button><br>`;
+                                        htmlToInsert = `<br><button type="button" onclick="window.openLightbox('${url}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${url}" class="w-full h-auto object-cover hover:opacity-90 transition-opacity" alt="Admin Attachment"><span class="nt-zoom-plus absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-black/40 text-white text-xs font-bold leading-none flex items-center justify-center border border-white/20 pointer-events-none select-none shadow-sm" aria-hidden="true">+</span></button><br>`;
                                     }
                                     
                                     if (editor) {
@@ -7247,14 +8198,12 @@ const Admin = {
                         severitySelect.value = data.severity;
                         const display = document.getElementById('alert-severity-display');
                         if (display) {
-                            if (data.severity === 'info') display.innerHTML = '🔵 Info (General)';
-                            else if (data.severity === 'warning') display.innerHTML = '🟡 Warning (Delays)';
-                            else if (data.severity === 'critical') display.innerHTML = '🔴 Critical (Suspended)';
+                            display.innerHTML = Admin._severityLabelHtml(data.severity || 'info');
                         }
                     } else if (severitySelect) {
                         severitySelect.value = 'info';
                         const display = document.getElementById('alert-severity-display');
-                        if (display) display.innerHTML = '🔵 Info (General)';
+                        if (display) display.innerHTML = Admin._severityLabelHtml('info');
                     }
 
                     if (data.authorName) signoffInput.value = data.authorName;
@@ -7347,7 +8296,7 @@ const Admin = {
                     if(severitySelect) {
                         severitySelect.value = 'info';
                         const display = document.getElementById('alert-severity-display');
-                        if (display) display.innerHTML = '🔵 Info (General)';
+                        if (display) display.innerHTML = Admin._severityLabelHtml('info');
                     }
 
                     signoffInput.value = "Next Train Ops";
@@ -7400,6 +8349,7 @@ const Admin = {
                     const li = document.createElement('li');
                     // GUARDIAN UX FIX: Added pl-6 for child indentation
                     li.className = "pl-6 pr-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer flex items-center";
+                    li.setAttribute('data-value', value);
                     li.innerHTML = htmlText;
                     li.onclick = () => {
                         alertTarget.value = value;
@@ -7415,10 +8365,10 @@ const Admin = {
 
             const globalGroup = addGroup("Global Alerts");
             addOption(globalGroup, "all", "Entire Network (All Regions)", `<span class='truncate inline-flex items-center gap-1'>${Admin.icon('globe', 'w-3.5 h-3.5 shrink-0')} Entire Network (All Regions)</span>`);
-            addOption(globalGroup, "all_GP", "📍 Gauteng Only", "<span class='truncate'>📍 Gauteng Only</span>");
-            addOption(globalGroup, "all_WC", "📍 Western Cape Only", "<span class='truncate'>📍 Western Cape Only</span>");
-            addOption(globalGroup, "all_KZN", "📍 KwaZulu-Natal Only", "<span class='truncate'>📍 KwaZulu-Natal Only</span>");
-            addOption(globalGroup, "all_EC", "📍 Eastern Cape Only", "<span class='truncate'>📍 Eastern Cape Only</span>");
+            addOption(globalGroup, "all_GP", "Gauteng Only", "<span class='truncate'>Gauteng Only</span>");
+            addOption(globalGroup, "all_WC", "Western Cape Only", "<span class='truncate'>Western Cape Only</span>");
+            addOption(globalGroup, "all_KZN", "KwaZulu-Natal Only", "<span class='truncate'>KwaZulu-Natal Only</span>");
+            addOption(globalGroup, "all_EC", "Eastern Cape Only", "<span class='truncate'>Eastern Cape Only</span>");
 
             if (typeof ROUTES !== 'undefined') {
                 const regions = [
@@ -7435,7 +8385,7 @@ const Admin = {
                         regionalRoutes.forEach(r => {
                             const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
                             const plainName = Admin.formatRouteLabelPlain(r.name);
-                            const text = `🚂 ${plainName}${cues}`;
+                            const text = `${plainName}${cues}`;
                             
                             let badgeHtml = '';
                             if (cues) {
@@ -7444,33 +8394,35 @@ const Admin = {
                                 if (cues.includes('Incident')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 text-[8px] rounded uppercase flex-shrink-0">Inc</span>';
                                 if (cues.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">Alert</span>';
                             }
-                            const htmlText = `<span class="truncate mr-1 inline-flex items-center">🚂 ${Admin.formatRouteLabelHtml(r.name)}</span>${badgeHtml}`;
+                            const htmlText = `<span class="truncate mr-1 inline-flex items-center">${Admin.formatRouteLabelHtml(r.name)}</span>${badgeHtml}`;
                             addOption(group, r.id, text, htmlText);
                         });
                     }
                 });
             }
             
+            // Prefer GSM / Review deep-link target over sticky "Gauteng Only" default
+            const preferVal = Admin._pendingAdminRoute || currentVal || '';
             let selectedOpt = null;
-            if (currentVal) {
-                const optionToSelect = alertTarget.querySelector(`option[value="${currentVal}"]`);
+            if (preferVal) {
+                const optionToSelect = Array.from(alertTarget.options).find((o) => o.value === preferVal);
                 if (optionToSelect) {
                     optionToSelect.selected = true;
+                    alertTarget.value = preferVal;
                     selectedOpt = optionToSelect;
                 }
-            } else {
+            }
+            if (!selectedOpt) {
                 const defOpt = typeof currentRegion !== 'undefined' ? `all_${currentRegion}` : 'all_GP';
-                const optionToSelect = alertTarget.querySelector(`option[value="${defOpt}"]`);
+                const optionToSelect = Array.from(alertTarget.options).find((o) => o.value === defOpt);
                 if (optionToSelect) {
                     optionToSelect.selected = true;
                     selectedOpt = optionToSelect;
                 }
             }
 
-            if (selectedOpt && customDisplay) {
-                const matchLi = Array.from(customList.querySelectorAll('li')).find(li => li.onclick && li.textContent.includes(selectedOpt.textContent.split(' [')[0]));
-                if (matchLi) customDisplay.innerHTML = matchLi.innerHTML;
-                else customDisplay.textContent = selectedOpt.textContent;
+            if (selectedOpt) {
+                Admin._syncAdminSelectDisplay('alert-target', selectedOpt.value);
             }
 
             if (!skipFetch) fetchCurrentAlert(alertTarget.value);
@@ -7500,7 +8452,7 @@ const Admin = {
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required! Sign in again.", "error"); return; }
 
             msg = Admin.repairMojibake(msg);
-            msg += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">— ${signoff}</span>`;
+            msg += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">- ${signoff}</span>`;
 
 
             let expiresAtVal = dateInput && dateInput.value ? new Date(dateInput.value).getTime() : Date.now() + (2 * 3600 * 1000);
@@ -7611,22 +8563,22 @@ const Admin = {
             return;
         }
 
-        if (statusEl) statusEl.textContent = 'Sweeping expired…';
-        listEl.innerHTML = `<div class="text-center py-6 text-xs text-gray-400 animate-pulse">Loading archive…</div>`;
+        if (statusEl) statusEl.textContent = 'Sweeping expired...';
+        listEl.innerHTML = `<div class="text-center py-6 text-xs text-gray-400 animate-pulse">Loading archive...</div>`;
 
         try {
             const swept = await Admin.sweepExpiredAlertsToArchive(secret);
-            if (statusEl) statusEl.textContent = 'Loading…';
+            if (statusEl) statusEl.textContent = 'Loading...';
             const items = await Admin.loadUnifiedAlertArchive(secret);
             const filtered = Admin.filterAlertArchiveItems(items);
             Admin.renderAlertArchiveList(items);
             const noticeN = filtered.filter((i) => (i.kind || 'notice') !== 'disruption').length;
             const disrN = filtered.filter((i) => i.kind === 'disruption').length;
             const sweepNote = (swept.notices || swept.disruptions)
-                ? ` · moved ${swept.notices} alert(s), ${swept.disruptions} incident(s)`
+                ? ` - moved ${swept.notices} alert(s), ${swept.disruptions} incident(s)`
                 : '';
-            const filterNote = filtered.length !== items.length ? ` · showing ${filtered.length}/${items.length}` : '';
-            if (statusEl) statusEl.textContent = `${noticeN} alerts · ${disrN} incidents${filterNote}${sweepNote}`;
+            const filterNote = filtered.length !== items.length ? ` - showing ${filtered.length}/${items.length}` : '';
+            if (statusEl) statusEl.textContent = `${noticeN} alerts - ${disrN} incidents${filterNote}${sweepNote}`;
         } catch (e) {
             console.warn('fetchAlertArchive failed', e);
             if (statusEl) statusEl.textContent = 'Failed';
@@ -7657,12 +8609,15 @@ const Admin = {
                 : sev === 'warning'
                     ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300'
                     : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+            // Unicode escapes (encoding-safe) — same glyphs as live hub titles
+            const sevEmoji = sev === 'critical' ? '\uD83D\uDD34' : sev === 'warning' ? '\uD83D\uDFE1' : '\uD83D\uDD35';
+            const sevLabel = sev === 'critical' ? 'Critical' : sev === 'warning' ? 'Warning' : 'Info';
             const kindCls = isDisr
                 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
                 : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
             const reason = item.archiveReason || (item.archivedAt ? 'cleared' : 'archived');
             const when = item.archivedAt || item.postedAt;
-            const whenStr = when ? Admin.formatDate(when) : '—';
+            const whenStr = when ? Admin.formatDate(when) : '-';
             const plain = (() => {
                 try {
                     const d = document.createElement('div');
@@ -7672,24 +8627,24 @@ const Admin = {
             })();
             const poll = item.pollResults;
             const pollHint = poll && poll.total
-                ? `<span class="text-[9px] font-bold text-purple-600 dark:text-purple-400">Poll · ${poll.total} vote${poll.total === 1 ? '' : 's'}</span>`
+                ? `<span class="text-[9px] font-bold text-purple-600 dark:text-purple-400">Poll - ${poll.total} vote${poll.total === 1 ? '' : 's'}</span>`
                 : (item.poll && item.poll.active
                     ? `<span class="text-[9px] font-bold text-purple-500">Had poll</span>`
                     : '');
-            const scope = escapeHTML(String(item.clearedFrom || item.target || item.routeId || '—'));
+            const scope = escapeHTML(String(item.clearedFrom || item.target || item.routeId || '-'));
             const idSafe = escapeHTML(String(item.id || item._archKey || idx));
 
             return `
                 <button type="button" data-archive-idx="${idx}" class="alert-archive-item w-full text-left p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 hover:border-blue-400 dark:hover:border-blue-500 transition-colors shadow-sm focus:outline-none">
                     <div class="flex flex-wrap items-center gap-1.5 mb-1.5">
                         <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${kindCls}">${isDisr ? 'Incident' : 'Alert'}</span>
-                        <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${sevCls}">${escapeHTML(sev)}</span>
+                        <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${sevCls}">${sevEmoji} ${sevLabel}</span>
                         <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">${escapeHTML(reason)}</span>
                         ${pollHint}
                     </div>
                     <p class="text-xs text-gray-800 dark:text-gray-200 leading-snug line-clamp-2 mb-1">${escapeHTML(plain)}</p>
                     <div class="flex justify-between gap-2 text-[9px] font-mono text-gray-400">
-                        <span class="truncate">${scope} · ${idSafe}</span>
+                        <span class="truncate">${scope} - ${idSafe}</span>
                         <span class="shrink-0">${escapeHTML(whenStr)}</span>
                     </div>
                 </button>`;
@@ -7707,8 +8662,8 @@ const Admin = {
         if (statusEl && all.length) {
             const noticeN = rows.filter((i) => (i.kind || 'notice') !== 'disruption').length;
             const disrN = rows.filter((i) => i.kind === 'disruption').length;
-            const filterNote = rows.length !== all.length ? ` · showing ${rows.length}/${all.length}` : '';
-            statusEl.textContent = `${noticeN} alerts · ${disrN} incidents${filterNote}`;
+            const filterNote = rows.length !== all.length ? ` - showing ${rows.length}/${all.length}` : '';
+            statusEl.textContent = `${noticeN} alerts - ${disrN} incidents${filterNote}`;
         }
     },
 
@@ -7718,8 +8673,8 @@ const Admin = {
         const isDisr = data.kind === 'disruption' || data.tier || data.longExplanation;
         const severity = (data.severity || (data.tier === 'CRITICAL' ? 'critical' : (isDisr ? 'warning' : 'info'))).toLowerCase();
         const title = isDisr
-            ? (severity === 'critical' ? '🔴 CRITICAL INCIDENT' : '🟡 TRANSIT INCIDENT')
-            : (severity === 'critical' ? '🔴 CRITICAL ADVISORY' : severity === 'warning' ? '🟡 SERVICE WARNING' : '🔵 SERVICE INFO');
+            ? (severity === 'critical' ? '\uD83D\uDD34 CRITICAL INCIDENT' : '\uD83D\uDFE0 TRANSIT INCIDENT')
+            : (severity === 'critical' ? '\uD83D\uDD34 CRITICAL ADVISORY' : severity === 'warning' ? '\uD83D\uDFE1 SERVICE WARNING' : '\uD83D\uDD35 SERVICE INFO');
         const borderCls = severity === 'critical'
             ? 'border-red-500'
             : severity === 'warning'
@@ -7732,17 +8687,21 @@ const Admin = {
                 : 'text-blue-600 dark:text-blue-400';
 
         let statusHtml = data.archivedAt
-            ? `<span class="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2 inline-block">Archived${data.archiveReason ? ` · ${escapeHTML(String(data.archiveReason))}` : ''}</span>`
+            ? `<span class="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2 inline-block">Archived${data.archiveReason ? ` - ${escapeHTML(String(data.archiveReason))}` : ''}</span>`
             : `<span class="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2 inline-block">Active</span>`;
 
+        const lb = (url) => {
+            const safe = String(url || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            return `Admin.openLightbox('${safe}')`;
+        };
         let imgHtml = data.imageUrl
-            ? `<button type="button" onclick="window.openLightbox('${escapeHTML(data.imageUrl)}')" class="relative block w-full focus:outline-none mb-3 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${escapeHTML(data.imageUrl)}" class="w-full h-auto max-h-40 object-cover hover:opacity-90 transition-opacity"><div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-2 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button>`
+            ? `<button type="button" onclick="event.stopPropagation(); ${lb(data.imageUrl)}" class="relative block w-full focus:outline-none mb-3 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${escapeHTML(data.imageUrl)}" class="w-full h-auto max-h-40 object-cover hover:opacity-90 transition-opacity"><span class="nt-zoom-plus absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-black/40 text-white text-xs font-bold leading-none flex items-center justify-center border border-white/20 pointer-events-none select-none shadow-sm" aria-hidden="true">+</span></button>`
             : '';
 
         let parsedMessage = data.message || data.longExplanation || data.buttonText || data.text || 'No details provided.';
         parsedMessage = parsedMessage.replace(/(<button[^>]*>)?\s*(<img[^>]+src=["']([^"']+)["'][^>]*>)\s*(<\/button>)?/gi, (match, btnStart, imgTag, srcUrl, btnEnd) => {
             if (btnStart || btnEnd) return match;
-            return `<button type="button" onclick="window.openLightbox('${srcUrl}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform">${imgTag}<div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-1.5 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button>`;
+            return `<button type="button" onclick="event.stopPropagation(); ${lb(srcUrl)}" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform">${imgTag}<span class="nt-zoom-plus absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-black/40 text-white text-xs font-bold leading-none flex items-center justify-center border border-white/20 pointer-events-none select-none shadow-sm" aria-hidden="true">+</span></button>`;
         });
 
         if (data.sourceName) {
@@ -7751,7 +8710,7 @@ const Admin = {
             const innerCitation = sUrl
                 ? `<a href="${sUrl}" target="_blank" rel="noopener" class="hover:underline text-blue-600 dark:text-blue-400 font-medium flex items-center">${sName} <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a>`
                 : `<span class="font-medium text-gray-700 dark:text-gray-300">${sName}</span>`;
-            parsedMessage += `<div class="mt-3 p-2.5 bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-lg text-[10px] text-gray-500 dark:text-gray-400 italic flex items-center shadow-sm w-fit max-w-full"><span class="mr-1.5 not-italic text-sm">📰</span><span class="flex items-center space-x-1"><span>Source:</span> ${innerCitation}</span></div>`;
+            parsedMessage += `<div class="mt-3 p-2.5 bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-lg text-[10px] text-gray-500 dark:text-gray-400 italic flex items-center shadow-sm w-fit max-w-full"><span class="mr-1.5 not-italic inline-flex text-gray-500">${Admin.icon('note', 'w-3.5 h-3.5')}</span><span class="flex items-center space-x-1"><span>Source:</span> ${innerCitation}</span></div>`;
         }
 
         let pollHtml = '';
@@ -7793,7 +8752,7 @@ const Admin = {
                 </div>`;
         }
 
-        const postedStr = data.postedAt ? Admin.formatDate(data.postedAt) : '—';
+        const postedStr = data.postedAt ? Admin.formatDate(data.postedAt) : '-';
         const archivedStr = data.archivedAt ? Admin.formatDate(data.archivedAt) : null;
         const signoff = data.signoff || data.signedBy || '';
         const scope = data.clearedFrom || data.target || data.routeId || '';
@@ -7806,10 +8765,10 @@ const Admin = {
                 </div>
                 ${imgHtml}
                 <div class="text-sm text-gray-800 dark:text-gray-200 leading-relaxed mb-2">${parsedMessage}</div>
-                ${signoff ? `<p class="text-[10px] text-gray-500 italic mb-2">— ${escapeHTML(String(signoff))}</p>` : ''}
+                ${signoff ? `<p class="text-[10px] text-gray-500 italic mb-2">- ${escapeHTML(String(signoff))}</p>` : ''}
                 ${pollHtml}
                 <div class="text-[10px] text-gray-500 font-mono border-t border-gray-200 dark:border-gray-700 pt-2 mt-3 space-y-0.5">
-                    <div>ID: ${escapeHTML(String(data.id || '—'))}</div>
+                    <div>ID: ${escapeHTML(String(data.id || '-'))}</div>
                     ${scope ? `<div>Scope: ${escapeHTML(String(scope))}</div>` : ''}
                     <div>Posted: ${escapeHTML(postedStr)}</div>
                     ${archivedStr ? `<div>Archived: ${escapeHTML(archivedStr)}</div>` : ''}
@@ -7834,13 +8793,18 @@ const Admin = {
     /** Body HTML for notice-modal (no outer padded card). */
     buildNoticeBodyHtml: (data) => {
         if (!data) return '<p class="text-sm text-gray-500">No alert data.</p>';
+        // Admin.openLightbox (z-300) — never window.openLightbox/map-modal (z-160 under archive preview z-260)
+        const lb = (url) => {
+            const safe = String(url || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            return `Admin.openLightbox('${safe}')`;
+        };
         let imgHtml = data.imageUrl
-            ? `<button type="button" onclick="window.openLightbox('${escapeHTML(data.imageUrl)}')" class="relative block w-full focus:outline-none mb-3 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${escapeHTML(data.imageUrl)}" class="w-full h-auto max-h-40 object-cover hover:opacity-90 transition-opacity"><div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-2 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button>`
+            ? `<button type="button" onclick="event.stopPropagation(); ${lb(data.imageUrl)}" class="relative block w-full focus:outline-none mb-3 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${escapeHTML(data.imageUrl)}" class="w-full h-auto max-h-40 object-cover hover:opacity-90 transition-opacity"><span class="nt-zoom-plus absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-black/40 text-white text-xs font-bold leading-none flex items-center justify-center border border-white/20 pointer-events-none select-none shadow-sm" aria-hidden="true">+</span></button>`
             : '';
         let parsedMessage = data.message || data.text || 'No details provided.';
         parsedMessage = parsedMessage.replace(/(<button[^>]*>)?\s*(<img[^>]+src=["']([^"']+)["'][^>]*>)\s*(<\/button>)?/gi, (match, btnStart, imgTag, srcUrl, btnEnd) => {
             if (btnStart || btnEnd) return match;
-            return `<button type="button" onclick="window.openLightbox('${srcUrl}')" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform">${imgTag}<div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur-md text-white p-1.5 rounded-full shadow-md flex items-center justify-center pointer-events-none border border-white/20"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></div></button>`;
+            return `<button type="button" onclick="event.stopPropagation(); ${lb(srcUrl)}" class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform">${imgTag}<span class="nt-zoom-plus absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-black/40 text-white text-xs font-bold leading-none flex items-center justify-center border border-white/20 pointer-events-none select-none shadow-sm" aria-hidden="true">+</span></button>`;
         });
         if (data.sourceName) {
             const sName = escapeHTML(data.sourceName);
@@ -7848,7 +8812,7 @@ const Admin = {
             const innerCitation = sUrl
                 ? `<a href="${sUrl}" target="_blank" rel="noopener" class="hover:underline text-blue-600 dark:text-blue-400 font-medium flex items-center">${sName} <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a>`
                 : `<span class="font-medium text-gray-700 dark:text-gray-300">${sName}</span>`;
-            parsedMessage += `<div class="mt-3 p-2.5 bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-lg text-[10px] text-gray-500 dark:text-gray-400 italic flex items-center shadow-sm w-fit max-w-full"><span class="mr-1.5 not-italic text-sm">📰</span><span class="flex items-center space-x-1"><span>Source:</span> ${innerCitation}</span></div>`;
+            parsedMessage += `<div class="mt-3 p-2.5 bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 rounded-lg text-[10px] text-gray-500 dark:text-gray-400 italic flex items-center shadow-sm w-fit max-w-full"><span class="mr-1.5 not-italic inline-flex text-gray-500">${Admin.icon('note', 'w-3.5 h-3.5')}</span><span class="flex items-center space-x-1"><span>Source:</span> ${innerCitation}</span></div>`;
         }
         const signoff = data.signoff || data.signedBy || '';
         let pollHtml = '';
@@ -7864,9 +8828,9 @@ const Admin = {
             pollHtml = `<div class="mt-4 p-3 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/60 dark:bg-purple-900/20"><p class="text-[10px] font-black uppercase tracking-widest text-purple-600 dark:text-purple-400 mb-2">Poll Snapshot</p><p class="text-xs font-bold text-gray-800 dark:text-gray-200 mb-3">${escapeHTML(poll.question || 'Poll')}</p>${results ? `${bar(poll.optionA || 'A', results.A, 'bg-purple-500')}${bar(poll.optionB || 'B', results.B, 'bg-purple-400')}${poll.optionC || (results.C || 0) > 0 ? bar(poll.optionC || 'C', results.C, 'bg-purple-300') : ''}<div class="text-right text-[9px] font-black uppercase text-gray-400">Total: ${total}</div>` : `<p class="text-[10px] text-gray-500">No tallies stored.</p>`}</div>`;
         }
         const statusChip = data.archivedAt
-            ? `<span class="inline-block bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2">Archived${data.archiveReason ? ` · ${escapeHTML(String(data.archiveReason))}` : ''}</span>`
+            ? `<span class="inline-block bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2">Archived${data.archiveReason ? ` - ${escapeHTML(String(data.archiveReason))}` : ''}</span>`
             : '';
-        return `${statusChip}${imgHtml}<div class="leading-relaxed">${parsedMessage}</div>${signoff ? `<p class="text-[10px] text-gray-500 italic mt-2">— ${escapeHTML(String(signoff))}</p>` : ''}${pollHtml}`;
+        return `${statusChip}${imgHtml}<div class="leading-relaxed">${parsedMessage}</div>${signoff ? `<p class="text-[10px] text-gray-500 italic mt-2">- ${escapeHTML(String(signoff))}</p>` : ''}${pollHtml}`;
     },
 
     previewArchivedAlert: (item) => {
@@ -7904,18 +8868,19 @@ const Admin = {
                             : 'text-blue-600 dark:text-blue-400'
                 }`;
             }
+            // Unicode escapes stay encoding-safe (matches live hub.js titles)
             modalHeader.textContent = severity === 'critical'
-                ? '🔴 CRITICAL ADVISORY'
+                ? '\uD83D\uDD34 CRITICAL ADVISORY'
                 : severity === 'warning'
-                    ? '🟡 SERVICE WARNING'
-                    : '🔵 SERVICE INFO';
+                    ? '\uD83D\uDFE1 SERVICE WARNING'
+                    : '\uD83D\uDD35 SERVICE INFO';
         }
         content.innerHTML = Admin.buildNoticeBodyHtml(item);
         if (timestamp) {
             const posted = item.repostedAt || item.postedAt || item.timestamp;
-            const postedStr = posted ? Admin.formatDate(posted) : '—';
+            const postedStr = posted ? Admin.formatDate(posted) : '-';
             const archStr = item.archivedAt ? Admin.formatDate(item.archivedAt) : null;
-            timestamp.innerHTML = `Posted: ${escapeHTML(postedStr)}${archStr ? `<br>Archived: ${escapeHTML(archStr)}` : ''}<br><span class="text-[10px]">ID: ${escapeHTML(String(item.id || '—'))}</span>`;
+            timestamp.innerHTML = `Posted: ${escapeHTML(postedStr)}${archStr ? `<br>Archived: ${escapeHTML(archStr)}` : ''}<br><span class="text-[10px]">ID: ${escapeHTML(String(item.id || '-'))}</span>`;
         }
 
         modal.querySelectorAll('.nt-notice-actions').forEach((el) => el.remove());
@@ -7924,7 +8889,8 @@ const Admin = {
 
         const closePreview = () => {
             restoreZ();
-            if (typeof closeSmoothModal === 'function') closeSmoothModal('notice-modal');
+            // Close without history.back() — archive preview never pushed #notice.
+            if (typeof closeSmoothModal === 'function') closeSmoothModal('notice-modal', true);
             else modal.classList.add('hidden');
             if (oldCloseBtn) oldCloseBtn.style.display = '';
         };
@@ -7951,12 +8917,12 @@ const Admin = {
         }
 
         const topClose = modal.querySelector('button.text-gray-400');
-        if (topClose) topClose.onclick = (e) => { e.preventDefault(); closePreview(); };
+        if (topClose) topClose.onclick = (e) => { e.preventDefault(); e.stopPropagation(); closePreview(); };
 
         if (oldCloseBtn?.parentNode) oldCloseBtn.parentNode.appendChild(btnContainer);
         else content.parentNode?.appendChild(btnContainer);
 
-        openSmoothModal('notice-modal');
+        openSmoothModal('notice-modal', null, { skipHash: true });
     },
 
     _previewArchiveAsDisruption: (item) => {
@@ -7982,24 +8948,24 @@ const Admin = {
         if (titleEl) titleEl.innerHTML = locationText;
         if (bodyEl) {
             const statusChip = item.archivedAt
-                ? `<span class="inline-block bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2">Archived${item.archiveReason ? ` · ${escapeHTML(String(item.archiveReason))}` : ''}</span>`
+                ? `<span class="inline-block bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2">Archived${item.archiveReason ? ` - ${escapeHTML(String(item.archiveReason))}` : ''}</span>`
                 : '';
             bodyEl.innerHTML = `${statusChip}${item.message || item.longExplanation || item.buttonText || 'No additional details provided.'}`;
         }
         if (badgeEl) {
             if (item.tier === 'CRITICAL' || item.severity === 'critical') {
                 badgeEl.className = 'w-full text-center text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 py-2.5 rounded-lg border border-red-200 dark:border-red-800/50';
-                badgeEl.textContent = 'CRITICAL SERVICE DISRUPTION';
+                badgeEl.textContent = '\uD83D\uDD34 CRITICAL SERVICE DISRUPTION';
                 if (iconEl) iconEl.setAttribute('class', 'w-5 h-5 mr-2 text-red-500');
             } else {
                 badgeEl.className = 'w-full text-center text-[10px] font-black uppercase tracking-widest text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 py-2.5 rounded-lg border border-yellow-200 dark:border-yellow-800/50';
-                badgeEl.textContent = 'EXPECT DELAYS / SINGLE TRACK';
+                badgeEl.textContent = '\uD83D\uDFE1 EXPECT DELAYS / SINGLE TRACK';
                 if (iconEl) iconEl.setAttribute('class', 'w-5 h-5 mr-2 text-yellow-500');
             }
         }
         if (timeEl) {
             const posted = item.postedAt ? Admin.formatDate(item.postedAt) : 'Recently';
-            const arch = item.archivedAt ? ` · Archived: ${Admin.formatDate(item.archivedAt)}` : '';
+            const arch = item.archivedAt ? ` - Archived: ${Admin.formatDate(item.archivedAt)}` : '';
             timeEl.textContent = `Posted: ${posted}${arch}`;
         }
 
@@ -8010,7 +8976,7 @@ const Admin = {
         const closePreview = () => {
             restoreZ();
             if (actionsRow && prevActionsHtml != null) actionsRow.innerHTML = prevActionsHtml;
-            if (typeof closeSmoothModal === 'function') closeSmoothModal('disruption-modal');
+            if (typeof closeSmoothModal === 'function') closeSmoothModal('disruption-modal', true);
             else modal.classList.add('hidden');
         };
 
@@ -8034,9 +9000,9 @@ const Admin = {
         }
 
         const topClose = modalCard?.querySelector('button.text-gray-400, button.rounded-full');
-        if (topClose) topClose.onclick = (e) => { e.preventDefault(); closePreview(); };
+        if (topClose) topClose.onclick = (e) => { e.preventDefault(); e.stopPropagation(); closePreview(); };
 
-        openSmoothModal('disruption-modal');
+        openSmoothModal('disruption-modal', null, { skipHash: true });
     },
 
     // --- 4.5 TRANSIT INCIDENT MANAGER (GUARDIAN PHASE 6) ---
@@ -8088,16 +9054,16 @@ const Admin = {
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Severity Tier</label>
                         <div class="relative" id="disr-tier-container">
                             <select id="disr-tier" class="hidden">
-                                <option value="CRITICAL">🔴 CRITICAL (Sever Line)</option>
-                                <option value="WARNING">🟡 WARNING (Expect Delays)</option>
+                                <option value="CRITICAL">CRITICAL (Sever Line)</option>
+                                <option value="WARNING">WARNING (Expect Delays)</option>
                             </select>
                             <div onclick="document.getElementById('disr-tier-list').classList.toggle('hidden'); document.getElementById('disr-tier-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
-                                <span id="disr-tier-display" class="truncate"><span class="text-red-600">🔴 CRITICAL (Sever Line)</span></span>
+                                <span id="disr-tier-display" class="truncate"><span class="text-red-600">CRITICAL (Sever Line)</span></span>
                                 <svg id="disr-tier-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </div>
                             <ul id="disr-tier-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-hidden text-left">
-                                <li onclick="document.getElementById('disr-tier').value='CRITICAL'; document.getElementById('disr-tier-display').innerHTML='<span class=\\'text-red-600\\'>🔴 CRITICAL (Sever Line)</span>'; document.getElementById('disr-tier-list').classList.add('hidden'); document.getElementById('disr-tier-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-red-50 dark:hover:bg-gray-700 text-red-600 dark:text-red-400 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">🔴 CRITICAL (Sever Line)</li>
-                                <li onclick="document.getElementById('disr-tier').value='WARNING'; document.getElementById('disr-tier-display').innerHTML='<span class=\\'text-yellow-600\\'>🟡 WARNING (Expect Delays)</span>'; document.getElementById('disr-tier-list').classList.add('hidden'); document.getElementById('disr-tier-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-yellow-50 dark:hover:bg-gray-700 text-yellow-600 dark:text-yellow-400 transition-colors cursor-pointer">🟡 WARNING (Expect Delays)</li>
+                                <li onclick="document.getElementById('disr-tier').value='CRITICAL'; document.getElementById('disr-tier-display').innerHTML='<span class=\\'text-red-600\\'>CRITICAL (Sever Line)</span>'; document.getElementById('disr-tier-list').classList.add('hidden'); document.getElementById('disr-tier-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-red-50 dark:hover:bg-gray-700 text-red-600 dark:text-red-400 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer">CRITICAL (Sever Line)</li>
+                                <li onclick="document.getElementById('disr-tier').value='WARNING'; document.getElementById('disr-tier-display').innerHTML='<span class=\\'text-yellow-600\\'>WARNING (Expect Delays)</span>'; document.getElementById('disr-tier-list').classList.add('hidden'); document.getElementById('disr-tier-chevron').classList.remove('rotate-180');" class="px-3 py-2.5 text-xs font-bold hover:bg-yellow-50 dark:hover:bg-gray-700 text-yellow-600 dark:text-yellow-400 transition-colors cursor-pointer">WARNING (Expect Delays)</li>
                             </ul>
                         </div>
                     </div>
@@ -8167,7 +9133,7 @@ const Admin = {
         const saveBtn = document.getElementById('disr-save-btn');
         const listDiv = document.getElementById('disr-list');
 
-        // 🛡️ GUARDIAN PHASE 1: Auto-Expanding Textarea Engine
+        // GUARDIAN PHASE 1: Auto-Expanding Textarea Engine
         if (msgInput) {
             msgInput.addEventListener('input', function() {
                 this.style.height = 'auto'; // Reset to recalculate true scrollHeight
@@ -8272,8 +9238,16 @@ const Admin = {
                         optionToSelect.selected = true;
                         selectedOpt = optionToSelect;
                     }
-                } else if (typeof currentRouteId !== 'undefined' && currentRouteId) {
+                } else if (!Admin._adminRouteDeepLinkActive && typeof currentRouteId !== 'undefined' && currentRouteId) {
                     const optionToSelect = routeSelect.querySelector(`option[value="${currentRouteId}"]`);
+                    if (optionToSelect) {
+                        optionToSelect.selected = true;
+                        selectedOpt = optionToSelect;
+                    }
+                }
+
+                if (Admin._pendingAdminRoute) {
+                    const optionToSelect = routeSelect.querySelector(`option[value="${Admin._pendingAdminRoute}"]`);
                     if (optionToSelect) {
                         optionToSelect.selected = true;
                         selectedOpt = optionToSelect;
@@ -8495,8 +9469,8 @@ const Admin = {
                             document.getElementById('disr-tier').value = data.tier || 'CRITICAL';
                             const tierDisplay = document.getElementById('disr-tier-display');
                             if (tierDisplay) {
-                                if (data.tier === 'CRITICAL') tierDisplay.innerHTML = '<span class="text-red-600">🔴 CRITICAL (Sever Line)</span>';
-                                else tierDisplay.innerHTML = '<span class="text-yellow-600">🟡 WARNING (Expect Delays)</span>';
+                                if (data.tier === 'CRITICAL') tierDisplay.innerHTML = '<span class="text-red-600">CRITICAL (Sever Line)</span>';
+                                else tierDisplay.innerHTML = '<span class="text-yellow-600">WARNING (Expect Delays)</span>';
                             }
 
                             if (data.stations && data.stations.length >= 1) {
@@ -8539,7 +9513,7 @@ const Admin = {
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 
-                // 🛡️ GUARDIAN PHASE 14: The Disruption Graveyard Interceptor
+                // GUARDIAN PHASE 14: The Disruption Graveyard Interceptor
                 const fetchRes = await window.guardianFetch(`${dynamicEndpoint}disruptions/${rId}/${id}.json`, {}, 6000);
                 if (fetchRes.ok) {
                     const disrData = await fetchRes.json();
@@ -8600,6 +9574,7 @@ const Admin = {
             </button>
             
             <div id="excl-body" class="hidden mt-4 space-y-3">
+                <div id="excl-review-banner" class="hidden text-[10px] leading-snug px-2.5 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-slate-700 dark:text-slate-200"></div>
                 <div class="flex space-x-2">
                     <div class="relative w-2/3" id="excl-route-container">
                         <select id="excl-route" class="hidden"></select>
@@ -8631,7 +9606,7 @@ const Admin = {
                         <input type="text" id="excl-grid-notice" class="w-full h-10 px-3 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-xs text-gray-900 dark:text-white outline-none" placeholder="e.g. Trains 9116 & 9118 cancelled due to maintenance...">
                         <button id="excl-save-notice-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 rounded-lg shadow-sm transition-colors text-xs whitespace-nowrap focus:outline-none">Save</button>
                     </div>
-                    <!-- 🛡️ GUARDIAN PHASE 1: Ephemerality & Export Controls for Grid Notices -->
+                    <!-- GUARDIAN PHASE 1: Ephemerality & Export Controls for Grid Notices -->
                     <div class="flex items-center justify-between mt-2">
                         <div class="flex-1 pr-2">
                             <label class="block text-[9px] font-bold text-blue-800 dark:text-blue-300 uppercase mb-1">Expiry Date (Optional)</label>
@@ -8694,7 +9669,7 @@ const Admin = {
                     <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Expiry Date & Time (Optional)</label>
                     <input type="datetime-local" id="excl-expiry" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
                     <p class="text-[9px] text-gray-400 mt-1 mb-2">If set, the train will automatically reappear on the schedule after this date.</p>
-                    <!-- 🛡️ GUARDIAN PHASE 1: Export Visibility Toggle -->
+                    <!-- GUARDIAN PHASE 1: Export Visibility Toggle -->
                     <label class="flex items-center cursor-pointer bg-gray-100 dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
                         <input type="checkbox" id="excl-export-toggle" checked class="form-checkbox h-4 w-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-0">
                         <span class="text-[10px] font-bold text-gray-600 dark:text-gray-300 ml-2 uppercase tracking-wide leading-none">Show "NO SVC" Tag on Export Image</span>
@@ -8835,13 +9810,15 @@ const Admin = {
                 });
                 
                 let selectedOpt = null;
-                if (currentVal) {
-                    const optionToSelect = routeSelect.querySelector(`option[value="${currentVal}"]`);
+                const prefer = Admin._pendingAdminRoute || currentVal || '';
+                if (prefer) {
+                    const optionToSelect = routeSelect.querySelector(`option[value="${prefer}"]`);
                     if (optionToSelect) {
                         optionToSelect.selected = true;
                         selectedOpt = optionToSelect;
                     }
-                } else if (typeof currentRouteId !== 'undefined' && currentRouteId) {
+                } else if (!Admin._adminRouteDeepLinkActive && typeof currentRouteId !== 'undefined' && currentRouteId) {
+                    // Only fall back to the live board when admin did not deep-link a route
                     const optionToSelect = routeSelect.querySelector(`option[value="${currentRouteId}"]`);
                     if (optionToSelect) {
                         optionToSelect.selected = true;
@@ -8861,6 +9838,21 @@ const Admin = {
         if (routeSelect) {
             routeSelect.addEventListener('change', () => {
                 const rId = routeSelect.value;
+                // Manual pick clears deep-link lock so subsequent populate can follow the admin choice
+                if (rId && Admin._pendingAdminRoute && rId === Admin._pendingAdminRoute) {
+                    /* keep lock until user picks something else */
+                } else if (rId && Admin._pendingAdminRoute && rId !== Admin._pendingAdminRoute) {
+                    Admin._pendingAdminRoute = rId;
+                }
+                const banner = document.getElementById('excl-review-banner');
+                if (banner) {
+                    if (Admin._adminRouteDeepLinkActive && rId && typeof ROUTES !== 'undefined' && ROUTES[rId]) {
+                        banner.classList.remove('hidden');
+                        banner.innerHTML = `<span class="font-black text-blue-700 dark:text-blue-300">Reviewing</span> <span class="inline-flex items-center">${Admin.formatRouteLabelHtml(ROUTES[rId].name)}</span> <span class="text-slate-500 dark:text-slate-400 font-medium">- live board route unchanged</span>`;
+                    } else {
+                        banner.classList.add('hidden');
+                    }
+                }
                 if (rId && ROUTES[rId]) {
                     const r = ROUTES[rId];
                     
@@ -8981,7 +9973,7 @@ const Admin = {
             pickerContainer.classList.remove('hidden');
         };
 
-        // 🛡️ GUARDIAN Phase 3: Added Notice Save Button Logic
+        // GUARDIAN Phase 3: Added Notice Save Button Logic
         noticeSaveBtn.onclick = async () => {
             const rId = routeSelect.value;
             const text = noticeInput.value.trim();
@@ -9015,7 +10007,7 @@ const Admin = {
                     }, 10000);
                 }
 
-                // 🛡️ GUARDIAN FIX: Cache Purge (Routed securely through telemetry worker)
+                // GUARDIAN FIX: Cache Purge (Routed securely through telemetry worker)
                 try {
                     await fetch('https://nexttrain-telemetry.enock.workers.dev/admin/purge', { 
                         method: 'POST', 
@@ -9049,7 +10041,7 @@ const Admin = {
                 const res = await window.guardianFetch(`${dynamicEndpoint}exclusions/${rId}.json?t=${Date.now()}`, {}, 6000);
                 const data = await res.json();
                 
-                // 🛡️ GUARDIAN Phase 3 & Phase 1: Extract Grid Notice Text and Ephemerality natively
+                // GUARDIAN Phase 3 & Phase 1: Extract Grid Notice Text and Ephemerality natively
                 if (data && data._grid_notice) {
                     noticeInput.value = data._grid_notice.text || "";
                     
@@ -9072,7 +10064,7 @@ const Admin = {
                     noticeInput.value = "";
                     const noticeExpiryInput = document.getElementById('excl-grid-notice-expiry');
                     if (noticeExpiryInput) {
-                        // 🛡️ GUARDIAN PHASE 1: 24-Hour Default Time-Bomb
+                        // GUARDIAN PHASE 1: 24-Hour Default Time-Bomb
                         const defaultExpiry = new Date();
                         defaultExpiry.setHours(defaultExpiry.getHours() + 24);
                         defaultExpiry.setMinutes(defaultExpiry.getMinutes() - defaultExpiry.getTimezoneOffset());
@@ -9126,7 +10118,7 @@ const Admin = {
                             <div class="text-[9px] text-gray-400 mt-0.5">${item.reason || 'No reason specified'}</div>
                             ${expiryHtml}
                         </div>
-                        <button class="text-gray-400 hover:text-white hover:bg-red-500 rounded px-1.5 py-0.5 transition-colors font-bold focus:outline-none" onclick="Admin.deleteExclusion('${rId}', '${trainNum}')">✕</button>
+                        <button class="text-gray-400 hover:text-white hover:bg-red-500 rounded px-1.5 py-0.5 transition-colors font-bold focus:outline-none" onclick="Admin.deleteExclusion('${rId}', '${trainNum}')" aria-label="Delete">${Admin.icon('x', 'w-4 h-4')}</button>
                     `;
                     listDiv.appendChild(row);
                 });
@@ -9188,7 +10180,7 @@ const Admin = {
                 });
                 await Promise.all(promises);
 
-                // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key (Secured)
+                // GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key (Secured)
                 try {
                     const purgeRes = await fetch('https://nexttrain-telemetry.enock.workers.dev/admin/purge', { 
                         method: 'POST', 
@@ -9223,7 +10215,7 @@ const Admin = {
             try {
                 const res = await fetch(url, { method: 'DELETE' });
                 if (res.ok) {
-                    // 🛡️ GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key (Secured)
+                    // GUARDIAN FIX: Removed Hardcoded Cloudflare Cache Purge Key (Secured)
                     try {
                         const purgeRes = await fetch('https://nexttrain-telemetry.enock.workers.dev/admin/purge', { 
                             method: 'POST', 
@@ -9401,7 +10393,7 @@ const Admin = {
 
             <div id="diag-body" class="hidden mt-4 space-y-4">
                 
-                <!-- 🛡️ GUARDIAN PHASE 1: Global Target Region (Controls Both Panels) -->
+                <!-- GUARDIAN PHASE 1: Global Target Region (Controls Both Panels) -->
                 <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
                     <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Region (Matrix & Scan)</label>
                     <select id="diag-region-select" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
@@ -9413,7 +10405,7 @@ const Admin = {
                     </select>
                 </div>
 
-                <!-- 🛡️ CACHE PROPAGATION MATRIX ACCORDION -->
+                <!-- CACHE PROPAGATION MATRIX ACCORDION -->
                 <div class="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800 overflow-hidden shadow-sm transition-all">
                     <button id="matrix-header-btn" class="w-full px-3 py-3 bg-indigo-100/50 dark:bg-indigo-900/40 text-left text-[10px] font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-indigo-200/50 dark:hover:bg-indigo-900/60">
                         <span class="flex items-center">
@@ -9449,7 +10441,7 @@ const Admin = {
                     </div>
                 </div>
 
-                <!-- 🛡️ DEEP NETWORK SCAN ACCORDION -->
+                <!-- DEEP NETWORK SCAN ACCORDION -->
                 <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800 overflow-hidden shadow-sm transition-all">
                     <button id="deepscan-header-btn" class="w-full px-3 py-3 bg-blue-100/50 dark:bg-blue-900/40 text-left text-[10px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-blue-200/50 dark:hover:bg-blue-900/60">
                         <span class="flex items-center">
@@ -9480,7 +10472,7 @@ const Admin = {
                     </div>
                 </div>
 
-                <!-- Zone Distance Audit — fare zone vs computed route km -->
+                <!-- Zone Distance Audit - fare zone vs computed route km -->
                 <div class="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800 overflow-hidden shadow-sm transition-all">
                     <button id="zone-audit-header-btn" class="w-full px-3 py-3 bg-emerald-100/50 dark:bg-emerald-900/40 text-left text-[10px] font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-emerald-200/50 dark:hover:bg-emerald-900/60">
                         <span class="flex items-center gap-2">
@@ -9494,7 +10486,7 @@ const Admin = {
                         <p class="text-[9px] text-emerald-800 dark:text-emerald-400 font-medium leading-snug">
                             Measures route km from station coordinates (path sum; prefers KM_MARK when present)
                             and checks the assigned fare zone against PRASA Aug 2025 travel distances:
-                            Z1 1–15 · Z2 16–40 · Z3 41–135 · Z4 &gt;135 km.
+                            Z1 1-15 - Z2 16-40 - Z3 41-135 - Z4 &gt;135 km.
                         </p>
 
                         <div>
@@ -9508,13 +10500,13 @@ const Admin = {
                         </div>
 
                         <div>
-                            <label class="block text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase mb-1">Zone max km (Z1 / Z2 / Z3) — PRASA defaults</label>
+                            <label class="block text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase mb-1">Zone max km (Z1 / Z2 / Z3) - PRASA defaults</label>
                             <div class="grid grid-cols-3 gap-2">
                                 <input type="number" id="zone-audit-z1" min="1" step="1" class="w-full h-9 px-2 rounded-lg bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-800/50 text-gray-900 dark:text-white text-xs text-center outline-none focus:ring-2 focus:ring-emerald-500" title="Z1 max km (official 15)">
                                 <input type="number" id="zone-audit-z2" min="1" step="1" class="w-full h-9 px-2 rounded-lg bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-800/50 text-gray-900 dark:text-white text-xs text-center outline-none focus:ring-2 focus:ring-emerald-500" title="Z2 max km (official 40)">
                                 <input type="number" id="zone-audit-z3" min="1" step="1" class="w-full h-9 px-2 rounded-lg bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-800/50 text-gray-900 dark:text-white text-xs text-center outline-none focus:ring-2 focus:ring-emerald-500" title="Z3 max km (official 135)">
                             </div>
-                            <p class="text-[8px] text-emerald-700/80 dark:text-emerald-500 mt-1">Defaults 15 / 40 / 135. Above Z3 max → Z4. Override only for sensitivity checks. Uses Target Region above.</p>
+                            <p class="text-[8px] text-emerald-700/80 dark:text-emerald-500 mt-1">Defaults 15 / 40 / 135. Above Z3 max ? Z4. Override only for sensitivity checks. Uses Target Region above.</p>
                         </div>
 
                         <div class="flex gap-2">
@@ -9531,7 +10523,7 @@ const Admin = {
                     </div>
                 </div>
 
-                <!-- 🛡️ GUARDIAN PHASE 6.3: Transplated Time Simulation Engine -->
+                <!-- GUARDIAN PHASE 6.3: Transplated Time Simulation Engine -->
                 <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm transition-all">
                     <button id="sim-header-btn" class="w-full px-3 py-3 bg-gray-100/50 dark:bg-gray-800/40 text-left text-[10px] font-black text-gray-800 dark:text-gray-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-gray-200/50 dark:hover:bg-gray-700/60">
                         <span class="flex items-center gap-2">
@@ -9693,7 +10685,7 @@ const Admin = {
                         </div>
                     </div>
                     <p class="text-[8px] text-emerald-700/80 dark:text-emerald-500 mt-1.5 text-center">
-                        PRASA bands: Z1 1–${bands.Z1} · Z2 ${bands.Z1 + 1}–${bands.Z2} · Z3 ${bands.Z2 + 1}–${bands.Z3} · Z4 &gt;${bands.Z3} km
+                        PRASA bands: Z1 1-${bands.Z1} - Z2 ${bands.Z1 + 1}-${bands.Z2} - Z3 ${bands.Z2 + 1}-${bands.Z3} - Z4 &gt;${bands.Z3} km
                     </p>
                 `;
             }
@@ -9717,14 +10709,14 @@ const Admin = {
                 const p = r.primary;
                 const distLabel = p?.distanceKm != null
                     ? `${p.distanceKm.toFixed(1)} km`
-                    : '—';
+                    : '-';
                 const srcBit = p?.distanceSource
                     ? ({ path: 'path', km_mark: 'km mark', crow: 'crow-flies' }[p.distanceSource] || p.distanceSource)
                     : '';
-                const assigned = p?.assignedZone || (r.zones?.[0] || '—');
-                const suggested = p?.suggestedZone || '—';
+                const assigned = p?.assignedZone || (r.zones?.[0] || '-');
+                const suggested = p?.suggestedZone || '-';
                 const rangeLabels = (typeof ZONE_KM_RANGE_LABELS !== 'undefined' && ZONE_KM_RANGE_LABELS) ? ZONE_KM_RANGE_LABELS : {};
-                const suggestedRange = suggested !== '—' && rangeLabels[suggested] ? ` (${rangeLabels[suggested]})` : '';
+                const suggestedRange = suggested !== '-' && rangeLabels[suggested] ? ` (${rangeLabels[suggested]})` : '';
                 const routeBit = Admin.formatRouteLabelHtml(r.routeName);
                 const style = statusStyle[r.status] || statusStyle.ok;
                 const statusLabel = {
@@ -9740,20 +10732,20 @@ const Admin = {
                     const segPreview = (m.segments || [])
                         .filter((s) => s.km != null)
                         .slice(0, 8)
-                        .map((s) => `${esc(s.from)}→${esc(s.to)} ${s.km}km`)
-                        .join(' · ');
-                    const more = (m.segments || []).length > 8 ? ' …' : '';
+                        .map((s) => `${esc(s.from)} -> ${esc(s.to)} ${s.km}km`)
+                        .join(' - ');
+                    const more = (m.segments || []).length > 8 ? ' -' : '';
                     return `
                         <div class="border-t border-black/5 dark:border-white/5 pt-1.5 mt-1.5">
                             <div class="flex justify-between gap-2 font-mono text-[9px]">
-                                <span class="truncate">${esc(d.dayDir)} · ${esc(d.sheetKey)}</span>
-                                <span>${d.distanceKm != null ? d.distanceKm.toFixed(1) + ' km' : '—'} · ${esc(d.assignedZone || '?')}→${esc(d.suggestedZone || '?')}${d.mismatch ? ' ⚠' : ''}</span>
+                                <span class="truncate">${esc(d.dayDir)} - ${esc(d.sheetKey)}</span>
+                                <span>${d.distanceKm != null ? d.distanceKm.toFixed(1) + ' km' : '-'} - ${esc(d.assignedZone || '-')}/${esc(d.suggestedZone || '-')}${d.mismatch ? ' !' : ''}</span>
                             </div>
                             <div class="text-[8px] opacity-70 mt-0.5">
-                                path ${m.pathKm != null ? m.pathKm + ' km' : '—'}
-                                · crow ${m.crowKm != null ? m.crowKm + ' km' : '—'}
-                                · km-mark ${m.kmMarkDelta != null ? m.kmMarkDelta + ' km' : '—'}
-                                · coords ${m.withCoords || 0}/${m.stationCount || 0}
+                                path ${m.pathKm != null ? m.pathKm + ' km' : '-'}
+                                - crow ${m.crowKm != null ? m.crowKm + ' km' : '-'}
+                                - km-mark ${m.kmMarkDelta != null ? m.kmMarkDelta + ' km' : '-'}
+                                - coords ${m.withCoords || 0}/${m.stationCount || 0}
                             </div>
                             ${segPreview ? `<div class="text-[8px] opacity-60 mt-0.5 leading-snug">${segPreview}${more}</div>` : ''}
                         </div>
@@ -9766,10 +10758,10 @@ const Admin = {
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-1.5 mb-0.5">
                                     <span class="font-black uppercase tracking-wider text-[9px] opacity-80">${statusLabel}</span>
-                                    <span class="font-mono text-[9px] opacity-60">${esc(assigned)} → ${esc(suggested)}${esc(suggestedRange)}</span>
+                                    <span class="font-mono text-[9px] opacity-60">${esc(assigned)} -> ${esc(suggested)}${esc(suggestedRange)}</span>
                                 </div>
                                 <div class="font-semibold truncate">${routeBit}</div>
-                                <div class="text-[9px] opacity-70 mt-0.5">${esc(r.destA || '')} · ${esc(r.destB || '')}</div>
+                                <div class="text-[9px] opacity-70 mt-0.5">${esc(r.destA || '')} - ${esc(r.destB || '')}</div>
                             </div>
                             <div class="text-right shrink-0">
                                 <div class="text-sm font-black leading-none">${distLabel}</div>
@@ -9805,7 +10797,7 @@ const Admin = {
                 }
 
                 if (zoneAuditResults) {
-                    zoneAuditResults.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center">${Admin.icon('hourglass', 'w-5 h-5 mb-2 animate-pulse')} Measuring ${targetRegion} from ${scanSource}…</div>`;
+                    zoneAuditResults.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center">${Admin.icon('hourglass', 'w-5 h-5 mb-2 animate-pulse')} Measuring ${targetRegion} from ${scanSource}-</div>`;
                 }
                 if (zoneAuditSummary) zoneAuditSummary.classList.add('hidden');
 
@@ -9892,7 +10884,7 @@ const Admin = {
                 window.simTimeStr = simTimeInput.value + (simTimeInput.value.length === 5 ? ":00" : "");
                 try { window.__ntLastSimKey = null; } catch (e) {}
                 
-                // 🛡️ GUARDIAN PHASE 4: Save Pipeline Override to sessionStorage
+                // GUARDIAN PHASE 4: Save Pipeline Override to sessionStorage
                 if (pipelineDropdown && pipelineDropdown.value !== 'AUTO') {
                     try { sessionStorage.setItem('dev_force_source', pipelineDropdown.value); } catch(e){}
                 } else {
@@ -9919,7 +10911,7 @@ const Admin = {
                 if (location.hash === '#dev') history.back();
                 else if (typeof closeSmoothModal === 'function') closeSmoothModal('dev-modal');
                 
-                // 🛡️ GUARDIAN HOTFIX: Force network sync to apply Pipeline Overrides, then update UI
+                // GUARDIAN HOTFIX: Force network sync to apply Pipeline Overrides, then update UI
                 if (typeof loadAllSchedules === 'function') {
                     loadAllSchedules(true).then(() => {
                         if (typeof updateTime === 'function') updateTime(); 
@@ -9940,7 +10932,7 @@ const Admin = {
                 try { window.__ntLastSimKey = null; } catch (e) {}
                 if(simEnabledCheckbox) simEnabledCheckbox.checked = false;
                 
-                // 🛡️ GUARDIAN PHASE 4: Clear Pipeline Override on exit
+                // GUARDIAN PHASE 4: Clear Pipeline Override on exit
                 try { sessionStorage.removeItem('dev_force_source'); } catch(e){}
                 const pipelineDropdown = document.getElementById('sim-pipeline-override');
                 if (pipelineDropdown) pipelineDropdown.value = 'AUTO';
@@ -10131,7 +11123,7 @@ const Admin = {
                         }
                     }
 
-                    // 🛡️ GUARDIAN FIX: Adjusted padding and wrapping to ensure narrow mobile screens don't stretch
+                    // GUARDIAN FIX: Adjusted padding and wrapping to ensure narrow mobile screens don't stretch
                     html += `
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                             <td class="px-1.5 py-2 border-r border-gray-100 dark:border-gray-800 align-top">
@@ -10157,7 +11149,7 @@ const Admin = {
         runBtn.onclick = async () => {
             resultsDiv.innerHTML = '<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Initializing scan...</div>';
             
-            // 🛡️ GUARDIAN PHASE 2: Dynamic Region & Source Engine
+            // GUARDIAN PHASE 2: Dynamic Region & Source Engine
             const regionSelect = document.getElementById('diag-region-select');
             const sourceSelect = document.getElementById('deepscan-source-select');
             const scanRegion = regionSelect ? regionSelect.value : 'CURRENT';
@@ -10332,7 +11324,7 @@ const Admin = {
     },
 
     /**
-     * Standalone Schedule QA — data quality (duplicate adjacent times, regressions,
+     * Standalone Schedule QA - data quality (duplicate adjacent times, regressions,
      * delta variance). Kept separate from System Health Diagnostics (cache/network).
      */
     setupScheduleQaManager: () => {
@@ -10368,7 +11360,7 @@ const Admin = {
                 <p class="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
                     Flags impossible or suspicious timetable cells: identical adjacent stops, time regressions,
                     delta variance, missing coordinates, day mismatches, and more.
-                    Diagnostics (above) covers cache/network — this panel is schedule content only.
+                    Diagnostics (above) covers cache/network - this panel is schedule content only.
                 </p>
 
                 <div class="grid grid-cols-2 gap-2">
@@ -10597,11 +11589,11 @@ const Admin = {
             resultsDiv.innerHTML = findings.map((f) => {
                 const style = severityStyles[f.severity] || severityStyles.info;
                 const routeBit = f.routeName ? Admin.formatRouteLabelHtml(f.routeName) : (f.routeId || '');
-                const meta = [f.sheetKey, f.dayDir, f.train, f.station].filter(Boolean).join(' · ');
+                const meta = [f.sheetKey, f.dayDir, f.train, f.station].filter(Boolean).join(' - ');
                 return `
                     <div class="p-2.5 rounded-lg border text-[10px] leading-snug ${style}">
                         <div class="flex items-center justify-between gap-2 mb-1">
-                            <span class="font-black uppercase tracking-wider text-[9px]">${f.severity} · ${f.code}</span>
+                            <span class="font-black uppercase tracking-wider text-[9px]">${f.severity} - ${f.code}</span>
                             <span class="font-mono text-[9px] opacity-70 truncate">${meta}</span>
                         </div>
                         <div class="font-semibold mb-0.5">${routeBit}</div>
@@ -10621,7 +11613,7 @@ const Admin = {
                 const targetRegion = scanRegion === 'CURRENT' ? activeRegion : scanRegion;
                 const scanSource = (scanSourceRaw === 'RAM' && targetRegion !== activeRegion) ? 'FIREBASE' : scanSourceRaw;
 
-                resultsDiv.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center">${Admin.icon('hourglass', 'w-5 h-5 mb-2 animate-pulse')} Loading ${targetRegion} from ${scanSource}…</div>`;
+                resultsDiv.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center">${Admin.icon('hourglass', 'w-5 h-5 mb-2 animate-pulse')} Loading ${targetRegion} from ${scanSource}-</div>`;
                 if (summaryDiv) summaryDiv.classList.add('hidden');
 
                 try {
@@ -10662,18 +11654,324 @@ const Admin = {
         }
     },
 
+// --- 7.9 HOLIDAY NOTICE APPROVALS (per-region; Pending / Approved tabs) ---
+    setupHolidayApprovalsManager: () => {
+        const exclusionPanel = document.getElementById('exclusion-panel');
+        if (!exclusionPanel || !exclusionPanel.parentNode) return;
+
+        let holidayPanel = document.getElementById('holiday-approvals-panel');
+        if (!holidayPanel) {
+            holidayPanel = document.createElement('div');
+            holidayPanel.id = 'holiday-approvals-panel';
+            exclusionPanel.parentNode.insertBefore(holidayPanel, exclusionPanel.nextSibling);
+        }
+        if (holidayPanel.dataset.adminLoaded === 'true') return;
+        holidayPanel.dataset.adminLoaded = 'true';
+
+        holidayPanel.className = 'bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300';
+        holidayPanel.innerHTML = `
+            <button id="holiday-approvals-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    ${Admin.tileIcon('calendar', 'text-amber-500 dark:text-amber-400')}
+                    <span>Holiday Notices</span>
+                </span>
+                <span id="holiday-approvals-badge" class="admin-unread-badge hidden" aria-label="Regions awaiting approval"></span>
+                <svg id="holiday-approvals-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <div id="holiday-approvals-body" class="hidden mt-4 space-y-3">
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed">Approve each region separately before commuters see the notice. Tick approves; cross defers that region until info is available.</p>
+                <p id="holiday-approvals-enforce-note" class="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-2.5 py-2 leading-snug"></p>
+                <div class="flex gap-2 items-center">
+                    <button type="button" id="holiday-tab-pending" class="holiday-tab-btn flex-1 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase tracking-wider">Pending</button>
+                    <button type="button" id="holiday-tab-approved" class="holiday-tab-btn flex-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase tracking-wider">Approved</button>
+                    <button type="button" id="holiday-approvals-refresh" class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 text-[10px] font-bold transition-colors shadow-sm focus:outline-none">Refresh</button>
+                </div>
+                <div id="holiday-approvals-list" class="space-y-3 max-h-[520px] overflow-y-auto custom-scrollbar"></div>
+            </div>
+        `;
+
+        const header = document.getElementById('holiday-approvals-header-btn');
+        const body = document.getElementById('holiday-approvals-body');
+        const chevron = document.getElementById('holiday-approvals-chevron');
+        const listDiv = document.getElementById('holiday-approvals-list');
+        const refreshBtn = document.getElementById('holiday-approvals-refresh');
+        const badge = document.getElementById('holiday-approvals-badge');
+        const tabPending = document.getElementById('holiday-tab-pending');
+        const tabApproved = document.getElementById('holiday-tab-approved');
+        let holidayTab = 'pending';
+
+        const HOLIDAY_DAY_TYPES = [
+            { value: 'public_holiday', label: 'Public Holiday' },
+            { value: 'saturday', label: 'Saturday' },
+            { value: 'weekday', label: 'Weekday' },
+            { value: 'sunday', label: 'Sunday (no service)' },
+        ];
+
+        const dayTypeOptions = (selected) => HOLIDAY_DAY_TYPES
+            .map((t) => `<option value="${t.value}"${t.value === selected ? ' selected' : ''}>${t.label}</option>`)
+            .join('');
+
+        const pad2 = (n) => String(n).padStart(2, '0');
+        const names = (typeof HOLIDAY_NAMES !== 'undefined' && HOLIDAY_NAMES) ? HOLIDAY_NAMES : {};
+        const defaults = (typeof SPECIAL_DATES !== 'undefined' && SPECIAL_DATES) ? SPECIAL_DATES : {};
+        const regions = ['GP', 'WC', 'KZN', 'EC'];
+
+        const upcomingHolidayCandidates = (now = new Date()) => {
+            const out = [];
+            for (let offset = 0; offset < 21; offset++) {
+                const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+                const key = `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+                const name = names[key];
+                if (!name) continue;
+                const y = d.getFullYear();
+                out.push({
+                    key,
+                    name,
+                    year: y,
+                    iso: `${y}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`,
+                    offset,
+                    defaultDayType: defaults[key] || 'public_holiday',
+                    whenLabel: offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }),
+                });
+            }
+            return out;
+        };
+
+        const readRegionRow = (entry, code, fallbackDayType) => {
+            if (entry?.regions?.[code]) {
+                const row = entry.regions[code];
+                // Normalize legacy "rejected" ? deferred for UI grouping
+                if (row?.status === 'rejected') return { ...row, status: 'deferred' };
+                return row;
+            }
+            if (entry?.status === 'approved') {
+                return {
+                    status: 'approved',
+                    dayType: entry.regionDayTypes?.[code] || entry.defaultDayType || fallbackDayType,
+                    approvedAt: entry.approvedAt || null,
+                };
+            }
+            return { status: 'pending', dayType: entry?.defaultDayType || fallbackDayType };
+        };
+
+        const setHolidayTab = (tab) => {
+            holidayTab = tab;
+            tabPending?.classList.toggle('ring-2', tab === 'pending');
+            tabPending?.classList.toggle('ring-amber-400', tab === 'pending');
+            tabApproved?.classList.toggle('ring-2', tab === 'approved');
+            tabApproved?.classList.toggle('ring-emerald-400', tab === 'approved');
+            Admin.fetchHolidayApprovals();
+        };
+
+        tabPending?.addEventListener('click', () => setHolidayTab('pending'));
+        tabApproved?.addEventListener('click', () => setHolidayTab('approved'));
+        setHolidayTab('pending');
+
+        Admin.fetchHolidayApprovals = async () => {
+            const secret = await Admin.getAuthKey();
+            if (!secret || !listDiv) return;
+            listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">Loading holiday approvals...</div>';
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await window.guardianFetch(`${dynamicEndpoint}holiday_approvals.json?auth=${secret}`, {}, 10000);
+                const data = res.ok ? await res.json() : {};
+                const approvals = (data && typeof data === 'object' && !data.error) ? data : {};
+                const uid = Admin.currentUser?.uid || '';
+                const today = new Date();
+                const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                const enforced = todayIso >= '2026-08-11';
+                const enforceNote = document.getElementById('holiday-approvals-enforce-note');
+                if (enforceNote) {
+                    enforceNote.textContent = enforced
+                        ? 'Enforcement is live: commuters only see notices after their region is approved.'
+                        : 'Commuter enforcement starts 11 Aug 2026. You can approve regions early for later holidays.';
+                }
+
+                const candidates = upcomingHolidayCandidates();
+                let pendingCount = 0;
+                const pendingBlocks = [];
+                const approvedRows = [];
+
+                candidates.forEach((h) => {
+                    const entry = approvals[h.iso] || {};
+                    const regionRows = regions.map((code) => {
+                        const row = readRegionRow(entry, code, h.defaultDayType);
+                        return { code, row, holiday: h };
+                    });
+
+                    regionRows.forEach(({ code, row, holiday }) => {
+                        if (row.status === 'approved') {
+                            approvedRows.push({ code, row, holiday });
+                        } else {
+                            pendingCount += 1;
+                        }
+                    });
+
+                    const pendingRegions = regionRows.filter(({ row }) => row.status !== 'approved');
+                    if (pendingRegions.length === 0) return;
+
+                    pendingBlocks.push(`
+                        <div class="holiday-approval-card bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-xl p-3" data-iso="${h.iso}" data-key="${h.key}" data-name="${escapeHTML(h.name)}" data-default="${h.defaultDayType}">
+                            <div class="mb-2">
+                                <p class="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">${escapeHTML(h.whenLabel)}</p>
+                                <p class="text-sm font-black text-gray-900 dark:text-white leading-snug">${escapeHTML(h.name)}</p>
+                                <p class="text-[10px] text-gray-500 font-mono mt-0.5">${escapeHTML(h.iso)}</p>
+                            </div>
+                            <div class="space-y-1.5">
+                                ${pendingRegions.map(({ code, row }) => `
+                                    <div class="holiday-region-row flex items-center gap-2" data-region="${code}">
+                                        <span class="text-[10px] font-black text-gray-600 dark:text-gray-300 uppercase w-9 shrink-0">${code}</span>
+                                        <select class="holiday-region-day flex-1 min-w-0 h-8 px-2 rounded-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none" data-region="${code}">
+                                            ${dayTypeOptions(row.dayType || h.defaultDayType)}
+                                        </select>
+                                        <button type="button" class="holiday-region-approve shrink-0 w-8 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center focus:outline-none" data-region="${code}" title="Approve ${code}" aria-label="Approve ${code}">${Admin.icon('check', 'w-4 h-4')}</button>
+                                        <button type="button" class="holiday-region-reject shrink-0 w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-700 dark:text-gray-200 flex items-center justify-center focus:outline-none" data-region="${code}" title="Defer ${code}" aria-label="Defer ${code}">${Admin.icon('x', 'w-4 h-4')}</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `);
+                });
+
+                const approvedHtml = approvedRows.length
+                    ? approvedRows.map(({ code, row, holiday }) => `
+                        <div class="bg-emerald-50/70 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800/50 rounded-xl p-3 flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">${escapeHTML(holiday.whenLabel)} - ${escapeHTML(code)}</p>
+                                <p class="text-sm font-black text-gray-900 dark:text-white leading-snug">${escapeHTML(holiday.name)}</p>
+                                <p class="text-[10px] text-gray-500 mt-0.5">${escapeHTML(HOLIDAY_DAY_TYPES.find((t) => t.value === row.dayType)?.label || row.dayType || '-')}</p>
+                            </div>
+                            <span class="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 shrink-0">Approved</span>
+                        </div>
+                    `).join('')
+                    : '<div class="text-xs text-gray-500 italic text-center py-4">No approved regions yet.</div>';
+
+                listDiv.innerHTML = holidayTab === 'approved'
+                    ? approvedHtml
+                    : (pendingBlocks.join('') || '<div class="text-xs text-gray-500 italic text-center py-4">No pending regions in the next 3 weeks.</div>');
+
+                if (badge) {
+                    if (pendingCount > 0) {
+                        badge.textContent = String(pendingCount);
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+
+                const saveRegion = async (card, code, status, dayType) => {
+                    const iso = card?.dataset?.iso;
+                    if (!iso || !code) return;
+                    const secret2 = await Admin.getAuthKey();
+                    if (!secret2) return;
+                    // Atomic per-region write - avoids full-document PUT races wiping sibling regions.
+                    const regionPayload = status === 'approved'
+                        ? {
+                            status: 'approved',
+                            dayType,
+                            approvedBy: uid,
+                            approvedAt: Date.now(),
+                        }
+                        : {
+                            status: 'deferred',
+                            dayType,
+                            deferredBy: uid,
+                            deferredAt: Date.now(),
+                        };
+                    const regionRes = await window.guardianFetch(
+                        `${dynamicEndpoint}holiday_approvals/${iso}/regions/${code}.json?auth=${secret2}`,
+                        { method: 'PUT', body: JSON.stringify(regionPayload) },
+                        10000
+                    );
+                    if (!regionRes.ok) throw new Error(`HTTP ${regionRes.status}`);
+                    // Best-effort holiday metadata (merge - does not replace sibling regions).
+                    await window.guardianFetch(
+                        `${dynamicEndpoint}holiday_approvals/${iso}.json?auth=${secret2}`,
+                        {
+                            method: 'PATCH',
+                            body: JSON.stringify({
+                                dateKey: card.dataset.key || null,
+                                name: card.dataset.name || null,
+                                defaultDayType: card.dataset.default || dayType || 'public_holiday',
+                            }),
+                        },
+                        10000
+                    ).catch(() => {});
+                };
+
+                listDiv.querySelectorAll('.holiday-region-approve').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const card = btn.closest('.holiday-approval-card');
+                        const code = btn.dataset.region;
+                        const sel = card?.querySelector(`.holiday-region-day[data-region="${code}"]`);
+                        const dayType = sel?.value || 'public_holiday';
+                        btn.disabled = true;
+                        try {
+                            await saveRegion(card, code, 'approved', dayType);
+                            if (typeof showToast === 'function') showToast(`${code} approved`, 'success');
+                            Admin.fetchHolidayApprovals();
+                        } catch (e) {
+                            if (typeof showToast === 'function') showToast('Approve failed', 'error');
+                            btn.disabled = false;
+                        }
+                    };
+                });
+
+                listDiv.querySelectorAll('.holiday-region-reject').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const card = btn.closest('.holiday-approval-card');
+                        const code = btn.dataset.region;
+                        const sel = card?.querySelector(`.holiday-region-day[data-region="${code}"]`);
+                        const dayType = sel?.value || 'public_holiday';
+                        btn.disabled = true;
+                        try {
+                            await saveRegion(card, code, 'rejected', dayType);
+                            if (typeof showToast === 'function') showToast(`${code} deferred`, 'info');
+                            Admin.fetchHolidayApprovals();
+                        } catch (e) {
+                            if (typeof showToast === 'function') showToast('Update failed', 'error');
+                            btn.disabled = false;
+                        }
+                    };
+                });
+            } catch (e) {
+                listDiv.innerHTML = `<div class="text-xs text-red-500 text-center py-4">Failed to load holiday approvals.<br><span class="text-[9px] text-gray-500">${escapeHTML(String(e.message || e))}</span></div>`;
+            }
+        };
+
+        if (header) {
+            header.onclick = () => {
+                if (Admin.isGridMode) return;
+                body.classList.toggle('hidden');
+                if (body.classList.contains('hidden')) chevron?.classList.add('-rotate-90');
+                else {
+                    chevron?.classList.remove('-rotate-90');
+                    Admin.fetchHolidayApprovals();
+                }
+            };
+        }
+        if (refreshBtn) refreshBtn.onclick = () => Admin.fetchHolidayApprovals();
+    },
+
 // --- 8. MAINTENANCE MODE MANAGER ---
     setupMaintenanceManager: () => {
         const exclusionPanel = document.getElementById('exclusion-panel');
-        if (!exclusionPanel || !exclusionPanel.parentNode) return;
+        const adminContainer = document.getElementById('admin-modules-container');
+        const host = (exclusionPanel && exclusionPanel.parentNode) || adminContainer;
+        if (!host) return;
 
         let maintPanel = document.getElementById('maint-panel');
         if (!maintPanel) {
             maintPanel = document.createElement('div');
             maintPanel.id = 'maint-panel';
-            exclusionPanel.parentNode.appendChild(maintPanel);
+            host.appendChild(maintPanel);
         }
 
+        // Re-init if an older admin session left a panel without the multi-banner accordion
+        if (maintPanel.dataset.loaded === "true" && !document.getElementById('maint-mode-header')) {
+            delete maintPanel.dataset.loaded;
+            maintPanel.innerHTML = '';
+        }
         if (maintPanel.dataset.loaded === "true") return;
         maintPanel.dataset.loaded = "true";
 
@@ -10689,20 +11987,77 @@ const Admin = {
             </button>
             
             <div id="maint-body" class="hidden mt-4 space-y-4">
-                <!-- Maintenance Controls -->
-                <div class="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-200 dark:border-orange-800">
-                    <div class="flex items-center justify-between mb-3">
-                        <div>
-                            <span class="font-bold text-orange-800 dark:text-orange-200 text-sm">Maintenance Mode</span>
-                            <p class="text-[10px] text-orange-600 dark:text-orange-400 mt-0.5">Shows yellow warning banner to online users.</p>
+                <!-- Maintenance Mode (accordion) -->
+                <div class="bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-200 dark:border-orange-800 overflow-hidden shadow-sm transition-all">
+                    <button type="button" id="maint-mode-header" class="w-full px-3 py-3 bg-orange-100/50 dark:bg-orange-900/40 text-left text-[10px] font-black text-orange-800 dark:text-orange-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-orange-200/50 dark:hover:bg-orange-900/60">
+                        <span class="flex items-center gap-2">
+                            <span class="text-orange-600 dark:text-orange-300">${Admin.icon('wrench', 'w-4 h-4')}</span> Maintenance Mode
+                            <span id="maint-active-count" class="hidden ml-1 px-1.5 py-0.5 rounded bg-orange-600 text-white text-[9px] font-black normal-case tracking-normal">0</span>
+                        </span>
+                        <svg id="maint-mode-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="maint-mode-body" class="hidden p-4 space-y-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <span class="font-bold text-orange-800 dark:text-orange-200 text-sm">Publish banners</span>
+                                <p class="text-[10px] text-orange-600 dark:text-orange-400 mt-0.5">Add multiple scoped banners. Pause all = master off. Empty scope = everyone.</p>
+                            </div>
+                            <div class="relative inline-block w-10 mr-1 align-middle select-none transition duration-200 ease-in shrink-0" title="Master pause — off hides all banners">
+                                <input type="checkbox" name="toggle" id="maint-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
+                                <label for="maint-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                            </div>
                         </div>
-                        <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                            <input type="checkbox" name="toggle" id="maint-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
-                            <label for="maint-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        <input type="text" id="maint-message" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700/50 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-orange-500 outline-none shadow-sm" placeholder="Banner text (e.g. Cape Town Northern Line update...)">
+                        <div>
+                            <p class="text-[9px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-300 mb-1.5">Regions (optional)</p>
+                            <div id="maint-region-checks" class="flex flex-wrap gap-2">
+                                ${['GP', 'WC', 'KZN', 'EC'].map((code) => `
+                                    <label class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/80 dark:bg-gray-900/40 border border-orange-200 dark:border-orange-800/60 text-[10px] font-bold text-orange-900 dark:text-orange-200 cursor-pointer">
+                                        <input type="checkbox" class="maint-region-cb rounded border-orange-300 text-orange-600 focus:ring-orange-500" value="${code}">
+                                        ${code}
+                                    </label>`).join('')}
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <p class="text-[9px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-300">Routes (optional)</p>
+                                <button type="button" id="maint-routes-clear" class="text-[9px] font-bold text-orange-600 dark:text-orange-400 hover:underline focus:outline-none">Clear</button>
+                            </div>
+                            <div id="maint-route-checks" class="max-h-36 overflow-y-auto custom-scrollbar space-y-1 rounded-lg border border-orange-200 dark:border-orange-800/60 bg-white/60 dark:bg-gray-900/30 p-2">
+                                <p class="text-[10px] text-orange-500 italic">Select a region to list its routes.</p>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-[9px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-300 mb-1.5">Expires</p>
+                            <input type="datetime-local" id="maint-expires" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700/50 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-orange-500 outline-none shadow-sm">
+                            <p class="text-[9px] text-orange-500 dark:text-orange-400 mt-1">Clear the field for no auto-expiry (until you deactivate).</p>
+                        </div>
+                        <input type="hidden" id="maint-edit-id" value="">
+                        <div class="flex gap-2">
+                            <button type="button" id="maint-add-btn" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wide focus:outline-none">Add banner</button>
+                            <button type="button" id="maint-cancel-edit" class="hidden px-3 bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700 text-orange-700 dark:text-orange-300 font-bold py-2.5 rounded-lg text-xs uppercase tracking-wide focus:outline-none">Cancel</button>
+                        </div>
+                        <div class="pt-2 border-t border-orange-200 dark:border-orange-800/60">
+                            <p class="text-[9px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-300 mb-2">Active maintenance</p>
+                            <div id="maint-active-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                                <p class="text-[10px] text-orange-500 italic text-center py-3">No active banners.</p>
+                            </div>
                         </div>
                     </div>
-                    <div>
-                        <input type="text" id="maint-message" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700/50 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-orange-500 outline-none shadow-sm" placeholder="Optional context (e.g. Adding KZN routes...)">
+                </div>
+
+                <!-- Force schedule type (accordion, collapsed by default) -->
+                <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800 overflow-hidden shadow-sm transition-all">
+                    <button type="button" id="sched-override-header" class="w-full px-3 py-3 bg-blue-100/50 dark:bg-blue-900/40 text-left text-[10px] font-black text-blue-800 dark:text-blue-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-blue-200/50 dark:hover:bg-blue-900/60">
+                        <span class="flex items-center gap-2">
+                            <span class="text-blue-600 dark:text-blue-300">${Admin.icon('calendar', 'w-4 h-4')}</span> Force schedule type
+                        </span>
+                        <svg id="sched-override-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="sched-override-body" class="hidden p-4 space-y-3">
+                        <p class="text-[10px] text-blue-600 dark:text-blue-400 leading-snug">Override the live timetable per region. Commuters boot normally, then see your message and switch.</p>
+                        <div id="sched-override-regions" class="space-y-3"></div>
+                        <button type="button" id="sched-override-save" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wide focus:outline-none">Save schedule overrides</button>
                     </div>
                 </div>
 
@@ -10715,7 +12070,7 @@ const Admin = {
                         <svg id="shadow-ban-default-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     <div id="shadow-ban-default-body" class="hidden p-4">
-                        <p class="text-[10px] text-violet-600 dark:text-violet-400 mb-3 leading-snug">Used when a ban has no per-user mode set. Per-ban choice in the Shadow ban dialog always wins.</p>
+                        <p class="text-[10px] text-violet-600 dark:text-violet-400 mb-3 leading-snug">Prefills the Shadow ban dialog. Per-ban mode is stored on the user/device (clients no longer read this global config publicly).</p>
                         <select id="shadow-ban-default-mode" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-violet-200 dark:border-violet-700/50 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-violet-500 outline-none shadow-sm mb-2">
                             <option value="offline">Fake offline / lie-fi</option>
                             <option value="freeze">Freeze / unresponsive</option>
@@ -10770,7 +12125,268 @@ const Admin = {
         const chevron = document.getElementById('maint-chevron');
         const toggle = document.getElementById('maint-toggle');
         const maintMsg = document.getElementById('maint-message');
-        
+        const maintExpires = document.getElementById('maint-expires');
+        const maintEditId = document.getElementById('maint-edit-id');
+        const maintRegionBox = document.getElementById('maint-region-checks');
+        const maintRouteBox = document.getElementById('maint-route-checks');
+        const maintRoutesClear = document.getElementById('maint-routes-clear');
+        const maintAddBtn = document.getElementById('maint-add-btn');
+        const maintCancelEdit = document.getElementById('maint-cancel-edit');
+        const maintActiveList = document.getElementById('maint-active-list');
+        const maintActiveCount = document.getElementById('maint-active-count');
+        const maintModeHeader = document.getElementById('maint-mode-header');
+        const maintModeBody = document.getElementById('maint-mode-body');
+        const maintModeChevron = document.getElementById('maint-mode-chevron');
+        let _maintSelectedRoutes = new Set();
+        let _maintItems = {}; // id → item
+        let _maintRootActive = true;
+
+        const getMaintSelectedRegions = () =>
+            Array.from(maintRegionBox?.querySelectorAll('.maint-region-cb:checked') || []).map((el) => el.value);
+
+        const toLocalDatetimeValue = (ms) => {
+            if (!ms) return '';
+            const d = new Date(ms);
+            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            return d.toISOString().slice(0, 16);
+        };
+
+        const defaultMaintExpiryValue = () => {
+            const now = new Date();
+            now.setHours(23, 59, 0, 0);
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            return now.toISOString().slice(0, 16);
+        };
+
+        const resetMaintComposer = () => {
+            if (maintMsg) maintMsg.value = '';
+            if (maintEditId) maintEditId.value = '';
+            if (maintExpires) maintExpires.value = defaultMaintExpiryValue();
+            _maintSelectedRoutes = new Set();
+            maintRegionBox?.querySelectorAll('.maint-region-cb').forEach((cb) => { cb.checked = false; });
+            renderMaintRouteChecks();
+            if (maintAddBtn) maintAddBtn.textContent = 'Add banner';
+            maintCancelEdit?.classList.add('hidden');
+        };
+
+        const listMaintItemsLocal = () => {
+            if (typeof window.listMaintenanceItems === 'function') {
+                return window.listMaintenanceItems({ active: true, items: _maintItems });
+            }
+            return Object.keys(_maintItems).map((k) => ({ id: k, ..._maintItems[k] }));
+        };
+
+        const countLiveMaint = () => {
+            const now = Date.now();
+            return listMaintItemsLocal().filter((it) => {
+                if (it.active === false) return false;
+                if (it.expiresAt && Number(it.expiresAt) <= now) return false;
+                return true;
+            }).length;
+        };
+
+        const buildMaintFirebasePayload = (rootActiveOverride) => {
+            const rootActive = typeof rootActiveOverride === 'boolean' ? rootActiveOverride : _maintRootActive;
+            const now = Date.now();
+            const items = {};
+            Object.keys(_maintItems).forEach((id) => {
+                const it = _maintItems[id];
+                if (!it) return;
+                const entry = {
+                    id,
+                    active: it.active !== false,
+                    message: String(it.message || '').trim(),
+                    updatedAt: it.updatedAt || now,
+                    updatedBy: it.updatedBy || (Admin.currentUser?.email || 'Admin'),
+                };
+                if (it.createdAt) entry.createdAt = it.createdAt;
+                if (Array.isArray(it.regions) && it.regions.length) entry.regions = it.regions;
+                if (Array.isArray(it.routes) && it.routes.length) entry.routes = it.routes;
+                if (it.expiresAt) entry.expiresAt = Number(it.expiresAt);
+                items[id] = entry;
+            });
+
+            // Root shim for older clients: primary live item (most specific), with its scope
+            const live = Object.values(items).filter((it) => {
+                if (it.active === false) return false;
+                if (it.expiresAt && Number(it.expiresAt) <= now) return false;
+                return true;
+            });
+            live.sort((a, b) => {
+                const sa = (a.routes?.length ? 2 : a.regions?.length ? 1 : 0);
+                const sb = (b.routes?.length ? 2 : b.regions?.length ? 1 : 0);
+                return sb - sa;
+            });
+            const primary = live[0];
+            const payload = {
+                active: !!(rootActive && primary),
+                items,
+                updatedAt: now,
+                updatedBy: Admin.currentUser?.email || 'Admin',
+            };
+            if (primary) {
+                payload.message = primary.message || 'MAINTENANCE IN PROGRESS';
+                if (primary.regions?.length) payload.regions = primary.regions;
+                if (primary.routes?.length) payload.routes = primary.routes;
+                if (primary.expiresAt) payload.expiresAt = primary.expiresAt;
+            } else {
+                payload.message = '';
+            }
+            // Explicit root pause even when items exist
+            if (!rootActive) payload.active = false;
+            return payload;
+        };
+
+        const renderMaintActiveList = () => {
+            const now = Date.now();
+            const items = listMaintItemsLocal().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+            const liveCount = countLiveMaint();
+            if (maintActiveCount) {
+                if (liveCount > 0 && _maintRootActive) {
+                    maintActiveCount.textContent = String(liveCount);
+                    maintActiveCount.classList.remove('hidden');
+                } else {
+                    maintActiveCount.classList.add('hidden');
+                }
+            }
+            if (!maintActiveList) return;
+            if (!items.length) {
+                maintActiveList.innerHTML = `<p class="text-[10px] text-orange-500 italic text-center py-3">No maintenance banners yet.</p>`;
+                return;
+            }
+            const esc = (typeof escapeHTML === 'function')
+                ? escapeHTML
+                : (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const routesObj = (typeof ROUTES !== 'undefined' && ROUTES) || window.ROUTES || {};
+            maintActiveList.innerHTML = items.map((it) => {
+                const expired = it.expiresAt && Number(it.expiresAt) <= now;
+                const inactive = it.active === false || expired || !_maintRootActive;
+                const scopeBits = [];
+                if (it.regions?.length) scopeBits.push(it.regions.join('+'));
+                else scopeBits.push('All regions');
+                if (it.routes?.length) {
+                    const names = it.routes.slice(0, 2).map((rid) => {
+                        const r = routesObj[rid];
+                        return r ? (Admin.formatRouteLabelPlain ? Admin.formatRouteLabelPlain(r.name) : r.name) : rid;
+                    });
+                    scopeBits.push(it.routes.length > 2 ? `${names.join(', ')} +${it.routes.length - 2}` : names.join(', '));
+                } else {
+                    scopeBits.push('All routes');
+                }
+                const expStr = it.expiresAt
+                    ? (expired ? 'Expired' : `Expires ${Admin.formatDate ? Admin.formatDate(it.expiresAt) : new Date(it.expiresAt).toLocaleString()}`)
+                    : 'No expiry';
+                const msg = esc(String(it.message || 'MAINTENANCE IN PROGRESS'));
+                const idSafe = esc(String(it.id));
+                return `<div class="flex flex-col gap-1.5 p-2.5 rounded-lg border ${inactive ? 'border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40 opacity-70' : 'border-orange-200 dark:border-orange-800/60 bg-white/80 dark:bg-gray-900/40'}">
+                    <div class="flex items-start justify-between gap-2">
+                        <p class="text-[11px] font-bold text-orange-950 dark:text-orange-100 leading-snug break-words">${msg}</p>
+                        <span class="text-[8px] font-black uppercase tracking-wider shrink-0 ${inactive ? 'text-gray-400' : 'text-orange-600 dark:text-orange-400'}">${inactive ? (expired ? 'Expired' : (!_maintRootActive ? 'Paused' : 'Off')) : 'Live'}</span>
+                    </div>
+                    <p class="text-[9px] text-orange-700/80 dark:text-orange-300/80">${escapeHTML(scopeBits.join(' · '))} · ${escapeHTML(expStr)}</p>
+                    <div class="flex gap-1.5 pt-1">
+                        <button type="button" data-maint-edit="${idSafe}" class="flex-1 text-[9px] font-bold py-1.5 rounded-md bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700 text-orange-800 dark:text-orange-200 focus:outline-none">Edit</button>
+                        <button type="button" data-maint-extend="${idSafe}" class="flex-1 text-[9px] font-bold py-1.5 rounded-md bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700 text-orange-800 dark:text-orange-200 focus:outline-none ${it.expiresAt ? '' : 'opacity-40 cursor-not-allowed'}" ${it.expiresAt ? '' : 'disabled'}>+24h</button>
+                        <button type="button" data-maint-toggle="${idSafe}" class="flex-1 text-[9px] font-bold py-1.5 rounded-md bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700 text-orange-800 dark:text-orange-200 focus:outline-none">${it.active === false ? 'Enable' : 'Disable'}</button>
+                        <button type="button" data-maint-del="${idSafe}" class="flex-1 text-[9px] font-bold py-1.5 rounded-md bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 focus:outline-none">Delete</button>
+                    </div>
+                </div>`;
+            }).join('');
+
+            maintActiveList.querySelectorAll('[data-maint-edit]').forEach((btn) => {
+                btn.onclick = () => loadMaintItemIntoComposer(btn.getAttribute('data-maint-edit'));
+            });
+            maintActiveList.querySelectorAll('[data-maint-extend]').forEach((btn) => {
+                btn.onclick = () => extendMaintItem(btn.getAttribute('data-maint-extend'));
+            });
+            maintActiveList.querySelectorAll('[data-maint-toggle]').forEach((btn) => {
+                btn.onclick = () => toggleMaintItemActive(btn.getAttribute('data-maint-toggle'));
+            });
+            maintActiveList.querySelectorAll('[data-maint-del]').forEach((btn) => {
+                btn.onclick = () => deleteMaintItem(btn.getAttribute('data-maint-del'));
+            });
+        };
+
+        const loadMaintItemIntoComposer = (id) => {
+            const it = _maintItems[id];
+            if (!it) return;
+            if (maintEditId) maintEditId.value = id;
+            if (maintMsg) maintMsg.value = it.message || '';
+            if (maintExpires) maintExpires.value = it.expiresAt ? toLocalDatetimeValue(it.expiresAt) : '';
+            const regions = Array.isArray(it.regions) ? it.regions : [];
+            maintRegionBox?.querySelectorAll('.maint-region-cb').forEach((cb) => {
+                cb.checked = regions.includes(cb.value);
+            });
+            _maintSelectedRoutes = new Set((it.routes || []).map(String));
+            renderMaintRouteChecks();
+            if (maintAddBtn) maintAddBtn.textContent = 'Update banner';
+            maintCancelEdit?.classList.remove('hidden');
+            maintModeBody?.classList.remove('hidden');
+            maintModeChevron?.classList.remove('-rotate-90');
+        };
+
+        const renderMaintRouteChecks = () => {
+            if (!maintRouteBox) return;
+            const regions = getMaintSelectedRegions();
+            const routesObj = (typeof ROUTES !== 'undefined' && ROUTES) || window.ROUTES || {};
+            const list = Object.values(routesObj).filter((r) =>
+                r && r.isActive !== false && r.id && (!regions.length || regions.includes(r.region))
+            );
+            if (!list.length) {
+                maintRouteBox.innerHTML = `<p class="text-[10px] text-orange-500 italic">${regions.length ? 'No routes for selected regions.' : 'Select a region to list its routes — or leave empty for all users.'}</p>`;
+                return;
+            }
+            list.sort((a, b) => String(a.region).localeCompare(b.region) || String(a.name || a.id).localeCompare(b.name || b.id));
+            maintRouteBox.innerHTML = list.map((r) => {
+                const label = Admin.formatRouteLabelPlain
+                    ? Admin.formatRouteLabelPlain(r.name || r.id)
+                    : (r.name || r.id);
+                const checked = _maintSelectedRoutes.has(r.id) ? 'checked' : '';
+                return `<label class="flex items-start gap-2 text-[10px] text-orange-900 dark:text-orange-100 cursor-pointer py-0.5">
+                    <input type="checkbox" class="maint-route-cb mt-0.5 rounded border-orange-300 text-orange-600 focus:ring-orange-500" value="${r.id}" ${checked}>
+                    <span><span class="font-black text-orange-600 dark:text-orange-300">${r.region}</span> · ${label}</span>
+                </label>`;
+            }).join('');
+            maintRouteBox.querySelectorAll('.maint-route-cb').forEach((cb) => {
+                cb.onchange = () => {
+                    if (cb.checked) _maintSelectedRoutes.add(cb.value);
+                    else _maintSelectedRoutes.delete(cb.value);
+                };
+            });
+        };
+
+        maintRegionBox?.querySelectorAll('.maint-region-cb').forEach((cb) => {
+            cb.onchange = () => {
+                const regions = getMaintSelectedRegions();
+                if (regions.length) {
+                    const routesObj = (typeof ROUTES !== 'undefined' && ROUTES) || window.ROUTES || {};
+                    _maintSelectedRoutes = new Set(
+                        Array.from(_maintSelectedRoutes).filter((id) => regions.includes(routesObj[id]?.region))
+                    );
+                }
+                renderMaintRouteChecks();
+            };
+        });
+        if (maintRoutesClear) {
+            maintRoutesClear.onclick = () => {
+                _maintSelectedRoutes = new Set();
+                renderMaintRouteChecks();
+            };
+        }
+        if (maintExpires && !maintExpires.value) maintExpires.value = defaultMaintExpiryValue();
+        renderMaintRouteChecks();
+
+        if (maintModeHeader && maintModeBody) {
+            maintModeHeader.onclick = () => {
+                maintModeBody.classList.toggle('hidden');
+                if (maintModeBody.classList.contains('hidden')) maintModeChevron?.classList.add('-rotate-90');
+                else maintModeChevron?.classList.remove('-rotate-90');
+            };
+        }
+        if (maintCancelEdit) {
+            maintCancelEdit.onclick = () => resetMaintComposer();
+        }
+
         const nukeHeader = document.getElementById('nuke-header-btn');
         const nukeBody = document.getElementById('nuke-body');
         const nukeChevron = document.getElementById('nuke-chevron');
@@ -10784,6 +12400,37 @@ const Admin = {
         const banDefaultHeader = document.getElementById('shadow-ban-default-header');
         const banDefaultBody = document.getElementById('shadow-ban-default-body');
         const banDefaultChevron = document.getElementById('shadow-ban-default-chevron');
+        const schedOverrideHeader = document.getElementById('sched-override-header');
+        const schedOverrideBody = document.getElementById('sched-override-body');
+        const schedOverrideChevron = document.getElementById('sched-override-chevron');
+        const schedOverrideRegions = document.getElementById('sched-override-regions');
+        const schedOverrideSave = document.getElementById('sched-override-save');
+        const SCHED_OVERRIDE_REGIONS = ['GP', 'WC', 'KZN', 'EC'];
+        const SCHED_DAY_TYPES = [
+            { value: 'public_holiday', label: 'Public Holiday' },
+            { value: 'saturday', label: 'Saturday' },
+            { value: 'weekday', label: 'Weekday' },
+            { value: 'sunday', label: 'Sunday (no service)' },
+        ];
+
+        if (schedOverrideRegions) {
+            schedOverrideRegions.innerHTML = SCHED_OVERRIDE_REGIONS.map((code) => `
+                <div class="sched-override-region bg-white/80 dark:bg-gray-900/50 rounded-lg border border-blue-100 dark:border-blue-900/40 p-3 space-y-2" data-region="${code}">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-blue-800 dark:text-blue-200">${code}</span>
+                        <label class="flex items-center gap-1.5 text-[10px] font-bold text-gray-600 dark:text-gray-300 cursor-pointer">
+                            <input type="checkbox" class="sched-override-active rounded border-gray-300 text-blue-600 focus:ring-blue-500" data-region="${code}">
+                            Active
+                        </label>
+                    </div>
+                    <select class="sched-override-day w-full h-9 px-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none" data-region="${code}">
+                        ${SCHED_DAY_TYPES.map((t) => `<option value="${t.value}">${t.label}</option>`).join('')}
+                    </select>
+                    <input type="text" class="sched-override-title w-full h-9 px-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none" data-region="${code}" placeholder="Popup title (e.g. Public holiday today)" maxlength="120">
+                    <textarea class="sched-override-body w-full min-h-[56px] px-2 py-1.5 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none resize-y" data-region="${code}" placeholder="Popup message explaining the situation" maxlength="500"></textarea>
+                </div>
+            `).join('');
+        }
 
         if (nukeHeader) {
             nukeHeader.onclick = () => {
@@ -10809,35 +12456,94 @@ const Admin = {
             };
         }
 
-        header.onclick = () => {
-            if (Admin.isGridMode) return;
-            body.classList.toggle('hidden');
-            if (body.classList.contains('hidden')) {
-                chevron.classList.add('-rotate-90');
-                header.classList.remove('mb-4');
-            } else {
-                chevron.classList.remove('-rotate-90');
-                header.classList.add('mb-4');
-            }
-        };
+        if (schedOverrideHeader && schedOverrideBody) {
+            schedOverrideHeader.onclick = () => {
+                schedOverrideBody.classList.toggle('hidden');
+                if (schedOverrideBody.classList.contains('hidden')) schedOverrideChevron?.classList.add('-rotate-90');
+                else schedOverrideChevron?.classList.remove('-rotate-90');
+            };
+        }
+
+        if (header) {
+            header.onclick = () => {
+                if (Admin.isGridMode) return;
+                body?.classList.toggle('hidden');
+                if (body?.classList.contains('hidden')) {
+                    chevron?.classList.add('-rotate-90');
+                    header.classList.remove('mb-4');
+                } else {
+                    chevron?.classList.remove('-rotate-90');
+                    header.classList.add('mb-4');
+                }
+            };
+        }
         
         async function checkStatus() {
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 
-                // Fetch Maintenance Payload
+                // Fetch Maintenance Payload (multi-item + legacy flat)
                 const resMaint = await fetch(`${dynamicEndpoint}config/maintenance.json`);
                 const maintData = await resMaint.json();
-                if (maintData !== null && typeof maintData === 'object') {
-                    toggle.checked = !!maintData.active;
-                    if (maintMsg) maintMsg.value = maintData.message || "";
+                _maintItems = {};
+                if (maintData === true) {
+                    _maintRootActive = true;
+                    if (toggle) toggle.checked = true;
+                    const id = `m_${Date.now().toString(36)}`;
+                    _maintItems[id] = {
+                        id, active: true, message: 'MAINTENANCE IN PROGRESS',
+                        regions: [], routes: [], expiresAt: null, createdAt: Date.now(), updatedAt: Date.now(),
+                    };
+                } else if (maintData !== null && typeof maintData === 'object') {
+                    _maintRootActive = maintData.active !== false;
+                    if (toggle) toggle.checked = _maintRootActive;
+                    if (maintData.items && typeof maintData.items === 'object') {
+                        Object.keys(maintData.items).forEach((key) => {
+                            const it = maintData.items[key] || {};
+                            _maintItems[String(it.id || key)] = {
+                                id: String(it.id || key),
+                                active: it.active !== false,
+                                message: it.message || '',
+                                regions: Array.isArray(it.regions) ? it.regions : [],
+                                routes: Array.isArray(it.routes) ? it.routes.map(String) : [],
+                                expiresAt: it.expiresAt || null,
+                                createdAt: it.createdAt || null,
+                                updatedAt: it.updatedAt || null,
+                                updatedBy: it.updatedBy || null,
+                            };
+                        });
+                    } else if (maintData.active || maintData.message) {
+                        // Migrate flat legacy into items map (in-memory; persisted on next save)
+                        const id = '_legacy';
+                        _maintItems[id] = {
+                            id,
+                            active: !!maintData.active,
+                            message: maintData.message || 'MAINTENANCE IN PROGRESS',
+                            regions: Array.isArray(maintData.regions) ? maintData.regions : [],
+                            routes: Array.isArray(maintData.routes) ? maintData.routes.map(String) : [],
+                            expiresAt: maintData.expiresAt || null,
+                            createdAt: maintData.createdAt || Date.now(),
+                            updatedAt: maintData.updatedAt || Date.now(),
+                            updatedBy: maintData.updatedBy || null,
+                        };
+                    }
                 } else {
-                    toggle.checked = !!maintData; // Legacy boolean fallback
-                    if (maintMsg) maintMsg.value = "";
+                    _maintRootActive = !!maintData;
+                    if (toggle) toggle.checked = _maintRootActive;
+                }
+                resetMaintComposer();
+                renderMaintActiveList();
+                if (countLiveMaint() > 0) {
+                    maintModeBody?.classList.remove('hidden');
+                    maintModeChevron?.classList.remove('-rotate-90');
                 }
 
                 try {
-                    const resBan = await fetch(`${dynamicEndpoint}config/shadow_ban_mode.json`);
+                    const banSecret = await Admin.getAuthKey();
+                    const banUrl = banSecret
+                        ? `${dynamicEndpoint}config/shadow_ban_mode.json?auth=${banSecret}`
+                        : `${dynamicEndpoint}config/shadow_ban_mode.json`;
+                    const resBan = await fetch(banUrl);
                     if (resBan.ok) {
                         const banCfg = await resBan.json();
                         const mode = (typeof trustNormalizeShadowBanMode === 'function')
@@ -10846,6 +12552,25 @@ const Admin = {
                         if (banModeSelect) banModeSelect.value = mode;
                     }
                 } catch (be) { /* optional config */ }
+
+                try {
+                    const resSched = await fetch(`${dynamicEndpoint}config/schedule_override.json`);
+                    if (resSched.ok) {
+                        const schedCfg = await resSched.json();
+                        const regionsCfg = schedCfg?.regions || {};
+                        SCHED_OVERRIDE_REGIONS.forEach((code) => {
+                            const r = regionsCfg[code] || {};
+                            const activeEl = schedOverrideRegions?.querySelector(`.sched-override-active[data-region="${code}"]`);
+                            const dayEl = schedOverrideRegions?.querySelector(`.sched-override-day[data-region="${code}"]`);
+                            const titleEl = schedOverrideRegions?.querySelector(`.sched-override-title[data-region="${code}"]`);
+                            const bodyEl = schedOverrideRegions?.querySelector(`.sched-override-body[data-region="${code}"]`);
+                            if (activeEl) activeEl.checked = !!r.active;
+                            if (dayEl && r.dayType) dayEl.value = r.dayType;
+                            if (titleEl) titleEl.value = r.title || '';
+                            if (bodyEl) bodyEl.value = r.body || '';
+                        });
+                    }
+                } catch (se) { /* optional config */ }
 
                 } catch(e) { console.warn("Failed to check system status"); }
         }
@@ -10879,31 +12604,181 @@ const Admin = {
             };
         }
 
-        if (toggle) {
-            toggle.addEventListener('change', async () => {
+        if (schedOverrideSave && schedOverrideRegions) {
+            schedOverrideSave.onclick = async () => {
                 try {
                     const secret = await Admin.getAuthKey();
                     if (!secret) {
-                        if (typeof showToast === 'function') showToast("Authentication required.", "error");
-                        toggle.checked = !toggle.checked;
+                        if (typeof showToast === 'function') showToast('Authentication required.', 'error');
                         return;
                     }
                     const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                    const res = await window.guardianFetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
+                    const regions = {};
+                    SCHED_OVERRIDE_REGIONS.forEach((code) => {
+                        regions[code] = {
+                            active: !!schedOverrideRegions.querySelector(`.sched-override-active[data-region="${code}"]`)?.checked,
+                            dayType: schedOverrideRegions.querySelector(`.sched-override-day[data-region="${code}"]`)?.value || 'public_holiday',
+                            title: (schedOverrideRegions.querySelector(`.sched-override-title[data-region="${code}"]`)?.value || '').trim(),
+                            body: (schedOverrideRegions.querySelector(`.sched-override-body[data-region="${code}"]`)?.value || '').trim(),
+                            updatedAt: Date.now(),
+                        };
+                    });
+                    const payload = {
+                        updatedAt: Date.now(),
+                        updatedBy: Admin.currentUser?.email || 'Admin',
+                        regions,
+                    };
+                    const res = await window.guardianFetch(`${dynamicEndpoint}config/schedule_override.json?auth=${secret}`, {
                         method: 'PUT',
-                        body: JSON.stringify({ active: toggle.checked, message: maintMsg && maintMsg.value || "" })
+                        body: JSON.stringify(payload),
                     }, 10000);
-                    if (res.ok) {
-                        if (typeof showToast === 'function') showToast(`Maintenance: ${toggle.checked ? "ENABLED" : "DISABLED"}`, "success");
-                    } else {
-                        throw new Error("Auth failed");
-                    }
-                } catch(e) {
-                    if (typeof showToast === 'function') showToast("Failed to update status.", "error");
-                    toggle.checked = !toggle.checked; 
+                    if (!res.ok) throw new Error('Auth failed');
+                    if (typeof showToast === 'function') showToast('Schedule overrides saved', 'success');
+                } catch (e) {
+                    if (typeof showToast === 'function') showToast('Failed to save schedule overrides.', 'error');
+                }
+            };
+        }
+
+        const saveMaintenanceConfig = async (rootActiveOverride, successMsg) => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) {
+                if (typeof showToast === 'function') showToast('Authentication required.', 'error');
+                return false;
+            }
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            if (typeof rootActiveOverride === 'boolean') _maintRootActive = rootActiveOverride;
+            const payload = buildMaintFirebasePayload(_maintRootActive);
+            const res = await window.guardianFetch(`${dynamicEndpoint}config/maintenance.json?auth=${secret}`, {
+                method: 'PUT',
+                body: JSON.stringify(payload),
+            }, 10000);
+            if (!res.ok) throw new Error('Auth failed');
+            const live = countLiveMaint();
+            if (typeof showToast === 'function') {
+                showToast(successMsg || `Maintenance saved · ${live} live`, 'success');
+            }
+            renderMaintActiveList();
+            if (typeof window.checkMaintenanceStatus === 'function') {
+                try { window.checkMaintenanceStatus(); } catch { /* ignore */ }
+            }
+            if (typeof Admin.fetchActionRequired === 'function') {
+                try { Admin.fetchActionRequired(); } catch { /* ignore */ }
+            }
+            return true;
+        };
+
+        const collectComposerItem = () => {
+            const message = (maintMsg?.value || '').trim();
+            if (!message) {
+                if (typeof showToast === 'function') showToast('Enter a banner message.', 'error');
+                return null;
+            }
+            const regions = getMaintSelectedRegions();
+            const routes = Array.from(_maintSelectedRoutes);
+            let expiresAt = null;
+            if (maintExpires?.value) {
+                const t = new Date(maintExpires.value).getTime();
+                if (!Number.isFinite(t)) {
+                    if (typeof showToast === 'function') showToast('Invalid expiry date.', 'error');
+                    return null;
+                }
+                expiresAt = t;
+            }
+            const editId = (maintEditId?.value || '').trim();
+            const id = editId || `m_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+            const prev = _maintItems[id] || {};
+            return {
+                id,
+                active: prev.active !== false,
+                message,
+                regions,
+                routes,
+                expiresAt,
+                createdAt: prev.createdAt || Date.now(),
+                updatedAt: Date.now(),
+                updatedBy: Admin.currentUser?.email || 'Admin',
+            };
+        };
+
+        const extendMaintItem = async (id) => {
+            const it = _maintItems[id];
+            if (!it || !it.expiresAt) return;
+            it.expiresAt = Number(it.expiresAt) + 86400000;
+            it.updatedAt = Date.now();
+            try {
+                await saveMaintenanceConfig(undefined, 'Maintenance extended +24h');
+            } catch (e) {
+                if (typeof showToast === 'function') showToast('Failed to extend.', 'error');
+            }
+        };
+
+        const toggleMaintItemActive = async (id) => {
+            const it = _maintItems[id];
+            if (!it) return;
+            it.active = it.active === false;
+            it.updatedAt = Date.now();
+            try {
+                await saveMaintenanceConfig(undefined, it.active ? 'Banner enabled' : 'Banner disabled');
+            } catch (e) {
+                if (typeof showToast === 'function') showToast('Failed to update banner.', 'error');
+            }
+        };
+
+        const deleteMaintItem = async (id) => {
+            const confirmed = await Admin.secureConfirm('Delete banner', 'Remove this maintenance banner?');
+            if (!confirmed) return;
+            delete _maintItems[id];
+            if (maintEditId?.value === id) resetMaintComposer();
+            try {
+                await saveMaintenanceConfig(undefined, 'Banner deleted');
+            } catch (e) {
+                if (typeof showToast === 'function') showToast('Failed to delete banner.', 'error');
+            }
+        };
+
+        if (toggle) {
+            toggle.addEventListener('change', async () => {
+                try {
+                    await saveMaintenanceConfig(toggle.checked, `Maintenance master: ${toggle.checked ? 'ON' : 'PAUSED'}`);
+                } catch (e) {
+                    if (typeof showToast === 'function') showToast('Failed to update status.', 'error');
+                    toggle.checked = !toggle.checked;
+                    _maintRootActive = toggle.checked;
                 }
             });
         }
+
+        if (maintAddBtn) {
+            maintAddBtn.onclick = async () => {
+                const item = collectComposerItem();
+                if (!item) return;
+                _maintItems[item.id] = item;
+                if (!_maintRootActive && toggle) {
+                    toggle.checked = true;
+                    _maintRootActive = true;
+                }
+                try {
+                    const editing = !!(maintEditId?.value);
+                    await saveMaintenanceConfig(undefined, editing ? 'Banner updated' : 'Banner added');
+                    resetMaintComposer();
+                } catch (e) {
+                    if (typeof showToast === 'function') showToast('Failed to save banner.', 'error');
+                }
+            };
+        }
+
+        // Expose for GSM resolve/extend
+        Admin._saveMaintenanceItems = saveMaintenanceConfig;
+        Admin._getMaintenanceItems = () => ({ ..._maintItems });
+        Admin._setMaintenanceItem = (id, item) => { if (item) _maintItems[id] = item; else delete _maintItems[id]; };
+        Admin._reloadMaintenanceUi = () => { renderMaintActiveList(); };
+        Admin.openMaintenanceAccordion = () => {
+            body?.classList.remove('hidden');
+            chevron?.classList.remove('-rotate-90');
+            maintModeBody?.classList.remove('hidden');
+            maintModeChevron?.classList.remove('-rotate-90');
+        };
 
         if (nukeFireBtn) {
             nukeFireBtn.onclick = async () => {
@@ -10988,9 +12863,12 @@ const Admin = {
                         <button id="roadmap-refresh-btn" class="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-500 hover:text-blue-500 transition-colors focus:outline-none shadow-sm shrink-0" title="Refresh">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                         </button>
-                        <button id="roadmap-export-btn" class="p-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors focus:outline-none shadow-sm shrink-0" title="Download board (.txt)">
-                            ${Admin.icon('download', 'w-4 h-4')}
-                        </button>
+                        <select id="roadmap-date-filter" class="h-9 max-w-[7.5rem] px-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-[10px] font-bold rounded-lg focus:ring-blue-500 outline-none shadow-sm shrink-0" title="Filter by date">
+                            <option value="all">All dates</option>
+                            <option value="7">Last 7 days</option>
+                            <option value="30">Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                        </select>
                         <button onclick="Admin.openTicketModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-md focus:outline-none shrink-0">
                             ${Admin.icon('plus', 'w-3.5 h-3.5')} New Ticket
                         </button>
@@ -10999,7 +12877,7 @@ const Admin = {
 
                 <!-- Kanban Board Area (Responsive Grid) -->
                 <div class="overflow-x-auto pb-4 custom-scrollbar snap-x flex-grow w-full">
-                    <!-- 🛡️ GUARDIAN UX FIX: Fluid Grid on Desktop, Snap Flex on Mobile -->
+                    <!-- GUARDIAN UX FIX: Fluid Grid on Desktop, Snap Flex on Mobile -->
                     <div class="flex md:grid md:grid-cols-3 gap-4 h-full items-start px-1 w-full min-w-max md:min-w-0" id="roadmap-kanban-board">
                         
                         <!-- Column: Backlog -->
@@ -11062,10 +12940,7 @@ const Admin = {
         const body = document.getElementById('roadmap-body');
         const chevron = document.getElementById('roadmap-chevron');
         const refreshBtn = document.getElementById('roadmap-refresh-btn');
-        const roadmapExportBtn = document.getElementById('roadmap-export-btn');
-        if (roadmapExportBtn) {
-            roadmapExportBtn.onclick = () => Admin.exportColumn('all');
-        }
+        Admin._roadmapDateFilter = 'all';
 
         header.onclick = () => {
             if (Admin.isGridMode) return;
@@ -11096,6 +12971,10 @@ const Admin = {
             
             const searchInput = document.getElementById('roadmap-search-input');
             const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            const dateFilterEl = document.getElementById('roadmap-date-filter');
+            const dateFilter = (dateFilterEl?.value || Admin._roadmapDateFilter || 'all');
+            Admin._roadmapDateFilter = dateFilter;
+            const dateCutoff = dateFilter === 'all' ? 0 : (Date.now() - (Number(dateFilter) * 86400000));
 
             // Quick escapeHTML helper
             const safeHTML = (str) => {
@@ -11120,6 +12999,10 @@ const Admin = {
                 if (searchTerm) {
                     const searchableText = `${ticket.title} ${ticket.description || ''} ${ticket.source || ''}`.toLowerCase();
                     if (!searchableText.includes(searchTerm)) return; // Skip if no match
+                }
+                if (dateCutoff > 0) {
+                    const ts = Number(ticket.timestamp || ticket.createdAt || 0);
+                    if (!ts || ts < dateCutoff) return;
                 }
 
                 const status = ticket.status || 'backlog';
@@ -11156,45 +13039,45 @@ const Admin = {
 
                 let moveControls = '';
                 if (status === 'backlog') {
-                    moveControls = `<button class="text-gray-400 hover:text-blue-500 p-2 md:p-1 rounded hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'progress')" title="Move to Progress">${rightArrowIcon}</button>`;
+                    moveControls = `<button class="text-gray-400 hover:text-blue-500 p-2 rounded hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'progress')" title="Move to Progress">${rightArrowIcon}</button>`;
                 } else if (status === 'progress') {
                     moveControls = `
-                        <button class="text-gray-400 hover:text-blue-500 p-2 md:p-1 rounded hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'backlog')" title="Move to Backlog">${leftArrowIcon}</button>
-                        <button class="text-gray-400 hover:text-green-500 p-2 md:p-1 rounded hover:bg-green-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'done')" title="Move to Done">${rightArrowIcon}</button>
+                        <button class="text-gray-400 hover:text-blue-500 p-2 rounded hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'backlog')" title="Move to Backlog">${leftArrowIcon}</button>
+                        <button class="text-gray-400 hover:text-green-500 p-2 rounded hover:bg-green-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'done')" title="Move to Done">${rightArrowIcon}</button>
                     `;
                 } else if (status === 'done') {
-                    moveControls = `<button class="text-gray-400 hover:text-blue-500 p-2 md:p-1 rounded hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'progress')" title="Move to Progress">${leftArrowIcon}</button>`;
+                    moveControls = `<button class="text-gray-400 hover:text-blue-500 p-2 rounded hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.updateTicketStatus('${ticket.id}', 'progress')" title="Move to Progress">${leftArrowIcon}</button>`;
                 }
 
                 const cardHtml = `
                     <div class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-3 rounded-lg shadow-sm hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer group flex flex-col gap-2 relative overflow-hidden" onclick="Admin.openViewModal('${ticket.id}')">
-                        <div class="flex justify-between items-start gap-2">
-                            <div class="flex items-start min-w-0 pr-1 gap-1.5">
-                                ${typeIcon}
-                                <h4 class="font-bold text-gray-900 dark:text-gray-200 text-sm leading-tight line-clamp-2 break-words">${safeTitle}</h4>
-                            </div>
-                            <div class="flex gap-1 md:gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0 bg-white dark:bg-gray-800 pl-1 relative z-10">
+                        <div class="flex items-start min-w-0 gap-1.5">
+                            ${typeIcon}
+                            <h4 class="font-bold text-gray-900 dark:text-gray-200 text-sm leading-tight line-clamp-2 break-words min-w-0 flex-1">${safeTitle}</h4>
+                        </div>
+
+                        <div class="relative flex flex-col gap-1 min-h-[2.5rem]">
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed pr-16">${shortDesc}</p>
+                            ${sourceBadge}
+                            <span class="absolute bottom-0 right-0 text-[9px] text-gray-400 dark:text-gray-500 font-mono whitespace-nowrap">
+                                ${dateStr.split(',')[0]}
+                            </span>
+                        </div>
+                        
+                        <div class="flex items-center justify-between gap-2 mt-0.5 pt-2 border-t border-gray-100 dark:border-gray-700/50">
+                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider flex items-center shrink-0 ${pStyles.bg} ${pStyles.border} ${pStyles.text}">
+                                ${prioritySvg} ${(ticket.severity || 'medium')}
+                            </span>
+                            <div class="flex items-center gap-0.5 shrink-0">
                                 ${moveControls}
-                                <div class="w-px h-4 bg-gray-200 dark:bg-gray-600 my-auto mx-1 md:mx-0.5"></div>
-                                <button class="text-gray-400 hover:text-blue-500 p-2 md:p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.openTicketModal('${ticket.id}')" title="Edit Ticket">
+                                <div class="w-px h-4 bg-gray-200 dark:bg-gray-600 my-auto mx-0.5"></div>
+                                <button class="text-gray-400 hover:text-blue-500 p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.openTicketModal('${ticket.id}')" title="Edit Ticket">
                                     ${editIcon}
                                 </button>
-                                <button class="text-gray-400 hover:text-red-500 p-2 md:p-1 rounded hover:bg-red-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.deleteTicket('${ticket.id}')" title="Delete Ticket">
+                                <button class="text-gray-400 hover:text-red-500 p-2 rounded hover:bg-red-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" onclick="event.stopPropagation(); Admin.deleteTicket('${ticket.id}')" title="Delete Ticket">
                                     ${trashIcon}
                                 </button>
                             </div>
-                        </div>
-                        
-                        <p class="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">${shortDesc}</p>
-                        ${sourceBadge}
-                        
-                        <div class="flex items-center justify-between mt-1 pt-2 border-t border-gray-100 dark:border-gray-700/50">
-                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider flex items-center ${pStyles.bg} ${pStyles.border} ${pStyles.text}">
-                                ${prioritySvg} ${(ticket.severity || 'medium')}
-                            </span>
-                            <span class="text-[9px] text-gray-400 dark:text-gray-500 font-mono">
-                                ${dateStr.split(',')[0]}
-                            </span>
                         </div>
                     </div>
                 `;
@@ -11204,7 +13087,7 @@ const Admin = {
                 else if (status === 'done') colDone.insertAdjacentHTML('beforeend', cardHtml);
             });
 
-            // Update Counts — hide badges when zero
+            // Update Counts - hide badges when zero
             const setRoadmapCount = (id, n) => {
                 const el = document.getElementById(id);
                 if (!el) return;
@@ -11225,6 +13108,13 @@ const Admin = {
         if (searchInput) {
             searchInput.addEventListener('input', Admin.renderRoadmapList);
         }
+        const dateFilterInput = document.getElementById('roadmap-date-filter');
+        if (dateFilterInput) {
+            dateFilterInput.addEventListener('change', () => {
+                Admin._roadmapDateFilter = dateFilterInput.value || 'all';
+                Admin.renderRoadmapList();
+            });
+        }
 
         Admin.fetchRoadmap = async () => {
             const secret = await Admin.getAuthKey();
@@ -11234,7 +13124,7 @@ const Admin = {
             
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                // 🛡️ GUARDIAN FIX: Added cache-buster ?t=Date.now() to prevent ghost syncs
+                // GUARDIAN FIX: Added cache-buster ?t=Date.now() to prevent ghost syncs
                 const res = await window.guardianFetch(`${dynamicEndpoint}roadmap.json?auth=${secret}&t=${Date.now()}`, {}, 10000);
                 
                 if (!res.ok) throw new Error("HTTP " + res.status);
@@ -11264,7 +13154,7 @@ const Admin = {
                     body: JSON.stringify({ status: newStatus, updatedAt: Date.now() })
                 });
                 
-                // 🛡️ GUARDIAN FIX: Catch silent HTTP rejections
+                // GUARDIAN FIX: Catch silent HTTP rejections
                 if (!res.ok) throw new Error("Failed to patch ticket.");
                 
                 // Update local RAM and re-render instantly
@@ -11289,7 +13179,7 @@ const Admin = {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 const res = await fetch(`${dynamicEndpoint}roadmap/${ticketId}.json?auth=${secret}`, { method: 'DELETE' });
                 
-                // 🛡️ GUARDIAN FIX: Catch silent HTTP rejections
+                // GUARDIAN FIX: Catch silent HTTP rejections
                 if (!res.ok) throw new Error("Failed to delete ticket.");
 
                 Admin.cachedRoadmapData = Admin.cachedRoadmapData.filter(t => t.id !== ticketId);
@@ -11491,7 +13381,7 @@ const Admin = {
                 </div>
             `;
 
-            // Wire chip selectors → hidden inputs
+            // Wire chip selectors ? hidden inputs
             const chipMaps = { type: typeOpts, severity: sevOpts, status: statusOpts };
             modal.querySelectorAll('.tkt-chip').forEach((btn) => {
                 btn.addEventListener('click', () => {
@@ -11541,7 +13431,7 @@ const Admin = {
                         body: JSON.stringify(payload)
                     });
 
-                    // 🛡️ GUARDIAN FIX: Catch silent HTTP rejections
+                    // GUARDIAN FIX: Catch silent HTTP rejections
                     if (!res.ok) throw new Error("Failed to PUT ticket data.");
 
                     if (typeof showToast === 'function') showToast("Ticket saved!", "success");
@@ -11559,10 +13449,10 @@ const Admin = {
 
         // Export Engine
         Admin.ticketsToTxt = (tickets, heading = 'OPERATIONS ROADMAP') => {
-            let txt = `NEXT TRAIN — ${heading}\nExported: ${Admin.formatDate(Date.now())}\nTickets: ${tickets.length}\n${'='.repeat(48)}\n\n`;
+            let txt = `NEXT TRAIN - ${heading}\nExported: ${Admin.formatDate(Date.now())}\nTickets: ${tickets.length}\n${'='.repeat(48)}\n\n`;
             tickets.forEach((t, i) => {
                 txt += `#${i + 1}  [${String(t.status || 'backlog').toUpperCase()}] ${t.title || '(untitled)'}\n`;
-                txt += `  Type: ${t.type || '—'} · Severity: ${t.severity || '—'} · ID: ${t.id || '—'}\n`;
+                txt += `  Type: ${t.type || '-'} - Severity: ${t.severity || '-'} - ID: ${t.id || '-'}\n`;
                 if (t.source) txt += `  Source: ${t.source}\n`;
                 if (t.createdAt) txt += `  Created: ${Admin.formatDate(t.createdAt)}\n`;
                 if (t.updatedAt) txt += `  Updated: ${Admin.formatDate(t.updatedAt)}\n`;
