@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="en" class> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>Northern Line Train Times | Metrorail Next Train</title><meta name="description" content="Northern Line Metrorail routes in Western Cape. Open Next Train for live boards and full weekend/weekday grids. Check live Western Cape Metrorail schedules offline in Metrorail Next Train."><meta name="robots" content="index, follow"><link rel="canonical" href="https://nexttrain.co.za/corridors/western-cape-northern-line.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/corridors/western-cape-northern-line.html"><meta property="og:title" content="Northern Line Train Times | Metrorail Next Train"><meta property="og:description" content="Northern Line Metrorail routes in Western Cape. Open Next Train for live boards and full weekend/weekday grids. Check live Western Cape Metrorail schedules offline in Metrorail Next Train."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="Northern Line Train Times | Metrorail Next Train"><meta name="twitter:description" content="Northern Line Metrorail routes in Western Cape. Open Next Train for live boards and full weekend/weekday grids. Check live Western Cape Metrorail schedules offline in Metrorail Next Train."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>(function(){const base = "/";
 
       window.__NT_BASE__ = base;
-    })();</script><!-- SEO entity = full brand; short name for iOS homescreen (manifest short_name) --><meta name="application-name" content="Metrorail Next Train"><meta name="apple-mobile-web-app-title" content="Next Train"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><!-- Lean font set for SEO pages (CWV) — avoid full Inter weight axis --><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet"><script>(function(){const forceDark = false;
+    })();</script><!-- SEO entity = full brand; short name for iOS homescreen (manifest short_name) --><meta name="application-name" content="Metrorail Next Train"><meta name="apple-mobile-web-app-title" content="Next Train"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap"></noscript><script>(function(){const forceDark = false;
 const forceLight = false;
 
       try {
@@ -34,10 +34,9 @@ const forceLight = false;
           window.history.replaceState({}, '', clean);
         }
       } catch (e) {}
-    })();</script><!-- Google Analytics 4 --><script async src="https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX"></script><script>
+    })();</script><!-- Device identity is not required on SEO pages; idle-defer GA4 so LCP keeps the pipe --><script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
       var gaConfig = {};
       var isDevAnalytics = false;
       var userRegion = 'GP';
@@ -47,9 +46,20 @@ const forceLight = false;
         if (saved === 'GP' || saved === 'WC' || saved === 'KZN' || saved === 'EC') userRegion = saved;
       } catch(e) {}
       if (isDevAnalytics) gaConfig['traffic_type'] = 'internal';
-      // Selected app region (not IP) — keeps SEO pages in the same regional buckets
       gaConfig['user_properties'] = { crm_region: userRegion };
-      gtag('config', 'G-JM5DH6ERVX', gaConfig);
+      window.__ntGaConfig = gaConfig;
+      var bootGa = function () {
+        if (window.__ntGaBooted) return;
+        window.__ntGaBooted = true;
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX';
+        document.head.appendChild(s);
+        gtag('js', new Date());
+        gtag('config', 'G-JM5DH6ERVX', window.__ntGaConfig || {});
+      };
+      if ('requestIdleCallback' in window) requestIdleCallback(bootGa, { timeout: 4000 });
+      else window.addEventListener('load', function () { setTimeout(bootGa, 2500); });
     </script><!-- Microsoft Clarity — deferred so LCP/INP on thin SEO pages stay free of early third-party work --><script>
       var blockClarity = false;
       try { blockClarity = localStorage.getItem('analytics_ignore') === 'true'; } catch(e) {}
@@ -98,8 +108,8 @@ const forceLight = false;
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"Northern Line Train Times | Metrorail Next Train","description":"Northern Line Metrorail routes in Western Cape. Open Next Train for live boards and full weekend/weekday grids. Check live Western Cape Metrorail schedules offline in Metrorail Next Train.","about":"Northern Line","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.BCN65io8.css">
-<link rel="stylesheet" href="/_astro/_slug_.Cy6tKTBe.css"></head> <body class="font-[Inter,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300">   <button id="seo-theme-toggle" type="button" class="fixed top-4 right-4 z-50 p-2.5 rounded-full bg-white/90 dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 shadow-md backdrop-blur-md focus:outline-none hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" aria-label="Toggle light and dark mode" title="Toggle theme"> <svg id="seo-theme-icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path> </svg> <svg id="seo-theme-icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path> </svg> </button> <script>
+    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"Northern Line Train Times | Metrorail Next Train","description":"Northern Line Metrorail routes in Western Cape. Open Next Train for live boards and full weekend/weekday grids. Check live Western Cape Metrorail schedules offline in Metrorail Next Train.","about":"Northern Line","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.cFy6r28d.css">
+<link rel="stylesheet" href="/_astro/_slug_.Cy6tKTBe.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300">   <button id="seo-theme-toggle" type="button" class="fixed top-4 right-4 z-50 p-2.5 rounded-full bg-white/90 dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 shadow-md backdrop-blur-md focus:outline-none hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" aria-label="Toggle light and dark mode" title="Toggle theme"> <svg id="seo-theme-icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path> </svg> <svg id="seo-theme-icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path> </svg> </button> <script>
   (function () {
     var btn = document.getElementById('seo-theme-toggle');
     if (!btn) return;
