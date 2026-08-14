@@ -54,27 +54,40 @@ const forceLight = false;
         var s = document.createElement('script');
         s.async = true;
         s.src = 'https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX';
+        s.onload = function () {
+          window.__ntGaReady = true;
+          try { window.dispatchEvent(new Event('nt-ga-ready')); } catch (e) {}
+        };
+        s.onerror = function () { window.__ntGaBooted = false; };
         document.head.appendChild(s);
         gtag('js', new Date());
         gtag('config', 'G-JM5DH6ERVX', window.__ntGaConfig || {});
       };
       if ('requestIdleCallback' in window) requestIdleCallback(bootGa, { timeout: 4000 });
       else window.addEventListener('load', function () { setTimeout(bootGa, 2500); });
-    </script><!-- Microsoft Clarity — deferred so LCP/INP on thin SEO pages stay free of early third-party work --><script>
-      var blockClarity = false;
-      try { blockClarity = localStorage.getItem('analytics_ignore') === 'true'; } catch(e) {}
-      if (!blockClarity) {
-        var bootClarity = function () {
-          (function(c,l,a,r,i,t,y){
-            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-            t.crossOrigin="anonymous";
-            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-          })(window, document, "clarity", "script", "v1aj19921i");
-        };
-        if ('requestIdleCallback' in window) requestIdleCallback(bootClarity, { timeout: 4000 });
-        else window.addEventListener('load', function () { setTimeout(bootClarity, 2500); });
-      }
+    </script><!-- Microsoft Clarity — same idle deferral as GA4 (timeout 4s) --><script>
+      var bootClarity = function () {
+        if (window.__ntClarityBooted) return;
+        window.__ntClarityBooted = true;
+        var blockClarity = false;
+        try { blockClarity = localStorage.getItem('analytics_ignore') === 'true'; } catch(e) {}
+        if (blockClarity) return;
+        (function(c,l,a,r,i,t,y){
+          c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+          t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+          t.crossOrigin="anonymous";
+          y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "v1aj19921i");
+        try {
+          var id = window.NEXT_TRAIN_DEVICE_ID || localStorage.getItem('next_train_device_id');
+          if (id && typeof clarity === 'function') {
+            clarity('identify', id);
+            clarity('set', 'custom_id', id);
+          }
+        } catch (e) {}
+      };
+      if ('requestIdleCallback' in window) requestIdleCallback(bootClarity, { timeout: 4000 });
+      else window.addEventListener('load', function () { setTimeout(bootClarity, 2500); });
     </script><!-- GUARDIAN: Sentry (deferred — SPA parity on secondary pages) --><script>
       window.addEventListener('load', function () {
         setTimeout(function () {
@@ -108,8 +121,8 @@ const forceLight = false;
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"CAPE TOWN to EERSTE RIVER Train Times | Metrorail Next Train","description":"Live Metrorail train times for CAPE TOWN ↔ EERSTE RIVER (Western Cape). Open Next Train for the next departure, fares, and full timetable. Check live Western Cape Metrorail schedules offline in Metrorail Next Train.","about":"CAPE TOWN ↔ EERSTE RIVER","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.cFy6r28d.css">
-<link rel="stylesheet" href="/_astro/_slug_.Cy6tKTBe.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300">   <button id="seo-theme-toggle" type="button" class="fixed top-4 right-4 z-50 p-2.5 rounded-full bg-white/90 dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 shadow-md backdrop-blur-md focus:outline-none hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" aria-label="Toggle light and dark mode" title="Toggle theme"> <svg id="seo-theme-icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path> </svg> <svg id="seo-theme-icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path> </svg> </button> <script>
+    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"CAPE TOWN to EERSTE RIVER Train Times | Metrorail Next Train","description":"Live Metrorail train times for CAPE TOWN ↔ EERSTE RIVER (Western Cape). Open Next Train for the next departure, fares, and full timetable. Check live Western Cape Metrorail schedules offline in Metrorail Next Train.","about":"CAPE TOWN ↔ EERSTE RIVER","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.BzpcnrPi.css">
+<link rel="stylesheet" href="/_astro/_slug_.BI4Wnnsn.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300">   <button id="seo-theme-toggle" type="button" class="fixed top-4 right-4 z-50 p-2.5 rounded-full bg-white/90 dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 shadow-md backdrop-blur-md focus:outline-none hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" aria-label="Toggle light and dark mode" title="Toggle theme"> <svg id="seo-theme-icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path> </svg> <svg id="seo-theme-icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path> </svg> </button> <script>
   (function () {
     var btn = document.getElementById('seo-theme-toggle');
     if (!btn) return;

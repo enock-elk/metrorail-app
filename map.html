@@ -54,27 +54,40 @@ const forceLight = false;
         var s = document.createElement('script');
         s.async = true;
         s.src = 'https://www.googletagmanager.com/gtag/js?id=G-JM5DH6ERVX';
+        s.onload = function () {
+          window.__ntGaReady = true;
+          try { window.dispatchEvent(new Event('nt-ga-ready')); } catch (e) {}
+        };
+        s.onerror = function () { window.__ntGaBooted = false; };
         document.head.appendChild(s);
         gtag('js', new Date());
         gtag('config', 'G-JM5DH6ERVX', window.__ntGaConfig || {});
       };
       if ('requestIdleCallback' in window) requestIdleCallback(bootGa, { timeout: 4000 });
       else window.addEventListener('load', function () { setTimeout(bootGa, 2500); });
-    </script><!-- Microsoft Clarity — deferred so LCP/INP on thin SEO pages stay free of early third-party work --><script>
-      var blockClarity = false;
-      try { blockClarity = localStorage.getItem('analytics_ignore') === 'true'; } catch(e) {}
-      if (!blockClarity) {
-        var bootClarity = function () {
-          (function(c,l,a,r,i,t,y){
-            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-            t.crossOrigin="anonymous";
-            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-          })(window, document, "clarity", "script", "v1aj19921i");
-        };
-        if ('requestIdleCallback' in window) requestIdleCallback(bootClarity, { timeout: 4000 });
-        else window.addEventListener('load', function () { setTimeout(bootClarity, 2500); });
-      }
+    </script><!-- Microsoft Clarity — same idle deferral as GA4 (timeout 4s) --><script>
+      var bootClarity = function () {
+        if (window.__ntClarityBooted) return;
+        window.__ntClarityBooted = true;
+        var blockClarity = false;
+        try { blockClarity = localStorage.getItem('analytics_ignore') === 'true'; } catch(e) {}
+        if (blockClarity) return;
+        (function(c,l,a,r,i,t,y){
+          c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+          t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+          t.crossOrigin="anonymous";
+          y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "v1aj19921i");
+        try {
+          var id = window.NEXT_TRAIN_DEVICE_ID || localStorage.getItem('next_train_device_id');
+          if (id && typeof clarity === 'function') {
+            clarity('identify', id);
+            clarity('set', 'custom_id', id);
+          }
+        } catch (e) {}
+      };
+      if ('requestIdleCallback' in window) requestIdleCallback(bootClarity, { timeout: 4000 });
+      else window.addEventListener('load', function () { setTimeout(bootClarity, 2500); });
     </script><!-- GUARDIAN: Sentry (deferred — SPA parity on secondary pages) --><script>
       window.addEventListener('load', function () {
         setTimeout(function () {
@@ -117,8 +130,8 @@ const forceLight = false;
         document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
       } catch (e) {}
     })();
-  </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Metrorail Next Train Network Map","url":"https://nexttrain.co.za/map.html","applicationCategory":"TravelApplication","operatingSystem":"Any","description":"Interactive Metrorail network map for Gauteng, Western Cape, KZN, and Eastern Cape. View active train routes, stations, and live service disruptions.","offers":{"@type":"Offer","price":"0","priceCurrency":"ZAR"}}</script><link rel="stylesheet" href="/_astro/vendor.cFy6r28d.css">
-<link rel="stylesheet" href="/_astro/_slug_.Cy6tKTBe.css">
+  </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Metrorail Next Train Network Map","url":"https://nexttrain.co.za/map.html","applicationCategory":"TravelApplication","operatingSystem":"Any","description":"Interactive Metrorail network map for Gauteng, Western Cape, KZN, and Eastern Cape. View active train routes, stations, and live service disruptions.","offers":{"@type":"Offer","price":"0","priceCurrency":"ZAR"}}</script><link rel="stylesheet" href="/_astro/vendor.BzpcnrPi.css">
+<link rel="stylesheet" href="/_astro/_slug_.BI4Wnnsn.css">
 <link rel="stylesheet" href="/_astro/map.CKEgkh0Z.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300 bg-gray-100 dark:bg-gray-900 m-0 p-0 overflow-hidden h-full">       <h1 class="sr-only">Interactive Metrorail Network Map</h1> <noscript> <div class="p-6 max-w-lg mx-auto text-center text-gray-800"> <p class="font-bold mb-2">Metrorail network map</p> <p class="text-sm mb-4">Enable JavaScript to explore the interactive map, or open the main app for live train times.</p> <p class="text-sm"> <a href="/">Open Next Train</a>
 ·
 <a href="/guide.html">Commuter guide</a> </p> </div> </noscript> <div id="map-back-wrap" class="fixed top-3 left-3 z-[1001]"> <a id="map-back-link" href="/" class="map-back-btn" aria-label="Back to Next Train"> <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
@@ -127,7 +140,7 @@ Back
 const REGIONS = {"GP":{"dbNode":"schedules/gauteng.json","rootNode":"full-database.json","name":"Gauteng"},"WC":{"dbNode":"schedules/westerncape.json","rootNode":"full-database.json","name":"Western Cape"},"KZN":{"dbNode":"schedules/kzn.json","rootNode":"full-database.json","name":"KwaZulu-Natal"},"EC":{"dbNode":"schedules/easterncape.json","rootNode":"full-database.json","name":"Eastern Cape"}};
 const PIPELINE_SOURCES = {"CLOUDFLARE":{"url":"https://nexttrain-cache.enock.workers.dev/","useRootNode":false},"GITHUB":{"url":"https://cdn.jsdelivr.net/gh/enock-elk/metrorail-app@main/data/","useRootNode":true},"FIREBASE":{"url":"https://metrorail-next-train-default-rtdb.firebaseio.com/","useRootNode":false}};
 const DYNAMIC_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";
-const APP_VERSION = "V8_08.10.1";
+const APP_VERSION = "V8_08.15.1";
 const APP_BASE = "/";
 const REGION_SEO_SLUGS = {"GP":"gauteng","WC":"western-cape","KZN":"kwazulu-natal","EC":"eastern-cape"};
 
@@ -138,7 +151,7 @@ const REGION_SEO_SLUGS = {"GP":"gauteng","WC":"western-cape","KZN":"kwazulu-nata
     window.APP_VERSION = APP_VERSION;
     window.APP_BASE = APP_BASE;
     window.REGION_SEO_SLUGS = REGION_SEO_SLUGS;
-  })();</script> <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script> <script src="/js/map-app.js?v=V8_08.10.1"></script> <script>
+  })();</script> <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script> <script src="/js/map-app.js?v=V8_08.15.1"></script> <script>
     (function () {
       function inAppSheet() {
         try {
