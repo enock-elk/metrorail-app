@@ -609,6 +609,21 @@ const Admin = {
         });
     },
 
+    /** Two-step Clear DB: first yes/no popup, then type CLEAR. */
+    confirmClearDb: async function(what) {
+        const label = String(what || 'this database');
+        const first = await Admin.secureConfirm(
+            'Clear DB',
+            `This will permanently delete ${label}. Continue?`
+        );
+        if (!first) return false;
+        return Admin.secureConfirm(
+            'Confirm Clear DB',
+            `Type 'CLEAR' to permanently delete ${label}:`,
+            'CLEAR'
+        );
+    },
+
     // --- 0.16 IMAGE LIGHTBOX MODAL ---
     openLightbox: function(url) {
         window._adminLightboxOpen = true;
@@ -833,6 +848,10 @@ const Admin = {
     // --- UNIVERSAL DATE FORMATTER ---
     formatDate: (ts) => {
         if (!ts) return "Unknown";
+        if (typeof formatAppDate === 'function') {
+            const s = formatAppDate(ts, { withTime: true });
+            return s || "Unknown";
+        }
         const d = new Date(ts);
         const day = d.getDate();
         const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()];
@@ -1155,29 +1174,39 @@ const Admin = {
                             </button>
                         </div>
                         <div class="p-5 flex-grow bg-white dark:bg-gray-800 rounded-b-2xl">
-                            <p class="text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Unique Active Users (Today)</p>
+                            <p id="region-metric-label" class="text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Unique users by last selected region</p>
+                            <p id="region-today-total" class="text-center text-xs font-black text-slate-800 dark:text-slate-200 mb-1">Today unique: --</p>
+                            <p id="region-today-sessions" class="text-center text-[10px] font-bold text-slate-500 mb-4">Today sessions: --</p>
                             <div class="grid grid-cols-2 gap-3 mb-3">
                                 <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">Gauteng</span>
                                     <span id="region-stat-gp" class="text-2xl font-black text-blue-700 dark:text-blue-300">--</span>
+                                    <span id="region-sess-gp" class="text-[9px] font-bold text-blue-500/80 dark:text-blue-300/70 mt-0.5">-- sessions</span>
                                 </div>
                                 <div class="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-100 dark:border-green-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-green-600 dark:text-green-400 font-bold uppercase tracking-wider mb-1">Western Cape</span>
                                     <span id="region-stat-wc" class="text-2xl font-black text-green-700 dark:text-green-300">--</span>
+                                    <span id="region-sess-wc" class="text-[9px] font-bold text-green-500/80 dark:text-green-300/70 mt-0.5">-- sessions</span>
                                 </div>
                                 <div class="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg border border-orange-100 dark:border-orange-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-orange-600 dark:text-orange-400 font-bold uppercase tracking-wider mb-1">KwaZulu-Natal</span>
                                     <span id="region-stat-kzn" class="text-2xl font-black text-orange-700 dark:text-orange-300">--</span>
+                                    <span id="region-sess-kzn" class="text-[9px] font-bold text-orange-500/80 dark:text-orange-300/70 mt-0.5">-- sessions</span>
                                 </div>
                                 <div class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-100 dark:border-purple-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-wider mb-1">Eastern Cape</span>
                                     <span id="region-stat-ec" class="text-2xl font-black text-purple-700 dark:text-purple-300">--</span>
+                                    <span id="region-sess-ec" class="text-[9px] font-bold text-purple-500/80 dark:text-purple-300/70 mt-0.5">-- sessions</span>
                                 </div>
                             </div>
-                            <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-1 mb-4">
-                                <span class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center">Uncategorized / Global</span>
-                                <span id="region-stat-other" class="text-lg font-black text-slate-700 dark:text-slate-300">--</span>
+                            <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-1 mb-3">
+                                <span id="region-stat-other-label" class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center">No region set</span>
+                                <div class="text-right">
+                                    <span id="region-stat-other" class="text-lg font-black text-slate-700 dark:text-slate-300">--</span>
+                                    <span id="region-sess-other" class="block text-[9px] font-bold text-slate-500">-- sessions</span>
+                                </div>
                             </div>
+                            <p id="region-note" class="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 mb-4">TODAY is unique people. Region cards are unique users by last selected region — they are not sessions, and they will not add up to TODAY if someone switched region or sent hits before a region was set.</p>
                             
                             <!-- GROWTH SPRINT PHASE 12: Pivot to Graph CTA -->
                             <button id="region-view-graph-btn" class="w-full bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-xs uppercase tracking-widest focus:outline-none flex items-center justify-center border border-slate-700 dark:border-slate-600">
@@ -1506,6 +1535,8 @@ const Admin = {
                 if(statMonthly) statMonthly.textContent = data.mauUsers !== undefined ? Admin.formatNumber(data.mauUsers) : '--';
                 if(statAllTime) statAllTime.textContent = data.allTimeUsers !== undefined ? Admin.formatNumber(data.allTimeUsers) : '--';
                 if(statErrors) statErrors.textContent = data.todayErrors !== undefined ? Admin.formatNumber(data.todayErrors) : '--';
+                Admin.currentTodayUsers = data.todayUsers;
+                Admin.currentTodaySessions = data.todaySessions;
                 
                 // GUARDIAN: Store and update regional breakdown seamlessly
                 if (data.regionalBreakdown) {
@@ -1556,6 +1587,7 @@ const Admin = {
                 // GUARDIAN PHASE 2: RAM Array Slicer Engine
                 // INTRADAY worker packs [yesterday 0..47 | today 48..cutoff]. Never take
                 // "last 48" for Today - that straddles midnight and draws a fake cliff.
+                // ALL plots every month from Jan 2026 - do not slice like MAU/DAU (7 points).
                 let pointsPerView = Admin.telemetryRange === 'INTRADAY' ? 48 : 7;
                 let offset = Admin.telemetryWeeksAgo;
                 
@@ -1573,6 +1605,9 @@ const Admin = {
                         startIndex = 0;
                         endIndex = 0;
                     }
+                } else if (Admin.telemetryRange === 'ALL') {
+                    startIndex = 0;
+                    endIndex = masterLen;
                 } else {
                     endIndex = masterLen - (offset * pointsPerView);
                     startIndex = endIndex - pointsPerView;
@@ -1594,6 +1629,8 @@ const Admin = {
                         activeCountsArray = activeCountsArray.slice(0, 48);
                         labelsArray = labelsArray.slice(0, 48);
                     }
+                } else if (Admin.telemetryRange === 'ALL') {
+                    // Full Jan 2026 → now series. Do not left-pad to a 7-point MAU window.
                 } else if (activeCountsArray.length < pointsPerView && masterLen > 0) {
                     const padLen = pointsPerView - activeCountsArray.length;
                     activeCountsArray = [...Array(padLen).fill(0), ...activeCountsArray];
@@ -1602,7 +1639,7 @@ const Admin = {
 
                 // GUARDIAN PHASE 3: Comparison Array Slicer
                 let compareCountsArray = null;
-                if (Admin.isComparing) {
+                if (Admin.isComparing && Admin.telemetryRange !== 'ALL') {
                     if (Admin.telemetryRange === 'INTRADAY' && offset === 0 && masterLen > 48) {
                         compareCountsArray = rawCountsArray.slice(0, 48);
                         if (compareCountsArray.length < 48) {
@@ -1660,6 +1697,14 @@ const Admin = {
                         }
                         return lbl ? 'W' + lbl.substring(4) : '';
                     });
+                } else if (Admin.telemetryRange === 'ALL') {
+                    displayLabels = labelsArray.map(lbl => {
+                        if (lbl && lbl.length === 6) {
+                            const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][parseInt(lbl.substring(4, 6), 10) - 1];
+                            return `${mon} ${lbl.substring(2, 4)}`;
+                        }
+                        return lbl;
+                    });
                 } else {
                     displayLabels = labelsArray.map(lbl => {
                         if (lbl && lbl.length === 6) {
@@ -1706,7 +1751,7 @@ const Admin = {
                         const d = new Date(y, 0, 1 + (w - 1) * 7);
                         d.setDate(d.getDate() + (1 - d.getDay()));
                         return `${d.getDate()} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]}`;
-                    } else if (raw.length === 6 && Admin.telemetryRange === 'MAU') { // YYYYMM
+                    } else if (raw.length === 6 && (Admin.telemetryRange === 'MAU' || Admin.telemetryRange === 'ALL')) { // YYYYMM
                         return `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(raw.substring(4,6))-1]} ${raw.substring(0,4)}`;
                     }
                     return raw;
@@ -1734,7 +1779,7 @@ const Admin = {
                 } else if (Admin.telemetryRange === 'MAU') {
                     titleStr = `Monthly Active Users${rangeStr}`;
                 } else {
-                    titleStr = `All-Time Active Users`;
+                    titleStr = `All-Time Active Users${rangeStr || ' (from Jan 2026)'}`;
                 }
                 
                 const modalTitleEl = document.getElementById('modal-trend-title');
@@ -1774,7 +1819,7 @@ const Admin = {
                     }
                 }
 
-                // Orange marker = last known INTRADAY bucket (worker clips ~3h of lag)
+                // Orange marker = last known INTRADAY bucket (worker clips to latest GA4 row, not a 3h buffer)
                 let isTodayIdx = -1;
                 if (Admin.telemetryRange === 'INTRADAY' && Admin.telemetryWeeksAgo === 0) {
                     for (let i = activeCountsArray.length - 1; i >= 0; i--) {
@@ -1969,12 +2014,42 @@ const Admin = {
         const kznEl = document.getElementById('region-stat-kzn');
         const ecEl = document.getElementById('region-stat-ec');
         const otherEl = document.getElementById('region-stat-other');
+        const n = (v) => (v !== undefined && v !== null ? Admin.formatNumber(v) : '--');
+        const sess = data.sessions || {};
         
-        if (gpEl) gpEl.textContent = data.GP !== undefined ? Admin.formatNumber(data.GP) : '--';
-        if (wcEl) wcEl.textContent = data.WC !== undefined ? Admin.formatNumber(data.WC) : '--';
-        if (kznEl) kznEl.textContent = data.KZN !== undefined ? Admin.formatNumber(data.KZN) : '--';
-        if (ecEl) ecEl.textContent = data.EC !== undefined ? Admin.formatNumber(data.EC) : '--';
-        if (otherEl) otherEl.textContent = data.OTHER !== undefined ? Admin.formatNumber(data.OTHER) : '--';
+        if (gpEl) gpEl.textContent = n(data.GP);
+        if (wcEl) wcEl.textContent = n(data.WC);
+        if (kznEl) kznEl.textContent = n(data.KZN);
+        if (ecEl) ecEl.textContent = n(data.EC);
+        if (otherEl) otherEl.textContent = n(data.OTHER);
+
+        const setSess = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = `${n(value)} sessions`;
+        };
+        setSess('region-sess-gp', sess.GP);
+        setSess('region-sess-wc', sess.WC);
+        setSess('region-sess-kzn', sess.KZN);
+        setSess('region-sess-ec', sess.EC);
+        setSess('region-sess-other', sess.OTHER);
+
+        const todayUsers = data.todayUsers ?? Admin.currentTodayUsers;
+        const todaySessions = data.todaySessions ?? Admin.currentTodaySessions;
+        const todayEl = document.getElementById('region-today-total');
+        if (todayEl) todayEl.textContent = `Today unique: ${n(todayUsers)}`;
+        const sessEl = document.getElementById('region-today-sessions');
+        if (sessEl) sessEl.textContent = `Today sessions: ${n(todaySessions)}`;
+
+        const assigned = (Number(data.GP) || 0) + (Number(data.WC) || 0) + (Number(data.KZN) || 0) + (Number(data.EC) || 0);
+        const other = Number(data.OTHER) || 0;
+        const uniqueToday = Number(todayUsers) || 0;
+        const note = document.getElementById('region-note');
+        if (note) {
+            const overlap = Math.max(0, (assigned + other) - uniqueToday);
+            note.textContent = overlap > 0
+                ? `These cards are unique users (not sessions). Region + no-region (${Admin.formatNumber(assigned + other)}) is about ${Admin.formatNumber(overlap)} above TODAY because the same commuter can appear in more than one bucket if they switched region or sent hits before a region was set.`
+                : `These cards are unique users by last selected region, not sessions. TODAY (${n(todayUsers)}) is unique people.`;
+        }
     },
 
     // GROWTH SPRINT PHASE 6: Dynamic 7-Day Chart Snapshot Engine (SVG Clone Method)
@@ -2451,6 +2526,150 @@ const Admin = {
         return actionBanner;
     },
 
+    _GSM_TABS: [
+        { id: 'all', label: 'All', types: null },
+        { id: 'alerts', label: 'Alerts', types: ['Alert'] },
+        { id: 'incidents', label: 'Incidents', types: ['Disruption'] },
+        { id: 'grid', label: 'Grid', types: ['Grid Notice'] },
+        { id: 'exclusions', label: 'Exclusions', types: ['Exception'] },
+        { id: 'maint', label: 'Maint', types: ['Maintenance'] },
+    ],
+
+    gsmTabCounts: (items) => {
+        const counts = { all: (items || []).length };
+        (Admin._GSM_TABS || []).forEach((tab) => {
+            if (!tab.types) return;
+            counts[tab.id] = (items || []).filter((it) => tab.types.includes(it.type)).length;
+        });
+        return counts;
+    },
+
+    gsmFilteredItems: (items, tabId) => {
+        const tab = (Admin._GSM_TABS || []).find((t) => t.id === tabId) || Admin._GSM_TABS[0];
+        if (!tab || !tab.types) return items || [];
+        return (items || []).filter((it) => tab.types.includes(it.type));
+    },
+
+    gsmRegionBadge: (rId) => {
+        if (!rId) return '';
+        const badgeClass = "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-black uppercase tracking-wider text-[9px] mr-1.5";
+        const textClass = "text-xs font-bold text-gray-700 dark:text-gray-300";
+        if (rId.includes('_GP')) return `<span class="${badgeClass}">GP</span> <span class="${textClass}">Global Network</span>`;
+        if (rId.includes('_WC')) return `<span class="${badgeClass}">WC</span> <span class="${textClass}">Global Network</span>`;
+        if (rId.includes('_KZN')) return `<span class="${badgeClass}">KZN</span> <span class="${textClass}">Global Network</span>`;
+        if (rId.includes('_EC')) return `<span class="${badgeClass}">EC</span> <span class="${textClass}">Global Network</span>`;
+        if (rId === 'all') return `<span class="bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded font-black uppercase tracking-wider text-[9px] mr-1.5">ALL</span> <span class="${textClass}">Entire Network</span>`;
+        if (typeof ROUTES !== 'undefined' && ROUTES[rId]) return `<span class="${badgeClass}">${ROUTES[rId].region}</span> <span class="${textClass} inline-flex items-center flex-wrap">${Admin.formatRouteLabelHtml(ROUTES[rId].name)}</span>`;
+        return '';
+    },
+
+    gsmItemCardHtml: (item, now) => {
+        const isPermanent = !item.expiresAt;
+        const hrsLeft = isPermanent ? null : Math.max(0, Math.floor((item.expiresAt - now) / (1000 * 60 * 60)));
+        const timeBadge = isPermanent ? 'Permanent' : `Expires: in ${hrsLeft} hrs`;
+        const extendBtnHtml = isPermanent
+            ? `<button disabled class="flex-1 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-600 text-xs font-bold py-1.5 rounded-lg border border-transparent shadow-sm flex items-center justify-center cursor-not-allowed"><svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> +24 Hrs</button>`
+            : `<button onclick="event.stopPropagation(); Admin.extendActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-300 text-xs font-bold py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm transition-colors focus:outline-none flex items-center justify-center"><svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> +24 Hrs</button>`;
+        return `
+            <div class="flex flex-col bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mt-2 transition-colors hover:border-blue-300 dark:hover:border-blue-500 cursor-pointer relative" onclick="Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')">
+                <div class="flex items-center justify-between gap-2 mb-1.5 w-full min-w-0">
+                    <div class="min-w-0 shrink">${Admin.gsmRegionBadge(item.routeId)}</div>
+                    <div class="flex items-center text-[10px] font-bold text-gray-500 dark:text-gray-400 shrink-0">
+                        <span class="uppercase tracking-widest text-slate-500">${item.type}</span>
+                        <span class="mx-1.5 text-gray-300 dark:text-gray-600">|</span>
+                        <span class="${isPermanent ? 'text-blue-500' : (hrsLeft < 4 ? 'text-red-500' : 'text-orange-500')} uppercase tracking-widest">${timeBadge}</span>
+                    </div>
+                </div>
+                <span class="text-sm font-black text-slate-900 dark:text-white leading-tight break-words w-full mb-2">
+                    ${item.label}
+                </span>
+                <div class="flex gap-2 pt-2.5 border-t border-gray-100 dark:border-gray-700 mt-auto w-full">
+                    <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-600 text-xs font-bold py-1.5 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center">
+                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Resolve
+                    </button>
+                    ${extendBtnHtml}
+                    <button onclick="event.stopPropagation(); window._actionRequiredWasOpen = true; Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')" class="flex-1 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold py-1.5 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center">
+                        Review &rarr;
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
+    gsmTabBarHtml: (items) => {
+        const counts = Admin.gsmTabCounts(items);
+        const active = Admin._gsmTab || 'all';
+        return `<div id="gsm-tabs" class="flex gap-1 p-0.5 bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto custom-scrollbar">
+            ${(Admin._GSM_TABS || []).map((tab) => {
+                const on = active === tab.id;
+                const n = counts[tab.id] || 0;
+                const cls = on
+                    ? 'shrink-0 px-2 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                    : 'shrink-0 px-2 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-md text-gray-500 dark:text-gray-400';
+                return `<button type="button" data-gsm-tab="${tab.id}" class="${cls}">${tab.label}${n ? ` ${n}` : ''}</button>`;
+            }).join('')}
+        </div>`;
+    },
+
+    bindGsmTabs: () => {
+        document.querySelectorAll('[data-gsm-tab]').forEach((btn) => {
+            btn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                Admin._gsmTab = btn.getAttribute('data-gsm-tab') || 'all';
+                Admin.renderGlobalStateMonitor(document.getElementById('action-required-panel'), Admin._gsmItems || [], { keepOpen: true });
+            };
+        });
+    },
+
+    renderGlobalStateMonitor: (actionBanner, activeItems, opts = {}) => {
+        if (!actionBanner) return;
+        Admin._gsmItems = Array.isArray(activeItems) ? activeItems : [];
+        if (!Admin._gsmTab) Admin._gsmTab = 'all';
+        const wasOpen = opts.keepOpen || (document.getElementById('action-body') && !document.getElementById('action-body').classList.contains('hidden'));
+        const adminContainer = document.getElementById('admin-modules-container');
+        const total = Admin._gsmItems.length;
+        const filtered = Admin.gsmFilteredItems(Admin._gsmItems, Admin._gsmTab);
+        const now = Date.now();
+        let listHtml;
+        if (opts.error) {
+            listHtml = `<div class="text-xs text-center text-red-500 py-4">Could not refresh active entities. Tap Refresh from another panel or reopen Dev Mode.</div>`;
+        } else if (!total) {
+            listHtml = `<div class="text-xs text-center text-slate-500 dark:text-slate-400 py-4 px-2 leading-relaxed">
+                All clear - no active alerts, incidents, grid notices, schedule exceptions, or maintenance banners.
+            </div>`;
+        } else if (!filtered.length) {
+            const tab = (Admin._GSM_TABS || []).find((t) => t.id === Admin._gsmTab);
+            listHtml = `<div class="text-xs text-center text-slate-500 dark:text-slate-400 py-4 px-2 leading-relaxed">No active ${(tab && tab.label) || 'items'}.</div>`;
+        } else {
+            listHtml = filtered.map((item) => Admin.gsmItemCardHtml(item, now)).join('');
+        }
+
+        actionBanner.classList.remove('hidden');
+        actionBanner.innerHTML = `
+            <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
+                <span class="flex flex-col items-center">
+                    ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
+                    <span class="text-blue-600 dark:text-blue-400">Global State Monitor (${total})</span>
+                </span>
+                <span class="admin-unread-badge ${total ? '' : 'hidden'}" aria-label="Active items">${total || ''}</span>
+                <svg id="action-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <div id="action-body" class="${wasOpen ? 'mt-4 space-y-2' : 'hidden mt-4 space-y-2'}">
+                ${Admin.gsmTabBarHtml(Admin._gsmItems)}
+                <div id="gsm-list">${listHtml}</div>
+            </div>
+        `;
+        Admin.bindGsmTabs();
+        if (wasOpen && !Admin.isGridMode) {
+            actionBanner.querySelector('#action-header-btn')?.style.setProperty('display', 'none', 'important');
+            document.getElementById('action-body')?.classList.remove('hidden');
+        }
+        if (adminContainer && adminContainer.firstElementChild !== actionBanner) {
+            adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
+        }
+    },
+
     fetchActionRequired: async () => {
         const actionBanner = Admin.ensureGlobalStateMonitorTile();
         if (!actionBanner) return;
@@ -2644,29 +2863,10 @@ const Admin = {
                 if (typeof Admin.populateAlertTargets === 'function') Admin.populateAlertTargets(true);
                 if (typeof Admin.populateDisruptionRoutes === 'function') Admin.populateDisruptionRoutes();
                 if (typeof Admin.populateExclusionRoutes === 'function') Admin.populateExclusionRoutes();
-
-                actionBanner.classList.remove('hidden');
-                actionBanner.innerHTML = `
-                    <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
-                        <span class="flex flex-col items-center">
-                            ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
-                            <span class="text-blue-600 dark:text-blue-400">Global State Monitor (0)</span>
-                        </span>
-                        <svg id="action-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
-                    <div id="action-body" class="hidden mt-4 space-y-2">
-                        <div class="text-xs text-center text-slate-500 dark:text-slate-400 py-4 px-2 leading-relaxed">
-                            All clear - no active alerts, incidents, grid notices, schedule exceptions, or maintenance banners.
-                        </div>
-                    </div>
-                `;
-                if (adminContainer.firstElementChild !== actionBanner) {
-                    adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
-                }
+                Admin.renderGlobalStateMonitor(actionBanner, []);
                 return;
             }
 
-            actionBanner.classList.remove('hidden');
             activeItems.sort((a, b) => {
                 if (!a.expiresAt && !b.expiresAt) return 0;
                 if (!a.expiresAt) return 1; // Push permanent items to the bottom
@@ -2691,99 +2891,11 @@ const Admin = {
             if (typeof Admin.populateDisruptionRoutes === 'function') Admin.populateDisruptionRoutes();
             if (typeof Admin.populateExclusionRoutes === 'function') Admin.populateExclusionRoutes();
 
-            // GUARDIAN UX REDESIGN: Action Required 3-Row Layout with Route Stripping
-            const getRegionBadge = (rId) => {
-                if (!rId) return '';
-                const badgeClass = "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-black uppercase tracking-wider text-[9px] mr-1.5";
-                const textClass = "text-xs font-bold text-gray-700 dark:text-gray-300";
-                
-                if (rId.includes('_GP')) return `<span class="${badgeClass}">GP</span> <span class="${textClass}">Global Network</span>`;
-                if (rId.includes('_WC')) return `<span class="${badgeClass}">WC</span> <span class="${textClass}">Global Network</span>`;
-                if (rId.includes('_KZN')) return `<span class="${badgeClass}">KZN</span> <span class="${textClass}">Global Network</span>`;
-                if (rId.includes('_EC')) return `<span class="${badgeClass}">EC</span> <span class="${textClass}">Global Network</span>`;
-                if (rId === 'all') return `<span class="bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded font-black uppercase tracking-wider text-[9px] mr-1.5">ALL</span> <span class="${textClass}">Entire Network</span>`;
-                if (typeof ROUTES !== 'undefined' && ROUTES[rId]) return `<span class="${badgeClass}">${ROUTES[rId].region}</span> <span class="${textClass} inline-flex items-center flex-wrap">${Admin.formatRouteLabelHtml(ROUTES[rId].name)}</span>`;
-                return '';
-            };
-
-            let listHtml = '';
-            activeItems.forEach(item => {
-                const isPermanent = !item.expiresAt;
-                const hrsLeft = isPermanent ? null : Math.max(0, Math.floor((item.expiresAt - now) / (1000 * 60 * 60)));
-                
-                const timeBadge = isPermanent ? 'Permanent' : `Expires: in ${hrsLeft} hrs`;
-                
-                // Disable +24h button if permanent
-                const extendBtnHtml = isPermanent 
-                    ? `<button disabled class="flex-1 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-600 text-xs font-bold py-1.5 rounded-lg border border-transparent shadow-sm flex items-center justify-center cursor-not-allowed"><svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> +24 Hrs</button>`
-                    : `<button onclick="event.stopPropagation(); Admin.extendActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-slate-100 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-300 text-xs font-bold py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm transition-colors focus:outline-none flex items-center justify-center"><svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> +24 Hrs</button>`;
-
-                listHtml += `
-                    <div class="flex flex-col bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mt-2 transition-colors hover:border-blue-300 dark:hover:border-blue-500 cursor-pointer relative" onclick="Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')">
-                        
-                        <!-- Row 1: region + type/expiry -->
-                        <div class="flex items-center justify-between gap-2 mb-1.5 w-full min-w-0">
-                            <div class="min-w-0 shrink">${getRegionBadge(item.routeId)}</div>
-                            <div class="flex items-center text-[10px] font-bold text-gray-500 dark:text-gray-400 shrink-0">
-                                <span class="uppercase tracking-widest text-slate-500">${item.type}</span>
-                                <span class="mx-1.5 text-gray-300 dark:text-gray-600">|</span>
-                                <span class="${isPermanent ? 'text-blue-500' : (hrsLeft < 4 ? 'text-red-500' : 'text-orange-500')} uppercase tracking-widest">${timeBadge}</span>
-                            </div>
-                        </div>
-
-                        <!-- Row 2: Bold Payload -->
-                        <span class="text-sm font-black text-slate-900 dark:text-white leading-tight break-words w-full mb-2">
-                            ${item.label}
-                        </span>
-
-                        <!-- Row 3: Actions -->
-                        <div class="flex gap-2 pt-2.5 border-t border-gray-100 dark:border-gray-700 mt-auto w-full">
-                            <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${item.type}', '${item.id}', '${item.routeId}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-600 text-xs font-bold py-1.5 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center">
-                                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Resolve
-                            </button>
-                            ${extendBtnHtml}
-                            <button onclick="event.stopPropagation(); window._actionRequiredWasOpen = true; Admin.deepLinkToPanel('${item.panelId}', '${item.routeId}')" class="flex-1 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold py-1.5 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center">
-                                Review &rarr;
-                            </button>
-                        </div>
-                    </div>
-                `;
-            });
-
-            actionBanner.innerHTML = `
-                <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
-                    <span class="flex flex-col items-center">
-                        ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
-                        <span class="text-blue-600 dark:text-blue-400">Global State Monitor (${activeItems.length})</span>
-                    </span>
-                    <span class="admin-unread-badge ${activeItems.length ? '' : 'hidden'}" aria-label="Active items">${activeItems.length || ''}</span>
-                    <svg id="action-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                </button>
-                <div id="action-body" class="hidden mt-4 space-y-2">
-                    ${listHtml}
-                </div>
-            `;
-            if (adminContainer.firstElementChild !== actionBanner) {
-                adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
-            }
+            Admin.renderGlobalStateMonitor(actionBanner, activeItems);
 
         } catch(e) {
             // Stay visible - never delete the tile on fetch failure
-            actionBanner.classList.remove('hidden');
-            actionBanner.innerHTML = `
-                <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
-                    <span class="flex flex-col items-center">
-                        ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
-                        <span class="text-blue-600 dark:text-blue-400">Global State Monitor</span>
-                    </span>
-                </button>
-                <div id="action-body" class="hidden mt-4 space-y-2">
-                    <div class="text-xs text-center text-red-500 py-4">Could not refresh active entities. Tap Refresh from another panel or reopen Dev Mode.</div>
-                </div>
-            `;
-            if (adminContainer?.firstElementChild !== actionBanner) {
-                adminContainer?.insertBefore(actionBanner, adminContainer.firstChild);
-            }
+            Admin.renderGlobalStateMonitor(actionBanner, Admin._gsmItems || [], { error: true });
         }
     },
 
@@ -2879,6 +2991,12 @@ const Admin = {
 
     /** Sync a premium dropdown's visible label to match the hidden <select> value. */
     _syncAdminSelectDisplay: (selectId, routeId) => {
+        if (selectId === 'alert-target') {
+            if (typeof Admin.setSelectedAlertTargets === 'function') {
+                Admin.setSelectedAlertTargets([routeId]);
+            }
+            return;
+        }
         const selectEl = document.getElementById(selectId);
         if (!selectEl) return;
         const opt = selectEl.querySelector(`option[value="${CSS.escape ? CSS.escape(routeId) : routeId}"]`)
@@ -2941,6 +3059,11 @@ const Admin = {
         const opt = selectEl.querySelector(`option[value="${CSS.escape ? CSS.escape(routeId) : routeId}"]`)
             || Array.from(selectEl.options).find((o) => o.value === routeId);
         if (!opt) return;
+
+        if (selectId === 'alert-target') {
+            Admin.setSelectedAlertTargets([routeId]);
+            return;
+        }
 
         const changed = selectEl.value !== routeId;
         if (changed) selectEl.value = routeId;
@@ -3726,7 +3849,7 @@ const Admin = {
         };
 
         Admin.clearCrashes = async () => {
-            const confirmed = await Admin.secureConfirm("Clear Crash DB", "Type 'CLEAR' to permanently delete all crash reports from the server:", "CLEAR");
+            const confirmed = await Admin.confirmClearDb('all crash reports from the server');
             if (!confirmed) return;
             
             const secret = await Admin.getAuthKey();
@@ -4003,13 +4126,19 @@ const Admin = {
                 if (card.id === 'crashes-panel') Admin.fetchCrashes(); // GUARDIAN PHASE 7
                 if (card.id === 'roadmap-panel') Admin.fetchRoadmap(); // GUARDIAN PHASE 14
                 if (card.id === 'holiday-approvals-panel' && typeof Admin.fetchHolidayApprovals === 'function') Admin.fetchHolidayApprovals();
+                if (card.id === 'maint-panel') {
+                    document.getElementById('maint-mode-body')?.classList.add('hidden');
+                    document.getElementById('maint-mode-chevron')?.classList.add('-rotate-90');
+                }
                 if (card.id === 'alert-panel') {
                     if (typeof Admin.setAlertManagerTab === 'function' && Admin._pendingAdminRoute) {
                         Admin.setAlertManagerTab('compose');
                     }
                     Admin.applyPendingAdminRoute('alert-panel');
                     const targetEl = document.getElementById('alert-target');
-                    if (targetEl && !Admin._pendingAdminRoute) targetEl.dispatchEvent(new Event('change'));
+                    if (targetEl && !Admin._pendingAdminRoute && typeof Admin.fetchCurrentAlertsForTargets === 'function') {
+                        Admin.fetchCurrentAlertsForTargets();
+                    }
                 }
             });
 
@@ -4131,10 +4260,10 @@ const Admin = {
                     </div>
                 </div>
                 <div id="de-tabs-swipe" class="flex gap-1 p-0.5 bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 touch-pan-y">
-                    <button type="button" id="de-tab-fails" class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm">Fails</button>
-                    <button type="button" id="de-tab-trips" class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md text-gray-500 dark:text-gray-400">Trip Plans</button>
+                    <button type="button" id="de-tab-trips" class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm">Trip Plans</button>
+                    <button type="button" id="de-tab-fails" class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md text-gray-500 dark:text-gray-400">Fails</button>
                 </div>
-                <div id="de-trip-filters" class="hidden space-y-2">
+                <div id="de-trip-filters" class="space-y-2">
                     <button type="button" id="de-filters-toggle" class="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 focus:outline-none">
                         <span>Filters</span>
                         <svg id="de-filters-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -4186,7 +4315,7 @@ const Admin = {
         const sortBtn = document.getElementById('de-sort-btn');
         const countModeBtn = document.getElementById('de-count-mode-btn');
         const listDiv = document.getElementById('de-list');
-        Admin._deActiveTab = 'fails';
+        Admin._deActiveTab = 'trips';
         Admin._deTripFilters = { region: '', dayType: '', userId: '' };
         Admin._deCountMode = Admin._deCountMode || 'users'; // users | hits
 
@@ -4232,8 +4361,8 @@ const Admin = {
                 const endX = e.changedTouches?.[0]?.screenX || 0;
                 const diffX = endX - touchStartX;
                 if (Math.abs(diffX) < 48) return;
-                if (diffX > 0 && Admin._deActiveTab === 'trips') setDeTab('fails');
-                else if (diffX < 0 && Admin._deActiveTab === 'fails') setDeTab('trips');
+                if (diffX < 0 && Admin._deActiveTab === 'trips') setDeTab('fails');
+                else if (diffX > 0 && Admin._deActiveTab === 'fails') setDeTab('trips');
             }, { passive: true });
         };
         bindDeSwipe(document.getElementById('de-tabs-swipe'));
@@ -4755,7 +4884,7 @@ const Admin = {
         clearBtn.onclick = async () => {
             const path = Admin._deActiveTab === 'trips' ? 'sys_logs/trip_plans' : 'sys_logs/routing_fails';
             const label = Admin._deActiveTab === 'trips' ? 'trip plan batches' : 'routing fail logs';
-            const confirmed = await Admin.secureConfirm('Clear Telemetry DB', `Type 'CLEAR' to permanently delete all ${label} from the server:`, 'CLEAR');
+            const confirmed = await Admin.confirmClearDb(`all ${label} from the server`);
             if (!confirmed) return;
             const secret = await Admin.getAuthKey();
             if (!secret) return;
@@ -5148,7 +5277,9 @@ const Admin = {
                         } else if (msgDateString === yesterday.toDateString()) {
                             dateDividerText = "Yesterday";
                         } else {
-                            dateDividerText = date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+                            dateDividerText = (typeof formatAppDate === 'function')
+                                ? formatAppDate(date)
+                                : date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
                         }
                         
                         groupHTML += `
@@ -5273,7 +5404,7 @@ const Admin = {
                             return lines.join('\n').replace(/^\s+/, '');
                         };
                         // data-* only — never embed snippet in onclick (breaks on quotes/apostrophes)
-                        const waQuoteChip = ({ author, snippet, replyKey = '', alertId = '', alertFallback = '', accent = 'blue' }) => {
+                        const waQuoteChip = ({ author, snippet, replyKey = '', alertId = '', alertFallback = '', alertKind = '', accent = 'blue' }) => {
                             const bar = accent === 'blue'
                                 ? 'border-blue-500 dark:border-blue-400'
                                 : 'border-gray-400 dark:border-gray-500';
@@ -5289,6 +5420,7 @@ const Admin = {
                                 `data-reply-snippet="${secureEscape(cleanSnippet)}"`,
                                 `data-alert-id="${secureEscape(alertId || '')}"`,
                                 `data-alert-fallback="${secureEscape(alertFallback || '')}"`,
+                                `data-alert-kind="${secureEscape(alertKind || '')}"`,
                                 `class="text-left -mx-1 mb-1.5 mt-1 w-full rounded-r-md bg-black/5 dark:bg-white/10 border-l-4 ${bar} py-1.5 px-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors focus:outline-none shadow-sm cursor-pointer"`,
                             ].join(' ');
                             return `<button ${attrs}>
@@ -5297,6 +5429,17 @@ const Admin = {
                                 </button>`;
                         };
 
+                        // 0) Service-alert / incident quote: [ALERT:id|kind|snippet]
+                        const parsedAlertQuote = (typeof parseFeedbackAlertQuote === 'function')
+                            ? parseFeedbackAlertQuote(plainBody)
+                            : (function () {
+                                const m = String(plainBody || '').match(/^\[ALERT:([^|\]]*)\|([^|\]]*)\|([^\]]*)\]\s*([\s\S]*)$/i);
+                                if (!m) return null;
+                                const k = String(m[2] || 'notice').trim().toLowerCase();
+                                return { alertId: m[1].trim(), kind: k === 'disruption' ? 'disruption' : 'notice', snippet: m[3].trim(), body: m[4] };
+                            })();
+                        const payloadAlertId = String(item.quotedAlertId || '').trim();
+
                         // 1) Modern: [REPLY TO ADMIN: key | snippet]\nbody  (hub.js) — snippet cannot contain ]
                         const replyWithPipe = plainBody.match(/^\[REPLY TO ADMIN:\s*([^|\]]+?)\s*\|\s*([^\]]*)\]\s*([\s\S]*)$/i);
                         // 2) Legacy header only: [REPLY TO ADMIN: key]\n(optional snippet lines)\nbody
@@ -5304,7 +5447,26 @@ const Admin = {
                             ? plainBody.match(/^\[REPLY TO ADMIN:\s*([^\]]+)\]\s*([\s\S]*)$/i)
                             : null;
 
-                        if (replyWithPipe || replyHeaderOnly) {
+                        if (parsedAlertQuote || payloadAlertId) {
+                            isReply = true;
+                            const alertId = (parsedAlertQuote && parsedAlertQuote.alertId) || payloadAlertId;
+                            const kind = (parsedAlertQuote && parsedAlertQuote.kind) || item.quotedAlertKind || 'notice';
+                            let snippet = parsedAlertQuote ? toQuotePlain(parsedAlertQuote.snippet) : '';
+                            let bodyRest = parsedAlertQuote ? String(parsedAlertQuote.body || '') : plainBody;
+                            if (!snippet) snippet = toQuotePlain(bodyRest).slice(0, 240) || 'Quoted advisory';
+                            bodyRest = stripDupQuoteFromBody(bodyRest, snippet);
+                            snippet = (snippet || 'Quoted advisory').slice(0, 240);
+                            quoteBlockHtml = waQuoteChip({
+                                author: kind === 'disruption' ? 'Incident' : 'Advisory',
+                                snippet,
+                                replyKey: '',
+                                alertId,
+                                alertFallback: snippet,
+                                alertKind: kind,
+                                accent: 'blue',
+                            });
+                            plainBody = bodyRest;
+                        } else if (replyWithPipe || replyHeaderOnly) {
                             isReply = true;
                             const replyKey = String((replyWithPipe || replyHeaderOnly)[1] || '').trim();
                             let snippet = '';
@@ -5371,13 +5533,16 @@ const Admin = {
                                     quoteSnippet = (quoteSnippet || 'Quoted message').slice(0, 240);
                                     bodyRest = stripDupQuoteFromBody(bodyRest, quoteSnippet);
                                     const alertIdMatch = rawQuoteContent.match(/Alert ID:\s*(\d+)/i);
-                                    const isAlertQuote = !!(alertIdMatch || /Advisory|Line Severed|Expect Delays/i.test(rawQuoteContent));
+                                    const isAlertQuote = !!(alertIdMatch || item.quotedAlertId
+                                        || /Advisory|Line Severed|Expect Delays/i.test(rawQuoteContent)
+                                        || item.type === 'thread_reply');
                                     quoteBlockHtml = waQuoteChip({
                                         author: quoteAuthor,
                                         snippet: quoteSnippet,
                                         replyKey: '',
-                                        alertId: isAlertQuote ? (alertIdMatch ? alertIdMatch[1] : '') : '',
-                                        alertFallback: isAlertQuote ? `${quoteAuthor}: ${quoteSnippet}` : '',
+                                        alertId: isAlertQuote ? (alertIdMatch ? alertIdMatch[1] : (item.quotedAlertId || '')) : '',
+                                        alertFallback: isAlertQuote ? `${quoteAuthor}: ${quoteSnippet}` : quoteSnippet,
+                                        alertKind: item.quotedAlertKind || '',
                                         accent: 'blue',
                                     });
                                     plainBody = bodyRest;
@@ -5525,8 +5690,9 @@ const Admin = {
                     e.stopPropagation();
                     const alertId = quoteBtn.getAttribute('data-alert-id') || '';
                     const alertFallback = quoteBtn.getAttribute('data-alert-fallback') || '';
+                    const alertKind = quoteBtn.getAttribute('data-alert-kind') || '';
                     if (alertId || alertFallback) {
-                        Admin.viewContextAlert(alertId || null, alertFallback);
+                        Admin.viewContextAlert(alertId || null, alertFallback, alertKind);
                     } else {
                         const threadBody = quoteBtn.closest('.feedback-thread-body');
                         Admin.jumpToQuotedFeedback(
@@ -7118,7 +7284,7 @@ const Admin = {
         setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400', 'rounded-xl'), 1600);
     },
 
-    viewContextAlert: async (alertId, fallbackText) => {
+    viewContextAlert: async (alertId, fallbackText, alertKind = '') => {
         const secret = await Admin.getAuthKey();
         if (!secret) return;
         
@@ -7153,150 +7319,54 @@ const Admin = {
         
         openSmoothModal('admin-context-modal');
 
+        const showPreview = async (foundData) => {
+            if (foundData.poll && foundData.poll.active && !foundData.pollResults && foundData.id) {
+                const liveTallies = await Admin.fetchPollResultsSnapshot(foundData.id, secret);
+                if (liveTallies) foundData = { ...foundData, pollResults: liveTallies };
+            }
+            if (typeof closeSmoothModal === 'function') closeSmoothModal('admin-context-modal');
+            else modal.classList.add('hidden');
+            Admin.previewArchivedAlert(foundData);
+        };
+
         try {
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-            let foundData = null;
+            const authQ = `?auth=${encodeURIComponent(secret)}`;
+            const fetchJson = async (path) => {
+                const res = await fetch(`${dynamicEndpoint}${path}.json${authQ}`);
+                const data = await res.json();
+                if (!data || data.error) return null;
+                return data;
+            };
 
-            // Search Active and Archived nodes
-            if (alertId && alertId !== 'null' && alertId !== 'undefined') {
-                let res = await fetch(`${dynamicEndpoint}notices.json?auth=${secret}`);
-                let data = await res.json();
-                if (data && !data.error) Object.values(data).forEach(alert => { if (alert.id === String(alertId)) foundData = alert; });
-                
-                if (!foundData) {
-                    res = await fetch(`${dynamicEndpoint}notices_archive.json?auth=${secret}`); // GUARDIAN FIX: Removed REST index constraint to prevent 400 Bad Request
-                    data = await res.json();
-                    if (data && !data.error) {
-                        Object.values(data).forEach(alert => { if (alert.id === String(alertId)) foundData = alert; });
-                    }
-                }
+            const [notices, noticesArchive, disruptions, disruptionsArchive] = await Promise.all([
+                fetchJson('notices'),
+                fetchJson('notices_archive'),
+                fetchJson('disruptions'),
+                fetchJson('disruptions_archive'),
+            ]);
 
-                // Match Transit Incident Manager entries by id (active + archive)
-                if (!foundData) {
-                    const disrActiveRes = await fetch(`${dynamicEndpoint}disruptions.json?auth=${secret}`);
-                    const disrActiveData = await disrActiveRes.json();
-                    if (disrActiveData && !disrActiveData.error) {
-                        Object.entries(disrActiveData).forEach(([rId, routeNode]) => {
-                            if (typeof routeNode !== 'object' || !routeNode) return;
-                            Object.values(routeNode).forEach((disr) => {
-                                if (disr && String(disr.id) === String(alertId)) {
-                                    foundData = {
-                                        ...disr,
-                                        kind: 'disruption',
-                                        clearedFrom: rId,
-                                        severity: disr.tier === 'CRITICAL' ? 'critical' : (disr.severity || 'warning'),
-                                    };
-                                }
-                            });
-                        });
-                    }
-                }
-                if (!foundData) {
-                    const disrArchRes = await fetch(`${dynamicEndpoint}disruptions_archive.json?auth=${secret}`);
-                    const disrArchData = await disrArchRes.json();
-                    if (disrArchData && !disrArchData.error) {
-                        Object.entries(disrArchData).forEach(([rId, routeNode]) => {
-                            if (typeof routeNode !== 'object' || !routeNode) return;
-                            Object.values(routeNode).forEach((disr) => {
-                                if (disr && String(disr.id) === String(alertId)) {
-                                    foundData = {
-                                        ...disr,
-                                        kind: 'disruption',
-                                        clearedFrom: disr.clearedFrom || rId,
-                                        severity: disr.severity || (disr.tier === 'CRITICAL' ? 'critical' : 'warning'),
-                                    };
-                                }
-                            });
-                        });
-                    }
-                }
-            }
-
-            // Fuzzy Text Fallback (For legacy quotes without IDs)
-            if (!foundData && fallbackText) {
-                const cleanFallback = fallbackText.replace(/['"]/g, '').toLowerCase().substring(0, 30); 
-                
-                const resActive = await fetch(`${dynamicEndpoint}notices.json?auth=${secret}`);
-                const activeData = await resActive.json();
-                if (activeData && !activeData.error) {
-                    Object.values(activeData).forEach(alert => {
-                        if (alert.message && alert.message.toLowerCase().includes(cleanFallback)) foundData = alert;
-                    });
-                }
-
-                if (!foundData) {
-                    const resArch = await fetch(`${dynamicEndpoint}notices_archive.json?auth=${secret}`);
-                    const archData = await resArch.json();
-                    if (archData && !archData.error) {
-                        Object.values(archData).forEach(alert => {
-                            if (alert.message && alert.message.toLowerCase().includes(cleanFallback)) foundData = alert;
-                        });
-                    }
-                }
-            }
-
-            // GUARDIAN PHASE 14: Disruption Graveyard Sweep
-            if (!foundData && fallbackText) {
-                const cleanFallback = fallbackText.replace(/['"]/g, '').toLowerCase().substring(0, 30);
-                
-                // Sweep active disruptions globally
-                const disrActiveRes = await fetch(`${dynamicEndpoint}disruptions.json?auth=${secret}`);
-                const disrActiveData = await disrActiveRes.json();
-                if (disrActiveData && !disrActiveData.error) {
-                    Object.values(disrActiveData).forEach(routeNode => {
-                        if (typeof routeNode === 'object') {
-                            Object.values(routeNode).forEach(disr => {
-                                const dMsg = disr.message || disr.longExplanation || '';
-                                if (dMsg.toLowerCase().includes(cleanFallback) || (disr.buttonText && disr.buttonText.toLowerCase().includes(cleanFallback))) {
-                                    foundData = { ...disr, severity: disr.tier === 'CRITICAL' ? 'critical' : 'warning' };
-                                }
-                            });
-                        }
-                    });
-                }
-
-                // Sweep the new Graveyard
-                if (!foundData) {
-                    const disrArchRes = await fetch(`${dynamicEndpoint}disruptions_archive.json?auth=${secret}`);
-                    const disrArchData = await disrArchRes.json();
-                    if (disrArchData && !disrArchData.error) {
-                        Object.values(disrArchData).forEach(routeNode => {
-                            if (typeof routeNode === 'object') {
-                                Object.values(routeNode).forEach(disr => {
-                                    const dMsg = disr.message || disr.longExplanation || '';
-                                    if (dMsg.toLowerCase().includes(cleanFallback) || (disr.buttonText && disr.buttonText.toLowerCase().includes(cleanFallback))) {
-                                        foundData = { ...disr, severity: disr.tier === 'CRITICAL' ? 'critical' : 'warning', archivedAt: disr.archivedAt };
-                                    }
-                                });
-                            }
-                        });
-                    }
-                }
-            }
+            let foundData = Admin.findQuotedAlertRecord(alertId, fallbackText, {
+                notices,
+                noticesArchive,
+                disruptions,
+                disruptionsArchive,
+            });
 
             if (foundData) {
-                // Live poll tallies when previewing an active poll alert from Feedback
-                if (foundData.poll && foundData.poll.active && !foundData.pollResults && foundData.id) {
-                    const liveTallies = await Admin.fetchPollResultsSnapshot(foundData.id, secret);
-                    if (liveTallies) foundData = { ...foundData, pollResults: liveTallies };
-                }
-                if (typeof closeSmoothModal === 'function') closeSmoothModal('admin-context-modal');
-                else modal.classList.add('hidden');
-                Admin.previewArchivedAlert(foundData);
+                await showPreview(foundData);
                 return;
-            } else {
-                contentDiv.innerHTML = `
-                    <div class="text-center py-4">
-                        <span class="inline-flex justify-center text-gray-400 mb-2">${Admin.icon('search', 'w-8 h-8')}</span>
-                        <p class="text-gray-500 text-sm font-bold">Alert not found in database.</p>
-                        <p class="text-xs text-gray-400 mt-2">It may have been permanently deleted or too old to retrieve. Here is the snippet we have:</p>
-                        <div class="mt-3 p-3 bg-gray-100 dark:bg-gray-800 rounded italic text-xs text-gray-600 dark:text-gray-400">"${fallbackText}"</div>
-                    </div>
-                `;
             }
 
+            const reconstructed = Admin.buildSyntheticQuotedAlert(alertId, fallbackText, alertKind);
+            await showPreview(reconstructed);
         } catch(e) {
-            contentDiv.innerHTML = `<div class="text-red-500 text-center py-4">Error fetching context: ${e.message}</div>`;
+            const reconstructed = Admin.buildSyntheticQuotedAlert(alertId, fallbackText, alertKind);
+            try {
+                await showPreview(reconstructed);
+            } catch {
+                contentDiv.innerHTML = `<div class="text-red-500 text-center py-4">Error fetching context: ${e.message}</div>`;
+            }
         }
     },
 
@@ -7503,6 +7573,200 @@ const Admin = {
         if (children.length) return children;
         if (node.message || node.text || node.id) return [{ ...node, _key: node.id || 'legacy' }];
         return [];
+    },
+
+    ALERT_SCOPE_CHIPS: [
+        { value: 'all', label: 'Entire network' },
+        { value: 'all_GP', label: 'Gauteng' },
+        { value: 'all_WC', label: 'Western Cape' },
+        { value: 'all_KZN', label: 'KwaZulu-Natal' },
+        { value: 'all_EC', label: 'Eastern Cape' },
+    ],
+
+    alertTargetLabel: (value) => {
+        const v = String(value || '');
+        const chip = (Admin.ALERT_SCOPE_CHIPS || []).find((c) => c.value === v);
+        if (chip) return chip.label;
+        if (typeof ROUTES !== 'undefined' && ROUTES[v]) {
+            return typeof Admin.formatRouteLabelPlain === 'function'
+                ? Admin.formatRouteLabelPlain(ROUTES[v].name)
+                : (ROUTES[v].name || v);
+        }
+        return v;
+    },
+
+    dedupeAlertTargets: (targets) => {
+        const set = new Set((Array.isArray(targets) ? targets : []).filter(Boolean).map(String));
+        if (set.has('all')) return ['all'];
+        const out = [];
+        for (const t of set) {
+            if (/^all_[A-Z0-9]+$/i.test(t)) {
+                out.push(t);
+                continue;
+            }
+            const region = (typeof ROUTES !== 'undefined' && ROUTES[t] && ROUTES[t].region) || '';
+            if (region && set.has(`all_${region}`)) continue;
+            out.push(t);
+        }
+        return out;
+    },
+
+    getSelectedAlertTargets: () => Admin.dedupeAlertTargets(Admin._selectedAlertTargets || []),
+
+    setSelectedAlertTargets: (list, opts = {}) => {
+        const fetchLive = opts.fetch !== false;
+        Admin._selectedAlertTargets = Admin.dedupeAlertTargets(list);
+        const select = document.getElementById('alert-target');
+        if (select) {
+            Array.from(select.options || []).forEach((opt) => {
+                opt.selected = Admin._selectedAlertTargets.includes(opt.value);
+            });
+            if (Admin._selectedAlertTargets[0]) select.value = Admin._selectedAlertTargets[0];
+        }
+        document.querySelectorAll('[data-alert-target]').forEach((el) => {
+            const v = el.getAttribute('data-alert-target');
+            const on = Admin._selectedAlertTargets.includes(v);
+            if (el.type === 'checkbox') el.checked = on;
+            if (el.getAttribute('data-alert-chip') === '1') {
+                el.classList.toggle('bg-blue-600', on);
+                el.classList.toggle('text-white', on);
+                el.classList.toggle('border-blue-600', on);
+                el.classList.toggle('bg-gray-50', !on);
+                el.classList.toggle('dark:bg-gray-900', !on);
+                el.classList.toggle('text-gray-800', !on);
+                el.classList.toggle('dark:text-gray-200', !on);
+            }
+        });
+        if (typeof Admin.syncAlertTargetSummary === 'function') Admin.syncAlertTargetSummary();
+        if (fetchLive && typeof Admin.fetchCurrentAlertsForTargets === 'function') {
+            Admin.fetchCurrentAlertsForTargets(Admin.getSelectedAlertTargets());
+        }
+    },
+
+    syncAlertTargetSummary: () => {
+        const display = document.getElementById('alert-target-display');
+        if (!display) return;
+        const selected = Admin.getSelectedAlertTargets();
+        if (!selected.length) {
+            display.textContent = 'Select routes or regions…';
+            return;
+        }
+        const labels = selected.map((v) => Admin.alertTargetLabel(v));
+        display.textContent = selected.length === 1
+            ? labels[0]
+            : `${selected.length} selected — ${labels.slice(0, 3).join(', ')}${labels.length > 3 ? '…' : ''}`;
+    },
+
+    toggleAlertTarget: (value) => {
+        const v = String(value || '');
+        if (!v) return;
+        let next = Admin.getSelectedAlertTargets().slice();
+        if (v === 'all') {
+            next = next.includes('all') ? [] : ['all'];
+        } else if (next.includes(v)) {
+            next = next.filter((t) => t !== v);
+        } else {
+            next = next.filter((t) => t !== 'all');
+            if (!/^all_/i.test(v) && typeof ROUTES !== 'undefined' && ROUTES[v] && ROUTES[v].region) {
+                next = next.filter((t) => t !== `all_${ROUTES[v].region}`);
+            }
+            next = next.concat([v]);
+        }
+        if (!next.length) {
+            const def = typeof currentRegion !== 'undefined' ? `all_${currentRegion}` : 'all_GP';
+            next = [def];
+        }
+        Admin.setSelectedAlertTargets(next);
+    },
+
+    walkNoticeRecords: (root, visit) => {
+        if (!root || typeof root !== 'object' || typeof visit !== 'function') return;
+        const seen = new Set();
+        const walk = (node, depth) => {
+            if (!node || typeof node !== 'object' || depth > 8) return;
+            if (seen.has(node)) return;
+            seen.add(node);
+            Admin.listNoticesInTarget(node).forEach((n) => visit(n));
+            Object.values(node).forEach((child) => {
+                if (child && typeof child === 'object') walk(child, depth + 1);
+            });
+        };
+        walk(root, 0);
+    },
+
+    walkDisruptionRecords: (root, visit) => {
+        if (!root || typeof root !== 'object' || typeof visit !== 'function') return;
+        Object.entries(root).forEach(([rId, routeNode]) => {
+            if (!routeNode || typeof routeNode !== 'object') return;
+            if (routeNode.tier || routeNode.longExplanation || routeNode.stations) {
+                visit({
+                    ...routeNode,
+                    kind: 'disruption',
+                    clearedFrom: routeNode.clearedFrom || rId,
+                    severity: routeNode.tier === 'CRITICAL' ? 'critical' : (routeNode.severity || 'warning'),
+                });
+            }
+            Object.values(routeNode).forEach((disr) => {
+                if (!disr || typeof disr !== 'object') return;
+                if (!(disr.id || disr.message || disr.longExplanation || disr.tier)) return;
+                visit({
+                    ...disr,
+                    kind: 'disruption',
+                    clearedFrom: disr.clearedFrom || rId,
+                    severity: disr.tier === 'CRITICAL' ? 'critical' : (disr.severity || 'warning'),
+                });
+            });
+        });
+    },
+
+    findQuotedAlertRecord: (alertId, fallbackText, trees = {}) => {
+        const id = String(alertId || '').trim();
+        const needle = String(fallbackText || '').replace(/['"]/g, '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 48);
+        let byId = null;
+        let byText = null;
+        const consider = (rec) => {
+            if (!rec || typeof rec !== 'object') return;
+            const recId = String(rec.id || rec._key || '');
+            if (id && (recId === id || recId.startsWith(`${id}_`))) byId = rec;
+            if (!byText && needle.length >= 10) {
+                const blob = `${rec.message || ''} ${rec.text || ''} ${rec.longExplanation || ''} ${rec.buttonText || ''}`
+                    .replace(/<[^>]*>/g, ' ')
+                    .toLowerCase();
+                if (blob.includes(needle.slice(0, 30))) byText = rec;
+            }
+        };
+        if (trees.notices) Admin.walkNoticeRecords(trees.notices, (n) => consider({ ...n, kind: n.kind || 'notice' }));
+        if (trees.noticesArchive) Admin.walkNoticeRecords(trees.noticesArchive, (n) => consider({ ...n, kind: n.kind || 'notice' }));
+        if (trees.disruptions) Admin.walkDisruptionRecords(trees.disruptions, consider);
+        if (trees.disruptionsArchive) Admin.walkDisruptionRecords(trees.disruptionsArchive, consider);
+        return byId || byText;
+    },
+
+    buildSyntheticQuotedAlert: (alertId, fallbackText, kind) => {
+        const snippet = String(fallbackText || '')
+            .replace(/^(?:Next Train Ops|Advisory|Incident|Enock):\s*/i, '')
+            .trim() || 'Original message unavailable.';
+        const isDisr = kind === 'disruption' || /line severed|expect delays|between /i.test(snippet);
+        if (isDisr) {
+            return {
+                id: alertId || 'quoted',
+                kind: 'disruption',
+                reconstructed: true,
+                archiveReason: 'Reconstructed from feedback quote',
+                buttonText: snippet.slice(0, 80),
+                message: snippet,
+                longExplanation: snippet,
+                tier: /sever|critical/i.test(snippet) ? 'CRITICAL' : 'WARNING',
+            };
+        }
+        return {
+            id: alertId || 'quoted',
+            reconstructed: true,
+            archiveReason: 'Reconstructed from feedback quote',
+            message: snippet.replace(/\n/g, '<br>'),
+            authorName: '',
+            severity: 'info',
+        };
     },
 
     collectAlertImageUrls: (notice) => {
@@ -7905,7 +8169,13 @@ const Admin = {
             if (!data || typeof data !== 'object') return { published: 0 };
             const now = Date.now();
             for (const [schedId, job] of Object.entries(data)) {
-                if (!job || job.enabled === false || !job.target || !job.notice) continue;
+                if (!job || job.enabled === false || !job.notice) continue;
+                const jobTargets = Admin.dedupeAlertTargets(
+                    Array.isArray(job.targets) && job.targets.length
+                        ? job.targets
+                        : (job.target ? [job.target] : [])
+                );
+                if (!jobTargets.length) continue;
                 const nextRun = Number(job.nextRunAt || 0);
                 if (!nextRun || nextRun > now) continue;
                 try {
@@ -7919,7 +8189,9 @@ const Admin = {
                         expiresAt: Date.now() + expiresInMs,
                     };
                     try {
-                        await Admin.publishNoticeToTarget(job.target, payload, secret);
+                        for (const t of jobTargets) {
+                            await Admin.publishNoticeToTarget(t, { ...payload }, secret);
+                        }
                     } catch {
                         continue;
                     }
@@ -7992,7 +8264,10 @@ const Admin = {
                 } catch { return '(empty)'; }
             })();
             const freq = escapeHTML(String(job.frequency || 'once'));
-            const target = escapeHTML(String(job.target || '-'));
+            const targetList = typeof Admin.dedupeAlertTargets === 'function'
+                ? Admin.dedupeAlertTargets(Array.isArray(job.targets) && job.targets.length ? job.targets : (job.target ? [job.target] : []))
+                : (job.target ? [job.target] : []);
+            const target = escapeHTML(targetList.map((t) => Admin.alertTargetLabel(t)).join(', ') || '-');
             const idSafe = escapeHTML(String(job.id || ''));
             return `
                 <div class="p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 shadow-sm ${paused ? 'opacity-70' : ''}" data-sched-id="${idSafe}">
@@ -8073,7 +8348,7 @@ const Admin = {
                         if (chev) chev.classList.remove('rotate-180');
                     }
                 };
-                checkClose('alert-target-container', 'alert-target-list', 'alert-target-chevron');
+                checkClose('alert-target-container', 'alert-target-panel', 'alert-target-chevron');
                 checkClose('alert-severity-container', 'alert-severity-list', 'alert-severity-chevron');
                 checkClose('disr-route-container', 'disr-route-list', 'disr-route-chevron');
                 checkClose('disr-tier-container', 'disr-tier-list', 'disr-tier-chevron');
@@ -8113,14 +8388,16 @@ const Admin = {
 
                 <div id="alert-compose-pane" class="space-y-4">
                 <div>
-                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target Audience (God-Mode)</label>
+                    <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Target audience</label>
+                    <p class="text-[10px] text-gray-400 dark:text-gray-500 mb-2 leading-snug">Pick any mix of the whole network, regions, and routes. The same alert is posted to each.</p>
                     <div class="relative" id="alert-target-container">
-                        <select id="alert-target" class="hidden"></select>
-                        <div onclick="document.getElementById('alert-target-list').classList.toggle('hidden'); document.getElementById('alert-target-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
-                            <span id="alert-target-display" class="truncate flex items-center">Select Target...</span>
+                        <select id="alert-target" class="hidden" multiple></select>
+                        <div id="alert-target-chips" class="flex flex-wrap gap-1.5 mb-2"></div>
+                        <button type="button" id="alert-target-toggle" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
+                            <span id="alert-target-display" class="truncate text-left">Select routes or regions…</span>
                             <svg id="alert-target-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        </div>
-                        <ul id="alert-target-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-y-auto max-h-60 custom-scrollbar text-left"></ul>
+                        </button>
+                        <div id="alert-target-panel" class="hidden mt-1 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-xl max-h-64 overflow-y-auto custom-scrollbar"></div>
                     </div>
                 </div>
 
@@ -8553,9 +8830,9 @@ const Admin = {
             const firstEl = document.getElementById('alert-schedule-first');
             const freqEl = document.getElementById('alert-schedule-freq');
             let msg = (alertMsg?.innerHTML || '').trim();
-            const target = alertTarget?.value;
+            const targets = Admin.getSelectedAlertTargets();
             if (!msg || msg === '<br>') { if (typeof showToast === 'function') showToast('Fill the alert message first.', 'error'); return; }
-            if (!target) { if (typeof showToast === 'function') showToast('Pick a target audience.', 'error'); return; }
+            if (!targets.length) { if (typeof showToast === 'function') showToast('Pick a target audience.', 'error'); return; }
             const firstMs = firstEl?.value ? new Date(firstEl.value).getTime() : NaN;
             if (!Number.isFinite(firstMs)) { if (typeof showToast === 'function') showToast('Set a valid first-run time.', 'error'); return; }
             const durVal = parseFloat(document.getElementById('alert-schedule-duration-val')?.value || '0');
@@ -8579,7 +8856,8 @@ const Admin = {
             const schedId = `sched_${Date.now()}`;
             const job = {
                 id: schedId,
-                target,
+                target: targets[0],
+                targets,
                 frequency: freqEl?.value || 'once',
                 nextRunAt: firstMs,
                 createdAt: Date.now(),
@@ -8636,19 +8914,7 @@ const Admin = {
             header?.classList.add('mb-4');
 
             if (alertTarget) {
-                alertTarget.value = target;
-                const customDisplay = document.getElementById('alert-target-display');
-                const customList = document.getElementById('alert-target-list');
-                const selectedOpt = Array.from(alertTarget.options).find((o) => o.value === target);
-                if (customDisplay) {
-                    if (customList) {
-                        const matchLi = Array.from(customList.querySelectorAll('li')).find((li) => selectedOpt && li.textContent.includes(selectedOpt.textContent.split(' [')[0]));
-                        if (matchLi) customDisplay.innerHTML = matchLi.innerHTML;
-                        else customDisplay.textContent = selectedOpt ? selectedOpt.textContent : target;
-                    } else {
-                        customDisplay.textContent = selectedOpt ? selectedOpt.textContent : target;
-                    }
-                }
+                Admin.setSelectedAlertTargets([target], { fetch: false });
             }
 
             existingAlertId = null;
@@ -8833,145 +9099,120 @@ const Admin = {
             });
         }
 
-        async function fetchCurrentAlert(target) {
+        async function fetchCurrentAlertsForTargets(targets) {
             if (Admin._skipAlertFetchOnce) {
                 Admin._skipAlertFetchOnce = false;
                 return;
             }
             existingAlertId = null;
+            const list = Admin.dedupeAlertTargets(targets || Admin.getSelectedAlertTargets());
+            const countEl = document.getElementById('alert-live-count');
+            if (!list.length) {
+                if (countEl) countEl.textContent = 'Pick at least one route or region.';
+                return;
+            }
             try {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const res = await window.guardianFetch(`${dynamicEndpoint}notices/${target}.json?t=${Date.now()}`, {}, 6000);
-                const data = await res.json();
-                const listed = Admin.listNoticesInTarget(data);
-                const live = listed.filter((n) => !n.expiresAt || n.expiresAt > Date.now());
-                const countEl = document.getElementById('alert-live-count');
+                let totalLive = 0;
+                for (const target of list) {
+                    const res = await window.guardianFetch(`${dynamicEndpoint}notices/${target}.json?t=${Date.now()}`, {}, 6000);
+                    const data = await res.json();
+                    const listed = Admin.listNoticesInTarget(data);
+                    totalLive += listed.filter((n) => !n.expiresAt || n.expiresAt > Date.now()).length;
+                }
+                const labels = list.map((t) => Admin.alertTargetLabel(t)).join(', ');
                 if (countEl) {
-                    countEl.textContent = live.length
-                        ? `${live.length} live post${live.length === 1 ? '' : 's'} on this target — composer starts a new channel post.`
-                        : 'No live posts on this target — composer starts a new channel post.';
+                    countEl.textContent = list.length === 1
+                        ? (totalLive
+                            ? `${totalLive} live post${totalLive === 1 ? '' : 's'} on ${labels} — composer starts a new channel post.`
+                            : `No live posts on ${labels} — composer starts a new channel post.`)
+                        : `Posting to ${list.length} targets (${labels}). ${totalLive} live post${totalLive === 1 ? '' : 's'} across them — composer starts a new channel post on each.`;
                 }
                 if (sendBtn) sendBtn.textContent = 'Preview Alert';
             } catch (e) {
-                const countEl = document.getElementById('alert-live-count');
-                if (countEl) countEl.textContent = 'Could not read live posts for this target.';
+                if (countEl) countEl.textContent = 'Could not read live posts for these targets.';
             }
         }
+        Admin.fetchCurrentAlertsForTargets = fetchCurrentAlertsForTargets;
 
         Admin.populateAlertTargets = (skipFetch = false) => {
-            const currentVal = alertTarget.value;
+            if (!alertTarget) return;
             alertTarget.innerHTML = '';
-            
-            const customList = document.getElementById('alert-target-list');
-            if (customList) customList.innerHTML = '';
-            const customDisplay = document.getElementById('alert-target-display');
+            const chipsEl = document.getElementById('alert-target-chips');
+            const panelEl = document.getElementById('alert-target-panel');
+            const toggleBtn = document.getElementById('alert-target-toggle');
+            const chevronEl = document.getElementById('alert-target-chevron');
+            if (chipsEl) chipsEl.innerHTML = '';
+            if (panelEl) panelEl.innerHTML = '';
 
-            const addGroup = (label) => {
-                const group = document.createElement('optgroup');
-                group.label = label;
-                alertTarget.appendChild(group);
-
-                if (customList) {
-                    const liGroup = document.createElement('li');
-                    liGroup.className = "px-3 py-1.5 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest bg-gray-100 dark:bg-gray-800 select-none sticky top-0 z-10 border-y border-gray-200 dark:border-gray-700";
-                    liGroup.textContent = label;
-                    customList.appendChild(liGroup);
-                }
-                return group;
-            };
-
-            const addOption = (group, value, text, htmlText = text) => {
+            const addSelectOption = (value, text) => {
                 const opt = document.createElement('option');
                 opt.value = value;
                 opt.textContent = text;
-                group.appendChild(opt);
-
-                if (customList) {
-                    const li = document.createElement('li');
-                    // GUARDIAN UX FIX: Added pl-6 for child indentation
-                    li.className = "pl-6 pr-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer flex items-center";
-                    li.setAttribute('data-value', value);
-                    li.innerHTML = htmlText;
-                    li.onclick = () => {
-                        alertTarget.value = value;
-                        if (customDisplay) customDisplay.innerHTML = htmlText;
-                        customList.classList.add('hidden');
-                        const chevron = document.getElementById('alert-target-chevron');
-                        if (chevron) chevron.classList.remove('rotate-180');
-                        alertTarget.dispatchEvent(new Event('change'));
-                    };
-                    customList.appendChild(li);
-                }
+                alertTarget.appendChild(opt);
             };
 
-            const globalGroup = addGroup("Global Alerts");
-            addOption(globalGroup, "all", "Entire Network (All Regions)", `<span class='truncate inline-flex items-center gap-1'>${Admin.icon('globe', 'w-3.5 h-3.5 shrink-0')} Entire Network (All Regions)</span>`);
-            addOption(globalGroup, "all_GP", "Gauteng Only", "<span class='truncate'>Gauteng Only</span>");
-            addOption(globalGroup, "all_WC", "Western Cape Only", "<span class='truncate'>Western Cape Only</span>");
-            addOption(globalGroup, "all_KZN", "KwaZulu-Natal Only", "<span class='truncate'>KwaZulu-Natal Only</span>");
-            addOption(globalGroup, "all_EC", "Eastern Cape Only", "<span class='truncate'>Eastern Cape Only</span>");
+            (Admin.ALERT_SCOPE_CHIPS || []).forEach((chip) => {
+                addSelectOption(chip.value, chip.label);
+                if (!chipsEl) return;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('data-alert-target', chip.value);
+                btn.setAttribute('data-alert-chip', '1');
+                btn.className = 'px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-600';
+                btn.textContent = chip.label;
+                btn.onclick = () => Admin.toggleAlertTarget(chip.value);
+                chipsEl.appendChild(btn);
+            });
 
-            if (typeof ROUTES !== 'undefined') {
-                const regions = [
-                    { code: 'GP', label: "Gauteng Routes" },
-                    { code: 'WC', label: "Western Cape Routes" },
-                    { code: 'KZN', label: "KwaZulu-Natal Routes" },
-                    { code: 'EC', label: "Eastern Cape Routes" }
-                ];
-
-                regions.forEach(regionInfo => {
-                    const regionalRoutes = Object.values(ROUTES).filter(r => r.region === regionInfo.code && r.isActive && r.id !== 'special_event');
-                    if (regionalRoutes.length > 0) {
-                        const group = addGroup(regionInfo.label);
-                        regionalRoutes.forEach(r => {
-                            const cues = typeof Admin.getRouteCues === 'function' ? Admin.getRouteCues(r.id) : '';
-                            const plainName = Admin.formatRouteLabelPlain(r.name);
-                            const text = `${plainName}${cues}`;
-                            
-                            let badgeHtml = '';
-                            if (cues) {
-                                if (cues.includes('Notice')) badgeHtml += '<span class="ml-1.5 px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 text-[8px] rounded uppercase flex-shrink-0">Note</span>';
-                                if (cues.includes('Bans')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-[8px] rounded uppercase flex-shrink-0">Ban</span>';
-                                if (cues.includes('Incident')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 text-[8px] rounded uppercase flex-shrink-0">Inc</span>';
-                                if (cues.includes('Alert')) badgeHtml += '<span class="ml-1 px-1 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 text-[8px] rounded uppercase flex-shrink-0">Alert</span>';
-                            }
-                            const htmlText = `<span class="truncate mr-1 inline-flex items-center">${Admin.formatRouteLabelHtml(r.name)}</span>${badgeHtml}`;
-                            addOption(group, r.id, text, htmlText);
-                        });
-                    }
+            const regions = [
+                { code: 'GP', label: 'Gauteng routes' },
+                { code: 'WC', label: 'Western Cape routes' },
+                { code: 'KZN', label: 'KwaZulu-Natal routes' },
+                { code: 'EC', label: 'Eastern Cape routes' },
+            ];
+            if (panelEl && typeof ROUTES !== 'undefined') {
+                regions.forEach((regionInfo) => {
+                    const regionalRoutes = Object.values(ROUTES).filter((r) => r.region === regionInfo.code && r.isActive && r.id !== 'special_event');
+                    if (!regionalRoutes.length) return;
+                    const head = document.createElement('div');
+                    head.className = 'px-3 py-1.5 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 border-y border-gray-200 dark:border-gray-700';
+                    head.textContent = regionInfo.label;
+                    panelEl.appendChild(head);
+                    regionalRoutes.forEach((r) => {
+                        const plainName = Admin.formatRouteLabelPlain(r.name);
+                        addSelectOption(r.id, plainName);
+                        const row = document.createElement('label');
+                        row.className = 'flex items-center gap-2 px-3 py-2 text-xs font-bold text-gray-700 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700';
+                        const cb = document.createElement('input');
+                        cb.type = 'checkbox';
+                        cb.setAttribute('data-alert-target', r.id);
+                        cb.className = 'rounded border-gray-300 text-blue-600 focus:ring-blue-500';
+                        cb.onchange = () => Admin.toggleAlertTarget(r.id);
+                        const name = document.createElement('span');
+                        name.className = 'truncate inline-flex items-center min-w-0';
+                        name.innerHTML = Admin.formatRouteLabelHtml(r.name);
+                        row.appendChild(cb);
+                        row.appendChild(name);
+                        panelEl.appendChild(row);
+                    });
                 });
             }
-            
-            // Prefer GSM / Review deep-link target over sticky "Gauteng Only" default
-            const preferVal = Admin._pendingAdminRoute || currentVal || '';
-            let selectedOpt = null;
-            if (preferVal) {
-                const optionToSelect = Array.from(alertTarget.options).find((o) => o.value === preferVal);
-                if (optionToSelect) {
-                    optionToSelect.selected = true;
-                    alertTarget.value = preferVal;
-                    selectedOpt = optionToSelect;
-                }
-            }
-            if (!selectedOpt) {
-                const defOpt = typeof currentRegion !== 'undefined' ? `all_${currentRegion}` : 'all_GP';
-                const optionToSelect = Array.from(alertTarget.options).find((o) => o.value === defOpt);
-                if (optionToSelect) {
-                    optionToSelect.selected = true;
-                    selectedOpt = optionToSelect;
-                }
+
+            if (toggleBtn && toggleBtn.dataset.bound !== '1') {
+                toggleBtn.dataset.bound = '1';
+                toggleBtn.addEventListener('click', () => {
+                    const open = panelEl && panelEl.classList.toggle('hidden') === false;
+                    chevronEl?.classList.toggle('rotate-180', !!open);
+                });
             }
 
-            if (selectedOpt) {
-                Admin._syncAdminSelectDisplay('alert-target', selectedOpt.value);
-            }
-
-            if (!skipFetch) fetchCurrentAlert(alertTarget.value);
+            const preferVal = Admin._pendingAdminRoute || (Admin._selectedAlertTargets && Admin._selectedAlertTargets[0]) || '';
+            const defOpt = typeof currentRegion !== 'undefined' ? `all_${currentRegion}` : 'all_GP';
+            const initial = preferVal || defOpt;
+            Admin.setSelectedAlertTargets([initial], { fetch: !skipFetch });
         };
 
-        if (alertTarget) {
-            alertTarget.addEventListener('change', () => fetchCurrentAlert(alertTarget.value));
-        }
         Admin.populateAlertTargets();
         Admin._alertPosterPaths = Admin._alertPosterPaths || [];
         Admin.loadAlertPosterManifest();
@@ -8995,7 +9236,7 @@ const Admin = {
 
         sendBtn.onclick = async () => {
             let msg = alertMsg.innerHTML.trim();
-            const target = alertTarget.value;
+            const targets = Admin.getSelectedAlertTargets();
             const severity = severitySelect.value;
             
             const signoff = signoffInput.value.trim() || "Next Train Ops";
@@ -9004,6 +9245,7 @@ const Admin = {
             const secret = await Admin.getAuthKey();
             
             if (!msg || msg === '<br>') { if (typeof showToast === 'function') showToast("Message required!", "error"); return; }
+            if (!targets.length) { if (typeof showToast === 'function') showToast("Pick at least one route or region.", "error"); return; }
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required! Sign in again.", "error"); return; }
 
             msg = Admin.repairMojibake(msg);
@@ -9048,14 +9290,29 @@ const Admin = {
                 try {
                     sendBtn.textContent = isRepost ? "Reposting..." : "Posting...";
                     sendBtn.disabled = true;
-                    await Admin.publishNoticeToTarget(target, payload, secret);
+                    let ok = 0;
+                    const errors = [];
+                    for (const t of targets) {
+                        try {
+                            await Admin.publishNoticeToTarget(t, { ...payload }, secret);
+                            ok++;
+                        } catch (err) {
+                            errors.push(`${Admin.alertTargetLabel(t)}: ${err.message || 'failed'}`);
+                        }
+                    }
                     existingAlertId = null;
                     Admin._alertRepostDraft = false;
                     Admin.setSelectedAlertPosters([]);
                     if (alertMsg) alertMsg.innerHTML = '';
-                    if (typeof showToast === 'function') showToast(isRepost ? "Alert Reposted!" : "Alert Posted!", "success");
+                    if (ok && typeof showToast === 'function') {
+                        const label = ok === 1 ? Admin.alertTargetLabel(targets[0]) : `${ok} targets`;
+                        showToast(isRepost ? `Alert reposted to ${label}` : `Alert posted to ${label}`, 'success');
+                    }
+                    if (errors.length && typeof showToast === 'function') {
+                        showToast(errors[0], 'error');
+                    }
                     if (typeof checkServiceAlerts === 'function') checkServiceAlerts();
-                    fetchCurrentAlert(target);
+                    fetchCurrentAlertsForTargets(targets);
                 } catch (e) {
                     if (typeof showToast === 'function') showToast(e.message || "Failed. Check Session.", "error");
                 } finally {
@@ -9083,15 +9340,20 @@ const Admin = {
         };
 
         clearBtn.onclick = async () => {
-            const target = alertTarget.value;
+            const targets = Admin.getSelectedAlertTargets();
             const secret = await Admin.getAuthKey();
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
-            
-            const confirmed = await Admin.secureConfirm("Clear Alert", `Archive & clear alert for: ${target}?`);
+            if (!targets.length) { if (typeof showToast === 'function') showToast("Pick at least one route or region.", "error"); return; }
+
+            const labels = targets.map((t) => Admin.alertTargetLabel(t)).join(', ');
+            const confirmed = await Admin.secureConfirm("Clear Alert", `Archive & clear alerts for: ${labels}?`);
             if (!confirmed) return;
 
             try {
-                const archivedCount = await Admin.archiveAllNoticesForTarget(target, secret);
+                let archivedCount = 0;
+                for (const target of targets) {
+                    archivedCount += (await Admin.archiveAllNoticesForTarget(target, secret)) || 0;
+                }
                 if (!archivedCount) {
                     if (typeof showToast === 'function') showToast("No active alert to clear for this target.", "info");
                     return;
@@ -9429,7 +9691,9 @@ const Admin = {
         const postedStr = posted ? Admin.formatDate(posted) : '-';
         const archStr = item.archivedAt ? Admin.formatDate(item.archivedAt) : null;
         const timestampHtml = `Posted: ${escapeHTML(postedStr)}${archStr ? `<br>Archived: ${escapeHTML(archStr)}` : ''}<br><span class="text-[10px]">ID: ${escapeHTML(String(item.id || '-'))}</span>`;
-        const prefixHtml = item.archivedAt
+        const prefixHtml = item.reconstructed
+            ? `<span class="inline-block bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2">Reconstructed from quote</span>`
+            : item.archivedAt
             ? `<span class="inline-block bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2">Archived${item.archiveReason ? ` - ${escapeHTML(String(item.archiveReason))}` : ''}</span>`
             : '';
         if (typeof window.renderServiceAlertModal === 'function') {
@@ -9438,7 +9702,7 @@ const Admin = {
                 prefixHtml,
                 timestampHtml,
                 onClose: finish,
-                onRevive: (item.archivedAt || item.archiveReason)
+                onRevive: (!item.reconstructed && (item.archivedAt || item.archiveReason))
                     ? () => { finish(); Admin.reviveArchivedAlert(item); }
                     : null,
             });
@@ -9471,7 +9735,9 @@ const Admin = {
         }
         if (titleEl) titleEl.innerHTML = locationText;
         if (bodyEl) {
-            const statusChip = item.archivedAt
+            const statusChip = item.reconstructed
+                ? `<span class="inline-block bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2">Reconstructed from quote</span>`
+                : item.archivedAt
                 ? `<span class="inline-block bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-2">Archived${item.archiveReason ? ` - ${escapeHTML(String(item.archiveReason))}` : ''}</span>`
                 : '';
             const rawMsg = item.message || item.longExplanation || item.buttonText || 'No additional details provided.';
@@ -9507,7 +9773,7 @@ const Admin = {
         };
 
         if (actionsRow) {
-            const canRevive = !!(item.archivedAt || item.archiveReason);
+            const canRevive = !item.reconstructed && !!(item.archivedAt || item.archiveReason);
             actionsRow.innerHTML = `
                 <button type="button" id="admin-disr-preview-close" class="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-bold py-3 rounded-xl shadow-sm transition-colors focus:outline-none text-sm">Close</button>
                 ${canRevive
@@ -9969,7 +10235,9 @@ const Admin = {
                     if (item.stations && item.stations.length === 2) targetStr = `${item.stations[0].replace(' STATION', '')} - ${item.stations[1].replace(' STATION', '')}`;
                     else if (item.stations && item.stations.length === 1) targetStr = item.stations[0].replace(' STATION', '');
 
-                    const expStr = item.expiresAt ? new Date(item.expiresAt).toLocaleDateString() : 'Never';
+                    const expStr = item.expiresAt
+                        ? (typeof formatAppDate === 'function' ? formatAppDate(item.expiresAt, { withTime: true }) : Admin.formatDate(item.expiresAt))
+                        : 'Never';
                     const expColor = isExpired ? 'text-red-500 font-bold' : 'text-gray-400';
 
                     const row = document.createElement('div');
@@ -10739,7 +11007,9 @@ const Admin = {
                     if (item.expiresAt) {
                         const expDate = new Date(item.expiresAt);
                         const isExpired = Date.now() > item.expiresAt;
-                        const expStr = `${expDate.toLocaleDateString()} ${expDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                        const expStr = typeof formatAppDate === 'function'
+                            ? formatAppDate(expDate, { withTime: true })
+                            : Admin.formatDate(expDate);
                         
                         if (isExpired) {
                             expiryHtml = `<div class="text-[9px] text-red-500 font-bold mt-0.5">EXPIRED: ${expStr}</div>`;
@@ -12663,7 +12933,13 @@ const Admin = {
             delete maintPanel.dataset.loaded;
             maintPanel.innerHTML = '';
         }
-        if (maintPanel.dataset.loaded === "true") return;
+        if (maintPanel.dataset.loaded === "true") {
+            const persistBody = document.getElementById('maint-mode-body');
+            const persistChev = document.getElementById('maint-mode-chevron');
+            persistBody?.classList.add('hidden');
+            persistChev?.classList.add('-rotate-90');
+            return;
+        }
         maintPanel.dataset.loaded = "true";
 
         maintPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
@@ -13175,6 +13451,8 @@ const Admin = {
                     chevron?.classList.remove('-rotate-90');
                     header.classList.add('mb-4');
                 }
+                maintModeBody?.classList.add('hidden');
+                maintModeChevron?.classList.add('-rotate-90');
             };
         }
         
@@ -13233,10 +13511,8 @@ const Admin = {
                 }
                 resetMaintComposer();
                 renderMaintActiveList();
-                if (countLiveMaint() > 0) {
-                    maintModeBody?.classList.remove('hidden');
-                    maintModeChevron?.classList.remove('-rotate-90');
-                }
+                maintModeBody?.classList.add('hidden');
+                maintModeChevron?.classList.add('-rotate-90');
 
                 try {
                     const banSecret = await Admin.getAuthKey();
