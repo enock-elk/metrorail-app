@@ -1,8 +1,8 @@
 {
   "sourceRepo": "enock-elk/next-train-astro",
-  "sourceSha": "b8132e2dd93a4036d4bae550d3a3db851949047c",
+  "sourceSha": "3a6623bd96876af6460ad22efaa72124700af5bd",
   "sourceRef": "main",
-  "deployedAt": "2026-08-21T02:22:50Z",
-  "workflowRun": "32439584739",
+  "deployedAt": "2026-08-21T08:52:32Z",
+  "workflowRun": "32465106878",
   "site": "https://nexttrain.co.za"
 }
