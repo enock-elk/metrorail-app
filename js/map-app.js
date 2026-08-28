@@ -253,6 +253,11 @@
             "POET'S CORNER": [-29.879624, 30.931123], 
             "BELLAIR": [-29.888762, 30.941657], 
             "SEA VIEW": [-29.902065, 30.961951],
+            "HAVENSIDE": [-29.926302426956735, 30.937562200751156],
+            "BAYVIEW": [-29.915492485588356, 30.918491645667224],
+            "WESTCLIFF": [-29.90911584089301, 30.902484294984493],
+            "CHATSGLEN": [-29.90702562701478, 30.88513415841232],
+            "CROSSMOOR": [-29.898514072933363, 30.861925638560148],
 
             // --- EASTERN CAPE ---
             "EAST LONDON": [-33.016726, 27.907383],
@@ -295,14 +300,16 @@
             'jhb-midway': ["JOHANNESBURG", "BRAAMFONTEIN", "MAYFAIR", "GROSVENOR", "LANGLAAGTE", "CROESUS", "LONGDALE", "NEW CANADA", "MLAMLANKUNZI", "ORLANDO", "NANCEFIELD", "KLIPTOWN", "TSHIAWELO", "MIDWAY"],
             
             // --- WESTERN CAPE (GUARDIAN CORRECTED PATHS) ---
-            'ct-chrishani': ["CAPE TOWN", "ESPLANADE", "YSTERPLAAT", "MUTUAL", "LANGA", "BONTEHEUWEL", "NETREG", "HEIDEVELD", "NYANGA", "PHILIPPI", "STOCK ROAD", "MANDALAY", "NOLUNGILE", "NONKQUBELA", "KHAYELITSHA", "KUYASA", "CHRIS HANI"],
-            'ct-kapteinsklip': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "NDABENI", "PINELANDS", "LANGA", "BONTEHEUWEL", "NETREG", "HEIDEVELD", "NYANGA", "PHILIPPI", "LENTEGEUR", "MITCHELL'S PLAIN", "KAPTEINSKLIP"],
-            'bellville-mutual': ["BELLVILLE", "SAREPTA", "PENTECH", "UNIBELL", "BELHAR", "LAVISTOWN", "BONTEHEUWEL", "LANGA", "MUTUAL"],
+            // Mainline: Cape Town → Koeberg Rd → Maitland → Mutual, then split.
+            'ct-chrishani': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "MUTUAL", "LANGA", "BONTEHEUWEL", "NETREG", "HEIDEVELD", "NYANGA", "PHILIPPI", "STOCK ROAD", "MANDALAY", "NOLUNGILE", "NONKQUBELA", "KHAYELITSHA", "KUYASA", "CHRIS HANI"],
+            'ct-kapteinsklip': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "MUTUAL", "LANGA", "BONTEHEUWEL", "NETREG", "HEIDEVELD", "NYANGA", "PHILIPPI", "LENTEGEUR", "MITCHELL'S PLAIN", "KAPTEINSKLIP"],
+            'bellville-mutual': ["BELLVILLE", "SAREPTA", "PENTECH", "UNIBELL", "BELHAR", "LAVISTOWN", "BONTEHEUWEL", "LANGA", "MUTUAL", "MAITLAND"],
+            'ct-bellv': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "MUTUAL", "BELLVILLE"],
             
             // GUARDIAN: Western Cape Expansion Paths
             'ct-malm': ["CAPE TOWN", "ESPLANADE", "YSTERPLAAT", "CENTURY CITY", "MONTE VISTA", "AVONDALE", "OOSTERZEE", "BELLVILLE", "STIKLAND", "BRACKENFELL", "EIKENFONTEIN", "KRAAIFONTEIN", "FISANTKRAAL", "MELLISH", "MIKPUNT", "KLIPHEUWEL", "WINTEVOGEL", "KALBASKRAAL", "ABBOTSDALE", "MALMESBURY"],
-            'ct-flats': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "NDABENI", "PINELANDS", "HAZENDAL", "ATHLONE", "CRAWFORD", "LANSDOWNE", "WETTON", "OTTERY", "SOUTHFIELD", "HEATHFIELD", "RETREAT"],
-            'ct-nolu': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "NDABENI", "PINELANDS", "ESPLANADE", "YSTERPLAAT", "MUTUAL", "LANGA", "BONTEHEUWEL", "NYANGA", "PHILIPPI", "LENTEGEUR", "MITCHELL'S PLAIN", "KAPTEINSKLIP", "STOCK ROAD", "MANDALAY", "NOLUNGILE"],
+            'ct-flats': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "MUTUAL", "NDABENI", "PINELANDS", "HAZENDAL", "ATHLONE", "CRAWFORD", "LANSDOWNE", "WETTON", "OTTERY", "SOUTHFIELD", "HEATHFIELD", "RETREAT"],
+            'ct-nolu': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "MUTUAL", "LANGA", "BONTEHEUWEL", "NYANGA", "PHILIPPI", "LENTEGEUR", "MITCHELL'S PLAIN", "KAPTEINSKLIP", "STOCK ROAD", "MANDALAY", "NOLUNGILE"],
 
             // --- KWAZULU-NATAL ---
             'kzn-umlazi': ["DURBAN YARD", "DURBAN", "BEREA ROAD", "DALBRIDGE", "CONGELLA", "UMBILO", "ROSSBURGH", "CLAIRWOOD", "MONTCLAIR", "MEREBANK", "REUNION", "ZWELETHU", "KWAMNYANDU", "LINDOKUHLE", "UMLAZI"],
@@ -310,6 +317,7 @@
             'kzn-winklespruit': ["DURBAN YARD", "DURBAN", "BEREA ROAD", "DALBRIDGE", "CONGELLA", "UMBILO", "ROSSBURGH", "CLAIRWOOD", "MONTCLAIR", "MEREBANK", "PELGRIM", "ISIPINGO", "UMBOGINTWINI", "PAHLA", "AMANZIMTOTI", "DOONSIDE", "WARNER BEACH", "WINKLESPRUIT"],
             'kzn-catoridge': ["DURBAN YARD", "DURBAN", "BEREA ROAD", "DALBRIDGE", "CONGELLA", "UMBILO", "ROSSBURGH", "MOUNT VERNON", "CAVENDISH", "BURLINGTON", "SHALLCROSS", "KLAARWATER", "MARIANNHILL", "THORNWOOD", "SITUNDU HILLS", "DASSENHOEK", "KWANDENGEZI", "DELVILLE WOOD", "NSHONGWENI", "CLIFFDALE", "HAMMARSDALE", "KWATANDAZA", "GEORGEDALE", "CATO RIDGE"],
             'kzn-pinetown': ["DURBAN YARD", "DURBAN", "BEREA ROAD", "DALBRIDGE", "CONGELLA", "UMBILO", "ROSSBURGH", "SEA VIEW", "BELLAIR", "POET'S CORNER", "MALVERN", "ESCOMBE", "NORTHDENE", "MOSELEY", "GLEN PARK", "SARNIA", "PINETOWN"],
+            'kzn-crossmoor': ["DURBAN YARD", "DURBAN", "BEREA ROAD", "DALBRIDGE", "CONGELLA", "UMBILO", "ROSSBURGH", "CLAIRWOOD", "MONTCLAIR", "MEREBANK", "HAVENSIDE", "BAYVIEW", "WESTCLIFF", "CHATSGLEN", "CROSSMOOR"],
             
             // --- EASTERN CAPE ---
             'ec-berlin': ["EAST LONDON", "SOUTHERNWOOD", "PANMURE", "CHISELHURST", "VINCENT", "CAMBRIDGE", "HIGHGATE", "HORSESHOE", "DAWN", "WILSONIA", "ARNOLDTON", "MTSOTSO", "MDANTSANE", "MOUNT RUTH", "EGERTON", "FORT JACKSON", "LONETREE", "BERLIN"]
@@ -831,6 +839,55 @@
             return { ...db, ...regionalData };
         };
 
+        function parseDisruptionsPayload(disrData) {
+            const globalDisruptions = {};
+            if (!disrData) return globalDisruptions;
+            const now = Date.now();
+            Object.keys(disrData).forEach((routeKey) => {
+                const routeObj = disrData[routeKey];
+                if (routeObj && typeof routeObj === 'object') {
+                    Object.values(routeObj).forEach((d) => {
+                        if (d && (!d.expiresAt || d.expiresAt > now)) {
+                            const rid = d.routeId || routeKey;
+                            if (!globalDisruptions[rid]) globalDisruptions[rid] = [];
+                            globalDisruptions[rid].push(d);
+                        }
+                    });
+                }
+            });
+            return globalDisruptions;
+        }
+
+        async function fetchLiveDisruptions() {
+            try {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const disrResp = await fetch(`${dynamicEndpoint}disruptions.json?t=${Date.now()}`);
+                if (!disrResp.ok) return {};
+                return parseDisruptionsPayload(await disrResp.json());
+            } catch (e) {
+                console.warn('Disruptions fetch failed.');
+                return {};
+            }
+        }
+
+        function disruptionPopupHtml(d) {
+            const isCritical = d && d.tier === 'CRITICAL';
+            const title = isCritical ? 'LINE SEVERED' : 'EXPECT DELAYS';
+            const raw = String(d?.message || d?.longExplanation || 'Service warning on this section.')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .slice(0, 280);
+            const msg = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            return `<div class="text-left max-w-[220px]"><b class="text-xs">${title}</b><br><span class="text-[11px] leading-snug">${msg}</span></div>`;
+        }
+
+        function attachMapDisruptionPopup(layer, d) {
+            if (!layer || !d) return layer;
+            layer.bindPopup(disruptionPopupHtml(d), { maxWidth: 260 });
+            return layer;
+        }
+
         async function initDynamicMap() {
             if (typeof L === 'undefined') throw new Error("Leaflet Missing");
             if (typeof ROUTES === 'undefined') throw new Error("Config Missing");
@@ -854,7 +911,9 @@
             
             // Guardian UX: "Midnight Blue" unified tile layer
             // CSS filter (.dark .leaflet-tile-pane) flips this strictly in dark mode
-            const voyagerTiles = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+            const voyagerTiles = (typeof window.ntCartoVoyagerUrl === 'function')
+                ? window.ntCartoVoyagerUrl()
+                : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
             
             const tileLayer = L.tileLayer(voyagerTiles, {
                 attribution: '&copy; OpenStreetMap &copy; CARTO',
@@ -862,34 +921,16 @@
                 maxZoom: 19
             }).addTo(map);
 
-            // Fetch Database (local cache → network cold-start)
-            const rawDb = await fetchLocalDB(currentRegion);
+            // Fetch schedule DB, live disruptions, and OSM tracks in parallel
+            const dbPromise = fetchLocalDB(currentRegion);
+            const disruptionsPromise = fetchLiveDisruptions();
+            const tracksPromise = loadRailTrackBundle(currentRegion);
+
+            const rawDb = await dbPromise;
             if (!rawDb) throw new Error("No Local Database Cached");
             const mergedDb = unwrapDatabase(rawDb, currentRegion);
 
-            // 🛡️ GUARDIAN PHASE 2: Fetch Live Disruptions for Global Map Overlay
             let globalDisruptions = {};
-            try {
-                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const disrResp = await fetch(`${dynamicEndpoint}disruptions.json?t=${Date.now()}`);
-                if (disrResp.ok) {
-                    const disrData = await disrResp.json();
-                    if (disrData) {
-                        const now = Date.now();
-                        Object.keys(disrData).forEach(routeKey => {
-                            const routeObj = disrData[routeKey];
-                            if (routeObj && typeof routeObj === 'object') {
-                                Object.values(routeObj).forEach(d => {
-                                    if (d && (!d.expiresAt || d.expiresAt > now)) {
-                                        if (!globalDisruptions[d.routeId]) globalDisruptions[d.routeId] = [];
-                                        globalDisruptions[d.routeId].push(d);
-                                    }
-                                });
-                            }
-                        });
-                    }
-                }
-            } catch(e) { console.warn("Disruptions fetch failed."); }
 
             // --- DYNAMIC ROUTE & STATION EXTRACTOR ---
             const colorMap = {
@@ -908,6 +949,41 @@
             const drawnRoutes = []; // { routeId, name, color, isActive, coords: [], validStops: [] }
             const hubs = new Set();
             const ends = new Set();
+
+            function stopsAreAdjacent(stops, a, b) {
+                const names = (stops || []).map((s) => s.name);
+                for (let i = 0; i < names.length - 1; i++) {
+                    if ((names[i] === a && names[i + 1] === b) || (names[i] === b && names[i + 1] === a)) return true;
+                }
+                return false;
+            }
+
+            /** Official corridor: Koeberg Rd → Maitland → Mutual. */
+            function ensureMaitlandMutualAdjacency(validStops, routeCoords) {
+                const mai = STATION_COORDINATES.MAITLAND;
+                const mut = STATION_COORDINATES.MUTUAL;
+                if (!mai || !mut || !validStops.length) return;
+                if (stopsAreAdjacent(validStops, 'MAITLAND', 'MUTUAL')) return;
+                const names = validStops.map((s) => s.name);
+                const iMut = names.indexOf('MUTUAL');
+                const iMai = names.indexOf('MAITLAND');
+                const insertAt = (idx, name, coord) => {
+                    validStops.splice(idx, 0, { name, lat: coord[0], lon: coord[1] });
+                    routeCoords.splice(idx, 0, coord);
+                    if (!globalStations[name]) {
+                        globalStations[name] = { lat: coord[0], lon: coord[1], origName: name, routes: new Set() };
+                    }
+                };
+                const prevIsEastBranch = (idx) => {
+                    const prev = names[idx - 1];
+                    return prev === 'LANGA' || prev === 'BONTEHEUWEL' || prev === 'NDABENI' || prev === 'PINELANDS';
+                };
+                if (iMut >= 0 && iMai < 0) {
+                    insertAt(prevIsEastBranch(iMut) ? iMut + 1 : iMut, 'MAITLAND', mai);
+                } else if (iMai >= 0 && iMut < 0) {
+                    insertAt(iMai + 1, 'MUTUAL', mut);
+                }
+            }
 
             Object.values(ROUTES).forEach(route => {
                 if (route.region !== currentRegion || route.id === 'special_event') return;
@@ -1027,6 +1103,8 @@
                     }
                 }
 
+                if (currentRegion === 'WC') ensureMaitlandMutualAdjacency(validStops, routeCoords);
+
                 if (routeCoords.length > 1) {
                      drawnRoutes.push({
                          routeId: route.id,
@@ -1039,6 +1117,24 @@
                 }
             });
 
+            if (currentRegion === 'WC' && !drawnRoutes.some((r) => stopsAreAdjacent(r.validStops, 'MAITLAND', 'MUTUAL'))) {
+                const mai = STATION_COORDINATES.MAITLAND;
+                const mut = STATION_COORDINATES.MUTUAL;
+                if (mai && mut) {
+                    drawnRoutes.push({
+                        routeId: 'wc-maitland-mutual',
+                        name: 'Maitland ↔ Mutual',
+                        color: '#22c55e',
+                        isActive: true,
+                        coords: [mai, mut],
+                        validStops: [
+                            { name: 'MAITLAND', lat: mai[0], lon: mai[1] },
+                            { name: 'MUTUAL', lat: mut[0], lon: mut[1] }
+                        ]
+                    });
+                }
+            }
+
             // 🛡️ GUARDIAN UX FIX: Empty Map Warning
             if (drawnRoutes.length === 0) {
                 const warningBox = document.getElementById('empty-map-warning');
@@ -1048,136 +1144,154 @@
 
             // --- OSM TRACK GEOMETRY (cached GeoJSON + live graph smooth) ---
             // © OpenStreetMap contributors — baked offline via scripts/build-rail-tracks.mjs
-            const trackBundle = await loadRailTrackBundle(currentRegion);
+            const overlayGroup = L.layerGroup().addTo(map);
+            const emptyTracks = { byId: new Map(), graph: null };
 
-            // --- DRAW BASE ROUTES ---
-            drawnRoutes.forEach(r => {
-                const isLive = r.isActive;
-                const lineCoords = resolveRouteLatLngs(r, trackBundle);
-                r.trackCoords = lineCoords;
-                L.polyline(lineCoords, {
-                    color: r.color, // 🛡️ Use actual route color for anticipation
-                    weight: isLive ? 4 : 3,
-                    opacity: isLive ? 0.9 : 0.35, // Faded for future routes
-                    dashArray: isLive ? null : '8, 12', // Distinct dashed look for "Soon"
-                    lineCap: 'round',
-                    lineJoin: 'round',
-                    smoothFactor: 1
-                }).addTo(map).bindPopup(`
+            function paintRouteLines(trackBundle) {
+                drawnRoutes.forEach((r) => {
+                    const isLive = r.isActive;
+                    const lineCoords = resolveRouteLatLngs(r, trackBundle);
+                    r.trackCoords = lineCoords;
+                    if (r._polyline) map.removeLayer(r._polyline);
+                    r._polyline = L.polyline(lineCoords, {
+                        color: r.color,
+                        weight: isLive ? 4 : 3,
+                        opacity: isLive ? 0.9 : 0.35,
+                        dashArray: isLive ? null : '8, 12',
+                        lineCap: 'round',
+                        lineJoin: 'round',
+                        smoothFactor: 1
+                    }).addTo(map).bindPopup(`
                     <div class="text-center">
                         <b class="uppercase text-sm">${r.name}</b><br>
-                        ${isLive 
-                            ? '<span class="text-green-600 font-bold text-xs">● Active Service</span>' 
+                        ${isLive
+                            ? '<span class="text-green-600 font-bold text-xs">● Active Service</span>'
                             : '<span class="text-blue-500 font-black text-[10px] uppercase tracking-widest animate-pulse">🚧 Launching Soon</span>'}
                     </div>
                 `);
-            });
+                });
+            }
 
-            // --- 🛡️ GUARDIAN PHASE 2: DRAW DYNAMIC DISRUPTION OVERLAYS ---
-            const drawnIncidentIds = new Set();
-            
-            drawnRoutes.forEach(routeObj => {
-                Object.values(globalDisruptions).flat().forEach(d => {
-                    // Prevent duplicate draws per route-incident pair
-                    if (drawnIncidentIds.has(d.id + '_' + routeObj.routeId)) return;
-                    
-                    const isCritical = d.tier === 'CRITICAL';
-                    const color = isCritical ? '#ef4444' : '#eab308';
-                    const currentValidStops = routeObj.validStops;
-                    // Always paint disruptions on the same rail-following path as the route
-                    const trackPath = (routeObj.trackCoords && routeObj.trackCoords.length > 1)
-                        ? routeObj.trackCoords
-                        : routeObj.coords;
+            function paintDisruptionOverlays(trackBundle, disruptions) {
+                overlayGroup.clearLayers();
+                const drawnIncidentIds = new Set();
 
-                    // No outward pulse rings on incident markers — solid badge only
-                    const iconHtml = `<div class="flex items-center justify-center rounded-full shadow-md border-2 border-white" style="width: 22px; height: 22px; background-color: ${color};"><span class="text-[11px] text-white font-black">${isCritical ? '✕' : '!'}</span></div>`;
-                    const alertIcon = L.divIcon({ className: 'custom-map-dot z-50', html: iconHtml, iconSize: [22, 22], iconAnchor: [11, 11] });
-                    const invisibleIcon = L.divIcon({ className: '', html: '', iconSize: [0,0], iconAnchor: [0,0] });
+                drawnRoutes.forEach((routeObj) => {
+                    Object.values(disruptions || {}).flat().forEach((d) => {
+                        if (!d || drawnIncidentIds.has(d.id + '_' + routeObj.routeId)) return;
 
-                    // 1. Route-Wide Disruption
-                    if (!d.stations || d.stations.length === 0) {
-                        if (d.routeId === routeObj.routeId) {
-                            drawnIncidentIds.add(d.id + '_' + routeObj.routeId);
-                            L.polyline(trackPath, {
-                                color: color, weight: 10, opacity: 0.8, dashArray: '10, 12', lineCap: 'round', lineJoin: 'round', className: 'disruption-line-overlay'
-                            }).addTo(map);
-                            
-                            const startIdx = 0;
-                            const endIdx = trackPath.length - 1;
-                            
-                            L.marker(trackPath[startIdx], { icon: alertIcon }).addTo(map);
-                            L.marker(trackPath[endIdx], { icon: alertIcon }).addTo(map);
+                        const isCritical = d.tier === 'CRITICAL';
+                        const color = isCritical ? '#ef4444' : '#eab308';
+                        const currentValidStops = routeObj.validStops;
+                        const trackPath = (routeObj.trackCoords && routeObj.trackCoords.length > 1)
+                            ? routeObj.trackCoords
+                            : routeObj.coords;
+                        if (!trackPath || trackPath.length < 1) return;
 
-                            const midIndexExact = (startIdx + endIdx) / 2;
-                            let midLat = 0, midLon = 0;
-                            if (midIndexExact % 1 === 0) {
-                                midLat = trackPath[midIndexExact][0];
-                                midLon = trackPath[midIndexExact][1];
-                            } else {
-                                const f = Math.floor(midIndexExact);
-                                const c = Math.ceil(midIndexExact);
-                                midLat = (trackPath[f][0] + trackPath[c][0]) / 2;
-                                midLon = (trackPath[f][1] + trackPath[c][1]) / 2;
-                            }
+                        const iconHtml = `<div class="flex items-center justify-center rounded-full shadow-md border-2 border-white" style="width: 22px; height: 22px; background-color: ${color};"><span class="text-[11px] text-white font-black">${isCritical ? '✕' : '!'}</span></div>`;
+                        const alertIcon = L.divIcon({ className: 'custom-map-dot z-50', html: iconHtml, iconSize: [22, 22], iconAnchor: [11, 11] });
 
-                            L.marker([midLat, midLon], { icon: invisibleIcon, interactive: false })
-                                .bindTooltip(`<b>${isCritical ? 'LINE SEVERED' : 'EXPECT DELAYS'}</b>`, { permanent: true, direction: 'center', className: 'font-bold text-[10px] text-gray-900 z-50 tooltip-dynamic tooltip-halo' })
-                                .addTo(map);
-                        }
-                    } 
-                    // 2. Specific Station Disruption (Cross-Corridor Logic)
-                    else {
-                        const normStations = d.stations.map(s => s.replace(/ STATION/gi, '').trim().toUpperCase());
-                        const routeStationNames = currentValidStops.map(s => s.name);
-                        
-                        // 2A. Segment Blockade (2 stations) — slice along rail track, not station chords
-                        if (normStations.length >= 2) {
-                            if (routeStationNames.includes(normStations[0]) && routeStationNames.includes(normStations[1])) {
-                                const idx1 = routeStationNames.indexOf(normStations[0]);
-                                const idx2 = routeStationNames.indexOf(normStations[1]);
-                                const s1 = currentValidStops[idx1];
-                                const s2 = currentValidStops[idx2];
-                                if (!s1 || !s2) return;
+                        const addWarning = (latlng, tooltipHtml, tooltipOpts) => {
+                            const marker = L.marker(latlng, { icon: alertIcon, interactive: true });
+                            attachMapDisruptionPopup(marker, d);
+                            if (tooltipHtml) marker.bindTooltip(tooltipHtml, tooltipOpts);
+                            marker.addTo(overlayGroup);
+                            return marker;
+                        };
+                        const addDash = (latlngs) => {
+                            const line = L.polyline(latlngs, {
+                                color, weight: 10, opacity: 0.8, dashArray: '10, 12', lineCap: 'round', lineJoin: 'round', className: 'disruption-line-overlay'
+                            });
+                            attachMapDisruptionPopup(line, d);
+                            line.addTo(overlayGroup);
+                            return line;
+                        };
 
+                        if (!d.stations || d.stations.length === 0) {
+                            if (d.routeId === routeObj.routeId) {
                                 drawnIncidentIds.add(d.id + '_' + routeObj.routeId);
-                                const i1 = nearestPathIndex(trackPath, s1.lat, s1.lon);
-                                const i2 = nearestPathIndex(trackPath, s2.lat, s2.lon);
-                                if (i1 < 0 || i2 < 0) return;
-                                const start = Math.min(i1, i2);
-                                const end = Math.max(i1, i2);
-                                const segment = trackPath.slice(start, end + 1);
-                                if (segment.length < 2) return;
+                                addDash(trackPath);
+                                const startIdx = 0;
+                                const endIdx = trackPath.length - 1;
+                                addWarning(trackPath[startIdx]);
+                                addWarning(trackPath[endIdx]);
+                                const midIndexExact = (startIdx + endIdx) / 2;
+                                let midLat = 0, midLon = 0;
+                                if (midIndexExact % 1 === 0) {
+                                    midLat = trackPath[midIndexExact][0];
+                                    midLon = trackPath[midIndexExact][1];
+                                } else {
+                                    const f = Math.floor(midIndexExact);
+                                    const c = Math.ceil(midIndexExact);
+                                    midLat = (trackPath[f][0] + trackPath[c][0]) / 2;
+                                    midLon = (trackPath[f][1] + trackPath[c][1]) / 2;
+                                }
+                                addWarning([midLat, midLon], `<b>${isCritical ? 'LINE SEVERED' : 'EXPECT DELAYS'}</b>`, {
+                                    permanent: true, direction: 'center', className: 'font-bold text-[10px] text-gray-900 z-50 tooltip-dynamic tooltip-halo'
+                                });
+                            }
+                        } else {
+                            const normStations = d.stations.map((s) => s.replace(/ STATION/gi, '').trim().toUpperCase());
+                            const routeStationNames = currentValidStops.map((s) => s.name);
 
-                                L.polyline(segment, {
-                                    color: color, weight: 10, opacity: 0.8, dashArray: '10, 12', lineCap: 'round', lineJoin: 'round', className: 'disruption-line-overlay'
-                                }).addTo(map);
+                            if (normStations.length >= 2) {
+                                if (routeStationNames.includes(normStations[0]) && routeStationNames.includes(normStations[1])) {
+                                    const idx1 = routeStationNames.indexOf(normStations[0]);
+                                    const idx2 = routeStationNames.indexOf(normStations[1]);
+                                    const s1 = currentValidStops[idx1];
+                                    const s2 = currentValidStops[idx2];
+                                    if (!s1 || !s2) return;
 
-                                L.marker(trackPath[start], { icon: alertIcon }).addTo(map);
-                                L.marker(trackPath[end], { icon: alertIcon }).addTo(map);
+                                    drawnIncidentIds.add(d.id + '_' + routeObj.routeId);
+                                    const i1 = nearestPathIndex(trackPath, s1.lat, s1.lon);
+                                    const i2 = nearestPathIndex(trackPath, s2.lat, s2.lon);
+                                    if (i1 < 0 || i2 < 0) return;
+                                    const start = Math.min(i1, i2);
+                                    const end = Math.max(i1, i2);
+                                    const segment = trackPath.slice(start, end + 1);
+                                    if (segment.length < 2) return;
 
-                                const midPt = trackPath[Math.floor((start + end) / 2)];
-                                if (midPt) {
-                                    L.marker(midPt, { icon: invisibleIcon, interactive: false })
-                                        .bindTooltip(`<b>${isCritical ? 'LINE SEVERED' : 'EXPECT DELAYS'}</b>`, { permanent: true, direction: 'center', className: 'font-bold text-[10px] text-gray-900 z-50 tooltip-dynamic tooltip-halo' })
-                                        .addTo(map);
+                                    addDash(segment);
+                                    addWarning(trackPath[start]);
+                                    addWarning(trackPath[end]);
+                                    const midPt = trackPath[Math.floor((start + end) / 2)];
+                                    if (midPt) {
+                                        addWarning(midPt, `<b>${isCritical ? 'LINE SEVERED' : 'EXPECT DELAYS'}</b>`, {
+                                            permanent: true, direction: 'center', className: 'font-bold text-[10px] text-gray-900 z-50 tooltip-dynamic tooltip-halo'
+                                        });
+                                    }
+                                }
+                            } else if (normStations.length === 1) {
+                                if (routeStationNames.includes(normStations[0])) {
+                                    const idx1 = routeStationNames.indexOf(normStations[0]);
+                                    drawnIncidentIds.add(d.id + '_' + routeObj.routeId);
+                                    const s1 = currentValidStops[idx1];
+                                    addWarning([s1.lat, s1.lon], `<b>${isCritical ? 'STATION INCIDENT' : 'STATION DELAYS'}</b>`, {
+                                        permanent: true, direction: 'top', offset: [0, -12], className: 'font-bold text-[10px] text-gray-900 z-50 tooltip-dynamic tooltip-halo'
+                                    });
                                 }
                             }
-                        } 
-                        // 2B. Single Station Point
-                        else if (normStations.length === 1) {
-                            if (routeStationNames.includes(normStations[0])) {
-                                const idx1 = routeStationNames.indexOf(normStations[0]);
-                                drawnIncidentIds.add(d.id + '_' + routeObj.routeId);
-                                const s1 = currentValidStops[idx1];
-                                
-                                L.marker([s1.lat, s1.lon], { icon: alertIcon })
-                                    .bindTooltip(`<b>${isCritical ? 'STATION INCIDENT' : 'STATION DELAYS'}</b>`, { permanent: true, direction: 'top', offset: [0, -12], className: 'font-bold text-[10px] text-gray-900 z-50 tooltip-dynamic tooltip-halo' })
-                                    .addTo(map);
-                            }
                         }
-                    }
+                    });
                 });
-            });
+            }
+
+            // Phase 1: station-chord overlays as soon as coords exist
+            paintRouteLines(emptyTracks);
+
+            const [disruptionData, trackBundle] = await Promise.all([
+                disruptionsPromise.then((d) => {
+                    globalDisruptions = d || {};
+                    paintDisruptionOverlays(emptyTracks, globalDisruptions);
+                    return globalDisruptions;
+                }),
+                tracksPromise
+            ]);
+            globalDisruptions = disruptionData || {};
+
+            // Phase 2: refine polylines onto OSM tracks, then redraw warnings
+            paintRouteLines(trackBundle);
+            paintDisruptionOverlays(trackBundle, globalDisruptions);
 
             // --- PHASE 8: COMMUTER DELAY REPORT PINS (recent, by station) ---
             try {
@@ -1310,7 +1424,6 @@
             const themeMoonSvg = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>';
             let isDarkNow = document.documentElement.classList.contains('dark');
             if (themeBtn) {
-                themeBtn.classList.add('text-amber-500');
                 themeBtn.innerHTML = isDarkNow ? themeMoonSvg : themeSunSvg;
                 themeBtn.onclick = () => {
                     isDarkNow = !isDarkNow;
@@ -1341,25 +1454,38 @@
             const locateBtn = document.getElementById('custom-locate-btn');
             const locateIcon = locateBtn ? locateBtn.querySelector('svg') : null;
 
-            map.on('locationfound', function(e) {
-                lastKnownLatLng = e.latlng;
-                const radius = e.accuracy / 2;
+            function applyUserLocation(latlng, accuracy) {
+                lastKnownLatLng = latlng;
+                const radius = (accuracy || 40) / 2;
                 if (!userMarker) {
-                    userMarker = L.marker(e.latlng, {icon: pulsingIcon}).addTo(map)
+                    userMarker = L.marker(latlng, {icon: pulsingIcon}).addTo(map)
                         .bindPopup("<div class='text-xs font-bold text-center text-gray-900'>You are here<br><span class='text-[10px] text-gray-500 font-normal'>Within " + Math.round(radius) + " meters</span></div>");
-                    userRadius = L.circle(e.latlng, radius, {
+                    userRadius = L.circle(latlng, radius, {
                         color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.15, weight: 1
                     }).addTo(map);
                 } else {
-                    userMarker.setLatLng(e.latlng);
-                    userRadius.setLatLng(e.latlng);
+                    userMarker.setLatLng(latlng);
+                    userRadius.setLatLng(latlng);
                     userRadius.setRadius(radius);
                 }
-                
                 if (locateIcon) {
                     locateIcon.classList.remove('animate-spin', 'text-gray-400');
                     locateIcon.classList.add('text-blue-600', 'dark:text-blue-400');
                 }
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'nt-map-location',
+                            lat: latlng.lat,
+                            lng: latlng.lng,
+                            accuracy: accuracy || radius * 2
+                        }, '*');
+                    }
+                } catch (_) {}
+            }
+
+            map.on('locationfound', function(e) {
+                applyUserLocation(e.latlng, e.accuracy);
             });
 
             map.on('locationerror', function(e) {
@@ -1382,6 +1508,187 @@
                     } else {
                         if (locateIcon) locateIcon.classList.add('animate-spin');
                         // Map is already watching, we just wait for locationfound to fire
+                    }
+                };
+            }
+
+            /** Rider markers from the parent Map tab (ride_pings with coarse GPS). */
+            let ridePingLayer = null;
+            let rideTrainMarkers = {};
+            const trainAnim = [];
+            function escapePing(s) {
+                return String(s || '').replace(/[&<>"']/g, function (c) {
+                    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+                });
+            }
+            function animateTrainMarker(marker, lat, lng, headingDeg, speedMps, expiresAt) {
+                const start = Date.now();
+                const rad = (headingDeg * Math.PI) / 180;
+                function tick() {
+                    if (!map.hasLayer(marker)) return;
+                    if (Date.now() > (expiresAt || start + 600000)) return;
+                    const dt = (Date.now() - start) / 1000;
+                    const distM = Math.min(speedMps * dt, 2500);
+                    const dLat = (Math.cos(rad) * distM) / 111320;
+                    const cosLat = Math.cos((lat * Math.PI) / 180) || 0.7;
+                    const dLng = (Math.sin(rad) * distM) / (111320 * cosLat);
+                    marker.setLatLng([lat + dLat, lng + dLng]);
+                    const id = requestAnimationFrame(tick);
+                    trainAnim.push(id);
+                }
+                trainAnim.push(requestAnimationFrame(tick));
+            }
+            function renderRidePingMarkers(pings) {
+                trainAnim.splice(0).forEach(function (id) { try { cancelAnimationFrame(id); } catch (_) {} });
+                if (ridePingLayer) {
+                    map.removeLayer(ridePingLayer);
+                    ridePingLayer = null;
+                }
+                if (!pings || !pings.length) return;
+                const group = L.layerGroup();
+                const trains = {};
+                const loose = [];
+                rideTrainMarkers = {};
+                pings.forEach(function (p) {
+                    if (typeof p.lat !== 'number' || typeof p.lng !== 'number') return;
+                    if (p.trainId) {
+                        const k = String(p.trainId);
+                        (trains[k] = trains[k] || []).push(p);
+                    } else loose.push(p);
+                });
+
+                Object.keys(trains).forEach(function (trainId) {
+                    const list = trains[trainId];
+                    const lat = list.reduce(function (s, p) { return s + p.lat; }, 0) / list.length;
+                    const lng = list.reduce(function (s, p) { return s + p.lng; }, 0) / list.length;
+                    const ids = {};
+                    list.forEach(function (p) { ids[p.deviceId || (p.lat + ',' + p.lng)] = 1; });
+                    const n = Object.keys(ids).length;
+                    const speed = (list.find(function (p) { return typeof p.speedMps === 'number'; }) || {}).speedMps || 0;
+                    const heading = (list.find(function (p) { return typeof p.heading === 'number'; }) || {}).heading;
+                    const icon = L.divIcon({
+                        className: 'nt-live-train',
+                        html: '<div class="nt-live-train-glyph"><span class="nt-live-train-name">Train '
+                            + escapePing(trainId) + '</span><span class="nt-live-train-n">'
+                            + n + ' sharing</span></div>',
+                        iconSize: [96, 32],
+                        iconAnchor: [48, 16]
+                    });
+                    const marker = L.marker([lat, lng], { icon: icon, zIndexOffset: 800, keyboard: true });
+                    const joinId = 'nt-join-train-' + String(trainId).replace(/[^a-zA-Z0-9_-]/g, '');
+                    marker.bindPopup(
+                        "<div class='text-xs text-gray-900 text-center'>"
+                        + "<p class='font-black'>Train " + escapePing(trainId) + "</p>"
+                        + "<p class='text-[10px] text-gray-500 mt-0.5'>" + n + " Next Train rider"
+                        + (n === 1 ? '' : 's') + " sharing</p>"
+                        + "<button type='button' id='" + joinId + "' class='mt-2 w-full py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-bold'>I’m on this train</button>"
+                        + "</div>"
+                    );
+                    marker.on('popupopen', function () {
+                        const btn = document.getElementById(joinId);
+                        if (!btn) return;
+                        btn.onclick = function () {
+                            try {
+                                (window.parent || window).postMessage({
+                                    type: 'nt-map-join-train',
+                                    trainId: trainId,
+                                    station: list[0].station || '',
+                                    routeId: list[0].routeId || null
+                                }, '*');
+                            } catch (_) {}
+                            map.closePopup();
+                        };
+                    });
+                    marker.addTo(group);
+                    rideTrainMarkers[trainId] = marker;
+                    if (speed > 1 && typeof heading === 'number') {
+                        animateTrainMarker(marker, lat, lng, heading, speed, list[0].expiresAt);
+                    }
+                });
+
+                loose.forEach(function (p) {
+                    const mine = !!p.mine;
+                    L.circleMarker([p.lat, p.lng], {
+                        radius: mine ? 9 : 8,
+                        color: mine ? '#1d4ed8' : '#d97706',
+                        weight: 2,
+                        fillColor: mine ? '#3b82f6' : '#fbbf24',
+                        fillOpacity: 0.85
+                    }).bindPopup(
+                        "<div class='text-xs font-bold text-center text-gray-900'>"
+                        + (mine ? 'You · ' : '') + (p.station || 'Person')
+                        + "<br><span class='text-[10px] text-gray-500 font-normal'>visible for 10 min</span></div>"
+                    ).addTo(group);
+                });
+                ridePingLayer = group.addTo(map);
+            }
+
+            // Parent Map tab / external nudge (locate + trip contribute markers)
+            window.addEventListener('message', function (ev) {
+                const data = ev && ev.data;
+                if (!data || typeof data !== 'object') return;
+                if (data.type === 'nt-map-ride-pings') {
+                    renderRidePingMarkers(data.pings || []);
+                    return;
+                }
+                if (data.type === 'nt-map-focus-train' && data.trainId) {
+                    const marker = rideTrainMarkers[String(data.trainId)];
+                    if (marker) {
+                        map.flyTo(marker.getLatLng(), 15, { duration: 1.0 });
+                        marker.openPopup();
+                    }
+                    return;
+                }
+                if (data.type === 'nt-map-contribute' && typeof data.lat === 'number') {
+                    const ll = L.latLng(data.lat, data.lng);
+                    applyUserLocation(ll, 40);
+                    renderRidePingMarkers([{
+                        lat: data.lat, lng: data.lng,
+                        trainId: data.trainId, station: data.station
+                    }]);
+                    map.flyTo(ll, 14, { duration: 1.0 });
+                    return;
+                }
+                if (data.type !== 'nt-map-locate') return;
+                if (typeof data.lat === 'number' && typeof data.lng === 'number') {
+                    const ll = L.latLng(data.lat, data.lng);
+                    applyUserLocation(ll, data.accuracy);
+                    map.flyTo(ll, 15, { duration: 1.2 });
+                    return;
+                }
+                if (lastKnownLatLng) map.flyTo(lastKnownLatLng, 15, { duration: 1.2 });
+                else if (locateIcon) locateIcon.classList.add('animate-spin');
+            });
+
+            // Standalone /map: Share opens parent presence sheet when embedded.
+            const shareBtn = document.getElementById('custom-share-location-btn');
+            if (shareBtn) {
+                shareBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    try {
+                        if (window.parent && window.parent !== window) {
+                            if (typeof window.parent.startPresenceShare === 'function') {
+                                window.parent.startPresenceShare({ source: 'map_presence' });
+                                return;
+                            }
+                            if (typeof window.parent.openContributePicker === 'function') {
+                                window.parent.openContributePicker();
+                                return;
+                            }
+                            if (typeof window.parent.shareMyLocation === 'function') {
+                                await window.parent.shareMyLocation();
+                                return;
+                            }
+                        }
+                    } catch (_) {}
+                    if (locateIcon) locateIcon.classList.add('animate-spin');
+                    map.once('locationfound', function (ev) {
+                        applyUserLocation(ev.latlng, ev.accuracy);
+                        alert('Open Next Train → Map → Share my location so others can see you for 10 minutes.');
+                    });
+                    if (!lastKnownLatLng) map.locate({ setView: true, maxZoom: 15, enableHighAccuracy: true });
+                    else {
+                        alert('Open Next Train → Map → Share my location so others can see you for 10 minutes.');
                     }
                 };
             }

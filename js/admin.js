@@ -2207,10 +2207,16 @@ const Admin = {
                         console.log("Guardian: Non-admin Firebase session ignored (anonymous or commuter).");
                         Admin.currentUser = null;
                     }
+                    if (typeof window.applyAdminAuthedChrome === 'function') {
+                        window.applyAdminAuthedChrome(false);
+                    }
                     return;
                 }
 
                 Admin.currentUser = user;
+                if (typeof window.applyAdminAuthedChrome === 'function') {
+                    window.applyAdminAuthedChrome(true);
+                }
                 try { localStorage.setItem('analytics_ignore', 'true'); } catch(e){}
                 try { safeStorage.setItem('dev_session_active', 'true'); } catch(e){}
 
@@ -2252,6 +2258,9 @@ const Admin = {
                 try { localStorage.removeItem('analytics_ignore'); } catch(e){}
                 try { safeStorage.removeItem('dev_session_active'); } catch(e){}
                 Admin.currentUser = null;
+                if (typeof window.applyAdminAuthedChrome === 'function') {
+                    window.applyAdminAuthedChrome(false);
+                }
                 if (signoutContainer) signoutContainer.innerHTML = '';
             }
         });
@@ -4990,7 +4999,7 @@ const Admin = {
             const chip = (label, n) => `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/80 dark:bg-gray-900/60 border border-slate-200 dark:border-slate-700 text-[9px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">${esc(label)} <span class="font-mono text-slate-800 dark:text-slate-100">${n}</span></span>`;
             return `
                 <div id="de-trip-insights" class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900/50 px-3 py-2.5 mb-2 space-y-2">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-500">Insights (this window)</p>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-500">Insights (all time)</p>
                     <div class="flex flex-wrap gap-1">${chip('GP', regionCounts.GP)}${chip('WC', regionCounts.WC)}${chip('KZN', regionCounts.KZN)}${chip('EC', regionCounts.EC)}</div>
                     <div class="flex flex-wrap gap-1">${Object.entries(dayCounts).map(([d, n]) => chip(d, n)).join('') || chip('days', 0)}</div>
                     <p class="text-[10px] text-slate-500">${chip('Direct', direct)}${chip('Transfer', transfer)}</p>
@@ -5048,8 +5057,7 @@ const Admin = {
                 if (!useCacheOnly) {
                     const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                     const windowSize = Math.max(80, Number(Admin._deTripWindowSize) || 80);
-                    const qs = `auth=${secret}&orderBy="$key"&limitToLast=${windowSize}`;
-                    const res = await window.guardianFetch(`${dynamicEndpoint}sys_logs/trip_plans.json?${qs}`, {}, 20000);
+                    const res = await window.guardianFetch(`${dynamicEndpoint}sys_logs/trip_plans.json?auth=${secret}`, {}, 20000);
                     if (!res.ok) throw new Error('HTTP ' + res.status);
                     Admin._cachedTripPlans = await res.json();
                     Admin._deTripCacheAt = Date.now();
@@ -5085,7 +5093,7 @@ const Admin = {
                             depSample: entry.depTime || null,
                         };
                     }
-                    const uniq = `${entry.userId || 'anon'}::${entry.batchId || entry.timestamp || 0}`;
+                    const uniq = String(entry.userId || entry.deviceId || '').trim() || 'anon';
                     heatMap[key].uniqueKeys.add(uniq);
                     heatMap[key].count = heatMap[key].uniqueKeys.size;
                     heatMap[key].hitCount += 1;
@@ -5114,16 +5122,14 @@ const Admin = {
 
                 listDiv.innerHTML = '';
                 let ever = { usersEver: Admin._deTripEverUsers || 0, pairsEver: Admin._deTripEverPairs || 0 };
-                if (!useCacheOnly) {
-                    try { ever = await Admin.fetchTripPlanEverStats(secret); } catch { /* keep window count */ }
-                }
+                try { ever = await Admin.fetchTripPlanEverStats(secret); } catch { /* keep all-time cache counts */ }
                 Admin.paintTripCorridorPage(listDiv, sorted, {
                     filteredCount: filtered.length,
                     uniqueUsers,
-                    usersEver: ever.usersEver || uniqueUsers,
-                    pairsEver: ever.pairsEver || 0,
-                    windowNote: `latest ${Admin._deTripWindowSize || 80} batches`,
-                    canLoadMore: !!Admin._deTripWindowFull,
+                    usersEver: Math.max(Number(ever.usersEver || 0), uniqueUsers),
+                    pairsEver: Number(ever.pairsEver || 0),
+                    windowNote: 'all batches (cards paged for scroll)',
+                    canLoadMore: false,
                 });
             } catch (e) {
                 listDiv.innerHTML = `<div class="text-xs text-red-500 text-center py-4">Failed to load trip plans.</div>`;
