@@ -196,6 +196,31 @@ const Admin = {
         return raw.replace(/\s*<->\s*/g, ' \u2194 ').replace(/\s*\u2194\s*/g, ' \u2194 ').trim();
     },
 
+    /** Pull "- Enock" / em-dash signoff out of an admin reply so the header can show it. */
+    parseAdminSignoff: (html) => {
+        let body = String(html || '');
+        let name = '';
+        const patterns = [
+            /(?:<br\s*\/?>|\n)*\s*<span[^>]*>\s*(?:\u2014|\u00E2\u20AC\u201D|\u00E2\u0080\u0094|&mdash;|[-–—])\s*([^<]*?)\s*<\/span>\s*$/i,
+            /(?:<br\s*\/?>|\n)*\s*(?:\u2014|\u00E2\u20AC\u201D|\u00E2\u0080\u0094|&mdash;|[-–—])\s*([A-Za-z][A-Za-z .'-]{1,30})\s*$/i
+        ];
+        for (const re of patterns) {
+            const m = body.match(re);
+            if (m && String(m[1] || '').trim()) {
+                name = String(m[1]).trim();
+                body = body.replace(re, '').trim();
+                break;
+            }
+        }
+        return { name, body };
+    },
+
+    formatAdminBubbleLabel: (name) => {
+        const n = String(name || '').replace(/^[-–—]\s*/, '').trim();
+        if (!n || /^admin$/i.test(n)) return 'Admin';
+        return `- ${n}`;
+    },
+
     // --- 0.1 GLOBAL AUTH KEY HELPER (GUARDIAN PHASE 9) ---
     isAllowlistedAdmin: (user) => {
         const email = String(user?.email || '').trim().toLowerCase();
@@ -2560,12 +2585,12 @@ const Admin = {
         // GUARDIAN PHASE 11 (UX FIX): Convert Modal to Native Full-Screen App Architecture
         const devModalCard = document.querySelector('#dev-modal > div');
         if (devModalCard) {
-            devModalCard.className = "bg-gray-50 dark:bg-gray-900 w-full min-h-screen max-w-5xl mx-auto p-4 sm:p-6 flex flex-col relative transition-all duration-300";
+            devModalCard.className = "bg-gray-50 dark:bg-gray-900 w-full min-h-full max-w-5xl mx-auto p-4 sm:p-6 flex flex-col relative transition-all duration-300 overflow-visible";
         }
         const devModalContainer = document.getElementById('dev-modal');
         if (devModalContainer) {
-            devModalContainer.classList.remove('p-4', 'items-center');
-            devModalContainer.classList.add('p-0', 'items-start', 'overflow-y-auto');
+            devModalContainer.classList.remove('p-4', 'items-center', 'justify-center', 'bg-black', 'bg-opacity-90');
+            devModalContainer.classList.add('p-0', 'items-stretch', 'overflow-y-auto', 'flex-col', 'bg-gray-50', 'dark:bg-gray-900');
         }
 
         // --- AFTER ---
@@ -4202,8 +4227,8 @@ const Admin = {
                 // GUARDIAN UX FIX: Edge-to-Edge Expansion
                 // Strip padding, borders, and margins so the module touches the exact edge of the screen
                 card.dataset.originalClasses = card.className;
-                card.classList.remove('rounded-xl', 'border', 'shadow-md', 'p-4', 'mb-4', 'border-gray-200', 'dark:border-gray-700', 'bg-white', 'dark:bg-gray-800');
-                card.classList.add('!border-none', '!shadow-none', '!rounded-none', '!p-0', '!mb-0', 'bg-transparent');
+                card.classList.remove('rounded-xl', 'border', 'shadow-md', 'p-4', 'mb-4', 'border-gray-200', 'dark:border-gray-700', 'bg-white', 'dark:bg-gray-800', 'overflow-hidden');
+                card.classList.add('!border-none', '!shadow-none', '!rounded-none', '!p-0', '!mb-0', 'bg-gray-50', 'dark:bg-gray-900', 'overflow-visible');
                 
                 // GUARDIAN UX FIX: Hide Sign Out container to maximize panel airspace
                 const signoutContainer = document.getElementById('admin-signout-container');
@@ -5339,54 +5364,7 @@ const Admin = {
         Admin.currentFeedbackTab = 'inbox';
         Admin.cachedFeedbackData = [];
 
-        fbPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300 flex flex-col min-h-0";
-
-        if (!document.getElementById('admin-feedback-styles')) {
-            const fbStyles = document.createElement('style');
-            fbStyles.id = 'admin-feedback-styles';
-            fbStyles.textContent = `
-                #admin-modules-container:not(.admin-grid-view) #feedback-panel {
-                    display: flex;
-                    flex-direction: column;
-                    min-height: min(72dvh, 40rem);
-                    max-height: calc(100dvh - 6.5rem);
-                    overflow: hidden;
-                }
-                #feedback-panel #fb-body:not(.hidden) {
-                    flex: 1 1 auto;
-                    min-height: 0;
-                    overflow: hidden;
-                    display: flex;
-                    flex-direction: column;
-                }
-                #feedback-panel #fb-list {
-                    flex: 1 1 auto;
-                    min-height: 0;
-                    overflow-y: auto;
-                    display: flex;
-                    flex-direction: column;
-                }
-                #feedback-panel .fb-thread-open {
-                    display: flex;
-                    flex-direction: column;
-                    flex: 1 1 auto;
-                    min-height: 0;
-                }
-                #feedback-panel .fb-thread-open .feedback-thread-body {
-                    display: flex;
-                    flex-direction: column;
-                    flex: 1 1 auto;
-                    min-height: 0;
-                    overflow: hidden;
-                }
-                #feedback-panel .feedback-thread-chat {
-                    flex: 1 1 auto;
-                    min-height: 12rem;
-                    overflow-y: auto;
-                }
-            `;
-            document.head.appendChild(fbStyles);
-        }
+        fbPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
         fbPanel.innerHTML = `
             <div id="fb-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative cursor-pointer shrink-0">
@@ -5398,7 +5376,7 @@ const Admin = {
                 <svg id="fb-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             
-            <div id="fb-body" class="hidden mt-4 flex flex-col flex-1 min-h-0 overflow-hidden">
+            <div id="fb-body" class="hidden mt-4 flex flex-col">
                 <!-- GUARDIAN UX FIX: Next Train Style Tabs -->
                 <div class="flex border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-30 pt-1 mb-3 shrink-0">
                     <button id="fb-tab-inbox" class="flex-1 py-3 text-sm font-bold text-center border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 transition-colors focus:outline-none">
@@ -5427,7 +5405,7 @@ const Admin = {
                     </button>
                 </div>
                 
-                <div id="fb-list" class="space-y-3 pr-1 flex-1 min-h-0 overflow-y-auto custom-scrollbar"></div>
+                <div id="fb-list" class="space-y-3 pr-1"></div>
             </div>
         `;
 
@@ -5691,7 +5669,7 @@ const Admin = {
 
                 // GUARDIAN UX FIX: Removed wrapping <button> to prevent invalid nested buttons
                 let groupHTML = `
-                    <div class="feedback-group-header scroll-mt-[110px] cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-full flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 border-b border-transparent transition-colors">
+                    <div class="feedback-group-header scroll-mt-[110px] cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 w-full flex justify-between items-center p-3 bg-white dark:bg-gray-800 border-b border-transparent transition-colors">
                         <div class="flex-grow flex flex-col items-start min-w-0 pr-2">
                             <div class="text-xs font-bold text-gray-900 dark:text-white w-full min-w-0">${commuterTitle}</div>
                             <span class="text-[9px] text-gray-500 font-mono mt-1 inline-flex items-center flex-wrap gap-y-0.5">${groupItems.length} Message${groupItems.length > 1 ? 's' : ''}${contactScanBlock} <span class="opacity-40 mx-0.5">|</span> Last: ${latestDate}</span>
@@ -5702,7 +5680,7 @@ const Admin = {
                             </button>
                         </div>
                     </div>
-                    <div class="feedback-thread-body hidden relative flex flex-col min-h-0">
+                    <div class="feedback-thread-body hidden relative">
                         <div class="flex flex-wrap items-center gap-2 shrink-0 mb-0 bg-gray-50 dark:bg-gray-800/50 p-2 rounded-t-lg border border-gray-100 dark:border-gray-700 border-b-0">
                             <div class="flex-grow min-w-0">
                                 ${contactHtml || '<span class="text-[10px] text-gray-400 italic font-medium px-1">No contact info provided</span>'}
@@ -5719,7 +5697,7 @@ const Admin = {
                                 </div>
                             </div>
                         </div>
-                        <div class="feedback-thread-chat space-y-3 p-2 sm:p-3 flex-1 min-h-[12rem] overflow-y-auto custom-scrollbar flex flex-col bg-[#efeae2] dark:bg-[#0b141a]">
+                        <div class="feedback-thread-chat space-y-3 p-2 sm:p-3 bg-[#efeae2] dark:bg-[#0b141a]">
                 `;
 
                 let lastRenderedDate = "";
@@ -5768,19 +5746,12 @@ const Admin = {
                             receiptHtml = `<span class="inline-flex items-center text-gray-400 ml-1 shrink-0" title="Delivered">${Admin.receiptTicks('double', 'w-3.5 h-2.5')}</span>`;
                         }
 
-                        // REGEX: Extract Admin Signoff Name ("- Enock")
+                        // REGEX: Extract Admin Signoff Name ("- Enock") including ASCII hyphen
                         let parsedAdminText = item.text || "";
-                        let adminName = "Admin";
                         parsedAdminText = Admin.repairMojibake(parsedAdminText);
-                        // Match em dash and legacy UTF-8 mojibake of "-"
-                        const signoffRegex = /(?:<br>|\n)*<span[^>]*>(?:\u2014|\u00E2\u20AC\u201D|\u00E2\u0080\u0094|&mdash;)\s*(.*?)<\/span>$/i;
-                        const fallbackRegex = /(?:<br>|\n)*(?:\u2014|\u00E2\u20AC\u201D|\u00E2\u0080\u0094|&mdash;)\s*([a-zA-Z]+)$/i;
-                        
-                        let match = parsedAdminText.match(signoffRegex) || parsedAdminText.match(fallbackRegex);
-                        if (match) {
-                            adminName = match[1].trim();
-                            parsedAdminText = parsedAdminText.replace(signoffRegex, '').replace(fallbackRegex, '').trim();
-                        }
+                        const signoff = Admin.parseAdminSignoff(parsedAdminText);
+                        parsedAdminText = signoff.body;
+                        const adminName = Admin.formatAdminBubbleLabel(item.fromName || signoff.name || 'Admin');
 
                         parsedAdminText = parsedAdminText.replace(/^(?:<br>|\s)+/, '');
                         if (typeof window.sanitizeRichHtml === 'function') {
@@ -5809,7 +5780,6 @@ const Admin = {
                                         </div>
                                         <div class="inbox-bubble-body">
                                             <div class="inbox-msg-text">${parsedAdminText}<span class="inbox-msg-time">${dateStr}${receiptHtml}${editedLabel}</span></div>
-                                            <button type="button" data-fb-edit-btn class="text-[9px] font-bold uppercase tracking-wider opacity-70 hover:opacity-100 mt-1 focus:outline-none">Edit</button>
                                         </div>
                                     </div>
                                 </div>
@@ -6126,6 +6096,7 @@ const Admin = {
                     : `<div class="flex justify-between items-center w-full mt-0 pt-3 px-2 pb-2 border-t border-gray-100 dark:border-gray-800 shrink-0 bg-white dark:bg-gray-900 rounded-b-lg">
                          <span class="text-[9px] font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded uppercase tracking-wider">Archived Thread</span>
                          <div class="flex space-x-2">
+                             ${did !== 'Anonymous / Legacy' ? `<button class="text-blue-600 hover:text-white hover:bg-blue-600 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors focus:outline-none uppercase tracking-wide border border-blue-200 shadow-sm" onclick="Admin.openReplyModal('${feedbackId}', '${did}')">Reply</button>` : ''}
                              <button class="text-blue-600 hover:text-white hover:bg-blue-600 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors focus:outline-none uppercase tracking-wide border border-blue-200 shadow-sm" onclick="Admin.restoreFeedback('${feedbackId}')">Restore</button>
                              <button class="text-red-600 hover:text-white hover:bg-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors focus:outline-none uppercase tracking-wide border border-red-200 shadow-sm" onclick="Admin.deleteFeedback('${feedbackId}', '${did}')">Delete</button>
                          </div>
@@ -6160,19 +6131,6 @@ const Admin = {
                     e.target.closest('[data-fb-more-menu]')?.classList.add('hidden');
                 } else if (!e.target.closest('[data-fb-more-wrap]')) {
                     listContainer.querySelectorAll('[data-fb-more-menu]').forEach((m) => m.classList.add('hidden'));
-                }
-
-                const editBtn = e.target.closest('[data-fb-edit-btn]');
-                if (editBtn && listContainer.contains(editBtn)) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const row = editBtn.closest('[data-fb-msg-id]');
-                    Admin.openAdminReplyEditor(
-                        row?.getAttribute('data-fb-msg-id'),
-                        row?.getAttribute('data-fb-device-id'),
-                        row?.getAttribute('data-fb-feedback-id')
-                    );
-                    return;
                 }
 
                 // WhatsApp quote chip — data-* attrs (no fragile inline onclick)
@@ -6233,9 +6191,6 @@ const Admin = {
                     header.classList.remove('border-transparent');
                     const chevron = header.querySelector('.chevron-icon');
                     if (chevron) chevron.classList.add('rotate-180');
-                    
-                    // Smoothly scroll the opened thread into view to reduce manual scrolling
-                    setTimeout(() => { header.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
                 } else {
                     body.classList.add('hidden');
                     header.parentElement?.classList.remove('fb-thread-open');
@@ -6349,6 +6304,7 @@ const Admin = {
                                 feedbackId: msg.feedbackId,
                                 appVersion: msg.appVersion,
                                 routeId: msg.routeId,
+                                fromName: msg.fromName,
                                 editedAt: msg.editedAt
                             });
                         });
@@ -7606,6 +7562,33 @@ const Admin = {
         Admin.openReplyModal(feedbackId || item?.feedbackId || '', deviceId, item || { id: key, text: '' });
     },
 
+    syncAdminReplyModalViewport: () => {
+        const modal = document.getElementById('admin-reply-modal');
+        if (!modal || modal.classList.contains('hidden')) return;
+        const vv = window.visualViewport;
+        const height = Math.max(240, Math.round(vv?.height || window.innerHeight || 0));
+        const top = Math.max(0, Math.round(vv?.offsetTop || 0));
+        modal.style.top = `${top}px`;
+        modal.style.height = `${height}px`;
+        modal.style.bottom = 'auto';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        const card = modal.firstElementChild;
+        if (card) {
+            card.style.maxHeight = `${Math.max(240, height - 32)}px`;
+            card.style.height = '';
+        }
+    },
+
+    bindAdminReplyModalViewport: () => {
+        if (Admin._adminReplyViewportBound) return;
+        Admin._adminReplyViewportBound = true;
+        const update = () => Admin.syncAdminReplyModalViewport();
+        window.addEventListener('resize', update, { passive: true });
+        window.visualViewport?.addEventListener('resize', update, { passive: true });
+        window.visualViewport?.addEventListener('scroll', update, { passive: true });
+    },
+
     openReplyModal: (feedbackId, deviceId, editMsg) => {
         if (!deviceId) {
             if (typeof showToast === 'function') showToast("No device ID linked to this feedback.", "error");
@@ -7693,6 +7676,8 @@ const Admin = {
         void modal.offsetWidth; // Trigger reflow
         modal.firstElementChild.classList.remove('scale-95');
         modal.firstElementChild.classList.add('scale-100');
+        Admin.bindAdminReplyModalViewport();
+        Admin.syncAdminReplyModalViewport();
 
         const cleanup = () => {
             modal.classList.add('hidden');
@@ -7798,9 +7783,9 @@ const Admin = {
             const replyDeviceId = modal.dataset.replyDeviceId || deviceId;
             const replyFeedbackId = modal.dataset.replyFeedbackId || feedbackId;
 
+            const adminEmail = Admin.currentUser?.email || '';
+            const adminName = adminEmail.includes('enock') ? 'Enock' : (adminEmail.includes('thandeka') ? 'Thandeka' : 'Admin');
             if (!editingKey) {
-                const adminEmail = Admin.currentUser?.email || '';
-                const adminName = adminEmail.includes('enock') ? 'Enock' : (adminEmail.includes('thandeka') ? 'Thandeka' : 'Admin');
                 text += `<br><br><span style="color: #9ca3af; font-style: italic;">- ${adminName}</span>`;
             }
             
@@ -7839,6 +7824,7 @@ const Admin = {
                     timestamp: Date.now(),
                     feedbackId: replyFeedbackId,
                     read: false,
+                    fromName: adminName,
                     appVersion: (typeof APP_VERSION !== 'undefined' ? String(APP_VERSION).split(' - ')[0] : '')
                 };
 
@@ -8080,7 +8066,7 @@ const Admin = {
                             ${btn('smaller', 'Decrease Size', 'A-')}
                             ${btn('larger', 'Increase Size', 'A+')}
                             </div>
-                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('link', '${id}')" class="shrink-0 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center focus:outline-none" title="Add Custom Link">${Admin.icon('globe', 'w-3.5 h-3.5')}</button>
+                            <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('link', '${id}')" class="shrink-0 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center gap-1 focus:outline-none whitespace-nowrap" title="Add Custom Link">URL ${Admin.icon('globe', 'w-3.5 h-3.5')}</button>
                         </div>
                     </div>`;
     },
