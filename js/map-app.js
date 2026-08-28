@@ -313,7 +313,7 @@
 
             // --- KWAZULU-NATAL ---
             'kzn-umlazi': ["DURBAN YARD", "DURBAN", "BEREA ROAD", "DALBRIDGE", "CONGELLA", "UMBILO", "ROSSBURGH", "CLAIRWOOD", "MONTCLAIR", "MEREBANK", "REUNION", "ZWELETHU", "KWAMNYANDU", "LINDOKUHLE", "UMLAZI"],
-            'kzn-bridgecity': ["BEREA ROAD", "DURBAN", "MOSES MABHIDA", "UMGENI", "BRIARDENE", "GREENWOOD PARK", "RED HILL", "AVOCA", "TEMPLE", "KENVILLE", "EFFINGHAM", "DUFF'S ROAD", "TEMBALIHLE", "KWAMASHU", "BRIDGE CITY"],
+            'kzn-bridgecity': ["BEREA ROAD", "DURBAN", "MOSES MABHIDA", "UMGENI", "BRIARDENE", "GREENWOOD PARK", "RED HILL", "AVOCA", "DUFF'S ROAD", "TEMBALIHLE", "KWAMASHU", "BRIDGE CITY"],
             'kzn-winklespruit': ["DURBAN YARD", "DURBAN", "BEREA ROAD", "DALBRIDGE", "CONGELLA", "UMBILO", "ROSSBURGH", "CLAIRWOOD", "MONTCLAIR", "MEREBANK", "PELGRIM", "ISIPINGO", "UMBOGINTWINI", "PAHLA", "AMANZIMTOTI", "DOONSIDE", "WARNER BEACH", "WINKLESPRUIT"],
             'kzn-catoridge': ["DURBAN YARD", "DURBAN", "BEREA ROAD", "DALBRIDGE", "CONGELLA", "UMBILO", "ROSSBURGH", "MOUNT VERNON", "CAVENDISH", "BURLINGTON", "SHALLCROSS", "KLAARWATER", "MARIANNHILL", "THORNWOOD", "SITUNDU HILLS", "DASSENHOEK", "KWANDENGEZI", "DELVILLE WOOD", "NSHONGWENI", "CLIFFDALE", "HAMMARSDALE", "KWATANDAZA", "GEORGEDALE", "CATO RIDGE"],
             'kzn-pinetown': ["DURBAN YARD", "DURBAN", "BEREA ROAD", "DALBRIDGE", "CONGELLA", "UMBILO", "ROSSBURGH", "SEA VIEW", "BELLAIR", "POET'S CORNER", "MALVERN", "ESCOMBE", "NORTHDENE", "MOSELEY", "GLEN PARK", "SARNIA", "PINETOWN"],
@@ -328,6 +328,13 @@
         // re-smooth station sequences (fixes straight-chord hops / missing routes).
         const RAIL_SNAP_MAX_M = 900;
         const RAIL_MAX_HOPS = 14000;
+        /** Reject an OSM hop that wanders far off the station-to-station chord. */
+        const RAIL_HOP_DETOUR_RATIO = 2.8;
+        const RAIL_HOP_DETOUR_MIN_M = 900;
+        /** If a hop's rail path passes another stop on this route, it skipped the order. */
+        const RAIL_SKIP_STATION_M = 90;
+        /** Reject an OSM hop that leaves the station-to-station corridor. */
+        const RAIL_HOP_STRAY_M = 600;
 
         function railHaversineM(lat1, lon1, lat2, lon2) {
             const R = 6371000;
@@ -400,6 +407,68 @@
             return best;
         }
 
+        function railPathLengthM(graph, nodePath) {
+            if (!graph || !nodePath || nodePath.length < 2) return 0;
+            let sum = 0;
+            for (let i = 1; i < nodePath.length; i++) {
+                const a = graph.nodes[nodePath[i - 1]];
+                const b = graph.nodes[nodePath[i]];
+                if (!a || !b) continue;
+                sum += railHaversineM(a.lat, a.lon, b.lat, b.lon);
+            }
+            return sum;
+        }
+
+        function hopDetourTooLong(chordM, railM) {
+            if (!Number.isFinite(railM) || railM <= 0) return true;
+            if (!Number.isFinite(chordM) || chordM <= 0) return railM > RAIL_HOP_DETOUR_MIN_M;
+            return railM > Math.max(chordM * RAIL_HOP_DETOUR_RATIO, chordM + RAIL_HOP_DETOUR_MIN_M);
+        }
+
+        function pointToSegmentM(pLat, pLon, aLat, aLon, bLat, bLon) {
+            const lat0 = ((aLat + bLat) / 2) * Math.PI / 180;
+            const toXY = (lat, lon) => [
+                lon * Math.PI / 180 * 6371000 * Math.cos(lat0),
+                lat * Math.PI / 180 * 6371000
+            ];
+            const [pX, pY] = toXY(pLat, pLon);
+            const [aX, aY] = toXY(aLat, aLon);
+            const [bX, bY] = toXY(bLat, bLon);
+            const abx = bX - aX;
+            const aby = bY - aY;
+            const len2 = abx * abx + aby * aby;
+            if (len2 < 1) return Math.hypot(pX - aX, pY - aY);
+            let t = ((pX - aX) * abx + (pY - aY) * aby) / len2;
+            t = Math.max(0, Math.min(1, t));
+            return Math.hypot(pX - (aX + t * abx), pY - (aY + t * aby));
+        }
+
+        function railHopStraysFromChord(graph, nodePath, a, b, maxM = RAIL_HOP_STRAY_M) {
+            if (!graph || !nodePath || nodePath.length < 3 || !a || !b) return false;
+            for (let k = 1; k < nodePath.length - 1; k++) {
+                const n = graph.nodes[nodePath[k]];
+                if (!n) continue;
+                if (pointToSegmentM(n.lat, n.lon, a.lat, a.lon, b.lat, b.lon) > maxM) return true;
+            }
+            return false;
+        }
+
+        /** True when the hop's rail path passes a different stop on this route. */
+        function railHopSkipsRouteStop(graph, nodePath, stops, hopIndex) {
+            if (!graph || !nodePath || nodePath.length < 3 || !stops) return false;
+            for (let k = 1; k < nodePath.length - 1; k++) {
+                const n = graph.nodes[nodePath[k]];
+                if (!n) continue;
+                for (let j = 0; j < stops.length; j++) {
+                    if (j === hopIndex || j === hopIndex + 1) continue;
+                    const s = stops[j];
+                    if (!s || !Number.isFinite(s.lat) || !Number.isFinite(s.lon)) continue;
+                    if (railHaversineM(n.lat, n.lon, s.lat, s.lon) < RAIL_SKIP_STATION_M) return true;
+                }
+            }
+            return false;
+        }
+
         function shortestRailPath(graph, startId, endId) {
             if (startId === endId) return [startId];
             const dist = new Map([[startId, 0]]);
@@ -448,11 +517,17 @@
                 if (snapA != null && snapB != null) {
                     const nodePath = shortestRailPath(graph, snapA, snapB);
                     if (nodePath && nodePath.length >= 2) {
-                        const seg = nodePath.map((id) => [graph.nodes[id].lat, graph.nodes[id].lon]);
-                        if (!out.length) out.push(...seg);
-                        else out.push(...seg.slice(1));
-                        railHops++;
-                        continue;
+                        const chordM = railHaversineM(a.lat, a.lon, b.lat, b.lon);
+                        const railM = railPathLengthM(graph, nodePath);
+                        const skips = railHopSkipsRouteStop(graph, nodePath, stops, i);
+                        const strays = railHopStraysFromChord(graph, nodePath, a, b);
+                        if (!skips && !strays && !hopDetourTooLong(chordM, railM)) {
+                            const seg = nodePath.map((id) => [graph.nodes[id].lat, graph.nodes[id].lon]);
+                            if (!out.length) out.push(...seg);
+                            else out.push(...seg.slice(1));
+                            railHops++;
+                            continue;
+                        }
                     }
                 }
                 if (!out.length) out.push([a.lat, a.lon]);
@@ -530,17 +605,38 @@
             return { byId, graph };
         }
 
-        /** Prefer graph-smoothed path; else baked LineString; else station chords. */
+        /** Baked OSM LineString may only be used if stations appear along it in list order. */
+        function pathVisitsStopsInOrder(latlngs, stops) {
+            if (!latlngs || latlngs.length < 2 || !stops || stops.length < 2) return false;
+            let last = -1;
+            for (const s of stops) {
+                if (!s || !Number.isFinite(s.lat) || !Number.isFinite(s.lon)) return false;
+                const i = nearestPathIndex(latlngs, s.lat, s.lon);
+                if (i < last) return false;
+                last = i;
+            }
+            return true;
+        }
+
+        /**
+         * Strict paint rule: consecutive stations in route order.
+         * OSM may only fill the hop between station i and i+1 (no shortcuts, no skips).
+         */
         function resolveRouteLatLngs(routeObj, trackBundle) {
             const stops = routeObj.validStops || [];
-            const baked = trackBundle.byId.get(routeObj.routeId);
-            if (trackBundle.graph) {
-                const smoothed = smoothStopsOnRailGraph(trackBundle.graph, stops);
+            const chords = (stops.length > 1)
+                ? stops.map((s) => [s.lat, s.lon])
+                : (routeObj.coords || []);
+            const bundle = trackBundle || { byId: new Map(), graph: null };
+            if (bundle.graph) {
+                const smoothed = smoothStopsOnRailGraph(bundle.graph, stops);
                 if (smoothed && smoothed.length > 1) return smoothed;
             }
-            if (baked && baked.length > 1 && !pathHasLargeJumps(baked)) return baked;
-            if (baked && baked.length > 1) return baked;
-            return routeObj.coords;
+            const baked = bundle.byId && bundle.byId.get(routeObj.routeId);
+            if (baked && baked.length > 1 && !pathHasLargeJumps(baked) && pathVisitsStopsInOrder(baked, stops)) {
+                return baked;
+            }
+            return chords;
         }
 
         // --- MAP LOGIC (Dynamic Region & DB Sync) ---
@@ -602,7 +698,7 @@
                 el.classList.toggle('is-active', el.getAttribute('data-region') === code);
             });
             const back = document.getElementById('map-back-link');
-            if (back) back.setAttribute('href', regionRoutesHref(code));
+            if (back) back.setAttribute('data-href', regionRoutesHref(code));
         }
 
         function switchMapRegion(region) {
@@ -706,6 +802,37 @@
             });
         }
 
+        function bindMapLegendToggle() {
+            const wrap = document.getElementById('legend-container');
+            const btn = document.getElementById('legend-toggle-btn');
+            if (!wrap || !btn || btn.dataset.bound === '1') return;
+            btn.dataset.bound = '1';
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleLegend();
+            });
+            document.addEventListener('click', (e) => {
+                if (!wrap.contains(e.target)) {
+                    wrap.classList.remove('is-open');
+                    btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
+
+        function toggleLegend() {
+            const wrap = document.getElementById('legend-container');
+            const btn = document.getElementById('legend-toggle-btn');
+            if (!wrap) return;
+            const regionPicker = document.getElementById('region-picker');
+            if (regionPicker) {
+                regionPicker.classList.remove('is-open');
+                document.getElementById('region-toggle-btn')?.setAttribute('aria-expanded', 'false');
+            }
+            const open = wrap.classList.toggle('is-open');
+            if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        window.toggleLegend = toggleLegend;
+
         function bindMapColdStartControls() {
             const panel = document.getElementById('map-cold-start');
             if (!panel || panel.dataset.bound === '1') return;
@@ -722,6 +849,7 @@
             const bootRegion = resolveMapRegion();
             syncMapChromeRegion(bootRegion);
             bindMapRegionPicker();
+            bindMapLegendToggle();
             bindMapColdStartControls();
             try {
                 await initDynamicMap();
@@ -949,6 +1077,34 @@
             const drawnRoutes = []; // { routeId, name, color, isActive, coords: [], validStops: [] }
             const hubs = new Set();
             const ends = new Set();
+            let selectedRouteId = null;
+            let networkBounds = null;
+
+            function escapeMapHtml(s) {
+                return String(s || '').replace(/[&<>"']/g, (c) => ({
+                    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+                }[c]));
+            }
+
+            function stationPopupHtml(origName, routeSet, routes) {
+                const title = escapeMapHtml(String(origName || '').replace(/ STATION/gi, ''));
+                const ids = routeSet instanceof Set ? [...routeSet] : [...(routeSet || [])];
+                const rows = [];
+                const seen = new Set();
+                (routes || []).forEach((item) => {
+                    if (!item || !ids.includes(item.routeId) || seen.has(item.routeId)) return;
+                    seen.add(item.routeId);
+                    const label = escapeMapHtml(String(item.name || item.routeId));
+                    const color = item.color || '#64748b';
+                    rows.push(`<div class="map-popup-route"><span class="map-popup-swatch" style="background:${color}"></span>${label}</div>`);
+                });
+                ids.forEach((rid) => {
+                    if (seen.has(rid)) return;
+                    rows.push(`<div class="map-popup-route"><span class="map-popup-swatch" style="background:#64748b"></span>${escapeMapHtml(rid)}</div>`);
+                });
+                const list = rows.length ? `<div class="map-popup-routes">${rows.join('')}</div>` : '';
+                return `<div class="map-popup-station"><b class="map-popup-name">${title}</b>${list}</div>`;
+            }
 
             function stopsAreAdjacent(stops, a, b) {
                 const names = (stops || []).map((s) => s.name);
@@ -983,6 +1139,31 @@
                 } else if (iMai >= 0 && iMut < 0) {
                     insertAt(iMai + 1, 'MUTUAL', mut);
                 }
+            }
+
+            /** Paint order is the official station list, never sheet-row scramble. */
+            function applyCanonicalStationOrder(routeId, validStops, routeCoords) {
+                const names = STATIC_ROUTE_PATHS[routeId];
+                if (!names || names.length < 2) return { validStops, routeCoords };
+                const byName = new Map();
+                for (const s of validStops || []) {
+                    if (s?.name && Number.isFinite(s.lat) && Number.isFinite(s.lon)) byName.set(s.name, s);
+                }
+                const ordered = [];
+                for (const name of names) {
+                    const s = byName.get(name);
+                    if (!s) continue;
+                    ordered.push({ name: s.name, lat: s.lat, lon: s.lon });
+                    if (!globalStations[s.name]) {
+                        globalStations[s.name] = { lat: s.lat, lon: s.lon, origName: s.name, routes: new Set() };
+                    }
+                    globalStations[s.name].routes.add(routeId);
+                }
+                if (ordered.length < 2) return { validStops, routeCoords };
+                return {
+                    validStops: ordered,
+                    routeCoords: ordered.map((s) => [s.lat, s.lon])
+                };
             }
 
             Object.values(ROUTES).forEach(route => {
@@ -1104,6 +1285,7 @@
                 }
 
                 if (currentRegion === 'WC') ensureMaitlandMutualAdjacency(validStops, routeCoords);
+                ({ validStops, routeCoords } = applyCanonicalStationOrder(route.id, validStops, routeCoords));
 
                 if (routeCoords.length > 1) {
                      drawnRoutes.push({
@@ -1161,7 +1343,9 @@
                         lineCap: 'round',
                         lineJoin: 'round',
                         smoothFactor: 1
-                    }).addTo(map).bindPopup(`
+                    });
+                    if (!selectedRouteId || r.routeId === selectedRouteId) r._polyline.addTo(map);
+                    r._polyline.bindPopup(`
                     <div class="text-center">
                         <b class="uppercase text-sm">${r.name}</b><br>
                         ${isLive
@@ -1170,6 +1354,12 @@
                     </div>
                 `);
                 });
+                const bounds = L.latLngBounds([]);
+                drawnRoutes.forEach((r) => {
+                    if (!r._polyline || !r._polyline.getBounds) return;
+                    try { bounds.extend(r._polyline.getBounds()); } catch (_) {}
+                });
+                networkBounds = bounds.isValid() ? bounds : null;
             }
 
             function paintDisruptionOverlays(trackBundle, disruptions) {
@@ -1332,6 +1522,79 @@
                 }
             } catch (e) { /* non-fatal */ }
 
+            const stationLayerItems = [];
+
+            function syncLineFilterChrome() {
+                const filtered = !!selectedRouteId;
+                const resetBtn = document.getElementById('map-reset-line-btn');
+                if (resetBtn) {
+                    resetBtn.hidden = !filtered;
+                    resetBtn.setAttribute('aria-hidden', filtered ? 'false' : 'true');
+                }
+                document.getElementById('map-top-controls')?.classList.toggle('is-line-filtered', filtered);
+                document.querySelectorAll('#legend-content .legend-item[data-route-id]').forEach((btn) => {
+                    const on = selectedRouteId && btn.getAttribute('data-route-id') === selectedRouteId;
+                    btn.classList.toggle('is-selected', !!on);
+                    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                });
+                const allBtn = document.getElementById('legend-show-all');
+                if (allBtn) {
+                    allBtn.classList.toggle('is-selected', !filtered);
+                    allBtn.setAttribute('aria-pressed', filtered ? 'false' : 'true');
+                }
+            }
+
+            function fitNetworkView() {
+                if (!map || !networkBounds) return;
+                try { map.fitBounds(networkBounds, { padding: [36, 36], maxZoom: 12 }); } catch (_) {}
+            }
+
+            function setSelectedLine(routeId, opts) {
+                const toggle = !!(opts && opts.toggle);
+                const fit = !opts || opts.fit !== false;
+                const wasFiltered = !!selectedRouteId;
+                if (toggle && routeId && selectedRouteId === routeId) selectedRouteId = null;
+                else selectedRouteId = routeId || null;
+
+                drawnRoutes.forEach((r) => {
+                    const show = !selectedRouteId || r.routeId === selectedRouteId;
+                    if (!r._polyline) return;
+                    if (show) {
+                        if (!map.hasLayer(r._polyline)) r._polyline.addTo(map);
+                    } else if (map.hasLayer(r._polyline)) {
+                        map.removeLayer(r._polyline);
+                    }
+                });
+                stationLayerItems.forEach((s) => {
+                    const show = !selectedRouteId || (s.routes && s.routes.has(selectedRouteId));
+                    if (show) {
+                        if (!map.hasLayer(s.marker)) s.marker.addTo(map);
+                    } else if (map.hasLayer(s.marker)) {
+                        map.removeLayer(s.marker);
+                    }
+                });
+                syncLineFilterChrome();
+                if (!fit) return;
+                if (selectedRouteId) {
+                    const r = drawnRoutes.find((x) => x.routeId === selectedRouteId);
+                    if (r && r._polyline && r._polyline.getBounds) {
+                        try { map.fitBounds(r._polyline.getBounds(), { padding: [48, 48], maxZoom: 13 }); } catch (_) {}
+                    }
+                } else if (wasFiltered) {
+                    try { map.closePopup(); } catch (_) {}
+                    fitNetworkView();
+                }
+            }
+
+            function applySelectedLine(routeId) {
+                setSelectedLine(routeId, { toggle: true, fit: true });
+            }
+
+            document.getElementById('map-reset-line-btn')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setSelectedLine(null, { toggle: false, fit: true });
+            });
+
             // --- DRAW MARKERS (WITH NAKED HALO TOOLTIPS) ---
             Object.entries(globalStations).forEach(([name, data]) => {
                 // Important = corridor terminals + designated transfer/relay hubs only
@@ -1345,7 +1608,7 @@
                     ? 'font-bold text-[11px] text-gray-900 dark:text-white z-50 tooltip-dynamic tooltip-halo' 
                     : 'font-medium text-[9.5px] text-gray-700 dark:text-gray-300 tooltip-dynamic tooltip-halo minor-station-tooltip';
 
-                L.circleMarker([data.lat, data.lon], {
+                const marker = L.circleMarker([data.lat, data.lon], {
                     radius: isMajor ? 5 : 2.5,
                     fillColor: "#ffffff",
                     color: isMajor ? "#1f2937" : "#3b82f6",
@@ -1353,19 +1616,35 @@
                     opacity: 1,
                     fillOpacity: 1
                 }).addTo(map)
-                  .bindPopup(`<b class="text-sm">${data.origName.replace(/ STATION/gi, '')}</b>`) 
+                  .bindPopup(
+                      () => stationPopupHtml(data.origName, data.routes, drawnRoutes),
+                      { maxWidth: 280, className: 'map-station-popup' }
+                  )
                   .bindTooltip(data.origName.replace(/ STATION/gi, ''), { 
                       permanent: true, 
                       direction: 'top',
                       offset: [0, -5],
                       className: labelClass
                   });
+                stationLayerItems.push({ name, routes: data.routes, marker });
             });
 
             // --- BUILD DYNAMIC LEGEND ---
             const legendContent = document.getElementById('legend-content');
             if (legendContent) {
-                legendContent.innerHTML = ''; 
+                legendContent.innerHTML = '';
+                const allBtn = document.createElement('button');
+                allBtn.type = 'button';
+                allBtn.id = 'legend-show-all';
+                allBtn.className = 'legend-item legend-item-all is-selected';
+                allBtn.setAttribute('aria-pressed', 'true');
+                allBtn.setAttribute('aria-label', 'Show all lines');
+                allBtn.innerHTML = `<span class="color-dot" style="background:#94a3b8"></span><span class="text-gray-700 dark:text-gray-200">Show all lines</span>`;
+                allBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    setSelectedLine(null, { toggle: false, fit: true });
+                });
+                legendContent.appendChild(allBtn);
                 drawnRoutes.forEach(item => {
                     
                     // Evaluate Dynamic Route Status for the Legend
@@ -1407,13 +1686,22 @@
                         badgeColor = 'bg-blue-600 animate-pulse'; 
                     }
 
-                    legendContent.innerHTML += `
-                        <div class="legend-item ${!item.isActive ? 'opacity-80' : ''}">
+                    const row = document.createElement('button');
+                    row.type = 'button';
+                    row.className = `legend-item ${!item.isActive ? 'opacity-80' : ''}`;
+                    row.setAttribute('data-route-id', item.routeId);
+                    row.setAttribute('aria-pressed', 'false');
+                    row.setAttribute('aria-label', `Show ${item.name.replace(/<[^>]+>/g, '')}`);
+                    row.innerHTML = `
                             <span class="color-dot" style="background-color: ${item.color}"></span>
                             <span class="text-gray-700 dark:text-gray-200 mr-2">${item.name}</span>
                             <span class="status-badge ${badgeColor}">${routeStatus}</span>
-                        </div>
                     `;
+                    row.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        applySelectedLine(item.routeId);
+                    });
+                    legendContent.appendChild(row);
                 });
             }
 
@@ -1712,20 +2000,6 @@
             map.on('zoomend', updateTooltipSize);
             updateTooltipSize(); 
         }
-
-        function toggleLegend() {
-            const wrap = document.getElementById('legend-container');
-            const btn = document.getElementById('legend-toggle-btn');
-            if (!wrap) return;
-            const regionPicker = document.getElementById('region-picker');
-            if (regionPicker) {
-                regionPicker.classList.remove('is-open');
-                document.getElementById('region-toggle-btn')?.setAttribute('aria-expanded', 'false');
-            }
-            const open = wrap.classList.toggle('is-open');
-            if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        }
-        window.toggleLegend = toggleLegend;
 
         // Network Lines starts closed on entry — open via the top-bar button.
     
