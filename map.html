@@ -154,9 +154,9 @@ const forceLight = false;
         document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
       } catch (e) {}
     })();
-  </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Metrorail Next Train Network Map","url":"https://nexttrain.co.za/map.html","applicationCategory":"TravelApplication","operatingSystem":"Any","description":"Interactive Metrorail network map for Gauteng, Western Cape, KZN, and Eastern Cape. View active train routes, stations, and live service disruptions.","offers":{"@type":"Offer","price":"0","priceCurrency":"ZAR"}}</script><link rel="stylesheet" href="/_astro/vendor.Bs-9-eE1.css">
+  </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Metrorail Next Train Network Map","url":"https://nexttrain.co.za/map.html","applicationCategory":"TravelApplication","operatingSystem":"Any","description":"Interactive Metrorail network map for Gauteng, Western Cape, KZN, and Eastern Cape. View active train routes, stations, and live service disruptions.","offers":{"@type":"Offer","price":"0","priceCurrency":"ZAR"}}</script><link rel="stylesheet" href="/_astro/vendor.DkBfvM8L.css">
 <link rel="stylesheet" href="/_astro/_slug_.BxjNkNDp.css">
-<link rel="stylesheet" href="/_astro/map.BtmlN_t8.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300 bg-gray-100 dark:bg-gray-900 m-0 p-0 overflow-hidden h-full">       <h1 class="sr-only">Interactive Metrorail Network Map</h1> <noscript> <div class="p-6 max-w-lg mx-auto text-center text-gray-800"> <p class="font-bold mb-2">Metrorail network map</p> <p class="text-sm mb-4">Enable JavaScript to explore the interactive map, or open the main app for live train times.</p> <p class="text-sm"> <a href="/">Open Next Train</a>
+<link rel="stylesheet" href="/_astro/map.BHkMFl6D.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300 bg-gray-100 dark:bg-gray-900 m-0 p-0 overflow-hidden h-full">       <h1 class="sr-only">Interactive Metrorail Network Map</h1> <noscript> <div class="p-6 max-w-lg mx-auto text-center text-gray-800"> <p class="font-bold mb-2">Metrorail network map</p> <p class="text-sm mb-4">Enable JavaScript to explore the interactive map, or open the main app for live train times.</p> <p class="text-sm"> <a href="/">Open Next Train</a>
 ·
 <a href="/guide.html">Commuter guide</a> </p> </div> </noscript>  <div id="map-top-controls" class="pointer-events-none"> <div id="map-back-wrap"> <button type="button" id="map-back-link" class="map-chrome-btn map-chrome-btn-wide" data-href="/" aria-label="Back to Next Train"> <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
 Back
@@ -166,7 +166,7 @@ Share my location
 const REGIONS = {"GP":{"dbNode":"schedules/gauteng.json","rootNode":"full-database.json","name":"Gauteng"},"WC":{"dbNode":"schedules/westerncape.json","rootNode":"full-database.json","name":"Western Cape"},"KZN":{"dbNode":"schedules/kzn.json","rootNode":"full-database.json","name":"KwaZulu-Natal"},"EC":{"dbNode":"schedules/easterncape.json","rootNode":"full-database.json","name":"Eastern Cape"}};
 const PIPELINE_SOURCES = {"CLOUDFLARE":{"url":"https://nexttrain-cache.enock.workers.dev/","useRootNode":false},"GITHUB":{"url":"https://cdn.jsdelivr.net/gh/enock-elk/next-train-astro@main/public/data/","useRootNode":true},"FIREBASE":{"url":"https://metrorail-next-train-default-rtdb.firebaseio.com/","useRootNode":false}};
 const DYNAMIC_BASE_URL = "https://metrorail-next-train-default-rtdb.firebaseio.com/";
-const APP_VERSION = "V9_08.28.21";
+const APP_VERSION = "V9_08.29.2";
 const APP_BASE = "/";
 const REGION_SEO_SLUGS = {"GP":"gauteng","WC":"western-cape","KZN":"kwazulu-natal","EC":"eastern-cape"};
 
@@ -177,7 +177,7 @@ const REGION_SEO_SLUGS = {"GP":"gauteng","WC":"western-cape","KZN":"kwazulu-nata
     window.APP_VERSION = APP_VERSION;
     window.APP_BASE = APP_BASE;
     window.REGION_SEO_SLUGS = REGION_SEO_SLUGS;
-  })();</script> <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script> <script src="/js/map-app.js?v=V9_08.28.21"></script> <script>
+  })();</script> <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script> <script src="/js/map-app.js?v=V9_08.29.2"></script> <script>
     (function () {
       function inMapTab() {
         try {
