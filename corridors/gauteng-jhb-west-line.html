@@ -1,4 +1,81 @@
-<!DOCTYPE html><html lang="en" class data-lab-mode="false"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>JHB West Line Train Times | Metrorail Next Train</title><meta name="description" content="JHB West Line Metrorail routes in Gauteng. Open Next Train for live boards and full weekend/weekday grids. Check live Gauteng Metrorail schedules offline in Metrorail Next Train."><meta name="robots" content="index, follow"><link rel="canonical" href="https://nexttrain.co.za/corridors/gauteng-jhb-west-line.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/corridors/gauteng-jhb-west-line.html"><meta property="og:title" content="JHB West Line Train Times | Metrorail Next Train"><meta property="og:description" content="JHB West Line Metrorail routes in Gauteng. Open Next Train for live boards and full weekend/weekday grids. Check live Gauteng Metrorail schedules offline in Metrorail Next Train."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="JHB West Line Train Times | Metrorail Next Train"><meta name="twitter:description" content="JHB West Line Metrorail routes in Gauteng. Open Next Train for live boards and full weekend/weekday grids. Check live Gauteng Metrorail schedules offline in Metrorail Next Train."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>(function(){const base = "/";
+<!DOCTYPE html><html lang="en" class data-lab-mode="false"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><style>
+      @media (max-width: 639px) {
+        html { font-size: clamp(13.12px, calc(100vw * 16 / 390), 16px); }
+      }
+    </style><script>
+  /* [CDATA[ */
+  (function () {
+    var KEY = 'nt_shell_recover';
+    var MAX_ATTEMPTS = 2;
+
+    function reveal() {
+      var el = document.getElementById('nt-recovery-lifeline');
+      // The hide rule is !important because it lives in the hashed bundle, so
+      // an override has to be too.
+      if (el) el.style.setProperty('display', 'block', 'important');
+    }
+
+    function readAttempts() {
+      // No sessionStorage means no loop guard, so prefer showing the number
+      // over reloading blind.
+      try {
+        return parseInt(sessionStorage.getItem(KEY) || '0', 10) || 0;
+      } catch (e) {
+        return MAX_ATTEMPTS;
+      }
+    }
+
+    var handled = false;
+    function recover() {
+      if (handled) return;
+      handled = true;
+
+      // Offline with nothing cached: a refetch cannot succeed.
+      if (navigator.onLine === false) {
+        reveal();
+        return;
+      }
+      var attempts = readAttempts();
+      if (attempts >= MAX_ATTEMPTS) {
+        reveal();
+        return;
+      }
+      try { sessionStorage.setItem(KEY, String(attempts + 1)); } catch (e) {}
+
+      // Keep deep-link and share-target params; only add our cache breaker.
+      var search;
+      try {
+        var params = new URLSearchParams(window.location.search);
+        params.set('nt_shell', String(Date.now()));
+        search = '?' + params.toString();
+      } catch (e) {
+        search = '?nt_shell=' + Date.now();
+      }
+      window.location.replace(window.location.pathname + search + window.location.hash);
+    }
+
+    function isAstroAsset(node) {
+      if (!node || !node.tagName || !node.getAttribute) return false;
+      var tag = node.tagName.toLowerCase();
+      if (tag !== 'link' && tag !== 'script') return false;
+      var src = node.getAttribute('href') || node.getAttribute('src') || '';
+      return src.indexOf('/_astro/') !== -1;
+    }
+
+    // Resource errors do not bubble; they are only visible in the capture phase.
+    window.addEventListener('error', function (event) {
+      if (isAstroAsset(event && event.target)) recover();
+    }, true);
+
+    window.addEventListener('load', function () {
+      // Resource errors above are the recovery signal. A null CSSStyleSheet can
+      // also mean the browser has not exposed a cross-origin sheet, so it must
+      // not trigger a load-time reload.
+      try { sessionStorage.removeItem(KEY); } catch (e) {}
+    });
+  })();
+  /* ]] */
+</script><title>JHB West Line Train Times | Metrorail Next Train</title><meta name="description" content="JHB West Line Metrorail routes in Gauteng. Open Next Train for live boards and full weekend/weekday grids. Check live Gauteng Metrorail schedules offline in Metrorail Next Train."><meta name="robots" content="index, follow"><link rel="canonical" href="https://nexttrain.co.za/corridors/gauteng-jhb-west-line.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/corridors/gauteng-jhb-west-line.html"><meta property="og:title" content="JHB West Line Train Times | Metrorail Next Train"><meta property="og:description" content="JHB West Line Metrorail routes in Gauteng. Open Next Train for live boards and full weekend/weekday grids. Check live Gauteng Metrorail schedules offline in Metrorail Next Train."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="JHB West Line Train Times | Metrorail Next Train"><meta name="twitter:description" content="JHB West Line Metrorail routes in Gauteng. Open Next Train for live boards and full weekend/weekday grids. Check live Gauteng Metrorail schedules offline in Metrorail Next Train."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>(function(){const base = "/";
 const cartoKey = "cb1_2blq_1_f5cc9b93702d39c8b9ebafa5";
 
       window.__NT_BASE__ = base;
@@ -58,7 +135,12 @@ const forceLight = true;
           window.history.replaceState({}, '', clean);
         }
       } catch (e) {}
-    })();</script><!-- Device identity is not required on SEO pages; idle-defer GA4 so LCP keeps the pipe --><script>
+    })();</script><!-- Device identity is not required on SEO pages; idle-defer GA4 so LCP keeps the pipe --><script>(function(){const seoPageType = "corridor";
+const seoSlug = "gauteng-jhb-west-line";
+const seoRegion = "GP";
+const seoCorridor = "JHB West Line";
+const seoRouteId = "";
+
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       var gaConfig = {};
@@ -71,7 +153,21 @@ const forceLight = true;
       } catch(e) {}
       if (isDevAnalytics) gaConfig['traffic_type'] = 'internal';
       gaConfig['user_properties'] = { crm_region: userRegion };
+      // Stable SEO dimensions on every page_view for this document.
+      if (seoPageType) gaConfig['seo_page_type'] = String(seoPageType);
+      if (seoSlug) gaConfig['seo_slug'] = String(seoSlug);
+      if (seoRegion) gaConfig['seo_region'] = String(seoRegion);
+      else gaConfig['seo_region'] = userRegion;
+      if (seoCorridor) gaConfig['seo_corridor'] = String(seoCorridor);
+      if (seoRouteId) gaConfig['seo_route_id'] = String(seoRouteId);
       window.__ntGaConfig = gaConfig;
+      window.__ntSeoAnalytics = {
+        seo_page_type: seoPageType || '',
+        seo_slug: seoSlug || '',
+        seo_region: seoRegion || userRegion,
+        seo_corridor: seoCorridor || '',
+        seo_route_id: seoRouteId || ''
+      };
       var bootGa = function () {
         if (window.__ntGaBooted) return;
         window.__ntGaBooted = true;
@@ -81,6 +177,11 @@ const forceLight = true;
         s.onload = function () {
           window.__ntGaReady = true;
           try { window.dispatchEvent(new Event('nt-ga-ready')); } catch (e) {}
+          try {
+            if (seoPageType && typeof gtag === 'function') {
+              gtag('event', 'seo_page_view', window.__ntSeoAnalytics || {});
+            }
+          } catch (e) {}
         };
         s.onerror = function () { window.__ntGaBooted = false; };
         document.head.appendChild(s);
@@ -89,7 +190,12 @@ const forceLight = true;
       };
       if ('requestIdleCallback' in window) requestIdleCallback(bootGa, { timeout: 4000 });
       else window.addEventListener('load', function () { setTimeout(bootGa, 2500); });
-    </script><!-- Microsoft Clarity — same idle deferral as GA4 (timeout 4s) --><script>
+    })();</script><!-- Microsoft Clarity — same idle deferral as GA4 (timeout 4s) --><script>(function(){const seoPageType = "corridor";
+const seoSlug = "gauteng-jhb-west-line";
+const seoRegion = "GP";
+const seoCorridor = "JHB West Line";
+const seoRouteId = "";
+
       var bootClarity = function () {
         if (window.__ntClarityBooted) return;
         window.__ntClarityBooted = true;
@@ -108,11 +214,19 @@ const forceLight = true;
             clarity('identify', id);
             clarity('set', 'custom_id', id);
           }
+          if (typeof clarity === 'function') {
+            if (seoPageType) clarity('set', 'seo_page_type', String(seoPageType));
+            if (seoSlug) clarity('set', 'seo_slug', String(seoSlug));
+            if (seoRegion) clarity('set', 'seo_region', String(seoRegion));
+            if (seoCorridor) clarity('set', 'seo_corridor', String(seoCorridor));
+            if (seoRouteId) clarity('set', 'seo_route_id', String(seoRouteId));
+            if (seoPageType) clarity('event', 'seo_page_view');
+          }
         } catch (e) {}
       };
       if ('requestIdleCallback' in window) requestIdleCallback(bootClarity, { timeout: 4000 });
       else window.addEventListener('load', function () { setTimeout(bootClarity, 2500); });
-    </script><!-- GUARDIAN: Sentry (deferred — SPA parity on secondary pages) --><script>
+    })();</script><!-- GUARDIAN: Sentry (deferred — SPA parity on secondary pages) --><script>
       window.addEventListener('load', function () {
         setTimeout(function () {
           window.sentryOnLoad = function () {
@@ -145,10 +259,17 @@ const forceLight = true;
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"JHB West Line Train Times | Metrorail Next Train","description":"JHB West Line Metrorail routes in Gauteng. Open Next Train for live boards and full weekend/weekday grids. Check live Gauteng Metrorail schedules offline in Metrorail Next Train.","about":"JHB West Line","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.DkBfvM8L.css">
-<link rel="stylesheet" href="/_astro/_slug_.BxjNkNDp.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300">   <header id="app-header" class="app-header shrink-0 px-3 py-2.5 z-30 relative flex items-start justify-between gap-2 border-b"> <div class="min-w-0 shrink header-brand-block"> <a href="/?region=GP" class="block rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70" aria-label="Next Train home - Gauteng"> <p id="app-title" class="header-title text-[2.55rem] sm:text-[2.75rem] font-black select-none tracking-[-0.035em] leading-none">
+    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"JHB West Line Train Times | Metrorail Next Train","description":"JHB West Line Metrorail routes in Gauteng. Open Next Train for live boards and full weekend/weekday grids. Check live Gauteng Metrorail schedules offline in Metrorail Next Train.","about":"JHB West Line","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.DE5xXewm.css">
+<link rel="stylesheet" href="/_astro/_slug_.D_aun0In.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <h1>Next Train could not finish updating</h1> <p>
+This device is holding an old copy of the app. Open
+<a href="/help.html" rel="nofollow">Reset and Recover</a>
+to clear it and load the current version.
+</p> <p>
+Still stuck? WhatsApp <a href="https://wa.me/27696473764" rel="nofollow">+27 69 647 3764</a>
+or email <a href="mailto:admin@nexttrain.co.za" rel="nofollow">admin@nexttrain.co.za</a> and we will help.
+</p> </div>   <header id="app-header" class="app-header shrink-0 px-3 py-2.5 z-30 relative flex items-start justify-between gap-2 border-b"> <div class="min-w-0 shrink-0 header-brand-block"> <a href="/?region=GP" class="block rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70" aria-label="Next Train home - Gauteng"> <p id="app-title" class="header-title text-[2.55rem] sm:text-[2.75rem] font-black select-none tracking-[-0.035em] leading-none">
 Next Train
-</p> </a> <div class="header-meta mt-1.5 min-w-0"> <p id="current-day" class="text-[11px] sm:text-xs font-medium leading-tight truncate">Getting schedules…</p> </div> </div> <a href="/?region=GP" class="seo-open-app shrink-0 mt-1 max-w-[9.5rem] sm:max-w-none text-[11px] sm:text-xs font-bold text-right leading-tight underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-sm"> Open Next Train · Gauteng </a> </header> <script>
+</p> </a> <div class="header-meta mt-1.5 min-w-0"> <p id="current-day" class="text-[11px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 leading-tight">Getting schedules…</p> </div> </div> <a href="/?region=GP" class="seo-open-app shrink-0 mt-1 max-w-[9.5rem] sm:max-w-none text-[11px] sm:text-xs font-bold text-right leading-tight underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-sm"> Open Next Train · Gauteng </a> </header> <script>
   (function () {
     try {
       var el = document.getElementById('current-day');
@@ -161,6 +282,26 @@ Next Train
         ? 'font-bold text-red-600 dark:text-red-400'
         : 'font-bold text-blue-600 dark:text-blue-400';
       el.innerHTML = names[day] + ' · <span class="' + typeClass + '">' + type + '</span>';
+      if (typeof window.fitHeaderDayLabel === 'function') window.fitHeaderDayLabel();
+      else {
+        var title = document.getElementById('app-title');
+        var avail = title ? title.scrollWidth : 0;
+        var sm = window.matchMedia && window.matchMedia('(min-width: 640px)').matches;
+        var basePx = sm ? 12 : 11;
+        var maxPx = sm ? 13 : 12;
+        el.style.whiteSpace = 'nowrap';
+        if (avail <= 8) { el.style.fontSize = basePx + 'px'; }
+        else {
+          var lo = 10, hi = maxPx, best = 10;
+          for (var i = 0; i < 16; i++) {
+            var mid = (lo + hi) / 2;
+            el.style.fontSize = mid + 'px';
+            if (el.scrollWidth <= avail + 0.75) { best = mid; lo = mid; }
+            else hi = mid;
+          }
+          el.style.fontSize = Math.max(10, Math.min(best, maxPx)) + 'px';
+        }
+      }
     } catch (e) { /* keep Getting schedules… */ }
   })();
 </script> <main class="min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100"> <div class="max-w-2xl mx-auto px-4 py-6 sm:py-10"> <p class="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-3"> <a href="/routes.html" class="hover:underline">Metrorail routes</a> <span class="text-slate-400 dark:text-slate-500"> / </span> <a href="/regions/gauteng.html" class="hover:underline">Gauteng</a> <span class="text-slate-400 dark:text-slate-500"> / </span> JHB West Line </p> <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white leading-tight"> JHB West Line schedules

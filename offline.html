@@ -1,4 +1,81 @@
-<!DOCTYPE html><html lang="en" class data-lab-mode="false"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>You&#39;re Offline | Metrorail Next Train</title><meta name="description" content="You appear to be offline. Reconnect or open recovery help for Next Train."><meta name="robots" content="noindex, nofollow"><link rel="canonical" href="https://nexttrain.co.za/offline.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/offline.html"><meta property="og:title" content="You're Offline | Metrorail Next Train"><meta property="og:description" content="You appear to be offline. Reconnect or open recovery help for Next Train."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="You're Offline | Metrorail Next Train"><meta name="twitter:description" content="You appear to be offline. Reconnect or open recovery help for Next Train."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>(function(){const base = "/";
+<!DOCTYPE html><html lang="en" class data-lab-mode="false"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><style>
+      @media (max-width: 639px) {
+        html { font-size: clamp(13.12px, calc(100vw * 16 / 390), 16px); }
+      }
+    </style><script>
+  /* [CDATA[ */
+  (function () {
+    var KEY = 'nt_shell_recover';
+    var MAX_ATTEMPTS = 2;
+
+    function reveal() {
+      var el = document.getElementById('nt-recovery-lifeline');
+      // The hide rule is !important because it lives in the hashed bundle, so
+      // an override has to be too.
+      if (el) el.style.setProperty('display', 'block', 'important');
+    }
+
+    function readAttempts() {
+      // No sessionStorage means no loop guard, so prefer showing the number
+      // over reloading blind.
+      try {
+        return parseInt(sessionStorage.getItem(KEY) || '0', 10) || 0;
+      } catch (e) {
+        return MAX_ATTEMPTS;
+      }
+    }
+
+    var handled = false;
+    function recover() {
+      if (handled) return;
+      handled = true;
+
+      // Offline with nothing cached: a refetch cannot succeed.
+      if (navigator.onLine === false) {
+        reveal();
+        return;
+      }
+      var attempts = readAttempts();
+      if (attempts >= MAX_ATTEMPTS) {
+        reveal();
+        return;
+      }
+      try { sessionStorage.setItem(KEY, String(attempts + 1)); } catch (e) {}
+
+      // Keep deep-link and share-target params; only add our cache breaker.
+      var search;
+      try {
+        var params = new URLSearchParams(window.location.search);
+        params.set('nt_shell', String(Date.now()));
+        search = '?' + params.toString();
+      } catch (e) {
+        search = '?nt_shell=' + Date.now();
+      }
+      window.location.replace(window.location.pathname + search + window.location.hash);
+    }
+
+    function isAstroAsset(node) {
+      if (!node || !node.tagName || !node.getAttribute) return false;
+      var tag = node.tagName.toLowerCase();
+      if (tag !== 'link' && tag !== 'script') return false;
+      var src = node.getAttribute('href') || node.getAttribute('src') || '';
+      return src.indexOf('/_astro/') !== -1;
+    }
+
+    // Resource errors do not bubble; they are only visible in the capture phase.
+    window.addEventListener('error', function (event) {
+      if (isAstroAsset(event && event.target)) recover();
+    }, true);
+
+    window.addEventListener('load', function () {
+      // Resource errors above are the recovery signal. A null CSSStyleSheet can
+      // also mean the browser has not exposed a cross-origin sheet, so it must
+      // not trigger a load-time reload.
+      try { sessionStorage.removeItem(KEY); } catch (e) {}
+    });
+  })();
+  /* ]] */
+</script><title>You&#39;re Offline | Metrorail Next Train</title><meta name="description" content="You appear to be offline. Reconnect or open recovery help for Next Train."><meta name="robots" content="noindex, nofollow"><link rel="canonical" href="https://nexttrain.co.za/offline.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/offline.html"><meta property="og:title" content="You're Offline | Metrorail Next Train"><meta property="og:description" content="You appear to be offline. Reconnect or open recovery help for Next Train."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="You're Offline | Metrorail Next Train"><meta name="twitter:description" content="You appear to be offline. Reconnect or open recovery help for Next Train."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>(function(){const base = "/";
 const cartoKey = "cb1_2blq_1_f5cc9b93702d39c8b9ebafa5";
 
       window.__NT_BASE__ = base;
@@ -58,7 +135,12 @@ const forceLight = false;
           window.history.replaceState({}, '', clean);
         }
       } catch (e) {}
-    })();</script><!-- Device identity is not required on SEO pages; idle-defer GA4 so LCP keeps the pipe --><script>
+    })();</script><!-- Device identity is not required on SEO pages; idle-defer GA4 so LCP keeps the pipe --><script>(function(){const seoPageType = "";
+const seoSlug = "";
+const seoRegion = "";
+const seoCorridor = "";
+const seoRouteId = "";
+
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       var gaConfig = {};
@@ -71,7 +153,21 @@ const forceLight = false;
       } catch(e) {}
       if (isDevAnalytics) gaConfig['traffic_type'] = 'internal';
       gaConfig['user_properties'] = { crm_region: userRegion };
+      // Stable SEO dimensions on every page_view for this document.
+      if (seoPageType) gaConfig['seo_page_type'] = String(seoPageType);
+      if (seoSlug) gaConfig['seo_slug'] = String(seoSlug);
+      if (seoRegion) gaConfig['seo_region'] = String(seoRegion);
+      else gaConfig['seo_region'] = userRegion;
+      if (seoCorridor) gaConfig['seo_corridor'] = String(seoCorridor);
+      if (seoRouteId) gaConfig['seo_route_id'] = String(seoRouteId);
       window.__ntGaConfig = gaConfig;
+      window.__ntSeoAnalytics = {
+        seo_page_type: seoPageType || '',
+        seo_slug: seoSlug || '',
+        seo_region: seoRegion || userRegion,
+        seo_corridor: seoCorridor || '',
+        seo_route_id: seoRouteId || ''
+      };
       var bootGa = function () {
         if (window.__ntGaBooted) return;
         window.__ntGaBooted = true;
@@ -81,6 +177,11 @@ const forceLight = false;
         s.onload = function () {
           window.__ntGaReady = true;
           try { window.dispatchEvent(new Event('nt-ga-ready')); } catch (e) {}
+          try {
+            if (seoPageType && typeof gtag === 'function') {
+              gtag('event', 'seo_page_view', window.__ntSeoAnalytics || {});
+            }
+          } catch (e) {}
         };
         s.onerror = function () { window.__ntGaBooted = false; };
         document.head.appendChild(s);
@@ -89,7 +190,12 @@ const forceLight = false;
       };
       if ('requestIdleCallback' in window) requestIdleCallback(bootGa, { timeout: 4000 });
       else window.addEventListener('load', function () { setTimeout(bootGa, 2500); });
-    </script><!-- Microsoft Clarity — same idle deferral as GA4 (timeout 4s) --><script>
+    })();</script><!-- Microsoft Clarity — same idle deferral as GA4 (timeout 4s) --><script>(function(){const seoPageType = "";
+const seoSlug = "";
+const seoRegion = "";
+const seoCorridor = "";
+const seoRouteId = "";
+
       var bootClarity = function () {
         if (window.__ntClarityBooted) return;
         window.__ntClarityBooted = true;
@@ -108,11 +214,19 @@ const forceLight = false;
             clarity('identify', id);
             clarity('set', 'custom_id', id);
           }
+          if (typeof clarity === 'function') {
+            if (seoPageType) clarity('set', 'seo_page_type', String(seoPageType));
+            if (seoSlug) clarity('set', 'seo_slug', String(seoSlug));
+            if (seoRegion) clarity('set', 'seo_region', String(seoRegion));
+            if (seoCorridor) clarity('set', 'seo_corridor', String(seoCorridor));
+            if (seoRouteId) clarity('set', 'seo_route_id', String(seoRouteId));
+            if (seoPageType) clarity('event', 'seo_page_view');
+          }
         } catch (e) {}
       };
       if ('requestIdleCallback' in window) requestIdleCallback(bootClarity, { timeout: 4000 });
       else window.addEventListener('load', function () { setTimeout(bootClarity, 2500); });
-    </script><!-- GUARDIAN: Sentry (deferred — SPA parity on secondary pages) --><script>
+    })();</script><!-- GUARDIAN: Sentry (deferred — SPA parity on secondary pages) --><script>
       window.addEventListener('load', function () {
         setTimeout(function () {
           window.sentryOnLoad = function () {
@@ -145,8 +259,15 @@ const forceLight = false;
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><link rel="stylesheet" href="/_astro/vendor.DkBfvM8L.css">
-<link rel="stylesheet" href="/_astro/_slug_.BxjNkNDp.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300 bg-slate-50 dark:bg-gray-900 min-h-screen flex items-center justify-center p-6">  <main class="max-w-md w-full text-center"> <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 mb-2">Next Train</p> <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-3">You're offline</h1> <p class="text-gray-600 dark:text-gray-400 mb-6 text-sm leading-relaxed">
+    </script><link rel="stylesheet" href="/_astro/vendor.DE5xXewm.css">
+<link rel="stylesheet" href="/_astro/_slug_.D_aun0In.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300 bg-slate-50 dark:bg-gray-900 min-h-screen flex items-center justify-center p-6"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <h1>Next Train could not finish updating</h1> <p>
+This device is holding an old copy of the app. Open
+<a href="/help.html" rel="nofollow">Reset and Recover</a>
+to clear it and load the current version.
+</p> <p>
+Still stuck? WhatsApp <a href="https://wa.me/27696473764" rel="nofollow">+27 69 647 3764</a>
+or email <a href="mailto:admin@nexttrain.co.za" rel="nofollow">admin@nexttrain.co.za</a> and we will help.
+</p> </div>  <main class="max-w-md w-full text-center"> <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 mb-2">Next Train</p> <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-3">You're offline</h1> <p class="text-gray-600 dark:text-gray-400 mb-6 text-sm leading-relaxed">
 This page isn't available without a connection. When signal returns, pull to refresh.
       If the app still looks blank after an update, open recovery help to reset the saved copy or contact us.
 </p> <div class="flex flex-col gap-3"> <a href="/" class="inline-flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-3 transition-colors">

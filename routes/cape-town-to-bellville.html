@@ -1,4 +1,81 @@
-<!DOCTYPE html><html lang="en" class data-lab-mode="false"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>Cape Town ↔ Bellville Train Schedule &amp; Times | Metrorail Next Train</title><meta name="description" content="Check Metrorail train schedules and times between Cape Town and Bellville (Western Cape), including trains from Cape Town to Bellville and Bellville to Cape Town."><meta name="robots" content="index, follow"><link rel="canonical" href="https://nexttrain.co.za/routes/cape-town-to-bellville.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/routes/cape-town-to-bellville.html"><meta property="og:title" content="Cape Town ↔ Bellville Train Schedule &#38; Times | Metrorail Next Train"><meta property="og:description" content="Check Metrorail train schedules and times between Cape Town and Bellville (Western Cape), including trains from Cape Town to Bellville and Bellville to Cape Town."><meta property="og:image" content="https://nexttrain.co.za/og/timetable.png?rt=ct-bellv&dir=A&d=wd"><meta property="og:image:width" content="3000"><meta property="og:image:height" content="1575"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Cape Town ↔ Bellville Train Schedule &#38; Times | Metrorail Next Train"><meta name="twitter:description" content="Check Metrorail train schedules and times between Cape Town and Bellville (Western Cape), including trains from Cape Town to Bellville and Bellville to Cape Town."><meta name="twitter:image" content="https://nexttrain.co.za/og/timetable.png?rt=ct-bellv&dir=A&d=wd"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>(function(){const base = "/";
+<!DOCTYPE html><html lang="en" class data-lab-mode="false"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><style>
+      @media (max-width: 639px) {
+        html { font-size: clamp(13.12px, calc(100vw * 16 / 390), 16px); }
+      }
+    </style><script>
+  /* [CDATA[ */
+  (function () {
+    var KEY = 'nt_shell_recover';
+    var MAX_ATTEMPTS = 2;
+
+    function reveal() {
+      var el = document.getElementById('nt-recovery-lifeline');
+      // The hide rule is !important because it lives in the hashed bundle, so
+      // an override has to be too.
+      if (el) el.style.setProperty('display', 'block', 'important');
+    }
+
+    function readAttempts() {
+      // No sessionStorage means no loop guard, so prefer showing the number
+      // over reloading blind.
+      try {
+        return parseInt(sessionStorage.getItem(KEY) || '0', 10) || 0;
+      } catch (e) {
+        return MAX_ATTEMPTS;
+      }
+    }
+
+    var handled = false;
+    function recover() {
+      if (handled) return;
+      handled = true;
+
+      // Offline with nothing cached: a refetch cannot succeed.
+      if (navigator.onLine === false) {
+        reveal();
+        return;
+      }
+      var attempts = readAttempts();
+      if (attempts >= MAX_ATTEMPTS) {
+        reveal();
+        return;
+      }
+      try { sessionStorage.setItem(KEY, String(attempts + 1)); } catch (e) {}
+
+      // Keep deep-link and share-target params; only add our cache breaker.
+      var search;
+      try {
+        var params = new URLSearchParams(window.location.search);
+        params.set('nt_shell', String(Date.now()));
+        search = '?' + params.toString();
+      } catch (e) {
+        search = '?nt_shell=' + Date.now();
+      }
+      window.location.replace(window.location.pathname + search + window.location.hash);
+    }
+
+    function isAstroAsset(node) {
+      if (!node || !node.tagName || !node.getAttribute) return false;
+      var tag = node.tagName.toLowerCase();
+      if (tag !== 'link' && tag !== 'script') return false;
+      var src = node.getAttribute('href') || node.getAttribute('src') || '';
+      return src.indexOf('/_astro/') !== -1;
+    }
+
+    // Resource errors do not bubble; they are only visible in the capture phase.
+    window.addEventListener('error', function (event) {
+      if (isAstroAsset(event && event.target)) recover();
+    }, true);
+
+    window.addEventListener('load', function () {
+      // Resource errors above are the recovery signal. A null CSSStyleSheet can
+      // also mean the browser has not exposed a cross-origin sheet, so it must
+      // not trigger a load-time reload.
+      try { sessionStorage.removeItem(KEY); } catch (e) {}
+    });
+  })();
+  /* ]] */
+</script><title>Cape Town ↔ Bellville Train Schedule &amp; Times | Metrorail Next Train</title><meta name="description" content="Check Metrorail train schedules and times between Cape Town and Bellville (Western Cape), including trains from Cape Town to Bellville and Bellville to Cape Town."><meta name="robots" content="index, follow"><link rel="canonical" href="https://nexttrain.co.za/routes/cape-town-to-bellville.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/routes/cape-town-to-bellville.html"><meta property="og:title" content="Cape Town ↔ Bellville Train Schedule &#38; Times | Metrorail Next Train"><meta property="og:description" content="Check Metrorail train schedules and times between Cape Town and Bellville (Western Cape), including trains from Cape Town to Bellville and Bellville to Cape Town."><meta property="og:image" content="https://nexttrain.co.za/og/timetable.png?rt=ct-bellv&dir=A&d=wd"><meta property="og:image:width" content="3000"><meta property="og:image:height" content="1575"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Cape Town ↔ Bellville Train Schedule &#38; Times | Metrorail Next Train"><meta name="twitter:description" content="Check Metrorail train schedules and times between Cape Town and Bellville (Western Cape), including trains from Cape Town to Bellville and Bellville to Cape Town."><meta name="twitter:image" content="https://nexttrain.co.za/og/timetable.png?rt=ct-bellv&dir=A&d=wd"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>(function(){const base = "/";
 const cartoKey = "cb1_2blq_1_f5cc9b93702d39c8b9ebafa5";
 
       window.__NT_BASE__ = base;
@@ -58,7 +135,12 @@ const forceLight = true;
           window.history.replaceState({}, '', clean);
         }
       } catch (e) {}
-    })();</script><!-- Device identity is not required on SEO pages; idle-defer GA4 so LCP keeps the pipe --><script>
+    })();</script><!-- Device identity is not required on SEO pages; idle-defer GA4 so LCP keeps the pipe --><script>(function(){const seoPageType = "route";
+const seoSlug = "cape-town-to-bellville";
+const seoRegion = "WC";
+const seoCorridor = "Northern Line";
+const seoRouteId = "ct-bellv";
+
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       var gaConfig = {};
@@ -71,7 +153,21 @@ const forceLight = true;
       } catch(e) {}
       if (isDevAnalytics) gaConfig['traffic_type'] = 'internal';
       gaConfig['user_properties'] = { crm_region: userRegion };
+      // Stable SEO dimensions on every page_view for this document.
+      if (seoPageType) gaConfig['seo_page_type'] = String(seoPageType);
+      if (seoSlug) gaConfig['seo_slug'] = String(seoSlug);
+      if (seoRegion) gaConfig['seo_region'] = String(seoRegion);
+      else gaConfig['seo_region'] = userRegion;
+      if (seoCorridor) gaConfig['seo_corridor'] = String(seoCorridor);
+      if (seoRouteId) gaConfig['seo_route_id'] = String(seoRouteId);
       window.__ntGaConfig = gaConfig;
+      window.__ntSeoAnalytics = {
+        seo_page_type: seoPageType || '',
+        seo_slug: seoSlug || '',
+        seo_region: seoRegion || userRegion,
+        seo_corridor: seoCorridor || '',
+        seo_route_id: seoRouteId || ''
+      };
       var bootGa = function () {
         if (window.__ntGaBooted) return;
         window.__ntGaBooted = true;
@@ -81,6 +177,11 @@ const forceLight = true;
         s.onload = function () {
           window.__ntGaReady = true;
           try { window.dispatchEvent(new Event('nt-ga-ready')); } catch (e) {}
+          try {
+            if (seoPageType && typeof gtag === 'function') {
+              gtag('event', 'seo_page_view', window.__ntSeoAnalytics || {});
+            }
+          } catch (e) {}
         };
         s.onerror = function () { window.__ntGaBooted = false; };
         document.head.appendChild(s);
@@ -89,7 +190,12 @@ const forceLight = true;
       };
       if ('requestIdleCallback' in window) requestIdleCallback(bootGa, { timeout: 4000 });
       else window.addEventListener('load', function () { setTimeout(bootGa, 2500); });
-    </script><!-- Microsoft Clarity — same idle deferral as GA4 (timeout 4s) --><script>
+    })();</script><!-- Microsoft Clarity — same idle deferral as GA4 (timeout 4s) --><script>(function(){const seoPageType = "route";
+const seoSlug = "cape-town-to-bellville";
+const seoRegion = "WC";
+const seoCorridor = "Northern Line";
+const seoRouteId = "ct-bellv";
+
       var bootClarity = function () {
         if (window.__ntClarityBooted) return;
         window.__ntClarityBooted = true;
@@ -108,11 +214,19 @@ const forceLight = true;
             clarity('identify', id);
             clarity('set', 'custom_id', id);
           }
+          if (typeof clarity === 'function') {
+            if (seoPageType) clarity('set', 'seo_page_type', String(seoPageType));
+            if (seoSlug) clarity('set', 'seo_slug', String(seoSlug));
+            if (seoRegion) clarity('set', 'seo_region', String(seoRegion));
+            if (seoCorridor) clarity('set', 'seo_corridor', String(seoCorridor));
+            if (seoRouteId) clarity('set', 'seo_route_id', String(seoRouteId));
+            if (seoPageType) clarity('event', 'seo_page_view');
+          }
         } catch (e) {}
       };
       if ('requestIdleCallback' in window) requestIdleCallback(bootClarity, { timeout: 4000 });
       else window.addEventListener('load', function () { setTimeout(bootClarity, 2500); });
-    </script><!-- GUARDIAN: Sentry (deferred — SPA parity on secondary pages) --><script>
+    })();</script><!-- GUARDIAN: Sentry (deferred — SPA parity on secondary pages) --><script>
       window.addEventListener('load', function () {
         setTimeout(function () {
           window.sentryOnLoad = function () {
@@ -145,12 +259,19 @@ const forceLight = true;
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebPage","name":"Cape Town ↔ Bellville Train Schedule & Times | Metrorail Next Train","description":"Check Metrorail train schedules and times between Cape Town and Bellville (Western Cape), including trains from Cape Town to Bellville and Bellville to Cape Town.","url":"https://nexttrain.co.za/routes/cape-town-to-bellville.html","about":"Cape Town ↔ Bellville","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What time is the first weekday train from Cape Town to Bellville?","acceptedAnswer":{"@type":"Answer","text":"The first weekday train from Cape Town toward Bellville is 5:15. The last is 18:10. Times are the published Metrorail weekday timetable, not a live countdown."}},{"@type":"Question","name":"What time is the first weekday train from Bellville to Cape Town?","acceptedAnswer":{"@type":"Answer","text":"The first weekday train from Bellville toward Cape Town is 5:05. The last is 19:14. Times are the published Metrorail weekday timetable, not a live countdown."}},{"@type":"Question","name":"Do Metrorail trains run on Sunday on Cape Town to Bellville?","acceptedAnswer":{"@type":"Answer","text":"Use Next Train for weekday vs Saturday boards and holiday overrides for 2026."}},{"@type":"Question","name":"Is there a Saturday timetable for Cape Town to Bellville?","acceptedAnswer":{"@type":"Answer","text":"Yes. A Saturday sheet is published for this corridor. Open the Saturday section on this page, or the live board in Next Train."}}]},{"@type":"ItemList","name":"Weekday departures from Cape Town to Bellville","numberOfItems":13,"itemListElement":[{"@type":"ListItem","position":1,"name":"5:15"},{"@type":"ListItem","position":2,"name":"6:15"},{"@type":"ListItem","position":3,"name":"6:55"},{"@type":"ListItem","position":4,"name":"8:30"},{"@type":"ListItem","position":5,"name":"10:05"},{"@type":"ListItem","position":6,"name":"11:10"},{"@type":"ListItem","position":7,"name":"12:30"},{"@type":"ListItem","position":8,"name":"13:35"},{"@type":"ListItem","position":9,"name":"14:30"},{"@type":"ListItem","position":10,"name":"15:00"},{"@type":"ListItem","position":11,"name":"16:20"},{"@type":"ListItem","position":12,"name":"17:30"},{"@type":"ListItem","position":13,"name":"18:10"}]},{"@type":"ItemList","name":"Weekday departures from Bellville to Cape Town","numberOfItems":17,"itemListElement":[{"@type":"ListItem","position":1,"name":"5:05"},{"@type":"ListItem","position":2,"name":"5:46"},{"@type":"ListItem","position":3,"name":"6:31"},{"@type":"ListItem","position":4,"name":"7:07"},{"@type":"ListItem","position":5,"name":"7:31"},{"@type":"ListItem","position":6,"name":"7:56"},{"@type":"ListItem","position":7,"name":"8:31"},{"@type":"ListItem","position":8,"name":"9:01"},{"@type":"ListItem","position":9,"name":"10:05"},{"@type":"ListItem","position":10,"name":"11:20"},{"@type":"ListItem","position":11,"name":"12:30"},{"@type":"ListItem","position":12,"name":"13:40"},{"@type":"ListItem","position":13,"name":"15:10"},{"@type":"ListItem","position":14,"name":"16:20"},{"@type":"ListItem","position":15,"name":"17:01"},{"@type":"ListItem","position":16,"name":"18:06"},{"@type":"ListItem","position":17,"name":"19:14"}]},{"@type":"Table","name":"Weekday Showing trains to Bellville","about":"Cape Town → Bellville weekday Metrorail times","description":"11 stations, 13 trains. First 5:15, last 18:10."},{"@type":"Table","name":"Weekday Showing trains to Cape Town","about":"Bellville → Cape Town weekday Metrorail times","description":"11 stations, 17 trains. First 5:05, last 19:14."}]}</script><link rel="stylesheet" href="/_astro/vendor.DkBfvM8L.css">
-<link rel="stylesheet" href="/_astro/_slug_.BxjNkNDp.css">
+    </script><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebPage","name":"Cape Town ↔ Bellville Train Schedule & Times | Metrorail Next Train","description":"Check Metrorail train schedules and times between Cape Town and Bellville (Western Cape), including trains from Cape Town to Bellville and Bellville to Cape Town.","url":"https://nexttrain.co.za/routes/cape-town-to-bellville.html","about":"Cape Town ↔ Bellville","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What time is the first weekday train from Cape Town to Bellville?","acceptedAnswer":{"@type":"Answer","text":"The first weekday train from Cape Town toward Bellville is 5:15. The last is 18:10. Times are the published Metrorail weekday timetable, not a live countdown."}},{"@type":"Question","name":"What time is the first weekday train from Bellville to Cape Town?","acceptedAnswer":{"@type":"Answer","text":"The first weekday train from Bellville toward Cape Town is 5:05. The last is 19:14. Times are the published Metrorail weekday timetable, not a live countdown."}},{"@type":"Question","name":"Do Metrorail trains run on Sunday on Cape Town to Bellville?","acceptedAnswer":{"@type":"Answer","text":"Use Next Train for weekday vs Saturday boards and holiday overrides for 2026."}},{"@type":"Question","name":"Is there a Saturday timetable for Cape Town to Bellville?","acceptedAnswer":{"@type":"Answer","text":"Yes. A Saturday sheet is published for this corridor. Open the Saturday section on this page, or the live board in Next Train."}}]},{"@type":"ItemList","name":"Weekday departures from Cape Town to Bellville","numberOfItems":13,"itemListElement":[{"@type":"ListItem","position":1,"name":"5:15"},{"@type":"ListItem","position":2,"name":"6:15"},{"@type":"ListItem","position":3,"name":"6:55"},{"@type":"ListItem","position":4,"name":"8:30"},{"@type":"ListItem","position":5,"name":"10:05"},{"@type":"ListItem","position":6,"name":"11:10"},{"@type":"ListItem","position":7,"name":"12:30"},{"@type":"ListItem","position":8,"name":"13:35"},{"@type":"ListItem","position":9,"name":"14:30"},{"@type":"ListItem","position":10,"name":"15:00"},{"@type":"ListItem","position":11,"name":"16:20"},{"@type":"ListItem","position":12,"name":"17:30"},{"@type":"ListItem","position":13,"name":"18:10"}]},{"@type":"ItemList","name":"Weekday departures from Bellville to Cape Town","numberOfItems":17,"itemListElement":[{"@type":"ListItem","position":1,"name":"5:05"},{"@type":"ListItem","position":2,"name":"5:46"},{"@type":"ListItem","position":3,"name":"6:31"},{"@type":"ListItem","position":4,"name":"7:07"},{"@type":"ListItem","position":5,"name":"7:31"},{"@type":"ListItem","position":6,"name":"7:56"},{"@type":"ListItem","position":7,"name":"8:31"},{"@type":"ListItem","position":8,"name":"9:01"},{"@type":"ListItem","position":9,"name":"10:05"},{"@type":"ListItem","position":10,"name":"11:20"},{"@type":"ListItem","position":11,"name":"12:30"},{"@type":"ListItem","position":12,"name":"13:40"},{"@type":"ListItem","position":13,"name":"15:10"},{"@type":"ListItem","position":14,"name":"16:20"},{"@type":"ListItem","position":15,"name":"17:01"},{"@type":"ListItem","position":16,"name":"18:06"},{"@type":"ListItem","position":17,"name":"19:14"}]},{"@type":"Table","name":"Weekday Showing trains to Bellville","about":"Cape Town → Bellville weekday Metrorail times","description":"11 stations, 13 trains. First 5:15, last 18:10."},{"@type":"Table","name":"Weekday Showing trains to Cape Town","about":"Bellville → Cape Town weekday Metrorail times","description":"11 stations, 17 trains. First 5:05, last 19:14."}]}</script><link rel="stylesheet" href="/_astro/vendor.DE5xXewm.css">
+<link rel="stylesheet" href="/_astro/_slug_.D_aun0In.css">
 <style>.seo-tt{margin-top:.5rem}.seo-tt-wrap{max-height:min(80vh,56rem);overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid #d1d5db;border-radius:.5rem;background:#fff}.dark .seo-tt-wrap{border-color:#1e293b;background:#111827}.seo-tt table{border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums;font-size:12px;line-height:1.25;min-width:100%}.seo-tt caption{caption-side:top}.seo-tt th,.seo-tt td{white-space:nowrap;padding:.5rem .75rem;border-bottom:1px solid #d1d5db;border-right:1px solid #e5e7eb;text-align:center}.dark .seo-tt th,.dark .seo-tt td{border-bottom-color:#374151;border-right-color:#1f2937}.seo-tt thead th{position:sticky;top:0;z-index:2;background:#f3f4f6;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#111827}.seo-tt thead th:not(:first-child),.seo-tt td{min-width:70px}.dark .seo-tt thead th{background:#1f2937;color:#e5e7eb}.seo-tt tbody th,.seo-tt thead th:first-child{position:sticky;left:0;z-index:1;text-align:left;font-weight:700;color:#111827;background:#f3f4f6;min-width:140px;max-width:140px;box-shadow:1px 0 #d1d5db}.seo-tt thead th:first-child{z-index:3;background:#e5e7eb}.dark .seo-tt tbody th,.dark .seo-tt thead th:first-child{color:#f9fafb;background:#1f2937;box-shadow:1px 0 #374151}.dark .seo-tt thead th:first-child{background:#111827}.seo-tt tbody tr:nth-child(2n) td{background:#f9fafb}.seo-tt tbody tr:nth-child(2n) th{background:#e5e7eb}.dark .seo-tt tbody tr:nth-child(2n) td{background:#1f2937}.dark .seo-tt tbody tr:nth-child(2n) th{background:#111827}.seo-tt td{color:#1f2937}.dark .seo-tt td{color:#d1d5db}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-</style></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300">   <header id="app-header" class="app-header shrink-0 px-3 py-2.5 z-30 relative flex items-start justify-between gap-2 border-b"> <div class="min-w-0 shrink header-brand-block"> <a href="/?region=WC" class="block rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70" aria-label="Next Train home - Western Cape"> <p id="app-title" class="header-title text-[2.55rem] sm:text-[2.75rem] font-black select-none tracking-[-0.035em] leading-none">
+</style></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <h1>Next Train could not finish updating</h1> <p>
+This device is holding an old copy of the app. Open
+<a href="/help.html" rel="nofollow">Reset and Recover</a>
+to clear it and load the current version.
+</p> <p>
+Still stuck? WhatsApp <a href="https://wa.me/27696473764" rel="nofollow">+27 69 647 3764</a>
+or email <a href="mailto:admin@nexttrain.co.za" rel="nofollow">admin@nexttrain.co.za</a> and we will help.
+</p> </div>   <header id="app-header" class="app-header shrink-0 px-3 py-2.5 z-30 relative flex items-start justify-between gap-2 border-b"> <div class="min-w-0 shrink-0 header-brand-block"> <a href="/?region=WC" class="block rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70" aria-label="Next Train home - Western Cape"> <p id="app-title" class="header-title text-[2.55rem] sm:text-[2.75rem] font-black select-none tracking-[-0.035em] leading-none">
 Next Train
-</p> </a> <div class="header-meta mt-1.5 min-w-0"> <p id="current-day" class="text-[11px] sm:text-xs font-medium leading-tight truncate">Getting schedules…</p> </div> </div> <a href="/?rt=ct-bellv&#38;r=WC" class="seo-open-app shrink-0 mt-1 max-w-[9.5rem] sm:max-w-none text-[11px] sm:text-xs font-bold text-right leading-tight underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-sm"> Open Next Train · Western Cape </a> </header> <script>
+</p> </a> <div class="header-meta mt-1.5 min-w-0"> <p id="current-day" class="text-[11px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 leading-tight">Getting schedules…</p> </div> </div> <a href="/?rt=ct-bellv&#38;r=WC" class="seo-open-app shrink-0 mt-1 max-w-[9.5rem] sm:max-w-none text-[11px] sm:text-xs font-bold text-right leading-tight underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-sm"> Open Next Train · Western Cape </a> </header> <script>
   (function () {
     try {
       var el = document.getElementById('current-day');
@@ -163,6 +284,26 @@ Next Train
         ? 'font-bold text-red-600 dark:text-red-400'
         : 'font-bold text-blue-600 dark:text-blue-400';
       el.innerHTML = names[day] + ' · <span class="' + typeClass + '">' + type + '</span>';
+      if (typeof window.fitHeaderDayLabel === 'function') window.fitHeaderDayLabel();
+      else {
+        var title = document.getElementById('app-title');
+        var avail = title ? title.scrollWidth : 0;
+        var sm = window.matchMedia && window.matchMedia('(min-width: 640px)').matches;
+        var basePx = sm ? 12 : 11;
+        var maxPx = sm ? 13 : 12;
+        el.style.whiteSpace = 'nowrap';
+        if (avail <= 8) { el.style.fontSize = basePx + 'px'; }
+        else {
+          var lo = 10, hi = maxPx, best = 10;
+          for (var i = 0; i < 16; i++) {
+            var mid = (lo + hi) / 2;
+            el.style.fontSize = mid + 'px';
+            if (el.scrollWidth <= avail + 0.75) { best = mid; lo = mid; }
+            else hi = mid;
+          }
+          el.style.fontSize = Math.max(10, Math.min(best, maxPx)) + 'px';
+        }
+      }
     } catch (e) { /* keep Getting schedules… */ }
   })();
 </script> <main class="min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100"> <div class="max-w-2xl mx-auto px-4 pt-6 sm:pt-8"> <p class="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-3"> <a href="/routes.html" class="hover:underline">Metrorail routes</a> <span class="text-slate-400 dark:text-slate-500"> / </span> <a href="/regions/western-cape.html" class="hover:underline">Western Cape</a>  <span class="text-slate-400 dark:text-slate-500"> / </span> <a href="/corridors/western-cape-northern-line.html" class="hover:underline">Northern Line</a> </p> <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white leading-tight"> Cape Town ↔ Bellville Train Schedule &amp; Times </h1> <a href="/?rt=ct-bellv&#38;r=WC" class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 text-sm sm:text-base transition-colors shadow-lg shadow-blue-900/20">
@@ -182,15 +323,15 @@ These are the <strong>maximum</strong> adult cash fares for Cape Town ↔ Bellvi
 <strong>off-peak</strong> singles and returns (09:30–14:30).
 </p>  <div class="mt-4 overflow-x-auto"> <table class="w-full text-sm text-left border-collapse"> <caption class="sr-only">
 Maximum adult Metrorail fares for Cape Town ↔ Bellville (Zone 1)
-</caption> <thead> <tr class="border-b border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500"> <th scope="col" class="py-2 pr-3">Ticket</th> <th scope="col" class="py-2 pl-3 text-right">Max fare</th> </tr> </thead> <tbody class="text-slate-900 dark:text-white"> <tr class="border-b border-slate-100 dark:border-slate-800 last:border-0"> <th scope="row" class="py-2.5 pr-3 font-semibold">Single</th> <td class="py-2.5 pl-3 text-right tabular-nums">R10.00</td> </tr><tr class="border-b border-slate-100 dark:border-slate-800 last:border-0"> <th scope="row" class="py-2.5 pr-3 font-semibold">Return</th> <td class="py-2.5 pl-3 text-right tabular-nums">R20.00</td> </tr><tr class="border-b border-slate-100 dark:border-slate-800 last:border-0"> <th scope="row" class="py-2.5 pr-3 font-semibold">Weekly Mon–Fri</th> <td class="py-2.5 pl-3 text-right tabular-nums">R60.00</td> </tr><tr class="border-b border-slate-100 dark:border-slate-800 last:border-0"> <th scope="row" class="py-2.5 pr-3 font-semibold">Weekly Mon–Sat</th> <td class="py-2.5 pl-3 text-right tabular-nums">R75.00</td> </tr><tr class="border-b border-slate-100 dark:border-slate-800 last:border-0"> <th scope="row" class="py-2.5 pr-3 font-semibold">Monthly</th> <td class="py-2.5 pl-3 text-right tabular-nums">R240.00</td> </tr> </tbody> </table> </div> <p class="mt-3 text-xs text-slate-500 leading-relaxed">
+</caption> <thead> <tr class="border-b border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500"> <th scope="col" class="py-2 pr-3">Ticket</th> <th scope="col" class="py-2 pl-3 text-right">Max fare</th> </tr> </thead> <tbody class="text-slate-900 dark:text-white"> <tr class="border-b border-slate-100 dark:border-slate-800 last:border-0"> <th scope="row" class="py-2.5 pr-3 font-semibold">Single</th> <td class="py-2.5 pl-3 text-right tabular-nums">R10.00</td> </tr><tr class="border-b border-slate-100 dark:border-slate-800 last:border-0"> <th scope="row" class="py-2.5 pr-3 font-semibold">Return</th> <td class="py-2.5 pl-3 text-right tabular-nums">R20.00</td> </tr><tr class="border-b border-slate-100 dark:border-slate-800 last:border-0"> <th scope="row" class="py-2.5 pr-3 font-semibold">Weekly Mon–Fri</th> <td class="py-2.5 pl-3 text-right tabular-nums">R60.00</td> </tr><tr class="border-b border-slate-100 dark:border-slate-800 last:border-0"> <th scope="row" class="py-2.5 pr-3 font-semibold">Weekly Mon–Sat</th> <td class="py-2.5 pl-3 text-right tabular-nums">R75.00</td> </tr><tr class="border-b border-slate-100 dark:border-slate-800 last:border-0"> <th scope="row" class="py-2.5 pr-3 font-semibold">Monthly</th> <td class="py-2.5 pl-3 text-right tabular-nums">R180.00</td> </tr> </tbody> </table> </div> <p class="mt-3 text-xs text-slate-500 leading-relaxed">
 Tickets are bought with cash at the station, not in this app. Off-peak does not apply on Saturday, Sunday, or public holidays.
 </p> </section> </div> <div class="max-w-6xl mx-auto px-4 py-8"> <details class="mt-6 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/80 p-4"> <summary class="cursor-pointer text-sm font-bold text-slate-900 dark:text-white">
 Saturday timetable
 </summary> <div class="mt-4"> <div class="flex flex-wrap items-end justify-between gap-2"> <h3 class="text-sm font-black uppercase tracking-widest text-slate-500"> Showing trains to Cape Town </h3> <a href="/?rt=ct-bellv&#38;v=g&#38;d=sa&#38;r=WC" class="text-sm font-bold text-blue-700 dark:text-blue-300 hover:underline">
 Open live timetable in Next Train
-</a> </div> <p class="mt-1 text-[11px] text-slate-500">Download and Share are there.</p> <div class="seo-tt"><div class="seo-tt-wrap"><table><caption class="sr-only">Saturday trains to Cape Town</caption><thead><tr><th scope="col">Station</th><th scope="col">2800</th><th scope="col">2632</th><th scope="col">2802</th><th scope="col">2804</th><th scope="col">2806</th><th scope="col">2508</th></tr></thead><tbody><tr><th scope="row">Bellville</th><td>6:50</td><td>7:07</td><td>9:00</td><td>11:10</td><td>13:20</td><td>12:55</td></tr><tr><th scope="row">Oosterzee</th><td>6:54</td><td>7:11</td><td>9:04</td><td>11:14</td><td>13:24</td><td>12:59</td></tr><tr><th scope="row">Avondale</th><td>6:58</td><td>7:18</td><td>9:08</td><td>11:18</td><td>13:28</td><td>13:03</td></tr><tr><th scope="row">De Grendel</th><td>7:03</td><td>-</td><td>9:13</td><td>11:23</td><td>13:33</td><td>13:08</td></tr><tr><th scope="row">Monte Vista</th><td>7:10</td><td>-</td><td>9:20</td><td>11:30</td><td>13:40</td><td>13:15</td></tr><tr><th scope="row">Century City</th><td>7:22</td><td>7:31</td><td>9:32</td><td>11:42</td><td>13:52</td><td>13:27</td></tr><tr><th scope="row">Ysterplaat</th><td>7:33</td><td>7:39</td><td>9:43</td><td>11:53</td><td>14:03</td><td>13:38</td></tr><tr><th scope="row">Esplanade</th><td>7:40</td><td>7:42</td><td>9:50</td><td>12:00</td><td>14:10</td><td>13:45</td></tr><tr><th scope="row">Cape Town</th><td>7:45</td><td>7:50</td><td>9:55</td><td>12:05</td><td>14:15</td><td>13:50</td></tr></tbody></table></div></div> </div> <div class="mt-4"> <div class="flex flex-wrap items-end justify-between gap-2"> <h3 class="text-sm font-black uppercase tracking-widest text-slate-500"> Showing trains to Bellville </h3> <a href="/?rt=ct-bellv&#38;v=g&#38;dir=B&#38;d=sa&#38;r=WC" class="text-sm font-bold text-blue-700 dark:text-blue-300 hover:underline">
+</a> </div> <p class="mt-1 text-[11px] text-slate-500">Download and Share are there.</p> <div class="seo-tt"><div class="seo-tt-wrap"><table><caption class="sr-only">Saturday trains to Cape Town</caption><thead><tr><th scope="col">Station</th><th scope="col">2802</th><th scope="col">2804</th><th scope="col">2806</th></tr></thead><tbody><tr><th scope="row">Bellville</th><td>9:00</td><td>11:10</td><td>13:20</td></tr><tr><th scope="row">Cape Town</th><td>9:55</td><td>12:05</td><td>14:15</td></tr></tbody></table></div></div> </div> <div class="mt-4"> <div class="flex flex-wrap items-end justify-between gap-2"> <h3 class="text-sm font-black uppercase tracking-widest text-slate-500"> Showing trains to Bellville </h3> <a href="/?rt=ct-bellv&#38;v=g&#38;dir=B&#38;d=sa&#38;r=WC" class="text-sm font-bold text-blue-700 dark:text-blue-300 hover:underline">
 Open live timetable in Next Train
-</a> </div> <p class="mt-1 text-[11px] text-slate-500">Download and Share are there.</p> <div class="seo-tt"><div class="seo-tt-wrap"><table><caption class="sr-only">Saturday trains to Bellville</caption><thead><tr><th scope="col">Station</th><th scope="col">2801</th><th scope="col">2803</th><th scope="col">2805</th><th scope="col">2807</th><th scope="col">2661</th></tr></thead><tbody><tr><th scope="row">Cape Town</th><td>5:45</td><td>7:55</td><td>10:05</td><td>12:15</td><td>13:50</td></tr><tr><th scope="row">Esplanade</th><td>5:50</td><td>8:00</td><td>10:10</td><td>12:20</td><td>13:53</td></tr><tr><th scope="row">Ysterplaat</th><td>5:57</td><td>8:07</td><td>10:17</td><td>12:27</td><td>13:58</td></tr><tr><th scope="row">Century City</th><td>6:08</td><td>8:18</td><td>10:28</td><td>12:38</td><td>14:06</td></tr><tr><th scope="row">Monte Vista</th><td>6:20</td><td>8:30</td><td>10:40</td><td>12:50</td><td>14:13</td></tr><tr><th scope="row">De Grendel</th><td>6:27</td><td>8:37</td><td>10:47</td><td>12:57</td><td>-</td></tr><tr><th scope="row">Avondale</th><td>6:31</td><td>8:41</td><td>10:51</td><td>13:01</td><td>14:20</td></tr><tr><th scope="row">Oosterzee</th><td>6:35</td><td>8:45</td><td>10:55</td><td>13:05</td><td>14:23</td></tr><tr><th scope="row">Bellville</th><td>6:40</td><td>8:50</td><td>11:00</td><td>13:10</td><td>14:26</td></tr></tbody></table></div></div> </div> </details> </div> <div class="max-w-2xl mx-auto px-4 pb-10 sm:pb-14"> <div class="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/80 p-5 sm:p-6 shadow-xl"> <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm"> <div> <dt class="text-slate-500 font-bold uppercase tracking-wide text-[10px]">Corridor</dt> <dd class="mt-1 font-semibold text-slate-900 dark:text-white">Cape Town ↔ Bellville</dd> </div> <div> <dt class="text-slate-500 font-bold uppercase tracking-wide text-[10px]">Province</dt> <dd class="mt-1 font-semibold text-slate-900 dark:text-white">Western Cape</dd> </div> <div> <dt class="text-slate-500 font-bold uppercase tracking-wide text-[10px]">Line</dt> <dd class="mt-1 font-semibold text-slate-900 dark:text-white">Northern Line</dd> </div> </dl> <a href="/?rt=ct-bellv&#38;r=WC" class="mt-6 flex w-full items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 px-4 transition-colors shadow-lg shadow-blue-900/20 dark:shadow-blue-900/40">
+</a> </div> <p class="mt-1 text-[11px] text-slate-500">Download and Share are there.</p> <div class="seo-tt"><div class="seo-tt-wrap"><table><caption class="sr-only">Saturday trains to Bellville</caption><thead><tr><th scope="col">Station</th><th scope="col">2801</th><th scope="col">2803</th><th scope="col">2805</th><th scope="col">2807</th></tr></thead><tbody><tr><th scope="row">Cape Town</th><td>5:45</td><td>7:55</td><td>10:05</td><td>12:15</td></tr><tr><th scope="row">Bellville</th><td>-</td><td>-</td><td>-</td><td>13:10</td></tr></tbody></table></div></div> </div> </details> </div> <div class="max-w-2xl mx-auto px-4 pb-10 sm:pb-14"> <div class="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/80 p-5 sm:p-6 shadow-xl"> <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm"> <div> <dt class="text-slate-500 font-bold uppercase tracking-wide text-[10px]">Corridor</dt> <dd class="mt-1 font-semibold text-slate-900 dark:text-white">Cape Town ↔ Bellville</dd> </div> <div> <dt class="text-slate-500 font-bold uppercase tracking-wide text-[10px]">Province</dt> <dd class="mt-1 font-semibold text-slate-900 dark:text-white">Western Cape</dd> </div> <div> <dt class="text-slate-500 font-bold uppercase tracking-wide text-[10px]">Line</dt> <dd class="mt-1 font-semibold text-slate-900 dark:text-white">Northern Line</dd> </div> </dl> <a href="/?rt=ct-bellv&#38;r=WC" class="mt-6 flex w-full items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 px-4 transition-colors shadow-lg shadow-blue-900/20 dark:shadow-blue-900/40">
 Open live timetable in Next Train
 </a> <p class="mt-2 text-center text-[11px] text-slate-500">
 Download and Share are on the live sheet.
