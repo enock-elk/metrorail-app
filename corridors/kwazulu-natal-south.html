@@ -75,7 +75,28 @@
     });
   })();
   /* ]] */
-</script><title>KZN South Train Times | Metrorail Next Train</title><meta name="description" content="KZN South Metrorail routes in KwaZulu-Natal. Open Next Train for live boards and full weekend/weekday grids. Check live KwaZulu-Natal Metrorail schedules offline in Metrorail Next Train."><meta name="robots" content="index, follow"><link rel="canonical" href="https://nexttrain.co.za/corridors/kwazulu-natal-south.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/corridors/kwazulu-natal-south.html"><meta property="og:title" content="KZN South Train Times | Metrorail Next Train"><meta property="og:description" content="KZN South Metrorail routes in KwaZulu-Natal. Open Next Train for live boards and full weekend/weekday grids. Check live KwaZulu-Natal Metrorail schedules offline in Metrorail Next Train."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="KZN South Train Times | Metrorail Next Train"><meta name="twitter:description" content="KZN South Metrorail routes in KwaZulu-Natal. Open Next Train for live boards and full weekend/weekday grids. Check live KwaZulu-Natal Metrorail schedules offline in Metrorail Next Train."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>(function(){const base = "/";
+</script><title>KZN South Train Times | Metrorail Next Train</title><meta name="description" content="KZN South Metrorail routes in KwaZulu-Natal. Open Next Train for live boards and full weekend/weekday grids. Check live KwaZulu-Natal Metrorail schedules offline in Metrorail Next Train."><meta name="robots" content="index, follow"><link rel="canonical" href="https://nexttrain.co.za/corridors/kwazulu-natal-south.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/corridors/kwazulu-natal-south.html"><meta property="og:title" content="KZN South Train Times | Metrorail Next Train"><meta property="og:description" content="KZN South Metrorail routes in KwaZulu-Natal. Open Next Train for live boards and full weekend/weekday grids. Check live KwaZulu-Natal Metrorail schedules offline in Metrorail Next Train."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="KZN South Train Times | Metrorail Next Train"><meta name="twitter:description" content="KZN South Metrorail routes in KwaZulu-Natal. Open Next Train for live boards and full weekend/weekday grids. Check live KwaZulu-Natal Metrorail schedules offline in Metrorail Next Train."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>
+      (function () {
+        function atPolyfill(n) {
+          n = Math.trunc(n) || 0;
+          if (n < 0) n += this.length;
+          if (n < 0 || n >= this.length) return undefined;
+          return this[n];
+        }
+        if (!Array.prototype.at) {
+          Object.defineProperty(Array.prototype, 'at', { value: atPolyfill, writable: true, enumerable: false, configurable: true });
+        }
+        if (!String.prototype.at) {
+          Object.defineProperty(String.prototype, 'at', { value: atPolyfill, writable: true, enumerable: false, configurable: true });
+        }
+        ['Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array','Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array','BigUint64Array'].forEach(function (name) {
+          var Ctor = window[name];
+          if (Ctor && Ctor.prototype && !Ctor.prototype.at) {
+            Object.defineProperty(Ctor.prototype, 'at', { value: atPolyfill, writable: true, enumerable: false, configurable: true });
+          }
+        });
+      })();
+    </script><script>(function(){const base = "/";
 const cartoKey = "cb1_2blq_1_f5cc9b93702d39c8b9ebafa5";
 
       window.__NT_BASE__ = base;
@@ -143,6 +164,33 @@ const seoRouteId = "";
 
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+      var TWA_PACKAGE = 'za.co.nexttrain.app';
+      function detectAppClient() {
+        var ref = String(document.referrer || '');
+        var pkg = '';
+        try { pkg = sessionStorage.getItem('nt_twa_package') || ''; } catch (e) {}
+        var isTwa = false;
+        try { isTwa = sessionStorage.getItem('nt_twa') === '1'; } catch (e) {}
+        if (ref.indexOf('android-app://') === 0) {
+          isTwa = true;
+          var m = ref.match(/^android-app:\/\/([^/]+)/);
+          if (m) pkg = m[1];
+          try {
+            sessionStorage.setItem('nt_twa', '1');
+            if (pkg) sessionStorage.setItem('nt_twa_package', pkg);
+          } catch (e) {}
+        }
+        if (!pkg && isTwa) pkg = TWA_PACKAGE;
+        if (isTwa) return { app_source: 'twa', twa_package: pkg || TWA_PACKAGE };
+        var standalone = false;
+        try {
+          if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) standalone = true;
+          if (window.navigator && window.navigator.standalone) standalone = true;
+        } catch (e) {}
+        if (standalone) return { app_source: 'pwa', twa_package: '' };
+        return { app_source: 'web', twa_package: '' };
+      }
+      var client = detectAppClient();
       var gaConfig = {};
       var isDevAnalytics = false;
       var userRegion = 'GP';
@@ -152,7 +200,11 @@ const seoRouteId = "";
         if (saved === 'GP' || saved === 'WC' || saved === 'KZN' || saved === 'EC') userRegion = saved;
       } catch(e) {}
       if (isDevAnalytics) gaConfig['traffic_type'] = 'internal';
-      gaConfig['user_properties'] = { crm_region: userRegion };
+      gaConfig['user_properties'] = {
+        crm_region: userRegion,
+        app_client: client.app_source,
+        twa_package: client.twa_package || ''
+      };
       // Stable SEO dimensions on every page_view for this document.
       if (seoPageType) gaConfig['seo_page_type'] = String(seoPageType);
       if (seoSlug) gaConfig['seo_slug'] = String(seoSlug);
@@ -161,12 +213,32 @@ const seoRouteId = "";
       if (seoCorridor) gaConfig['seo_corridor'] = String(seoCorridor);
       if (seoRouteId) gaConfig['seo_route_id'] = String(seoRouteId);
       window.__ntGaConfig = gaConfig;
+      window.__ntAppClient = client;
+      var pageType = seoPageType || '';
+      if (!pageType) {
+        var pathName = String((typeof location !== 'undefined' && location.pathname) || '');
+        if (/guide\.html?$/i.test(pathName)) pageType = 'guide';
+        else if (/map\.html?$/i.test(pathName)) pageType = 'map';
+        else if (/status\.html?$/i.test(pathName)) pageType = 'status';
+        else if (/routes\.html?$/i.test(pathName)) pageType = 'routes_index';
+        else if (/\/routes\//i.test(pathName)) pageType = 'route';
+        else if (/\/regions\//i.test(pathName)) pageType = 'region';
+        else if (/\/corridors\//i.test(pathName)) pageType = 'corridor';
+        else pageType = 'content';
+      }
       window.__ntSeoAnalytics = {
-        seo_page_type: seoPageType || '',
+        seo_page_type: pageType,
         seo_slug: seoSlug || '',
         seo_region: seoRegion || userRegion,
         seo_corridor: seoCorridor || '',
-        seo_route_id: seoRouteId || ''
+        seo_route_id: seoRouteId || '',
+        route_id: seoRouteId || '',
+        region: seoRegion || userRegion,
+        page_type: pageType,
+        slug: seoSlug || '',
+        corridor: seoCorridor || '',
+        app_source: client.app_source,
+        twa_package: client.twa_package || ''
       };
       var bootGa = function () {
         if (window.__ntGaBooted) return;
@@ -178,8 +250,9 @@ const seoRouteId = "";
           window.__ntGaReady = true;
           try { window.dispatchEvent(new Event('nt-ga-ready')); } catch (e) {}
           try {
-            if (seoPageType && typeof gtag === 'function') {
-              gtag('event', 'seo_page_view', window.__ntSeoAnalytics || {});
+            if (typeof gtag === 'function') {
+              gtag('event', 'View_astro_pages', window.__ntSeoAnalytics || {});
+              if (pageType) gtag('event', 'seo_page_view', window.__ntSeoAnalytics || {});
             }
           } catch (e) {}
         };
@@ -215,12 +288,16 @@ const seoRouteId = "";
             clarity('set', 'custom_id', id);
           }
           if (typeof clarity === 'function') {
-            if (seoPageType) clarity('set', 'seo_page_type', String(seoPageType));
+            var analytics = window.__ntSeoAnalytics || {};
+            if (analytics.page_type) clarity('set', 'seo_page_type', String(analytics.page_type));
             if (seoSlug) clarity('set', 'seo_slug', String(seoSlug));
-            if (seoRegion) clarity('set', 'seo_region', String(seoRegion));
+            if (analytics.region) clarity('set', 'seo_region', String(analytics.region));
             if (seoCorridor) clarity('set', 'seo_corridor', String(seoCorridor));
             if (seoRouteId) clarity('set', 'seo_route_id', String(seoRouteId));
-            if (seoPageType) clarity('event', 'seo_page_view');
+            if (analytics.app_source) clarity('set', 'app_client', String(analytics.app_source));
+            if (analytics.twa_package) clarity('set', 'twa_package', String(analytics.twa_package));
+            clarity('event', 'View_astro_pages');
+            if (analytics.page_type) clarity('event', 'seo_page_view');
           }
         } catch (e) {}
       };
@@ -259,13 +336,13 @@ const seoRouteId = "";
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"KZN South Train Times | Metrorail Next Train","description":"KZN South Metrorail routes in KwaZulu-Natal. Open Next Train for live boards and full weekend/weekday grids. Check live KwaZulu-Natal Metrorail schedules offline in Metrorail Next Train.","about":"KZN South","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.DE5xXewm.css">
-<link rel="stylesheet" href="/_astro/_slug_.D_aun0In.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <h1>Next Train could not finish updating</h1> <p>
+    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"KZN South Train Times | Metrorail Next Train","description":"KZN South Metrorail routes in KwaZulu-Natal. Open Next Train for live boards and full weekend/weekday grids. Check live KwaZulu-Natal Metrorail schedules offline in Metrorail Next Train.","about":"KZN South","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.CRuk3j3l.css">
+<link rel="stylesheet" href="/_astro/_slug_.ByiE4HC6.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <h1>Next Train could not finish updating</h1> <p>
 This device is holding an old copy of the app. Open
 <a href="/help.html" rel="nofollow">Reset and Recover</a>
 to clear it and load the current version.
 </p> <p>
-Still stuck? WhatsApp <a href="https://wa.me/27696473764" rel="nofollow">+27 69 647 3764</a>
+Still stuck? Message us on <a href="https://www.facebook.com/enock.kazembe" rel="nofollow" target="_blank">Facebook</a>
 or email <a href="mailto:admin@nexttrain.co.za" rel="nofollow">admin@nexttrain.co.za</a> and we will help.
 </p> </div>   <header id="app-header" class="app-header shrink-0 px-3 py-2.5 z-30 relative flex items-start justify-between gap-2 border-b"> <div class="min-w-0 shrink-0 header-brand-block"> <a href="/?region=KZN" class="block rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70" aria-label="Next Train home - KwaZulu-Natal"> <p id="app-title" class="header-title text-[2.55rem] sm:text-[2.75rem] font-black select-none tracking-[-0.035em] leading-none">
 Next Train

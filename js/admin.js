@@ -117,6 +117,42 @@ function ntAdminUpsertAlertSource(list, name, url, existingId) {
     return { ok: true, list: next, source };
 }
 
+function ntAdminSecureEscape(str) {
+    if (str == null || str === '') return '';
+    if (typeof escapeHTML === 'function') return escapeHTML(str);
+    return String(str).replace(/[&<>"']/g, (m) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[m]));
+}
+
+function ntAdminFlattenTripPlanRows(data) {
+    const rows = [];
+    if (!data || typeof data !== 'object') return rows;
+    Object.entries(data).forEach(([batchId, batch]) => {
+        if (!batch || typeof batch !== 'object') return;
+        const trips = Array.isArray(batch.trips) ? batch.trips : [];
+        const batchTs = Number(batch.flushedAt || 0);
+        trips.forEach((entry) => {
+            if (!entry?.origin || !entry?.destination) return;
+            rows.push({
+                batchId,
+                origin: entry.origin,
+                destination: entry.destination,
+                dayType: entry.dayType || 'unknown',
+                region: entry.region || batch.region || '',
+                userId: entry.userId || entry.deviceId || batch.userId || batch.deviceId || '',
+                authUid: entry.authUid || batch.authUid || '',
+                depTime: entry.depTime || '',
+                arrTime: entry.arrTime || '',
+                transfers: entry.transfers ?? '',
+                appVersion: entry.appVersion || batch.appVersion || '',
+                timestamp: Number(entry.timestamp || batchTs || 0),
+            });
+        });
+    });
+    return rows;
+}
+
 function ntAdminDeleteAlertSource(list, id) {
     return (Array.isArray(list) ? list : []).filter((s) => s.id !== id);
 }
@@ -261,6 +297,54 @@ function ntAdminDrillBackAction(stack, hashPanelId, fromPopState) {
         return { action: 'history-back', panelId: next[next.length - 1], stack: next };
     }
     return { action: 'grid', stack: [] };
+}
+
+function ntAdminCommunityActivityRows(activityByRoute, seenByRoute, heldItems, routes) {
+    const routeMap = routes && typeof routes === 'object' ? routes : {};
+    const held = Array.isArray(heldItems) ? heldItems : [];
+    const ids = new Set([
+        ...Object.keys(routeMap),
+        ...Object.keys(activityByRoute || {}),
+        ...held.map((item) => String(item?.routeId || item?.publish?.routeId || '')).filter(Boolean),
+    ]);
+    return Array.from(ids).map((routeId) => {
+        const activities = Object.entries(activityByRoute?.[routeId] || {})
+            .map(([messageId, value]) => ({ messageId, ...(value || {}) }))
+            .filter((item) => Number.isFinite(Number(item.timestamp)))
+            .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+        const routeHeld = held.filter((item) =>
+            String(item?.routeId || item?.publish?.routeId || '') === routeId
+            && !['closed', 'resolved', 'approved', 'rejected'].includes(String(item?.status || 'open'))
+        );
+        const latestActivity = activities[activities.length - 1] || null;
+        const latestHeldAt = routeHeld.reduce((max, item) => Math.max(max, Number(item.timestamp || 0)), 0);
+        const seenAt = Number(seenByRoute?.[routeId] || 0);
+        return {
+            routeId,
+            routeName: routeMap[routeId]?.name || routeId,
+            activities,
+            held: routeHeld,
+            latestActivity,
+            latestAt: Math.max(Number(latestActivity?.timestamp || 0), latestHeldAt),
+            unread: activities.filter((item) => Number(item.timestamp || 0) > seenAt).length,
+        };
+    }).sort((a, b) => (b.latestAt - a.latestAt)
+        || String(a.routeName).localeCompare(String(b.routeName)));
+}
+
+function ntAdminCommunityActivityPath(routeId, activity) {
+    if (!routeId || !activity?.postId) return '';
+    const base = `route_community/${routeId}/posts/${activity.postId}`;
+    return activity.kind === 'reply' && activity.replyId
+        ? `${base}/replies/${activity.replyId}`
+        : base;
+}
+
+function ntAdminCommunitySeenPatch(adminUid, routeId, timestamp) {
+    if (!adminUid || !routeId) return {};
+    return {
+        [`admin_state/${adminUid}/community_seen/${routeId}`]: Number(timestamp || Date.now()),
+    };
 }
 
 const NT_ADMIN_WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -654,6 +738,7 @@ const Admin = {
             file: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>',
             more: '<circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
             pencil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>',
+            columns: '<rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/><path d="M6.5 7h0M17.5 7h0"/>',
             circle: '<circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>',
         };
         const body = paths[name];
@@ -697,6 +782,106 @@ const Admin = {
     formatRouteLabelPlain: (raw) => {
         if (typeof raw !== 'string' || !raw) return '';
         return raw.replace(/\s*<->\s*/g, ' \u2194 ').replace(/\s*\u2194\s*/g, ' \u2194 ').trim();
+    },
+
+    /**
+     * Stations on a corridor for incident segments, including inactive / ghost
+     * rows (geometry only). Commuter boarding lists stay on the active index.
+     */
+    listIncidentStations: (rId) => {
+        const out = [];
+        const seen = new Set();
+        const add = (raw, inactive) => {
+            const name = String(raw || '').trim();
+            if (!name) return;
+            const lower = name.toLowerCase();
+            if (lower.includes('updated') || lower.includes('inter-station')) return;
+            const norm = (typeof normalizeStationName === 'function')
+                ? normalizeStationName(name)
+                : name.replace(/ STATION$/i, '').trim().toUpperCase();
+            if (!norm) return;
+            if (seen.has(norm)) {
+                if (!inactive) {
+                    const hit = out.find((s) => s.norm === norm);
+                    if (hit) hit.inactive = false;
+                }
+                return;
+            }
+            seen.add(norm);
+            const label = name.replace(/ STATION/gi, '').trim();
+            out.push({
+                value: name,
+                label,
+                inactive: !!inactive,
+                norm,
+            });
+        };
+
+        const rowHasService = (row) => {
+            const ignored = new Set(['STATION', 'COORDINATES', 'KM_MARK', 'row_index']);
+            return Object.keys(row || {}).some((k) => {
+                if (ignored.has(k)) return false;
+                const v = row[k];
+                if (v == null) return false;
+                const s = String(v).trim();
+                return s !== '' && s !== '-';
+            });
+        };
+
+        const walkSheet = (raw) => {
+            let rows = raw;
+            if (typeof parseJSONSchedule === 'function') {
+                try {
+                    const parsed = parseJSONSchedule(raw);
+                    if (parsed?.rows?.length) rows = parsed.rows;
+                } catch { /* keep raw */ }
+            }
+            if (!Array.isArray(rows) && raw && typeof raw === 'object') {
+                rows = Object.keys(raw)
+                    .filter((k) => k !== 'lastUpdated' && k !== 'headers' && k !== 'rows')
+                    .sort((a, b) => Number(a) - Number(b) || String(a).localeCompare(String(b)))
+                    .map((k) => raw[k])
+                    .filter((r) => r && typeof r === 'object');
+            }
+            if (!Array.isArray(rows)) return;
+            rows.forEach((row) => {
+                if (row?.STATION) add(row.STATION, !rowHasService(row));
+            });
+        };
+
+        const route = (typeof ROUTES !== 'undefined' && rId) ? ROUTES[rId] : null;
+        const db = (typeof fullDatabase !== 'undefined') ? fullDatabase : null;
+        if (route?.sheetKeys && db) {
+            const keys = [
+                route.sheetKeys.weekday_to_b,
+                route.sheetKeys.weekday_to_a,
+                route.sheetKeys.saturday_to_b,
+                route.sheetKeys.saturday_to_a,
+            ].filter(Boolean);
+            keys.forEach((k) => { if (db[k]) walkSheet(db[k]); });
+        }
+
+        const idx = (typeof globalStationIndex !== 'undefined' && globalStationIndex) ? globalStationIndex : {};
+        Object.entries(idx).forEach(([stName, stData]) => {
+            const routes = stData?.routes;
+            let on = false;
+            try {
+                if (routes && typeof routes.has === 'function') on = routes.has(rId);
+                else if (Array.isArray(routes)) on = routes.includes(rId);
+            } catch { on = false; }
+            if (on) add(stName, false);
+        });
+
+        const ghosts = (typeof window !== 'undefined' && window.GHOST_STATION_INDEX) ? window.GHOST_STATION_INDEX : {};
+        Object.entries(ghosts).forEach(([stName, stData]) => {
+            const routes = stData?.routes;
+            let on = false;
+            if (routes && typeof routes.has === 'function') on = routes.has(rId);
+            else if (Array.isArray(routes)) on = routes.includes(rId);
+            if (on) add(stName, true);
+        });
+
+        return out;
     },
 
     /** Pull "- Enock" / em-dash signoff out of an admin reply so the header can show it. */
@@ -1403,12 +1588,36 @@ const Admin = {
     gridCols: 3,
     _modulesRendered: false,
     _drillStack: [],
+    gridOrderDirty: false,
+
+    confirmGridOrderLeave: (targetPanelId = null) => {
+        if (!Admin.gridOrderDirty || targetPanelId === 'grid-order-panel') return true;
+        return window.confirm('Discard unsaved grid order changes?');
+    },
+
+    isAdminGridShell: (el) => !!(el && (el.dataset.adminSubview === 'true' || el.dataset.adminShell === 'empty')),
+
+    restoreGridChildLayout: (child) => {
+        if (Admin.isAdminGridShell(child)) {
+            child.style.display = 'none';
+            return;
+        }
+        child.style.display = '';
+        if (child.dataset.originalClasses) {
+            child.className = child.dataset.originalClasses;
+        }
+        const body = child.querySelector('[id$="-body"]');
+        if (body) body.classList.add('hidden');
+        const header = child.querySelector('[id$="-header-btn"]');
+        if (header) header.style.removeProperty('display');
+    },
 
     /**
      * Leave a drilled admin panel and restore the Dev Mode grid.
      * Uses replaceState(#dev) — never history.back() — so popstate cannot close Dev Mode / jump home.
      */
     exitDrillToGrid: (opts = {}) => {
+        if (!Admin.confirmGridOrderLeave(null)) return false;
         const fromPopState = !!opts.fromPopState;
         if (window._adminLightboxOpen && typeof Admin.closeLightbox === 'function') {
             Admin.closeLightbox();
@@ -1432,16 +1641,7 @@ const Admin = {
         if (container) {
             container.classList.add('admin-grid-view');
             container.style.gridTemplateColumns = `repeat(${Admin.gridCols || 3}, minmax(0, 1fr))`;
-            Array.from(container.children).forEach((child) => {
-                child.style.display = '';
-                if (child.dataset.originalClasses) {
-                    child.className = child.dataset.originalClasses;
-                }
-                const b = child.querySelector('[id$="-body"]');
-                if (b) b.classList.add('hidden');
-                const h = child.querySelector('[id$="-header-btn"]');
-                if (h) h.style.removeProperty('display');
-            });
+            Array.from(container.children).forEach((child) => Admin.restoreGridChildLayout(child));
         }
 
         if (titleH3 && devHeaderRow?.dataset.originalHtml) {
@@ -1489,16 +1689,7 @@ const Admin = {
         container.classList.add('admin-grid-view');
         container.style.gridTemplateColumns = `repeat(${Admin.gridCols || 3}, minmax(0, 1fr))`;
 
-        Array.from(container.children).forEach((child) => {
-            child.style.display = '';
-            if (child.dataset.originalClasses) {
-                child.className = child.dataset.originalClasses;
-            }
-            const body = child.querySelector('[id$="-body"]');
-            if (body) body.classList.add('hidden');
-            const header = child.querySelector('[id$="-header-btn"]');
-            if (header) header.style.removeProperty('display');
-        });
+        Array.from(container.children).forEach((child) => Admin.restoreGridChildLayout(child));
 
         const devHeaderRow = document.querySelector('#dev-modal .border-b.border-gray-200.pb-4.mb-6')
             || document.querySelector('#dev-modal .border-b.border-gray-200.pb-2.mb-3');
@@ -1514,6 +1705,7 @@ const Admin = {
 
     /** Close Developer Mode reliably (no history.back() race that can no-op the X button). */
     closeDevModal: (opts = {}) => {
+        if (!Admin.confirmGridOrderLeave(null)) return;
         const force = !!opts.force;
         // Grid X / forced exit: close Dev Mode. Drilled X (no force): step back to grid only.
         if (!force && !Admin.isGridMode && typeof Admin.exitDrillToGrid === 'function') {
@@ -1713,16 +1905,29 @@ const Admin = {
                 }
             }
 
-            // 5. Moderation queue (Phase 6)
-            const mqRes = await window.guardianFetch(`${dynamicEndpoint}moderation_queue.json?auth=${secret}`, {}, 6000);
+            // 5. Community activity, per operator and per route.
+            const mqRes = await window.guardianFetch(`${dynamicEndpoint}community_activity.json?auth=${secret}`, {}, 6000);
             if (mqRes.ok) {
                 const mqData = await mqRes.json();
                 let mqUnread = 0;
-                const localMqChecked = parseInt(typeof safeStorage !== 'undefined' ? (safeStorage.getItem('mq_last_checked') || '0') : '0');
-                const lastChecked = Math.max(localMqChecked, parseInt(adminState.mq_last_checked || '0'));
                 if (mqData && typeof mqData === 'object') {
-                    Object.values(mqData).forEach((i) => {
-                        if (i && i.status !== 'closed' && i.status !== 'resolved' && (i.timestamp || 0) > lastChecked) mqUnread++;
+                    Object.entries(mqData).forEach(([routeId, messages]) => {
+                        const seenAt = Number(adminState.community_seen?.[routeId] || 0);
+                        Object.values(messages || {}).forEach((item) => {
+                            if (Number(item?.timestamp || 0) > seenAt) mqUnread += 1;
+                        });
+                    });
+                }
+                const heldRes = await window.guardianFetch(`${dynamicEndpoint}moderation_queue.json?auth=${secret}`, {}, 6000);
+                if (heldRes.ok) {
+                    const heldData = await heldRes.json();
+                    Object.values(heldData || {}).forEach((item) => {
+                        const kind = item?.publish?.kind;
+                        if (!['community_post', 'community_reply'].includes(kind)) return;
+                        if (['closed', 'resolved', 'approved', 'rejected'].includes(String(item?.status || 'open'))) return;
+                        const routeId = String(item?.routeId || item?.publish?.routeId || '');
+                        const seenAt = Number(adminState.community_seen?.[routeId] || 0);
+                        if (routeId && Number(item?.timestamp || 0) > seenAt) mqUnread += 1;
                     });
                 }
                 totalUnread += mqUnread;
@@ -1751,12 +1956,12 @@ const Admin = {
         const cycleBtn = document.getElementById('trend-cycle-btn');
         if (cycleBtn) cycleBtn.innerHTML = `${Admin.icon('trending', 'w-3.5 h-3.5 inline-block mr-1 align-middle')} ${Admin.telemetryRange} Trend`;
         
-        const modalCycleBtn = document.getElementById('modal-trend-cycle');
-        if (modalCycleBtn) modalCycleBtn.innerHTML = `${Admin.icon('trending', 'w-3.5 h-3.5 inline-block mr-1 align-middle')} ${Admin.telemetryRange}`;
+        const drillCycleBtn = document.getElementById('analytics-trend-cycle');
+        if (drillCycleBtn) drillCycleBtn.innerHTML = `${Admin.icon('trending', 'w-3.5 h-3.5 inline-block mr-1 align-middle')} ${Admin.telemetryRange}`;
         
         Admin.telemetryWeeksAgo = 0; // Reset pagination context
         
-        const paginationControls = document.getElementById('modal-pagination-controls');
+        const paginationControls = document.getElementById('analytics-pagination-controls');
         if (paginationControls) {
             if (Admin.telemetryRange === 'DAU' || Admin.telemetryRange === 'WAU') {
                 paginationControls.classList.remove('hidden');
@@ -1842,61 +2047,55 @@ const Admin = {
             `;
             telBody.appendChild(trendWrapper);
             
-            // GUARDIAN PHASE 11: Reordered Title Below Graph for interactive airspace
-            let chartModal = document.getElementById('telemetry-chart-modal');
-            if (!chartModal) {
-                chartModal = document.createElement('div');
-                chartModal.id = 'telemetry-chart-modal';
-                chartModal.className = 'fixed inset-0 bg-black/90 z-[160] hidden flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300';
-                chartModal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] landscape:h-[95vh] flex flex-col transform transition-all scale-95 border border-slate-200 dark:border-slate-700">
-                        <div class="p-3 md:p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900 rounded-t-2xl shrink-0">
+            // Full-height analytics drill: part of admin navigation, not an overlay modal.
+            let chartPanel = document.getElementById('telemetry-chart-panel');
+            if (!chartPanel) {
+                const adminContainer = document.getElementById('admin-modules-container');
+                chartPanel = document.createElement('div');
+                chartPanel.id = 'telemetry-chart-panel';
+                chartPanel.dataset.adminSubview = 'true';
+                chartPanel.style.display = 'none';
+                chartPanel.className = 'bg-gray-50 dark:bg-gray-900 min-h-[calc(100dvh-5.5rem)] h-[calc(100dvh-5.5rem)] landscape:min-h-[calc(100dvh-4.5rem)] landscape:h-[calc(100dvh-4.5rem)]';
+                chartPanel.innerHTML = `
+                    <button id="telemetry-chart-header-btn" class="hidden" type="button"><span>Analytics Trends</span></button>
+                    <div id="telemetry-chart-body" class="h-full min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+                        <div class="p-2 sm:p-3 border-b border-slate-200 dark:border-slate-700 flex flex-wrap justify-between items-center gap-2 bg-slate-50 dark:bg-slate-900 shrink-0">
+                            <button id="analytics-trend-cycle" class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none text-[10px] font-bold uppercase tracking-widest border border-slate-200 dark:border-slate-700 shadow-sm flex items-center">
+                                <svg class="w-3.5 h-3.5 mr-1.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                                <span>${Admin.telemetryRange}</span>
+                            </button>
                             <div class="flex items-center space-x-2">
-                                <button id="modal-trend-cycle" class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none text-[10px] font-bold uppercase tracking-widest border border-slate-200 dark:border-slate-700 shadow-sm flex items-center">
-                                    <svg class="w-3.5 h-3.5 mr-1.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
-                                    <span>${Admin.telemetryRange}</span>
-                                </button>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <button id="modal-trend-compare-btn" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors focus:outline-none" title="Compare Previous Period">
+                                <button id="analytics-trend-compare-btn" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors focus:outline-none" title="Compare Previous Period" aria-label="Compare previous period">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                                 </button>
-                                <button id="modal-trend-export" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-slate-700 transition-colors focus:outline-none" title="Export Chart">
+                                <button id="analytics-trend-export" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-slate-700 transition-colors focus:outline-none" title="Export Chart" aria-label="Export chart">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 </button>
-                                <button onclick="closeSmoothModal('telemetry-chart-modal')" class="p-2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors focus:outline-none">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                </button>
                             </div>
                         </div>
-                        
-                        <div id="modal-pagination-controls" class="p-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex justify-center items-center space-x-4 shrink-0 shadow-inner">
-                            <button id="modal-trend-prev" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95" aria-label="Previous period"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></button>
+                        <div id="analytics-pagination-controls" class="p-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex justify-center items-center space-x-4 shrink-0 shadow-inner">
+                            <button id="analytics-trend-prev" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95" aria-label="Previous period"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></button>
                             <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest w-24 text-center">Navigate</span>
-                            <button id="modal-trend-next" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95 disabled:opacity-30" aria-label="Next period"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>
+                            <button id="analytics-trend-next" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95 disabled:opacity-30" aria-label="Next period"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>
                         </div>
-                        
-                        <div class="flex-grow p-2 md:p-6 flex flex-col items-center justify-center relative bg-white dark:bg-gray-800 min-h-0">
-                            <div id="modal-chart-svg-container" class="w-full flex-grow mb-4">
-                                <!-- High-Res SVG Line Graph gets injected here -->
-                            </div>
-                            <div class="text-center shrink-0 pb-4">
-                                <h3 class="text-lg md:text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none" id="modal-trend-title">Loading...</h3>
+                        <div class="flex-grow p-2 sm:p-4 landscape:p-2 flex flex-col items-center justify-center relative bg-white dark:bg-gray-800 min-h-0 overflow-hidden">
+                            <div id="analytics-chart-svg-container" class="w-full flex-1 min-h-0 mb-2 landscape:mb-0"></div>
+                            <div class="text-center shrink-0 pb-2 landscape:pb-0">
+                                <h3 class="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none" id="analytics-trend-title">Loading...</h3>
                                 <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-1">Live Analytics Engine</p>
                             </div>
                         </div>
                     </div>
                 `;
-                document.body.appendChild(chartModal);
+                adminContainer?.appendChild(chartPanel);
 
-                // Bind Modal Pagination & Unified Toggle
-                document.getElementById('modal-trend-prev').onclick = () => { Admin.telemetryWeeksAgo++; Admin.refreshTelemetry(); };
-                document.getElementById('modal-trend-next').onclick = () => { if(Admin.telemetryWeeksAgo > 0) { Admin.telemetryWeeksAgo--; Admin.refreshTelemetry(); } };
-                document.getElementById('modal-trend-export').onclick = () => Admin.exportTrendGraph();
-                document.getElementById('modal-trend-cycle').onclick = Admin.cycleTelemetryRange;
+                document.getElementById('analytics-trend-prev').onclick = () => { Admin.telemetryWeeksAgo++; Admin.refreshTelemetry(); };
+                document.getElementById('analytics-trend-next').onclick = () => { if(Admin.telemetryWeeksAgo > 0) { Admin.telemetryWeeksAgo--; Admin.refreshTelemetry(); } };
+                document.getElementById('analytics-trend-export').onclick = () => Admin.exportTrendGraph();
+                document.getElementById('analytics-trend-cycle').onclick = Admin.cycleTelemetryRange;
                 
                 // Compare Toggle Binding
-                const compareBtn = document.getElementById('modal-trend-compare-btn');
+                const compareBtn = document.getElementById('analytics-trend-compare-btn');
                 if (compareBtn) {
                     compareBtn.onclick = () => {
                         Admin.isComparing = !Admin.isComparing;
@@ -1977,7 +2176,7 @@ const Admin = {
                     closeSmoothModal('telemetry-region-modal');
                     // Give the modal 300ms to visually close before opening the full-screen chart
                     setTimeout(() => {
-                        openSmoothModal('telemetry-chart-modal');
+                        Admin.deepLinkToPanel('telemetry-chart-panel');
                     }, 300);
                 };
             }
@@ -1991,8 +2190,8 @@ const Admin = {
             const inlineExportBtn = document.getElementById('trend-inline-export-btn');
             const inlineContainer = document.getElementById('tel-trend-container');
 
-            if (expandBtn) expandBtn.onclick = () => openSmoothModal('telemetry-chart-modal');
-            if (inlineContainer) inlineContainer.onclick = () => openSmoothModal('telemetry-chart-modal');
+            if (expandBtn) expandBtn.onclick = () => Admin.deepLinkToPanel('telemetry-chart-panel');
+            if (inlineContainer) inlineContainer.onclick = () => Admin.deepLinkToPanel('telemetry-chart-panel');
             if (inlineExportBtn) inlineExportBtn.onclick = () => Admin.exportTrendGraph();
 
             // Main Global Export Button (Raw Data Snapshot)
@@ -2536,12 +2735,12 @@ const Admin = {
                     titleStr = `All-Time Active Users${rangeStr || ' (from Jan 2026)'}`;
                 }
                 
-                const modalTitleEl = document.getElementById('modal-trend-title');
-                if (modalTitleEl) modalTitleEl.textContent = titleStr;
+                const drillTitleEl = document.getElementById('analytics-trend-title');
+                if (drillTitleEl) drillTitleEl.textContent = titleStr;
                 
-                const nextBtn = document.getElementById('modal-trend-next');
+                const nextBtn = document.getElementById('analytics-trend-next');
                 const inlineNextBtn = document.getElementById('trend-next-btn');
-                const prevBtn = document.getElementById('modal-trend-prev');
+                const prevBtn = document.getElementById('analytics-trend-prev');
                 
                 // Forward-in-time guard (Next)
                 [nextBtn, inlineNextBtn].forEach(btn => {
@@ -2590,9 +2789,9 @@ const Admin = {
                 const inlineContainer = document.getElementById('tel-trend-container');
                 if (inlineContainer) inlineContainer.innerHTML = Admin._buildLineGraphSVG(activeCountsArray, displayLabels, titleStr, isTodayIdx, true, compareCountsArray);
                 
-                // Render Full-Screen Modal SVG
-                const modalSvgContainer = document.getElementById('modal-chart-svg-container');
-                if (modalSvgContainer) modalSvgContainer.innerHTML = Admin._buildLineGraphSVG(activeCountsArray, displayLabels, titleStr, isTodayIdx, false, compareCountsArray);
+                // Render the full-height admin analytics drill.
+                const drillSvgContainer = document.getElementById('analytics-chart-svg-container');
+                if (drillSvgContainer) drillSvgContainer.innerHTML = Admin._buildLineGraphSVG(activeCountsArray, displayLabels, titleStr, isTodayIdx, false, compareCountsArray);
 
                 [stat5m, stat30m, statToday, statWeekly, statMonthly, statAllTime, statErrors].forEach(el => {
                     if (el) el.classList.remove('animate-pulse');
@@ -2825,8 +3024,8 @@ const Admin = {
             }
         }
 
-        const titleText = document.getElementById('modal-trend-title')?.textContent || '7-Day DAU Trend';
-        const rawSvgNode = document.querySelector('#modal-chart-svg-container svg');
+        const titleText = document.getElementById('analytics-trend-title')?.textContent || '7-Day DAU Trend';
+        const rawSvgNode = document.querySelector('#analytics-chart-svg-container svg');
         if (!rawSvgNode) return;
 
         const exportContainer = document.createElement('div');
@@ -3224,6 +3423,7 @@ const Admin = {
         runAdminSetup('telemetry', () => Admin.setupTelemetry());
         runAdminSetup('feedback', () => Admin.setupFeedbackManager());
         runAdminSetup('delayReports', () => Admin.setupDelayReportsManager());
+        runAdminSetup('rideShare', () => Admin.setupRideShareManager());
         runAdminSetup('moderation', () => Admin.setupModerationQueueManager());
         runAdminSetup('userTrust', () => Admin.setupUserTrustManager());
         runAdminSetup('deadEnds', () => Admin.setupDeadEndsManager());
@@ -3231,6 +3431,7 @@ const Admin = {
         runAdminSetup('serviceAlerts', () => Admin.setupServiceAlertsManager());
         runAdminSetup('disruptions', () => Admin.setupDisruptionsManager());
         runAdminSetup('exclusions', () => Admin.setupExclusionManager());
+        runAdminSetup('gridOrder', () => Admin.setupGridOrderManager());
         runAdminSetup('holidayApprovals', () => Admin.setupHolidayApprovalsManager());
         runAdminSetup('maintenance', () => Admin.setupMaintenanceManager());
         runAdminSetup('specialEvent', () => Admin.setupSpecialEventManager());
@@ -3956,6 +4157,7 @@ const Admin = {
 
     /** Paint a drilled admin panel and bind ← to one history step (not always the grid). */
     showDrilledPanel: (panelId, opts = {}) => {
+        if (!Admin.confirmGridOrderLeave(panelId)) return false;
         const targetPanel = document.getElementById(panelId);
         const container = document.getElementById('admin-modules-container');
         if (!targetPanel || !container) return false;
@@ -4031,6 +4233,7 @@ const Admin = {
         if (quiet) return true;
         if (panelId === 'feedback-panel' && typeof Admin.fetchFeedback === 'function') Admin.fetchFeedback();
         if (panelId === 'delay-reports-panel' && typeof Admin.fetchDelayReports === 'function') Admin.fetchDelayReports();
+        if (panelId === 'live-share-panel' && typeof Admin.fetchRideShareLog === 'function') Admin.fetchRideShareLog();
         if (panelId === 'moderation-queue-panel' && typeof Admin.fetchModerationQueue === 'function') Admin.fetchModerationQueue();
         if (panelId === 'user-trust-panel' && typeof Admin.fetchActiveBans === 'function') Admin.fetchActiveBans();
         if (panelId === 'deadends-panel' && typeof Admin.fetchDeadEnds === 'function') {
@@ -4919,9 +5122,10 @@ const Admin = {
                     /* Hide empty HubModals shells — .hidden loses to this rule's display:flex otherwise */
                     .admin-grid-view > div.hidden,
                     .admin-grid-view > div:empty,
-                    .admin-grid-view > div[data-admin-shell="empty"] { display: none !important; height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; pointer-events: none !important; }
-                    .admin-grid-view > div:not(.hidden):not(:empty):not([data-admin-shell="empty"]) { margin-bottom: 0 !important; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; height: 110px; display: flex; flex-direction: column; justify-content: center; position: relative; overflow: visible !important; }
-                    .admin-grid-view > div:not(.hidden):not(:empty):not([data-admin-shell="empty"]):hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #3b82f6; }
+                    .admin-grid-view > div[data-admin-shell="empty"],
+                    .admin-grid-view > [data-admin-subview="true"] { display: none !important; height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; pointer-events: none !important; }
+                    .admin-grid-view > div:not(.hidden):not(:empty):not([data-admin-shell="empty"]):not([data-admin-subview="true"]) { margin-bottom: 0 !important; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; height: 110px; display: flex; flex-direction: column; justify-content: center; position: relative; overflow: visible !important; }
+                    .admin-grid-view > div:not(.hidden):not(:empty):not([data-admin-shell="empty"]):not([data-admin-subview="true"]):hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #3b82f6; }
                     .admin-grid-view > div [id$="-body"] { display: none !important; }
                     .admin-grid-view > div [id$="-header-btn"] { flex-direction: column; justify-content: center; height: 100%; align-items: center; text-align: center; margin-bottom: 0 !important; position: relative; overflow: visible; }
                     .admin-grid-view > div [id$="-header-btn"] > span:not(.admin-unread-badge) { flex-direction: column; align-items: center; width: 100%; display: flex; }
@@ -5010,7 +5214,12 @@ const Admin = {
                     gridStyleEl.textContent += `
                     .admin-grid-view > div.hidden,
                     .admin-grid-view > div:empty,
-                    .admin-grid-view > div[data-admin-shell="empty"] { display: none !important; height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; pointer-events: none !important; }`;
+                    .admin-grid-view > div[data-admin-shell="empty"],
+                    .admin-grid-view > [data-admin-subview="true"] { display: none !important; height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; pointer-events: none !important; }`;
+                }
+                if (!gridStyleEl.textContent.includes('.admin-grid-view > [data-admin-subview="true"]')) {
+                    gridStyleEl.textContent += `
+                    .admin-grid-view > [data-admin-subview="true"] { display: none !important; height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; pointer-events: none !important; }`;
                 }
                 if (!gridStyleEl.textContent.includes('color: #64748b')) {
                     gridStyleEl.textContent += `
@@ -5524,33 +5733,7 @@ const Admin = {
         };
 
         /** Flatten cached trip_plans batches into filterable rows. */
-        Admin.flattenTripPlanRows = (data = Admin._cachedTripPlans) => {
-            const rows = [];
-            if (!data || typeof data !== 'object') return rows;
-            Object.entries(data).forEach(([batchId, batch]) => {
-                if (!batch || typeof batch !== 'object') return;
-                const trips = Array.isArray(batch.trips) ? batch.trips : [];
-                const batchTs = Number(batch.flushedAt || 0);
-                trips.forEach((entry) => {
-                    if (!entry?.origin || !entry?.destination) return;
-                    rows.push({
-                        batchId,
-                        origin: entry.origin,
-                        destination: entry.destination,
-                        dayType: entry.dayType || 'unknown',
-                        region: entry.region || batch.region || '',
-                        userId: entry.userId || entry.deviceId || batch.userId || batch.deviceId || '',
-                        authUid: entry.authUid || batch.authUid || '',
-                        depTime: entry.depTime || '',
-                        arrTime: entry.arrTime || '',
-                        transfers: entry.transfers ?? '',
-                        appVersion: entry.appVersion || batch.appVersion || '',
-                        timestamp: Number(entry.timestamp || batchTs || 0),
-                    });
-                });
-            });
-            return rows;
-        };
+        Admin.flattenTripPlanRows = (data = Admin._cachedTripPlans) => ntAdminFlattenTripPlanRows(data);
 
         Admin.tripCorridorKey = (entry) =>
             `${entry.origin}|${entry.destination}|${entry.dayType || ''}|${entry.region || ''}`;
@@ -6111,6 +6294,7 @@ const Admin = {
 
         if (fbPanel.dataset.adminLoaded === "true") return;
         fbPanel.dataset.adminLoaded = "true";
+        Admin.bindAdminChangelogClicks();
 
         // Local state config
         Admin.currentFeedbackTab = 'inbox';
@@ -6448,14 +6632,16 @@ const Admin = {
                                     Options
                                     <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                                 </button>
-                                <div data-fb-more-menu class="hidden absolute right-0 top-full mt-1 z-[40] w-44 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl py-1 text-left">
+                                <div data-fb-more-menu class="hidden absolute right-0 top-full mt-1 z-[40] w-56 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl py-1 text-left">
                                     <button type="button" onclick="event.stopPropagation(); Admin.exportThreadForAI('${safeDidAttr}')" class="w-full px-3 py-2 text-left text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('download', 'w-3.5 h-3.5')} Export</button>
                                     <button type="button" data-escalate="${escalateAttr}" onclick="event.stopPropagation(); Admin.escalateFromEl(this)" class="w-full px-3 py-2 text-left text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('alert', 'w-3.5 h-3.5')} Escalate</button>
+                                    ${did !== 'Anonymous / Legacy' ? `<button type="button" onclick="event.stopPropagation(); Admin.openFeedbackBetaGrant('${safeDidAttr}')" class="w-full px-3 py-2 text-left text-[11px] font-bold text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('star', 'w-3.5 h-3.5')} Add to beta</button>` : ''}
+                                    ${did !== 'Anonymous / Legacy' ? `<button type="button" onclick="event.stopPropagation(); Admin.openFeedbackTripPlans('${safeDidAttr}')" class="w-full px-3 py-2 text-left text-[11px] font-bold text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('search', 'w-3.5 h-3.5')} Trip plans</button>` : ''}
                                     ${did !== 'Anonymous / Legacy' ? `<button type="button" onclick="event.stopPropagation(); Admin.applyShadowBan('${safeDidAttr}', { deviceId: '${safeDidAttr}' })" class="w-full px-3 py-2 text-left text-[11px] font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('ban', 'w-3.5 h-3.5')} Ban</button>` : ''}
                                 </div>
                             </div>
                         </div>
-                        <div class="feedback-thread-chat space-y-3 p-2 sm:p-3 bg-[#efeae2] dark:bg-[#0b141a]">
+                        <div class="feedback-thread-chat nt-pack-wallpaper relative space-y-3 p-2 sm:p-3">
                 `;
 
                 let lastRenderedDate = "";
@@ -6824,10 +7010,11 @@ const Admin = {
                             : `${Admin.icon(typeIconName, 'w-3 h-3')} ${typeLabel}`;
                         let headerColorClass = isReply ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400";
 
+                        const verLabel = safeAppVersion.split(' - ')[0];
                         const integratedHeaderHtml = `
                             <div class="inbox-bubble-name-row">
                                 <span class="whitespace-nowrap inline-flex items-center gap-1 ${headerColorClass} uppercase tracking-widest text-[10px]">${headerLabelText}</span>
-                                <span class="font-mono font-medium opacity-60 ml-2 truncate">${safeAppVersion.split(' - ')[0]} · ${safeRouteId}</span>
+                                <button type="button" class="font-mono font-medium opacity-80 ml-2 truncate underline decoration-dotted underline-offset-2 hover:opacity-100 focus:outline-none" data-admin-changelog="${verLabel}">${verLabel} · ${safeRouteId}</button>
                             </div>
                         `;
 
@@ -7484,7 +7671,356 @@ const Admin = {
         };
     },
 
-    // --- PHASE 6: COMMUNITY MODERATION QUEUE ---
+    setupRideShareManager: () => {
+        const alertPanel = document.getElementById('alert-panel');
+        if (!alertPanel || !alertPanel.parentNode) return;
+
+        let lsPanel = document.getElementById('live-share-panel');
+        if (!lsPanel) {
+            lsPanel = document.createElement('div');
+            lsPanel.id = 'live-share-panel';
+            const after = document.getElementById('delay-reports-panel') || document.getElementById('feedback-panel');
+            if (after && after.parentNode) after.parentNode.insertBefore(lsPanel, after.nextSibling);
+            else alertPanel.parentNode.insertBefore(lsPanel, alertPanel);
+        }
+        if (lsPanel.dataset.adminLoaded === 'true') return;
+        lsPanel.dataset.adminLoaded = 'true';
+        Admin._lsRegion = Admin._lsRegion || 'GP';
+
+        lsPanel.className = 'bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300';
+        lsPanel.innerHTML = `
+            <div id="ls-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative cursor-pointer">
+                <span class="flex flex-col items-center">
+                    ${Admin.tileIcon('pin', 'text-blue-600 dark:text-blue-400')}
+                    <span>Live sharing</span>
+                </span>
+                <svg id="ls-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+            <div id="ls-body" class="hidden mt-4 flex flex-col">
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Live GPS shares and expandable sessions. Start and stop for the same rider sit in one entry.</p>
+                <div class="grid-hidden-actions flex space-x-1 mb-3 px-1" id="ls-region-tabs"></div>
+                <div class="grid-hidden-actions flex space-x-2 mb-3 px-1">
+                    <button type="button" id="ls-refresh-btn" class="flex-1 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none">Refresh</button>
+                </div>
+                <p class="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1 mb-2 flex items-center gap-2">Live now <span id="ls-live-count" class="hidden text-[9px] font-black tracking-normal normal-case bg-blue-600 text-white px-1.5 py-0.5 rounded-full"></span></p>
+                <div id="ls-live-list" class="space-y-2 max-h-[28vh] overflow-y-auto pr-1 custom-scrollbar mb-4"></div>
+                <p class="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1 mb-2">Share sessions</p>
+                <div id="ls-log-list" class="space-y-2 max-h-[40vh] overflow-y-auto pr-1 custom-scrollbar"></div>
+            </div>
+        `;
+
+        const header = document.getElementById('ls-header-btn');
+        const body = document.getElementById('ls-body');
+        const chevron = document.getElementById('ls-chevron');
+        const refreshBtn = document.getElementById('ls-refresh-btn');
+        const tabsHost = document.getElementById('ls-region-tabs');
+        const regions = (typeof REGIONS !== 'undefined' && REGIONS) ? Object.keys(REGIONS) : ['GP', 'WC', 'KZN', 'EC'];
+
+        const paintTabs = () => {
+            if (!tabsHost) return;
+            tabsHost.innerHTML = regions.map((id) => {
+                const on = Admin._lsRegion === id;
+                const label = (typeof REGIONS !== 'undefined' && REGIONS[id]?.name) || id;
+                return `<button type="button" data-ls-region="${id}" class="flex-1 rounded-lg px-2 py-2 text-[10px] font-black ${on ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-300'}">${label}</button>`;
+            }).join('');
+            tabsHost.querySelectorAll('[data-ls-region]').forEach((btn) => {
+                btn.onclick = () => {
+                    Admin._lsRegion = btn.getAttribute('data-ls-region');
+                    paintTabs();
+                    Admin.fetchRideShareLog();
+                };
+            });
+        };
+        paintTabs();
+
+        if (!document.getElementById('nt-ls-style')) {
+            const st = document.createElement('style');
+            st.id = 'nt-ls-style';
+            st.textContent = `
+                .nt-ls-live-card { position: relative; overflow: hidden; }
+                .nt-ls-live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: #2563eb; box-shadow: 0 0 0 0 rgba(37,99,235,.55); animation: nt-ls-gps 2s ease-out infinite; }
+                .nt-ls-live-dot.is-stale { background: #64748b; animation: none; box-shadow: none; }
+                @keyframes nt-ls-gps {
+                    0% { box-shadow: 0 0 0 0 rgba(37,99,235,.55); }
+                    70% { box-shadow: 0 0 0 10px rgba(37,99,235,0); }
+                    100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+                }
+                .nt-ls-session[open] .nt-ls-session-chevron { transform: rotate(180deg); }
+            `;
+            document.head.appendChild(st);
+        }
+
+        const stopLsTimer = () => {
+            if (Admin._lsTimer) {
+                clearInterval(Admin._lsTimer);
+                Admin._lsTimer = null;
+            }
+        };
+        const startLsTimer = () => {
+            stopLsTimer();
+            Admin._lsTimer = setInterval(() => {
+                if (!body || body.classList.contains('hidden')) return;
+                Admin.fetchRideShareLog({ quiet: true });
+            }, 8000);
+        };
+
+        header.onclick = () => {
+            if (Admin.isGridMode) return;
+            body.classList.toggle('hidden');
+            if (body.classList.contains('hidden')) {
+                chevron.classList.add('-rotate-90');
+                header.classList.remove('mb-4');
+                stopLsTimer();
+            } else {
+                chevron.classList.remove('-rotate-90');
+                header.classList.add('mb-4');
+                Admin.fetchRideShareLog();
+                startLsTimer();
+            }
+        };
+        refreshBtn.onclick = () => Admin.fetchRideShareLog();
+
+        const esc = (t) => String(t || '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+        const routeName = (id) => {
+            try {
+                if (typeof ROUTES !== 'undefined' && ROUTES[id]) return ROUTES[id].name || id;
+            } catch (e) {}
+            return id || 'Unknown route';
+        };
+        const regionOf = (routeId) => {
+            try {
+                if (typeof ROUTES !== 'undefined' && ROUTES[routeId]?.region) return ROUTES[routeId].region;
+            } catch (e) {}
+            return '';
+        };
+        const fmtWhen = (ts) => ts ? new Date(ts).toLocaleString() : '—';
+        const fmtAge = (ts, now) => {
+            if (!ts) return '';
+            const d = Math.max(0, now - ts);
+            if (d < 5000) return 'just now';
+            if (d < 60000) return Math.round(d / 1000) + 's ago';
+            if (d < 3600000) return Math.round(d / 60000) + 'm ago';
+            return Math.round(d / 3600000) + 'h ago';
+        };
+        const fmtDuration = (ms) => {
+            if (!Number.isFinite(ms) || ms < 0) return '';
+            const s = Math.round(ms / 1000);
+            if (s < 60) return s + 's';
+            const m = Math.floor(s / 60);
+            const r = s % 60;
+            if (m < 60) return r ? (m + 'm ' + r + 's') : (m + 'm');
+            const h = Math.floor(m / 60);
+            return (m % 60) ? (h + 'h ' + (m % 60) + 'm') : (h + 'h');
+        };
+        const groupRideShareLogs = (items) => {
+            const sessions = [];
+            const rest = [];
+            items.forEach((r) => {
+                if (String(r.action || '') === 'session') {
+                    sessions.push({
+                        id: r._key,
+                        uid: r.uid,
+                        email: r.email,
+                        deviceId: r.deviceId,
+                        routeId: r.routeId,
+                        trainId: r.trainId,
+                        status: r.status || (r.stoppedAt ? 'stopped' : 'live'),
+                        startedAt: r.startedAt || r.at,
+                        stoppedAt: r.stoppedAt || null,
+                        startSource: r.source,
+                        stopSource: r.stopSource || '',
+                        appVersion: r.appVersion,
+                        keys: [r._key],
+                    });
+                } else {
+                    rest.push(r);
+                }
+            });
+            rest.sort((a, b) => (a.at || 0) - (b.at || 0));
+            const stacks = new Map();
+            const keyOf = (r) => [r.uid || '', r.deviceId || '', r.trainId || '', r.routeId || ''].join('|');
+            rest.forEach((r) => {
+                const k = keyOf(r);
+                if (r.action === 'start') {
+                    const arr = stacks.get(k) || [];
+                    arr.push(r);
+                    stacks.set(k, arr);
+                    return;
+                }
+                if (r.action !== 'stop') return;
+                const arr = stacks.get(k);
+                const start = arr && arr.length ? arr.pop() : null;
+                if (start) {
+                    sessions.push({
+                        id: start._key,
+                        uid: start.uid || r.uid,
+                        email: start.email || r.email,
+                        deviceId: start.deviceId || r.deviceId,
+                        routeId: start.routeId || r.routeId,
+                        trainId: start.trainId || r.trainId,
+                        status: 'stopped',
+                        startedAt: start.at,
+                        stoppedAt: r.at,
+                        startSource: start.source,
+                        stopSource: r.source,
+                        appVersion: r.appVersion || start.appVersion,
+                        keys: [start._key, r._key],
+                    });
+                } else {
+                    sessions.push({
+                        id: r._key,
+                        uid: r.uid,
+                        email: r.email,
+                        deviceId: r.deviceId,
+                        routeId: r.routeId,
+                        trainId: r.trainId,
+                        status: 'stopped',
+                        startedAt: null,
+                        stoppedAt: r.at,
+                        startSource: '',
+                        stopSource: r.source,
+                        appVersion: r.appVersion,
+                        keys: [r._key],
+                    });
+                }
+            });
+            stacks.forEach((arr) => {
+                arr.forEach((start) => {
+                    sessions.push({
+                        id: start._key,
+                        uid: start.uid,
+                        email: start.email,
+                        deviceId: start.deviceId,
+                        routeId: start.routeId,
+                        trainId: start.trainId,
+                        status: 'live',
+                        startedAt: start.at,
+                        stoppedAt: null,
+                        startSource: start.source,
+                        stopSource: '',
+                        appVersion: start.appVersion,
+                        keys: [start._key],
+                    });
+                });
+            });
+            sessions.sort((a, b) => (b.startedAt || b.stoppedAt || 0) - (a.startedAt || a.stoppedAt || 0));
+            return sessions;
+        };
+
+        Admin.fetchRideShareLog = async (opts = {}) => {
+            const quiet = !!opts.quiet;
+            const liveEl = document.getElementById('ls-live-list');
+            const logEl = document.getElementById('ls-log-list');
+            const countEl = document.getElementById('ls-live-count');
+            if (!liveEl || !logEl) return;
+            if (!quiet) {
+                liveEl.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">Loading...</p>';
+                logEl.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">Loading...</p>';
+            }
+            const region = Admin._lsRegion || 'GP';
+            try {
+                const secret = await Admin.getAuthKey();
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const authQ = secret ? `?auth=${secret}` : '';
+                const [pingsRes, logRes] = await Promise.all([
+                    window.guardianFetch(`${dynamicEndpoint}ride_pings.json${authQ}`, {}, 8000),
+                    window.guardianFetch(`${dynamicEndpoint}ride_share_log/${encodeURIComponent(region)}.json${authQ}`, {}, 8000),
+                ]);
+                const now = Date.now();
+                const liveRows = [];
+                if (pingsRes.ok) {
+                    const pings = await pingsRes.json();
+                    if (pings && typeof pings === 'object') {
+                        Object.entries(pings).forEach(([routeId, nodes]) => {
+                            if (regionOf(routeId) !== region || !nodes || typeof nodes !== 'object') return;
+                            Object.values(nodes).forEach((p) => {
+                                if (!p || (p.expiresAt || 0) <= now) return;
+                                liveRows.push({ ...p, routeId: p.routeId || routeId });
+                            });
+                        });
+                    }
+                }
+                liveRows.sort((a, b) => (b.at || 0) - (a.at || 0));
+                if (countEl) {
+                    if (liveRows.length) {
+                        countEl.textContent = String(liveRows.length);
+                        countEl.classList.remove('hidden');
+                    } else {
+                        countEl.textContent = '';
+                        countEl.classList.add('hidden');
+                    }
+                }
+                liveEl.innerHTML = liveRows.length
+                    ? liveRows.slice(0, 80).map((p) => {
+                        const stale = p.at && (now - p.at) >= 90000;
+                        const acc = Number.isFinite(p.accuracy) ? Math.round(p.accuracy) + ' m' : '';
+                        const speed = Number.isFinite(p.speedMps) ? (p.speedMps * 3.6).toFixed(0) + ' km/h' : '';
+                        const bits = [p.source || '', p.station || '', acc, speed].filter(Boolean).join(' · ');
+                        return `
+                        <div class="nt-ls-live-card border ${stale ? 'border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40' : 'border-blue-200 dark:border-blue-800/70 bg-blue-50/70 dark:bg-blue-950/30'} rounded-xl p-3 text-left">
+                            <div class="flex justify-between gap-2 items-start">
+                                <p class="text-xs font-black text-gray-900 dark:text-white flex items-center gap-1.5">
+                                    <span class="nt-ls-live-dot ${stale ? 'is-stale' : ''}"></span>
+                                    Train ${esc(p.trainId || '—')} · ${esc(routeName(p.routeId))}
+                                </p>
+                                <span class="text-[9px] font-mono ${stale ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-300'} shrink-0">${stale ? 'GPS stale · ' : 'LIVE · '}${esc(fmtAge(p.at, now))}</span>
+                            </div>
+                            <p class="text-[10px] font-mono text-gray-500 dark:text-gray-400 mt-1">uid ${esc(p.uid || 'guest')} · ${esc(p.email || '')} · device ${esc((p.deviceId || '').slice(0, 10))}</p>
+                            <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">${esc(bits)}</p>
+                        </div>`;
+                    }).join('')
+                    : '<p class="text-xs text-gray-400 text-center py-4">No live shares in this region.</p>';
+
+                const logItems = [];
+                if (logRes.ok) {
+                    const data = await logRes.json();
+                    if (data && typeof data === 'object') {
+                        Object.entries(data).forEach(([key, v]) => {
+                            if (v) logItems.push({ ...v, _key: key });
+                        });
+                    }
+                }
+                const sessions = groupRideShareLogs(logItems);
+                logEl.innerHTML = sessions.length
+                    ? sessions.slice(0, 80).map((s) => {
+                        const live = s.status === 'live';
+                        const durMs = (s.stoppedAt && s.startedAt)
+                            ? (s.stoppedAt - s.startedAt)
+                            : (live && s.startedAt ? (now - s.startedAt) : null);
+                        const dur = fmtDuration(durMs);
+                        const title = live
+                            ? `Live · Train ${esc(s.trainId || '—')}`
+                            : `Train ${esc(s.trainId || '—')}`;
+                        const when = live
+                            ? `since ${fmtWhen(s.startedAt)}`
+                            : `${fmtWhen(s.startedAt)} → ${fmtWhen(s.stoppedAt)}`;
+                        return `
+                        <details class="nt-ls-session ${live ? 'border-blue-200 dark:border-blue-800/70' : 'border-gray-200 dark:border-gray-700'} border rounded-xl text-left bg-white dark:bg-gray-800" data-ls-session="${esc(s.id)}">
+                            <summary class="cursor-pointer list-none p-3 flex justify-between gap-2 items-start">
+                                <span>
+                                    <span class="text-xs font-black text-gray-900 dark:text-white">${title}${dur ? ' · ' + esc(dur) : ''}</span>
+                                    <span class="block text-[11px] text-gray-600 dark:text-gray-300 mt-0.5">${esc(routeName(s.routeId))}</span>
+                                    <span class="block text-[9px] font-mono text-gray-400 mt-0.5">${esc(when)}</span>
+                                </span>
+                                <svg class="nt-ls-session-chevron w-4 h-4 text-gray-400 shrink-0 mt-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </summary>
+                            <div class="px-3 pb-3 pt-0 text-[10px] font-mono text-gray-500 dark:text-gray-400 space-y-0.5" data-ls-session-body>
+                                <p>uid ${esc(s.uid || '')} · ${esc(s.email || '')}</p>
+                                <p>device ${esc(s.deviceId || '')}</p>
+                                <p>start ${esc(s.startSource || '—')} · stop ${esc(s.stopSource || (live ? 'still live' : '—'))}</p>
+                                ${s.appVersion ? `<p>build ${esc(s.appVersion)}</p>` : ''}
+                            </div>
+                        </details>`;
+                    }).join('')
+                    : '<p class="text-xs text-gray-400 text-center py-4">No share sessions for this region yet.</p>';
+            } catch (e) {
+                liveEl.innerHTML = `<p class="text-xs text-red-500 text-center py-4">Failed to load: ${e.message || e}</p>`;
+                logEl.innerHTML = '';
+            }
+        };
+    },
+
+    // --- COMMUNITY MONITOR: ROUTE ACTIVITY + HELD MODERATION ---
     setupModerationQueueManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
@@ -7505,13 +8041,17 @@ const Admin = {
             <div id="mq-header-btn" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative cursor-pointer">
                 <span class="flex flex-col items-center">
                     ${Admin.tileIcon('shield', 'text-emerald-500 dark:text-emerald-400')}
-                    <span>Moderation Queue</span>
+                    <span>Community Monitor</span>
                 </span>
-                <span id="mq-unread-badge" class="admin-unread-badge hidden" aria-label="Unread moderation items"></span>
+                <span id="mq-unread-badge" class="admin-unread-badge hidden" aria-label="Unread community activity"></span>
                 <svg id="mq-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             <div id="mq-body" class="hidden mt-4 flex flex-col">
-                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Community reports and held feedback. Approve held feedback into the Feedback Hub, or hide / shadow-ban community posts.</p>
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Routes are ordered by their latest published post, reply, or held item. Open a route to view its conversation and mark it seen for your operator account.</p>
+                <label class="px-1 mb-3">
+                    <span class="sr-only">Search community routes and messages</span>
+                    <input id="mq-search" type="search" placeholder="Search routes or messages" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2.5 text-xs text-gray-900 dark:text-white"/>
+                </label>
                 <div class="grid-hidden-actions flex space-x-2 mb-3 px-1">
                     <button type="button" id="mq-refresh-btn" class="flex-1 bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none">Refresh</button>
                 </div>
@@ -7537,6 +8077,131 @@ const Admin = {
             }
         };
         refreshBtn.onclick = () => Admin.fetchModerationQueue();
+
+        const validateHeldCommunityPublish = (report) => {
+            const publish = report?.publish;
+            const payload = publish?.payload;
+            const kind = publish?.kind;
+            if (!['community_post', 'community_reply'].includes(kind) || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
+                throw new Error('Missing held community payload');
+            }
+            const routeId = String(publish.routeId || '');
+            const postId = String(kind === 'community_post' ? payload.postId : publish.postId || '');
+            const replyId = kind === 'community_reply' ? String(payload.replyId || '') : '';
+            const safeKey = (value) => value.length > 0 && value.length <= 80 && !/[.#$[\]/]/.test(value);
+            if (!safeKey(routeId) || !safeKey(postId) || (replyId && !safeKey(replyId))) {
+                throw new Error('Invalid held community path');
+            }
+            if (payload.routeId !== routeId || (kind === 'community_reply' && (payload.postId !== postId || !safeKey(replyId)))) {
+                throw new Error('Held community payload does not match its path');
+            }
+
+            const allowedKeys = kind === 'community_post'
+                ? ['postId', 'routeId', 'region', 'body', 'category', 'uid', 'displayName', 'photoURL', 'email', 'deviceId', 'timestamp', 'hidden', 'replyCount', 'appVersion', 'via', 'replyTo']
+                : ['replyId', 'postId', 'routeId', 'body', 'uid', 'displayName', 'deviceId', 'timestamp', 'hidden', 'appVersion'];
+            if (Object.keys(payload).some((key) => !allowedKeys.includes(key))) {
+                throw new Error('Held community payload contains unsupported fields');
+            }
+            const optionalString = (value, max) => value == null || (typeof value === 'string' && value.length <= max);
+            const validReplyTo = (value) => {
+                if (value == null) return true;
+                if (typeof value !== 'object' || Array.isArray(value)) return false;
+                if (Object.keys(value).some((key) => !['postId', 'displayName', 'body'].includes(key))) return false;
+                return optionalString(value.postId, 80)
+                    && optionalString(value.displayName, 80)
+                    && optionalString(value.body, 120);
+            };
+            if (
+                typeof payload.body !== 'string' || !payload.body.trim() || payload.body.length > 280
+                || typeof payload.uid !== 'string' || !payload.uid || payload.uid.length > 128
+                || typeof payload.displayName !== 'string' || !payload.displayName || payload.displayName.length > 80
+                || typeof payload.timestamp !== 'number' || !Number.isFinite(payload.timestamp)
+                || payload.hidden !== false
+                || !optionalString(payload.deviceId, 120)
+                || !optionalString(payload.appVersion, 40)
+                || !optionalString(payload.via, 40)
+                || (report.targetUid && report.targetUid !== payload.uid)
+                || (kind === 'community_post' && payload.replyCount !== 0)
+                || (kind === 'community_post' && !optionalString(payload.region, 8))
+                || (kind === 'community_post' && !['general', 'delay', 'safety', 'other', 'system'].includes(payload.category))
+                || (kind === 'community_post' && !optionalString(payload.photoURL, 500))
+                || (kind === 'community_post' && !optionalString(payload.email, 120))
+                || (kind === 'community_post' && !validReplyTo(payload.replyTo))
+            ) {
+                throw new Error('Invalid held community payload');
+            }
+            return { kind, routeId, postId, replyId, payload };
+        };
+
+        const markModerationStatus = async (dynamicEndpoint, secret, reportId, patch) => {
+            const markRes = await fetch(`${dynamicEndpoint}moderation_queue/${encodeURIComponent(reportId)}.json?auth=${secret}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(patch),
+            });
+            if (!markRes.ok) throw new Error(`Moderation status update failed (${markRes.status})`);
+        };
+
+        /** Publish the exact validated held payload, then approve its queue item. */
+        Admin.approveHeldCommunity = async (report) => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) throw new Error('Not signed in');
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const reportId = String(report?.reportId || report?._key || '');
+            if (!reportId) throw new Error('Missing moderation report id');
+            const { kind, routeId, postId, replyId, payload } = validateHeldCommunityPublish(report);
+            const routePath = `route_community/${routeId}/posts/${postId}`;
+            let replyCount = 0;
+            if (kind === 'community_reply') {
+                const repliesRes = await fetch(`${dynamicEndpoint}${routePath}/replies.json?auth=${secret}`);
+                if (!repliesRes.ok) throw new Error(`Parent replies read failed (${repliesRes.status})`);
+                const replies = await repliesRes.json() || {};
+                replyCount = Object.keys(replies).filter((id) => id !== replyId).length + 1;
+            }
+            const approvedPatch = {
+                status: 'approved',
+                resolution: 'approved',
+                approvedAt: Date.now(),
+                approvedCommunityPath: kind === 'community_post'
+                    ? routePath
+                    : `${routePath}/replies/${replyId}`,
+            };
+            const activity = {
+                kind: kind === 'community_post' ? 'post' : 'reply',
+                postId,
+                ...(kind === 'community_reply' ? { replyId } : {}),
+                uid: payload.uid,
+                timestamp: payload.timestamp,
+            };
+            const queueRecord = { ...report, ...approvedPatch };
+            delete queueRecord._key;
+            const updates = {
+                [kind === 'community_post' ? routePath : `${routePath}/replies/${replyId}`]: payload,
+                [`community_activity/${routeId}/${kind === 'community_post' ? postId : replyId}`]: activity,
+                [`moderation_queue/${reportId}`]: queueRecord,
+            };
+            if (kind === 'community_reply') updates[`${routePath}/replyCount`] = replyCount;
+            const publishRes = await fetch(`${dynamicEndpoint}.json?auth=${secret}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+            if (!publishRes.ok) throw new Error(`Community publish failed (${publishRes.status})`);
+        };
+
+        Admin.rejectHeldCommunity = async (report) => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) throw new Error('Not signed in');
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const reportId = String(report?.reportId || report?._key || '');
+            if (!reportId) throw new Error('Missing moderation report id');
+            validateHeldCommunityPublish(report);
+            await markModerationStatus(dynamicEndpoint, secret, reportId, {
+                status: 'rejected',
+                resolution: 'rejected',
+                rejectedAt: Date.now(),
+            });
+        };
 
         /** Migrate a held feedback AUTO_HOLD into feedback/ + inbox/. */
         Admin.approveHeldFeedback = async (report) => {
@@ -7623,67 +8288,254 @@ const Admin = {
             list.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Loading...</p>';
             try {
                 const secret = await Admin.getAuthKey();
+                if (!secret || !Admin.currentUser?.uid) throw new Error('Not signed in');
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const authQ = secret ? `?auth=${secret}` : '';
-                const res = await window.guardianFetch(`${dynamicEndpoint}moderation_queue.json${authQ}`, {}, 8000);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                const items = data
-                    ? Object.entries(data).map(([key, v]) => ({ ...v, _key: key })).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+                const authQ = `?auth=${secret}`;
+                const [activityRes, queueRes, seenRes] = await Promise.all([
+                    window.guardianFetch(`${dynamicEndpoint}community_activity.json${authQ}`, {}, 8000),
+                    window.guardianFetch(`${dynamicEndpoint}moderation_queue.json${authQ}`, {}, 8000),
+                    window.guardianFetch(`${dynamicEndpoint}admin_state/${encodeURIComponent(Admin.currentUser.uid)}/community_seen.json${authQ}`, {}, 8000),
+                ]);
+                if (!activityRes.ok || !queueRes.ok || !seenRes.ok) {
+                    throw new Error(`HTTP ${activityRes.status}/${queueRes.status}/${seenRes.status}`);
+                }
+                const activityData = await activityRes.json() || {};
+                const queueData = await queueRes.json();
+                const seenData = await seenRes.json() || {};
+                const items = queueData
+                    ? Object.entries(queueData).map(([key, v]) => ({ ...v, _key: key })).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
                     : [];
                 Admin._mqCache = Object.fromEntries(items.map((r) => [r.reportId || r._key, r]));
-
-                if (typeof safeStorage !== 'undefined') safeStorage.setItem('mq_last_checked', String(Date.now()));
-                try {
-                    await fetch(`${dynamicEndpoint}admin_state/${Admin.currentUser.uid}/mq_last_checked.json?auth=${secret}`, {
-                        method: 'PUT', body: JSON.stringify(Date.now())
-                    });
-                } catch (e) { /* optional */ }
-
+                const routesObj = (typeof ROUTES !== 'undefined' && ROUTES) || window.ROUTES || {};
+                const rows = ntAdminCommunityActivityRows(activityData, seenData, items, routesObj);
+                Admin._communityMonitorRows = rows;
                 const badge = document.getElementById('mq-unread-badge');
-                if (badge) badge.classList.add('hidden');
-
-                if (!items.length) {
-                    list.innerHTML = '<p class="text-xs text-gray-400 text-center py-6">Queue is empty.</p>';
-                    return;
+                const totalUnread = rows.reduce((sum, row) => sum + row.unread, 0);
+                if (badge) {
+                    badge.textContent = totalUnread > 99 ? '99+' : String(totalUnread);
+                    badge.classList.toggle('hidden', totalUnread < 1);
                 }
 
-                list.innerHTML = items.slice(0, 100).map((r) => {
+                const esc = (value) => ntAdminSecureEscape(String(value == null ? '' : value));
+                const formatWhen = (value) => value ? new Date(Number(value)).toLocaleString() : 'No activity yet';
+                const renderHeld = (r) => {
                     const when = r.timestamp ? new Date(r.timestamp).toLocaleString() : '-';
                     const type = (r.type || 'message').toUpperCase();
                     const status = r.status || 'open';
-                    const snippet = r.snippet ? String(r.snippet).replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
-                    const closed = status === 'closed' || status === 'resolved' || status === 'approved';
+                    const snippet = esc(r.snippet || r.body || r.publish?.payload?.body || '');
+                    const closed = status === 'closed' || status === 'resolved' || status === 'approved' || status === 'rejected';
                     const isFeedbackHold = (r.type === 'auto_hold' || type === 'AUTO_HOLD')
                         && (r.publish?.kind === 'feedback' || r.source === 'feedback' || r.source === 'feedback_thread');
+                    const isCommunityHold = (r.type === 'auto_hold' || type === 'AUTO_HOLD')
+                        && (r.publish?.kind === 'community_post' || r.publish?.kind === 'community_reply');
                     const deviceId = r.deviceId || r.reportedByDeviceId || r.publish?.payload?.deviceId || '';
                     const contact = r.contact || r.publish?.payload?.email || '';
                     const sourceLabel = r.source || (isFeedbackHold ? 'feedback' : 'report');
                     const metaLine = isFeedbackHold
                         ? `source: ${String(sourceLabel).replace(/</g, '')} · device: ${(deviceId || '-').toString().slice(0, 22)} · contact: ${(contact || '-').toString().slice(0, 24)}`
                         : `target uid: ${(r.targetUid || '-').toString().slice(0, 16)} - post: ${(r.targetPostId || '-').toString().slice(0, 18)}`;
-                    const statusLabel = status === 'approved' ? 'Approved to Feedback Hub' : (closed ? 'Closed' : '');
+                    const statusLabel = status === 'approved'
+                        ? (isFeedbackHold ? 'Approved to Feedback Hub' : 'Approved')
+                        : (status === 'rejected' ? 'Rejected' : (closed ? 'Closed' : ''));
                     const actions = closed ? `<span class="text-[10px] text-gray-400">${statusLabel}</span>` : (isFeedbackHold ? `
                             <div class="flex flex-wrap gap-2 mt-1">
                                 <button type="button" class="mq-approve-feedback text-[10px] font-bold text-emerald-700 dark:text-emerald-400 underline" data-id="${r.reportId || r._key}">Approve</button>
                                 <button type="button" class="mq-close text-[10px] font-bold text-gray-600 dark:text-gray-300 underline" data-id="${r.reportId || r._key}">Reject</button>
+                            </div>` : isCommunityHold ? `
+                            <div class="flex flex-wrap gap-2 mt-1">
+                                <button type="button" class="mq-approve-community text-[10px] font-bold text-emerald-700 dark:text-emerald-400 underline" data-id="${r.reportId || r._key}">Approve</button>
+                                <button type="button" class="mq-reject-community text-[10px] font-bold text-gray-600 dark:text-gray-300 underline" data-id="${r.reportId || r._key}">Reject</button>
                             </div>` : `
                             <div class="flex flex-wrap gap-2 mt-1">
                                 <button type="button" class="mq-hide-post text-[10px] font-bold text-amber-700 dark:text-amber-400 underline" data-route="${r.routeId || ''}" data-post="${r.targetPostId || ''}">Hide post</button>
                                 ${r.targetUid ? `<button type="button" class="mq-shadow-ban text-[10px] font-bold text-red-600 dark:text-red-400 underline" data-uid="${r.targetUid || ''}">Shadow ban</button>` : ''}
                                 <button type="button" class="mq-close text-[10px] font-bold text-gray-600 dark:text-gray-300 underline" data-id="${r.reportId || r._key}">Close</button>
                             </div>`);
-                    return `
-                        <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-left ${closed ? 'opacity-50' : ''}" data-mq-id="${r.reportId || r._key}">
+                    return `<div class="${isCommunityHold ? 'border-2 border-dashed border-amber-400 bg-amber-50/80 dark:bg-amber-950/20' : 'border border-rose-300 bg-rose-50/70 dark:bg-rose-950/20'} rounded-xl p-3 text-left ${closed ? 'opacity-50' : ''}" data-mq-id="${esc(r.reportId || r._key)}" data-community-held="${isCommunityHold ? 'true' : 'false'}">
                             <div class="flex justify-between gap-2 mb-1">
-                                <p class="text-xs font-black text-gray-900 dark:text-white">${type} - ${r.routeId || '-'}</p>
-                                <span class="text-[9px] font-mono text-gray-400 shrink-0">${when}</span>
+                                <p class="text-xs font-black text-gray-900 dark:text-white">${isCommunityHold ? 'HELD - ' : ''}${esc(type)}</p>
+                                <span class="text-[9px] font-mono text-gray-400 shrink-0">${esc(when)}</span>
                             </div>
-                            <p class="text-[10px] text-gray-500 font-mono mb-1 break-all">${metaLine}</p>
+                            <p class="text-[10px] text-gray-500 font-mono mb-1 break-all">${esc(metaLine)}</p>
                             ${snippet ? `<p class="text-[11px] text-gray-700 dark:text-gray-300 mb-2">"${snippet}"</p>` : ''}
                             ${actions}
                         </div>`;
-                }).join('');
+                };
+
+                const fetchPreview = async (row) => {
+                    if (!row.latestActivity) return row.held[0]?.snippet || row.held[0]?.publish?.payload?.body || '';
+                    const path = ntAdminCommunityActivityPath(row.routeId, row.latestActivity);
+                    const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+                    try {
+                        const previewRes = await window.guardianFetch(`${dynamicEndpoint}${encodedPath}.json${authQ}`, {}, 5000);
+                        if (!previewRes.ok) return '';
+                        const message = await previewRes.json();
+                        return String(message?.body || '');
+                    } catch (e) {
+                        return '';
+                    }
+                };
+                const previews = await Promise.all(rows.map(fetchPreview));
+                list.innerHTML = rows.map((row, index) => `
+                    <details class="community-monitor-route border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden" data-community-route="${esc(row.routeId)}" data-community-search="${esc(`${row.routeName} ${row.routeId} ${previews[index]}`.toLowerCase())}">
+                        <summary class="cursor-pointer list-none p-3 flex items-start justify-between gap-3">
+                            <span class="min-w-0">
+                                <span class="block text-xs font-black text-gray-900 dark:text-white truncate">${esc(row.routeName)}</span>
+                                <span class="block text-[11px] text-gray-600 dark:text-gray-300 truncate mt-0.5">${esc(previews[index] || (row.held.length ? 'Held item awaiting review' : 'No published messages'))}</span>
+                                <span class="block text-[9px] font-mono text-gray-400 mt-1">${esc(formatWhen(row.latestAt))}</span>
+                            </span>
+                            <span class="flex items-center gap-2 shrink-0">
+                                ${row.held.length ? `<span class="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[9px] font-black">${row.held.length} held</span>` : ''}
+                                <span class="community-route-unread ${row.unread ? '' : 'hidden'} rounded-full bg-emerald-500 text-white min-w-5 h-5 px-1 inline-flex items-center justify-center text-[9px] font-black">${row.unread}</span>
+                            </span>
+                        </summary>
+                        <div class="community-monitor-route-body border-t border-gray-100 dark:border-gray-700 p-3 space-y-2">
+                            ${row.held.map(renderHeld).join('')}
+                            <div class="community-route-conversation text-xs text-gray-400 text-center py-3">Open to load conversation.</div>
+                        </div>
+                    </details>
+                `).join('');
+
+                const renderMessage = (message, routeId, isReply = false) => {
+                    const category = message.category && message.category !== 'general'
+                        ? `<span class="text-[9px] font-bold uppercase text-amber-700 dark:text-amber-300">${esc(message.category)}</span>`
+                        : '';
+                    const quote = message.replyTo?.body
+                        ? `<div class="border-l-2 border-emerald-500 bg-gray-50 dark:bg-gray-900 rounded-r-lg px-2 py-1 mb-2 text-[10px] text-gray-500"><b>${esc(message.replyTo.displayName || 'Passenger')}</b><br>${esc(message.replyTo.body)}</div>`
+                        : '';
+                    const postId = message.postId || '';
+                    return `<div class="${isReply ? 'ml-6 bg-gray-50 dark:bg-gray-900/60' : 'bg-emerald-50/50 dark:bg-emerald-950/10'} border border-gray-200 dark:border-gray-700 rounded-xl p-3 ${message.hidden ? 'opacity-50 ring-1 ring-red-400' : ''}" data-community-message>
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <span class="text-[11px] font-black text-gray-900 dark:text-white">${esc(message.displayName || 'Passenger')} ${category}</span>
+                            <span class="text-[9px] font-mono text-gray-400">${esc(formatWhen(message.timestamp))}</span>
+                        </div>
+                        ${quote}<p class="text-[12px] leading-relaxed text-gray-800 dark:text-gray-200 whitespace-pre-wrap">${esc(message.body || '')}</p>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            <button type="button" class="cm-hide-message text-[10px] font-bold text-amber-700 dark:text-amber-400 underline" data-route="${esc(routeId)}" data-post="${esc(postId)}" ${isReply ? `data-reply="${esc(message.replyId || '')}"` : ''}>Hide</button>
+                            ${message.uid ? `<button type="button" class="cm-shadow-ban text-[10px] font-bold text-red-600 dark:text-red-400 underline" data-uid="${esc(message.uid)}">Shadow ban</button>` : ''}
+                        </div>
+                    </div>`;
+                };
+
+                Admin._communityLoadRoute = async (details) => {
+                    if (!details || details.dataset.loaded === 'true') return;
+                    const routeId = details.dataset.communityRoute;
+                    const target = details.querySelector('.community-route-conversation');
+                    target.innerHTML = '<p class="py-3">Loading conversation...</p>';
+                    const routeRes = await window.guardianFetch(`${dynamicEndpoint}route_community/${encodeURIComponent(routeId)}/posts.json${authQ}`, {}, 8000);
+                    if (!routeRes.ok) throw new Error(`Route load failed (${routeRes.status})`);
+                    const postsData = await routeRes.json() || {};
+                    const posts = Object.values(postsData).sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+                    const missingActivity = {};
+                    posts.forEach((post) => {
+                        if (post?.postId && post.body && !post.hidden && !post.pendingReview && !activityData?.[routeId]?.[post.postId]) {
+                            missingActivity[`community_activity/${routeId}/${post.postId}`] = {
+                                kind: 'post',
+                                postId: post.postId,
+                                uid: post.uid,
+                                timestamp: post.timestamp,
+                            };
+                        }
+                        Object.values(post?.replies || {}).forEach((reply) => {
+                            if (!reply?.replyId || !reply.body || reply.hidden || reply.pendingReview || activityData?.[routeId]?.[reply.replyId]) return;
+                            missingActivity[`community_activity/${routeId}/${reply.replyId}`] = {
+                                kind: 'reply',
+                                postId: post.postId,
+                                replyId: reply.replyId,
+                                uid: reply.uid,
+                                timestamp: reply.timestamp,
+                            };
+                        });
+                    });
+                    if (Object.keys(missingActivity).length) {
+                        try {
+                            const backfillRes = await fetch(`${dynamicEndpoint}.json${authQ}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(missingActivity),
+                            });
+                            if (!backfillRes.ok) throw new Error(`Activity backfill failed (${backfillRes.status})`);
+                        } catch (e) {
+                            console.warn('Community activity backfill failed', e);
+                        }
+                    }
+                    target.innerHTML = posts.length ? posts.map((post) => {
+                        const replies = Object.values(post.replies || {}).sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+                        return `${renderMessage(post, routeId)}${replies.map((reply) => renderMessage({ ...reply, postId: post.postId }, routeId, true)).join('')}`;
+                    }).join('') : '<p class="py-3">No published messages on this route.</p>';
+                    details.dataset.loaded = 'true';
+                    details.dataset.communitySearch += ` ${esc(posts.map((post) => [post.body, ...Object.values(post.replies || {}).map((reply) => reply.body)].join(' ')).join(' ').toLowerCase())}`;
+                };
+
+                const markRouteSeen = async (details) => {
+                    const routeId = details.dataset.communityRoute;
+                    const seenAt = Date.now();
+                    const seenRes = await fetch(`${dynamicEndpoint}admin_state/${encodeURIComponent(Admin.currentUser.uid)}/community_seen/${encodeURIComponent(routeId)}.json${authQ}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(seenAt),
+                    });
+                    if (!seenRes.ok) throw new Error(`Seen update failed (${seenRes.status})`);
+                    const routeBadge = details.querySelector('.community-route-unread');
+                    routeBadge.textContent = '0';
+                    routeBadge.classList.add('hidden');
+                    const remaining = Array.from(list.querySelectorAll('.community-route-unread:not(.hidden)'))
+                        .reduce((sum, el) => sum + Number(el.textContent || 0), 0);
+                    if (badge) {
+                        badge.textContent = remaining > 99 ? '99+' : String(remaining);
+                        badge.classList.toggle('hidden', remaining < 1);
+                    }
+                };
+
+                list.querySelectorAll('.community-monitor-route').forEach((details) => {
+                    details.addEventListener('toggle', async () => {
+                        if (!details.open) return;
+                        try {
+                            await Promise.all([Admin._communityLoadRoute(details), markRouteSeen(details)]);
+                        } catch (e) {
+                            const target = details.querySelector('.community-route-conversation');
+                            if (target && details.dataset.loaded !== 'true') target.textContent = e?.message || 'Could not load route.';
+                        }
+                    });
+                });
+
+                const search = document.getElementById('mq-search');
+                if (search) {
+                    search.oninput = async () => {
+                        const query = search.value.trim().toLowerCase();
+                        const cards = Array.from(list.querySelectorAll('.community-monitor-route'));
+                        if (query.length >= 3) {
+                            await Promise.all(cards.filter((card) =>
+                                card.dataset.loaded !== 'true'
+                            ).map((card) => Admin._communityLoadRoute(card).catch(() => {})));
+                        }
+                        cards.forEach((card) => {
+                            card.classList.toggle('hidden', !!query && !String(card.dataset.communitySearch || '').includes(query));
+                        });
+                    };
+                }
+
+                list.addEventListener('click', async (event) => {
+                    const hide = event.target.closest?.('.cm-hide-message');
+                    if (hide) {
+                        event.preventDefault();
+                        const routeId = hide.dataset.route;
+                        const postId = hide.dataset.post;
+                        const replyId = hide.dataset.reply;
+                        const path = `route_community/${encodeURIComponent(routeId)}/posts/${encodeURIComponent(postId)}${replyId ? `/replies/${encodeURIComponent(replyId)}` : ''}/hidden.json`;
+                        const put = await fetch(`${dynamicEndpoint}${path}${authQ}`, { method: 'PUT', body: 'true' });
+                        if (put.ok) {
+                            hide.closest('[data-community-message]')?.classList.add('opacity-50', 'ring-1', 'ring-red-400');
+                            if (typeof showToast === 'function') showToast('Message hidden', 'success');
+                        }
+                        return;
+                    }
+                    const ban = event.target.closest?.('.cm-shadow-ban');
+                    if (ban) {
+                        event.preventDefault();
+                        await Admin.applyShadowBan(ban.dataset.uid);
+                    }
+                });
 
                 list.querySelectorAll('.mq-close').forEach((btn) => {
                     btn.onclick = async () => {
@@ -7722,6 +8574,40 @@ const Admin = {
                             try { if (typeof Admin.fetchFeedback === 'function') Admin.fetchFeedback(); } catch (e) { /* optional */ }
                         } catch (e) {
                             if (typeof showToast === 'function') showToast(e?.message || 'Approve failed', 'error');
+                            btn.disabled = false;
+                        }
+                    };
+                });
+
+                list.querySelectorAll('.mq-approve-community').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const id = btn.getAttribute('data-id');
+                        const report = id ? Admin._mqCache?.[id] : null;
+                        if (!report) return;
+                        btn.disabled = true;
+                        try {
+                            await Admin.approveHeldCommunity(report);
+                            if (typeof showToast === 'function') showToast('Community message approved', 'success');
+                            Admin.fetchModerationQueue();
+                        } catch (e) {
+                            if (typeof showToast === 'function') showToast(e?.message || 'Approve failed', 'error');
+                            btn.disabled = false;
+                        }
+                    };
+                });
+
+                list.querySelectorAll('.mq-reject-community').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const id = btn.getAttribute('data-id');
+                        const report = id ? Admin._mqCache?.[id] : null;
+                        if (!report) return;
+                        btn.disabled = true;
+                        try {
+                            await Admin.rejectHeldCommunity(report);
+                            if (typeof showToast === 'function') showToast('Community message rejected', 'success');
+                            Admin.fetchModerationQueue();
+                        } catch (e) {
+                            if (typeof showToast === 'function') showToast(e?.message || 'Reject failed', 'error');
                             btn.disabled = false;
                         }
                     };
@@ -8058,6 +8944,30 @@ const Admin = {
         };
         tabBans?.addEventListener('click', () => setUtTab('bans'));
         tabLookup?.addEventListener('click', () => setUtTab('lookup'));
+        Admin.setUtTab = setUtTab;
+        Admin.openUserTrustLookup = ({ uid, email } = {}) => {
+            const needle = String(uid || email || '').trim();
+            if (!needle) {
+                if (typeof showToast === 'function') showToast('No rider id on that post', 'warning');
+                return;
+            }
+            Admin.setupUserTrustManager();
+            if (typeof Admin.deepLinkToPanel === 'function') {
+                Admin.deepLinkToPanel('user-trust-panel');
+            } else {
+                Admin.showDrilledPanel?.('user-trust-panel');
+            }
+            const body = document.getElementById('ut-body');
+            const chevron = document.getElementById('ut-chevron');
+            const header = document.getElementById('ut-header-btn');
+            body?.classList.remove('hidden');
+            chevron?.classList.remove('-rotate-90');
+            if (header && body && !body.classList.contains('hidden')) header.classList.add('mb-4');
+            Admin.setUtTab?.('lookup');
+            const input = document.getElementById('ut-uid-input');
+            if (input) input.value = needle;
+            setTimeout(() => Admin.lookupUserTrust?.(), 50);
+        };
         header.onclick = () => {
             if (Admin.isGridMode) return;
             body.classList.toggle('hidden');
@@ -9845,62 +10755,23 @@ const Admin = {
 
     publishDueScheduledAlerts: async (secret) => {
         if (!secret) secret = await Admin.getAuthKey();
-        if (!secret) return { published: 0 };
-        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-        let published = 0;
-        try {
-            const res = await fetch(`${dynamicEndpoint}notices_scheduled.json?auth=${secret}`);
-            if (!res.ok) return { published: 0 };
-            const data = await res.json();
-            if (!data || typeof data !== 'object') return { published: 0 };
-            const now = Date.now();
-            for (const [schedId, job] of Object.entries(data)) {
-                if (!job || job.enabled === false || !job.notice) continue;
-                const jobTargets = Admin.dedupeAlertTargets(
-                    Array.isArray(job.targets) && job.targets.length
-                        ? job.targets
-                        : (job.target ? [job.target] : [])
-                );
-                if (!jobTargets.length) continue;
-                const nextRun = Number(job.nextRunAt || 0);
-                if (!nextRun || nextRun > now) continue;
-                try {
-                    const notice = { ...job.notice };
-                    delete notice.expiresInMs;
-                    const payload = {
-                        ...notice,
-                        id: String(Date.now()) + Math.random().toString(36).slice(2, 6),
-                        postedAt: Date.now(),
-                        expiresAt: ntAdminNoticeExpiresAt(now, job),
-                    };
-                    try {
-                        for (const t of jobTargets) {
-                            await Admin.publishNoticeToTarget(t, { ...payload }, secret);
-                        }
-                    } catch {
-                        continue;
-                    }
-                    published++;
-                    const next = ntAdminComputeJobNextRun(job, Math.max(nextRun, now));
-                    if (!next || job.frequency === 'once') {
-                        await fetch(`${dynamicEndpoint}notices_scheduled/${schedId}.json?auth=${secret}`, { method: 'DELETE' });
-                    } else {
-                        await fetch(`${dynamicEndpoint}notices_scheduled/${schedId}.json?auth=${secret}`, {
-                            method: 'PATCH',
-                            body: JSON.stringify({ nextRunAt: next, lastRunAt: Date.now(), lastNoticeId: payload.id }),
-                        });
-                    }
-                } catch (e) {
-                    console.warn('Scheduled alert publish failed', schedId, e);
-                }
-            }
-        } catch (e) {
-            console.warn('publishDueScheduledAlerts failed', e);
-        }
-        if (published && typeof checkServiceAlerts === 'function') {
+        if (!secret) throw new Error('Authentication required');
+        const workerUrl = String(window.COMMUNITY_WORKER_URL || '').replace(/\/$/, '');
+        if (!workerUrl) throw new Error('Scheduled alert service is not configured');
+        const res = await fetch(`${workerUrl}/admin/scheduled-alerts`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${secret}`,
+                'Content-Type': 'application/json',
+            },
+            body: '{}',
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok || !result.ok) throw new Error(result.error || 'Scheduled alert run failed');
+        if (result.published && typeof checkServiceAlerts === 'function') {
             try { checkServiceAlerts(); } catch (_) {}
         }
-        return { published };
+        return result;
     },
 
     fetchScheduledAlerts: async () => {
@@ -9972,20 +10843,27 @@ const Admin = {
                     </div>
                     ${summary ? `<p class="text-[10px] text-indigo-700 dark:text-indigo-300 font-medium mb-1">${summary}</p>` : ''}
                     <p class="text-xs text-gray-800 dark:text-gray-200 leading-snug line-clamp-2 mb-1">${escapeHTML(plain)}</p>
-                    <div class="flex justify-between items-center gap-2 text-[9px] font-mono text-gray-400">
-                        <span>Next ${escapeHTML(nextStr)} - Last ${escapeHTML(lastStr)}</span>
-                        <span class="flex gap-2 shrink-0">
-                            <button type="button" class="alert-sched-toggle font-bold uppercase tracking-wider focus:outline-none ${paused ? 'text-emerald-600' : 'text-amber-600'}" data-sched-id="${idSafe}" data-enabled="${paused ? '1' : '0'}">${paused ? 'Resume' : 'Pause'}</button>
-                            <button type="button" class="alert-sched-delete text-red-500 hover:text-red-700 font-bold uppercase tracking-wider focus:outline-none" data-sched-id="${idSafe}">Clear</button>
-                        </span>
+                    <p class="text-[9px] font-mono text-gray-400 mb-2">Next ${escapeHTML(nextStr)} - Last ${escapeHTML(lastStr)}</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" class="alert-sched-edit min-h-[44px] px-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[11px] font-black uppercase tracking-wider border border-blue-200 dark:border-blue-800 focus:outline-none" data-sched-id="${idSafe}">Edit</button>
+                        <button type="button" class="alert-sched-toggle min-h-[44px] px-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 text-[11px] font-black uppercase tracking-wider border border-amber-200 dark:border-amber-800 focus:outline-none" data-sched-id="${idSafe}" data-enabled="${paused ? '1' : '0'}">${paused ? 'Resume' : 'Pause'}</button>
+                        <button type="button" class="alert-sched-delete min-h-[44px] px-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[11px] font-black uppercase tracking-wider border border-red-200 dark:border-red-800 focus:outline-none" data-sched-id="${idSafe}">Delete</button>
                     </div>
                 </div>`;
         }).join('');
+        listEl.querySelectorAll('.alert-sched-edit').forEach((btn) => {
+            btn.onclick = () => {
+                const id = btn.getAttribute('data-sched-id');
+                const job = rows.find((j) => String(j.id) === String(id));
+                if (!job || typeof Admin.loadScheduledAlertForEdit !== 'function') return;
+                Admin.loadScheduledAlertForEdit(job);
+            };
+        });
         listEl.querySelectorAll('.alert-sched-delete').forEach((btn) => {
             btn.onclick = async () => {
                 const id = btn.getAttribute('data-sched-id');
                 if (!id) return;
-                const ok = await Admin.secureConfirm('Clear schedule', 'Remove this automated alert?');
+                const ok = await Admin.secureConfirm('Delete schedule', 'Remove this automated alert?');
                 if (!ok) return;
                 const secret = await Admin.getAuthKey();
                 if (!secret) return;
@@ -10063,7 +10941,7 @@ const Admin = {
         
         const alertHeaderLen = (alertPanel.querySelector('#alert-header-btn')?.textContent || '').trim().length;
         const alertShellEmpty = !(alertPanel.innerHTML || '').trim() || alertHeaderLen < 3;
-        const ALERT_PANEL_REV = 'alerts-sched-v2';
+        const ALERT_PANEL_REV = 'alerts-sched-v3';
         if (
             alertPanel.dataset.adminLoaded === ALERT_PANEL_REV
             && (!document.getElementById('alert-poster-toggle') || !document.querySelector('#alert-body [data-nt-font-select]') || !document.getElementById('alert-source-saved'))
@@ -10628,7 +11506,13 @@ const Admin = {
             if (next === 'active') Admin.fetchActiveAlerts();
         };
         Admin.setAlertManagerTab = setAlertTab;
-        if (tabCompose) tabCompose.onclick = () => setAlertTab('compose');
+        if (tabCompose) tabCompose.onclick = () => {
+            Admin._editingSchedId = null;
+            Admin._editingSchedCreatedAt = null;
+            const saveSchedBtn = document.getElementById('alert-schedule-save-btn');
+            if (saveSchedBtn) saveSchedBtn.textContent = 'Save schedule';
+            setAlertTab('compose');
+        };
         if (tabActive) tabActive.onclick = () => setAlertTab('active');
         if (tabSchedule) tabSchedule.onclick = () => setAlertTab('schedule');
         if (tabArchive) tabArchive.onclick = () => setAlertTab('archive');
@@ -10828,14 +11712,14 @@ const Admin = {
             }
             const optCVal = pollToggle?.checked && pollOptC && !pollOptCWrap?.classList.contains('hidden')
                 ? (pollOptC.value.trim() || null) : null;
-            const schedId = `sched_${Date.now()}`;
+            const schedId = Admin._editingSchedId || `sched_${Date.now()}`;
             const job = {
                 id: schedId,
                 target: targets[0],
                 targets,
                 frequency: meta.frequency,
                 nextRunAt: meta.nextRunAt,
-                createdAt: Date.now(),
+                createdAt: Admin._editingSchedCreatedAt || Date.now(),
                 enabled: true,
                 expireMode: meta.expireMode,
                 timeOfDay: meta.timeOfDay,
@@ -10871,6 +11755,10 @@ const Admin = {
                     body: JSON.stringify(job),
                 });
                 if (!res.ok) throw new Error('Save failed');
+                Admin._editingSchedId = null;
+                Admin._editingSchedCreatedAt = null;
+                const saveSchedBtn = document.getElementById('alert-schedule-save-btn');
+                if (saveSchedBtn) saveSchedBtn.textContent = 'Save schedule';
                 if (typeof showToast === 'function') showToast('Saved to Scheduled.', 'success');
                 setAlertTab('schedule');
                 Admin.refreshScheduledAlerts();
@@ -10935,6 +11823,60 @@ const Admin = {
             }
 
             composePane?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        Admin.loadScheduledAlertForEdit = (job) => {
+            if (!job || !job.notice) {
+                if (typeof showToast === 'function') showToast('Could not load that schedule.', 'error');
+                return;
+            }
+            Admin._editingSchedId = job.id;
+            Admin._editingSchedCreatedAt = job.createdAt || Date.now();
+            const targets = Array.isArray(job.targets) && job.targets.length
+                ? job.targets
+                : (job.target ? [job.target] : []);
+            if (typeof Admin.setSelectedAlertTargets === 'function' && targets.length) {
+                Admin.setSelectedAlertTargets(targets, { fetch: false });
+            }
+            fillAlertComposeFromItem(job.notice, { mode: 'repost' });
+            const freq = job.frequency || 'once';
+            const mode = freq === 'weekly' ? 'weekly' : (freq === 'monthly' ? 'monthly' : 'later');
+            syncAlertWhenMode(mode);
+            if (mode === 'later' && job.nextRunAt) {
+                const firstEl = document.getElementById('alert-schedule-first');
+                if (firstEl) firstEl.value = Admin.toLocalDatetimeValue(job.nextRunAt);
+                if (dateInput && job.notice.expiresInMs) {
+                    dateInput.value = Admin.toLocalDatetimeValue(Number(job.nextRunAt) + Number(job.notice.expiresInMs || 0));
+                }
+            }
+            if (mode === 'weekly') {
+                const wanted = new Set((job.weekdays || []).map(Number));
+                document.querySelectorAll('.alert-wd-chip').forEach((chip) => {
+                    const on = wanted.has(Number(chip.getAttribute('data-wd')));
+                    chip.classList.toggle('is-on', on);
+                    styleWeekdayChip(chip);
+                });
+                const timeEl = document.getElementById('alert-weekly-time');
+                if (timeEl && job.timeOfDay) timeEl.value = job.timeOfDay;
+                const untilEl = document.getElementById('alert-weekly-until');
+                if (untilEl && job.untilAt) untilEl.value = String(job.untilAt).slice(0, 10);
+                const liveEl = document.getElementById('alert-weekly-live');
+                if (liveEl) {
+                    liveEl.value = job.expireMode === 'end_of_day' ? 'end_of_day' : String((job.notice?.expiresInMs || 0) / 3600000 || '2');
+                }
+            }
+            if (mode === 'monthly') {
+                const dayEl = document.getElementById('alert-monthly-day');
+                if (dayEl && job.monthDay) dayEl.value = String(job.monthDay);
+                const timeEl = document.getElementById('alert-monthly-time');
+                if (timeEl && job.timeOfDay) timeEl.value = job.timeOfDay;
+                const untilEl = document.getElementById('alert-monthly-until');
+                if (untilEl && job.untilAt) untilEl.value = String(job.untilAt).slice(0, 10);
+            }
+            const saveSchedBtn = document.getElementById('alert-schedule-save-btn');
+            if (saveSchedBtn) saveSchedBtn.textContent = 'Update schedule';
+            updateSchedulePreview();
+            if (typeof showToast === 'function') showToast('Schedule loaded for edit.', 'success');
         };
 
         Admin.reviveArchivedAlert = (item) => {
@@ -11518,9 +12460,10 @@ const Admin = {
                         <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">${scope}</span>
                     </div>
                     <p class="text-xs text-gray-800 dark:text-gray-200 leading-snug line-clamp-2 mb-2">${escapeHTML(plain)}</p>
-                    <div class="flex justify-between items-center gap-2 text-[9px] font-mono text-gray-400">
-                        <span class="truncate">${idSafe} - ${escapeHTML(whenStr)}</span>
-                        <button type="button" class="alert-active-edit text-blue-600 dark:text-blue-400 font-black uppercase tracking-wider focus:outline-none" data-active-idx="${idx}">Edit</button>
+                    <p class="text-[9px] font-mono text-gray-400 mb-2 truncate">${idSafe} - ${escapeHTML(whenStr)}</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" class="alert-active-edit min-h-[44px] px-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[11px] font-black uppercase tracking-wider border border-blue-200 dark:border-blue-800 focus:outline-none" data-active-idx="${idx}">Edit</button>
+                        <button type="button" class="alert-active-delete min-h-[44px] px-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[11px] font-black uppercase tracking-wider border border-red-200 dark:border-red-800 focus:outline-none" data-active-idx="${idx}">Delete</button>
                     </div>
                 </div>`;
         }).join('');
@@ -11531,6 +12474,29 @@ const Admin = {
                 if (!item || !item.target || !(item.id || item._key)) return;
                 Admin._alertEditFromActive = true;
                 Admin.loadAlertForReview(item.target, item.id || item._key);
+            };
+        });
+        listEl.querySelectorAll('.alert-active-delete').forEach((btn) => {
+            btn.onclick = async () => {
+                const idx = Number(btn.getAttribute('data-active-idx'));
+                const item = rows[idx];
+                if (!item || !item.target || !(item.id || item._key)) return;
+                const ok = await Admin.secureConfirm('Delete alert', 'Delete this live alert for everyone?');
+                if (!ok) return;
+                const secret = await Admin.getAuthKey();
+                if (!secret) return;
+                try {
+                    const archived = await Admin.archiveActiveNotice(item.target, secret, item, item.id || item._key);
+                    if (!archived) {
+                        if (typeof showToast === 'function') showToast('Could not delete this alert.', 'error');
+                        return;
+                    }
+                    if (typeof showToast === 'function') showToast('Alert deleted.', 'success');
+                    Admin.fetchActiveAlerts();
+                    if (typeof checkServiceAlerts === 'function') setTimeout(checkServiceAlerts, 400);
+                } catch (e) {
+                    if (typeof showToast === 'function') showToast('Could not delete this alert.', 'error');
+                }
             };
         });
     },
@@ -11947,8 +12913,8 @@ const Admin = {
             alertPanel.parentNode.insertBefore(disrPanel, alertPanel.nextSibling);
         }
 
-        if (disrPanel.dataset.adminLoaded === "true") return;
-        disrPanel.dataset.adminLoaded = "true";
+        if (disrPanel.dataset.adminLoaded === "disr-stations-v2") return;
+        disrPanel.dataset.adminLoaded = "disr-stations-v2";
 
         disrPanel.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300";
 
@@ -12023,6 +12989,7 @@ const Admin = {
                         </div>
                     </div>
                 </div>
+                <p class="text-[9px] text-gray-400 leading-snug">Pick Station A and Station B for a segment. Inactive stops are listed so the map can draw the cut. Shared stretches apply to every corridor that uses them (Pretoria-Sportpark on Irene also marks Kempton Park).</p>
 
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Badge Button Text</label>
@@ -12158,6 +13125,7 @@ const Admin = {
                 chevron.classList.remove('-rotate-90');
                 header.classList.add('mb-4');
                 Admin.fetchDisruptions(routeSelect.value);
+                populateStations();
             }
         };
 
@@ -12268,11 +13236,11 @@ const Admin = {
         };
         Admin.populateDisruptionRoutes();
 
-        // Populate Stations strictly bound to the selected route using globalStationIndex
+        // Populate stations from the route sheet (active + inactive) so segment bans work.
         const populateStations = () => {
             const rId = routeSelect.value;
-            statASelect.innerHTML = '<option value="">Route-Wide Advisory</option>';
-            statBSelect.innerHTML = '<option value="">None (Single Station/Route)</option>';
+            statASelect.innerHTML = '';
+            statBSelect.innerHTML = '';
             
             const listA = document.getElementById('disr-station-a-list');
             const listB = document.getElementById('disr-station-b-list');
@@ -12282,7 +13250,7 @@ const Admin = {
             if (listA) listA.innerHTML = '';
             if (listB) listB.innerHTML = '';
             
-            const addStationOpt = (selectEl, listEl, displayEl, value, text, chevronId, isA = true) => {
+            const addStationOpt = (selectEl, listEl, displayEl, value, text, chevronId, isA = true, htmlText = text) => {
                 const opt = document.createElement('option');
                 opt.value = value;
                 opt.textContent = text;
@@ -12291,15 +13259,14 @@ const Admin = {
                 if (listEl) {
                     const li = document.createElement('li');
                     li.className = "px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer";
-                    li.textContent = text;
+                    li.innerHTML = htmlText;
                     li.onclick = () => {
                         selectEl.value = value;
-                        if (displayEl) displayEl.textContent = text;
+                        if (displayEl) displayEl.innerHTML = htmlText;
                         listEl.classList.add('hidden');
                         const chevron = document.getElementById(chevronId);
                         if (chevron) chevron.classList.remove('rotate-180');
                         
-                        // Sync display if A is cleared
                         if (isA && value === "") {
                             statBSelect.value = "";
                             if (displayB) displayB.textContent = "None (Single Station/Route)";
@@ -12315,20 +13282,15 @@ const Admin = {
             if (displayA) displayA.textContent = "Route-Wide Advisory";
             if (displayB) displayB.textContent = "None (Single Station/Route)";
 
-            if (!rId || typeof globalStationIndex === 'undefined') return;
+            if (!rId) return;
 
-            const stations = [];
-            for (const [stName, stData] of Object.entries(globalStationIndex)) {
-                if (stData.routes && stData.routes.has(rId)) {
-                    stations.push(stName);
-                }
-            }
-            stations.sort();
+            const stations = typeof Admin.listIncidentStations === 'function'
+                ? Admin.listIncidentStations(rId)
+                : [];
 
-            stations.forEach(st => {
-                const cleanName = st.replace(' STATION', '');
-                addStationOpt(statASelect, listA, displayA, st, cleanName, 'disr-station-a-chevron', true);
-                addStationOpt(statBSelect, listB, displayB, st, cleanName, 'disr-station-b-chevron', false);
+            stations.forEach((st) => {
+                addStationOpt(statASelect, listA, displayA, st.value, st.label, 'disr-station-a-chevron', true);
+                addStationOpt(statBSelect, listB, displayB, st.value, st.label, 'disr-station-b-chevron', false);
             });
         };
 
@@ -12548,6 +13510,295 @@ const Admin = {
         };
     },
 
+    // --- GRID COLUMN ORDER MANAGER ---
+    setupGridOrderManager: () => {
+        const container = document.getElementById('admin-modules-container');
+        if (!container || document.getElementById('grid-order-panel')) return;
+
+        const panel = document.createElement('div');
+        panel.id = 'grid-order-panel';
+        panel.className = 'bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-md p-4 mb-4 overflow-hidden';
+        panel.innerHTML = `
+            <button id="grid-order-header-btn" class="w-full flex items-center justify-between text-left focus:outline-none">
+                <span class="font-bold text-gray-900 dark:text-white flex items-center">
+                    ${Admin.tileIcon('columns', 'text-indigo-600 dark:text-indigo-400')}
+                    <span>Grid Column Order</span>
+                </span>
+                <svg id="grid-order-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <div id="grid-order-body" class="hidden mt-4 space-y-3">
+                <p class="text-[10px] leading-snug text-gray-500 dark:text-gray-400">Choose a route, service day, and direction. Drag trains or use the accessible move buttons, then save the explicit array to RTDB.</p>
+                <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500">Route
+                    <select id="grid-order-route" class="mt-1 w-full h-10 px-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-xs text-gray-900 dark:text-white"></select>
+                </label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500">Day
+                        <select id="grid-order-day" class="mt-1 w-full h-10 px-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-xs text-gray-900 dark:text-white">
+                            <option value="weekday">Weekday</option>
+                            <option value="saturday">Saturday</option>
+                            <option value="public_holiday">Public holiday</option>
+                        </select>
+                    </label>
+                    <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500">Direction
+                        <select id="grid-order-direction" class="mt-1 w-full h-10 px-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-xs text-gray-900 dark:text-white">
+                            <option value="A">To destination A</option>
+                            <option value="B">To destination B</option>
+                        </select>
+                    </label>
+                </div>
+                <button id="grid-order-load" type="button" class="w-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-bold py-2.5 rounded-lg text-xs focus:outline-none">Load order</button>
+                <div id="grid-order-meta" class="hidden rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-2 text-[10px] text-gray-500 dark:text-gray-400" aria-live="polite"></div>
+                <ol id="grid-order-list" class="space-y-1 max-h-[52vh] overflow-y-auto custom-scrollbar" aria-label="Train column order"></ol>
+                <div id="grid-order-actions" class="hidden grid grid-cols-2 gap-2">
+                    <button id="grid-order-reset" type="button" class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-2.5 rounded-lg text-xs focus:outline-none">Reset to fallback</button>
+                    <button id="grid-order-save" type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg text-xs focus:outline-none">Save order</button>
+                </div>
+            </div>
+        `;
+        container.appendChild(panel);
+
+        const routeEl = panel.querySelector('#grid-order-route');
+        const dayEl = panel.querySelector('#grid-order-day');
+        const directionEl = panel.querySelector('#grid-order-direction');
+        const listEl = panel.querySelector('#grid-order-list');
+        const metaEl = panel.querySelector('#grid-order-meta');
+        const actionsEl = panel.querySelector('#grid-order-actions');
+        let currentOrder = [];
+        let baseline = [];
+        let currentSheetKey = '';
+        let currentRecord = null;
+        let draggedIndex = -1;
+        let loadedSelection = null;
+
+        const routes = typeof ROUTES === 'undefined' ? [] : Object.values(ROUTES)
+            .filter((route) => route?.isActive !== false && route?.sheetKeys)
+            .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        routeEl.innerHTML = routes.map((route) =>
+            `<option value="${ntAdminSecureEscape(route.id)}">${ntAdminSecureEscape(Admin.formatRouteLabelPlain(route.name))}</option>`
+        ).join('');
+
+        const routeSheetKey = () => {
+            const route = ROUTES?.[routeEl.value];
+            const dir = directionEl.value === 'B' ? 'b' : 'a';
+            if (!route?.sheetKeys) return '';
+            if (dayEl.value === 'public_holiday') {
+                return route.sheetKeys[`pub_to_${dir}`] || route.sheetKeys[`saturday_to_${dir}`] || '';
+            }
+            return route.sheetKeys[`${dayEl.value}_to_${dir}`] || '';
+        };
+
+        const scheduleRows = (sheetKey) => {
+            const raw = typeof fullDatabase !== 'undefined' ? fullDatabase?.[sheetKey] : null;
+            if (Array.isArray(raw)) return raw;
+            if (Array.isArray(raw?.rows)) return raw.rows;
+            if (raw && typeof raw === 'object') {
+                return Object.keys(raw)
+                    .filter((key) => /^\d+$/.test(key))
+                    .sort((a, b) => Number(a) - Number(b))
+                    .map((key) => raw[key]);
+            }
+            return [];
+        };
+
+        const trainIds = (rows) => {
+            const found = new Set();
+            rows.forEach((row) => Object.keys(row || {}).forEach((key) => {
+                if (/^\d{4}[a-zA-Z]*$/.test(key)) found.add(key);
+            }));
+            return [...found];
+        };
+
+        const markDirty = () => {
+            Admin.gridOrderDirty = JSON.stringify(currentOrder) !== JSON.stringify(baseline);
+            panel.querySelector('#grid-order-save').disabled = !Admin.gridOrderDirty;
+            panel.querySelector('#grid-order-save').classList.toggle('opacity-50', !Admin.gridOrderDirty);
+        };
+
+        const move = (from, to) => {
+            if (from < 0 || to < 0 || from >= currentOrder.length || to >= currentOrder.length || from === to) return;
+            const [item] = currentOrder.splice(from, 1);
+            currentOrder.splice(to, 0, item);
+            paintList();
+            listEl.querySelector(`[data-grid-order-index="${to}"]`)?.focus();
+            markDirty();
+        };
+
+        const paintList = () => {
+            listEl.innerHTML = currentOrder.map((id, index) => `
+                <li draggable="true" data-grid-order-row="${index}" class="flex items-center gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                    <button type="button" data-grid-order-index="${index}" class="cursor-grab touch-none text-gray-400 px-1 focus:outline-none" aria-label="Drag train ${id}">⋮⋮</button>
+                    <span class="font-mono font-bold text-xs text-gray-800 dark:text-gray-100 flex-1">${ntAdminSecureEscape(id)}</span>
+                    <button type="button" data-grid-order-up="${index}" class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-xs disabled:opacity-30" aria-label="Move train ${id} up" ${index === 0 ? 'disabled' : ''}>↑</button>
+                    <button type="button" data-grid-order-down="${index}" class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-xs disabled:opacity-30" aria-label="Move train ${id} down" ${index === currentOrder.length - 1 ? 'disabled' : ''}>↓</button>
+                </li>
+            `).join('');
+            listEl.querySelectorAll('[data-grid-order-up]').forEach((button) => {
+                button.onclick = () => move(Number(button.dataset.gridOrderUp), Number(button.dataset.gridOrderUp) - 1);
+            });
+            listEl.querySelectorAll('[data-grid-order-down]').forEach((button) => {
+                button.onclick = () => move(Number(button.dataset.gridOrderDown), Number(button.dataset.gridOrderDown) + 1);
+            });
+            listEl.querySelectorAll('[data-grid-order-row]').forEach((row) => {
+                row.ondragstart = () => { draggedIndex = Number(row.dataset.gridOrderRow); };
+                row.ondragover = (event) => event.preventDefault();
+                row.ondrop = (event) => {
+                    event.preventDefault();
+                    move(draggedIndex, Number(row.dataset.gridOrderRow));
+                    draggedIndex = -1;
+                };
+            });
+        };
+
+        const describeRecord = (record) => {
+            metaEl.classList.remove('hidden');
+            if (!record) {
+                metaEl.textContent = 'Using frozen MANUAL_GRID_ORDER fallback. No RTDB record is saved.';
+                return;
+            }
+            const at = record.updatedAt ? Admin.formatDate(record.updatedAt) : 'unknown time';
+            const who = record.updatedBy || 'unknown operator';
+            metaEl.textContent = record.action === 'reset'
+                ? `Reset to fallback by ${who}, ${at}.`
+                : `RTDB order saved by ${who}, ${at}. Source: ${record.source || 'admin'}.`;
+        };
+
+        const load = async () => {
+            if (Admin.gridOrderDirty && !window.confirm('Discard unsaved grid order changes?')) return;
+            currentSheetKey = routeSheetKey();
+            const route = ROUTES?.[routeEl.value];
+            const rows = scheduleRows(currentSheetKey);
+            const ids = trainIds(rows);
+            if (!currentSheetKey || !ids.length) {
+                currentOrder = [];
+                baseline = [];
+                paintList();
+                actionsEl.classList.add('hidden');
+                metaEl.classList.remove('hidden');
+                metaEl.textContent = 'No schedule columns found for this selection.';
+                Admin.gridOrderDirty = false;
+                return;
+            }
+            const endpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '';
+            try {
+                const response = await window.guardianFetch(
+                    `${endpoint}config/grid_order/${encodeURIComponent(route.region)}/${encodeURIComponent(currentSheetKey)}.json?t=${Date.now()}`,
+                    { cache: 'no-store' },
+                    6000
+                );
+                currentRecord = response.ok ? await response.json() : null;
+            } catch {
+                currentRecord = null;
+            }
+            const manifestOrder = typeof window.getGridOrderManifest === 'function'
+                ? window.getGridOrderManifest(fullDatabase, currentSheetKey)
+                : null;
+            currentOrder = window.orderGridTrainIds(currentSheetKey, ids, rows, {
+                region: route.region,
+                runtimeOrder: currentRecord,
+                manifestOrder,
+            });
+            baseline = currentOrder.slice();
+            loadedSelection = {
+                route: routeEl.value,
+                day: dayEl.value,
+                direction: directionEl.value,
+            };
+            paintList();
+            describeRecord(currentRecord);
+            actionsEl.classList.remove('hidden');
+            Admin.gridOrderDirty = false;
+            markDirty();
+        };
+
+        const writeRecord = async (record) => {
+            const route = ROUTES?.[routeEl.value];
+            const token = await Admin.getAuthKey();
+            if (!token || !route || !currentSheetKey) throw new Error('Authentication required.');
+            const endpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '';
+            const response = await window.guardianFetch(
+                `${endpoint}config/grid_order/${encodeURIComponent(route.region)}/${encodeURIComponent(currentSheetKey)}.json?auth=${encodeURIComponent(token)}`,
+                { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(record) },
+                10000
+            );
+            if (!response.ok) throw new Error(`RTDB write failed (${response.status})`);
+            currentRecord = record;
+            baseline = currentOrder.slice();
+            Admin.gridOrderDirty = false;
+            markDirty();
+            describeRecord(record);
+            if (typeof window.fetchGridOrderConfig === 'function') {
+                window.fetchGridOrderConfig(route.region).catch(() => {});
+            }
+        };
+
+        panel.querySelector('#grid-order-load').onclick = load;
+        panel.querySelector('#grid-order-save').onclick = async () => {
+            const button = panel.querySelector('#grid-order-save');
+            button.disabled = true;
+            try {
+                await writeRecord({
+                    order: currentOrder.slice(),
+                    updatedAt: Date.now(),
+                    updatedBy: Admin.currentUser?.email || 'unknown',
+                    source: 'admin',
+                });
+                if (typeof showToast === 'function') showToast('Grid order saved.', 'success');
+            } catch (error) {
+                if (typeof showToast === 'function') showToast(error.message || 'Grid order save failed.', 'error');
+            } finally {
+                markDirty();
+            }
+        };
+        panel.querySelector('#grid-order-reset').onclick = async () => {
+            if (!window.confirm('Reset this sheet to the frozen fallback order?')) return;
+            const route = ROUTES?.[routeEl.value];
+            const rows = scheduleRows(currentSheetKey);
+            const ids = trainIds(rows);
+            currentOrder = window.orderGridTrainIds(currentSheetKey, ids, rows, {
+                region: route?.region,
+                runtimeOrder: { action: 'reset' },
+                manifestOrder: typeof window.getGridOrderManifest === 'function'
+                    ? window.getGridOrderManifest(fullDatabase, currentSheetKey)
+                    : null,
+            });
+            paintList();
+            markDirty();
+            try {
+                await writeRecord({
+                    action: 'reset',
+                    updatedAt: Date.now(),
+                    updatedBy: Admin.currentUser?.email || 'unknown',
+                    source: 'admin',
+                });
+                if (typeof showToast === 'function') showToast('Grid order reset to fallback.', 'success');
+            } catch (error) {
+                if (typeof showToast === 'function') showToast(error.message || 'Grid order reset failed.', 'error');
+            }
+        };
+        [routeEl, dayEl, directionEl].forEach((el) => {
+            el.addEventListener('change', () => {
+                if (Admin.gridOrderDirty && !window.confirm('Discard unsaved grid order changes?')) {
+                    if (loadedSelection) {
+                        routeEl.value = loadedSelection.route;
+                        dayEl.value = loadedSelection.day;
+                        directionEl.value = loadedSelection.direction;
+                    }
+                } else {
+                    Admin.gridOrderDirty = false;
+                    load();
+                }
+            });
+        });
+        if (!window._gridOrderBeforeUnloadBound) {
+            window.addEventListener('beforeunload', (event) => {
+                if (!Admin.gridOrderDirty) return;
+                event.preventDefault();
+                event.returnValue = '';
+            });
+            window._gridOrderBeforeUnloadBound = true;
+        }
+    },
+
     // --- 5. EXCLUSION MANAGER ---
     setupExclusionManager: () => {
         const alertPanel = document.getElementById('alert-panel');
@@ -12601,10 +13852,16 @@ const Admin = {
                         <input type="datetime-local" id="excl-grid-notice-expiry" class="w-full h-10 px-2 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
                         <p class="text-[9px] text-blue-600 dark:text-blue-400 mt-1">Defaults to today at 23:59. Clear the field for no auto-expiry.</p>
                     </div>
-                    <label class="flex items-start cursor-pointer gap-2 pt-1 border-t border-blue-200 dark:border-blue-800/50">
-                        <input type="checkbox" id="excl-grid-notice-export" checked class="form-checkbox h-4 w-4 mt-0.5 text-blue-600 bg-white border-gray-300 rounded focus:ring-0 shrink-0">
-                        <span class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide leading-snug">Include banner on downloaded PNG</span>
-                    </label>
+                    <div class="pt-2 border-t border-blue-200 dark:border-blue-800/50 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label class="flex items-start cursor-pointer gap-2 rounded-lg bg-white/70 dark:bg-gray-800/70 p-2">
+                            <input type="checkbox" id="excl-grid-notice-in-app" checked class="form-checkbox h-4 w-4 mt-0.5 text-blue-600 bg-white border-gray-300 rounded focus:ring-0 shrink-0">
+                            <span class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide leading-snug">Show in app timetable</span>
+                        </label>
+                        <label class="flex items-start cursor-pointer gap-2 rounded-lg bg-white/70 dark:bg-gray-800/70 p-2">
+                            <input type="checkbox" id="excl-grid-notice-export" checked class="form-checkbox h-4 w-4 mt-0.5 text-blue-600 bg-white border-gray-300 rounded focus:ring-0 shrink-0">
+                            <span class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide leading-snug">Show on downloaded grid</span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-3 space-y-3">
@@ -12675,19 +13932,21 @@ const Admin = {
                 <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-3 space-y-2">
                     <p class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">4. How this exception appears</p>
                     <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 bg-white dark:bg-gray-800">
-                        <p class="text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-1">Live board</p>
-                        <p class="text-[9px] text-gray-500 dark:text-gray-400 leading-snug mb-2">Ban / Special always hides or marks the train in the app board and planner for the days you pick.</p>
+                        <p class="text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-1">Visibility</p>
+                        <p class="text-[9px] text-gray-500 dark:text-gray-400 leading-snug mb-2">Tick one surface for in-app only or grid-only. Tick both to publish everywhere.</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                            <label class="flex items-start cursor-pointer gap-2 rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+                                <input type="checkbox" id="excl-in-app-toggle" checked class="form-checkbox h-4 w-4 mt-0.5 text-blue-600 bg-white border-gray-300 rounded focus:ring-0 shrink-0">
+                                <span class="text-[10px] font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide leading-snug">In-app board and planner</span>
+                            </label>
+                            <label class="flex items-start cursor-pointer gap-2 rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+                                <input type="checkbox" id="excl-export-toggle" checked class="form-checkbox h-4 w-4 mt-0.5 text-blue-600 bg-white border-gray-300 rounded focus:ring-0 shrink-0">
+                                <span class="text-[10px] font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide leading-snug">Timetable grid and PNG</span>
+                            </label>
+                        </div>
                         <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Live expiry</label>
                         <input type="datetime-local" id="excl-expiry" class="w-full h-10 px-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
                         <p class="text-[9px] text-gray-400 mt-1">Defaults to today at 23:59. If set, the train automatically returns after this date. Clear the field for no auto-return.</p>
-                    </div>
-                    <div class="rounded-lg border border-slate-200 dark:border-slate-600 p-2.5 bg-white dark:bg-gray-800">
-                        <p class="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 mb-1">Downloaded PNG train tag</p>
-                        <p class="text-[9px] text-gray-500 dark:text-gray-400 leading-snug mb-2">Not the timetable banner above. This only stamps the red NO SVC or green SPL tag on that train in the PNG you download.</p>
-                        <label class="flex items-start cursor-pointer gap-2">
-                            <input type="checkbox" id="excl-export-toggle" checked class="form-checkbox h-4 w-4 mt-0.5 text-blue-600 bg-white border-gray-300 rounded focus:ring-0 shrink-0">
-                            <span class="text-[10px] font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide leading-snug">Include NO SVC / SPL tag on downloaded PNG</span>
-                        </label>
                     </div>
                 </div>
                 
@@ -12798,19 +14057,27 @@ const Admin = {
             return dir === 'A' ? route.sheetKeys.saturday_to_a : route.sheetKeys.saturday_to_b;
         };
 
-        const trainsFromSheet = (sheetKey) => {
+        const trainsFromSheet = (sheetKey, runtimeOrder = null) => {
             if (typeof fullDatabase === 'undefined' || !fullDatabase || !sheetKey) return [];
             const rawData = fullDatabase[sheetKey];
             if (!rawData) return [];
+            const rows = Array.isArray(rawData) ? rawData : (Array.isArray(rawData.rows) ? rawData.rows : []);
             const set = new Set();
             try {
-                rawData.forEach((row) => {
+                rows.forEach((row) => {
                     Object.keys(row).forEach((k) => {
                         if (k.match(/^\d{4}[a-zA-Z]*$/)) set.add(k);
                     });
                 });
             } catch (e) { console.log(e); }
-            return Array.from(set).sort();
+            if (typeof window.orderGridTrainIds !== 'function') return Array.from(set).sort();
+            return window.orderGridTrainIds(sheetKey, Array.from(set), rows, {
+                region: ROUTES?.[routeSelect?.value]?.region,
+                runtimeOrder,
+                manifestOrder: typeof window.getGridOrderManifest === 'function'
+                    ? window.getGridOrderManifest(fullDatabase, sheetKey)
+                    : null,
+            });
         };
 
         const paintExclGrid = (gridEl, trainNumbers, countEl) => {
@@ -13074,7 +14341,7 @@ const Admin = {
         
         function getSelectedDays() { return Array.from(daysContainer.querySelectorAll('input:checked')).map(cb => parseInt(cb.value)); }
 
-        loadTrainsBtn.onclick = () => {
+        loadTrainsBtn.onclick = async () => {
             harvestCheckedIntoStaging();
 
             const rId = routeSelect.value;
@@ -13089,8 +14356,27 @@ const Admin = {
                 return;
             }
 
-            const trainsA = trainsFromSheet(sheetKeyForDir(route, type, 'A'));
-            const trainsB = trainsFromSheet(sheetKeyForDir(route, type, 'B'));
+            const sheetA = sheetKeyForDir(route, type, 'A');
+            const sheetB = sheetKeyForDir(route, type, 'B');
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '';
+            const loadOrder = async (sheetKey) => {
+                if (!sheetKey) return null;
+                try {
+                    const response = await window.guardianFetch(
+                        `${dynamicEndpoint}config/grid_order/${encodeURIComponent(route.region)}/${encodeURIComponent(sheetKey)}.json?t=${Date.now()}`,
+                        { cache: 'no-store' },
+                        5000
+                    );
+                    return response.ok ? await response.json() : null;
+                } catch {
+                    return null;
+                }
+            };
+            loadTrainsBtn.disabled = true;
+            const [orderA, orderB] = await Promise.all([loadOrder(sheetA), loadOrder(sheetB)]);
+            loadTrainsBtn.disabled = false;
+            const trainsA = trainsFromSheet(sheetA, orderA);
+            const trainsB = trainsFromSheet(sheetB, orderB);
             if (!trainsA.length && !trainsB.length) {
                 if (typeof showToast === 'function') showToast(`No data found for ${type}`, "error");
                 return;
@@ -13115,8 +14401,14 @@ const Admin = {
             const noticeExpiryInput = document.getElementById('excl-grid-notice-expiry');
             const noticeExpiryTs = (noticeExpiryInput && noticeExpiryInput.value) ? new Date(noticeExpiryInput.value).getTime() : null;
             
+            const noticeInAppToggle = document.getElementById('excl-grid-notice-in-app');
+            const showInApp = noticeInAppToggle ? noticeInAppToggle.checked : true;
             const noticeExportToggle = document.getElementById('excl-grid-notice-export');
             const showOnExport = noticeExportToggle ? noticeExportToggle.checked : true;
+            if (text && !showInApp && !showOnExport) {
+                if (typeof showToast === 'function') showToast("Tick in-app, downloaded grid, or both.", "error");
+                return;
+            }
 
             const secret = await Admin.getAuthKey();
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required.", "error"); return; }
@@ -13136,6 +14428,7 @@ const Admin = {
                             text: text, 
                             updatedAt: Date.now(),
                             expiresAt: noticeExpiryTs,
+                            showInApp: showInApp,
                             showOnExport: showOnExport
                         })
                     }, 10000);
@@ -13194,8 +14487,13 @@ const Admin = {
             if (expiry) {
                 expiry.value = item.expiresAt ? Admin.toLocalDatetimeValue(item.expiresAt) : '';
             }
+            const configuredSurface = item.surface === 'in_app' || item.surface === 'grid'
+                ? item.surface
+                : (item.showOnExport === false ? 'in_app' : 'both');
+            const inAppToggle = document.getElementById('excl-in-app-toggle');
+            if (inAppToggle) inAppToggle.checked = configuredSurface !== 'grid';
             const exportToggle = document.getElementById('excl-export-toggle');
-            if (exportToggle) exportToggle.checked = item.showOnExport !== false;
+            if (exportToggle) exportToggle.checked = configuredSurface !== 'in_app';
             if (saveBtn) saveBtn.textContent = 'Update Exception';
             reasonEl?.scrollIntoView({ block: 'center', behavior: 'smooth' });
             if (typeof showToast === 'function') showToast(`Editing #${tNum}`, 'info', 1400);
@@ -13233,6 +14531,10 @@ const Admin = {
                     if (noticeExportToggle) {
                         noticeExportToggle.checked = data._grid_notice.showOnExport !== false;
                     }
+                    const noticeInAppToggle = document.getElementById('excl-grid-notice-in-app');
+                    if (noticeInAppToggle) {
+                        noticeInAppToggle.checked = data._grid_notice.showInApp !== false;
+                    }
                 } else {
                     noticeInput.value = "";
                     const noticeExpiryInput = document.getElementById('excl-grid-notice-expiry');
@@ -13241,6 +14543,8 @@ const Admin = {
                     }
                     const noticeExportToggle = document.getElementById('excl-grid-notice-export');
                     if (noticeExportToggle) noticeExportToggle.checked = true;
+                    const noticeInAppToggle = document.getElementById('excl-grid-notice-in-app');
+                    if (noticeInAppToggle) noticeInAppToggle.checked = true;
                 }
 
                 listDiv.innerHTML = '';
@@ -13279,6 +14583,9 @@ const Admin = {
                     const badgeHtml = isSpecial 
                         ? '<span class="bg-green-100 text-green-700 px-1 rounded text-[9px] font-black tracking-widest mr-1">SPL</span>'
                         : '<span class="bg-red-100 text-red-700 px-1 rounded text-[9px] font-black tracking-widest mr-1">BAN</span>';
+                    const surfaceLabel = item.surface === 'in_app'
+                        ? 'IN APP'
+                        : (item.surface === 'grid' ? 'GRID' : 'BOTH');
 
                     const row = document.createElement('div');
                     row.className = `flex justify-between items-center bg-gray-50 dark:bg-gray-900 p-2 rounded text-xs border border-gray-100 dark:border-gray-700 mt-1 cursor-pointer hover:border-blue-300 dark:hover:border-blue-600 ${rowOpacityClass}`;
@@ -13291,6 +14598,7 @@ const Admin = {
                             <span class="font-bold ${isSpecial ? 'text-green-600' : 'text-red-600'}">#${trainNum}</span>
                             <span class="text-gray-400 mx-1">|</span>
                             <span class="text-gray-700 dark:text-gray-300 font-mono tracking-widest">[${dayLabels}]</span>
+                            <span class="ml-1 rounded bg-blue-50 dark:bg-blue-900/30 px-1 py-0.5 text-[8px] font-black tracking-wide text-blue-600 dark:text-blue-300">${surfaceLabel}</span>
                             <div class="text-[9px] text-gray-400 mt-0.5">${item.reason || 'No reason specified'}</div>
                             ${expiryHtml}
                         </div>
@@ -13329,8 +14637,15 @@ const Admin = {
             const expiryInput = document.getElementById('excl-expiry').value;
             const expiryTs = expiryInput ? new Date(expiryInput).getTime() : null;
             
+            const inAppToggle = document.getElementById('excl-in-app-toggle');
             const exportToggle = document.getElementById('excl-export-toggle');
-            const showOnExport = exportToggle ? exportToggle.checked : true;
+            const showInApp = inAppToggle ? inAppToggle.checked : true;
+            const showOnGrid = exportToggle ? exportToggle.checked : true;
+            if (!showInApp && !showOnGrid) {
+                if (typeof showToast === 'function') showToast("Tick in-app, timetable grid, or both.", "error");
+                return;
+            }
+            const surface = showInApp && showOnGrid ? 'both' : (showInApp ? 'in_app' : 'grid');
             
             const secret = await Admin.getAuthKey(); 
             
@@ -13357,7 +14672,8 @@ const Admin = {
                     reason: reason,
                     type: exceptionType, 
                     expiresAt: expiryTs, 
-                    showOnExport: showOnExport,
+                    surface: surface,
+                    showOnExport: showOnGrid,
                     updatedAt: Date.now()
                 };
             });
@@ -13575,6 +14891,249 @@ const Admin = {
         return res.json();
     },
 
+    bindAdminChangelogClicks: () => {
+        if (window.__ntAdminChangelogBound) return;
+        window.__ntAdminChangelogBound = true;
+        document.addEventListener('click', (e) => {
+            const el = e.target && e.target.nodeType === 1 ? e.target : e.target?.parentElement;
+            const btn = el?.closest?.('[data-admin-changelog]');
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            Admin.openAdminChangelogLookup(btn.getAttribute('data-admin-changelog'));
+        });
+    },
+
+    grantableFeatures: () => {
+        if (Array.isArray(window.GRANTABLE_FEATURES) && window.GRANTABLE_FEATURES.length) {
+            return window.GRANTABLE_FEATURES;
+        }
+        return [
+            { key: 'mapTab', label: 'Map' },
+            { key: 'communityTab', label: 'Community' },
+            { key: 'rideCheckIn', label: "I'm on it / live share" },
+            { key: 'delayReportsUi', label: 'Delay reports' },
+            { key: 'communityRealtime', label: 'Community realtime' },
+            { key: 'pushNotify', label: 'Push notifications' },
+        ];
+    },
+
+    openFeedbackBetaGrant: async (deviceId) => {
+        const did = String(deviceId || '').trim();
+        if (!did || did === 'Anonymous / Legacy') {
+            if (typeof showToast === 'function') showToast('No device id on this thread.', 'error');
+            return;
+        }
+        const features = Admin.grantableFeatures();
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        let existing = {};
+        try {
+            const res = await fetch(`${dynamicEndpoint}config/feature_grants/${encodeURIComponent(did)}.json`, { cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                if (data && typeof data === 'object' && !data.error) existing = data;
+            }
+        } catch { /* empty grant */ }
+
+        const modalId = 'admin-beta-grant-modal';
+        let modal = document.getElementById(modalId);
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = modalId;
+            modal.className = 'fixed inset-0 bg-black/80 z-[210] hidden flex items-center justify-center p-4 backdrop-blur-sm';
+            document.body.appendChild(modal);
+        }
+        const boxes = features.map((f) => `
+            <label class="flex items-start gap-2 px-1 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/60">
+                <input type="checkbox" data-beta-key="${ntAdminSecureEscape(f.key)}" class="mt-0.5" ${existing[f.key] === true ? 'checked' : ''}>
+                <span class="text-[12px] font-semibold text-gray-800 dark:text-gray-100">${ntAdminSecureEscape(f.label)}</span>
+            </label>`).join('');
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-5 border border-gray-200 dark:border-gray-700">
+                <h3 class="text-base font-black text-gray-900 dark:text-white mb-1">Add to beta</h3>
+                <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-3 font-mono break-all">${ntAdminSecureEscape(did)}</p>
+                <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-3 leading-snug">Choose which experimental features this device can open, even without a pinned route.</p>
+                <div class="space-y-0.5 max-h-[45vh] overflow-y-auto mb-4">${boxes}</div>
+                <div class="flex gap-2">
+                    <button type="button" id="admin-beta-cancel" class="flex-1 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-sm font-bold">Cancel</button>
+                    <button type="button" id="admin-beta-clear" class="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-900 text-sm font-bold text-gray-600 dark:text-gray-300">Clear</button>
+                    <button type="button" id="admin-beta-save" class="flex-1 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-bold">Save</button>
+                </div>
+            </div>`;
+        const close = () => {
+            if (typeof window.closeSmoothModal === 'function') window.closeSmoothModal(modalId);
+            else modal.classList.add('hidden');
+        };
+        modal.querySelector('#admin-beta-cancel')?.addEventListener('click', close);
+        modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+        modal.querySelector('#admin-beta-save')?.addEventListener('click', async () => {
+            try {
+                const secret = await Admin.getAuthKey();
+                if (!secret) {
+                    if (typeof showToast === 'function') showToast('Authentication required.', 'error');
+                    return;
+                }
+                const payload = {
+                    updatedAt: Date.now(),
+                    updatedBy: Admin.currentUser?.email || 'Admin',
+                };
+                features.forEach((f) => {
+                    payload[f.key] = !!modal.querySelector(`[data-beta-key="${f.key}"]`)?.checked;
+                });
+                const res = await window.guardianFetch(`${dynamicEndpoint}config/feature_grants/${encodeURIComponent(did)}.json?auth=${secret}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload),
+                }, 10000);
+                if (!res.ok) throw new Error('Auth failed');
+                if (typeof showToast === 'function') showToast('Beta features saved', 'success');
+                close();
+            } catch {
+                if (typeof showToast === 'function') showToast('Failed to save beta grant.', 'error');
+            }
+        });
+        modal.querySelector('#admin-beta-clear')?.addEventListener('click', async () => {
+            try {
+                const secret = await Admin.getAuthKey();
+                if (!secret) {
+                    if (typeof showToast === 'function') showToast('Authentication required.', 'error');
+                    return;
+                }
+                const res = await window.guardianFetch(`${dynamicEndpoint}config/feature_grants/${encodeURIComponent(did)}.json?auth=${secret}`, {
+                    method: 'DELETE',
+                }, 10000);
+                if (!res.ok) throw new Error('Auth failed');
+                if (typeof showToast === 'function') showToast('Beta grant cleared', 'success');
+                close();
+            } catch {
+                if (typeof showToast === 'function') showToast('Failed to clear beta grant.', 'error');
+            }
+        });
+        if (typeof window.openSmoothModal === 'function') window.openSmoothModal(modalId);
+        else modal.classList.remove('hidden');
+    },
+
+    openFeedbackTripPlans: (deviceId) => {
+        const did = String(deviceId || '').trim();
+        if (!did || did === 'Anonymous / Legacy') {
+            if (typeof showToast === 'function') showToast('No device id on this thread.', 'error');
+            return;
+        }
+        const modalId = 'admin-trip-plans-modal';
+        let modal = document.getElementById(modalId);
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = modalId;
+            modal.className = 'fixed inset-0 bg-black/80 z-[210] hidden flex items-center justify-center p-4 backdrop-blur-sm';
+            document.body.appendChild(modal);
+        }
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col p-5 border border-gray-200 dark:border-gray-700">
+                <h3 class="text-base font-black text-gray-900 dark:text-white mb-1">Trip plans</h3>
+                <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-3 font-mono break-all">${ntAdminSecureEscape(did)}</p>
+                <p id="admin-trip-plans-hint" class="text-[11px] text-gray-500 dark:text-gray-400 mb-3 leading-snug">Press Search to look up this device in trip planner telemetry. Nothing is loaded until then.</p>
+                <div id="admin-trip-plans-results" class="flex-1 overflow-y-auto min-h-[8rem] max-h-[50vh] mb-4 text-[12px] text-gray-500">Waiting for search.</div>
+                <div class="flex gap-2 shrink-0">
+                    <button type="button" id="admin-trip-plans-close" class="flex-1 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-sm font-bold">Close</button>
+                    <button type="button" id="admin-trip-plans-search" class="flex-1 py-2.5 rounded-xl bg-sky-600 text-white text-sm font-bold">Search</button>
+                </div>
+            </div>`;
+        const close = () => {
+            if (typeof window.closeSmoothModal === 'function') window.closeSmoothModal(modalId);
+            else modal.classList.add('hidden');
+        };
+        modal.querySelector('#admin-trip-plans-close')?.addEventListener('click', close);
+        modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+        modal.querySelector('#admin-trip-plans-search')?.addEventListener('click', async () => {
+            const btn = modal.querySelector('#admin-trip-plans-search');
+            const results = modal.querySelector('#admin-trip-plans-results');
+            const hint = modal.querySelector('#admin-trip-plans-hint');
+            if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
+            if (results) results.textContent = 'Searching trip planner telemetry…';
+            try {
+                const secret = await Admin.getAuthKey();
+                if (!secret) throw new Error('Authentication required.');
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const res = await window.guardianFetch(`${dynamicEndpoint}sys_logs/trip_plans.json?auth=${secret}`, {}, 20000);
+                if (!res.ok) throw new Error('Fetch failed');
+                const data = await res.json();
+                const id = did.toLowerCase();
+                const rows = ntAdminFlattenTripPlanRows(data).filter((r) => {
+                    const hay = [r.userId, r.authUid].map((v) => String(v || '').toLowerCase());
+                    return hay.some((h) => h && h === id);
+                }).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                if (hint) hint.textContent = rows.length ? `${rows.length} plan${rows.length === 1 ? '' : 's'} for this device.` : 'No trip plans logged for this device.';
+                if (!rows.length) {
+                    if (results) results.textContent = 'No trip plans found.';
+                    return;
+                }
+                const shown = rows.slice(0, 50);
+                if (results) {
+                    results.innerHTML = shown.map((r) => {
+                        const when = r.timestamp
+                            ? ((typeof formatAppDate === 'function' ? formatAppDate(new Date(r.timestamp)) : new Date(r.timestamp).toLocaleDateString())
+                                + ' '
+                                + ((typeof formatAppTime === 'function') ? formatAppTime(new Date(r.timestamp)) : new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })))
+                            : '';
+                        const times = [r.depTime, r.arrTime].filter(Boolean).join(' → ');
+                        return `<div class="border border-gray-200 dark:border-gray-700 rounded-lg p-2 mb-2 bg-gray-50 dark:bg-gray-900/50">
+                            <div class="font-bold text-gray-900 dark:text-white">${ntAdminSecureEscape(r.origin)} → ${ntAdminSecureEscape(r.destination)}</div>
+                            <div class="text-[10px] text-gray-500 mt-0.5">${ntAdminSecureEscape([r.dayType, r.region, times, r.appVersion].filter(Boolean).join(' · '))}</div>
+                            <div class="text-[10px] text-gray-400">${ntAdminSecureEscape(when)}</div>
+                        </div>`;
+                    }).join('') + (rows.length > shown.length ? `<p class="text-[10px] text-gray-400">Showing ${shown.length} of ${rows.length}.</p>` : '');
+                }
+            } catch (err) {
+                if (results) results.textContent = err.message || 'Search failed.';
+                if (typeof showToast === 'function') showToast(err.message || 'Search failed.', 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = 'Search'; }
+            }
+        });
+        if (typeof window.openSmoothModal === 'function') window.openSmoothModal(modalId);
+        else modal.classList.remove('hidden');
+    },
+
+    openAdminChangelogLookup: (version) => {
+        const key = String(version || '').split(' - ')[0].trim();
+        const notes = (typeof window.lookupAdminChangelog === 'function')
+            ? window.lookupAdminChangelog(key)
+            : ((window.ADMIN_CHANGELOG && window.ADMIN_CHANGELOG[key]) || null);
+        let modal = document.getElementById('admin-changelog-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'admin-changelog-modal';
+            modal.className = 'fixed inset-0 bg-black/70 z-[160] hidden flex items-center justify-center p-4';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-5 border border-gray-200 dark:border-gray-700">
+                    <h3 id="admin-changelog-title" class="text-base font-black text-gray-900 dark:text-white mb-2"></h3>
+                    <div id="admin-changelog-notes" class="text-sm text-gray-700 dark:text-gray-300 space-y-1.5 mb-4"></div>
+                    <button type="button" id="admin-changelog-close" class="w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl">Close</button>
+                </div>`;
+            document.body.appendChild(modal);
+            modal.querySelector('#admin-changelog-close')?.addEventListener('click', () => {
+                if (typeof window.closeSmoothModal === 'function') window.closeSmoothModal('admin-changelog-modal');
+                else modal.classList.add('hidden');
+            });
+            modal.addEventListener('click', (e) => {
+                if (e.target !== modal) return;
+                if (typeof window.closeSmoothModal === 'function') window.closeSmoothModal('admin-changelog-modal');
+                else modal.classList.add('hidden');
+            });
+        }
+        const title = modal.querySelector('#admin-changelog-title');
+        const body = modal.querySelector('#admin-changelog-notes');
+        if (title) title.textContent = key || 'Unknown version';
+        if (body) {
+            if (!notes || !notes.length) {
+                body.textContent = 'No notes for this build.';
+            } else {
+                body.innerHTML = `<ul class="list-disc pl-4 space-y-1">${notes.map((n) => `<li>${ntAdminSecureEscape(String(n))}</li>`).join('')}</ul>`;
+            }
+        }
+        if (typeof window.openSmoothModal === 'function') window.openSmoothModal('admin-changelog-modal');
+        else modal.classList.remove('hidden');
+    },
+
     // --- 7. SYSTEM HEALTH / DIAGNOSTICS SCANNER ---
     setupDiagnosticsManager: () => {
         const alertPanel = document.getElementById('alert-panel');
@@ -13602,6 +15161,25 @@ const Admin = {
             </button>
 
             <div id="diag-body" class="hidden mt-4 space-y-4">
+
+                <!-- BUILD NOTES ACCORDION -->
+                <div class="bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm transition-all">
+                    <button id="admin-changelog-header-btn" class="w-full px-3 py-3 bg-slate-100/70 dark:bg-slate-900/50 text-left text-[10px] font-black text-slate-800 dark:text-slate-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-slate-200/50 dark:hover:bg-slate-900/70">
+                        <span class="flex items-center">
+                            <svg class="w-4 h-4 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Build notes
+                        </span>
+                        <svg id="admin-changelog-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="admin-changelog-body" class="p-3 hidden">
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Look up a version</label>
+                        <div class="flex gap-2 mb-3">
+                            <input id="admin-changelog-input" type="text" placeholder="V9_09.10.7" class="flex-1 h-9 px-2 rounded-lg bg-white dark:bg-gray-800 border border-slate-300 dark:border-slate-600 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <button type="button" id="admin-changelog-lookup-btn" class="px-3 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-[10px] font-bold uppercase tracking-wide">Open</button>
+                        </div>
+                        <div id="admin-changelog-list" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar text-[11px] text-slate-700 dark:text-slate-300"></div>
+                    </div>
+                </div>
                 
                 <!-- GUARDIAN PHASE 1: Global Target Region (Controls Both Panels) -->
                 <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -13863,6 +15441,25 @@ const Admin = {
         const matrixHeader = document.getElementById('matrix-header-btn');
         const matrixBody = document.getElementById('matrix-body');
         const matrixChevron = document.getElementById('matrix-chevron');
+
+        const adminClHeader = document.getElementById('admin-changelog-header-btn');
+        const adminClBody = document.getElementById('admin-changelog-body');
+        const adminClChevron = document.getElementById('admin-changelog-chevron');
+        const adminClList = document.getElementById('admin-changelog-list');
+        const adminClInput = document.getElementById('admin-changelog-input');
+        const adminClLookup = document.getElementById('admin-changelog-lookup-btn');
+        const changelogVersions = (typeof window.listAdminChangelogVersions === 'function')
+            ? window.listAdminChangelogVersions()
+            : Object.keys(window.ADMIN_CHANGELOG || {});
+        if (adminClList && changelogVersions.length) {
+            adminClList.innerHTML = changelogVersions.map((ver) => (
+                `<button type="button" class="block w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-200/70 dark:hover:bg-slate-800 font-mono text-[11px]" data-admin-changelog="${ntAdminSecureEscape(ver)}">${ntAdminSecureEscape(ver)}</button>`
+            )).join('');
+        }
+        if (adminClLookup) {
+            adminClLookup.onclick = () => Admin.openAdminChangelogLookup(adminClInput ? adminClInput.value : '');
+        }
+        Admin.bindAdminChangelogClicks();
 
         const deepscanHeader = document.getElementById('deepscan-header-btn');
         const deepscanBody = document.getElementById('deepscan-body');
@@ -14284,6 +15881,14 @@ const Admin = {
                 matrixBody.classList.toggle('hidden');
                 if (matrixBody.classList.contains('hidden')) matrixChevron.classList.add('-rotate-90');
                 else matrixChevron.classList.remove('-rotate-90');
+            };
+        }
+
+        if (adminClHeader) {
+            adminClHeader.onclick = () => {
+                adminClBody.classList.toggle('hidden');
+                if (adminClBody.classList.contains('hidden')) adminClChevron.classList.add('-rotate-90');
+                else adminClChevron.classList.remove('-rotate-90');
             };
         }
 
@@ -15277,7 +16882,7 @@ const Admin = {
         // Re-init if an older admin session left a panel without newer controls
         if (
             maintPanel.dataset.loaded === "true"
-            && (!document.getElementById('maint-mode-header') || !document.getElementById('cf-purge-header-btn') || !document.getElementById('cf-purge-everything-btn') || !document.getElementById('deploy-production-btn') || !document.getElementById('exp-features-header'))
+            && (!document.getElementById('maint-mode-header') || !document.getElementById('cf-purge-header-btn') || !document.getElementById('cf-purge-everything-btn') || !document.getElementById('deploy-production-btn') || !document.getElementById('exp-features-header') || !document.getElementById('auth-providers-header'))
         ) {
             delete maintPanel.dataset.loaded;
             maintPanel.innerHTML = '';
@@ -15374,6 +16979,32 @@ const Admin = {
                         <p class="text-[10px] text-blue-600 dark:text-blue-400 leading-snug">Override the live timetable per region. Commuters boot normally, then see your message and switch.</p>
                         <div id="sched-override-regions" class="space-y-3"></div>
                         <button type="button" id="sched-override-save" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wide focus:outline-none">Save schedule overrides</button>
+                    </div>
+                </div>
+
+                <!-- Passenger account authentication providers -->
+                <div class="bg-slate-50 dark:bg-slate-900/20 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm transition-all">
+                    <button type="button" id="auth-providers-header" class="w-full px-3 py-3 bg-slate-100/60 dark:bg-slate-900/40 text-left text-[10px] font-black text-slate-800 dark:text-slate-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-slate-200/60 dark:hover:bg-slate-900/60">
+                        <span class="flex items-center gap-2">
+                            <span class="text-slate-600 dark:text-slate-300">${Admin.icon('user', 'w-4 h-4')}</span> Account sign-in
+                        </span>
+                        <svg id="auth-providers-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="auth-providers-body" class="hidden p-4 space-y-3">
+                        <p class="text-[10px] text-slate-600 dark:text-slate-400 leading-snug">Choose which sign-in options commuters can use. Disabled options remain visible as not available.</p>
+                        <label class="flex items-center justify-between gap-3">
+                            <span class="text-sm font-bold text-slate-900 dark:text-slate-100">Google</span>
+                            <input type="checkbox" id="auth-provider-google" class="rounded border-slate-400 text-slate-600 focus:ring-slate-500" checked>
+                        </label>
+                        <label class="flex items-center justify-between gap-3">
+                            <span class="text-sm font-bold text-slate-900 dark:text-slate-100">Email and password</span>
+                            <input type="checkbox" id="auth-provider-email" class="rounded border-slate-400 text-slate-600 focus:ring-slate-500" checked>
+                        </label>
+                        <label class="flex items-center justify-between gap-3">
+                            <span class="text-sm font-bold text-slate-900 dark:text-slate-100">Facebook</span>
+                            <input type="checkbox" id="auth-provider-facebook" class="rounded border-slate-400 text-slate-600 focus:ring-slate-500">
+                        </label>
+                        <button type="button" id="auth-providers-save" class="w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wide focus:outline-none">Save sign-in options</button>
                     </div>
                 </div>
 
@@ -15802,6 +17433,13 @@ const Admin = {
         const schedOverrideRegions = document.getElementById('sched-override-regions');
         const schedOverrideSave = document.getElementById('sched-override-save');
         const SCHED_OVERRIDE_REGIONS = ['GP', 'WC', 'KZN', 'EC'];
+        const authProvidersHeader = document.getElementById('auth-providers-header');
+        const authProvidersBody = document.getElementById('auth-providers-body');
+        const authProvidersChevron = document.getElementById('auth-providers-chevron');
+        const authProviderGoogle = document.getElementById('auth-provider-google');
+        const authProviderEmail = document.getElementById('auth-provider-email');
+        const authProviderFacebook = document.getElementById('auth-provider-facebook');
+        const authProvidersSave = document.getElementById('auth-providers-save');
         const expFeaturesHeader = document.getElementById('exp-features-header');
         const expFeaturesBody = document.getElementById('exp-features-body');
         const expFeaturesChevron = document.getElementById('exp-features-chevron');
@@ -15865,6 +17503,13 @@ const Admin = {
                 expFeaturesBody.classList.toggle('hidden');
                 if (expFeaturesBody.classList.contains('hidden')) expFeaturesChevron?.classList.add('-rotate-90');
                 else expFeaturesChevron?.classList.remove('-rotate-90');
+            };
+        }
+        if (authProvidersHeader && authProvidersBody) {
+            authProvidersHeader.onclick = () => {
+                authProvidersBody.classList.toggle('hidden');
+                if (authProvidersBody.classList.contains('hidden')) authProvidersChevron?.classList.add('-rotate-90');
+                else authProvidersChevron?.classList.remove('-rotate-90');
             };
         }
         paintExpRouteBox(expMapRoutes, expMapSelected);
@@ -16071,6 +17716,16 @@ const Admin = {
                     }
                 } catch (fe) { /* optional config */ }
 
+                try {
+                    const resAuthProviders = await fetch(`${dynamicEndpoint}config/auth_providers.json`);
+                    if (resAuthProviders.ok) {
+                        const cfg = await resAuthProviders.json();
+                        if (authProviderGoogle) authProviderGoogle.checked = typeof cfg?.google === 'boolean' ? cfg.google : true;
+                        if (authProviderEmail) authProviderEmail.checked = typeof cfg?.email === 'boolean' ? cfg.email : true;
+                        if (authProviderFacebook) authProviderFacebook.checked = typeof cfg?.facebook === 'boolean' ? cfg.facebook : false;
+                    }
+                } catch (ape) { /* keep safe defaults */ }
+
                 } catch(e) { console.warn("Failed to check system status"); }
         }
         checkStatus();
@@ -16144,6 +17799,34 @@ const Admin = {
                     }
                 } catch (e) {
                     if (typeof showToast === 'function') showToast('Failed to save experimental features.', 'error');
+                }
+            };
+        }
+
+        if (authProvidersSave) {
+            authProvidersSave.onclick = async () => {
+                try {
+                    const secret = await Admin.getAuthKey();
+                    if (!secret) {
+                        if (typeof showToast === 'function') showToast('Authentication required.', 'error');
+                        return;
+                    }
+                    const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                    const payload = {
+                        google: !!authProviderGoogle?.checked,
+                        email: !!authProviderEmail?.checked,
+                        facebook: !!authProviderFacebook?.checked,
+                        updatedAt: Date.now(),
+                        updatedBy: Admin.currentUser?.email || 'Admin',
+                    };
+                    const res = await window.guardianFetch(`${dynamicEndpoint}config/auth_providers.json?auth=${secret}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify(payload),
+                    }, 10000);
+                    if (!res.ok) throw new Error('Auth failed');
+                    if (typeof showToast === 'function') showToast('Sign-in options saved', 'success');
+                } catch (e) {
+                    if (typeof showToast === 'function') showToast('Failed to save sign-in options.', 'error');
                 }
             };
         }

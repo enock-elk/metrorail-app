@@ -291,7 +291,7 @@
             'pta-mabopane': ["PRETORIA", "PRETORIA-B", "PRETORIA WES", "HERCULES", "DASPOORT", "MOUNTAIN VIEW", "WONDERBOOM", "PRETORIA-N", "WOLMERTON", "WINTERSNEST", "AKASIABOOM", "KOPANONG", "SOSHANGUVE", "MABOPANE"],
             'mab-belle': ["MABOPANE", "SOSHANGUVE", "KOPANONG", "AKASIABOOM", "WINTERSNEST", "WOLMERTON", "PRETORIA-N", "WONDERBOOM", "MOUNTAIN VIEW", "DASPOORT", "HERCULES", "BELLE-OMBRE"],
             'pta-dewildt': ["WINTERSNEST", "ROSSLYN", "GA-RANKUWA", "TAILLARDSHOOP", "DE WILDT"],
-            'herc-koed': ["HERCULES", "DASPOORT", "CAPITAL PARK", "GEZINA", "DEERNESS", "VILLIERIA", "PIERNEEFSRUS", "QUEENSWOOD", "KOEDOESPOORT"],
+            'herc-koed': ["HERCULES", "CAPITAL PARK", "GEZINA", "DEERNESS", "VILLIERIA", "PIERNEEFSRUS", "QUEENSWOOD", "KOEDOESPOORT"],
             'pta-saul': ["PRETORIA", "PRETORIA WES", "MITCHELLSTRAAT", "SCHUTTESTRAAT", "KALAFONG", "ATTERIDGEVILLE", "SAULSVILLE"],
             'pta-kempton': ["PRETORIA", "FONTEINE", "KLOOFSIG", "SPORTPARK", "CENTURION", "IRENE", "PINEDENE", "OLIFANTSFONTEIN", "OAKMOOR", "KAALFONTEIN", "BIRCHLEIGH", "VAN RIEBEECKPARK", "KEMPTON PARK"],
             // Pretoria ↔ Irene (subset of Kempton corridor) — needed for OSM track bake + map draw
@@ -516,7 +516,21 @@
             return path;
         }
 
-        function smoothStopsOnRailGraph(graph, stops) {
+        function clipBakedHop(latlngs, a, b) {
+            if (!latlngs || latlngs.length < 3 || !a || !b) return null;
+            const i1 = nearestPathIndex(latlngs, a.lat, a.lon);
+            const i2 = nearestPathIndex(latlngs, b.lat, b.lon);
+            if (i1 < 0 || i2 < 0 || i1 === i2) return null;
+            const step = i1 < i2 ? 1 : -1;
+            const slice = [];
+            for (let i = i1; ; i += step) {
+                slice.push(latlngs[i]);
+                if (i === i2) break;
+            }
+            return slice.length > 2 ? slice : null;
+        }
+
+        function smoothStopsOnRailGraph(graph, stops, baked) {
             if (!graph?.nodes?.length || !Array.isArray(stops) || stops.length < 2) return null;
             const out = [];
             let railHops = 0;
@@ -526,26 +540,39 @@
                 if (!a || !b || !Number.isFinite(a.lat) || !Number.isFinite(b.lat)) continue;
                 const snapA = nearestRailNode(graph, a.lat, a.lon);
                 const snapB = nearestRailNode(graph, b.lat, b.lon);
+                let usedRail = false;
                 if (snapA != null && snapB != null) {
                     const nodePath = shortestRailPath(graph, snapA, snapB);
                     if (nodePath && nodePath.length >= 2) {
                         const chordM = railHaversineM(a.lat, a.lon, b.lat, b.lon);
                         const railM = railPathLengthM(graph, nodePath);
+                        const strayMax = Math.max(RAIL_HOP_STRAY_M, chordM * 0.65);
                         const skips = railHopSkipsRouteStop(graph, nodePath, stops, i);
-                        const strays = railHopStraysFromChord(graph, nodePath, a, b);
+                        const strays = railHopStraysFromChord(graph, nodePath, a, b, strayMax);
                         if (!skips && !strays && !hopDetourTooLong(chordM, railM)) {
                             const seg = nodePath.map((id) => [graph.nodes[id].lat, graph.nodes[id].lon]);
                             if (!out.length) out.push(...seg);
                             else out.push(...seg.slice(1));
                             railHops++;
-                            continue;
+                            usedRail = true;
                         }
                     }
                 }
-                if (!out.length) out.push([a.lat, a.lon]);
-                out.push([b.lat, b.lon]);
+                if (!usedRail) {
+                    const clipped = clipBakedHop(baked, a, b);
+                    if (clipped) {
+                        if (!out.length) out.push(...clipped);
+                        else out.push(...clipped.slice(1));
+                        railHops++;
+                        usedRail = true;
+                    }
+                }
+                if (!usedRail) {
+                    if (!out.length) out.push([a.lat, a.lon]);
+                    out.push([b.lat, b.lon]);
+                }
             }
-            if (out.length < 2 || railHops !== stops.length - 1) return null;
+            if (out.length < 2 || railHops === 0) return null;
             const deduped = [out[0]];
             for (let i = 1; i < out.length; i++) {
                 const p = out[i];
@@ -708,11 +735,11 @@
                 ? stops.map((s) => [s.lat, s.lon])
                 : (routeObj.coords || []);
             const bundle = trackBundle || { byId: new Map(), graph: null };
+            const baked = bundle.byId && bundle.byId.get(routeObj.routeId);
             if (bundle.graph) {
-                const smoothed = smoothStopsOnRailGraph(bundle.graph, stops);
+                const smoothed = smoothStopsOnRailGraph(bundle.graph, stops, baked);
                 if (smoothed && smoothed.length > 1) return smoothed;
             }
-            const baked = bundle.byId && bundle.byId.get(routeObj.routeId);
             if (baked && baked.length > 1 && bakedLineCoversStops(baked, stops)) {
                 return baked;
             }
@@ -1156,8 +1183,16 @@
                 'text-red-500': '#ef4444'
             };
 
-            const globalStations = {}; // { name: {lat, lon, origName, routes: Set()} }
+            const globalStations = {}; // { name: {lat, lon, origName, routes: Set()} } — active boarding stops only
+            const geometryStations = {}; // coords for inactive / ghost stops used only in disruption paths
             const drawnRoutes = []; // { routeId, name, color, isActive, coords: [], validStops: [] }
+
+            function isGhostStationName(name) {
+                const idx = (typeof window !== 'undefined' && window.GHOST_STATION_INDEX)
+                    ? window.GHOST_STATION_INDEX
+                    : null;
+                return !!(idx && name && idx[name]);
+            }
             const hubs = new Set();
             const ends = new Set();
             let selectedRouteId = null;
@@ -1236,7 +1271,11 @@
                 for (const name of names) {
                     const s = byName.get(name);
                     if (!s) continue;
-                    ordered.push({ name: s.name, lat: s.lat, lon: s.lon });
+                    ordered.push({ name: s.name, lat: s.lat, lon: s.lon, inactive: !!s.inactive });
+                    if (s.inactive) {
+                        geometryStations[s.name] = { lat: s.lat, lon: s.lon };
+                        continue;
+                    }
                     if (!globalStations[s.name]) {
                         globalStations[s.name] = { lat: s.lat, lon: s.lon, origName: s.name, routes: new Set() };
                     }
@@ -1300,9 +1339,7 @@
                         const sNameOrig = String(row[stationKey]).trim();
                         if (sNameOrig.toLowerCase().includes('last updated') || sNameOrig.toLowerCase().includes('inter-station')) continue;
 
-                        // 🛡️ GUARDIAN FIX: Ghost Row Pruning
                         const hasData = Object.keys(row).some(k => k !== stationKey && k !== coordKey && k !== 'KM_MARK' && k !== 'row_index' && row[k] && String(row[k]).trim() !== "" && String(row[k]).trim() !== "-");
-                        if (!hasData) continue;
 
                         const sName = sNameOrig.replace(/ STATION/gi, '').toUpperCase();
 
@@ -1327,11 +1364,15 @@
 
                         if (lat !== null && lon !== null) {
                             routeCoords.push([lat, lon]);
-                            validStops.push({ name: sName, lat: lat, lon: lon });
-                            if (!globalStations[sName]) {
-                                globalStations[sName] = { lat, lon, origName: sNameOrig, routes: new Set() };
+                            validStops.push({ name: sName, lat: lat, lon: lon, inactive: !hasData });
+                            if (hasData) {
+                                if (!globalStations[sName]) {
+                                    globalStations[sName] = { lat, lon, origName: sNameOrig, routes: new Set() };
+                                }
+                                globalStations[sName].routes.add(route.id);
+                            } else {
+                                geometryStations[sName] = { lat, lon };
                             }
-                            globalStations[sName].routes.add(route.id);
                         }
                     }
                     
@@ -1356,12 +1397,18 @@
                             }
 
                             if (lat !== null && lon !== null) {
+                                const alreadyLive = !!globalStations[sName];
+                                const ghostOnly = isGhostStationName(sName) && !alreadyLive;
                                 routeCoords.push([lat, lon]);
-                                validStops.push({ name: sName, lat: lat, lon: lon });
-                                if (!globalStations[sName]) {
-                                    globalStations[sName] = { lat, lon, origName: sName, routes: new Set() };
+                                validStops.push({ name: sName, lat: lat, lon: lon, inactive: ghostOnly });
+                                if (ghostOnly) {
+                                    geometryStations[sName] = { lat, lon };
+                                } else {
+                                    if (!globalStations[sName]) {
+                                        globalStations[sName] = { lat, lon, origName: sName, routes: new Set() };
+                                    }
+                                    globalStations[sName].routes.add(route.id);
                                 }
-                                globalStations[sName].routes.add(route.id);
                             }
                         });
                     }
@@ -1505,16 +1552,27 @@
                             }
                         } else {
                             const normStations = d.stations.map((s) => s.replace(/ STATION/gi, '').trim().toUpperCase());
-                            const routeStationNames = currentValidStops.map((s) => s.name);
+                            const resolvePathStop = (normName) => {
+                                const live = (currentValidStops || []).find((s) => s.name === normName);
+                                if (live) return live;
+                                const geo = geometryStations[normName];
+                                if (geo && Number.isFinite(geo.lat) && Number.isFinite(geo.lon)) {
+                                    return { name: normName, lat: geo.lat, lon: geo.lon };
+                                }
+                                const gs = globalStations[normName];
+                                if (gs && Number.isFinite(gs.lat) && Number.isFinite(gs.lon)) {
+                                    return { name: normName, lat: gs.lat, lon: gs.lon };
+                                }
+                                const dict = STATION_COORDINATES[normName];
+                                if (dict) return { name: normName, lat: dict[0], lon: dict[1] };
+                                return null;
+                            };
 
                             if (normStations.length >= 2) {
-                                if (routeStationNames.includes(normStations[0]) && routeStationNames.includes(normStations[1])) {
-                                    const idx1 = routeStationNames.indexOf(normStations[0]);
-                                    const idx2 = routeStationNames.indexOf(normStations[1]);
-                                    const s1 = currentValidStops[idx1];
-                                    const s2 = currentValidStops[idx2];
-                                    if (!s1 || !s2) return;
-
+                                const s1 = resolvePathStop(normStations[0]);
+                                const s2 = resolvePathStop(normStations[1]);
+                                const names = (currentValidStops || []).map((s) => s.name);
+                                if (s1 && s2 && names.includes(normStations[0]) && names.includes(normStations[1])) {
                                     drawnIncidentIds.add(d.id + '_' + routeObj.routeId);
                                     const i1 = nearestPathIndex(trackPath, s1.lat, s1.lon);
                                     const i2 = nearestPathIndex(trackPath, s2.lat, s2.lon);
@@ -1535,10 +1593,11 @@
                                     }
                                 }
                             } else if (normStations.length === 1) {
-                                if (routeStationNames.includes(normStations[0])) {
-                                    const idx1 = routeStationNames.indexOf(normStations[0]);
+                                const names = (currentValidStops || []).map((s) => s.name);
+                                if (names.includes(normStations[0])) {
+                                    const s1 = resolvePathStop(normStations[0]);
+                                    if (!s1) return;
                                     drawnIncidentIds.add(d.id + '_' + routeObj.routeId);
-                                    const s1 = currentValidStops[idx1];
                                     addWarning([s1.lat, s1.lon], `<b>${isCritical ? 'STATION INCIDENT' : 'STATION DELAYS'}</b>`, {
                                         permanent: true, direction: 'top', offset: [0, -12], className: 'font-bold text-[10px] text-gray-900 z-50 tooltip-dynamic tooltip-halo'
                                     });
@@ -1679,6 +1738,9 @@
 
             // --- DRAW MARKERS (WITH NAKED HALO TOOLTIPS) ---
             Object.entries(globalStations).forEach(([name, data]) => {
+                // Inactive / ghost stops keep coords for incident cuts, never a name label.
+                if (isGhostStationName(name)) return;
+
                 // Important = corridor terminals + designated transfer/relay hubs only
                 // (multi-route intermediates like Mayfair stay small)
                 const isHub = hubs.has(name);
@@ -1807,6 +1869,7 @@
             let lastKnownLatLng = null;
             let userMarker = null;
             let userRadius = null;
+            let hideUserDotForShare = false;
             
             const pulsingIcon = L.divIcon({
                 className: 'custom-div-icon',
@@ -1832,6 +1895,7 @@
                     userRadius.setLatLng(latlng);
                     userRadius.setRadius(radius);
                 }
+                applyShareHidesUserDot(hideUserDotForShare);
                 if (locateIcon) {
                     locateIcon.classList.remove('animate-spin', 'text-gray-400');
                     locateIcon.classList.add('text-blue-600', 'dark:text-blue-400');
@@ -1879,36 +1943,110 @@
             /** Rider markers from the parent Map tab (ride_pings with coarse GPS). */
             let ridePingLayer = null;
             let rideTrainMarkers = {};
-            const trainAnim = [];
+            let lastRidePings = [];
             function escapePing(s) {
                 return String(s || '').replace(/[&<>"']/g, function (c) {
                     return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
                 });
             }
-            function animateTrainMarker(marker, lat, lng, headingDeg, speedMps, expiresAt) {
-                const start = Date.now();
-                const rad = (headingDeg * Math.PI) / 180;
-                function tick() {
-                    if (!map.hasLayer(marker)) return;
-                    if (Date.now() > (expiresAt || start + 600000)) return;
-                    const dt = (Date.now() - start) / 1000;
-                    const distM = Math.min(speedMps * dt, 2500);
-                    const dLat = (Math.cos(rad) * distM) / 111320;
-                    const cosLat = Math.cos((lat * Math.PI) / 180) || 0.7;
-                    const dLng = (Math.sin(rad) * distM) / (111320 * cosLat);
-                    marker.setLatLng([lat + dLat, lng + dLng]);
-                    const id = requestAnimationFrame(tick);
-                    trainAnim.push(id);
+            function isPingGpsStale(ping) {
+                var at = Number(ping && ping.at || 0);
+                return !at || (Date.now() - at) >= 90000;
+            }
+            function applyShareHidesUserDot(hide) {
+                hideUserDotForShare = !!hide;
+                var el = userMarker && userMarker.getElement && userMarker.getElement();
+                if (el) el.style.visibility = hide ? 'hidden' : '';
+                if (userRadius) {
+                    userRadius.setStyle({
+                        opacity: hide ? 0 : 1,
+                        fillOpacity: hide ? 0 : 0.15
+                    });
                 }
-                trainAnim.push(requestAnimationFrame(tick));
+            }
+            function liveTrainIconSpec(zoom, trainId, ping) {
+                var z = typeof zoom === 'number' ? zoom : 12;
+                var compact = z < 11;
+                var paused = !!(ping && ping.trackingState === 'paused') || isPingGpsStale(ping);
+                var id = String(trainId || '');
+                var box = compact ? 52 : 64;
+                var bearing = ping && Number.isFinite(ping.bearing)
+                    ? ping.bearing
+                    : (ping && Number.isFinite(ping.heading) ? ping.heading : 0);
+                return {
+                    w: box,
+                    h: box,
+                    compact: compact,
+                    paused: paused,
+                    bearing: bearing
+                };
+            }
+            function liveTrainGlyphHtml(trainId, n, mine, spec) {
+                var wrapCls = 'nt-live-train-wrap';
+                var cls = 'nt-live-train-glyph';
+                if (mine) {
+                    cls += ' nt-live-train-glyph--mine';
+                    wrapCls += ' nt-live-train-wrap--mine';
+                }
+                if (spec && spec.paused) {
+                    cls += ' nt-live-train-glyph--paused';
+                    wrapCls += ' nt-live-train-wrap--paused';
+                }
+                if (spec && spec.compact) {
+                    wrapCls += ' nt-live-train-wrap--compact';
+                    cls += ' nt-live-train-glyph--compact';
+                }
+                var deg = spec && Number.isFinite(spec.bearing) ? spec.bearing : 0;
+                var id = escapePing(String(trainId || ''));
+                return '<div class="' + wrapCls + '" title="Train ' + id + '">'
+                    + '<span class="nt-live-train-ring" aria-hidden="true"></span>'
+                    + '<span class="nt-live-train-ring nt-live-train-ring--delay" aria-hidden="true"></span>'
+                    + '<span class="' + cls + '">'
+                    + '<span class="nt-live-train-num">' + id + '</span>'
+                    + '<span class="nt-live-train-direction" style="transform:rotate(' + deg + 'deg)" aria-hidden="true"><span>&gt;</span></span>'
+                    + '</span></div>';
+            }
+            function sharingStatusCopy(count, mine) {
+                var n = Math.max(0, Number(count) || 0);
+                if (mine) {
+                    var others = Math.max(0, n - 1);
+                    if (others <= 0) return "You’re sharing";
+                    if (others === 1) return "You and 1 other are sharing";
+                    return "You and " + others + " others are sharing";
+                }
+                if (n <= 0) return "";
+                if (n === 1) return "1 sharing";
+                return n + " sharing";
+            }
+            function metricValue(value, fallback) {
+                return value == null || value === '' ? (fallback || 'Unknown') : String(value);
+            }
+            function ageMetric(at) {
+                var sec = Math.max(0, Math.round((Date.now() - Number(at || 0)) / 1000));
+                if (!Number(at)) return 'Unknown';
+                if (sec < 60) return sec + ' sec';
+                return Math.round(sec / 60) + ' min';
+            }
+            function headingMetric(deg) {
+                if (!Number.isFinite(deg)) return 'Unknown';
+                var d = ((Math.round(deg) % 360) + 360) % 360;
+                var cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+                return d + '° ' + cardinals[Math.round(d / 45) % 8];
+            }
+            function distanceMetric(metres) {
+                if (!Number.isFinite(metres)) return 'Unknown';
+                return metres < 1000 ? Math.round(metres) + ' m' : (metres / 1000).toFixed(1) + ' km';
             }
             function renderRidePingMarkers(pings) {
-                trainAnim.splice(0).forEach(function (id) { try { cancelAnimationFrame(id); } catch (_) {} });
+                lastRidePings = Array.isArray(pings) ? pings : [];
                 if (ridePingLayer) {
                     map.removeLayer(ridePingLayer);
                     ridePingLayer = null;
                 }
-                if (!pings || !pings.length) return;
+                if (!pings || !pings.length) {
+                    applyShareHidesUserDot(false);
+                    return;
+                }
                 const group = L.layerGroup();
                 const trains = {};
                 const loose = [];
@@ -1920,54 +2058,111 @@
                         (trains[k] = trains[k] || []).push(p);
                     } else loose.push(p);
                 });
+                var mineOnTrain = Object.keys(trains).some(function (id) {
+                    return trains[id].some(function (p) { return !!p.mine; });
+                });
+                applyShareHidesUserDot(mineOnTrain);
 
                 Object.keys(trains).forEach(function (trainId) {
                     const list = trains[trainId];
-                    const lat = list.reduce(function (s, p) { return s + p.lat; }, 0) / list.length;
-                    const lng = list.reduce(function (s, p) { return s + p.lng; }, 0) / list.length;
+                    // Parent sends one robust, route-projected consensus marker.
+                    // Never average again here: a second mean can move it off rail.
+                    const consensus = list.reduce(function (a, b) {
+                        return (Number(a.at) || 0) >= (Number(b.at) || 0) ? a : b;
+                    }, list[0]);
+                    const lat = consensus.lat;
+                    const lng = consensus.lng;
                     const ids = {};
                     list.forEach(function (p) { ids[p.deviceId || (p.lat + ',' + p.lng)] = 1; });
-                    const n = Object.keys(ids).length;
-                    const speed = (list.find(function (p) { return typeof p.speedMps === 'number'; }) || {}).speedMps || 0;
-                    const heading = (list.find(function (p) { return typeof p.heading === 'number'; }) || {}).heading;
+                    const n = list.reduce(function (s, p) { return s + (Number(p.n) || 1); }, 0) || Object.keys(ids).length;
+                    const mine = list.some(function (p) { return !!p.mine; });
+                    const newest = consensus;
+                    const speedValue = (list.find(function (p) { return typeof p.speedMps === 'number'; }) || newest || {}).speedMps;
+                    const speed = typeof speedValue === 'number' ? speedValue : null;
+                    const heading = Number.isFinite(newest.bearing)
+                        ? newest.bearing
+                        : (list.find(function (p) { return typeof p.heading === 'number'; }) || newest || {}).heading;
+                    const spec = liveTrainIconSpec(map.getZoom(), trainId, newest);
                     const icon = L.divIcon({
                         className: 'nt-live-train',
-                        html: '<div class="nt-live-train-glyph"><span class="nt-live-train-name">Train '
-                            + escapePing(trainId) + '</span><span class="nt-live-train-n">'
-                            + n + ' sharing</span></div>',
-                        iconSize: [96, 32],
-                        iconAnchor: [48, 16]
+                        html: liveTrainGlyphHtml(trainId, n, mine, spec),
+                        iconSize: [spec.w, spec.h],
+                        iconAnchor: [Math.round(spec.w / 2), Math.round(spec.h / 2)]
                     });
                     const marker = L.marker([lat, lng], { icon: icon, zIndexOffset: 800, keyboard: true });
                     const joinId = 'nt-join-train-' + String(trainId).replace(/[^a-zA-Z0-9_-]/g, '');
+                    const sheetId = 'nt-tt-train-' + String(trainId).replace(/[^a-zA-Z0-9_-]/g, '');
+                    const actionBtn = mine
+                        ? "<button type='button' id='" + joinId + "' class='nt-live-train-pop-btn nt-live-train-pop-btn--stop'>Stop sharing</button>"
+                        : "<button type='button' id='" + joinId + "' class='nt-live-train-pop-btn'>I’m on this train</button>";
+                    const paused = newest.trackingState === 'paused' || isPingGpsStale(newest);
+                    const status = paused ? 'Paused' : 'Active';
+                    const detailsId = 'nt-track-details-' + String(trainId).replace(/[^a-zA-Z0-9_-]/g, '');
                     marker.bindPopup(
-                        "<div class='text-xs text-gray-900 text-center'>"
-                        + "<p class='font-black'>Train " + escapePing(trainId) + "</p>"
-                        + "<p class='text-[10px] text-gray-500 mt-0.5'>" + n + " Next Train rider"
-                        + (n === 1 ? '' : 's') + " sharing</p>"
-                        + "<button type='button' id='" + joinId + "' class='mt-2 w-full py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-bold'>I’m on this train</button>"
-                        + "</div>"
+                        "<div class='nt-live-train-pop'>"
+                        + "<div class='nt-live-train-pop-head'><p class='nt-live-train-pop-title'>Train " + escapePing(trainId) + "</p>"
+                        + "<span class='nt-live-train-status nt-live-train-status--" + (paused ? 'paused' : 'active') + "'>" + status + "</span></div>"
+                        + "<p class='nt-live-train-pop-sub'>" + escapePing(sharingStatusCopy(n, mine)) + "</p>"
+                        + "<dl class='nt-live-train-metrics'>"
+                        + "<div><dt>Speed</dt><dd>" + escapePing(speed == null ? 'Unknown' : (Math.max(0, speed) * 3.6).toFixed(0) + ' km/h') + "</dd></div>"
+                        + "<div><dt>Heading</dt><dd>" + escapePing(headingMetric(heading)) + "</dd></div>"
+                        + "<div><dt>Rail distance</dt><dd>" + escapePing(distanceMetric(Number(newest.railDistanceM))) + "</dd></div>"
+                        + "<div><dt>GPS age</dt><dd>" + escapePing(ageMetric(newest.acceptedAt || newest.at)) + "</dd></div>"
+                        + "<div><dt>GPS accuracy</dt><dd>" + escapePing(Number.isFinite(newest.accuracy) ? '±' + Math.round(newest.accuracy) + ' m' : 'Unknown') + "</dd></div>"
+                        + "<div><dt>Contributors</dt><dd>" + escapePing(metricValue(n, '0')) + "</dd></div>"
+                        + "</dl>"
+                        + "<p class='nt-live-train-last'>Last seen " + escapePing(metricValue(newest.lastSeenLabel, 'on the route')) + "</p>"
+                        + "<div class='nt-live-train-pop-actions'>"
+                        + "<button type='button' id='" + detailsId + "' class='nt-live-train-pop-btn nt-live-train-pop-btn--details'>Show tracking details</button>"
+                        + actionBtn
+                        + "<button type='button' id='" + sheetId + "' class='nt-live-train-pop-btn nt-live-train-pop-btn--sheet'>Timetable</button>"
+                        + "</div></div>"
                     );
                     marker.on('popupopen', function () {
                         const btn = document.getElementById(joinId);
-                        if (!btn) return;
-                        btn.onclick = function () {
-                            try {
-                                (window.parent || window).postMessage({
-                                    type: 'nt-map-join-train',
-                                    trainId: trainId,
-                                    station: list[0].station || '',
-                                    routeId: list[0].routeId || null
-                                }, '*');
-                            } catch (_) {}
-                            map.closePopup();
-                        };
+                        if (btn) {
+                            btn.onclick = function () {
+                                try {
+                                    (window.parent || window).postMessage({
+                                        type: mine ? 'nt-map-stop-share' : 'nt-map-join-train',
+                                        trainId: trainId,
+                                        station: list[0].station || '',
+                                        routeId: list[0].routeId || null
+                                    }, '*');
+                                } catch (_) {}
+                                map.closePopup();
+                            };
+                        }
+                        const detailsBtn = document.getElementById(detailsId);
+                        if (detailsBtn) {
+                            detailsBtn.onclick = function () {
+                                try {
+                                    (window.parent || window).postMessage({
+                                        type: 'nt-map-show-tracking-details',
+                                        trainId: trainId,
+                                        routeId: list[0].routeId || null,
+                                        mine: mine
+                                    }, '*');
+                                } catch (_) {}
+                                map.closePopup();
+                            };
+                        }
+                        const sheetBtn = document.getElementById(sheetId);
+                        if (sheetBtn) {
+                            sheetBtn.onclick = function () {
+                                try {
+                                    (window.parent || window).postMessage({
+                                        type: 'nt-map-open-timetable',
+                                        trainId: trainId,
+                                        routeId: list[0].routeId || null
+                                    }, '*');
+                                } catch (_) {}
+                                map.closePopup();
+                            };
+                        }
                     });
                     marker.addTo(group);
                     rideTrainMarkers[trainId] = marker;
-                    if (speed > 1 && typeof heading === 'number') {
-                        animateTrainMarker(marker, lat, lng, heading, speed, list[0].expiresAt);
-                    }
                 });
 
                 loose.forEach(function (p) {
@@ -1981,7 +2176,7 @@
                     }).bindPopup(
                         "<div class='text-xs font-bold text-center text-gray-900'>"
                         + (mine ? 'You · ' : '') + (p.station || 'Person')
-                        + "<br><span class='text-[10px] text-gray-500 font-normal'>visible for 10 min</span></div>"
+                        + "<br><span class='text-[10px] text-gray-500 font-normal'>visible until you stop</span></div>"
                     ).addTo(group);
                 });
                 ridePingLayer = group.addTo(map);
@@ -2041,7 +2236,20 @@
                 }
             }
 
-            map.on('zoomend', updateTooltipSize);
+            var zoomGlyphTimer = 0;
+            map.on('zoomend', function () {
+                updateTooltipSize();
+                if (!lastRidePings.length) return;
+                if (zoomGlyphTimer) clearTimeout(zoomGlyphTimer);
+                zoomGlyphTimer = setTimeout(function () {
+                    zoomGlyphTimer = 0;
+                    renderRidePingMarkers(lastRidePings);
+                }, 80);
+            });
+            setInterval(function () {
+                if (document.hidden || !lastRidePings.length) return;
+                renderRidePingMarkers(lastRidePings);
+            }, 30000);
             updateTooltipSize(); 
         }
 

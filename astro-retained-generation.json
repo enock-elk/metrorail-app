@@ -1,4 +1,34 @@
 {
-  "files": [],
-  "kept": 0
+  "files": [
+    "Header.astro_astro_type_script_index_0_lang.CjXFaFYI.js",
+    "Layout.astro_astro_type_script_index_0_lang.Cht5jpOQ.js",
+    "WelcomeModal.astro_astro_type_script_index_0_lang.DICKlol0.js",
+    "_slug_.D_aun0In.css",
+    "account.OiI0QUwA.js",
+    "admin-bridge.DyEHTI1e.js",
+    "community.BWCajNZV.js",
+    "deeplink.CoyQ4IUQ.js",
+    "delay-reports.C1Ghf8Qy.js",
+    "firebase-boot.3Cp5JwsW.js",
+    "firebase-vendor.BoBUgND-.js",
+    "holiday-notice.CZ0xbbzm.js",
+    "hub.BT3drzZP.js",
+    "index.CD82BuhR.css",
+    "index.astro_astro_type_script_index_0_lang.D_wkkG00.js",
+    "live-board-ui.uhrlJoFy.js",
+    "live-board.COmHzHQm.js",
+    "logic.CxrVvUSL.js",
+    "map-tab.CvwNo0de.js",
+    "map.BEsI_CRY.css",
+    "prefs.ZXA0fJOV.js",
+    "push-notify.xhu3h2SA.js",
+    "rail-tracks.3B08O0OY.js",
+    "ride-pings._oyiqyHI.js",
+    "rider-marks.BZwOzqh6.js",
+    "train-ghosts.BUOepdnW.js",
+    "trust.f_V8nxiy.js",
+    "ui.KAvif7_e.js",
+    "vendor.DE5xXewm.css"
+  ],
+  "kept": 29
 }
