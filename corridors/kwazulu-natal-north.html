@@ -2,16 +2,65 @@
       @media (max-width: 639px) {
         html { font-size: clamp(13.12px, calc(100vw * 16 / 390), 16px); }
       }
-    </style><script>
+    </style><style>
+  #nt-recovery-lifeline { display: none !important; }
+  html[data-nt-shell="broken"] #nt-recovery-lifeline { display: block !important; }
+
+  html[data-nt-style="missing"] :where(body) {
+    margin: 0;
+    padding: 0 1rem 3rem;
+    background: #ffffff;
+    color: #111827;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 1rem;
+    line-height: 1.5;
+    overflow: auto;
+  }
+  html[data-nt-style="missing"] :where(h1) { font-size: 1.5rem; line-height: 1.25; margin: 1.25rem 0 0.5rem; }
+  html[data-nt-style="missing"] :where(h2) { font-size: 1.2rem; line-height: 1.3; margin: 1.25rem 0 0.5rem; }
+  html[data-nt-style="missing"] :where(h3) { font-size: 1.05rem; margin: 1rem 0 0.5rem; }
+  html[data-nt-style="missing"] :where(p, ul, ol) { margin: 0.5rem 0; }
+  html[data-nt-style="missing"] :where(a) { color: #1d4ed8; }
+  html[data-nt-style="missing"] :where(img, svg) { max-width: 100%; height: auto; }
+  html[data-nt-style="missing"] :where(table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    margin: 0.5rem 0 1.25rem;
+    display: block;
+    overflow-x: auto;
+  }
+  html[data-nt-style="missing"] :where(th, td) {
+    border: 1px solid #d1d5db;
+    padding: 0.3rem 0.45rem;
+    text-align: left;
+    white-space: nowrap;
+  }
+  html[data-nt-style="missing"] :where(th) { background: #f3f4f6; }
+
+  /* A static page is still worth reading, so the notice is a calm strip. */
+  html[data-nt-style="missing"] #nt-recovery-lifeline {
+    border: 1px solid #fcd34d;
+    background: #fffbeb;
+    border-radius: 0.5rem;
+    margin: 0.75rem auto 1rem;
+  }
+</style><script>
   /* [CDATA[ */
   (function () {
     var KEY = 'nt_shell_recover';
     var MAX_ATTEMPTS = 2;
+    var root = document.documentElement;
+
+    function markStyleMissing() {
+      root.setAttribute('data-nt-style', 'missing');
+    }
 
     function reveal() {
+      root.setAttribute('data-nt-shell', 'broken');
       var el = document.getElementById('nt-recovery-lifeline');
-      // The hide rule is !important because it lives in the hashed bundle, so
-      // an override has to be too.
+      // The hide rule is !important because a stale hashed bundle may still be
+      // in play, so an override has to be too.
       if (el) el.style.setProperty('display', 'block', 'important');
     }
 
@@ -62,9 +111,19 @@
       return src.indexOf('/_astro/') !== -1;
     }
 
+    function isStylesheet(node) {
+      return node.tagName.toLowerCase() === 'link'
+        && String(node.getAttribute('rel') || '').toLowerCase().indexOf('stylesheet') !== -1;
+    }
+
     // Resource errors do not bubble; they are only visible in the capture phase.
     window.addEventListener('error', function (event) {
-      if (isAstroAsset(event && event.target)) recover();
+      var node = event && event.target;
+      if (!isAstroAsset(node)) return;
+      // Mark the FOUC before any reload so the readable fallback applies to
+      // this paint too, not only to the one after the last failed attempt.
+      if (isStylesheet(node)) markStyleMissing();
+      recover();
     }, true);
 
     window.addEventListener('load', function () {
@@ -337,7 +396,7 @@ const seoRouteId = "";
         }, 3500);
       });
     </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"KZN North Train Times | Metrorail Next Train","description":"KZN North Metrorail routes in KwaZulu-Natal. Open Next Train for live boards and full weekend/weekday grids. Check live KwaZulu-Natal Metrorail schedules offline in Metrorail Next Train.","about":"KZN North","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.CXdAwA7O.css">
-<link rel="stylesheet" href="/_astro/_slug_.BJ-3NhNc.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <h1>Next Train could not finish updating</h1> <p>
+<link rel="stylesheet" href="/_astro/_slug_.BJ-3NhNc.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <p style="margin:0 0 0.75rem;font-size:1.375rem;font-weight:700;line-height:1.2;">Next Train could not finish updating</p> <p>
 This device is holding an old copy of the app. Open
 <a href="/help.html" rel="nofollow">Reset and Recover</a>
 to clear it and load the current version.
