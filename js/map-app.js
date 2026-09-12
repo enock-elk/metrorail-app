@@ -763,6 +763,10 @@
             return null;
         }
 
+        function isMapTabEmbed() {
+            try { return new URLSearchParams(location.search).get('embed') === '1'; } catch (_) { return false; }
+        }
+
         /** Map view region only — never overwrite a returning user's saved app region/route. */
         function resolveMapRegion() {
             try {
@@ -770,15 +774,21 @@
                 if (q) {
                     const up = String(q).toUpperCase();
                     if (VALID_MAP_REGIONS.includes(up)) {
-                        try { sessionStorage.setItem('nt_mapViewRegion', up); } catch (e) {}
+                        if (!isMapTabEmbed()) {
+                            try { sessionStorage.setItem('nt_mapViewRegion', up); } catch (e) {}
+                        }
                         return up;
                     }
                 }
             } catch (e) {}
-            try {
-                const session = sessionStorage.getItem('nt_mapViewRegion');
-                if (session && VALID_MAP_REGIONS.includes(session)) return session;
-            } catch (e) {}
+            // Live-tracking Map tab follows the app pin / selected region.
+            // The sidenav GPS network map still remembers its last viewed region.
+            if (!isMapTabEmbed()) {
+                try {
+                    const session = sessionStorage.getItem('nt_mapViewRegion');
+                    if (session && VALID_MAP_REGIONS.includes(session)) return session;
+                } catch (e) {}
+            }
             const saved = readSavedAppRegion();
             if (saved) return saved;
             // Cold start only: no app region yet — seed GP so first-time map visitors can load
@@ -833,6 +843,15 @@
             if (placeholder) placeholder.style.display = 'none';
             const panel = document.getElementById('map-cold-start');
             if (panel) panel.classList.remove('hidden');
+            const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+            const title = document.getElementById('map-cold-start-title');
+            const body = document.getElementById('map-cold-start-body');
+            if (title) title.textContent = offline ? 'Map isn’t available offline' : 'Couldn’t load map data';
+            if (body) {
+                body.textContent = offline
+                    ? 'This phone does not have a saved copy of this region’s map yet. Open the map once while you are online, then this view will work without a signal.'
+                    : 'New here? Pick a region or open the main app to download schedules first. The map works without a prior visit when you are online.';
+            }
         }
 
         function bindMapRegionPicker() {
@@ -1499,8 +1518,18 @@
                 drawnRoutes.forEach((routeObj) => {
                     Object.values(disruptions || {}).flat().forEach((d) => {
                         if (!d || drawnIncidentIds.has(d.id + '_' + routeObj.routeId)) return;
-
+                        const mapDay = (typeof window !== 'undefined' && window.currentDayType) || 'weekday';
+                        const mapTime = (typeof window !== 'undefined' && window.currentTime) || '';
+                        if (typeof window.disruptionAppliesToDayAndTime === 'function'
+                            && !window.disruptionAppliesToDayAndTime(d, mapDay, mapTime)) {
+                            return;
+                        }
                         const isCritical = d.tier === 'CRITICAL';
+                        if (isCritical && !(typeof window.disruptionShowsCancelledOnMap === 'function'
+                            ? window.disruptionShowsCancelledOnMap(d)
+                            : d.showCancelledOnMap === true)) {
+                            return;
+                        }
                         const color = isCritical ? '#ef4444' : '#eab308';
                         const currentValidStops = routeObj.validStops;
                         const trackPath = (routeObj.trackCoords && routeObj.trackCoords.length > 1)
@@ -1571,8 +1600,15 @@
                             if (normStations.length >= 2) {
                                 const s1 = resolvePathStop(normStations[0]);
                                 const s2 = resolvePathStop(normStations[1]);
-                                const names = (currentValidStops || []).map((s) => s.name);
-                                if (s1 && s2 && names.includes(normStations[0]) && names.includes(normStations[1])) {
+                                const nearPath = (stop) => {
+                                    if (!stop || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lon)) return false;
+                                    const i = nearestPathIndex(trackPath, stop.lat, stop.lon);
+                                    if (i < 0) return false;
+                                    const dLat = trackPath[i][0] - stop.lat;
+                                    const dLon = trackPath[i][1] - stop.lon;
+                                    return (dLat * dLat + dLon * dLon) <= 0.0004;
+                                };
+                                if (s1 && s2 && nearPath(s1) && nearPath(s2)) {
                                     drawnIncidentIds.add(d.id + '_' + routeObj.routeId);
                                     const i1 = nearestPathIndex(trackPath, s1.lat, s1.lon);
                                     const i2 = nearestPathIndex(trackPath, s2.lat, s2.lon);
@@ -1736,6 +1772,18 @@
                 setSelectedLine(routeId, { toggle: true, fit: true });
             }
 
+            function applyEmbedCorridorFocus(routeId) {
+                const id = String(routeId || '').trim();
+                if (id) setSelectedLine(id, { toggle: false, fit: true });
+                else fitNetworkView();
+            }
+
+            if (isMapTabEmbed()) {
+                let pinned = '';
+                try { pinned = localStorage.getItem('defaultRoute_' + currentRegion) || ''; } catch (_) {}
+                applyEmbedCorridorFocus(pinned);
+            }
+
             // --- DRAW MARKERS (WITH NAKED HALO TOOLTIPS) ---
             Object.entries(globalStations).forEach(([name, data]) => {
                 // Inactive / ghost stops keep coords for incident cuts, never a name label.
@@ -1797,6 +1845,17 @@
                     let isWarning = false;
 
                     Object.values(globalDisruptions).flat().forEach(d => {
+                        const mapDay = (typeof window !== 'undefined' && window.currentDayType) || 'weekday';
+                        const mapTime = (typeof window !== 'undefined' && window.currentTime) || '';
+                        if (typeof window.disruptionAppliesToDayAndTime === 'function'
+                            && !window.disruptionAppliesToDayAndTime(d, mapDay, mapTime)) {
+                            return;
+                        }
+                        if (d.tier === 'CRITICAL' && !(typeof window.disruptionShowsCancelledOnMap === 'function'
+                            ? window.disruptionShowsCancelledOnMap(d)
+                            : d.showCancelledOnMap === true)) {
+                            return;
+                        }
                         if (!d.stations || d.stations.length === 0) {
                             if (d.routeId === item.routeId) {
                                 if (d.tier === 'CRITICAL') isCritical = true;
@@ -2001,9 +2060,11 @@
                 return '<div class="' + wrapCls + '" title="Train ' + id + '">'
                     + '<span class="nt-live-train-ring" aria-hidden="true"></span>'
                     + '<span class="nt-live-train-ring nt-live-train-ring--delay" aria-hidden="true"></span>'
-                    + '<span class="' + cls + '">'
-                    + '<span class="nt-live-train-num">' + id + '</span>'
-                    + '<span class="nt-live-train-direction" style="transform:rotate(' + deg + 'deg)" aria-hidden="true"><span>&gt;</span></span>'
+                    + '<span class="' + cls + '" style="transform:rotate(' + deg + 'deg)">'
+                    + '<span class="nt-live-train-shell" aria-hidden="true"></span>'
+                    + '<span class="nt-live-train-oval nt-live-train-oval--a" aria-hidden="true"></span>'
+                    + '<span class="nt-live-train-oval nt-live-train-oval--b" aria-hidden="true"></span>'
+                    + '<span class="nt-live-train-num" style="transform:rotate(' + (-deg) + 'deg)">' + id + '</span>'
                     + '</span></div>';
             }
             function sharingStatusCopy(count, mine) {
@@ -2196,6 +2257,17 @@
                         map.flyTo(marker.getLatLng(), 15, { duration: 1.0 });
                         marker.openPopup();
                     }
+                    return;
+                }
+                if (data.type === 'nt-map-focus-route') {
+                    if (isMapTabEmbed() && data.region) {
+                        const next = String(data.region).toUpperCase();
+                        if (VALID_MAP_REGIONS.includes(next) && next !== currentRegion) {
+                            switchMapRegion(next);
+                            return;
+                        }
+                    }
+                    applyEmbedCorridorFocus(data.routeId);
                     return;
                 }
                 if (data.type === 'nt-map-contribute' && Number.isFinite(data.lat) && Number.isFinite(data.lng)) {
