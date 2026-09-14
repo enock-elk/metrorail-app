@@ -2619,21 +2619,21 @@ const Admin = {
         // Colors & Theme Independence (hardcoded hex for perfect exportability)
         const lineColor = '#3b82f6';
         const todayColor = '#f97316';
-        const gridColor = '#e2e8f0';
-        const labelColor = '#94a3b8';
+        const gridColor = '#e5e5ea';
+        const labelColor = '#8e8e93';
 
         let svg = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="display:block; max-height:100%;">`;
         
         // Defs for gradient
-        svg += `<defs><linearGradient id="lineGrad_${isMini ? 'mini' : 'full'}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${lineColor}" stop-opacity="0.3"/><stop offset="100%" stop-color="${lineColor}" stop-opacity="0.0"/></linearGradient></defs>`;
+        svg += `<defs><linearGradient id="lineGrad_${isMini ? 'mini' : 'full'}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${lineColor}" stop-opacity="0.22"/><stop offset="100%" stop-color="${lineColor}" stop-opacity="0.0"/></linearGradient></defs>`;
         
         // Background Grid & Y-Axis (Only in full view)
         if (!isMini) {
             [0, 0.5, 1].forEach(tick => {
                 const y = pt + uh - (tick * uh);
                 const val = Math.round(yMin + (yRange * tick));
-                svg += `<line x1="${pl}" y1="${y}" x2="${w-pr}" y2="${y}" stroke="${gridColor}" stroke-dasharray="4" stroke-width="1.5" />`;
-                svg += `<text x="${pl-12}" y="${y+4}" font-family="sans-serif" font-size="12" font-weight="800" fill="${labelColor}" text-anchor="end">${val}</text>`;
+                svg += `<line x1="${pl}" y1="${y}" x2="${w-pr}" y2="${y}" stroke="${gridColor}" stroke-width="1" />`;
+                svg += `<text x="${pl-12}" y="${y+4}" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="500" fill="${labelColor}" text-anchor="end">${val}</text>`;
             });
         }
         
@@ -2654,7 +2654,7 @@ const Admin = {
         // Fill Area & Stroke Line (Hide area if only 1 point exists)
         if (knownIdx.length > 1 && pathD) {
             svg += `<path d="${areaD}" fill="url(#lineGrad_${isMini ? 'mini' : 'full'})" />`;
-            svg += `<path d="${pathD}" fill="none" stroke="${lineColor}" stroke-width="${isMini ? '3' : '4'}" stroke-linecap="round" stroke-linejoin="round" />`;
+            svg += `<path d="${pathD}" fill="none" stroke="${lineColor}" stroke-width="${isMini ? '3' : '3'}" stroke-linecap="round" stroke-linejoin="round" />`;
         }
         
         // Points and X-Axis
@@ -2702,11 +2702,11 @@ const Admin = {
             // X-Axis Labels (Dynamic formatting from worker)
             if (!isMini && labelsArray[i]) {
                 const dayColor = isToday ? todayColor : labelColor;
-                svg += `<text x="${vx}" y="${pt+uh+20}" font-family="sans-serif" font-size="11" font-weight="800" fill="${dayColor}" text-anchor="middle">${labelsArray[i]}</text>`;
+                svg += `<text x="${vx}" y="${pt+uh+20}" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="600" fill="${dayColor}" text-anchor="middle">${labelsArray[i]}</text>`;
                 
                 // GUARDIAN UX FIX: Restore data counts directly on the graph for macro reports
                 if (Admin.telemetryRange !== 'INTRADAY') {
-                    svg += `<text x="${vx}" y="${vy - 10}" font-family="sans-serif" font-size="11" font-weight="900" fill="${dayColor}" text-anchor="middle">${val}</text>`;
+                    svg += `<text x="${vx}" y="${vy - 10}" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="10" font-weight="600" fill="${dayColor}" text-anchor="middle">${val}</text>`;
                 }
             }
         }
@@ -3104,6 +3104,66 @@ const Admin = {
         }
     },
 
+    _telemetryExportFrame: (widthPx, { title = '', subtitle = '' } = {}) => {
+        const esc = (s) => String(s || '').replace(/[&<>"']/g, (ch) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[ch]));
+        const root = document.createElement('div');
+        root.style.cssText = [
+            'position:fixed',
+            'left:-9999px',
+            'top:0',
+            `width:${Number(widthPx) || 600}px`,
+            'background:#F2F2F7',
+            'font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,sans-serif',
+            'padding:16px 18px 18px',
+            'color:#1c1c1e',
+            'height:auto',
+            'overflow:hidden',
+            'box-sizing:border-box',
+            '-webkit-font-smoothing:antialiased',
+        ].join(';');
+        if (title) {
+            const heading = document.createElement('div');
+            heading.className = 'nt-export-heading';
+            heading.style.cssText = 'padding:2px 4px 14px;';
+            const subtitleHtml = subtitle
+                ? `<div style="font-size:13px;font-weight:500;color:#8e8e93;margin-top:3px;">${esc(subtitle)}</div>`
+                : '';
+            heading.innerHTML = title === 'Live Telemetry'
+                ? `<div style="font-size:22px;font-weight:700;letter-spacing:-0.66px;color:#1c1c1e;">Live Telemetry</div>${subtitleHtml}`
+                : `<div style="font-size:22px;font-weight:700;letter-spacing:-0.66px;color:#1c1c1e;">${esc(title)}</div>${subtitleHtml}`;
+            root.appendChild(heading);
+        }
+        const card = document.createElement('div');
+        card.style.cssText = [
+            'background:#ffffff',
+            'border-radius:22px',
+            'padding:22px 22px 16px',
+            'box-shadow:0 1px 2px rgba(0,0,0,0.04),0 10px 28px rgba(0,0,0,0.06)',
+            'border:1px solid rgba(60,60,67,0.08)',
+        ].join(';');
+        root.appendChild(card);
+        return { root, card };
+    },
+
+    _telemetryExportFooterHtml: ({ kicker, detail } = {}) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding-top:14px;margin-top:8px;border-top:1px solid rgba(60,60,67,0.12);">
+                <div style="min-width:0;">
+                    <div style="font-size:13px;font-weight:600;letter-spacing:-0.24px;color:#1c1c1e;">${kicker || ''}</div>
+                    <div style="font-size:12px;font-weight:400;color:#8e8e93;margin-top:2px;">${detail || ''}</div>
+                </div>
+                <div style="text-align:right;flex-shrink:0;">
+                    <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;">
+                        <span style="width:18px;height:18px;border-radius:9px;background:#007AFF;display:inline-block;text-align:center;line-height:18px;">
+                            <svg width="10" height="10" viewBox="0 0 12 12" style="display:inline-block;vertical-align:middle;margin-top:-1px;" xmlns="http://www.w3.org/2000/svg"><path d="M2.1 6.2l2.5 2.5 5.3-5.4" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+                        </span>
+                        <span style="font-size:12px;font-weight:500;color:#8e8e93;">Google Analytics</span>
+                    </div>
+                    <div style="font-size:11px;font-weight:400;color:#aeaeb2;margin-top:4px;">nexttrain.co.za</div>
+                </div>
+            </div>`,
+
     exportTelemetry: async () => {
         if (typeof showToast === 'function') showToast("Generating Snapshot...", "info", 2000);
         
@@ -3137,65 +3197,25 @@ const Admin = {
         const now = new Date();
         const fullDateTimeStr = Admin.formatDate(now);
 
-        const exportContainer = document.createElement('div');
-        exportContainer.style.position = 'fixed';
-        exportContainer.style.left = '-9999px';
-        exportContainer.style.top = '0';
-        exportContainer.style.width = '600px';
-        exportContainer.style.backgroundColor = '#ffffff'; 
-        exportContainer.style.fontFamily = 'system-ui, -apple-system, sans-serif';
-        exportContainer.style.padding = '30px';
-        exportContainer.style.color = '#0f172a'; // slate-900
-        exportContainer.style.borderRadius = '16px';
-        
-        exportContainer.innerHTML = `
-            <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
-                <div>
-                    <h1 style="font-size: 24px; font-weight: 900; margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: -0.5px;">Live Telemetry Snapshot</h1>
-                    <p style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Metrorail Next Train</p>
-                </div>
+        const metricTile = (label, value) => `
+                <div style="background:#F2F2F7;padding:18px 8px 16px;border-radius:14px;text-align:center;">
+                    <div style="font-size:11px;font-weight:500;color:#8e8e93;letter-spacing:0.01em;margin-bottom:8px;">${label}</div>
+                    <div style="font-size:32px;font-weight:700;letter-spacing:-0.9px;color:#1c1c1e;line-height:1;font-variant-numeric:tabular-nums;">${value}</div>
+                </div>`;
+        const { root: exportContainer, card: exportCard } = Admin._telemetryExportFrame(600, {
+            title: 'Live Telemetry',
+            subtitle: 'Next Train',
+        });
+        exportCard.innerHTML = `
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px;">
+                ${metricTile('Last 5 min', stat5m)}
+                ${metricTile('Last 30 min', stat30m)}
+                ${metricTile('Today', statToday)}
+                ${metricTile('7 days', statWeekly)}
+                ${metricTile('30 days', statMonthly)}
+                ${metricTile('All-time', statAllTime)}
             </div>
-
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px;">
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Active (Last 5 Mins)</div>
-                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${stat5m}</div>
-                </div>
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Active (Last 30 Mins)</div>
-                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${stat30m}</div>
-                </div>
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Unique Users Today</div>
-                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${statToday}</div>
-                </div>
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">7 Days (WAU)</div>
-                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${statWeekly}</div>
-                </div>
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">30 Days (MAU)</div>
-                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${statMonthly}</div>
-                </div>
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 25px 10px; border-radius: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-                    <div style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">All-Time Users</div>
-                    <div style="font-size: 36px; font-weight: 900; color: #0f172a; line-height: 1;">${statAllTime}</div>
-                </div>
-            </div>
-
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <div style="font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 2px;">Exported by ${adminName}</div>
-                    <div style="font-size: 10px; font-weight: 600; color: #64748b;">${fullDateTimeStr}</div>
-                </div>
-                <div style="display: flex; flex-direction: column; align-items: flex-end;">
-                    <div style="display: flex; align-items: center; background: #ffffff; padding: 6px 12px; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                        <svg style="width: 14px; height: 14px; margin-right: 6px;" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm4 0h-2V7h2v10z" fill="#E37400"/></svg>
-                        <span style="font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px;">Verified by Google Analytics</span>
-                    </div>
-                    <div style="font-size: 10px; font-weight: 600; color: #64748b; margin-top: 6px; padding-right: 4px;">nexttrain.co.za</div>
-                </div>
-            </div>
+            ${Admin._telemetryExportFooterHtml({ kicker: `Exported by ${adminName}`, detail: fullDateTimeStr })}
         `;
 
         document.body.appendChild(exportContainer);
@@ -3205,8 +3225,14 @@ const Admin = {
 
             const canvas = await html2canvas(exportContainer, {
                 scale: 2,
-                backgroundColor: '#ffffff',
-                logging: false
+                backgroundColor: '#F2F2F7',
+                logging: false,
+                width: exportContainer.offsetWidth,
+                height: exportContainer.scrollHeight,
+                windowWidth: exportContainer.offsetWidth,
+                windowHeight: exportContainer.scrollHeight,
+                scrollX: 0,
+                scrollY: 0,
             });
 
             canvas.toBlob(async (blob) => {
@@ -3310,35 +3336,39 @@ const Admin = {
         const rawSvgNode = document.querySelector('#analytics-chart-svg-container svg');
         if (!rawSvgNode) return;
 
-        const exportContainer = document.createElement('div');
-        exportContainer.style.position = 'fixed';
-        exportContainer.style.left = '-9999px';
-        exportContainer.style.top = '0';
-        exportContainer.style.width = '700px';
-        exportContainer.style.backgroundColor = '#ffffff'; 
-        exportContainer.style.fontFamily = 'system-ui, -apple-system, sans-serif';
-        exportContainer.style.padding = '40px';
-        exportContainer.style.borderRadius = '16px';
-        
-        exportContainer.innerHTML = `
-            <div style="border-bottom: 3px solid #3b82f6; padding-bottom: 15px; margin-bottom: 30px;">
-                <h1 style="font-size: 26px; font-weight: 900; margin: 0; color: #1e3a8a; letter-spacing: -0.5px;">${titleText}</h1>
-                <p style="font-size: 12px; font-weight: 800; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Metrorail Next Train Telemetry</p>
-            </div>
-            <div id="export-svg-slot" style="height: 350px; margin-bottom: 28px;"></div>
-            <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:16px 2px 0;margin-top:8px;border-top:1px solid #e2e8f0;">
-                <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.04em;text-transform:uppercase;">Data via Google Analytics 4</div>
-                <div style="font-size:13px;font-weight:800;color:#334155;">Snapshot generated: ${Admin.formatDate(Date.now())}</div>
-            </div>
+        const { root: exportContainer, card: exportCard } = Admin._telemetryExportFrame(700, {
+            title: titleText,
+            subtitle: 'Next Train',
+        });
+        exportCard.innerHTML = `
+            <div id="export-svg-slot" style="height:268px;background:#F2F2F7;border-radius:16px;padding:10px 6px 4px;box-sizing:border-box;"></div>
+            ${Admin._telemetryExportFooterHtml({
+                kicker: `Snapshot generated: ${Admin.formatDate(Date.now())}`,
+                detail: 'Daily activity from Google Analytics'
+            })}
         `;
         
         // Deep clone the SVG into the export container to preserve all exact vector points
-        exportContainer.querySelector('#export-svg-slot').appendChild(rawSvgNode.cloneNode(true));
+        const svgClone = rawSvgNode.cloneNode(true);
+        svgClone.style.width = '100%';
+        svgClone.style.height = '100%';
+        svgClone.style.maxHeight = 'none';
+        exportCard.querySelector('#export-svg-slot').appendChild(svgClone);
         document.body.appendChild(exportContainer);
 
         try {
             await new Promise(r => setTimeout(r, 150)); 
-            const canvas = await html2canvas(exportContainer, { scale: 2, backgroundColor: '#ffffff', logging: false });
+            const canvas = await html2canvas(exportContainer, {
+                scale: 2,
+                backgroundColor: '#F2F2F7',
+                logging: false,
+                width: exportContainer.offsetWidth,
+                height: exportContainer.scrollHeight,
+                windowWidth: exportContainer.offsetWidth,
+                windowHeight: exportContainer.scrollHeight,
+                scrollX: 0,
+                scrollY: 0,
+            });
             
             canvas.toBlob(async (blob) => {
                 const timestampStr = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 12); 
@@ -5702,6 +5732,7 @@ const Admin = {
                 <div id="de-tabs-swipe" class="flex gap-1 p-0.5 bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 touch-pan-y">
                     <button type="button" id="de-tab-trips" class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm">Trip Plans</button>
                     <button type="button" id="de-tab-fails" class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md text-gray-500 dark:text-gray-400">Fails</button>
+                    <button type="button" id="de-tab-fares" class="flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md text-gray-500 dark:text-gray-400">Fares</button>
                 </div>
                 <div id="de-trip-filters" class="space-y-2">
                     <button type="button" id="de-filters-toggle" class="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 focus:outline-none">
@@ -5779,24 +5810,33 @@ const Admin = {
 
         const syncDeFiltersVisibility = () => {
             const wrap = document.getElementById('de-trip-filters');
-            if (!wrap) return;
-            if (Admin._deActiveTab === 'trips') wrap.classList.remove('hidden');
-            else wrap.classList.add('hidden');
+            if (wrap) {
+                if (Admin._deActiveTab === 'trips') wrap.classList.remove('hidden');
+                else wrap.classList.add('hidden');
+            }
+            const hideCluster = Admin._deActiveTab === 'fares';
+            const sortEl = document.getElementById('de-sort-btn');
+            const countEl = document.getElementById('de-count-mode-btn');
+            if (sortEl) sortEl.classList.toggle('hidden', hideCluster);
+            if (countEl) countEl.classList.toggle('hidden', hideCluster);
         };
 
         const setDeTab = (tab) => {
-            Admin._deActiveTab = tab === 'trips' ? 'trips' : 'fails';
+            Admin._deActiveTab = (tab === 'fails' || tab === 'fares') ? tab : 'trips';
             const failsBtn = document.getElementById('de-tab-fails');
             const tripsBtn = document.getElementById('de-tab-trips');
+            const faresBtn = document.getElementById('de-tab-fares');
             const active = 'flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm';
             const idle = 'flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-md text-gray-500 dark:text-gray-400';
             if (failsBtn) failsBtn.className = Admin._deActiveTab === 'fails' ? active : idle;
             if (tripsBtn) tripsBtn.className = Admin._deActiveTab === 'trips' ? active : idle;
+            if (faresBtn) faresBtn.className = Admin._deActiveTab === 'fares' ? active : idle;
             syncDeFiltersVisibility();
             Admin.fetchDeadEnds();
         };
         document.getElementById('de-tab-fails')?.addEventListener('click', () => setDeTab('fails'));
         document.getElementById('de-tab-trips')?.addEventListener('click', () => setDeTab('trips'));
+        document.getElementById('de-tab-fares')?.addEventListener('click', () => setDeTab('fares'));
         syncDeFiltersVisibility();
 
         document.getElementById('de-filters-toggle')?.addEventListener('click', () => {
@@ -5807,10 +5847,11 @@ const Admin = {
             chev?.classList.toggle('-rotate-90', !open);
         });
 
-        // Swipe between Fails ? Trip Plans (tabs + list surface)
+        // Swipe Trip Plans → Fails → Fares (tabs + list surface)
         const bindDeSwipe = (el) => {
             if (!el || el.dataset.deSwipeBound === '1') return;
             el.dataset.deSwipeBound = '1';
+            const order = ['trips', 'fails', 'fares'];
             let touchStartX = 0;
             el.addEventListener('touchstart', (e) => {
                 touchStartX = e.changedTouches?.[0]?.screenX || 0;
@@ -5819,8 +5860,9 @@ const Admin = {
                 const endX = e.changedTouches?.[0]?.screenX || 0;
                 const diffX = endX - touchStartX;
                 if (Math.abs(diffX) < 48) return;
-                if (diffX < 0 && Admin._deActiveTab === 'trips') setDeTab('fails');
-                else if (diffX > 0 && Admin._deActiveTab === 'fails') setDeTab('trips');
+                const idx = order.indexOf(Admin._deActiveTab);
+                if (diffX < 0 && idx < order.length - 1) setDeTab(order[idx + 1]);
+                else if (diffX > 0 && idx > 0) setDeTab(order[idx - 1]);
             }, { passive: true });
         };
         bindDeSwipe(document.getElementById('de-tabs-swipe'));
@@ -5927,6 +5969,51 @@ const Admin = {
 
                 if (Admin._deActiveTab === 'trips') {
                     await Admin.renderTripPlanBatches(listDiv, secret);
+                    return;
+                }
+
+                if (Admin._deActiveTab === 'fares') {
+                    const fareRes = await window.guardianFetch(`${dynamicEndpoint}sys_logs/fare_votes.json?auth=${secret}`, {}, 10000);
+                    if (!fareRes.ok) throw new Error("HTTP " + fareRes.status);
+                    const fareData = await fareRes.json();
+                    if (!fareData || typeof fareData !== 'object' || !Object.keys(fareData).length) {
+                        listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">No fare votes recorded.</div>';
+                        return;
+                    }
+                    Admin._cachedFareVotes = fareData;
+                    const secureEscape = (str) => {
+                        if (!str) return '';
+                        if (typeof escapeHTML === 'function') return escapeHTML(str);
+                        return String(str).replace(/[&<>"']/g, function(m) {
+                            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+                        });
+                    };
+                    const entries = Object.entries(fareData).map(([id, v]) => ({ id, ...(v || {}) }));
+                    entries.sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0));
+                    listDiv.innerHTML = '';
+                    entries.forEach((item) => {
+                        const card = document.createElement('div');
+                        card.className = "bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm";
+                        const quoted = item.quotedPrice != null ? `R${item.quotedPrice}` : '-';
+                        const reported = item.reportedPrice != null ? `R${item.reportedPrice}` : '-';
+                        const peakLabel = item.isOffPeak ? 'Off-peak' : 'Peak';
+                        const smoothKm = item.smoothKm ?? item.km;
+                        const abKm = item.abKm ?? item.crowKm;
+                        const kmLabel = `smooth ${smoothKm != null && smoothKm !== '' ? smoothKm : '-'} km · A-B ${abKm != null && abKm !== '' ? abKm : '-'} km`;
+                        const profileLabel = item.profile || 'Adult';
+                        const vsLabel = item.agree ? `${quoted} (yes)` : `${quoted} → ${reported}`;
+                        card.innerHTML = `
+                            <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${secureEscape(item.origin)} ${Admin.routeArrowSvg('inline-block w-3.5 h-3.5 mx-1 align-middle text-gray-400 shrink-0')} ${secureEscape(item.destination)}</div>
+                            <div class="flex flex-wrap items-center mt-1.5 gap-1.5">
+                                <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${item.agree ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200'}">${secureEscape(vsLabel)}</span>
+                                <span class="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">${secureEscape(peakLabel)}</span>
+                                <span class="text-[9px] text-gray-400 font-mono">${secureEscape(kmLabel)}</span>
+                                <span class="text-[9px] text-gray-500 font-bold">${secureEscape(profileLabel)}</span>
+                                <span class="text-[9px] text-gray-400 font-mono">${Admin.formatDate(item.at)}</span>
+                            </div>
+                        `;
+                        listDiv.appendChild(card);
+                    });
                     return;
                 }
 
@@ -6601,7 +6688,9 @@ const Admin = {
                 'Download export',
                 Admin._deActiveTab === 'trips'
                     ? 'Export the Trip Plans tab (respects current filters).'
-                    : 'Export the Fails tab.',
+                    : Admin._deActiveTab === 'fares'
+                        ? 'Export the Fares tab.'
+                        : 'Export the Fails tab.',
                 [
                     { id: 'txt', label: 'Text (.txt)', primary: true },
                     { id: 'csv', label: 'Excel (.csv)' },
@@ -6643,6 +6732,44 @@ const Admin = {
                 return;
             }
 
+            if (Admin._deActiveTab === 'fares') {
+                const votes = Admin._cachedFareVotes || {};
+                const entries = Object.entries(votes).map(([id, v]) => ({ id, ...(v || {}) }));
+                if (!entries.length) {
+                    if (typeof showToast === 'function') showToast('No fare votes to export', 'info');
+                    return;
+                }
+                entries.sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0));
+                const headers = ['at', 'origin', 'destination', 'quotedPrice', 'reportedPrice', 'agree', 'isOffPeak', 'dayType', 'depTime', 'profile', 'km', 'crowKm', 'smoothKm', 'abKm', 'zone', 'region', 'deviceId', 'authUid', 'appVersion', 'routeIds', 'id'];
+                const cell = (r, h) => {
+                    if (h === 'at') return Admin.formatDate(r.at);
+                    if (h === 'routeIds') return Array.isArray(r.routeIds) ? r.routeIds.join('|') : (r.routeIds || '');
+                    return r[h];
+                };
+                if (format === 'csv') {
+                    const esc = (v) => {
+                        const s = String(v ?? '');
+                        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+                    };
+                    const lines = [headers.join(',')];
+                    entries.forEach((r) => {
+                        lines.push(headers.map((h) => esc(cell(r, h))).join(','));
+                    });
+                    Admin.downloadFile(`fare_votes_${dateStr}.csv`, lines.join('\n'), 'text/csv;charset=utf-8');
+                } else {
+                    let txt = `NEXT TRAIN - FARE VOTES EXPORT\nExported: ${Admin.formatDate(Date.now())}\nRows: ${entries.length}\n${'='.repeat(48)}\n\n`;
+                    entries.forEach((r, i) => {
+                        txt += `#${i + 1}  ${Admin.formatDate(r.at)}\n`;
+                        txt += `  ${(r.origin || '-')} -> ${(r.destination || '-')}\n`;
+                        txt += `  Quoted: R${r.quotedPrice ?? '-'}  Reported: R${r.reportedPrice ?? '-'}  Agree: ${r.agree ? 'yes' : 'no'}\n`;
+                        txt += `  ${r.isOffPeak ? 'Off-peak' : 'Peak'} - ${r.dayType || '-'} - smooth ${r.smoothKm ?? r.km ?? '-'} km - A-B ${r.abKm ?? r.crowKm ?? '-'} km - ${r.profile || 'Adult'}\n\n`;
+                    });
+                    Admin.downloadFile(`fare_votes_${dateStr}.txt`, txt);
+                }
+                if (typeof showToast === 'function') showToast(`Downloaded ${entries.length} fare vote(s)`, 'success');
+                return;
+            }
+
             // Fails tab
             const fails = Admin._cachedRoutingFails || {};
             const entries = Object.entries(fails).map(([id, v]) => ({ id, ...(v || {}) }));
@@ -6681,8 +6808,16 @@ const Admin = {
         };
 
         clearBtn.onclick = async () => {
-            const path = Admin._deActiveTab === 'trips' ? 'sys_logs/trip_plans' : 'sys_logs/routing_fails';
-            const label = Admin._deActiveTab === 'trips' ? 'trip plan batches' : 'routing fail logs';
+            const path = Admin._deActiveTab === 'trips'
+                ? 'sys_logs/trip_plans'
+                : Admin._deActiveTab === 'fares'
+                    ? 'sys_logs/fare_votes'
+                    : 'sys_logs/routing_fails';
+            const label = Admin._deActiveTab === 'trips'
+                ? 'trip plan batches'
+                : Admin._deActiveTab === 'fares'
+                    ? 'fare votes'
+                    : 'routing fail logs';
             const confirmed = await Admin.confirmClearDb(`all ${label} from the server`);
             if (!confirmed) return;
             const secret = await Admin.getAuthKey();
@@ -8431,7 +8566,7 @@ const Admin = {
                 const secret = await Admin.getAuthKey();
                 if (!secret || !Admin.currentUser?.uid) throw new Error('Not signed in');
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-                const authQ = `?auth=${secret}`;
+                const authQ = `?auth=${encodeURIComponent(secret)}`;
                 const [activityRes, queueRes, seenRes] = await Promise.all([
                     window.guardianFetch(`${dynamicEndpoint}community_activity.json${authQ}`, {}, 8000),
                     window.guardianFetch(`${dynamicEndpoint}moderation_queue.json${authQ}`, {}, 8000),
@@ -8559,15 +8694,32 @@ const Admin = {
                     </div>`;
                 };
 
+                const communityAuthSuffix = async () => {
+                    const token = await Admin.getAuthKey();
+                    if (!token) throw new Error('Not signed in');
+                    return `?auth=${encodeURIComponent(token)}`;
+                };
+                const communityPostSelector = (postId) => {
+                    const id = String(postId || '');
+                    const safe = (typeof CSS !== 'undefined' && typeof CSS.escape === 'function')
+                        ? CSS.escape(id)
+                        : id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                    return `[data-community-post="${safe}"]`;
+                };
+
                 Admin._communityLoadRoute = async (details) => {
                     if (!details || details.dataset.loaded === 'true') return;
                     const routeId = details.dataset.communityRoute;
                     const target = details.querySelector('.community-route-conversation');
                     target.innerHTML = '<p class="py-3">Loading conversation...</p>';
-                    const routeRes = await window.guardianFetch(`${dynamicEndpoint}route_community/${encodeURIComponent(routeId)}/posts.json${authQ}`, {}, 8000);
+                    const routeAuthQ = await communityAuthSuffix();
+                    const routeRes = await window.guardianFetch(`${dynamicEndpoint}route_community/${encodeURIComponent(routeId)}/posts.json${routeAuthQ}`, {}, 8000);
                     if (!routeRes.ok) throw new Error(`Route load failed (${routeRes.status})`);
                     const postsData = await routeRes.json() || {};
-                    const posts = Object.values(postsData).sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+                    const posts = Object.entries(postsData).map(([key, post]) => ({
+                        ...(post && typeof post === 'object' ? post : {}),
+                        postId: (post && post.postId) || key,
+                    })).sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
                     const missingActivity = {};
                     posts.forEach((post) => {
                         if (post?.postId && post.body && !post.hidden && !post.pendingReview && !activityData?.[routeId]?.[post.postId]) {
@@ -8578,12 +8730,13 @@ const Admin = {
                                 timestamp: post.timestamp,
                             };
                         }
-                        Object.values(post?.replies || {}).forEach((reply) => {
-                            if (!reply?.replyId || !reply.body || reply.hidden || reply.pendingReview || activityData?.[routeId]?.[reply.replyId]) return;
-                            missingActivity[`community_activity/${routeId}/${reply.replyId}`] = {
+                        Object.entries(post?.replies || {}).forEach(([replyKey, reply]) => {
+                            const replyId = (reply && reply.replyId) || replyKey;
+                            if (!replyId || !reply?.body || reply.hidden || reply.pendingReview || activityData?.[routeId]?.[replyId]) return;
+                            missingActivity[`community_activity/${routeId}/${replyId}`] = {
                                 kind: 'reply',
                                 postId: post.postId,
-                                replyId: reply.replyId,
+                                replyId,
                                 uid: reply.uid,
                                 timestamp: reply.timestamp,
                             };
@@ -8591,7 +8744,8 @@ const Admin = {
                     });
                     if (Object.keys(missingActivity).length) {
                         try {
-                            const backfillRes = await fetch(`${dynamicEndpoint}.json${authQ}`, {
+                            const backfillAuthQ = await communityAuthSuffix();
+                            const backfillRes = await fetch(`${dynamicEndpoint}.json${backfillAuthQ}`, {
                                 method: 'PATCH',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(missingActivity),
@@ -8602,8 +8756,12 @@ const Admin = {
                         }
                     }
                     target.innerHTML = posts.length ? posts.map((post) => {
-                        const replies = Object.values(post.replies || {}).sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
-                        return `${renderMessage(post, routeId)}${replies.map((reply) => renderMessage({ ...reply, postId: post.postId }, routeId, true)).join('')}`;
+                        const replies = Object.entries(post.replies || {}).map(([replyKey, reply]) => ({
+                            ...(reply && typeof reply === 'object' ? reply : {}),
+                            replyId: (reply && reply.replyId) || replyKey,
+                            postId: post.postId,
+                        })).sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+                        return `${renderMessage(post, routeId)}${replies.map((reply) => renderMessage(reply, routeId, true)).join('')}`;
                     }).join('') : '<p class="py-3">No published messages on this route.</p>';
                     details.dataset.loaded = 'true';
                     details.dataset.communitySearch += ` ${esc(posts.map((post) => [post.body, ...Object.values(post.replies || {}).map((reply) => reply.body)].join(' ')).join(' ').toLowerCase())}`;
@@ -8612,7 +8770,8 @@ const Admin = {
                 const markRouteSeen = async (details) => {
                     const routeId = details.dataset.communityRoute;
                     const seenAt = Date.now();
-                    const seenRes = await fetch(`${dynamicEndpoint}admin_state/${encodeURIComponent(Admin.currentUser.uid)}/community_seen/${encodeURIComponent(routeId)}.json${authQ}`, {
+                    const seenAuthQ = await communityAuthSuffix();
+                    const seenRes = await fetch(`${dynamicEndpoint}admin_state/${encodeURIComponent(Admin.currentUser.uid)}/community_seen/${encodeURIComponent(routeId)}.json${seenAuthQ}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(seenAt),
@@ -8659,40 +8818,43 @@ const Admin = {
 
                 Admin.deletePublishedCommunityMessage = async (routeId, postId, replyId) => {
                     if (!routeId || !postId) throw new Error('Missing route/post id');
-                    const updates = {};
+                    const authQ = await communityAuthSuffix();
+                    const postPath = `route_community/${encodeURIComponent(routeId)}/posts/${encodeURIComponent(postId)}`;
+                    const deleteJson = async (path) => {
+                        const res = await fetch(`${dynamicEndpoint}${path}.json${authQ}`, { method: 'DELETE' });
+                        if (!res.ok && res.status !== 404) throw new Error(`Delete failed (${res.status})`);
+                        return res;
+                    };
                     if (replyId) {
-                        updates[`route_community/${routeId}/posts/${postId}/replies/${replyId}`] = null;
-                        updates[`community_activity/${routeId}/${replyId}`] = null;
-                    } else {
-                        updates[`route_community/${routeId}/posts/${postId}`] = null;
-                        updates[`community_activity/${routeId}/${postId}`] = null;
-                        try {
-                            const postRes = await window.guardianFetch(`${dynamicEndpoint}route_community/${encodeURIComponent(routeId)}/posts/${encodeURIComponent(postId)}.json${authQ}`, {}, 6000);
-                            const post = postRes.ok ? await postRes.json() : null;
-                            Object.keys(post?.replies || {}).forEach((id) => {
-                                updates[`community_activity/${routeId}/${id}`] = null;
-                            });
-                        } catch (e) {
-                            console.warn('Community delete reply-index read failed', e);
-                        }
+                        await deleteJson(`${postPath}/replies/${encodeURIComponent(replyId)}`);
+                        await deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(replyId)}`).catch(() => {});
+                        return;
                     }
-                    const del = await fetch(`${dynamicEndpoint}.json${authQ}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updates),
-                    });
-                    if (!del.ok) throw new Error(`Delete failed (${del.status})`);
+                    let replyIds = [];
+                    try {
+                        const postRes = await window.guardianFetch(`${dynamicEndpoint}${postPath}.json${authQ}`, {}, 6000);
+                        const post = postRes.ok ? await postRes.json() : null;
+                        replyIds = Object.keys(post?.replies || {});
+                    } catch (e) {
+                        console.warn('Community delete reply-index read failed', e);
+                    }
+                    await deleteJson(postPath);
+                    await deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(postId)}`).catch(() => {});
+                    await Promise.all(replyIds.map((id) =>
+                        deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(id)}`).catch(() => {})
+                    ));
                 };
 
-                list.addEventListener('click', async (event) => {
+                list.onclick = async (event) => {
                     const hide = event.target.closest?.('.cm-hide-message');
                     if (hide) {
                         event.preventDefault();
                         const routeId = hide.dataset.route;
                         const postId = hide.dataset.post;
                         const replyId = hide.dataset.reply;
+                        const hideAuthQ = await communityAuthSuffix();
                         const path = `route_community/${encodeURIComponent(routeId)}/posts/${encodeURIComponent(postId)}${replyId ? `/replies/${encodeURIComponent(replyId)}` : ''}/hidden.json`;
-                        const put = await fetch(`${dynamicEndpoint}${path}${authQ}`, { method: 'PUT', body: 'true' });
+                        const put = await fetch(`${dynamicEndpoint}${path}${hideAuthQ}`, { method: 'PUT', body: 'true' });
                         if (put.ok) {
                             hide.closest('[data-community-message]')?.classList.add('opacity-50', 'ring-1', 'ring-red-400');
                             if (typeof showToast === 'function') showToast('Message hidden', 'success');
@@ -8716,7 +8878,7 @@ const Admin = {
                             if (replyId) {
                                 card?.remove();
                             } else {
-                                list.querySelectorAll(`[data-community-post="${CSS.escape(String(postId || ''))}"]`).forEach((el) => el.remove());
+                                list.querySelectorAll(communityPostSelector(postId)).forEach((el) => el.remove());
                             }
                             if (typeof showToast === 'function') showToast('Message deleted', 'success');
                         } catch (e) {
@@ -8730,7 +8892,7 @@ const Admin = {
                         event.preventDefault();
                         await Admin.applyShadowBan(ban.dataset.uid);
                     }
-                });
+                };
 
                 list.querySelectorAll('.mq-close').forEach((btn) => {
                     btn.onclick = async () => {
