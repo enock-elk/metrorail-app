@@ -2,6 +2,18 @@
       @media (max-width: 639px) {
         html { font-size: clamp(13.12px, calc(100vw * 16 / 390), 16px); }
       }
+      /* Same iOS 16px field floor as Layout.astro. Do not lock the viewport. */
+      input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+      textarea,
+      select {
+        font-size: max(16px, 1em) !important;
+      }
+      input.text-lg, textarea.text-lg, select.text-lg {
+        font-size: max(16px, 1.125rem) !important;
+      }
+      input.text-base, textarea.text-base, select.text-base {
+        font-size: max(16px, 1rem) !important;
+      }
     </style><style>
   #nt-recovery-lifeline { display: none !important; }
   html[data-nt-shell="broken"] #nt-recovery-lifeline { display: block !important; }
@@ -396,7 +408,7 @@ const seoRouteId = "";
         }, 3500);
       });
     </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"Western Cape Metrorail Timetables | Metrorail Next Train","description":"Cape Town Central, Northern, Southern, Cape Flats and Malmesbury line schedules. Browse corridor pages, view the regional network map, and open the live Metrorail Next Train board.","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.Cp5n5Uzr.css">
-<link rel="stylesheet" href="/_astro/account-delete.___DsH-1.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <p style="margin:0 0 0.75rem;font-size:1.375rem;font-weight:700;line-height:1.2;">Next Train could not finish updating</p> <p>
+<link rel="stylesheet" href="/_astro/account-delete.CKDVT_kp.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <p style="margin:0 0 0.75rem;font-size:1.375rem;font-weight:700;line-height:1.2;">Next Train could not finish updating</p> <p>
 This device is holding an old copy of the app. Open
 <a href="/help.html" rel="nofollow">Reset and Recover</a>
 to clear it and load the current version.

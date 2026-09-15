@@ -340,8 +340,13 @@
         const RAIL_SKIP_STATION_M = 90;
         /** Reject an OSM hop that leaves the station-to-station corridor. */
         const RAIL_HOP_STRAY_M = 600;
-        /** A baked line must pass this close to every station on the route. */
-        const RAIL_BAKED_COVER_M = 450;
+        /**
+         * How near the baked line must pass a station before we accept it as
+         * this corridor. Station pins sit beside the track (Mutual is 1.5 km
+         * out), and smooth rail matters more than touching the pin, so this only
+         * has to reject a line belonging to a different corridor.
+         */
+        const RAIL_BAKED_COVER_M = 2000;
         /** Longest edge accepted from a baked line when rebuilding the graph. */
         const RAIL_MAX_BAKED_EDGE_M = 6000;
         /** Rail doubling back at a junction may nudge station order by this much. */
@@ -726,23 +731,83 @@
         }
 
         /**
+         * KZN geometry is kept exactly as it paints today, by request. Its only
+         * ghost rows are Durban Yard (plus Poet's Corner / Sarnia on Pinetown),
+         * and the Berea Road corridor forks at Duff's Road for the kwaMashu and
+         * Bridge City branches, so that shape is deliberate rather than damage.
+         */
+        const GHOST_GEOMETRY_REGIONS = new Set(['KZN']);
+
+        /**
+         * Which stops define this corridor's shape.
+         *
+         * A timetable sheet carries the whole line's station skeleton but only
+         * one corridor's train columns. The WC Northern Line sheets list all
+         * three branches, so `well_to_ct_weekday` has rows for Stellenbosch and
+         * Strand even though no Wellington train (3500-3516) calls there. Those
+         * rows have no times, and the route assembly already flags them
+         * `inactive` -- it just kept painting through them, which is why Cape
+         * Town <-> Wellington ran STIKLAND -> DU TOIT -> Stellenbosch -> Strand
+         * -> Kuils River -> BELLVILLE instead of STIKLAND -> BELLVILLE.
+         *
+         * The bake drops those rows (`hasTimes`), and the served stops then match
+         * the baked corridor exactly on every GP, WC and EC route. Painting the
+         * served stops is what keeps the map and the bake describing one line.
+         * Ghost rows still register as `geometryStations` for disruption paths.
+         */
+        /**
+         * A corridor also forks. One Nolungile working (train 9408 of 10) detours
+         * Stock Road -> Kapteinsklip -> Mitchell's Plain -> Lentegeur and rejoins
+         * at Philippi, exactly as the KZN Berea Road line forks at Duff's Road
+         * for Bridge City. Those three stops are on a branch, not on the corridor,
+         * and painting them dragged Cape Town <-> Nolungile out to Kapteinsklip.
+         *
+         * A stop carried by a single train on a sheet that runs several is a
+         * branch or an extension working rather than part of the line's shape.
+         * It keeps its marker and its own route; it just does not bend this one.
+         */
+        const BRANCH_TRAIN_THRESHOLD = 2;
+        const MIN_TRAINS_TO_JUDGE = 4;
+
+        function corridorGeometryStops(routeObj) {
+            const all = routeObj.validStops || [];
+            if (GHOST_GEOMETRY_REGIONS.has(routeObj.region)) return all;
+            const served = all.filter((s) => s && !s.inactive);
+            if (served.length < 2) return all;
+            if (!(routeObj.trainCount >= MIN_TRAINS_TO_JUDGE)) return served;
+            const corridor = served.filter((s) => (
+                !Number.isFinite(s.servedTrains) || s.servedTrains >= BRANCH_TRAIN_THRESHOLD
+            ));
+            return corridor.length > 1 ? corridor : served;
+        }
+
+        /**
          * Strict paint rule: consecutive stations in route order.
          * OSM may only fill the hop between station i and i+1 (no shortcuts, no skips).
          */
         function resolveRouteLatLngs(routeObj, trackBundle) {
-            const stops = routeObj.validStops || [];
+            const stops = corridorGeometryStops(routeObj);
             const chords = (stops.length > 1)
                 ? stops.map((s) => [s.lat, s.lon])
                 : (routeObj.coords || []);
             const bundle = trackBundle || { byId: new Map(), graph: null };
             const baked = bundle.byId && bundle.byId.get(routeObj.routeId);
+            const held = GHOST_GEOMETRY_REGIONS.has(routeObj.region);
+            const bakedIsUsable = baked && baked.length > 1 && bakedLineCoversStops(baked, stops);
+
+            // The baked corridor is one continuous OSM line for exactly this
+            // route, so it is the smoothest thing we can draw. Re-deriving it
+            // hop by hop re-enters yard throats the bake already routed around,
+            // which is where Cape Town <-> Wellington picked up 574 m, 376 m and
+            // 142 m kinks that are not in the bake. Held regions keep today's
+            // order because their bakes are the ones carrying the kinks.
+            if (!held && bakedIsUsable) return baked;
+
             if (bundle.graph) {
                 const smoothed = smoothStopsOnRailGraph(bundle.graph, stops, baked);
                 if (smoothed && smoothed.length > 1) return smoothed;
             }
-            if (baked && baked.length > 1 && bakedLineCoversStops(baked, stops)) {
-                return baked;
-            }
+            if (bakedIsUsable) return baked;
             return chords;
         }
 
@@ -1261,7 +1326,10 @@
                 const iMut = names.indexOf('MUTUAL');
                 const iMai = names.indexOf('MAITLAND');
                 const insertAt = (idx, name, coord) => {
-                    validStops.splice(idx, 0, { name, lat: coord[0], lon: coord[1] });
+                    // Geometry only. No Cape Flats train calls at Mutual, so letting
+                    // this stand as a served stop made Mutual's popup claim the
+                    // Cape Town <-> Retreat route.
+                    validStops.splice(idx, 0, { name, lat: coord[0], lon: coord[1], inactive: true, servedTrains: 0 });
                     routeCoords.splice(idx, 0, coord);
                     if (!globalStations[name]) {
                         globalStations[name] = { lat: coord[0], lon: coord[1], origName: name, routes: new Set() };
@@ -1290,7 +1358,7 @@
                 for (const name of names) {
                     const s = byName.get(name);
                     if (!s) continue;
-                    ordered.push({ name: s.name, lat: s.lat, lon: s.lon, inactive: !!s.inactive });
+                    ordered.push({ name: s.name, lat: s.lat, lon: s.lon, inactive: !!s.inactive, servedTrains: s.servedTrains });
                     if (s.inactive) {
                         geometryStations[s.name] = { lat: s.lat, lon: s.lon };
                         continue;
@@ -1327,6 +1395,7 @@
                 let routeCoords = [];
                 let validStops = [];
                 let extractedDynamically = false;
+                const sheetTrainKeys = new Set();
 
                 if (sheetData && Array.isArray(sheetData)) {
                     let stationKey = 'STATION';
@@ -1358,7 +1427,10 @@
                         const sNameOrig = String(row[stationKey]).trim();
                         if (sNameOrig.toLowerCase().includes('last updated') || sNameOrig.toLowerCase().includes('inter-station')) continue;
 
-                        const hasData = Object.keys(row).some(k => k !== stationKey && k !== coordKey && k !== 'KM_MARK' && k !== 'row_index' && row[k] && String(row[k]).trim() !== "" && String(row[k]).trim() !== "-");
+                        const trainKeys = Object.keys(row).filter(k => k !== stationKey && k !== coordKey && k !== 'KM_MARK' && k !== 'row_index');
+                        trainKeys.forEach(k => sheetTrainKeys.add(k));
+                        const servedTrains = trainKeys.filter(k => row[k] && String(row[k]).trim() !== "" && String(row[k]).trim() !== "-").length;
+                        const hasData = servedTrains > 0;
 
                         const sName = sNameOrig.replace(/ STATION/gi, '').toUpperCase();
 
@@ -1383,7 +1455,7 @@
 
                         if (lat !== null && lon !== null) {
                             routeCoords.push([lat, lon]);
-                            validStops.push({ name: sName, lat: lat, lon: lon, inactive: !hasData });
+                            validStops.push({ name: sName, lat: lat, lon: lon, inactive: !hasData, servedTrains });
                             if (hasData) {
                                 if (!globalStations[sName]) {
                                     globalStations[sName] = { lat, lon, origName: sNameOrig, routes: new Set() };
@@ -1442,6 +1514,8 @@
                          name: route.name.replace(/<->/g, '↔'),
                          color: colorMap[route.colorClass] || '#9ca3af',
                          isActive: route.isActive,
+                         region: route.region,
+                         trainCount: sheetTrainKeys.size,
                          coords: routeCoords,
                          validStops: validStops
                      });
