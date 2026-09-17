@@ -232,27 +232,36 @@ const seoSlug = "";
 const seoRegion = "";
 const seoCorridor = "";
 const seoRouteId = "";
+const trackSeo = true;
 
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       var TWA_PACKAGE = 'za.co.nexttrain.app';
+      function persistTwa(pkg) {
+        pkg = pkg || TWA_PACKAGE;
+        try {
+          sessionStorage.setItem('nt_twa', '1');
+          sessionStorage.setItem('nt_twa_package', pkg);
+          localStorage.setItem('nt_twa', '1');
+          localStorage.setItem('nt_twa_package', pkg);
+        } catch (e) {}
+        return pkg;
+      }
       function detectAppClient() {
         var ref = String(document.referrer || '');
         var pkg = '';
-        try { pkg = sessionStorage.getItem('nt_twa_package') || ''; } catch (e) {}
         var isTwa = false;
-        try { isTwa = sessionStorage.getItem('nt_twa') === '1'; } catch (e) {}
+        try {
+          pkg = sessionStorage.getItem('nt_twa_package') || localStorage.getItem('nt_twa_package') || '';
+          isTwa = sessionStorage.getItem('nt_twa') === '1' || localStorage.getItem('nt_twa') === '1';
+        } catch (e) {}
         if (ref.indexOf('android-app://') === 0) {
-          isTwa = true;
           var m = ref.match(/^android-app:\/\/([^/]+)/);
           if (m) pkg = m[1];
-          try {
-            sessionStorage.setItem('nt_twa', '1');
-            if (pkg) sessionStorage.setItem('nt_twa_package', pkg);
-          } catch (e) {}
+          pkg = persistTwa(pkg || TWA_PACKAGE);
+          return { app_source: 'twa', twa_package: pkg };
         }
-        if (!pkg && isTwa) pkg = TWA_PACKAGE;
-        if (isTwa) return { app_source: 'twa', twa_package: pkg || TWA_PACKAGE };
+        if (isTwa) return { app_source: 'twa', twa_package: persistTwa(pkg || TWA_PACKAGE) };
         var standalone = false;
         try {
           if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) standalone = true;
@@ -276,23 +285,26 @@ const seoRouteId = "";
         app_client: client.app_source,
         twa_package: client.twa_package || ''
       };
-      // Stable SEO dimensions on every page_view for this document.
-      if (seoPageType) gaConfig['seo_page_type'] = String(seoPageType);
-      if (seoSlug) gaConfig['seo_slug'] = String(seoSlug);
-      if (seoRegion) gaConfig['seo_region'] = String(seoRegion);
-      else gaConfig['seo_region'] = userRegion;
-      if (seoCorridor) gaConfig['seo_corridor'] = String(seoCorridor);
-      if (seoRouteId) gaConfig['seo_route_id'] = String(seoRouteId);
+      gaConfig['app_source'] = client.app_source;
+      gaConfig['twa_package'] = client.twa_package || '';
+      // SEO dimensions only on crawlable landings. Map/guide skip this (in-app).
+      if (trackSeo) {
+        if (seoPageType) gaConfig['seo_page_type'] = String(seoPageType);
+        if (seoSlug) gaConfig['seo_slug'] = String(seoSlug);
+        if (seoRegion) gaConfig['seo_region'] = String(seoRegion);
+        else gaConfig['seo_region'] = userRegion;
+        if (seoCorridor) gaConfig['seo_corridor'] = String(seoCorridor);
+        if (seoRouteId) gaConfig['seo_route_id'] = String(seoRouteId);
+      }
       window.__ntGaConfig = gaConfig;
       window.__ntAppClient = client;
       var pageType = seoPageType || '';
-      if (!pageType) {
+      if (trackSeo && !pageType) {
         var pathName = String((typeof location !== 'undefined' && location.pathname) || '');
-        if (/guide\.html?$/i.test(pathName)) pageType = 'guide';
-        else if (/map\.html?$/i.test(pathName)) pageType = 'map';
-        else if (/status\.html?$/i.test(pathName)) pageType = 'status';
+        if (/status\.html?$/i.test(pathName)) pageType = 'status';
         else if (/routes\.html?$/i.test(pathName)) pageType = 'routes_index';
         else if (/\/routes\//i.test(pathName)) pageType = 'route';
+        else if (/western-cape-public-holidays/i.test(pathName)) pageType = 'region_holidays';
         else if (/\/regions\//i.test(pathName)) pageType = 'region';
         else if (/\/corridors\//i.test(pathName)) pageType = 'corridor';
         else pageType = 'content';
@@ -321,9 +333,8 @@ const seoRouteId = "";
           window.__ntGaReady = true;
           try { window.dispatchEvent(new Event('nt-ga-ready')); } catch (e) {}
           try {
-            if (typeof gtag === 'function') {
-              gtag('event', 'View_astro_pages', window.__ntSeoAnalytics || {});
-              if (pageType) gtag('event', 'seo_page_view', window.__ntSeoAnalytics || {});
+            if (trackSeo && pageType && typeof gtag === 'function') {
+              gtag('event', 'seo_page_view', window.__ntSeoAnalytics || {});
             }
           } catch (e) {}
         };
@@ -339,6 +350,7 @@ const seoSlug = "";
 const seoRegion = "";
 const seoCorridor = "";
 const seoRouteId = "";
+const trackSeo = true;
 
       var bootClarity = function () {
         if (window.__ntClarityBooted) return;
@@ -358,7 +370,7 @@ const seoRouteId = "";
             clarity('identify', id);
             clarity('set', 'custom_id', id);
           }
-          if (typeof clarity === 'function') {
+          if (typeof clarity === 'function' && trackSeo) {
             var analytics = window.__ntSeoAnalytics || {};
             if (analytics.page_type) clarity('set', 'seo_page_type', String(analytics.page_type));
             if (seoSlug) clarity('set', 'seo_slug', String(seoSlug));
@@ -367,7 +379,6 @@ const seoRouteId = "";
             if (seoRouteId) clarity('set', 'seo_route_id', String(seoRouteId));
             if (analytics.app_source) clarity('set', 'app_client', String(analytics.app_source));
             if (analytics.twa_package) clarity('set', 'twa_package', String(analytics.twa_package));
-            clarity('event', 'View_astro_pages');
             if (analytics.page_type) clarity('event', 'seo_page_view');
           }
         } catch (e) {}
@@ -407,7 +418,7 @@ const seoRouteId = "";
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><link rel="stylesheet" href="/_astro/vendor.DHkQZdfb.css">
+    </script><link rel="stylesheet" href="/_astro/vendor.DkFQdkBM.css">
 <link rel="stylesheet" href="/_astro/account-delete.Gtlc6L8G.css">
 <style>body.marketing-body{-webkit-print-color-adjust:exact;print-color-adjust:exact;background-color:#f3f4f6}.bg-grid-pattern{background-image:linear-gradient(to right,rgba(0,0,0,.05) 1px,transparent 1px),linear-gradient(to bottom,rgba(0,0,0,.05) 1px,transparent 1px);background-size:20px 20px}.bg-dot-pattern{background-image:radial-gradient(#60a5fa 1px,transparent 1px);background-size:20px 20px}@media print{body.marketing-body{background:#fff}.no-print{display:none}.print-page{-moz-column-break-inside:avoid;break-inside:avoid;page-break-inside:avoid;box-shadow:none!important;border:1px solid #ccc;margin-bottom:20px}}
 </style></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300 marketing-body p-8 text-gray-800"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <p style="margin:0 0 0.75rem;font-size:1.375rem;font-weight:700;line-height:1.2;">Next Train could not finish updating</p> <p>

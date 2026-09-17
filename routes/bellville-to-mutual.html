@@ -232,27 +232,36 @@ const seoSlug = "bellville-to-mutual";
 const seoRegion = "WC";
 const seoCorridor = "Northern Line";
 const seoRouteId = "bellville-mutual";
+const trackSeo = true;
 
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       var TWA_PACKAGE = 'za.co.nexttrain.app';
+      function persistTwa(pkg) {
+        pkg = pkg || TWA_PACKAGE;
+        try {
+          sessionStorage.setItem('nt_twa', '1');
+          sessionStorage.setItem('nt_twa_package', pkg);
+          localStorage.setItem('nt_twa', '1');
+          localStorage.setItem('nt_twa_package', pkg);
+        } catch (e) {}
+        return pkg;
+      }
       function detectAppClient() {
         var ref = String(document.referrer || '');
         var pkg = '';
-        try { pkg = sessionStorage.getItem('nt_twa_package') || ''; } catch (e) {}
         var isTwa = false;
-        try { isTwa = sessionStorage.getItem('nt_twa') === '1'; } catch (e) {}
+        try {
+          pkg = sessionStorage.getItem('nt_twa_package') || localStorage.getItem('nt_twa_package') || '';
+          isTwa = sessionStorage.getItem('nt_twa') === '1' || localStorage.getItem('nt_twa') === '1';
+        } catch (e) {}
         if (ref.indexOf('android-app://') === 0) {
-          isTwa = true;
           var m = ref.match(/^android-app:\/\/([^/]+)/);
           if (m) pkg = m[1];
-          try {
-            sessionStorage.setItem('nt_twa', '1');
-            if (pkg) sessionStorage.setItem('nt_twa_package', pkg);
-          } catch (e) {}
+          pkg = persistTwa(pkg || TWA_PACKAGE);
+          return { app_source: 'twa', twa_package: pkg };
         }
-        if (!pkg && isTwa) pkg = TWA_PACKAGE;
-        if (isTwa) return { app_source: 'twa', twa_package: pkg || TWA_PACKAGE };
+        if (isTwa) return { app_source: 'twa', twa_package: persistTwa(pkg || TWA_PACKAGE) };
         var standalone = false;
         try {
           if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) standalone = true;
@@ -276,23 +285,26 @@ const seoRouteId = "bellville-mutual";
         app_client: client.app_source,
         twa_package: client.twa_package || ''
       };
-      // Stable SEO dimensions on every page_view for this document.
-      if (seoPageType) gaConfig['seo_page_type'] = String(seoPageType);
-      if (seoSlug) gaConfig['seo_slug'] = String(seoSlug);
-      if (seoRegion) gaConfig['seo_region'] = String(seoRegion);
-      else gaConfig['seo_region'] = userRegion;
-      if (seoCorridor) gaConfig['seo_corridor'] = String(seoCorridor);
-      if (seoRouteId) gaConfig['seo_route_id'] = String(seoRouteId);
+      gaConfig['app_source'] = client.app_source;
+      gaConfig['twa_package'] = client.twa_package || '';
+      // SEO dimensions only on crawlable landings. Map/guide skip this (in-app).
+      if (trackSeo) {
+        if (seoPageType) gaConfig['seo_page_type'] = String(seoPageType);
+        if (seoSlug) gaConfig['seo_slug'] = String(seoSlug);
+        if (seoRegion) gaConfig['seo_region'] = String(seoRegion);
+        else gaConfig['seo_region'] = userRegion;
+        if (seoCorridor) gaConfig['seo_corridor'] = String(seoCorridor);
+        if (seoRouteId) gaConfig['seo_route_id'] = String(seoRouteId);
+      }
       window.__ntGaConfig = gaConfig;
       window.__ntAppClient = client;
       var pageType = seoPageType || '';
-      if (!pageType) {
+      if (trackSeo && !pageType) {
         var pathName = String((typeof location !== 'undefined' && location.pathname) || '');
-        if (/guide\.html?$/i.test(pathName)) pageType = 'guide';
-        else if (/map\.html?$/i.test(pathName)) pageType = 'map';
-        else if (/status\.html?$/i.test(pathName)) pageType = 'status';
+        if (/status\.html?$/i.test(pathName)) pageType = 'status';
         else if (/routes\.html?$/i.test(pathName)) pageType = 'routes_index';
         else if (/\/routes\//i.test(pathName)) pageType = 'route';
+        else if (/western-cape-public-holidays/i.test(pathName)) pageType = 'region_holidays';
         else if (/\/regions\//i.test(pathName)) pageType = 'region';
         else if (/\/corridors\//i.test(pathName)) pageType = 'corridor';
         else pageType = 'content';
@@ -321,9 +333,8 @@ const seoRouteId = "bellville-mutual";
           window.__ntGaReady = true;
           try { window.dispatchEvent(new Event('nt-ga-ready')); } catch (e) {}
           try {
-            if (typeof gtag === 'function') {
-              gtag('event', 'View_astro_pages', window.__ntSeoAnalytics || {});
-              if (pageType) gtag('event', 'seo_page_view', window.__ntSeoAnalytics || {});
+            if (trackSeo && pageType && typeof gtag === 'function') {
+              gtag('event', 'seo_page_view', window.__ntSeoAnalytics || {});
             }
           } catch (e) {}
         };
@@ -339,6 +350,7 @@ const seoSlug = "bellville-to-mutual";
 const seoRegion = "WC";
 const seoCorridor = "Northern Line";
 const seoRouteId = "bellville-mutual";
+const trackSeo = true;
 
       var bootClarity = function () {
         if (window.__ntClarityBooted) return;
@@ -358,7 +370,7 @@ const seoRouteId = "bellville-mutual";
             clarity('identify', id);
             clarity('set', 'custom_id', id);
           }
-          if (typeof clarity === 'function') {
+          if (typeof clarity === 'function' && trackSeo) {
             var analytics = window.__ntSeoAnalytics || {};
             if (analytics.page_type) clarity('set', 'seo_page_type', String(analytics.page_type));
             if (seoSlug) clarity('set', 'seo_slug', String(seoSlug));
@@ -367,7 +379,6 @@ const seoRouteId = "bellville-mutual";
             if (seoRouteId) clarity('set', 'seo_route_id', String(seoRouteId));
             if (analytics.app_source) clarity('set', 'app_client', String(analytics.app_source));
             if (analytics.twa_package) clarity('set', 'twa_package', String(analytics.twa_package));
-            clarity('event', 'View_astro_pages');
             if (analytics.page_type) clarity('event', 'seo_page_view');
           }
         } catch (e) {}
@@ -407,7 +418,7 @@ const seoRouteId = "bellville-mutual";
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebPage","name":"Bellville ↔ Mutual Train Schedule & Times | Metrorail Next Train","description":"Check Metrorail train times between Bellville and Mutual (Western Cape), including trains from Bellville to Mutual and Mutual to Bellville. Stops include Bellville, Pentech, Unibell, Belhar, Langa and Mutual. Saturday train times are listed on this page. No Sunday service.","url":"https://nexttrain.co.za/routes/bellville-to-mutual.html","about":"Bellville ↔ Mutual","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What time is the first weekday train from Bellville to Mutual?","acceptedAnswer":{"@type":"Answer","text":"The first weekday train toward Mutual arrives at 6:05. The last arrives at 18:50. Times include trains that join along the line, not only those that start at Bellville. They are the published Metrorail weekday timetable, not a live countdown."}},{"@type":"Question","name":"What time is the first weekday train from Mutual to Bellville?","acceptedAnswer":{"@type":"Answer","text":"The first weekday train toward Bellville arrives at 6:05. The last arrives at 19:30. Times include trains that join along the line, not only those that start at Mutual. They are the published Metrorail weekday timetable, not a live countdown."}},{"@type":"Question","name":"Do Metrorail trains run on Sunday on Bellville to Mutual?","acceptedAnswer":{"@type":"Answer","text":"Metrorail generally does not run on Sundays. Public holidays vary: some follow a Saturday/holiday timetable; others have no service. Confirm the day type in Next Train before you travel."}},{"@type":"Question","name":"Is there a Saturday timetable for Bellville to Mutual?","acceptedAnswer":{"@type":"Answer","text":"Yes. A Saturday sheet is published for this corridor. Open the Saturday section on this page, or the live board in Next Train."}}]},{"@type":"ItemList","name":"Weekday departures from Bellville to Mutual","numberOfItems":14,"itemListElement":[{"@type":"ListItem","position":1,"name":"5:35"},{"@type":"ListItem","position":2,"name":"6:15"},{"@type":"ListItem","position":3,"name":"7:05"},{"@type":"ListItem","position":4,"name":"8:35"},{"@type":"ListItem","position":5,"name":"9:10"},{"@type":"ListItem","position":6,"name":"10:25"},{"@type":"ListItem","position":7,"name":"11:50"},{"@type":"ListItem","position":8,"name":"12:50"},{"@type":"ListItem","position":9,"name":"13:15"},{"@type":"ListItem","position":10,"name":"14:45"},{"@type":"ListItem","position":11,"name":"15:40"},{"@type":"ListItem","position":12,"name":"16:25"},{"@type":"ListItem","position":13,"name":"17:40"},{"@type":"ListItem","position":14,"name":"18:20"}]},{"@type":"ItemList","name":"Weekday departures from Mutual to Bellville","numberOfItems":14,"itemListElement":[{"@type":"ListItem","position":1,"name":"5:35"},{"@type":"ListItem","position":2,"name":"6:25"},{"@type":"ListItem","position":3,"name":"6:55"},{"@type":"ListItem","position":4,"name":"7:55"},{"@type":"ListItem","position":5,"name":"9:15"},{"@type":"ListItem","position":6,"name":"9:45"},{"@type":"ListItem","position":7,"name":"11:05"},{"@type":"ListItem","position":8,"name":"12:30"},{"@type":"ListItem","position":9,"name":"14:00"},{"@type":"ListItem","position":10,"name":"15:40"},{"@type":"ListItem","position":11,"name":"16:50"},{"@type":"ListItem","position":12,"name":"17:20"},{"@type":"ListItem","position":13,"name":"18:20"},{"@type":"ListItem","position":14,"name":"19:00"}]},{"@type":"Table","name":"Weekday Showing trains to Mutual","about":"Bellville → Mutual weekday Metrorail times","description":"9 stations, 14 trains. First 6:05, last 18:50."},{"@type":"Table","name":"Weekday Showing trains to Bellville","about":"Mutual → Bellville weekday Metrorail times","description":"9 stations, 14 trains. First 6:05, last 19:30."}]}</script><link rel="stylesheet" href="/_astro/vendor.DHkQZdfb.css">
+    </script><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebPage","name":"Bellville ↔ Mutual Train Schedule & Times | Metrorail Next Train","description":"Check Metrorail train times between Bellville and Mutual (Western Cape), including trains from Bellville to Mutual and Mutual to Bellville. Stops include Bellville, Pentech, Unibell, Belhar, Langa and Mutual. Saturday train times are listed on this page. No Sunday service.","url":"https://nexttrain.co.za/routes/bellville-to-mutual.html","about":"Bellville ↔ Mutual","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What time is the first weekday train from Bellville to Mutual?","acceptedAnswer":{"@type":"Answer","text":"The first weekday train toward Mutual arrives at 6:05. The last arrives at 18:50. Times include trains that join along the line, not only those that start at Bellville. They are the published Metrorail weekday timetable, not a live countdown."}},{"@type":"Question","name":"What time is the first weekday train from Mutual to Bellville?","acceptedAnswer":{"@type":"Answer","text":"The first weekday train toward Bellville arrives at 6:05. The last arrives at 19:30. Times include trains that join along the line, not only those that start at Mutual. They are the published Metrorail weekday timetable, not a live countdown."}},{"@type":"Question","name":"Do Metrorail trains run on Sunday on Bellville to Mutual?","acceptedAnswer":{"@type":"Answer","text":"Western Cape uses a dedicated Public Holiday timetable on most public holidays. Sundays and a few holidays such as Christmas Day have no service."}},{"@type":"Question","name":"Is there a Saturday timetable for Bellville to Mutual?","acceptedAnswer":{"@type":"Answer","text":"Yes. A Saturday sheet is published for this corridor. Open the Saturday section on this page, or the live board in Next Train."}}]},{"@type":"ItemList","name":"Weekday departures from Bellville to Mutual","numberOfItems":14,"itemListElement":[{"@type":"ListItem","position":1,"name":"5:35"},{"@type":"ListItem","position":2,"name":"6:15"},{"@type":"ListItem","position":3,"name":"7:05"},{"@type":"ListItem","position":4,"name":"8:35"},{"@type":"ListItem","position":5,"name":"9:10"},{"@type":"ListItem","position":6,"name":"10:25"},{"@type":"ListItem","position":7,"name":"11:50"},{"@type":"ListItem","position":8,"name":"12:50"},{"@type":"ListItem","position":9,"name":"13:15"},{"@type":"ListItem","position":10,"name":"14:45"},{"@type":"ListItem","position":11,"name":"15:40"},{"@type":"ListItem","position":12,"name":"16:25"},{"@type":"ListItem","position":13,"name":"17:40"},{"@type":"ListItem","position":14,"name":"18:20"}]},{"@type":"ItemList","name":"Weekday departures from Mutual to Bellville","numberOfItems":14,"itemListElement":[{"@type":"ListItem","position":1,"name":"5:35"},{"@type":"ListItem","position":2,"name":"6:25"},{"@type":"ListItem","position":3,"name":"6:55"},{"@type":"ListItem","position":4,"name":"7:55"},{"@type":"ListItem","position":5,"name":"9:15"},{"@type":"ListItem","position":6,"name":"9:45"},{"@type":"ListItem","position":7,"name":"11:05"},{"@type":"ListItem","position":8,"name":"12:30"},{"@type":"ListItem","position":9,"name":"14:00"},{"@type":"ListItem","position":10,"name":"15:40"},{"@type":"ListItem","position":11,"name":"16:50"},{"@type":"ListItem","position":12,"name":"17:20"},{"@type":"ListItem","position":13,"name":"18:20"},{"@type":"ListItem","position":14,"name":"19:00"}]},{"@type":"Table","name":"Weekday Showing trains to Mutual","about":"Bellville → Mutual weekday Metrorail times","description":"9 stations, 14 trains. First 6:05, last 18:50."},{"@type":"Table","name":"Weekday Showing trains to Bellville","about":"Mutual → Bellville weekday Metrorail times","description":"9 stations, 14 trains. First 6:05, last 19:30."}]}</script><link rel="stylesheet" href="/_astro/vendor.DkFQdkBM.css">
 <link rel="stylesheet" href="/_astro/account-delete.Gtlc6L8G.css">
 <style>.seo-tt{margin-top:.5rem}.seo-tt-wrap{max-height:min(80vh,56rem);overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid #d1d5db;border-radius:.5rem;background:#fff}.dark .seo-tt-wrap{border-color:#1e293b;background:#111827}.seo-tt table{border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums;font-size:12px;line-height:1.25;min-width:100%}.seo-tt caption{caption-side:top}.seo-tt th,.seo-tt td{white-space:nowrap;padding:.5rem .75rem;border-bottom:1px solid #d1d5db;border-right:1px solid #e5e7eb;text-align:center}.dark .seo-tt th,.dark .seo-tt td{border-bottom-color:#374151;border-right-color:#1f2937}.seo-tt thead th{position:sticky;top:0;z-index:2;background:#f3f4f6;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#111827}.seo-tt thead th:not(:first-child),.seo-tt td{min-width:70px}.dark .seo-tt thead th{background:#1f2937;color:#e5e7eb}.seo-tt tbody th,.seo-tt thead th:first-child{position:sticky;left:0;z-index:1;text-align:left;font-weight:700;color:#111827;background:#f3f4f6;min-width:140px;max-width:140px;box-shadow:1px 0 #d1d5db}.seo-tt thead th:first-child{z-index:3;background:#e5e7eb}.dark .seo-tt tbody th,.dark .seo-tt thead th:first-child{color:#f9fafb;background:#1f2937;box-shadow:1px 0 #374151}.dark .seo-tt thead th:first-child{background:#111827}.seo-tt tbody tr:nth-child(2n) td{background:#f9fafb}.seo-tt tbody tr:nth-child(2n) th{background:#e5e7eb}.dark .seo-tt tbody tr:nth-child(2n) td{background:#1f2937}.dark .seo-tt tbody tr:nth-child(2n) th{background:#111827}.seo-tt td{color:#1f2937}.dark .seo-tt td{color:#d1d5db}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 </style></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <p style="margin:0 0 0.75rem;font-size:1.375rem;font-weight:700;line-height:1.2;">Next Train could not finish updating</p> <p>
@@ -464,7 +475,11 @@ Download and Share live in the app.
 Open this weekday sheet in Next Train
 </a> </p> </section> </div> <div class="max-w-2xl mx-auto px-4 pt-6"> <div class="space-y-3 text-base text-slate-600 dark:text-slate-300 leading-relaxed"> <div class="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/60 px-4 py-3 text-sm space-y-2"> <p class="text-[10px] font-black uppercase tracking-widest text-slate-500">When trains run</p> <p> <span class="font-semibold text-slate-800 dark:text-slate-100">Weekdays.</span>
 Full times are listed above. Open Next Train for the live board.
-</p> <p> <span class="font-semibold text-slate-800 dark:text-slate-100">Saturdays.</span> Saturday trains are listed further down this page. </p> <p> <span class="font-semibold text-slate-800 dark:text-slate-100">Sundays and public holidays.</span> Metrorail generally does not run on Sundays. Public holidays vary: some follow a Saturday/holiday timetable; others have no service. Confirm the day type in Next Train before you travel. </p> </div> </div> <div class="mt-6 rounded-2xl border border-blue-100 bg-blue-50/80 dark:border-blue-900/40 dark:bg-blue-950/30 px-4 py-3 text-sm text-slate-800 dark:text-slate-100"> <p class="text-[10px] font-black uppercase tracking-widest text-blue-700 dark:text-blue-300 mb-1">
+</p> <p> <span class="font-semibold text-slate-800 dark:text-slate-100">Saturdays.</span> Saturday trains are listed further down this page. </p> <p> <span class="font-semibold text-slate-800 dark:text-slate-100">Sundays and public holidays.</span> Western Cape uses a dedicated Public Holiday timetable on most public holidays. Sundays and a few holidays such as Christmas Day have no service.  <a href="/regions/western-cape-public-holidays.html" class="text-blue-700 dark:text-blue-300 hover:underline">
+Western Cape public holiday timetable
+</a>
+.
+ </p> </div> </div> <div class="mt-6 rounded-2xl border border-blue-100 bg-blue-50/80 dark:border-blue-900/40 dark:bg-blue-950/30 px-4 py-3 text-sm text-slate-800 dark:text-slate-100"> <p class="text-[10px] font-black uppercase tracking-widest text-blue-700 dark:text-blue-300 mb-1">
 Weekday first &amp; last
 </p> <p>Showing trains to Mutual: first 6:05, last 18:50 at Mutual</p> <p>Showing trains to Bellville: first 6:05, last 19:30 at Bellville</p> <p class="mt-2 text-xs text-slate-600 dark:text-slate-300">
 Includes trains that join along the line, not only those that start at the first station.
@@ -487,7 +502,22 @@ Upcoming trains, Download, and Share live in the app.
 </a> </li><li> <a href="/routes/cape-town-to-eerste-river.html" class="block rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/50 px-4 py-3 text-sm font-semibold text-blue-700 dark:text-blue-300 hover:border-blue-500 dark:hover:border-blue-700 dark:hover:bg-slate-900 transition-colors"> Cape Town ↔ Eerste River train times
 </a> </li><li> <a href="/routes/cape-town-to-kraaifontein.html" class="block rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/50 px-4 py-3 text-sm font-semibold text-blue-700 dark:text-blue-300 hover:border-blue-500 dark:hover:border-blue-700 dark:hover:bg-slate-900 transition-colors"> Cape Town ↔ Kraaifontein train times
 </a> </li><li> <a href="/routes/cape-town-to-strand.html" class="block rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/50 px-4 py-3 text-sm font-semibold text-blue-700 dark:text-blue-300 hover:border-blue-500 dark:hover:border-blue-700 dark:hover:bg-slate-900 transition-colors"> Cape Town ↔ Strand train times
-</a> </li> </ul> </section> <p class="mt-10 text-sm text-slate-500">
+</a> </li> </ul> </section> <nav class="mt-10" aria-label="More Metrorail timetable pages"> <h2 class="text-sm font-black uppercase tracking-widest text-slate-500 mb-3">
+More timetable pages
+</h2> <ul class="space-y-2 text-sm"> <li> <a href="/routes.html" class="text-blue-700 dark:text-blue-300 hover:underline">
+All Metrorail route timetables
+</a> </li> <li> <a href="/regions/gauteng.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Gauteng Metrorail schedules
+</a> </li><li> <a href="/regions/western-cape.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Western Cape Metrorail schedules
+</a> </li><li> <a href="/regions/kwazulu-natal.html" class="text-blue-700 dark:text-blue-300 hover:underline"> KwaZulu-Natal Metrorail schedules
+</a> </li><li> <a href="/regions/eastern-cape.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Eastern Cape Metrorail schedules
+</a> </li> <li> <a href="/corridors/western-cape-cape-flats-line.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Cape Flats Line train times
+</a> </li><li> <a href="/corridors/western-cape-central-line.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Central Line train times
+</a> </li><li> <a href="/corridors/western-cape-malmesbury-line.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Malmesbury Line train times
+</a> </li><li> <a href="/corridors/western-cape-northern-line.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Northern Line train times
+</a> </li><li> <a href="/corridors/western-cape-southern-line.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Southern Line train times
+</a> </li> <li> <a href="/regions/western-cape-public-holidays.html" class="text-blue-700 dark:text-blue-300 hover:underline">
+Western Cape public holiday timetable
+</a> </li> </ul> </nav> <p class="mt-10 text-sm text-slate-500">
 For more info:
 <a href="/guide.html" class="text-blue-600 dark:text-blue-400 hover:underline ml-1">Read the user guide</a>
 ·

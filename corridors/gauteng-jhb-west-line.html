@@ -232,27 +232,36 @@ const seoSlug = "gauteng-jhb-west-line";
 const seoRegion = "GP";
 const seoCorridor = "JHB West Line";
 const seoRouteId = "";
+const trackSeo = true;
 
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       var TWA_PACKAGE = 'za.co.nexttrain.app';
+      function persistTwa(pkg) {
+        pkg = pkg || TWA_PACKAGE;
+        try {
+          sessionStorage.setItem('nt_twa', '1');
+          sessionStorage.setItem('nt_twa_package', pkg);
+          localStorage.setItem('nt_twa', '1');
+          localStorage.setItem('nt_twa_package', pkg);
+        } catch (e) {}
+        return pkg;
+      }
       function detectAppClient() {
         var ref = String(document.referrer || '');
         var pkg = '';
-        try { pkg = sessionStorage.getItem('nt_twa_package') || ''; } catch (e) {}
         var isTwa = false;
-        try { isTwa = sessionStorage.getItem('nt_twa') === '1'; } catch (e) {}
+        try {
+          pkg = sessionStorage.getItem('nt_twa_package') || localStorage.getItem('nt_twa_package') || '';
+          isTwa = sessionStorage.getItem('nt_twa') === '1' || localStorage.getItem('nt_twa') === '1';
+        } catch (e) {}
         if (ref.indexOf('android-app://') === 0) {
-          isTwa = true;
           var m = ref.match(/^android-app:\/\/([^/]+)/);
           if (m) pkg = m[1];
-          try {
-            sessionStorage.setItem('nt_twa', '1');
-            if (pkg) sessionStorage.setItem('nt_twa_package', pkg);
-          } catch (e) {}
+          pkg = persistTwa(pkg || TWA_PACKAGE);
+          return { app_source: 'twa', twa_package: pkg };
         }
-        if (!pkg && isTwa) pkg = TWA_PACKAGE;
-        if (isTwa) return { app_source: 'twa', twa_package: pkg || TWA_PACKAGE };
+        if (isTwa) return { app_source: 'twa', twa_package: persistTwa(pkg || TWA_PACKAGE) };
         var standalone = false;
         try {
           if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) standalone = true;
@@ -276,23 +285,26 @@ const seoRouteId = "";
         app_client: client.app_source,
         twa_package: client.twa_package || ''
       };
-      // Stable SEO dimensions on every page_view for this document.
-      if (seoPageType) gaConfig['seo_page_type'] = String(seoPageType);
-      if (seoSlug) gaConfig['seo_slug'] = String(seoSlug);
-      if (seoRegion) gaConfig['seo_region'] = String(seoRegion);
-      else gaConfig['seo_region'] = userRegion;
-      if (seoCorridor) gaConfig['seo_corridor'] = String(seoCorridor);
-      if (seoRouteId) gaConfig['seo_route_id'] = String(seoRouteId);
+      gaConfig['app_source'] = client.app_source;
+      gaConfig['twa_package'] = client.twa_package || '';
+      // SEO dimensions only on crawlable landings. Map/guide skip this (in-app).
+      if (trackSeo) {
+        if (seoPageType) gaConfig['seo_page_type'] = String(seoPageType);
+        if (seoSlug) gaConfig['seo_slug'] = String(seoSlug);
+        if (seoRegion) gaConfig['seo_region'] = String(seoRegion);
+        else gaConfig['seo_region'] = userRegion;
+        if (seoCorridor) gaConfig['seo_corridor'] = String(seoCorridor);
+        if (seoRouteId) gaConfig['seo_route_id'] = String(seoRouteId);
+      }
       window.__ntGaConfig = gaConfig;
       window.__ntAppClient = client;
       var pageType = seoPageType || '';
-      if (!pageType) {
+      if (trackSeo && !pageType) {
         var pathName = String((typeof location !== 'undefined' && location.pathname) || '');
-        if (/guide\.html?$/i.test(pathName)) pageType = 'guide';
-        else if (/map\.html?$/i.test(pathName)) pageType = 'map';
-        else if (/status\.html?$/i.test(pathName)) pageType = 'status';
+        if (/status\.html?$/i.test(pathName)) pageType = 'status';
         else if (/routes\.html?$/i.test(pathName)) pageType = 'routes_index';
         else if (/\/routes\//i.test(pathName)) pageType = 'route';
+        else if (/western-cape-public-holidays/i.test(pathName)) pageType = 'region_holidays';
         else if (/\/regions\//i.test(pathName)) pageType = 'region';
         else if (/\/corridors\//i.test(pathName)) pageType = 'corridor';
         else pageType = 'content';
@@ -321,9 +333,8 @@ const seoRouteId = "";
           window.__ntGaReady = true;
           try { window.dispatchEvent(new Event('nt-ga-ready')); } catch (e) {}
           try {
-            if (typeof gtag === 'function') {
-              gtag('event', 'View_astro_pages', window.__ntSeoAnalytics || {});
-              if (pageType) gtag('event', 'seo_page_view', window.__ntSeoAnalytics || {});
+            if (trackSeo && pageType && typeof gtag === 'function') {
+              gtag('event', 'seo_page_view', window.__ntSeoAnalytics || {});
             }
           } catch (e) {}
         };
@@ -339,6 +350,7 @@ const seoSlug = "gauteng-jhb-west-line";
 const seoRegion = "GP";
 const seoCorridor = "JHB West Line";
 const seoRouteId = "";
+const trackSeo = true;
 
       var bootClarity = function () {
         if (window.__ntClarityBooted) return;
@@ -358,7 +370,7 @@ const seoRouteId = "";
             clarity('identify', id);
             clarity('set', 'custom_id', id);
           }
-          if (typeof clarity === 'function') {
+          if (typeof clarity === 'function' && trackSeo) {
             var analytics = window.__ntSeoAnalytics || {};
             if (analytics.page_type) clarity('set', 'seo_page_type', String(analytics.page_type));
             if (seoSlug) clarity('set', 'seo_slug', String(seoSlug));
@@ -367,7 +379,6 @@ const seoRouteId = "";
             if (seoRouteId) clarity('set', 'seo_route_id', String(seoRouteId));
             if (analytics.app_source) clarity('set', 'app_client', String(analytics.app_source));
             if (analytics.twa_package) clarity('set', 'twa_package', String(analytics.twa_package));
-            clarity('event', 'View_astro_pages');
             if (analytics.page_type) clarity('event', 'seo_page_view');
           }
         } catch (e) {}
@@ -407,7 +418,7 @@ const seoRouteId = "";
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"JHB West Line Train Times | Metrorail Next Train","description":"JHB West Line Metrorail routes in Gauteng. Open Next Train for live boards and full weekend/weekday grids. Check live Gauteng Metrorail schedules offline in Metrorail Next Train.","about":"JHB West Line","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.DHkQZdfb.css">
+    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"JHB West Line Train Times | Metrorail Next Train","description":"JHB West Line Metrorail routes in Gauteng. Open Next Train for live boards and full weekend/weekday grids. Check live Gauteng Metrorail schedules offline in Metrorail Next Train.","about":"JHB West Line","isPartOf":{"@type":"WebSite","name":"Metrorail Next Train","url":"https://nexttrain.co.za/"}}</script><link rel="stylesheet" href="/_astro/vendor.DkFQdkBM.css">
 <link rel="stylesheet" href="/_astro/account-delete.Gtlc6L8G.css"></head> <body class="font-[Inter,system-ui,sans-serif] antialiased text-gray-800 dark:text-gray-200 transition-colors duration-300"> <div id="nt-recovery-lifeline" role="status" style="box-sizing:border-box;padding:1.25rem 1rem 1.5rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.45;max-width:40rem;"> <p style="margin:0 0 0.75rem;font-size:1.375rem;font-weight:700;line-height:1.2;">Next Train could not finish updating</p> <p>
 This device is holding an old copy of the app. Open
 <a href="/help.html" rel="nofollow">Reset and Recover</a>
@@ -456,6 +467,17 @@ Next Train
 </h1> <p class="mt-3 text-base text-slate-600 dark:text-slate-300 leading-relaxed"> JHB West Line Metrorail routes in Gauteng. Open Next Train for live boards and full weekend/weekday grids. </p> <section class="mt-10"> <h2 class="text-sm font-black uppercase tracking-widest text-slate-500 mb-3">Routes on this line</h2> <ul class="space-y-2"> <li> <a href="/routes/johannesburg-to-lenz.html" class="block rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/60 px-4 py-4 hover:border-blue-500 dark:hover:border-blue-700 transition-colors"> <span class="block text-base font-bold text-slate-900 dark:text-white"> Johannesburg ↔ Lenz </span> <span class="block text-sm text-slate-500 dark:text-slate-400 mt-1">JHB West Line</span> </a> </li><li> <a href="/routes/johannesburg-to-naledi.html" class="block rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/60 px-4 py-4 hover:border-blue-500 dark:hover:border-blue-700 transition-colors"> <span class="block text-base font-bold text-slate-900 dark:text-white"> Johannesburg ↔ Naledi </span> <span class="block text-sm text-slate-500 dark:text-slate-400 mt-1">JHB West Line</span> </a> </li><li> <a href="/routes/johannesburg-to-randfontein.html" class="block rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/60 px-4 py-4 hover:border-blue-500 dark:hover:border-blue-700 transition-colors"> <span class="block text-base font-bold text-slate-900 dark:text-white"> Johannesburg ↔ Randfontein </span> <span class="block text-sm text-slate-500 dark:text-slate-400 mt-1">JHB West Line</span> </a> </li> </ul> </section> <a href="/?region=GP" class="mt-10 flex w-full items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 transition-colors">
 Open Next Train · Gauteng </a> <p class="mt-2 text-center text-[11px] text-slate-500">
 Returning visitors keep their saved region &amp; route.
-</p> <p class="mt-6 text-sm text-slate-500 text-center"> <a href="/regions/gauteng.html" class="text-blue-600 dark:text-blue-400 hover:underline">All Gauteng routes</a>
+</p> <nav class="mt-10" aria-label="More Metrorail timetable pages"> <h2 class="text-sm font-black uppercase tracking-widest text-slate-500 mb-3">
+More timetable pages
+</h2> <ul class="space-y-2 text-sm"> <li> <a href="/routes.html" class="text-blue-700 dark:text-blue-300 hover:underline">
+All Metrorail route timetables
+</a> </li> <li> <a href="/regions/gauteng.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Gauteng Metrorail schedules
+</a> </li><li> <a href="/regions/western-cape.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Western Cape Metrorail schedules
+</a> </li><li> <a href="/regions/kwazulu-natal.html" class="text-blue-700 dark:text-blue-300 hover:underline"> KwaZulu-Natal Metrorail schedules
+</a> </li><li> <a href="/regions/eastern-cape.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Eastern Cape Metrorail schedules
+</a> </li> <li> <a href="/corridors/gauteng-jhb-west-line.html" class="text-blue-700 dark:text-blue-300 hover:underline"> JHB West Line train times
+</a> </li><li> <a href="/corridors/gauteng-northern-corridor.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Northern Corridor train times
+</a> </li><li> <a href="/corridors/gauteng-pretoria-jhb-line.html" class="text-blue-700 dark:text-blue-300 hover:underline"> Pretoria–JHB Line train times
+</a> </li>  </ul> </nav> <p class="mt-6 text-sm text-slate-500 text-center"> <a href="/regions/gauteng.html" class="text-blue-600 dark:text-blue-400 hover:underline">All Gauteng routes</a>
 ·
 <a href="/" class="text-blue-600 dark:text-blue-400 hover:underline ml-1">Home</a> </p> </div> </main>  </body></html>
