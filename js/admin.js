@@ -163,6 +163,41 @@ function ntAdminFlattenTripPlanRows(data) {
     return rows;
 }
 
+function ntAdminFlattenPublicHolidays(db) {
+    if (typeof flattenPublicHolidays === 'function') return flattenPublicHolidays(db);
+    if (!db || typeof db !== 'object' || Array.isArray(db)) return db;
+    const pubNode = db.public_holidays;
+    if (!pubNode || typeof pubNode !== 'object' || Array.isArray(pubNode)) return db;
+    const rootLastUpdated = db.lastUpdated;
+    const pubLastUpdated = pubNode.lastUpdated;
+    const out = { ...db, ...pubNode };
+    delete out.public_holidays;
+    if (rootLastUpdated != null) out.lastUpdated = rootLastUpdated;
+    if (pubLastUpdated != null) out.publicHolidaysLastUpdated = pubLastUpdated;
+    return out;
+}
+
+function ntAdminUnwrapRegionScheduleDb(region, raw) {
+    if (!raw || typeof raw !== 'object') return raw;
+    let db = raw;
+    if (region === 'GP' && raw.gauteng) db = raw.gauteng;
+    else if (region === 'WC' && raw.westerncape) db = raw.westerncape;
+    else if (region === 'KZN' && raw.kzn) db = raw.kzn;
+    else if (region === 'EC' && raw.easterncape) db = raw.easterncape;
+    else if (region === 'GP' && raw.schedules && !raw.gauteng) db = raw.schedules;
+    return ntAdminFlattenPublicHolidays(db);
+}
+
+function ntAdminScheduleSheet(db, sheetKey) {
+    if (!db || !sheetKey) return null;
+    if (db[sheetKey] != null) return db[sheetKey];
+    const nest = db.public_holidays;
+    if (nest && typeof nest === 'object' && !Array.isArray(nest) && nest[sheetKey] != null) {
+        return nest[sheetKey];
+    }
+    return null;
+}
+
 function ntAdminDeleteAlertSource(list, id) {
     return (Array.isArray(list) ? list : []).filter((s) => s.id !== id);
 }
@@ -1020,8 +1055,13 @@ const Admin = {
                 route.sheetKeys.weekday_to_a,
                 route.sheetKeys.saturday_to_b,
                 route.sheetKeys.saturday_to_a,
+                route.sheetKeys.pub_to_b,
+                route.sheetKeys.pub_to_a,
             ].filter(Boolean);
-            keys.forEach((k) => { if (db[k]) walkSheet(db[k]); });
+            keys.forEach((k) => {
+                const sheet = ntAdminScheduleSheet(db, k);
+                if (sheet) walkSheet(sheet);
+            });
         }
 
         const idx = (typeof globalStationIndex !== 'undefined' && globalStationIndex) ? globalStationIndex : {};
@@ -5997,6 +6037,41 @@ const Admin = {
 
         refreshBtn.onclick = () => Admin.fetchDeadEnds();
 
+        Admin.approvePlannerFare = async (vote) => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) throw new Error('Not signed in');
+            if (typeof window.plannerFareOverrideKey !== 'function' || typeof window.buildPlannerFareOverrideRecord !== 'function') {
+                throw new Error('Planner fare helpers are not loaded');
+            }
+            const item = vote && typeof vote === 'object' ? vote : {};
+            const reported = Number(item.reportedPrice);
+            if (!Number.isFinite(reported) || reported < 1 || reported > 500) {
+                throw new Error('Correction needs a whole rand between 1 and 500');
+            }
+            if (item.agree !== false) throw new Error('Only price corrections can be approved');
+            const key = window.plannerFareOverrideKey(item);
+            const record = window.buildPlannerFareOverrideRecord(item, {
+                approvedBy: Admin.currentUser?.email || Admin.currentUser?.uid || 'Admin',
+                at: Date.now(),
+            });
+            if (!record.origin || !record.destination || !record.price) {
+                throw new Error('Correction is missing origin, destination, or price');
+            }
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const put = await fetch(`${dynamicEndpoint}config/planner_fares/${encodeURIComponent(key)}.json?auth=${secret}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(record),
+            });
+            if (!put.ok) throw new Error(`Approve failed (${put.status})`);
+            Admin._cachedPlannerFares = { ...(Admin._cachedPlannerFares || {}), [key]: record };
+            if (typeof window.setPlannerFareOverridesCache === 'function') {
+                window.setPlannerFareOverridesCache(Admin._cachedPlannerFares);
+            }
+            if (typeof showToast === 'function') showToast(`Planner will quote R${record.price}`, 'success');
+            await Admin.fetchDeadEnds();
+        };
+
         Admin.fetchDeadEnds = async () => {
             const secret = await Admin.getAuthKey();
             if (!secret) return;
@@ -6029,6 +6104,18 @@ const Admin = {
                         return;
                     }
                     Admin._cachedFareVotes = fareData;
+                    let liveData = {};
+                    try {
+                        const liveRes = await window.guardianFetch(`${dynamicEndpoint}config/planner_fares.json?auth=${secret}`, {}, 10000);
+                        if (liveRes.ok) {
+                            const parsed = await liveRes.json();
+                            if (parsed && typeof parsed === 'object') liveData = parsed;
+                        }
+                    } catch (_) { /* public-read node; keep the votes list if it 401s */ }
+                    Admin._cachedPlannerFares = liveData;
+                    if (typeof window.setPlannerFareOverridesCache === 'function') {
+                        window.setPlannerFareOverridesCache(liveData);
+                    }
                     const secureEscape = (str) => {
                         if (!str) return '';
                         if (typeof escapeHTML === 'function') return escapeHTML(str);
@@ -6041,7 +6128,7 @@ const Admin = {
                     listDiv.innerHTML = '';
                     entries.forEach((item) => {
                         const card = document.createElement('div');
-                        card.className = "bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm";
+                        card.className = "bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex items-start justify-between gap-2";
                         const quoted = item.quotedPrice != null ? `R${item.quotedPrice}` : '-';
                         const reported = item.reportedPrice != null ? `R${item.reportedPrice}` : '-';
                         const peakLabel = item.isOffPeak ? 'Off-peak' : 'Peak';
@@ -6050,16 +6137,33 @@ const Admin = {
                         const kmLabel = `smooth ${smoothKm != null && smoothKm !== '' ? smoothKm : '-'} km · A-B ${abKm != null && abKm !== '' ? abKm : '-'} km`;
                         const profileLabel = item.profile || 'Adult';
                         const vsLabel = item.agree ? `${quoted} (yes)` : `${quoted} → ${reported}`;
+                        const fareKey = typeof window.plannerFareOverrideKey === 'function' ? window.plannerFareOverrideKey(item) : '';
+                        const liveRow = fareKey ? liveData[fareKey] : null;
+                        const livePrice = liveRow ? Number(liveRow.price) : NaN;
+                        const isLive = Number.isFinite(livePrice) && livePrice === Number(item.reportedPrice);
+                        const canApprove = item.agree === false && Number(item.reportedPrice) >= 1 && Number(item.reportedPrice) <= 500;
                         card.innerHTML = `
-                            <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${secureEscape(item.origin)} ${Admin.routeArrowSvg('inline-block w-3.5 h-3.5 mx-1 align-middle text-gray-400 shrink-0')} ${secureEscape(item.destination)}</div>
-                            <div class="flex flex-wrap items-center mt-1.5 gap-1.5">
-                                <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${item.agree ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200'}">${secureEscape(vsLabel)}</span>
-                                <span class="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">${secureEscape(peakLabel)}</span>
-                                <span class="text-[9px] text-gray-400 font-mono">${secureEscape(kmLabel)}</span>
-                                <span class="text-[9px] text-gray-500 font-bold">${secureEscape(profileLabel)}</span>
-                                <span class="text-[9px] text-gray-400 font-mono">${Admin.formatDate(item.at)}</span>
+                            <div class="min-w-0 flex-1">
+                                <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${secureEscape(item.origin)} ${Admin.routeArrowSvg('inline-block w-3.5 h-3.5 mx-1 align-middle text-gray-400 shrink-0')} ${secureEscape(item.destination)}</div>
+                                <div class="flex flex-wrap items-center mt-1.5 gap-1.5">
+                                    <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${item.agree ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200'}">${secureEscape(vsLabel)}</span>
+                                    <span class="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">${secureEscape(peakLabel)}</span>
+                                    <span class="text-[9px] text-gray-400 font-mono">${secureEscape(kmLabel)}</span>
+                                    <span class="text-[9px] text-gray-500 font-bold">${secureEscape(profileLabel)}</span>
+                                    <span class="text-[9px] text-gray-400 font-mono">${Admin.formatDate(item.at)}</span>
+                                    ${isLive ? `<span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">Live R${secureEscape(String(livePrice))}</span>` : ''}
+                                </div>
                             </div>
+                            ${canApprove && !isLive ? `<button type="button" class="de-fare-approve shrink-0 text-emerald-700 dark:text-emerald-400 hover:text-white hover:bg-emerald-600 text-[9px] font-black bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-widest shadow-sm">Approve ${secureEscape(reported)}</button>` : ''}
                         `;
+                        card.querySelector('.de-fare-approve')?.addEventListener('click', async () => {
+                            try {
+                                await Admin.approvePlannerFare(item);
+                            } catch (e) {
+                                console.error('Approve planner fare failed', e);
+                                if (typeof showToast === 'function') showToast(e.message || 'Approve failed', 'error');
+                            }
+                        });
                         listDiv.appendChild(card);
                     });
                     return;
@@ -14284,8 +14388,10 @@ const Admin = {
             return route.sheetKeys[`${dayEl.value}_to_${dir}`] || '';
         };
 
+        const unwrapRegionScheduleDb = (region, raw) => ntAdminUnwrapRegionScheduleDb(region, raw);
+
         const scheduleRowsFromDb = (db, sheetKey) => {
-            const raw = db?.[sheetKey];
+            const raw = ntAdminScheduleSheet(db, sheetKey);
             if (Array.isArray(raw)) return raw;
             if (Array.isArray(raw?.rows)) return raw.rows;
             if (raw && typeof raw === 'object') {
@@ -14295,16 +14401,6 @@ const Admin = {
                     .map((key) => raw[key]);
             }
             return [];
-        };
-
-        const unwrapRegionScheduleDb = (region, raw) => {
-            if (!raw || typeof raw !== 'object') return raw;
-            if (region === 'GP' && raw.gauteng) return raw.gauteng;
-            if (region === 'WC' && raw.westerncape) return raw.westerncape;
-            if (region === 'KZN' && raw.kzn) return raw.kzn;
-            if (region === 'EC' && raw.easterncape) return raw.easterncape;
-            if (region === 'GP' && raw.schedules && !raw.gauteng) return raw.schedules;
-            return raw;
         };
 
         const ensureGridOrderDb = async (region, sheetKey) => {
@@ -14807,7 +14903,7 @@ const Admin = {
 
         const trainsFromSheet = (sheetKey, runtimeOrder = null) => {
             if (typeof fullDatabase === 'undefined' || !fullDatabase || !sheetKey) return [];
-            const rawData = fullDatabase[sheetKey];
+            const rawData = ntAdminScheduleSheet(fullDatabase, sheetKey);
             if (!rawData) return [];
             const rows = Array.isArray(rawData) ? rawData : (Array.isArray(rawData.rows) ? rawData.rows : []);
             const set = new Set();
@@ -16918,7 +17014,7 @@ const Admin = {
                 if (typeof fullDatabase === 'undefined' || !fullDatabase) {
                     throw new Error('Offline cache (RAM) is empty for this session.');
                 }
-                return fullDatabase;
+                return ntAdminFlattenPublicHolidays(fullDatabase);
             }
 
             const paths = {
@@ -16938,13 +17034,7 @@ const Admin = {
             }
 
             const rawData = await Admin.fetchDiagJson(fetchUrl);
-
-            if (targetRegion === 'GP' && rawData.gauteng) return rawData.gauteng;
-            if (targetRegion === 'WC' && rawData.westerncape) return rawData.westerncape;
-            if (targetRegion === 'KZN' && rawData.kzn) return rawData.kzn;
-            if (targetRegion === 'EC' && rawData.easterncape) return rawData.easterncape;
-            if (targetRegion === 'GP' && rawData.schedules && !rawData.gauteng) return rawData.schedules;
-            return rawData;
+            return ntAdminUnwrapRegionScheduleDb(targetRegion, rawData);
         };
 
         const renderZoneAuditReport = (report) => {
@@ -17516,13 +17606,7 @@ const Admin = {
                     resultsDiv.innerHTML = `<div class="text-xs text-gray-500 text-center py-4 flex flex-col items-center"><svg class="animate-spin h-5 w-5 text-blue-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>${loadingMsg}</div>`;
                     
                     let rawData = await Admin.fetchDiagJson(fetchUrl);
-                    
-                    if (targetRegion === 'GP' && rawData.gauteng) dbToScan = rawData.gauteng;
-                    else if (targetRegion === 'WC' && rawData.westerncape) dbToScan = rawData.westerncape;
-                    else if (targetRegion === 'KZN' && rawData.kzn) dbToScan = rawData.kzn;
-                    else if (targetRegion === 'EC' && rawData.easterncape) dbToScan = rawData.easterncape;
-                    else if (targetRegion === 'GP' && rawData.schedules && !rawData.gauteng) dbToScan = rawData.schedules;
-                    else dbToScan = rawData;
+                    dbToScan = ntAdminUnwrapRegionScheduleDb(targetRegion, rawData);
                 } catch(e) {
                     const hint = /Unauthorized Domain|Missing Origin/i.test(String(e.message || ''))
                         ? ' Deploy workers/nexttrain-cache (allowlist enock-elk.github.io) or run diagnostics on nexttrain.co.za.'
@@ -17536,7 +17620,7 @@ const Admin = {
                     resultsDiv.innerHTML = '<div class="text-xs text-red-500 font-bold bg-red-50 p-2 rounded">Error: Offline Cache (RAM) is missing.</div>';
                     return;
                 }
-                dbToScan = fullDatabase;
+                dbToScan = ntAdminFlattenPublicHolidays(fullDatabase);
             }
 
             // Small delay to allow UI to breathe
@@ -17778,7 +17862,7 @@ const Admin = {
                 if (typeof fullDatabase === 'undefined' || !fullDatabase) {
                     throw new Error('Offline cache (RAM) is empty for this session.');
                 }
-                return fullDatabase;
+                return ntAdminFlattenPublicHolidays(fullDatabase);
             }
 
             const paths = {
@@ -17798,13 +17882,7 @@ const Admin = {
             }
 
             const rawData = await Admin.fetchDiagJson(fetchUrl);
-
-            if (targetRegion === 'GP' && rawData.gauteng) return rawData.gauteng;
-            if (targetRegion === 'WC' && rawData.westerncape) return rawData.westerncape;
-            if (targetRegion === 'KZN' && rawData.kzn) return rawData.kzn;
-            if (targetRegion === 'EC' && rawData.easterncape) return rawData.easterncape;
-            if (targetRegion === 'GP' && rawData.schedules && !rawData.gauteng) return rawData.schedules;
-            return rawData;
+            return ntAdminUnwrapRegionScheduleDb(targetRegion, rawData);
         };
 
         const severityStyles = {
