@@ -3838,6 +3838,7 @@ const Admin = {
         runAdminSetup('holidayApprovals', () => Admin.setupHolidayApprovalsManager());
         runAdminSetup('maintenance', () => Admin.setupMaintenanceManager());
         runAdminSetup('specialEvent', () => Admin.setupSpecialEventManager());
+        runAdminSetup('pushNotifications', () => Admin.setupPushNotificationsManager());
         runAdminSetup('diagnostics', () => Admin.setupDiagnosticsManager());
         runAdminSetup('scheduleQa', () => Admin.setupScheduleQaManager());
         runAdminSetup('roadmap', () => Admin.setupRoadmapManager());
@@ -6072,6 +6073,123 @@ const Admin = {
             await Admin.fetchDeadEnds();
         };
 
+        Admin.saveRouteFare = async (routeId, { confirmed, zone } = {}) => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) throw new Error('Not signed in');
+            if (typeof window.buildRouteFareRecord !== 'function') {
+                throw new Error('Route fare helpers are not loaded');
+            }
+            const record = window.buildRouteFareRecord(routeId, {
+                zone,
+                confirmed,
+                source: 'admin',
+                updatedBy: Admin.currentUser?.email || Admin.currentUser?.uid || 'Admin',
+                at: Date.now(),
+            });
+            if (!record.routeId) throw new Error('Missing route');
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const put = await fetch(`${dynamicEndpoint}config/route_fares/${encodeURIComponent(routeId)}.json?auth=${secret}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(record),
+            });
+            if (!put.ok) throw new Error(`Save failed (${put.status})`);
+            Admin._cachedRouteFares = { ...(Admin._cachedRouteFares || {}), [routeId]: record };
+            if (typeof window.setRouteFaresCache === 'function') {
+                window.setRouteFaresCache(Admin._cachedRouteFares);
+            }
+            if (typeof showToast === 'function') {
+                showToast(record.confirmed ? `${routeId} long fare ${record.zone || ''}`.trim() : `${routeId} estimated`, 'success');
+            }
+        };
+
+        Admin.paintConfirmedCorridorFares = (host, liveRouteFares) => {
+            if (!host) return;
+            const wrap = document.createElement('div');
+            wrap.id = 'de-route-fares';
+            wrap.className = 'mb-3 space-y-2';
+            const regions = typeof REGIONS !== 'undefined' ? Object.keys(REGIONS) : ['GP', 'WC', 'KZN', 'EC'];
+            const region = Admin._deRouteFaresRegion || 'GP';
+            wrap.innerHTML = `
+                <div class="flex items-center justify-between gap-2">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-gray-500">Confirmed corridor fares</p>
+                    <select id="de-route-fares-region" class="h-7 px-2 rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] font-bold text-gray-700 dark:text-gray-200">
+                        ${regions.map((code) => `<option value="${code}" ${code === region ? 'selected' : ''}>${code}</option>`).join('')}
+                    </select>
+                </div>
+                <p class="text-[10px] text-gray-500 leading-snug">Single-route quotes cannot exceed a confirmed long fare. Gauteng dump zones are confirmed until you un-confirm them.</p>
+                <div id="de-route-fares-list" class="space-y-2"></div>
+            `;
+            const list = wrap.querySelector('#de-route-fares-list');
+            const dumpDb = typeof fullDatabase !== 'undefined' ? fullDatabase : window.fullDatabase;
+            if (typeof window.setRouteFaresCache === 'function') {
+                window.setRouteFaresCache(liveRouteFares || {});
+            }
+            const paintList = () => {
+                const code = Admin._deRouteFaresRegion || 'GP';
+                const routes = (typeof ROUTES === 'undefined' ? [] : Object.values(ROUTES))
+                    .filter((r) => r && r.id && r.region === code)
+                    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+                list.innerHTML = '';
+                if (!routes.length) {
+                    list.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-2">No routes in this region.</div>';
+                    return;
+                }
+                routes.forEach((route) => {
+                    const dumpZone = typeof window.dumpZoneForRoute === 'function' ? window.dumpZoneForRoute(route.id, dumpDb) : '';
+                    const cap = typeof window.lookupRouteFareCap === 'function' ? window.lookupRouteFareCap(route.id) : null;
+                    const row = (liveRouteFares || {})[route.id];
+                    const selectedZone = (row && row.zone) || cap?.zone || dumpZone || 'Z1';
+                    const isConfirmed = !!cap?.confirmed;
+                    const sourceLabel = row && row.confirmed === false
+                        ? 'Estimated'
+                        : (cap?.source === 'dump' ? 'Dump' : (isConfirmed ? 'Confirmed' : 'Estimated'));
+                    const adult = (typeof FARE_CONFIG !== 'undefined' && FARE_CONFIG.zones && FARE_CONFIG.zones[selectedZone]) || '';
+                    const name = Admin.formatRouteLabelPlain ? Admin.formatRouteLabelPlain(route.name) : route.name;
+                    const card = document.createElement('div');
+                    card.className = 'bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex items-start justify-between gap-2';
+                    card.innerHTML = `
+                        <div class="min-w-0 flex-1">
+                            <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${ntAdminSecureEscape(name)}</div>
+                            <div class="flex flex-wrap items-center mt-1.5 gap-1.5">
+                                <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${isConfirmed ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}">${sourceLabel}${adult ? ` R${adult}` : ''}</span>
+                                ${dumpZone ? `<span class="text-[9px] text-gray-400 font-mono">dump ${ntAdminSecureEscape(dumpZone)}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="shrink-0 flex items-center gap-1.5">
+                            <select class="de-route-fare-zone h-7 px-1.5 rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] font-bold">
+                                ${['Z1', 'Z2', 'Z3', 'Z4'].map((z) => `<option value="${z}" ${z === selectedZone ? 'selected' : ''}>${z}</option>`).join('')}
+                            </select>
+                            <button type="button" class="de-route-fare-toggle text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded border ${isConfirmed ? 'text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700' : 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'}">${isConfirmed ? 'Unconfirm' : 'Confirm'}</button>
+                        </div>
+                    `;
+                    const zoneSel = card.querySelector('.de-route-fare-zone');
+                    const toggleBtn = card.querySelector('.de-route-fare-toggle');
+                    const save = async (confirmed) => {
+                        try {
+                            await Admin.saveRouteFare(route.id, { confirmed, zone: zoneSel.value });
+                            liveRouteFares[route.id] = (Admin._cachedRouteFares || {})[route.id];
+                            paintList();
+                        } catch (e) {
+                            console.error('Save route fare failed', e);
+                            if (typeof showToast === 'function') showToast(e.message || 'Save failed', 'error');
+                        }
+                    };
+                    toggleBtn?.addEventListener('click', () => save(!isConfirmed));
+                    zoneSel?.addEventListener('change', () => {
+                        if (isConfirmed) save(true);
+                    });
+                    list.appendChild(card);
+                });
+            };
+            wrap.querySelector('#de-route-fares-region')?.addEventListener('change', (ev) => {
+                Admin._deRouteFaresRegion = ev.target.value;
+                paintList();
+            });
+            paintList();
+            host.appendChild(wrap);
+        };
+
         Admin.fetchDeadEnds = async () => {
             const secret = await Admin.getAuthKey();
             if (!secret) return;
@@ -6099,22 +6217,37 @@ const Admin = {
                     const fareRes = await window.guardianFetch(`${dynamicEndpoint}sys_logs/fare_votes.json?auth=${secret}`, {}, 10000);
                     if (!fareRes.ok) throw new Error("HTTP " + fareRes.status);
                     const fareData = await fareRes.json();
-                    if (!fareData || typeof fareData !== 'object' || !Object.keys(fareData).length) {
-                        listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">No fare votes recorded.</div>';
-                        return;
-                    }
-                    Admin._cachedFareVotes = fareData;
+                    Admin._cachedFareVotes = (fareData && typeof fareData === 'object') ? fareData : {};
                     let liveData = {};
+                    let liveRouteFares = {};
+                    let ticketPhotos = {};
                     try {
-                        const liveRes = await window.guardianFetch(`${dynamicEndpoint}config/planner_fares.json?auth=${secret}`, {}, 10000);
+                        const [liveRes, routeRes, photoRes] = await Promise.all([
+                            window.guardianFetch(`${dynamicEndpoint}config/planner_fares.json?auth=${secret}`, {}, 10000),
+                            window.guardianFetch(`${dynamicEndpoint}config/route_fares.json?auth=${secret}`, {}, 10000),
+                            window.guardianFetch(`${dynamicEndpoint}sys_logs/fare_ticket_photos.json?auth=${secret}`, {}, 10000),
+                        ]);
                         if (liveRes.ok) {
                             const parsed = await liveRes.json();
                             if (parsed && typeof parsed === 'object') liveData = parsed;
                         }
-                    } catch (_) { /* public-read node; keep the votes list if it 401s */ }
+                        if (routeRes.ok) {
+                            const parsed = await routeRes.json();
+                            if (parsed && typeof parsed === 'object') liveRouteFares = parsed;
+                        }
+                        if (photoRes.ok) {
+                            const parsed = await photoRes.json();
+                            if (parsed && typeof parsed === 'object') ticketPhotos = parsed;
+                        }
+                    } catch (_) { /* public-read nodes; still paint votes */ }
                     Admin._cachedPlannerFares = liveData;
+                    Admin._cachedRouteFares = liveRouteFares;
+                    Admin._cachedFareTicketPhotos = ticketPhotos;
                     if (typeof window.setPlannerFareOverridesCache === 'function') {
                         window.setPlannerFareOverridesCache(liveData);
+                    }
+                    if (typeof window.setRouteFaresCache === 'function') {
+                        window.setRouteFaresCache(liveRouteFares);
                     }
                     const secureEscape = (str) => {
                         if (!str) return '';
@@ -6123,9 +6256,17 @@ const Admin = {
                             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
                         });
                     };
-                    const entries = Object.entries(fareData).map(([id, v]) => ({ id, ...(v || {}) }));
-                    entries.sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0));
                     listDiv.innerHTML = '';
+                    Admin.paintConfirmedCorridorFares(listDiv, liveRouteFares);
+                    const entries = Object.entries(Admin._cachedFareVotes).map(([id, v]) => ({ id, ...(v || {}) }));
+                    if (!entries.length) {
+                        const empty = document.createElement('div');
+                        empty.className = 'text-xs text-gray-500 italic text-center py-4';
+                        empty.textContent = 'No fare votes recorded.';
+                        listDiv.appendChild(empty);
+                        return;
+                    }
+                    entries.sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0));
                     entries.forEach((item) => {
                         const card = document.createElement('div');
                         card.className = "bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex items-start justify-between gap-2";
@@ -6142,6 +6283,10 @@ const Admin = {
                         const livePrice = liveRow ? Number(liveRow.price) : NaN;
                         const isLive = Number.isFinite(livePrice) && livePrice === Number(item.reportedPrice);
                         const canApprove = item.agree === false && Number(item.reportedPrice) >= 1 && Number(item.reportedPrice) <= 500;
+                        const ticketUrl = item.ticketUrl || ticketPhotos[item.id]?.ticketUrl || '';
+                        const ticketHtml = ticketUrl && typeof window.attachmentPreviewHtml === 'function'
+                            ? `<div class="mt-2 de-fare-ticket">${window.attachmentPreviewHtml(ticketUrl, { admin: true, imgClass: 'w-12 h-12 object-cover rounded-md border border-gray-200 dark:border-gray-700 hover:opacity-90 cursor-zoom-in', alt: 'Ticket' })}</div>`
+                            : '';
                         card.innerHTML = `
                             <div class="min-w-0 flex-1">
                                 <div class="text-xs font-bold text-gray-900 dark:text-white whitespace-normal break-words leading-snug">${secureEscape(item.origin)} ${Admin.routeArrowSvg('inline-block w-3.5 h-3.5 mx-1 align-middle text-gray-400 shrink-0')} ${secureEscape(item.destination)}</div>
@@ -6153,6 +6298,7 @@ const Admin = {
                                     <span class="text-[9px] text-gray-400 font-mono">${Admin.formatDate(item.at)}</span>
                                     ${isLive ? `<span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">Live R${secureEscape(String(livePrice))}</span>` : ''}
                                 </div>
+                                ${ticketHtml}
                             </div>
                             ${canApprove && !isLive ? `<button type="button" class="de-fare-approve shrink-0 text-emerald-700 dark:text-emerald-400 hover:text-white hover:bg-emerald-600 text-[9px] font-black bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-widest shadow-sm">Approve ${secureEscape(reported)}</button>` : ''}
                         `;
@@ -6892,10 +7038,12 @@ const Admin = {
                     return;
                 }
                 entries.sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0));
-                const headers = ['at', 'origin', 'destination', 'quotedPrice', 'reportedPrice', 'agree', 'isOffPeak', 'dayType', 'depTime', 'profile', 'km', 'crowKm', 'smoothKm', 'abKm', 'zone', 'region', 'deviceId', 'authUid', 'appVersion', 'routeIds', 'id'];
+                const photos = Admin._cachedFareTicketPhotos || {};
+                const headers = ['at', 'origin', 'destination', 'quotedPrice', 'reportedPrice', 'agree', 'isOffPeak', 'dayType', 'depTime', 'profile', 'km', 'crowKm', 'smoothKm', 'abKm', 'zone', 'region', 'deviceId', 'authUid', 'appVersion', 'routeIds', 'ticketUrl', 'id'];
                 const cell = (r, h) => {
                     if (h === 'at') return Admin.formatDate(r.at);
                     if (h === 'routeIds') return Array.isArray(r.routeIds) ? r.routeIds.join('|') : (r.routeIds || '');
+                    if (h === 'ticketUrl') return r.ticketUrl || photos[r.id]?.ticketUrl || '';
                     return r[h];
                 };
                 if (format === 'csv') {
@@ -15823,12 +15971,9 @@ const Admin = {
                     }
                     
                     if (item.isFromAdmin) {
-                        // ADMIN BUBBLE (Right)
-                        // GUARDIAN PHASE 4: Polished Read Receipts & Acknowledged State
+                        // ADMIN BUBBLE (Right) — 1 grey sent, 2 grey delivered, 2 blue read. No R.
                         let receiptHtml = `<span class="inline-flex items-center text-gray-400 ml-1 shrink-0" title="Sent">${Admin.receiptTicks('single', 'w-3 h-2.5')}</span>`;
-                        if (item.acknowledged) {
-                            receiptHtml = `<span class="inline-flex items-center text-sky-400 ml-1 shrink-0" title="Read">${Admin.receiptTicks('double', 'w-3.5 h-2.5')}</span><span class="text-[9px] font-black bg-green-500 text-white rounded-sm px-1 ml-1.5 leading-none py-[1px]" title="Acknowledged by Commuter">R</span>`;
-                        } else if (item.read) {
+                        if (item.read || item.acknowledged) {
                             receiptHtml = `<span class="inline-flex items-center text-sky-400 ml-1 shrink-0" title="Read">${Admin.receiptTicks('double', 'w-3.5 h-2.5')}</span>`;
                         } else if (item.delivered) {
                             receiptHtml = `<span class="inline-flex items-center text-gray-400 ml-1 shrink-0" title="Delivered">${Admin.receiptTicks('double', 'w-3.5 h-2.5')}</span>`;
@@ -16602,6 +16747,227 @@ const Admin = {
     },
 
     // --- 7. SYSTEM HEALTH / DIAGNOSTICS SCANNER ---
+    setupPushNotificationsManager: () => {
+        const adminContainer = document.getElementById('admin-modules-container');
+        if (!adminContainer) return;
+        let panel = document.getElementById('push-notifications-panel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'push-notifications-panel';
+            adminContainer.appendChild(panel);
+        }
+        if (panel.dataset.loaded === 'true') return;
+        panel.dataset.loaded = 'true';
+        panel.className = 'bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-hidden transition-all duration-300';
+        panel.innerHTML = `
+            <button type="button" id="push-notifications-header" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none">
+                <span class="flex flex-col items-center">
+                    ${Admin.tileIcon('megaphone', 'text-blue-600 dark:text-blue-400')}
+                    <span>Notifications</span>
+                </span>
+            </button>
+            <div id="push-notifications-body" class="hidden mt-4 space-y-3">
+                <p class="text-[10px] leading-snug text-gray-500 dark:text-gray-400">
+                    Sends an FCM system notification to enabled devices. This does not post an Alerts card.
+                </p>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[9px] font-black uppercase tracking-wider text-gray-500 mb-1" for="push-notifications-environment">Environment</label>
+                        <select id="push-notifications-environment" class="w-full h-10 px-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white">
+                            <option value="production">Production</option>
+                            <option value="lab">Lab / previews</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-black uppercase tracking-wider text-gray-500 mb-1" for="push-notifications-audience">Audience</label>
+                        <select id="push-notifications-audience" class="w-full h-10 px-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white">
+                            <option value="all">Everyone</option>
+                            <option value="region">One region</option>
+                            <option value="route">One route</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="push-notifications-region-wrap" class="hidden">
+                    <label class="block text-[9px] font-black uppercase tracking-wider text-gray-500 mb-1" for="push-notifications-region">Region</label>
+                    <select id="push-notifications-region" class="w-full h-10 px-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white">
+                        <option value="GP">Gauteng</option>
+                        <option value="WC">Western Cape</option>
+                        <option value="KZN">KwaZulu-Natal</option>
+                        <option value="EC">Eastern Cape</option>
+                    </select>
+                </div>
+                <div id="push-notifications-route-wrap" class="hidden">
+                    <label class="block text-[9px] font-black uppercase tracking-wider text-gray-500 mb-1" for="push-notifications-route">Route</label>
+                    <select id="push-notifications-route" class="w-full h-10 px-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white"></select>
+                </div>
+                <div>
+                    <label class="block text-[9px] font-black uppercase tracking-wider text-gray-500 mb-1" for="push-notifications-title">Title</label>
+                    <input id="push-notifications-title" maxlength="80" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white" placeholder="Next Train service update">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-[9px] font-black uppercase tracking-wider text-gray-500" for="push-notifications-message">Message</label>
+                        <span id="push-notifications-count" class="text-[9px] text-gray-400">0 / 180</span>
+                    </div>
+                    <textarea id="push-notifications-message" maxlength="180" rows="3" class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white resize-none" placeholder="What commuters need to know"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[9px] font-black uppercase tracking-wider text-gray-500 mb-1" for="push-notifications-urgency">Delivery</label>
+                        <select id="push-notifications-urgency" class="w-full h-10 px-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white">
+                            <option value="normal">Normal</option>
+                            <option value="high">Urgent</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-black uppercase tracking-wider text-gray-500 mb-1" for="push-notifications-ttl">Expires from FCM</label>
+                        <select id="push-notifications-ttl" class="w-full h-10 px-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white">
+                            <option value="3600">1 hour</option>
+                            <option value="21600">6 hours</option>
+                            <option value="86400">24 hours</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[9px] font-black uppercase tracking-wider text-gray-500 mb-1" for="push-notifications-link">Open link (optional)</label>
+                    <input id="push-notifications-link" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white" placeholder="Uses the selected route or region">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="push-notifications-preview" class="h-10 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-[10px] font-black uppercase tracking-wide">Count devices</button>
+                    <button type="button" id="push-notifications-send" class="h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wide">Send notification</button>
+                </div>
+                <p id="push-notifications-status" class="min-h-[1rem] text-[10px] leading-snug text-gray-500 dark:text-gray-400" aria-live="polite"></p>
+            </div>`;
+
+        const body = panel.querySelector('#push-notifications-body');
+        const header = panel.querySelector('#push-notifications-header');
+        const environment = panel.querySelector('#push-notifications-environment');
+        const audience = panel.querySelector('#push-notifications-audience');
+        const region = panel.querySelector('#push-notifications-region');
+        const regionWrap = panel.querySelector('#push-notifications-region-wrap');
+        const routeWrap = panel.querySelector('#push-notifications-route-wrap');
+        const route = panel.querySelector('#push-notifications-route');
+        const title = panel.querySelector('#push-notifications-title');
+        const message = panel.querySelector('#push-notifications-message');
+        const count = panel.querySelector('#push-notifications-count');
+        const urgency = panel.querySelector('#push-notifications-urgency');
+        const ttl = panel.querySelector('#push-notifications-ttl');
+        const link = panel.querySelector('#push-notifications-link');
+        const preview = panel.querySelector('#push-notifications-preview');
+        const send = panel.querySelector('#push-notifications-send');
+        const status = panel.querySelector('#push-notifications-status');
+
+        const isLab = /(^|\.)lab\.nexttrain\.co\.za$|\.pages\.dev$|\.github\.io$/i.test(location.hostname);
+        environment.value = isLab ? 'lab' : 'production';
+        const routeRows = Object.values(window.ROUTES || {})
+            .filter((item) => item?.isActive && item.id !== 'special_event')
+            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+        const fillRoutes = () => {
+            const code = region.value;
+            route.innerHTML = routeRows
+                .filter((item) => item.region === code)
+                .map((item) => `<option value="${String(item.id).replace(/"/g, '&quot;')}">${String(item.name || item.id).replace(/<->/g, 'to').replace(/</g, '&lt;')}</option>`)
+                .join('');
+        };
+        const syncAudience = () => {
+            const type = audience.value;
+            regionWrap.classList.toggle('hidden', type === 'all');
+            routeWrap.classList.toggle('hidden', type !== 'route');
+            if (type === 'route') fillRoutes();
+        };
+        const defaultLink = () => {
+            const origin = environment.value === 'lab' ? 'https://lab.nexttrain.co.za' : 'https://nexttrain.co.za';
+            if (audience.value === 'route') {
+                return `${origin}/?rt=${encodeURIComponent(route.value)}&r=${encodeURIComponent(region.value)}`;
+            }
+            if (audience.value === 'region') return `${origin}/?region=${encodeURIComponent(region.value)}`;
+            return `${origin}/`;
+        };
+        const payload = (dryRun) => ({
+            environment: environment.value,
+            audience: audience.value,
+            target: audience.value === 'route' ? route.value : (audience.value === 'region' ? region.value : 'all'),
+            title: title.value.trim(),
+            body: message.value.trim(),
+            urgency: urgency.value,
+            ttlSec: Number(ttl.value) || 3600,
+            link: link.value.trim() || defaultLink(),
+            dryRun,
+        });
+        const callWorker = async (dryRun) => {
+            const workerUrl = String(window.COMMUNITY_WORKER_URL || '').replace(/\/$/, '');
+            if (!workerUrl) throw new Error('Notification service is not configured');
+            const token = await Admin.getAuthKey();
+            if (!token) throw new Error('Admin sign-in expired');
+            const response = await fetch(`${workerUrl}/admin/notifications/send`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload(dryRun)),
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.ok) throw new Error(result.error || `Notification service failed (${response.status})`);
+            return result;
+        };
+        const setBusy = (busy) => {
+            preview.disabled = busy;
+            send.disabled = busy;
+            preview.classList.toggle('opacity-50', busy);
+            send.classList.toggle('opacity-50', busy);
+        };
+
+        header.addEventListener('click', () => body.classList.toggle('hidden'));
+        audience.addEventListener('change', syncAudience);
+        region.addEventListener('change', () => {
+            fillRoutes();
+            if (!link.value.trim()) link.placeholder = defaultLink();
+        });
+        environment.addEventListener('change', () => {
+            if (!link.value.trim()) link.placeholder = defaultLink();
+        });
+        route.addEventListener('change', () => {
+            if (!link.value.trim()) link.placeholder = defaultLink();
+        });
+        message.addEventListener('input', () => { count.textContent = `${message.value.length} / 180`; });
+        preview.addEventListener('click', async () => {
+            setBusy(true);
+            status.textContent = 'Counting enabled devices...';
+            try {
+                const result = await callWorker(true);
+                status.textContent = `${result.matched} enabled device${result.matched === 1 ? '' : 's'} match (${result.subscribers} stored).`;
+            } catch (error) {
+                status.textContent = error.message || 'Could not count devices.';
+            } finally {
+                setBusy(false);
+            }
+        });
+        send.addEventListener('click', async () => {
+            if (!title.value.trim() || !message.value.trim()) {
+                status.textContent = 'Add a title and message first.';
+                return;
+            }
+            const targetLabel = audience.value === 'all' ? 'everyone' : (audience.value === 'region' ? region.value : route.value);
+            if (!window.confirm(`Send this ${environment.value} notification to ${targetLabel}?`)) return;
+            setBusy(true);
+            status.textContent = 'Sending notification...';
+            try {
+                const result = await callWorker(false);
+                const detail = result.sampleError ? ` ${result.sampleError}` : '';
+                const removed = Number.isFinite(result.pruned) ? result.pruned : result.invalid;
+                status.textContent = `Sent ${result.sent} of ${result.attempted}. Failed ${result.failed}; removed ${removed} invalid token${removed === 1 ? '' : 's'}.${detail}`;
+            } catch (error) {
+                status.textContent = error.message || 'Notification send failed.';
+            } finally {
+                setBusy(false);
+            }
+        });
+        fillRoutes();
+        syncAudience();
+        link.placeholder = defaultLink();
+    },
+
     setupDiagnosticsManager: () => {
         const alertPanel = document.getElementById('alert-panel');
         if (!alertPanel || !alertPanel.parentNode) return;
@@ -17939,6 +18305,7 @@ const Admin = {
                 const meta = [f.sheetKey, f.dayDir, f.train, f.station].filter(Boolean).join(' - ');
                 const isDelta = f.code === 'DELTA_VARIANCE' && Array.isArray(f.samples) && f.samples.length;
                 const pair = (f.from && f.to) ? `${String(f.from).replace(/</g, '&lt;')} → ${String(f.to).replace(/</g, '&lt;')}` : '';
+                const deltaSpread = isDelta ? Math.max(0, Number(f.spreadMin ?? Number(f.hi) - Number(f.lo)) || 0) : null;
                 const previewRows = isDelta
                     ? f.samples.slice(0, 6).map((s) => `${String(s.train || '').replace(/</g, '&lt;')}  ${s.deltaMin}m`).join('<br>')
                     : '';
@@ -17955,8 +18322,11 @@ const Admin = {
                     <div class="p-2.5 rounded-lg border text-[10px] leading-snug ${style}${isDelta ? ' cursor-pointer hover:brightness-[0.98]' : ''}"${clickable}>
                         <div class="flex items-center justify-between gap-2 mb-1">
                             <span class="font-black uppercase tracking-wider text-[9px]">${f.severity} - ${f.code}</span>
-                            <span class="font-mono text-[9px] opacity-70 truncate">${meta}</span>
+                            ${isDelta
+                                ? `<span class="font-mono text-[10px] font-black text-violet-700 dark:text-violet-300 shrink-0">${deltaSpread} min</span>`
+                                : `<span class="font-mono text-[9px] opacity-70 truncate">${meta}</span>`}
                         </div>
+                        ${isDelta && meta ? `<div class="font-mono text-[9px] opacity-70 truncate mb-1">${meta}</div>` : ''}
                         <div class="font-semibold mb-0.5">${routeBit}</div>
                         ${body}
                     </div>
