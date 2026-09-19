@@ -319,6 +319,14 @@
             // spur Lentegeur → Kapteinsklip (painted as a second polyline from
             // Philippi only, never a second Cape Town → Mutual line).
             'ct-nolu': ["CAPE TOWN", "ESPLANADE", "YSTERPLAAT", "MUTUAL", "LANGA", "BONTEHEUWEL", "NETREG", "HEIDEVELD", "NYANGA", "PHILIPPI", "STOCK ROAD", "MANDALAY", "NOLUNGILE"],
+            // network-map_wc.png: Northern Line trunk via Mutual (not Century City,
+            // not the Strand or Stellenbosch forks). Stikland is not adjacent to Du Toit.
+            'ct-well': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "WOLTEMADE", "MUTUAL", "THORNTON", "GOODWOOD", "VASCO", "ELSIES RIVER", "PAROW", "TYGERBERG", "BELLVILLE", "STIKLAND", "BRACKENFELL", "EIKENFONTEIN", "KRAAIFONTEIN", "MULDERSVLEI", "KLAPMUTS", "PAARL", "HUGUENOT", "DAL JOSAFAT", "MBEKWENI", "WELLINGTON"],
+            'ct-kraai': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "WOLTEMADE", "MUTUAL", "THORNTON", "GOODWOOD", "VASCO", "ELSIES RIVER", "PAROW", "TYGERBERG", "BELLVILLE", "STIKLAND", "BRACKENFELL", "EIKENFONTEIN", "KRAAIFONTEIN"],
+            'ct-eerst': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "WOLTEMADE", "MUTUAL", "THORNTON", "GOODWOOD", "VASCO", "ELSIES RIVER", "PAROW", "TYGERBERG", "BELLVILLE", "KUILS RIVER", "BLACKHEATH", "MELTONROSE", "EERSTE RIVER"],
+            'ct-strnd': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "WOLTEMADE", "MUTUAL", "THORNTON", "GOODWOOD", "VASCO", "ELSIES RIVER", "PAROW", "TYGERBERG", "BELLVILLE", "KUILS RIVER", "BLACKHEATH", "MELTONROSE", "EERSTE RIVER", "FAURE", "FIRGROVE", "SOMERSET WEST", "VAN DER STEL", "STRAND"],
+            'eerst-dtoit': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "KOEBERG RD", "MAITLAND", "WOLTEMADE", "MUTUAL", "THORNTON", "GOODWOOD", "VASCO", "ELSIES RIVER", "PAROW", "TYGERBERG", "BELLVILLE", "KUILS RIVER", "BLACKHEATH", "MELTONROSE", "EERSTE RIVER", "LYNEDOCH", "VLOTTENBURG", "STELLENBOSCH", "DU TOIT"],
+            'ct-simon': ["CAPE TOWN", "WOODSTOCK", "SALT RIVER", "OBSERVATORY", "MOWBRAY", "ROSEBANK", "RONDEBOSCH", "NEWLANDS", "CLAREMONT", "HARFIELD ROAD", "KENILWORTH", "WYNBERG", "WITTEBOME", "PLUMSTEAD", "STEURHOF", "DIEPRIVIER", "HEATHFIELD", "RETREAT", "STEENBERG", "LAKESIDE", "FALSE BAY", "MUIZENBERG", "ST JAMES", "KALK BAY", "FISH HOEK", "SUNNY COVE", "GLENCAIRN", "SIMON'S TOWN"],
 
             // --- KWAZULU-NATAL ---
             'kzn-umlazi': ["DURBAN YARD", "DURBAN", "BEREA ROAD", "DALBRIDGE", "CONGELLA", "UMBILO", "ROSSBURGH", "CLAIRWOOD", "MONTCLAIR", "MEREBANK", "REUNION", "ZWELETHU", "KWAMNYANDU", "LINDOKUHLE", "UMLAZI"],
@@ -1294,6 +1302,11 @@
 
             // Guardian UX: Disabled Leaflet's rigid zoom control for horizontal bar layout
             const map = L.map('map', { zoomControl: false }).setView([initLat, initLon], initZoom);
+            map.on('click', function () {
+                try {
+                    (window.parent || window).postMessage({ type: 'nt-map-close-tracking' }, '*');
+                } catch (_) {}
+            });
             map.createPane('nt-stations');
             const stationPane = map.getPane('nt-stations');
             if (stationPane) stationPane.style.zIndex = 450;
@@ -2696,10 +2709,10 @@
                     + '<span class="nt-live-train-ring" aria-hidden="true"></span>'
                     + '<span class="nt-live-train-ring nt-live-train-ring--delay" aria-hidden="true"></span>'
                     + '<span class="' + cls + '" style="transform:rotate(' + yaw + 'deg)">'
-                    + '<span class="nt-live-train-wake" aria-hidden="true"><span class="nt-live-train-wake-ripple"><i></i><i></i></span><span class="nt-live-train-wake-ripple"><i></i><i></i></span><span class="nt-live-train-wake-ripple"><i></i><i></i></span></span>'
                     + '<span class="nt-live-train-shell" aria-hidden="true"></span>'
                     + '<span class="nt-live-train-oval nt-live-train-oval--a" aria-hidden="true"></span>'
                     + '<span class="nt-live-train-oval nt-live-train-oval--b" aria-hidden="true"></span>'
+                    + '<span class="nt-live-train-nose" aria-hidden="true"></span>'
                     + '<span class="nt-live-train-num" style="font-size:' + numSize + ';transform:rotate(' + labelCounterYaw + 'deg)">' + id + '</span>'
                     + '</span></div>';
             }
@@ -2874,6 +2887,95 @@
                 var last = path[path.length - 1];
                 return [last[0], last[1]];
             }
+            function geoBearingDeg(aLat, aLng, bLat, bLng) {
+                var lat1 = aLat * Math.PI / 180;
+                var lat2 = bLat * Math.PI / 180;
+                var dLon = (bLng - aLng) * Math.PI / 180;
+                var y = Math.sin(dLon) * Math.cos(lat2);
+                var x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+                var deg = Math.atan2(y, x) * 180 / Math.PI;
+                return (deg + 360) % 360;
+            }
+            function rideTangentAlongPath(path, alongM) {
+                if (!path || path.length < 2) return NaN;
+                var remain = Math.max(0, alongM);
+                var lastGood = NaN;
+                for (var i = 1; i < path.length; i++) {
+                    var a = path[i - 1];
+                    var b = path[i];
+                    var segM = railHaversineM(a[0], a[1], b[0], b[1]);
+                    if (segM >= 2) lastGood = geoBearingDeg(a[0], a[1], b[0], b[1]);
+                    if (remain <= segM || i === path.length - 1) {
+                        if (segM >= 2) return geoBearingDeg(a[0], a[1], b[0], b[1]);
+                        return lastGood;
+                    }
+                    remain -= segM;
+                }
+                return lastGood;
+            }
+            // Face the painted rail: long axis = local tangent, tip toward travel.
+            function rideFacingAlongPath(path, alongM, destAlongM) {
+                var tang = rideTangentAlongPath(path, alongM);
+                if (!Number.isFinite(tang)) return NaN;
+                if (Number.isFinite(destAlongM) && destAlongM + 12 < alongM) tang = (tang + 180) % 360;
+                return tang;
+            }
+            function alongMForStationName(stations, name) {
+                var key = String(name || '').replace(/\s+STATION$/i, '').trim().toUpperCase();
+                if (!key) return NaN;
+                for (var i = 0; i < (stations || []).length; i++) {
+                    var n = String(stations[i].name || '').replace(/\s+STATION$/i, '').trim().toUpperCase();
+                    if (n === key) return stations[i].alongM;
+                }
+                return NaN;
+            }
+            function applyTrainGlyphYaw(marker, bearingDeg) {
+                if (!marker || !Number.isFinite(bearingDeg)) return;
+                var root = marker.getElement && marker.getElement();
+                if (!root) return;
+                var glyph = root.querySelector('.nt-live-train-glyph');
+                var num = root.querySelector('.nt-live-train-num');
+                var yaw = railOvalYawDeg(bearingDeg);
+                if (glyph) glyph.style.transform = 'rotate(' + yaw + 'deg)';
+                if (num) num.style.transform = 'rotate(' + (readableTrainLabelDeg(bearingDeg) - yaw) + 'deg)';
+                marker._ntRailBearing = bearingDeg;
+            }
+            function rideAlongAtWarpedTime(samples, t01) {
+                if (!samples) return NaN;
+                var t = Math.max(0, Math.min(1, t01)) * samples.totalSec;
+                var metres = samples.metres;
+                var times = samples.times;
+                if (t <= 0) return metres[0];
+                for (var i = 1; i < times.length; i++) {
+                    if (t <= times[i]) {
+                        var span = times[i] - times[i - 1];
+                        var u = span > 0 ? (t - times[i - 1]) / span : 1;
+                        return metres[i - 1] + (metres[i] - metres[i - 1]) * u;
+                    }
+                }
+                return metres[metres.length - 1];
+            }
+            function snapTrainToRail(lat, lng, opts) {
+                var path = ridePathForRoute(opts && opts.routeId);
+                if (path.length < 2) return null;
+                var p = projectOntoRidePath(path, lat, lng);
+                if (!p) return null;
+                var stations = stationsAlongRidePath(path, opts && opts.routeId);
+                var destAlong = Number(opts && opts.destAlong);
+                if (!Number.isFinite(destAlong)) destAlong = alongMForStationName(stations, opts && opts.destination);
+                // Always sit on the painted corridor when one exists. A 250 m
+                // cutoff left Pretoria GPS (yards / concourse) off the green
+                // line with a raw heading instead of the rail tangent.
+                return {
+                    lat: p.lat,
+                    lng: p.lng,
+                    alongM: p.alongM,
+                    offM: p.offM,
+                    facing: rideFacingAlongPath(path, p.alongM, destAlong),
+                    destAlong: destAlong,
+                    path: path
+                };
+            }
             function stationsAlongRidePath(path, routeId) {
                 var rid = String(routeId || '');
                 var stops = [];
@@ -2974,6 +3076,10 @@
                 if (from.offM > 180 || to.offM > 180) return null;
                 if (Math.abs(to.alongM - from.alongM) < 2) return null;
                 var stations = stationsAlongRidePath(path, routeId);
+                var destAlong = Number(opts && opts.destAlong);
+                if (!Number.isFinite(destAlong)) {
+                    destAlong = alongMForStationName(stations, opts && opts.destination);
+                }
                 var speed = Number(opts && opts.speedMps);
                 var label = String((opts && opts.lastSeenLabel) || '');
                 var atStation = /^at\s/i.test(label) || (Number.isFinite(speed) && speed < 1.5 && (function () {
@@ -2987,30 +3093,32 @@
                     atStation: atStation
                 });
                 if (!samples) return null;
-                return { path: path, samples: samples, end: end };
+                return {
+                    path: path,
+                    samples: samples,
+                    endAlong: to.alongM,
+                    destAlong: destAlong,
+                    travelDir: to.alongM >= from.alongM ? 1 : -1
+                };
             }
             function interpolateRideMarkerLatLng(marker, target, immediate, opts) {
                 if (!marker || !target) return;
                 stopRideMarkerInterpolation(marker);
                 var end = L.latLng(target);
                 var start = marker.getLatLng();
+                var snap = snapTrainToRail(end.lat, end.lng, opts || {});
+                if (snap) end = L.latLng(snap.lat, snap.lng);
                 var reduceMotion = false;
                 try { reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
-                if (immediate || reduceMotion || (start.lat === end.lat && start.lng === end.lng)) {
+                var along = (!immediate && !reduceMotion)
+                    ? interpolateAlongRidePath(marker, start, end, opts || {})
+                    : null;
+                if (immediate || reduceMotion || !along || (start.lat === end.lat && start.lng === end.lng)) {
                     marker.setLatLng(end);
+                    applyTrainGlyphYaw(marker, snap ? snap.facing : (opts && Number(opts.bearing)));
                     return;
                 }
-                var along = interpolateAlongRidePath(marker, start, end, opts || {});
-                var distance = along
-                    ? Math.abs(along.samples.metres[along.samples.metres.length - 1] - along.samples.metres[0])
-                    : map.distance(start, end);
-                if (distance > 8000) {
-                    marker.setLatLng(end);
-                    return;
-                }
-                var duration = along
-                    ? Math.max(450, Math.min(8000, along.samples.totalSec * 1000))
-                    : Math.max(280, Math.min(1400, distance * 12));
+                var duration = Math.max(450, Math.min(8000, along.samples.totalSec * 1000));
                 var startedAt = performance.now();
                 function frame(now) {
                     var t = Math.max(0, Math.min(1, (now - startedAt) / duration));
@@ -3018,6 +3126,13 @@
                     var pos = along ? ridePosAtWarpedTime(along.path, along.samples, t) : null;
                     if (pos) {
                         marker.setLatLng(pos);
+                        var alongNow = rideAlongAtWarpedTime(along.samples, t);
+                        var facing = rideTangentAlongPath(along.path, alongNow);
+                        if (along.travelDir < 0 && Number.isFinite(facing)) facing = (facing + 180) % 360;
+                        else if (!Number.isFinite(along.travelDir)) {
+                            facing = rideFacingAlongPath(along.path, alongNow, along.destAlong);
+                        }
+                        applyTrainGlyphYaw(marker, facing);
                     } else {
                         marker.setLatLng([
                             start.lat + ((end.lat - start.lat) * eased),
@@ -3029,6 +3144,9 @@
                     } else {
                         marker._ntRideFrame = 0;
                         marker.setLatLng(end);
+                        applyTrainGlyphYaw(marker, along
+                            ? rideFacingAlongPath(along.path, along.endAlong, along.destAlong)
+                            : (opts && Number(opts.bearing)));
                     }
                 }
                 marker._ntRideFrame = requestAnimationFrame(frame);
@@ -3131,15 +3249,26 @@
                     const n = list.reduce(function (s, p) { return s + (Number(p.n) || 1); }, 0) || Object.keys(ids).length;
                     const mine = list.some(function (p) { return !!p.mine; });
                     const newest = consensus;
-                    const bearing = Number.isFinite(newest.bearing) ? newest.bearing : 0;
+                    const destName = String(newest.destination || '').replace(/\s+STATION$/i, '').trim();
+                    const rail = snapTrainToRail(consensus.lat, consensus.lng, {
+                        routeId: newest.routeId || list[0].routeId,
+                        destination: destName
+                    });
+                    const bearing = Number.isFinite(rail && rail.facing)
+                        ? rail.facing
+                        : (Number.isFinite(newest.bearing) ? newest.bearing : 0);
                     return {
                         trainId: trainId,
                         list: list,
                         newest: newest,
                         n: n,
                         mine: mine,
-                        lat: consensus.lat,
-                        lng: consensus.lng,
+                        lat: rail ? rail.lat : consensus.lat,
+                        lng: rail ? rail.lng : consensus.lng,
+                        alongM: rail ? rail.alongM : 0,
+                        destAlong: rail ? rail.destAlong : NaN,
+                        routeId: newest.routeId || list[0].routeId,
+                        destination: destName,
                         bearing: bearing
                     };
                 });
@@ -3149,10 +3278,14 @@
                         var pb = placedTrains[pj];
                         var metres = map.distance(L.latLng(pa.lat, pa.lng), L.latLng(pb.lat, pb.lng));
                         if (metres > 90 || !bearingsOppose(pa.bearing, pb.bearing)) continue;
-                        var ao = offsetLatLngByBearing(pa.lat, pa.lng, pa.bearing, 12);
-                        var bo = offsetLatLngByBearing(pb.lat, pb.lng, pb.bearing, 12);
-                        pa.lat = ao.lat; pa.lng = ao.lng;
-                        pb.lat = bo.lat; pb.lng = bo.lng;
+                        // Keep both hulls on the painted rail: separate along-track, never off to the side.
+                        var pathA = ridePathForRoute(pa.routeId);
+                        if (pathA.length >= 2) {
+                            var aPos = pointAtRideAlongM(pathA, (pa.alongM || 0) - 10);
+                            var bPos = pointAtRideAlongM(pathA, (pb.alongM || 0) + 10);
+                            if (aPos) { pa.lat = aPos[0]; pa.lng = aPos[1]; }
+                            if (bPos) { pb.lat = bPos[0]; pb.lng = bPos[1]; }
+                        }
                     }
                 }
                 placedTrains.forEach(function (row) {
@@ -3166,7 +3299,6 @@
                     const newest = row.newest;
                     const speedValue = (list.find(function (p) { return typeof p.speedMps === 'number'; }) || newest || {}).speedMps;
                     const speed = typeof speedValue === 'number' ? speedValue : null;
-                    const heading = row.bearing;
                     const spec = liveTrainIconSpec(map.getZoom(), trainId, Object.assign({}, newest, { bearing: row.bearing }));
                     const icon = L.divIcon({
                         className: 'nt-live-train',
@@ -3174,70 +3306,37 @@
                         iconSize: [spec.w, spec.h],
                         iconAnchor: [Math.round(spec.w / 2), Math.round(spec.h / 2)]
                     });
-                    const joinId = 'nt-join-train-' + String(trainId).replace(/[^a-zA-Z0-9_-]/g, '');
-                    const sheetId = 'nt-tt-train-' + String(trainId).replace(/[^a-zA-Z0-9_-]/g, '');
-                    const resumeId = 'nt-resume-train-' + String(trainId).replace(/[^a-zA-Z0-9_-]/g, '');
                     const paused = newest.trackingState === 'paused' || isPingGpsStale(newest);
-                    const actionBtn = mine
-                        ? (paused
-                            ? "<button type='button' id='" + resumeId + "' class='nt-live-train-pop-btn nt-live-train-pop-btn--resume'>Restart</button>"
-                                + "<button type='button' id='" + joinId + "' class='nt-live-train-pop-btn nt-live-train-pop-btn--stop'>Stop sharing</button>"
-                            : "<button type='button' id='" + joinId + "' class='nt-live-train-pop-btn nt-live-train-pop-btn--stop'>Stop sharing</button>")
-                        : "<button type='button' id='" + joinId + "' class='nt-live-train-pop-btn'>I’m on this train</button>";
-                    const status = paused ? 'Paused' : 'Active';
-                    const detailsId = 'nt-track-details-' + String(trainId).replace(/[^a-zA-Z0-9_-]/g, '');
-                    const pingAt = gpsPingSuccessAt(newest);
-                    const lastPlace = newest.lastSeenLabel || newest.station || 'on the route';
                     const dest = String(newest.destination || '').replace(/\s+STATION$/i, '').trim();
-                    const toward = dest ? ('Toward ' + dest) : '';
-                    const popupHtml =
-                        "<div class='nt-live-train-pop'>"
-                        + "<div class='nt-live-train-pop-head'><p class='nt-live-train-pop-title'>Train " + escapePing(trainId) + "</p>"
-                        + "<span class='nt-live-train-status nt-live-train-status--" + (paused ? 'paused' : 'active') + "'>" + status + "</span></div>"
-                        + "<p class='nt-live-train-pop-sub'>" + escapePing(sharingStatusCopy(n, mine)) + (toward ? (' · ' + escapePing(toward)) : '') + "</p>"
-                        + "<dl class='nt-live-train-metrics'>"
-                        + "<div><dt>Speed</dt><dd>" + escapePing(speed == null ? 'Unknown' : (Math.max(0, speed) * 3.6).toFixed(0) + ' km/h') + "</dd></div>"
-                        + "<div><dt>Heading</dt><dd>" + escapePing(headingMetric(heading)) + "</dd></div>"
-                        + "<div><dt>Rail distance</dt><dd>" + escapePing(distanceMetric(Number(newest.railDistanceM))) + "</dd></div>"
-                        + "<div><dt>GPS age</dt><dd data-nt-gps-at='" + pingAt + "' data-nt-gps-kind='age'>" + escapePing(ageMetric(pingAt)) + "</dd></div>"
-                        + "<div><dt>GPS accuracy</dt><dd>" + escapePing(Number.isFinite(newest.accuracy) ? '±' + Math.round(newest.accuracy) + ' m' : 'Unknown') + "</dd></div>"
-                        + "<div><dt>Contributors</dt><dd>" + escapePing(metricValue(n, '0')) + "</dd></div>"
-                        + "</dl>"
-                        + "<p class='nt-live-train-last' data-nt-gps-at='" + pingAt + "' data-nt-gps-kind='last' data-nt-last-seen='" + escapePing(lastPlace) + "'>" + escapePing(lastSeenMetric(lastPlace, pingAt)) + "</p>"
-                        + "<div class='nt-live-train-pop-actions'>"
-                        + "<button type='button' id='" + detailsId + "' class='nt-live-train-pop-btn nt-live-train-pop-btn--details'>Show tracking details</button>"
-                        + actionBtn
-                        + "<button type='button' id='" + sheetId + "' class='nt-live-train-pop-btn nt-live-train-pop-btn--sheet'>Timetable</button>"
-                        + "</div></div>";
                     let marker = rideTrainMarkers[trainId];
                     if (!marker) {
                         marker = L.marker([lat, lng], { icon: icon, zIndexOffset: 800, keyboard: true });
-                        marker.bindPopup(popupHtml);
-                        marker.on('popupopen', function () { bindRideTrainPopupActions(marker); });
+                        marker.on('click', function (ev) {
+                            L.DomEvent.stop(ev);
+                            try {
+                                (window.parent || window).postMessage({
+                                    type: 'nt-map-show-tracking-details',
+                                    trainId: trainId,
+                                    routeId: newest.routeId || list[0].routeId || null,
+                                    ping: newest,
+                                    n: n,
+                                    mine: mine
+                                }, '*');
+                            } catch (_) {}
+                        });
                         marker.addTo(ridePingLayer);
                         rideTrainMarkers[trainId] = marker;
                     } else {
                         marker.setIcon(icon);
-                        marker.setPopupContent(popupHtml);
                     }
-                    marker._ntRidePopupContext = {
-                        trainId: trainId,
-                        joinId: joinId,
-                        detailsId: detailsId,
-                        sheetId: sheetId,
-                        resumeId: resumeId,
-                        mine: mine,
-                        station: list[0].station || '',
-                        routeId: list[0].routeId || null
-                    };
                     interpolateRideMarkerLatLng(marker, [lat, lng], paused, {
                         routeId: newest.routeId || list[0].routeId,
                         speedMps: speed,
-                        lastSeenLabel: newest.lastSeenLabel || newest.station || ''
+                        lastSeenLabel: newest.lastSeenLabel || newest.station || '',
+                        destination: dest,
+                        destAlong: row.destAlong,
+                        bearing: row.bearing
                     });
-                    if (marker.isPopupOpen && marker.isPopupOpen()) {
-                        requestAnimationFrame(function () { bindRideTrainPopupActions(marker); });
-                    }
                 });
                 updateStationCallouts(placedTrains);
 
@@ -3281,7 +3380,9 @@
                     const marker = rideTrainMarkers[String(data.trainId)];
                     if (marker) {
                         map.flyTo(marker.getLatLng(), 15, { duration: 1.0 });
-                        marker.openPopup();
+                        try {
+                            marker.fire('click');
+                        } catch (_) {}
                     }
                     return;
                 }
