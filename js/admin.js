@@ -11797,6 +11797,8 @@ const Admin = {
             }
             if (!publishNote && due && due.published) {
                 publishNote = ` - posted ${due.published}`;
+            } else if (!publishNote && due && Number(due.at)) {
+                publishNote = ` - worker ${Admin.formatDate(due.at)}`;
             }
             Admin.renderScheduledAlertsList(items);
             if (statusEl) statusEl.textContent = `${items.length} scheduled${publishNote}`;
@@ -12206,7 +12208,7 @@ const Admin = {
                 <div id="alert-schedule-pane" class="hidden space-y-3">
                     <div class="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-200 dark:border-indigo-800">
                         <p class="text-[10px] text-indigo-800 dark:text-indigo-300 font-medium leading-snug">
-                            Live queue of scheduled alerts. Create them under <b>New Alert</b> with Later, Weekly, or Monthly. Refresh publishes any that are due.
+                            Live queue of scheduled alerts. Create them under <b>New Alert</b> with Later, Weekly, or Monthly. The worker posts due jobs every 5 minutes. Refresh also publishes now.
                         </p>
                     </div>
                     <div class="flex justify-between items-center">
@@ -15014,6 +15016,27 @@ const Admin = {
                             <span class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide leading-snug">Show on downloaded grid</span>
                         </label>
                     </div>
+                    <div class="pt-2 border-t border-blue-200 dark:border-blue-800/50 space-y-1.5">
+                        <p class="text-[9px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide">Show banner on</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-start cursor-pointer gap-2 rounded-lg bg-white/70 dark:bg-gray-800/70 p-2">
+                                <input type="checkbox" id="excl-grid-notice-day-weekday" checked class="form-checkbox h-4 w-4 mt-0.5 text-blue-600 bg-white border-gray-300 rounded focus:ring-0 shrink-0">
+                                <span class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide leading-snug">Weekday</span>
+                            </label>
+                            <label class="flex items-start cursor-pointer gap-2 rounded-lg bg-white/70 dark:bg-gray-800/70 p-2">
+                                <input type="checkbox" id="excl-grid-notice-day-saturday" checked class="form-checkbox h-4 w-4 mt-0.5 text-blue-600 bg-white border-gray-300 rounded focus:ring-0 shrink-0">
+                                <span class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide leading-snug">Saturday</span>
+                            </label>
+                            <label class="flex items-start cursor-pointer gap-2 rounded-lg bg-white/70 dark:bg-gray-800/70 p-2">
+                                <input type="checkbox" id="excl-grid-notice-day-sunday" checked class="form-checkbox h-4 w-4 mt-0.5 text-blue-600 bg-white border-gray-300 rounded focus:ring-0 shrink-0">
+                                <span class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide leading-snug">Sunday</span>
+                            </label>
+                            <label class="flex items-start cursor-pointer gap-2 rounded-lg bg-white/70 dark:bg-gray-800/70 p-2">
+                                <input type="checkbox" id="excl-grid-notice-day-public_holiday" checked class="form-checkbox h-4 w-4 mt-0.5 text-blue-600 bg-white border-gray-300 rounded focus:ring-0 shrink-0">
+                                <span class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-wide leading-snug">Public holiday</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-3 space-y-3">
@@ -15125,6 +15148,35 @@ const Admin = {
         const exclNoticeExpiryInit = document.getElementById('excl-grid-notice-expiry');
         if (exclExpiryInputInit) exclExpiryInputInit.value = Admin.endOfTodayLocalValue();
         if (exclNoticeExpiryInit) exclNoticeExpiryInit.value = Admin.endOfTodayLocalValue();
+
+        const NOTICE_DAY_KEYS = ['weekday', 'saturday', 'sunday', 'public_holiday'];
+        const noticeDayCheckbox = (key) => document.getElementById(`excl-grid-notice-day-${key}`);
+        const readNoticeDays = () => {
+            const days = {};
+            NOTICE_DAY_KEYS.forEach((key) => {
+                const el = noticeDayCheckbox(key);
+                days[key] = el ? !!el.checked : true;
+            });
+            return days;
+        };
+        const applyNoticeDays = (days) => {
+            const configured = days && typeof days === 'object'
+                ? (Array.isArray(days)
+                    ? days.length > 0
+                    : NOTICE_DAY_KEYS.some((key) => days[key] === true || days[key] === false))
+                : false;
+            NOTICE_DAY_KEYS.forEach((key) => {
+                const el = noticeDayCheckbox(key);
+                if (!el) return;
+                if (!configured) {
+                    el.checked = true;
+                    return;
+                }
+                el.checked = Array.isArray(days)
+                    ? days.includes(key)
+                    : days[key] === true;
+            });
+        };
 
         const schedTypeSelect = document.getElementById('excl-schedule-type');
 
@@ -15557,8 +15609,13 @@ const Admin = {
             const showInApp = noticeInAppToggle ? noticeInAppToggle.checked : true;
             const noticeExportToggle = document.getElementById('excl-grid-notice-export');
             const showOnExport = noticeExportToggle ? noticeExportToggle.checked : true;
+            const noticeDays = readNoticeDays();
             if (text && !showInApp && !showOnExport) {
                 if (typeof showToast === 'function') showToast("Tick in-app, downloaded grid, or both.", "error");
+                return;
+            }
+            if (text && !NOTICE_DAY_KEYS.some((key) => noticeDays[key])) {
+                if (typeof showToast === 'function') showToast("Tick weekday, Saturday, Sunday, or public holiday.", "error");
                 return;
             }
 
@@ -15581,7 +15638,8 @@ const Admin = {
                             updatedAt: Date.now(),
                             expiresAt: noticeExpiryTs,
                             showInApp: showInApp,
-                            showOnExport: showOnExport
+                            showOnExport: showOnExport,
+                            days: noticeDays
                         })
                     }, 10000);
                 }
@@ -15687,6 +15745,7 @@ const Admin = {
                     if (noticeInAppToggle) {
                         noticeInAppToggle.checked = data._grid_notice.showInApp !== false;
                     }
+                    applyNoticeDays(data._grid_notice.days);
                 } else {
                     noticeInput.value = "";
                     const noticeExpiryInput = document.getElementById('excl-grid-notice-expiry');
@@ -15697,6 +15756,7 @@ const Admin = {
                     if (noticeExportToggle) noticeExportToggle.checked = true;
                     const noticeInAppToggle = document.getElementById('excl-grid-notice-in-app');
                     if (noticeInAppToggle) noticeInAppToggle.checked = true;
+                    applyNoticeDays(null);
                 }
 
                 listDiv.innerHTML = '';
