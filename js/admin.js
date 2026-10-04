@@ -11620,6 +11620,50 @@ const Admin = {
         }
     },
 
+    hideLivePollResults: () => {
+        const wrap = document.getElementById('alert-live-poll-results');
+        if (wrap) wrap.classList.add('hidden');
+        Admin._livePollPaintId = '';
+    },
+
+    paintLivePollResults: async (pollId, poll, secret) => {
+        const wrap = document.getElementById('alert-live-poll-results');
+        if (!wrap) return;
+        if (!pollId || !poll || !poll.active) {
+            wrap.classList.add('hidden');
+            Admin._livePollPaintId = '';
+            return;
+        }
+        Admin._livePollPaintId = String(pollId);
+        wrap.classList.remove('hidden');
+        const qEl = document.getElementById('poll-result-question');
+        if (qEl) qEl.textContent = poll.question || 'Poll';
+        const tallies = await Admin.fetchPollResultsSnapshot(pollId, secret) || { A: 0, B: 0, C: 0, total: 0 };
+        const total = Number(tallies.total || 0);
+        const pct = (n) => (total > 0 ? Math.round((Number(n) || 0) / total * 100) : 0);
+        const paintRow = (letter, label, count) => {
+            const lab = document.getElementById(`poll-result-label-${letter}`);
+            const countEl = document.getElementById(`poll-result-count-${letter}`);
+            const bar = document.getElementById(`poll-result-bar-${letter}`);
+            const n = Number(count || 0);
+            const p = pct(n);
+            if (lab) lab.textContent = label || `Option ${letter.toUpperCase()}`;
+            if (countEl) countEl.textContent = `${n} vote${n === 1 ? '' : 's'} (${p}%)`;
+            if (bar) bar.style.width = `${p}%`;
+        };
+        paintRow('a', poll.optionA, tallies.A);
+        paintRow('b', poll.optionB, tallies.B);
+        const cWrap = document.getElementById('poll-result-c-wrap');
+        if (poll.optionC || Number(tallies.C || 0) > 0) {
+            cWrap?.classList.remove('hidden');
+            paintRow('c', poll.optionC, tallies.C);
+        } else {
+            cWrap?.classList.add('hidden');
+        }
+        const totalEl = document.getElementById('poll-result-total');
+        if (totalEl) totalEl.textContent = `Total Votes: ${total}`;
+    },
+
     listNoticesInTarget: (node) => {
         if (typeof window.listNoticesInTarget === 'function') return window.listNoticesInTarget(node);
         if (!node || typeof node !== 'object') return [];
@@ -12037,7 +12081,58 @@ const Admin = {
         }
         const nextList = listed.filter((n) => String(n.id || n._key) !== id).concat([payload]);
         await Admin.writeNoticesMeta(target, secret, nextList);
+        await Admin.writePollVoteMeta(id, payload.poll, secret, payload.expiresAt);
         return payload;
+    },
+
+    writePollVoteMeta: async (pollId, poll, secret, fallbackExpiresAt = 0) => {
+        if (!pollId || !secret || !poll || poll.active === false) return;
+        const closesAt = Number(poll.closesAt) || Number(fallbackExpiresAt) || 0;
+        if (!closesAt) return;
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        try {
+            await fetch(`${dynamicEndpoint}polls/${encodeURIComponent(pollId)}/_meta.json?auth=${secret}`, {
+                method: 'PUT',
+                body: JSON.stringify({ closesAt }),
+            });
+        } catch (e) {
+            console.warn('poll _meta write failed', e);
+        }
+    },
+
+    patchLiveNoticeFields: async (target, noticeId, fields, secret) => {
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const fetchRes = await window.guardianFetch(`${dynamicEndpoint}notices/${target}.json`, {}, 6000);
+        if (!fetchRes.ok) throw new Error('Alert not found');
+        const node = await fetchRes.json();
+        if (!node) throw new Error('Alert not found');
+        const listed = Admin.listNoticesInTarget(node);
+        const current = listed.find((n) => String(n.id || n._key) === String(noticeId))
+            || listed.find((n) => String(n.id || n._key) === String(noticeId));
+        if (!current) throw new Error('Alert not found');
+        const key = current._key || current.id;
+        const patch = fields && typeof fields === 'object' ? { ...fields } : {};
+        if (patch.poll && current.poll && typeof current.poll === 'object') {
+            patch.poll = { ...current.poll, ...patch.poll };
+        }
+        const isLegacy = node && (node.message || node.text)
+            && !Object.entries(node).some(([k, v]) => k !== 'reactions' && v && typeof v === 'object' && (v.message || v.text));
+        const url = isLegacy
+            ? `${dynamicEndpoint}notices/${target}.json?auth=${secret}`
+            : `${dynamicEndpoint}notices/${target}/${encodeURIComponent(key)}.json?auth=${secret}`;
+        const write = await window.guardianFetch(url, {
+            method: 'PATCH',
+            body: JSON.stringify(patch),
+        }, 8000);
+        if (!write.ok) throw new Error('Failed to update alert');
+        const next = { ...current, ...patch };
+        delete next._key;
+        const nextList = listed.map((n) => (
+            String(n.id || n._key) === String(key) ? { ...n, ...patch } : n
+        ));
+        await Admin.writeNoticesMeta(target, secret, nextList);
+        await Admin.writePollVoteMeta(noticeId, next.poll, secret, next.expiresAt);
+        return next;
     },
 
     archiveActiveNotice: async (target, secret, noticeData = null, noticeId = null) => {
@@ -12333,12 +12428,27 @@ const Admin = {
             const noticeId = ntAdminScheduledNoticeId(scheduleId, plan.occurrenceAt);
             const notice = { ...(job.notice || {}) };
             delete notice.expiresInMs;
+            if (notice.poll && typeof notice.poll === 'object') {
+                notice.poll = { ...notice.poll };
+                delete notice.poll.closesInMs;
+            }
+            const expiresAt = ntAdminJhbExpiresAt(plan.occurrenceAt, job);
             const payload = {
                 ...notice,
                 id: noticeId,
                 postedAt: plan.occurrenceAt,
-                expiresAt: ntAdminJhbExpiresAt(plan.occurrenceAt, job),
+                expiresAt,
             };
+            if (payload.poll && payload.poll.active) {
+                const closesInMs = Number(job.notice?.poll?.closesInMs) || 0;
+                const explicit = Number(job.notice?.poll?.closesAt) || 0;
+                let closesAt = 0;
+                if (closesInMs > 0) closesAt = plan.occurrenceAt + closesInMs;
+                else if (explicit > 0) closesAt = explicit;
+                else closesAt = expiresAt;
+                if (expiresAt && closesAt > expiresAt) closesAt = expiresAt;
+                if (closesAt) payload.poll.closesAt = closesAt;
+            }
             const failures = [];
             for (const target of targets) {
                 try {
@@ -12596,7 +12706,7 @@ const Admin = {
         
         const alertHeaderLen = (alertPanel.querySelector('#alert-header-btn')?.textContent || '').trim().length;
         const alertShellEmpty = !(alertPanel.innerHTML || '').trim() || alertHeaderLen < 3;
-        const ALERT_PANEL_REV = 'alerts-hub-v1';
+        const ALERT_PANEL_REV = 'alerts-hub-v2';
         if (
             alertPanel.dataset.adminLoaded === ALERT_PANEL_REV
             && (!document.getElementById('alert-poster-toggle') || !document.querySelector('#alert-body [data-nt-font-select]') || !document.getElementById('alert-source-saved'))
@@ -12729,7 +12839,17 @@ const Admin = {
                                 <label for="alert-force-popup" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
                             </div>
                         </div>
-                        <div class="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 p-3 rounded-xl border border-purple-200 dark:border-purple-800">
+                        <div class="flex items-center justify-between bg-sky-50 dark:bg-sky-900/20 p-3 rounded-xl border border-sky-200 dark:border-sky-800">
+                            <div>
+                                <span class="font-bold text-sky-800 dark:text-sky-200 text-sm">Pin to bottom of feed</span>
+                                <p class="text-[10px] text-sky-600 dark:text-sky-400 mt-0.5">Any alert. Stays under the others, pin next to Info</p>
+                            </div>
+                            <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                                <input type="checkbox" id="alert-pin-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
+                                <label for="alert-pin-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between bg-purple-50 dark:bg-purple-900/20 p-3 rounded-xl border border-purple-200 dark:border-purple-800 sm:col-span-2">
                             <div>
                                 <span class="font-bold text-purple-800 dark:text-purple-200 text-sm">Interactive Poll Mode</span>
                                 <p class="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5">Add commuter voting buttons</p>
@@ -12761,15 +12881,73 @@ const Admin = {
                         <input type="text" id="alert-poll-opt-c" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-900 border border-purple-200 dark:border-purple-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-purple-500 outline-none" placeholder="e.g. Not sure">
                     </div>
                     <button type="button" id="alert-poll-add-c-btn" class="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 hover:underline focus:outline-none">+ Add third option</button>
+                    <div>
+                        <label class="block text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase mb-1" for="alert-poll-closes">Poll closes</label>
+                        <input type="datetime-local" id="alert-poll-closes" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-900 border border-purple-200 dark:border-purple-700 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-purple-500 outline-none">
+                        <p class="text-[10px] text-purple-600 dark:text-purple-400 mt-1">Leave blank to match the alert expiry, or stay open if the alert has none. Cannot run past the alert expiry.</p>
+                    </div>
                     <div class="flex items-center justify-between bg-white dark:bg-gray-900/60 p-3 rounded-xl border border-purple-200 dark:border-purple-800">
                         <div>
                             <span class="font-bold text-purple-800 dark:text-purple-200 text-xs">Show results to users</span>
-                            <p class="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5">Percentages only - after they vote (or while viewing)</p>
+                            <p class="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5">Percentages after they vote. Off shows thanks only</p>
                         </div>
                         <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
                             <input type="checkbox" id="alert-poll-show-results" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
                             <label for="alert-poll-show-results" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
                         </div>
+                    </div>
+                    <div class="flex items-center justify-between bg-white dark:bg-gray-900/60 p-3 rounded-xl border border-purple-200 dark:border-purple-800">
+                        <div>
+                            <span class="font-bold text-purple-800 dark:text-purple-200 text-xs">Show raw vote counts</span>
+                            <p class="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5">Adds the count in brackets next to each percentage</p>
+                        </div>
+                        <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                            <input type="checkbox" id="alert-poll-show-count" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-300 appearance-none cursor-pointer outline-none"/>
+                            <label for="alert-poll-show-count" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        </div>
+                    </div>
+                    <div id="alert-live-poll-results" class="hidden pt-3 border-t border-purple-100 dark:border-purple-800">
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <h4 class="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest flex items-center"><span class="mr-1.5 inline-flex">${Admin.icon('chart', 'w-3.5 h-3.5')}</span> Live Poll Results</h4>
+                        <button type="button" id="alert-live-poll-refresh" class="h-7 px-2 rounded-lg bg-white dark:bg-gray-900 border border-purple-200 dark:border-purple-700 text-[9px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-300 focus:outline-none">Refresh</button>
+                    </div>
+                    <div class="bg-white dark:bg-gray-900 rounded-xl p-3 border border-purple-100 dark:border-purple-800">
+                        <p id="poll-result-question" class="text-xs font-bold text-gray-800 dark:text-gray-200 mb-3 leading-snug">Question...</p>
+                        
+                        <div class="mb-2">
+                            <div class="flex justify-between text-[10px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                                <span id="poll-result-label-a">Option A</span>
+                                <span id="poll-result-count-a">0 votes (0%)</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div id="poll-result-bar-a" class="bg-purple-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <div class="flex justify-between text-[10px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                                <span id="poll-result-label-b">Option B</span>
+                                <span id="poll-result-count-b">0 votes (0%)</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div id="poll-result-bar-b" class="bg-purple-400 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div id="poll-result-c-wrap" class="hidden mb-2">
+                            <div class="flex justify-between text-[10px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                                <span id="poll-result-label-c">Option C</span>
+                                <span id="poll-result-count-c">0 votes (0%)</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div id="poll-result-bar-c" class="bg-purple-300 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3 text-right">
+                            <span id="poll-result-total" class="text-[9px] font-black uppercase text-gray-400 tracking-wider">Total Votes: 0</span>
+                        </div>
+                    </div>
                     </div>
                 </div>
                 </div>
@@ -12899,48 +13077,6 @@ const Admin = {
                     </button>
                 </div>
 
-                <div id="alert-live-poll-results" class="hidden pt-4 border-t border-gray-100 dark:border-gray-700 mt-4">
-                    <h4 class="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-3 flex items-center"><span class="mr-1.5 inline-flex">${Admin.icon('chart', 'w-3.5 h-3.5')}</span> Live Poll Results</h4>
-                    <div class="bg-gray-50 dark:bg-gray-900 rounded-xl p-3 border border-gray-200 dark:border-gray-700">
-                        <p id="poll-result-question" class="text-xs font-bold text-gray-800 dark:text-gray-200 mb-3 leading-snug">Question...</p>
-                        
-                        <div class="mb-2">
-                            <div class="flex justify-between text-[10px] font-bold text-gray-600 dark:text-gray-400 mb-1">
-                                <span id="poll-result-label-a">Option A</span>
-                                <span id="poll-result-count-a">0 votes (0%)</span>
-                            </div>
-                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                <div id="poll-result-bar-a" class="bg-purple-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-2">
-                            <div class="flex justify-between text-[10px] font-bold text-gray-600 dark:text-gray-400 mb-1">
-                                <span id="poll-result-label-b">Option B</span>
-                                <span id="poll-result-count-b">0 votes (0%)</span>
-                            </div>
-                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                <div id="poll-result-bar-b" class="bg-purple-400 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
-                            </div>
-                        </div>
-
-                        <div id="poll-result-c-wrap" class="hidden mb-2">
-                            <div class="flex justify-between text-[10px] font-bold text-gray-600 dark:text-gray-400 mb-1">
-                                <span id="poll-result-label-c">Option C</span>
-                                <span id="poll-result-count-c">0 votes (0%)</span>
-                            </div>
-                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                <div id="poll-result-bar-c" class="bg-purple-300 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
-                            </div>
-                        </div>
-                        
-                        <div class="mt-3 text-right">
-                            <span id="poll-result-total" class="text-[9px] font-black uppercase text-gray-400 tracking-wider">Total Votes: 0</span>
-                        </div>
-                    </div>
-                </div>
-                </div>
-
                 <div id="alert-active-pane" class="hidden space-y-3">
                     <div class="bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-lg border border-emerald-200 dark:border-emerald-800">
                         <p class="text-[10px] text-emerald-800 dark:text-emerald-300 font-medium leading-snug">
@@ -13040,6 +13176,7 @@ const Admin = {
         
         const signoffInput = document.getElementById('alert-signoff');
         const forcePopupToggle = document.getElementById('alert-force-popup');
+        const pinToggle = document.getElementById('alert-pin-toggle');
 
         const srcToggleBtn = document.getElementById('alert-source-toggle-btn');
         const srcBody = document.getElementById('alert-source-body');
@@ -13168,9 +13305,67 @@ const Admin = {
         const pollOptCWrap = document.getElementById('alert-poll-opt-c-wrap');
         const pollAddCBtn = document.getElementById('alert-poll-add-c-btn');
         const pollShowResults = document.getElementById('alert-poll-show-results');
+        const pollShowCount = document.getElementById('alert-poll-show-count');
+        const pollCloses = document.getElementById('alert-poll-closes');
         let existingAlertId = null;
         Admin._alertRepostDraft = false;
         Admin._skipAlertFetchOnce = false;
+
+        const readPollClosesAt = (alertExpiresAt) => {
+            if (!pollToggle?.checked) return 0;
+            const exp = Number(alertExpiresAt) || 0;
+            const raw = pollCloses?.value ? new Date(pollCloses.value).getTime() : NaN;
+            if (!Number.isFinite(raw) || raw <= 0) return exp;
+            if (exp > 0 && raw > exp) {
+                if (pollCloses) pollCloses.value = Admin.toLocalDatetimeValue(exp);
+                return exp;
+            }
+            return raw;
+        };
+
+        const assembleComposePoll = ({ closesAt = 0, closesInMs = 0 } = {}) => {
+            if (!pollToggle?.checked) {
+                return {
+                    active: false,
+                    question: null,
+                    optionA: null,
+                    optionB: null,
+                    optionC: null,
+                    showResults: false,
+                    showRawCounts: false,
+                };
+            }
+            const optCVal = pollOptC && !pollOptCWrap?.classList.contains('hidden')
+                ? (pollOptC.value.trim() || null)
+                : null;
+            const poll = {
+                active: true,
+                question: (pollQuestion?.value || '').trim() || null,
+                optionA: (pollOptA?.value || '').trim() || null,
+                optionB: (pollOptB?.value || '').trim() || null,
+                optionC: optCVal,
+                showResults: !!(pollShowResults && pollShowResults.checked),
+                showRawCounts: !!(pollShowCount && pollShowCount.checked),
+            };
+            if (closesAt) poll.closesAt = closesAt;
+            if (closesInMs) poll.closesInMs = closesInMs;
+            return poll;
+        };
+
+        const composeNeedsContentToast = (hasBody, posters) => {
+            if (hasBody || posters.length || pollToggle?.checked) return false;
+            if (typeof showToast === 'function') showToast('Add a message, a poster, or a poll.', 'error');
+            return true;
+        };
+
+        const composePollFieldsOk = () => {
+            if (!pollToggle?.checked) return true;
+            if (!(pollQuestion?.value || '').trim() || !(pollOptA?.value || '').trim() || !(pollOptB?.value || '').trim()) {
+                if (typeof showToast === 'function') showToast('Add a poll question and two answers.', 'error');
+                return false;
+            }
+            return true;
+        };
 
         Admin.currentAlertManagerTab = 'compose';
         const setAlertTab = (tab) => {
@@ -13383,7 +13578,8 @@ const Admin = {
             const targets = Admin.getSelectedAlertTargets();
             const hasBody = Admin.alertComposeHasBody(msg);
             const posters = Admin.getSelectedAlertPosters();
-            if (!hasBody && !posters.length) { if (typeof showToast === 'function') showToast('Add a message or a poster.', 'error'); return; }
+            if (composeNeedsContentToast(hasBody, posters)) return;
+            if (!composePollFieldsOk()) return;
             if (!targets.length) { if (typeof showToast === 'function') showToast('Pick a target audience.', 'error'); return; }
             const meta = readComposeScheduleMeta();
             if (!meta.ok) { if (typeof showToast === 'function') showToast(meta.error, 'error'); return; }
@@ -13396,9 +13592,12 @@ const Admin = {
             if (hasBody && !/<span[^>]*>.*?<\/span>\s*$/i.test(msg)) {
                 msg += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">- ${signoff}</span>`;
             }
-            const optCVal = pollToggle?.checked && pollOptC && !pollOptCWrap?.classList.contains('hidden')
-                ? (pollOptC.value.trim() || null) : null;
             const schedId = Admin._editingSchedId || `sched_${Date.now()}`;
+            const alertExpiresAt = Number(meta.nextRunAt || 0) + Number(meta.expiresInMs || 0);
+            const pollClosesAt = readPollClosesAt(alertExpiresAt);
+            const pollClosesInMs = pollToggle?.checked && pollCloses?.value && Number(meta.nextRunAt)
+                ? Math.max(0, pollClosesAt - Number(meta.nextRunAt))
+                : 0;
             const job = {
                 id: schedId,
                 target: targets[0],
@@ -13416,6 +13615,8 @@ const Admin = {
                     message: msg,
                     authorName: signoff,
                     forcePopup: !!(forcePopupToggle && forcePopupToggle.checked),
+                    pinned: !!(pinToggle && pinToggle.checked),
+                    pinnedAt: pinToggle?.checked ? Date.now() : null,
                     severity: severitySelect?.value || 'info',
                     imageUrls: Admin.getSelectedAlertPosters(),
                     imageUrl: null,
@@ -13424,14 +13625,7 @@ const Admin = {
                     sourceName: sourceNameInput ? sourceNameInput.value.trim() || null : null,
                     sourceUrl: sourceUrlInput ? sourceUrlInput.value.trim() || null : null,
                     expiresInMs: meta.expiresInMs || 0,
-                    poll: {
-                        active: !!(pollToggle && pollToggle.checked),
-                        question: pollToggle?.checked ? pollQuestion.value.trim() : null,
-                        optionA: pollToggle?.checked ? pollOptA.value.trim() : null,
-                        optionB: pollToggle?.checked ? pollOptB.value.trim() : null,
-                        optionC: optCVal,
-                        showResults: pollToggle?.checked ? !!(pollShowResults && pollShowResults.checked) : false,
-                    },
+                    poll: assembleComposePoll({ closesInMs: pollClosesInMs }),
                 },
             };
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -13481,6 +13675,7 @@ const Admin = {
             }
             if (signoffInput) signoffInput.value = item.authorName || item.signoff || 'Next Train Ops';
             if (forcePopupToggle) forcePopupToggle.checked = item.forcePopup !== undefined ? !!item.forcePopup : (item.severity === 'critical');
+            if (pinToggle) pinToggle.checked = !!(item.pinned === true || item.pinned === 1 || item.pinned === 'true');
             if (sourceNameInput) sourceNameInput.value = item.sourceName || '';
             if (sourceUrlInput) sourceUrlInput.value = item.sourceUrl || '';
             syncSourceDropdownFromFields();
@@ -13498,14 +13693,28 @@ const Admin = {
                 if (pollOptA) pollOptA.value = item.poll.optionA || '';
                 if (pollOptB) pollOptB.value = item.poll.optionB || '';
                 if (pollShowResults) pollShowResults.checked = !!item.poll.showResults;
+                if (pollShowCount) pollShowCount.checked = !!(item.poll.showRawCounts || item.poll.showParticipantCount);
+                if (item.poll.closesAt && pollCloses) {
+                    pollCloses.value = Admin.toLocalDatetimeValue(item.poll.closesAt);
+                } else if (pollCloses) {
+                    pollCloses.value = '';
+                }
                 if (item.poll.optionC) {
                     if (pollOptC) pollOptC.value = item.poll.optionC;
                     pollOptCWrap?.classList.remove('hidden');
                     pollAddCBtn?.classList.add('hidden');
                 }
+                const livePollId = item.id || existingAlertId || '';
+                if (mode === 'review' && livePollId) {
+                    Admin.paintLivePollResults(livePollId, item.poll);
+                } else {
+                    Admin.hideLivePollResults();
+                }
             } else {
                 if (pollToggle) pollToggle.checked = false;
                 pollContainer?.classList.add('hidden');
+                if (pollCloses) pollCloses.value = '';
+                Admin.hideLivePollResults();
             }
 
             composePane?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -13525,6 +13734,9 @@ const Admin = {
                 Admin.setSelectedAlertTargets(targets, { fetch: false });
             }
             fillAlertComposeFromItem(job.notice, { mode: 'repost' });
+            if (job.notice?.poll?.closesInMs && job.nextRunAt && pollCloses) {
+                pollCloses.value = Admin.toLocalDatetimeValue(Number(job.nextRunAt) + Number(job.notice.poll.closesInMs));
+            }
             const freq = job.frequency || 'once';
             const mode = freq === 'weekly' ? 'weekly' : (freq === 'monthly' ? 'monthly' : 'later');
             syncAlertWhenMode(mode);
@@ -13776,11 +13988,35 @@ const Admin = {
             pollToggle.addEventListener('change', () => {
                 if (pollToggle.checked) {
                     if (pollContainer) pollContainer.classList.remove('hidden');
+                    if (existingAlertId) {
+                        Admin.paintLivePollResults(existingAlertId, {
+                            active: true,
+                            question: pollQuestion?.value || '',
+                            optionA: pollOptA?.value || '',
+                            optionB: pollOptB?.value || '',
+                            optionC: pollOptCWrap?.classList.contains('hidden') ? '' : (pollOptC?.value || ''),
+                        });
+                    }
                 } else {
                     if (pollContainer) pollContainer.classList.add('hidden');
+                    Admin.hideLivePollResults();
                 }
             });
         }
+        document.getElementById('alert-live-poll-refresh')?.addEventListener('click', () => {
+            const id = existingAlertId || Admin._livePollPaintId;
+            if (!id) {
+                if (typeof showToast === 'function') showToast('Post or open a live poll to see results.', 'info');
+                return;
+            }
+            Admin.paintLivePollResults(id, {
+                active: true,
+                question: pollQuestion?.value || '',
+                optionA: pollOptA?.value || '',
+                optionB: pollOptB?.value || '',
+                optionC: pollOptCWrap?.classList.contains('hidden') ? '' : (pollOptC?.value || ''),
+            });
+        });
 
         async function fetchCurrentAlertsForTargets(targets) {
             if (Admin._skipAlertFetchOnce) {
@@ -13926,12 +14162,14 @@ const Admin = {
             
             const signoff = signoffInput.value.trim() || "Next Train Ops";
             const isForcePopup = forcePopupToggle.checked;
+            const isPinned = !!(pinToggle && pinToggle.checked);
             
             const secret = await Admin.getAuthKey();
             
             const hasBody = Admin.alertComposeHasBody(msg);
             const posters = Admin.getSelectedAlertPosters();
-            if (!hasBody && !posters.length) { if (typeof showToast === 'function') showToast("Add a message or a poster.", "error"); return; }
+            if (composeNeedsContentToast(hasBody, posters)) return;
+            if (!composePollFieldsOk()) return;
             if (!targets.length) { if (typeof showToast === 'function') showToast("Pick at least one route or region.", "error"); return; }
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required! Sign in again.", "error"); return; }
 
@@ -13942,9 +14180,6 @@ const Admin = {
 
             let expiresAtVal = dateInput && dateInput.value ? new Date(dateInput.value).getTime() : new Date(Admin.endOfTodayLocalValue()).getTime();
 
-            const optCVal = pollToggle.checked && pollOptC && !pollOptCWrap?.classList.contains('hidden')
-                ? (pollOptC.value.trim() || null)
-                : null;
             const isRepost = !!Admin._alertRepostDraft;
             const isUpdate = !!existingAlertId && !isRepost;
             const nowTs = Date.now();
@@ -13953,6 +14188,8 @@ const Admin = {
                 message: msg,
                 authorName: signoff,
                 forcePopup: isForcePopup,
+                pinned: isPinned,
+                pinnedAt: isPinned ? nowTs : null,
                 expiresAt: expiresAtVal,
                 severity: severity,
                 imageUrls: Admin.getSelectedAlertPosters(),
@@ -13969,14 +14206,7 @@ const Admin = {
                 payload.postedAt = nowTs;
             }
             if (isRepost) payload.repostedAt = nowTs;
-            payload.poll = {
-                active: pollToggle.checked,
-                question: pollToggle.checked ? pollQuestion.value.trim() : null,
-                optionA: pollToggle.checked ? pollOptA.value.trim() : null,
-                optionB: pollToggle.checked ? pollOptB.value.trim() : null,
-                optionC: optCVal,
-                showResults: pollToggle.checked ? !!(pollShowResults && pollShowResults.checked) : false,
-            };
+            payload.poll = assembleComposePoll({ closesAt: readPollClosesAt(expiresAtVal) });
 
             const publishAssembled = async () => {
                 try {
@@ -14079,6 +14309,7 @@ const Admin = {
                 renderSavedSourceDropdown('');
                 if (dateInput) dateInput.value = Admin.endOfTodayLocalValue();
                 forcePopupToggle.checked = false;
+                if (pinToggle) pinToggle.checked = false;
                 pollToggle.checked = false;
                 pollContainer.classList.add('hidden');
                 pollQuestion.value = "";
@@ -14086,10 +14317,13 @@ const Admin = {
                 pollOptB.value = "";
                 if (pollOptC) pollOptC.value = "";
                 if (pollShowResults) pollShowResults.checked = false;
+                if (pollShowCount) pollShowCount.checked = false;
+                if (pollCloses) pollCloses.value = '';
                 pollOptCWrap?.classList.add('hidden');
                 pollAddCBtn?.classList.remove('hidden');
                 const livePoll = document.getElementById('alert-live-poll-results');
                 if (livePoll) livePoll.classList.add('hidden');
+                Admin._livePollPaintId = '';
 
                 sendBtn.textContent = "Preview Alert";
                 if (typeof checkServiceAlerts === 'function') setTimeout(checkServiceAlerts, 500);
@@ -14124,6 +14358,12 @@ const Admin = {
                 }
             }
             items.sort((a, b) => Number(b.postedAt || b.timestamp || 0) - Number(a.postedAt || a.timestamp || 0));
+            const secret = await Admin.getAuthKey();
+            await Promise.all(items.map(async (item) => {
+                if (!item?.poll?.active || !item.id) return;
+                const tallies = await Admin.fetchPollResultsSnapshot(item.id, secret);
+                if (tallies) item.pollResults = tallies;
+            }));
             Admin._cachedActiveAlerts = items;
             Admin.renderActiveAlertsList(items);
             if (statusEl) statusEl.textContent = items.length ? `${items.length} live` : 'None live';
@@ -14160,6 +14400,12 @@ const Admin = {
                     return (d.textContent || '').trim().slice(0, 140) || '(no message)';
                 } catch { return '(no message)'; }
             })();
+            const poll = item.pollResults;
+            const pollHint = poll && poll.total
+                ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">Poll - ${poll.total} vote${poll.total === 1 ? '' : 's'}</span>`
+                : (item.poll && item.poll.active
+                    ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">Poll</span>`
+                    : '');
             const scope = escapeHTML(Admin.alertTargetLabel(item.target || item.clearedFrom || '-'));
             const idSafe = escapeHTML(String(item.id || item._key || idx));
             return `
@@ -14167,6 +14413,7 @@ const Admin = {
                     <div class="flex flex-wrap items-center gap-1.5 mb-1.5">
                         <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${sevCls}">${sevLabel}</span>
                         <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">${scope}</span>
+                        ${pollHint}
                     </div>
                     <p class="text-xs text-gray-800 dark:text-gray-200 leading-snug line-clamp-2 mb-2">${escapeHTML(plain)}</p>
                     <p class="text-[9px] font-mono text-gray-400 mb-2 truncate">${idSafe} - ${escapeHTML(whenStr)}</p>
