@@ -198,6 +198,43 @@ function ntAdminScheduleSheet(db, sheetKey) {
     return null;
 }
 
+function ntAdminScheduleRows(db, sheetKey) {
+    const raw = ntAdminScheduleSheet(db, sheetKey);
+    if (Array.isArray(raw)) return raw;
+    if (Array.isArray(raw?.rows)) return raw.rows;
+    if (raw && typeof raw === 'object') {
+        return Object.keys(raw)
+            .filter((key) => /^\d+$/.test(key))
+            .sort((a, b) => Number(a) - Number(b))
+            .map((key) => raw[key]);
+    }
+    return [];
+}
+
+const NT_ADMIN_REGION_SCHEDULE_PATHS = {
+    GP: 'schedules/gauteng.json',
+    WC: 'schedules/westerncape.json',
+    KZN: 'schedules/kzn.json',
+    EC: 'schedules/easterncape.json',
+};
+
+async function ntAdminFetchRegionScheduleDb(region) {
+    const dbPath = NT_ADMIN_REGION_SCHEDULE_PATHS[region];
+    if (!dbPath || typeof Admin === 'undefined' || typeof Admin.fetchDiagJson !== 'function') return null;
+    let rawData;
+    try {
+        rawData = await Admin.fetchDiagJson(`https://nexttrain-cache.enock.workers.dev/${dbPath}?t=${Date.now()}`);
+    } catch {
+        rawData = await Admin.fetchDiagJson(`https://metrorail-next-train-default-rtdb.firebaseio.com/${dbPath}?t=${Date.now()}`);
+    }
+    const db = ntAdminUnwrapRegionScheduleDb(region, rawData);
+    if (db) {
+        Admin._gridOrderRegionDb = Admin._gridOrderRegionDb || {};
+        Admin._gridOrderRegionDb[region] = db;
+    }
+    return db || null;
+}
+
 function ntAdminDeleteAlertSource(list, id) {
     return (Array.isArray(list) ? list : []).filter((s) => s.id !== id);
 }
@@ -2540,10 +2577,11 @@ const Admin = {
         const ids = Admin.commuterIdSet(uid, deviceId, extraIds);
         const secret = await Admin.getAuthKey();
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-        const auth = secret ? `?auth=${encodeURIComponent(secret)}` : '';
         const fetchJson = async (path) => {
             try {
-                const res = await fetch(`${dynamicEndpoint}${path}${auth}`);
+                const joiner = path.includes('?') ? '&' : '?';
+                const authed = secret ? `${path}${joiner}auth=${encodeURIComponent(secret)}` : path;
+                const res = await fetch(`${dynamicEndpoint}${authed}`);
                 if (!res.ok) return null;
                 return res.json();
             } catch {
@@ -2555,7 +2593,8 @@ const Admin = {
         const needFares = !(Admin._cachedFareVotes && typeof Admin._cachedFareVotes === 'object');
         const needFails = !(Admin._cachedRoutingFails && typeof Admin._cachedRoutingFails === 'object');
         const needTickets = !(Admin._cachedFareTicketPhotos && typeof Admin._cachedFareTicketPhotos === 'object');
-        const [inboxRows, tripRows, pings, activity, fareData, failData, ticketData] = await Promise.all([
+        const shareRegions = ['GP', 'WC', 'KZN', 'EC'];
+        const [inboxRows, tripRows, pings, activity, fareData, failData, ticketData, shareBuckets] = await Promise.all([
             Promise.all(deviceLooks.map(async (did) => ({ did, data: await fetchJson(`inbox/${encodeURIComponent(did)}.json`) }))),
             Promise.all(lookIds.map(async (id) => ({ id, data: await fetchJson(`sys_logs/trip_plan_users/${encodeURIComponent(id)}.json`) }))),
             fetchJson('ride_pings.json'),
@@ -2563,6 +2602,7 @@ const Admin = {
             needFares ? fetchJson('sys_logs/fare_votes.json') : null,
             needFails ? fetchJson('sys_logs/routing_fails.json') : null,
             needTickets ? fetchJson('sys_logs/fare_ticket_photos.json') : null,
+            Promise.all(shareRegions.map(async (region) => fetchJson(`ride_share_log/${encodeURIComponent(region)}.json?orderBy=${encodeURIComponent('"at"')}&limitToLast=40`))),
         ]);
         if (fareData && typeof fareData === 'object') Admin._cachedFareVotes = fareData;
         if (failData && typeof failData === 'object') Admin._cachedRoutingFails = failData;
@@ -2643,6 +2683,28 @@ const Admin = {
         }
         liveShares.sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0));
 
+        const shareLog = [];
+        (shareBuckets || []).forEach((bucket) => {
+            if (!bucket || typeof bucket !== 'object') return;
+            Object.entries(bucket).forEach(([id, row]) => {
+                if (!row || typeof row !== 'object') return;
+                const did = String(row.deviceId || '').trim();
+                const pUid = String(row.uid || '').trim();
+                if (!ids.has(did) && !ids.has(pUid)) return;
+                shareLog.push({
+                    id,
+                    routeId: row.routeId || '',
+                    trainId: row.trainId || '',
+                    action: row.action || '',
+                    status: row.status || '',
+                    at: Number(row.stoppedAt || row.at || row.startedAt) || 0,
+                    startedAt: Number(row.startedAt) || 0,
+                    stoppedAt: Number(row.stoppedAt) || 0,
+                });
+            });
+        });
+        shareLog.sort((a, b) => (b.at || 0) - (a.at || 0));
+
         const community = [];
         if (activity && typeof activity === 'object') {
             Object.entries(activity).forEach(([routeId, msgs]) => {
@@ -2677,6 +2739,7 @@ const Admin = {
             fails,
             crashes,
             liveShares,
+            shareLog,
             community,
         };
     },
@@ -3010,39 +3073,44 @@ const Admin = {
                             </button>
                         </div>
                         <div class="p-5 flex-grow bg-white dark:bg-gray-800 rounded-b-2xl">
-                            <p id="region-metric-label" class="text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Unique users by last selected region</p>
-                            <p id="region-today-total" class="text-center text-xs font-black text-slate-800 dark:text-slate-200 mb-1">Today unique: --</p>
-                            <p id="region-today-sessions" class="text-center text-[10px] font-bold text-slate-500 mb-4">Today sessions: --</p>
+                            <p id="region-metric-label" class="text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Users and sessions by region on the hit</p>
+                            <p id="region-today-total" class="text-center text-xs font-black text-slate-800 dark:text-slate-200 mb-1">People today: --</p>
+                            <p id="region-today-sessions" class="text-center text-[10px] font-bold text-slate-500 mb-4">Sessions today: --</p>
                             <div class="grid grid-cols-2 gap-3 mb-3">
                                 <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">Gauteng</span>
                                     <span id="region-stat-gp" class="text-2xl font-black text-blue-700 dark:text-blue-300">--</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">users</span>
                                     <span id="region-sess-gp" class="text-[9px] font-bold text-blue-500/80 dark:text-blue-300/70 mt-0.5">-- sessions</span>
                                 </div>
                                 <div class="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-100 dark:border-green-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-green-600 dark:text-green-400 font-bold uppercase tracking-wider mb-1">Western Cape</span>
                                     <span id="region-stat-wc" class="text-2xl font-black text-green-700 dark:text-green-300">--</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-green-600/80 dark:text-green-300/70">users</span>
                                     <span id="region-sess-wc" class="text-[9px] font-bold text-green-500/80 dark:text-green-300/70 mt-0.5">-- sessions</span>
                                 </div>
                                 <div class="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg border border-orange-100 dark:border-orange-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-orange-600 dark:text-orange-400 font-bold uppercase tracking-wider mb-1">KwaZulu-Natal</span>
                                     <span id="region-stat-kzn" class="text-2xl font-black text-orange-700 dark:text-orange-300">--</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-orange-600/80 dark:text-orange-300/70">users</span>
                                     <span id="region-sess-kzn" class="text-[9px] font-bold text-orange-500/80 dark:text-orange-300/70 mt-0.5">-- sessions</span>
                                 </div>
                                 <div class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-100 dark:border-purple-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-wider mb-1">Eastern Cape</span>
                                     <span id="region-stat-ec" class="text-2xl font-black text-purple-700 dark:text-purple-300">--</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-purple-600/80 dark:text-purple-300/70">users</span>
                                     <span id="region-sess-ec" class="text-[9px] font-bold text-purple-500/80 dark:text-purple-300/70 mt-0.5">-- sessions</span>
                                 </div>
                             </div>
                             <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-1 mb-3">
-                                <span id="region-stat-other-label" class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center">No region set</span>
+                                <span id="region-stat-other-label" class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center">No region on the hit</span>
                                 <div class="text-right">
                                     <span id="region-stat-other" class="text-lg font-black text-slate-700 dark:text-slate-300">--</span>
+                                    <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500">users</span>
                                     <span id="region-sess-other" class="block text-[9px] font-bold text-slate-500">-- sessions</span>
                                 </div>
                             </div>
-                            <p id="region-note" class="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 mb-4">TODAY is unique people. Region cards are unique users by last selected region — they are not sessions, and they will not add up to TODAY if someone switched region or sent hits before a region was set.</p>
+                            <p id="region-note" class="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 mb-4">People today and Sessions today are the totals. Each card counts a person, and their sessions, once for every region value on their hits. The cards are not a split of people today.</p>
                             
                             <!-- GROWTH SPRINT PHASE 12: Pivot to Graph CTA -->
                             <button id="region-view-graph-btn" class="w-full bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-xs uppercase tracking-widest focus:outline-none flex items-center justify-center border border-slate-700 dark:border-slate-600">
@@ -3896,19 +3964,31 @@ const Admin = {
         const todayUsers = data.todayUsers ?? Admin.currentTodayUsers;
         const todaySessions = data.todaySessions ?? Admin.currentTodaySessions;
         const todayEl = document.getElementById('region-today-total');
-        if (todayEl) todayEl.textContent = `Today unique: ${n(todayUsers)}`;
+        if (todayEl) todayEl.textContent = `People today: ${n(todayUsers)}`;
         const sessEl = document.getElementById('region-today-sessions');
-        if (sessEl) sessEl.textContent = `Today sessions: ${n(todaySessions)}`;
+        if (sessEl) sessEl.textContent = `Sessions today: ${n(todaySessions)}`;
+
+        const otherLabel = document.getElementById('region-stat-other-label');
+        if (otherLabel) {
+            const unset = Number(data.unsetUsers) || 0;
+            const unrecognised = Number(data.otherUsers) || 0;
+            otherLabel.textContent = unrecognised > 0 && unset === 0
+                ? 'Unrecognised region'
+                : unrecognised > 0
+                    ? 'No region on the hit, plus unrecognised'
+                    : 'No region on the hit';
+        }
 
         const assigned = (Number(data.GP) || 0) + (Number(data.WC) || 0) + (Number(data.KZN) || 0) + (Number(data.EC) || 0);
         const other = Number(data.OTHER) || 0;
-        const uniqueToday = Number(todayUsers) || 0;
+        const people = Number(todayUsers) || 0;
+        const cardUsers = assigned + other;
+        const extra = Math.max(0, cardUsers - people);
         const note = document.getElementById('region-note');
         if (note) {
-            const overlap = Math.max(0, (assigned + other) - uniqueToday);
-            note.textContent = overlap > 0
-                ? `These cards are unique users (not sessions). Region + no-region (${Admin.formatNumber(assigned + other)}) is about ${Admin.formatNumber(overlap)} above TODAY because the same commuter can appear in more than one bucket if they switched region or sent hits before a region was set.`
-                : `These cards are unique users by last selected region, not sessions. TODAY (${n(todayUsers)}) is unique people.`;
+            note.textContent = extra > 0
+                ? `People today and Sessions today are the totals. Each card counts a person, and their sessions, once for every region value on their hits, so the user numbers add up to ${Admin.formatNumber(cardUsers)}, which is ${Admin.formatNumber(extra)} above the ${Admin.formatNumber(people)} people. The cards are not a split of people today.`
+                : 'People today and Sessions today are the totals. Each card is the users who had that region on a hit today, and the sessions on those hits.';
         }
     },
 
@@ -6720,6 +6800,32 @@ const Admin = {
             await Admin.fetchDeadEnds();
         };
 
+        Admin.refutePlannerFare = async (vote) => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) throw new Error('Not signed in');
+            const item = vote && typeof vote === 'object' ? vote : {};
+            const id = String(item.id || '').trim();
+            if (!id) throw new Error('Missing fare vote');
+            if (item.agree !== false) throw new Error('Only a price correction can be refuted');
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const patch = {
+                review: 'refuted',
+                reviewedAt: Date.now(),
+                reviewedBy: Admin.currentUser?.email || Admin.currentUser?.uid || 'Admin',
+            };
+            const res = await fetch(`${dynamicEndpoint}sys_logs/fare_votes/${encodeURIComponent(id)}.json?auth=${secret}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(patch),
+            });
+            if (!res.ok) throw new Error(`Refute failed (${res.status}). Deploy the fare vote rules, then try again.`);
+            if (Admin._cachedFareVotes && Admin._cachedFareVotes[id]) {
+                Admin._cachedFareVotes[id] = { ...Admin._cachedFareVotes[id], ...patch };
+            }
+            if (typeof showToast === 'function') showToast('Correction refuted', 'success');
+            await Admin.fetchDeadEnds();
+        };
+
         Admin.saveRouteFare = async (routeId, { confirmed, zone } = {}) => {
             const secret = await Admin.getAuthKey();
             if (!secret) throw new Error('Not signed in');
@@ -6941,7 +7047,24 @@ const Admin = {
                         return;
                     }
                     entries.sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0));
-                    entries.forEach((item) => {
+                    const fareIsLive = (item) => {
+                        const fareKey = typeof window.plannerFareOverrideKey === 'function' ? window.plannerFareOverrideKey(item) : '';
+                        const liveRow = fareKey ? liveData[fareKey] : null;
+                        const livePrice = liveRow ? Number(liveRow.price) : NaN;
+                        return Number.isFinite(livePrice) && livePrice === Number(item.reportedPrice);
+                    };
+                    const fareGroups = [
+                        { title: 'Pending', items: entries.filter((item) => item.review !== 'refuted' && !fareIsLive(item)) },
+                        { title: 'Approved', items: entries.filter((item) => item.review !== 'refuted' && fareIsLive(item)) },
+                        { title: 'Refuted', items: entries.filter((item) => item.review === 'refuted') },
+                    ];
+                    fareGroups.forEach((group) => {
+                        if (!group.items.length) return;
+                        const heading = document.createElement('p');
+                        heading.className = 'text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 pt-2';
+                        heading.textContent = `${group.title} (${group.items.length})`;
+                        listDiv.appendChild(heading);
+                        group.items.forEach((item) => {
                         const card = document.createElement('div');
                         card.className = "de-fare-card bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden cursor-pointer transition-colors hover:border-amber-300";
                         const quoted = item.quotedPrice != null ? `R${item.quotedPrice}` : '-';
@@ -6966,6 +7089,7 @@ const Admin = {
                             : ticketTypeKey === 'monthly' ? 'Monthly'
                             : 'Single';
                         const canApprove = item.agree === false && ticketTypeKey === 'single' && Number(item.reportedPrice) >= 1 && Number(item.reportedPrice) <= 500;
+                        const canRefute = item.agree === false && item.review !== 'refuted' && !isLive;
                         const ticketUrl = item.ticketUrl || ticketPhotos[item.id]?.ticketUrl || '';
                         const ticketHtml = ticketUrl && typeof window.attachmentPreviewHtml === 'function'
                             ? `<div class="mt-2 de-fare-ticket flex items-center gap-2">
@@ -6997,7 +7121,10 @@ const Admin = {
                                     ${typeWarn}
                                     ${ticketHtml}
                                 </div>
-                                ${canApprove && !isLive ? `<button type="button" class="de-fare-approve shrink-0 text-emerald-700 dark:text-emerald-400 hover:text-white hover:bg-emerald-600 text-[9px] font-black bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-widest shadow-sm">Approve ${secureEscape(reported)}</button>` : ''}
+                                ${(canApprove && !isLive) || canRefute ? `<div class="shrink-0 flex flex-col gap-1.5">
+                                    ${canApprove && !isLive ? `<button type="button" class="de-fare-approve text-emerald-700 dark:text-emerald-400 hover:text-white hover:bg-emerald-600 text-[9px] font-black bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-widest shadow-sm">Approve ${secureEscape(reported)}</button>` : ''}
+                                    ${canRefute ? `<button type="button" class="de-fare-refute text-rose-700 dark:text-rose-300 hover:text-white hover:bg-rose-600 text-[9px] font-black bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-widest shadow-sm">Refute</button>` : ''}
+                                </div>` : ''}
                             </div>
                             <div class="de-fare-contributors hidden px-3 pb-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/40"></div>
                         `;
@@ -7010,8 +7137,17 @@ const Admin = {
                                 if (typeof showToast === 'function') showToast(e.message || 'Approve failed', 'error');
                             }
                         });
+                        card.querySelector('.de-fare-refute')?.addEventListener('click', async (ev) => {
+                            ev.stopPropagation();
+                            try {
+                                await Admin.refutePlannerFare(item);
+                            } catch (e) {
+                                console.error('Refute planner fare failed', e);
+                                if (typeof showToast === 'function') showToast(e.message || 'Refute failed', 'error');
+                            }
+                        });
                         card.addEventListener('click', (ev) => {
-                            if (ev.target.closest('.de-fare-approve, .de-fare-ticket, [data-alert-lightbox], a, button.de-fare-approve')) return;
+                            if (ev.target.closest('.de-fare-approve, .de-fare-refute, .de-fare-ticket, [data-alert-lightbox], a, button.de-fare-approve')) return;
                             const panel = card.querySelector('.de-fare-contributors');
                             if (!panel) return;
                             const open = panel.classList.toggle('hidden') === false;
@@ -7021,6 +7157,7 @@ const Admin = {
                             }
                         });
                         listDiv.appendChild(card);
+                        });
                     });
                     return;
                 }
@@ -7039,9 +7176,16 @@ const Admin = {
 
                 // Aggregate by Origin|Dest|Reason|DayType - track hits + unique users
                 const failDeviceFilter = String(Admin._deFailDeviceFilter || '').trim().toLowerCase();
+                const tripUserFilter = String(Admin._deTripFilters?.userId || '').trim().toLowerCase();
+                const failHitMatchesUser = (entry) => {
+                    if (!tripUserFilter) return true;
+                    const hay = `${entry.userId || ''} ${entry.deviceId || ''} ${entry.authUid || ''} ${Admin.commuterAlias?.(entry.userId) || ''} ${Admin.commuterAlias?.(entry.authUid) || ''}`.toLowerCase();
+                    return hay.includes(tripUserFilter);
+                };
                 const heatMap = {};
                 Object.values(data).forEach(entry => {
                     if (!entry.origin || !entry.destination) return;
+                    if (!failHitMatchesUser(entry)) return;
                     if (failDeviceFilter) {
                         const uid = String(entry.userId || entry.deviceId || entry.authUid || '').toLowerCase();
                         if (uid !== failDeviceFilter) return;
@@ -7088,15 +7232,21 @@ const Admin = {
                 });
                 
                 listDiv.innerHTML = '';
-                if (failDeviceFilter) {
+                if (failDeviceFilter || tripUserFilter) {
                     const filterBar = document.createElement('div');
                     filterBar.className = 'mb-2 px-2 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 flex items-start justify-between gap-2';
+                    const who = tripUserFilter || failDeviceFilter;
                     filterBar.innerHTML = `
-                        <p class="text-[10px] text-amber-900 dark:text-amber-200 leading-snug min-w-0">Showing routing fails that include <span class="font-mono break-all">${failDeviceFilter.replace(/</g, '&lt;')}</span>.</p>
+                        <p class="text-[10px] text-amber-900 dark:text-amber-200 leading-snug min-w-0">Showing routing fails for <span class="font-mono break-all">${who.replace(/</g, '&lt;')}</span>.</p>
                         <button type="button" id="de-fail-clear-filter" class="shrink-0 text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-200 underline">Clear</button>`;
                     listDiv.appendChild(filterBar);
                     filterBar.querySelector('#de-fail-clear-filter')?.addEventListener('click', () => {
                         Admin._deFailDeviceFilter = '';
+                        if (Admin._deTripFilters) Admin._deTripFilters.userId = '';
+                        const userSel = document.getElementById('de-filter-userid');
+                        if (userSel) userSel.value = '';
+                        const uidDisplay = document.getElementById('de-filter-userid-display');
+                        if (uidDisplay) uidDisplay.textContent = 'All users';
                         Admin.fetchDeadEnds();
                     });
                 }
@@ -7112,7 +7262,7 @@ const Admin = {
                 if (!sorted.length) {
                     const empty = document.createElement('div');
                     empty.className = 'text-xs text-gray-500 italic text-center py-4';
-                    empty.textContent = failDeviceFilter ? 'No routing failures for this device.' : 'No routing failures recorded.';
+                    empty.textContent = (failDeviceFilter || tripUserFilter) ? 'No routing failures for this user.' : 'No routing failures recorded.';
                     listDiv.appendChild(empty);
                     return;
                 }
@@ -7130,6 +7280,7 @@ const Admin = {
                     else if (item.reason === 'ERR_CROSS_REGION') { reasonBadge = "bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400"; reasonText = "Cross Region"; }
                     else if (item.reason === 'ERR_ACTIVE_SUSPENSION') { reasonBadge = "bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400"; reasonText = "Line Severed"; }
                     else if (item.reason === 'ERR_NO_SERVICE_TODAY') { reasonBadge = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"; reasonText = "No Service"; }
+                    else if (item.reason === 'ERR_NO_SATURDAY_SERVICE') { reasonBadge = "bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300"; reasonText = "No Weekend Service"; }
 
                     const safeOrigin = secureEscape(item.origin);
                     const safeDest = secureEscape(item.dest);
@@ -7141,7 +7292,7 @@ const Admin = {
                         ? versionEntries.slice(0, 3).map(([ver]) => {
                             const safeVer = secureEscape(ver);
                             if (/^V\d+_/i.test(ver)) {
-                                return `<button type="button" class="fb-version-chip text-[9px] font-mono font-medium underline decoration-dotted underline-offset-2 text-gray-600 dark:text-gray-300 focus:outline-none" data-admin-changelog="${safeVer}" onclick="event.preventDefault();event.stopPropagation();if(window.Admin&&Admin.openAdminChangelogLookup)Admin.openAdminChangelogLookup(this.getAttribute('data-admin-changelog')||this.textContent);">${safeVer}</button>`;
+                                return `<button type="button" class="fb-version-chip inline max-w-full whitespace-normal break-all text-left text-[9px] font-mono font-medium underline decoration-dotted underline-offset-2 text-gray-600 dark:text-gray-300 focus:outline-none" data-admin-changelog="${safeVer}" onclick="event.preventDefault();event.stopPropagation();if(window.Admin&&Admin.openAdminChangelogLookup)Admin.openAdminChangelogLookup(this.getAttribute('data-admin-changelog')||this.textContent);">${safeVer}</button>`;
                             }
                             return `<span class="text-[9px] font-mono text-gray-500">${safeVer}</span>`;
                         }).join('') + (versionEntries.length > 3 ? `<span class="text-[9px] font-mono text-gray-400">+${versionEntries.length - 3}</span>` : '')
@@ -7173,9 +7324,9 @@ const Admin = {
                                     <span class="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${reasonBadge}">${reasonText}</span>
                                     <span class="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">${dayLabel}</span>
                                     <span class="text-[9px] text-gray-400 font-mono">${timeLabel}</span>
-                                    ${versionChips}
                                     <span class="text-[9px] text-gray-400 font-mono">Last: ${dateStr}</span>
                                 </div>
+                                <div class="mt-1.5 max-w-full break-all">${versionChips}</div>
                             </div>
                             <div class="flex flex-col items-end shrink-0 gap-1.5 ml-2">
                                 <div class="flex items-center justify-center bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg px-2.5 py-1.5 shadow-sm min-w-[4.5rem]">
@@ -9855,13 +10006,17 @@ const Admin = {
                     const category = message.category && message.category !== 'general'
                         ? `<span class="text-[9px] font-bold uppercase text-amber-700 dark:text-amber-300">${esc(message.category)}</span>`
                         : '';
+                    const authorId = message.uid || message.deviceId || '';
+                    const authorHint = authorId && typeof Admin.userIdJoinHintHtml === 'function' ? Admin.userIdJoinHintHtml(authorId) : '';
+                    const quoteUid = message.replyTo?.uid || message.replyTo?.deviceId || '';
+                    const quoteHint = quoteUid && typeof Admin.userIdJoinHintHtml === 'function' ? Admin.userIdJoinHintHtml(quoteUid) : '';
                     const quote = message.replyTo?.body
-                        ? `<div class="border-l-2 border-emerald-500 bg-gray-50 dark:bg-gray-900 rounded-r-lg px-2 py-1 mb-2 text-[10px] text-gray-500"><b>${esc(message.replyTo.displayName || 'Passenger')}</b><br>${esc(message.replyTo.body)}</div>`
+                        ? `<div class="border-l-2 border-emerald-500 bg-gray-50 dark:bg-gray-900 rounded-r-lg px-2 py-1 mb-2 text-[10px] text-gray-500"><b>${esc(message.replyTo.displayName || 'Passenger')}</b>${quoteHint}<br>${esc(message.replyTo.body)}</div>`
                         : '';
                     const postId = message.postId || '';
                     return `<div class="${isReply ? 'ml-6 bg-gray-50 dark:bg-gray-900/60' : 'bg-emerald-50/50 dark:bg-emerald-950/10'} border border-gray-200 dark:border-gray-700 rounded-xl p-3 ${message.hidden ? 'opacity-50 ring-1 ring-red-400' : ''}" data-community-message data-community-post="${esc(postId)}" ${isReply ? `data-community-reply="${esc(message.replyId || '')}"` : ''}>
                         <div class="flex items-center justify-between gap-2 mb-1">
-                            <span class="text-[11px] font-black text-gray-900 dark:text-white">${esc(message.displayName || 'Passenger')} ${category}</span>
+                            <span class="text-[11px] font-black text-gray-900 dark:text-white">${esc(message.displayName || 'Passenger')} ${authorHint} ${category}</span>
                             <span class="text-[9px] font-mono text-gray-400">${esc(formatWhen(message.timestamp))}</span>
                         </div>
                         ${quote}<p class="text-[12px] leading-relaxed text-gray-800 dark:text-gray-200 whitespace-pre-wrap">${esc(message.body || '')}</p>
@@ -10739,7 +10894,6 @@ const Admin = {
                 const joinedMs = Number(user.createdAt)
                     || Admin.parseJoinedAtFromUserId(deviceId)
                     || Admin.parseJoinedAtFromUserId(uid);
-                let lastSeenMs = Number(user.updatedAt) || Number(device?.linkedAt) || 0;
                 const linkedIds = user.deviceIds && typeof user.deviceIds === 'object'
                     ? Object.keys(user.deviceIds).filter(Boolean)
                     : (deviceId ? [deviceId] : []);
@@ -10748,11 +10902,23 @@ const Admin = {
                     deviceId,
                     extraIds: linkedIds,
                 });
-                if (profile.tripLast > lastSeenMs) lastSeenMs = profile.tripLast;
-                const liveAt = Number(profile.liveShares[0]?.at) || 0;
-                if (liveAt > lastSeenMs) lastSeenMs = liveAt;
+                const fareAt = Math.max(0, ...(profile.fareVotes || []).map((v) => Number(v.at) || 0));
+                const crashAt = Math.max(0, ...(profile.crashes || []).map((c) => Number(c.timestamp || c.at || c.time) || 0));
+                const activityCandidates = [
+                    { ms: Number(user.lastSeenAt) || 0, label: 'App open' },
+                    { ms: Number(profile.tripLast) || 0, label: 'Trip plan' },
+                    { ms: Number(profile.latestFeedbackAt) || 0, label: 'Feedback' },
+                    { ms: Number(profile.liveShares[0]?.at) || 0, label: 'Live share' },
+                    { ms: Number(profile.shareLog?.[0]?.at) || 0, label: 'Live share' },
+                    { ms: Number(profile.community[0]?.timestamp) || 0, label: 'Community' },
+                    { ms: fareAt, label: 'Fare vote' },
+                    { ms: crashAt, label: 'Crash report' },
+                ].filter((row) => row.ms > 0).sort((a, b) => b.ms - a.ms);
+                const lastActivity = activityCandidates[0] || null;
                 const joinedLabel = joinedMs ? Admin.formatDate(joinedMs) : 'unknown';
-                const lastSeenLabel = lastSeenMs ? Admin.formatDate(lastSeenMs) : 'unknown';
+                const lastActivityHtml = lastActivity
+                    ? `<b>${Admin.formatDate(lastActivity.ms)}</b><span class="block text-[10px] text-gray-500 mt-0.5">${Admin.commuterEsc(lastActivity.label)}</span>`
+                    : '<span class="text-gray-400">No activity on file</span>';
                 const devicesLabel = linkedIds.length
                     ? linkedIds.map((id) => Admin.commuterLabelHtml(id)).join('<span class="text-gray-300">, </span>')
                     : 'none';
@@ -10774,13 +10940,21 @@ const Admin = {
                         return `<a href="tel:+${Admin.commuterEsc(tel)}" class="text-blue-600 dark:text-blue-400 underline">${Admin.commuterEsc(ph)}</a>`;
                     }),
                 ].join('<span class="text-gray-300 mx-1">·</span>');
-                const liveHtml = profile.liveShares.length
-                    ? profile.liveShares.slice(0, 4).map((p) => {
-                        const routeLabel = Admin.inboxRouteLabel(p.routeId) || p.routeId || '';
-                        const state = p.live ? 'Live now' : 'Last share';
-                        return `<p class="text-[11px] text-gray-700 dark:text-gray-300">${state}: <b>${Admin.commuterEsc(routeLabel)}</b> · train ${Admin.commuterEsc(p.trainId || '-')} · ${Admin.commuterEsc(p.station || '')} · ${Admin.formatDate(p.at)}</p>`;
-                    }).join('')
-                    : '<p class="text-[11px] text-gray-400">No live location share on file.</p>';
+                const shareLines = [];
+                profile.liveShares.slice(0, 3).forEach((p) => {
+                    const routeLabel = Admin.inboxRouteLabel(p.routeId) || p.routeId || '';
+                    const state = p.live ? 'Live now' : 'Last pin';
+                    shareLines.push(`<p class="text-[11px] text-gray-700 dark:text-gray-300">${state}: <b>${Admin.commuterEsc(routeLabel)}</b> · train ${Admin.commuterEsc(p.trainId || '-')} · ${Admin.commuterEsc(p.station || '')} · ${Admin.formatDate(p.at)}</p>`);
+                });
+                (profile.shareLog || []).slice(0, 4).forEach((row) => {
+                    const routeLabel = Admin.inboxRouteLabel(row.routeId) || row.routeId || '';
+                    const ended = row.status === 'stopped' || row.action === 'stop' || row.stoppedAt > 0;
+                    const state = row.status === 'live' && !ended ? 'Logged live' : 'Logged share';
+                    shareLines.push(`<p class="text-[11px] text-gray-700 dark:text-gray-300">${state}: <b>${Admin.commuterEsc(routeLabel)}</b> · train ${Admin.commuterEsc(row.trainId || '-')} · ${Admin.formatDate(row.at)}</p>`);
+                });
+                const liveHtml = shareLines.length
+                    ? shareLines.join('')
+                    : '<p class="text-[11px] text-gray-400 leading-snug">No live pin right now. Signed-in shares stay in the ride log after the pin expires. A guest device only shows here while a share is still live. Coordinates stay on the live pin, not on the account.</p>';
                 const communityHtml = profile.community.length
                     ? profile.community.slice(0, 6).map((c) => {
                         const routeLabel = Admin.inboxRouteLabel(c.routeId) || c.routeId || '';
@@ -10790,11 +10964,15 @@ const Admin = {
                 const bannedAtMs = Number(flags.shadowBannedAt || 0);
                 const bannedBy = flags.shadowBannedBy ? Admin.commuterEsc(String(flags.shadowBannedBy)) : '';
                 const ticketCount = (profile.fareTicketUrls || []).length;
-                const utBtn = (id, label, solid = false) => (
-                    solid
-                        ? `<button type="button" id="${id}" class="ut-action-btn text-[10px] font-black uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg">${label}</button>`
-                        : `<button type="button" id="${id}" class="ut-action-btn text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-lg">${label}</button>`
+                const utBtn = (id, label) => (
+                    `<button type="button" id="${id}" class="ut-action-btn shrink-0 text-[10px] font-black uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg">${label}</button>`
                 );
+                const footBtn = (id, label, tone) => {
+                    const toneClass = tone === 'danger'
+                        ? 'text-red-700 dark:text-red-300 bg-white dark:bg-gray-900 border-red-200 dark:border-red-800'
+                        : 'text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-900 border-blue-200 dark:border-blue-800';
+                    return `<button type="button" id="${id}" class="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg border ${toneClass}">${label}</button>`;
+                };
                 const metricRow = (label, valueHtml, openBtn = '') => `
                     <div class="flex items-start justify-between gap-2 py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
                         <div class="min-w-0">
@@ -10813,7 +10991,8 @@ const Admin = {
                         <div class="px-3.5 py-2">
                             ${metricRow('Email', `${accountEmailHtml}<span class="text-gray-400"> · via ${Admin.commuterEsc(viaLabel)}</span>${deviceId && deviceId !== uid ? ` · device <span class="font-mono break-all">${Admin.commuterEsc(deviceId)}</span>` : ''}`)}
                             ${contactHtml ? metricRow('Contacts', contactHtml) : ''}
-                            ${metricRow('Joined / last seen', `<b>${joinedLabel}</b> · <b>${lastSeenLabel}</b>`)}
+                            ${metricRow('Joined', `<b>${joinedLabel}</b>`)}
+                            ${metricRow('Last activity', lastActivityHtml)}
                             ${metricRow('Linked devices', `<span class="break-all">${devicesLabel}</span>`)}
                             ${metricRow('Role / trust', `Role <b>${flags.role || 'user'}</b> · Trust score <b>${score}</b>`)}
                             ${metricRow(
@@ -10824,7 +11003,7 @@ const Admin = {
                             ${metricRow(
                                 'Feedback',
                                 `<b>${profile.hasChat ? `${profile.feedbackCount || 'open'} thread` : 'none'}</b>${profile.latestFeedbackAt ? ` · last ${Admin.formatDate(profile.latestFeedbackAt)}` : ''}`,
-                                profile.hasChat && chatDid ? utBtn('ut-open-chat-btn', 'Open chat', true) : ''
+                                profile.hasChat && chatDid ? utBtn('ut-open-chat-btn', 'Open chat') : ''
                             )}
                             ${metricRow(
                                 'Trip plans',
@@ -10858,10 +11037,10 @@ const Admin = {
                             </div>
                         </div>
                         <div class="px-3.5 py-3 bg-slate-50/80 dark:bg-gray-950/50 border-t border-gray-100 dark:border-gray-800 flex flex-wrap gap-2">
-                            ${chatDid ? `<button type="button" id="ut-start-chat-btn" class="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-lg">${profile.hasChat ? 'Reply' : 'Start chat'}</button>` : ''}
-                            ${chatDid ? `<button type="button" id="ut-alias-btn" class="text-[10px] font-bold text-gray-600 dark:text-gray-300 underline px-1">Edit alias</button>` : ''}
-                            <button type="button" id="ut-ban-btn" class="text-[10px] font-bold text-red-600 underline px-1">Shadow ban</button>
-                            <button type="button" id="ut-lift-btn" class="text-[10px] font-bold text-blue-600 underline px-1">Lift ban</button>
+                            ${chatDid ? footBtn('ut-start-chat-btn', profile.hasChat ? 'Reply' : 'Start chat', 'primary') : ''}
+                            ${chatDid ? footBtn('ut-alias-btn', 'Edit alias', 'primary') : ''}
+                            ${footBtn('ut-ban-btn', 'Shadow ban', 'danger')}
+                            ${footBtn('ut-lift-btn', 'Lift ban', 'primary')}
                         </div>
                     </div>`;
                 document.getElementById('ut-open-chat-btn')?.addEventListener('click', () => {
@@ -13259,6 +13438,7 @@ const Admin = {
                     <button id="alert-clear-btn" class="flex-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-2.5 rounded-lg shadow-sm transition-colors text-xs uppercase tracking-wide">
                         Clear
                     </button>
+                </div>
                 </div>
 
                 <div id="alert-active-pane" class="hidden space-y-3">
@@ -15899,20 +16079,7 @@ const Admin = {
             return route.sheetKeys[`${dayEl.value}_to_${dir}`] || '';
         };
 
-        const unwrapRegionScheduleDb = (region, raw) => ntAdminUnwrapRegionScheduleDb(region, raw);
-
-        const scheduleRowsFromDb = (db, sheetKey) => {
-            const raw = ntAdminScheduleSheet(db, sheetKey);
-            if (Array.isArray(raw)) return raw;
-            if (Array.isArray(raw?.rows)) return raw.rows;
-            if (raw && typeof raw === 'object') {
-                return Object.keys(raw)
-                    .filter((key) => /^\d+$/.test(key))
-                    .sort((a, b) => Number(a) - Number(b))
-                    .map((key) => raw[key]);
-            }
-            return [];
-        };
+        const scheduleRowsFromDb = (db, sheetKey) => ntAdminScheduleRows(db, sheetKey);
 
         const ensureGridOrderDb = async (region, sheetKey) => {
             const ram = typeof fullDatabase !== 'undefined' ? fullDatabase : null;
@@ -15928,14 +16095,7 @@ const Admin = {
             };
             const dbPath = paths[region];
             if (!dbPath || typeof Admin.fetchDiagJson !== 'function') return ram;
-            let rawData;
-            try {
-                rawData = await Admin.fetchDiagJson(`https://nexttrain-cache.enock.workers.dev/${dbPath}?t=${Date.now()}`);
-            } catch {
-                rawData = await Admin.fetchDiagJson(`https://metrorail-next-train-default-rtdb.firebaseio.com/${dbPath}?t=${Date.now()}`);
-            }
-            const db = unwrapRegionScheduleDb(region, rawData);
-            if (db) Admin._gridOrderRegionDb[region] = db;
+            const db = await ntAdminFetchRegionScheduleDb(region);
             return db || ram;
         };
 
@@ -16182,8 +16342,8 @@ const Admin = {
             
             <div id="excl-body" class="hidden mt-4 space-y-3">
                 <div id="excl-review-banner" class="hidden text-[10px] leading-snug px-2.5 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-slate-700 dark:text-slate-200"></div>
-                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-3 space-y-2">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">1. Route</p>
+                <details open class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-3 space-y-2">
+                    <summary class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 cursor-pointer">1. Route</summary>
                 <div class="relative w-full" id="excl-route-container">
                     <select id="excl-route" class="hidden"></select>
                     <div onclick="document.getElementById('excl-route-list').classList.toggle('hidden'); document.getElementById('excl-route-chevron').classList.toggle('rotate-180');" class="w-full h-10 px-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-bold text-gray-900 dark:text-white transition-colors shadow-sm hover:border-blue-400 dark:hover:border-blue-500 flex items-center justify-between cursor-pointer select-none">
@@ -16192,10 +16352,10 @@ const Admin = {
                     </div>
                     <ul id="excl-route-list" class="absolute z-[200] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 flex-col overflow-y-auto max-h-60 custom-scrollbar text-left"></ul>
                 </div>
-                </div>
+                </details>
 
-                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800 space-y-2">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">2. Timetable grid banner</p>
+                <details class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800 space-y-2">
+                    <summary class="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 cursor-pointer">2. Timetable grid banner</summary>
                     <p class="text-[10px] text-blue-700 dark:text-blue-400 leading-snug">Route-wide banner inside the full timetable grid. Separate from the NO SVC / SPL train tag below.</p>
                     <label class="block text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase mb-1">Banner text</label>
                     <div class="flex space-x-2">
@@ -16238,10 +16398,10 @@ const Admin = {
                             </label>
                         </div>
                     </div>
-                </div>
+                </details>
 
-                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-3 space-y-3">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">3. Train exceptions</p>
+                <details open class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-3 space-y-3">
+                    <summary class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 cursor-pointer">3. Train exceptions</summary>
                 <div class="flex space-x-2">
                     <div class="relative w-2/3" id="excl-schedule-type-container">
                         <select id="excl-schedule-type" class="hidden">
@@ -16303,10 +16463,10 @@ const Admin = {
                 </div>
 
                 <input id="excl-reason" type="text" placeholder="Reason (e.g. Testing, Easter)" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
-                </div>
+                </details>
                 
-                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-3 space-y-2">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">4. How this exception appears</p>
+                <details open class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-3 space-y-2">
+                    <summary class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 cursor-pointer">4. How this exception appears</summary>
                     <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 bg-white dark:bg-gray-800">
                         <p class="text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-1">Visibility</p>
                         <p class="text-[9px] text-gray-500 dark:text-gray-400 leading-snug mb-2">Tick one surface for in-app only or grid-only. Tick both to publish everywhere.</p>
@@ -16324,7 +16484,7 @@ const Admin = {
                         <input type="datetime-local" id="excl-expiry" class="w-full h-10 px-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
                         <p class="text-[9px] text-gray-400 mt-1">Defaults to today at 23:59. If set, the train automatically returns after this date. Clear the field for no auto-return.</p>
                     </div>
-                </div>
+                </details>
                 
                 <button id="excl-save-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow-sm transition-colors text-xs uppercase tracking-wide focus:outline-none">
                     Apply Exceptions
@@ -16462,11 +16622,10 @@ const Admin = {
             return dir === 'A' ? route.sheetKeys.saturday_to_a : route.sheetKeys.saturday_to_b;
         };
 
-        const trainsFromSheet = (sheetKey, runtimeOrder = null) => {
-            if (typeof fullDatabase === 'undefined' || !fullDatabase || !sheetKey) return [];
-            const rawData = ntAdminScheduleSheet(fullDatabase, sheetKey);
-            if (!rawData) return [];
-            const rows = Array.isArray(rawData) ? rawData : (Array.isArray(rawData.rows) ? rawData.rows : []);
+        const trainsFromSheet = (sheetKey, runtimeOrder = null, db = null) => {
+            const database = db || (typeof fullDatabase !== 'undefined' ? fullDatabase : null);
+            if (!database || !sheetKey) return [];
+            const rows = ntAdminScheduleRows(database, sheetKey);
             const set = new Set();
             try {
                 rows.forEach((row) => {
@@ -16480,7 +16639,7 @@ const Admin = {
                 region: ROUTES?.[routeSelect?.value]?.region,
                 runtimeOrder,
                 manifestOrder: typeof window.getGridOrderManifest === 'function'
-                    ? window.getGridOrderManifest(fullDatabase, sheetKey)
+                    ? window.getGridOrderManifest(database, sheetKey)
                     : null,
             });
         };
@@ -16756,11 +16915,6 @@ const Admin = {
             const route = ROUTES[rId];
             if (!route) return;
 
-            if (typeof fullDatabase === 'undefined' || !fullDatabase) {
-                if (typeof showToast === 'function') showToast("Database not ready. Refresh app.", "error");
-                return;
-            }
-
             const sheetA = sheetKeyForDir(route, type, 'A');
             const sheetB = sheetKeyForDir(route, type, 'B');
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : '';
@@ -16779,9 +16933,18 @@ const Admin = {
             };
             loadTrainsBtn.disabled = true;
             const [orderA, orderB] = await Promise.all([loadOrder(sheetA), loadOrder(sheetB)]);
+            let scheduleDb = (typeof fullDatabase !== 'undefined' && fullDatabase) ? fullDatabase : null;
+            const sheetHasTrains = (database) => (
+                ntAdminScheduleRows(database, sheetA).length > 0 || ntAdminScheduleRows(database, sheetB).length > 0
+            );
+            if (!sheetHasTrains(scheduleDb)) {
+                const cached = Admin._gridOrderRegionDb?.[route.region];
+                if (sheetHasTrains(cached)) scheduleDb = cached;
+                else scheduleDb = await ntAdminFetchRegionScheduleDb(route.region) || scheduleDb;
+            }
             loadTrainsBtn.disabled = false;
-            const trainsA = trainsFromSheet(sheetA, orderA);
-            const trainsB = trainsFromSheet(sheetB, orderB);
+            const trainsA = trainsFromSheet(sheetA, orderA, scheduleDb);
+            const trainsB = trainsFromSheet(sheetB, orderB, scheduleDb);
             if (!trainsA.length && !trainsB.length) {
                 if (typeof showToast === 'function') showToast(`No data found for ${type}`, "error");
                 return;
@@ -21676,8 +21839,8 @@ const Admin = {
             adminContainer.appendChild(roadmapPanel);
         }
 
-        if (roadmapPanel.dataset.adminLoaded === "roadmap-refine-v2") return;
-        roadmapPanel.dataset.adminLoaded = "roadmap-refine-v2";
+        if (roadmapPanel.dataset.adminLoaded === "roadmap-refine-v3") return;
+        roadmapPanel.dataset.adminLoaded = "roadmap-refine-v3";
 
         Admin.cachedRoadmapData = [];
 
@@ -21691,42 +21854,36 @@ const Admin = {
                 </span>
                 <svg id="roadmap-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
-            <div id="roadmap-body" class="nt-pack-surface hidden mt-4 flex flex-col space-y-3 rounded-xl p-3 border border-slate-200/70 dark:border-slate-800">
-                <!-- Controls Header -->
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <div class="flex items-center gap-2 w-full sm:w-auto">
-                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider pl-1" id="roadmap-status-display">Syncing Board...</span>
-                    </div>
-                    
-                    <div class="flex items-center gap-2 w-full sm:w-auto">
-                        <!-- Search Bar -->
-                        <div class="relative flex-grow sm:w-48">
-                            <svg class="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            <input type="text" id="roadmap-search-input" placeholder="Search tickets..." class="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block pl-8 p-2 shadow-sm outline-none transition-colors">
-                        </div>
-                        
-                        <button id="roadmap-refresh-btn" class="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-500 hover:text-blue-500 transition-colors focus:outline-none shadow-sm shrink-0" title="Refresh">
+            <div id="roadmap-body" class="hidden -mx-4 sm:-mx-6 flex flex-col text-left bg-gray-50 dark:bg-gray-900">
+                <div class="px-4 pt-1 pb-3 space-y-2 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[11px] font-semibold text-gray-500" id="roadmap-status-display">Syncing board</span>
+                        <button id="roadmap-refresh-btn" class="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 hover:text-blue-600 focus:outline-none shrink-0" title="Refresh">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357 2m0 0H15"></path></svg>
                         </button>
-                        <select id="roadmap-date-filter" class="h-9 max-w-[7.5rem] px-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-[10px] font-bold rounded-lg focus:ring-blue-500 outline-none shadow-sm shrink-0" title="Filter by date">
+                    </div>
+                    <div class="flex gap-2">
+                        <div class="relative flex-1 min-w-0">
+                            <svg class="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            <input type="text" id="roadmap-search-input" placeholder="Search tickets" class="w-full h-10 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 block pl-8 pr-2 outline-none">
+                        </div>
+                        <select id="roadmap-date-filter" class="h-10 max-w-[8.5rem] px-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-[11px] font-semibold rounded-lg focus:ring-blue-500 outline-none shrink-0" title="Filter by date">
                             <option value="all">All dates</option>
                             <option value="7">Last 7 days</option>
                             <option value="30">Last 30 days</option>
                             <option value="90">Last 90 days</option>
                         </select>
-                        <button onclick="Admin.openTicketModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-md focus:outline-none shrink-0">
-                            ${Admin.icon('plus', 'w-3.5 h-3.5')} New Ticket
-                        </button>
                     </div>
+                    <button type="button" id="roadmap-new-ticket" onclick="Admin.openTicketModal()" class="w-full h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold inline-flex items-center justify-center gap-1.5 focus:outline-none">
+                        ${Admin.icon('plus', 'w-4 h-4')} New ticket
+                    </button>
                 </div>
 
-                <!-- Kanban Board Area (Responsive Grid) -->
-                <div class="overflow-x-auto pb-4 custom-scrollbar snap-x flex-grow w-full">
-                    <!-- GUARDIAN UX FIX: Fluid Grid on Desktop, Snap Flex on Mobile -->
-                    <div class="flex md:grid md:grid-cols-3 gap-4 h-full items-start px-1 w-full min-w-max md:min-w-0" id="roadmap-kanban-board">
+                <div class="overflow-x-auto snap-x snap-mandatory w-full">
+                    <div class="flex w-full items-start" id="roadmap-kanban-board">
                         
                         <!-- Column: Backlog -->
-                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-slate-200/70 dark:bg-slate-900/80 rounded-xl border border-slate-300 dark:border-slate-700 shadow-inner overflow-hidden snap-center shrink-0 md:shrink">
+                        <div class="flex flex-col basis-full shrink-0 grow-0 snap-start md:basis-0 md:flex-1 md:min-w-0 max-h-[70vh] bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 overflow-hidden">
                             <div class="p-3 border-b border-slate-300 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0">
                                 <div class="flex items-center gap-2">
                                     <span class="w-2.5 h-2.5 rounded-full bg-gray-400 shadow-sm"></span>
@@ -21743,8 +21900,8 @@ const Admin = {
                         </div>
 
                         <!-- Column: In Progress -->
-                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-blue-50/80 dark:bg-slate-900/80 rounded-xl border border-blue-200 dark:border-blue-900 shadow-inner overflow-hidden snap-center shrink-0 md:shrink">
-                            <div class="p-3 border-b border-blue-200 dark:border-blue-900 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0">
+                        <div class="flex flex-col basis-full shrink-0 grow-0 snap-start md:basis-0 md:flex-1 md:min-w-0 max-h-[70vh] bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 overflow-hidden">
+                            <div class="p-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0">
                                 <div class="flex items-center gap-2">
                                     <span class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm ring-2 ring-blue-200 dark:ring-blue-900"></span>
                                     <h2 class="text-[10px] font-black uppercase tracking-widest text-blue-800 dark:text-blue-300">In Progress</h2>
@@ -21760,8 +21917,8 @@ const Admin = {
                         </div>
 
                         <!-- Column: Completed -->
-                        <div class="flex flex-col w-[280px] md:w-auto md:min-w-0 max-h-[500px] bg-emerald-50/80 dark:bg-slate-900/80 rounded-xl border border-emerald-200 dark:border-emerald-900 shadow-inner overflow-hidden snap-center shrink-0 md:shrink">
-                            <div class="p-3 border-b border-emerald-200 dark:border-emerald-900 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0">
+                        <div class="flex flex-col basis-full shrink-0 grow-0 snap-start md:basis-0 md:flex-1 md:min-w-0 max-h-[70vh] bg-gray-50 dark:bg-gray-900 overflow-hidden">
+                            <div class="p-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0">
                                 <div class="flex items-center gap-2">
                                     <span class="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm ring-2 ring-green-200 dark:ring-green-900"></span>
                                     <h2 class="text-[10px] font-black uppercase tracking-widest text-green-800 dark:text-green-300">Completed</h2>
