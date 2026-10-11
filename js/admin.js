@@ -38,7 +38,6 @@
  * 9. Nuclear Cache Wipe (Killswitch)
  * 10. Live Telemetry Bridge & Snapshot Export
  * 11. User Feedback Manager (Inbox & Archive Protocol Tabs)
- * 12. Growth & Promo Manager (QR Codes)
  *
  * CHRONOLOGICAL CHANGE LOG:
  * * GUARDIAN PHASE 5 [22 Dec 2025]: Injected basic simulation control wiring and first-pass Service Alerts/Incident layouts.
@@ -814,6 +813,38 @@ function ntAdminSchedulePreviewText(meta) {
     return ntAdminFormatScheduleSummary(meta);
 }
 
+async function ntAdminDeletePublishedCommunityMessage(routeId, postId, replyId) {
+    if (!routeId || !postId) throw new Error('Missing route/post id');
+    const token = await Admin.getAuthKey();
+    if (!token) throw new Error('Not signed in');
+    const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+    const authQ = `?auth=${encodeURIComponent(token)}`;
+    const postPath = `route_community/${encodeURIComponent(routeId)}/posts/${encodeURIComponent(postId)}`;
+    const deleteJson = async (path) => {
+        const res = await fetch(`${dynamicEndpoint}${path}.json${authQ}`, { method: 'DELETE' });
+        if (!res.ok && res.status !== 404) throw new Error(`Delete failed (${res.status})`);
+        return res;
+    };
+    if (replyId) {
+        await deleteJson(`${postPath}/replies/${encodeURIComponent(replyId)}`);
+        await deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(replyId)}`).catch(() => {});
+        return;
+    }
+    let replyIds = [];
+    try {
+        const postRes = await window.guardianFetch(`${dynamicEndpoint}${postPath}.json${authQ}`, {}, 6000);
+        const post = postRes.ok ? await postRes.json() : null;
+        replyIds = Object.keys(post?.replies || {});
+    } catch (e) {
+        console.warn('Community delete reply-index read failed', e);
+    }
+    await deleteJson(postPath);
+    await deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(postId)}`).catch(() => {});
+    await Promise.all(replyIds.map((id) =>
+        deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(id)}`).catch(() => {})
+    ));
+}
+
 const Admin = {
     
     // GUARDIAN PHASE 2: Dropdown Breadcrumbs State
@@ -981,6 +1012,7 @@ const Admin = {
             mail: '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/>',
             phone: '<path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>',
             paperclip: '<path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>',
+            filter: '<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>',
             bug: '<path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 116 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a6 6 0 0112 0v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.53 9C4.6 9.9 3 11.6 3 14M17.47 9c1.93.9 3.53 2.6 3.53 5M3 13h2M19 13h2M4 18h2M18 18h2"/>',
             lightbulb: '<path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7V17h8v-2.3A7 7 0 0012 2z"/>',
             clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
@@ -1277,6 +1309,9 @@ const Admin = {
         }
         return null;
     },
+
+    deletePublishedCommunityMessage: (routeId, postId, replyId) =>
+        ntAdminDeletePublishedCommunityMessage(routeId, postId, replyId),
 
     /** Safe escalate payload for data-escalate attrs (avoids onclick SyntaxError ? app reload). */
     encodeEscalatePayload: (payload) => encodeURIComponent(JSON.stringify(payload || {})),
@@ -1784,19 +1819,46 @@ const Admin = {
     },
 
     // --- 0.16 IMAGE LIGHTBOX MODAL ---
-    openLightbox: function(url) {
+    openLightbox: function(url, blobUrl, posterEl) {
+        if (!posterEl && Admin._lightboxPoster) posterEl = Admin._lightboxPoster;
+        Admin._lightboxPoster = null;
+        const raw = String(url || '').trim();
         const safe = typeof window.sanitizeAttachmentDisplayUrl === 'function'
-            ? window.sanitizeAttachmentDisplayUrl(url)
+            ? window.sanitizeAttachmentDisplayUrl(raw)
             : '';
-        if (!safe) return;
+        let poster = posterEl && posterEl.getAttribute ? posterEl : null;
+        if (!poster && raw) {
+            document.querySelectorAll('[data-alert-lightbox], [data-alert-object-url]').forEach((el) => {
+                if (poster) return;
+                if (el.getAttribute('data-alert-lightbox') === raw || el.getAttribute('data-alert-object-url') === raw) poster = el;
+            });
+        }
+        const posterImg = poster?.querySelector?.('img') || null;
+        const live = posterImg ? (posterImg.currentSrc || posterImg.src || '') : '';
+        const blob = String(blobUrl || poster?.getAttribute?.('data-alert-object-url') || (raw.startsWith('blob:') ? raw : '') || '');
+        let ownedBlob = '';
+        if (blob.startsWith('blob:')) {
+            document.querySelectorAll('[data-alert-object-url]').forEach((el) => {
+                if (!ownedBlob && el.getAttribute('data-alert-object-url') === blob) ownedBlob = blob;
+            });
+        }
+        const httpsLive = /^https:\/\//i.test(live) ? live : '';
+        const shown = (posterImg && posterImg.naturalWidth > 0)
+            ? (posterImg.currentSrc || posterImg.src || '')
+            : '';
+        const src = safe || (/^https:\/\//i.test(raw) ? raw : '') || httpsLive || ownedBlob || (/^blob:|^https:\/\//i.test(shown) ? shown : '');
+        if (!src) return;
+        const fallback = [ownedBlob, httpsLive, shown, safe, /^https:\/\//i.test(raw) ? raw : ''].find((candidate) => candidate && candidate !== src) || '';
         window._adminLightboxOpen = true;
-        history.pushState({ modal: 'admin-lightbox' }, '', '#admin-lightbox');
+        try {
+            history.pushState({ modal: 'admin-lightbox', keepHash: location.hash || '' }, '', location.href);
+        } catch { /* ignore */ }
         if (typeof lockBackgroundScroll === 'function') lockBackgroundScroll();
         let modal = document.getElementById('admin-lightbox-modal');
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'admin-lightbox-modal';
-            modal.className = 'fixed inset-0 bg-black/95 z-[300] hidden flex items-center justify-center p-2 sm:p-4 backdrop-blur-md transition-opacity duration-300';
+            modal.className = 'fixed inset-0 bg-black/95 hidden flex items-center justify-center p-2 sm:p-4 backdrop-blur-md transition-opacity duration-300';
             modal.onclick = (e) => {
                 if (e.target === modal || e.target.id === 'lightbox-close-btn' || e.target.closest('#lightbox-close-btn')) {
                     Admin.closeLightbox();
@@ -1806,15 +1868,25 @@ const Admin = {
                 <button id="lightbox-close-btn" class="absolute top-4 right-4 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors focus:outline-none z-10 backdrop-blur-sm">
                     <svg class="w-6 h-6 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
-                <img id="admin-lightbox-img" src="" class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl transform transition-transform scale-95 duration-300" alt="Full screen preview">
+                <img id="admin-lightbox-img" src="" class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" alt="Full screen preview">
             `;
             document.body.appendChild(modal);
         }
+        modal.style.zIndex = '10050';
+        modal.classList.remove('hidden');
+        modal.style.setProperty('display', 'flex', 'important');
         
         const img = document.getElementById('admin-lightbox-img');
-        if (img) img.src = safe;
+        if (img) {
+            const fallbacks = [fallback, ownedBlob, httpsLive, shown, safe].filter((candidate, index, all) => candidate && candidate !== src && all.indexOf(candidate) === index);
+            let fallbackAt = 0;
+            img.onerror = () => {
+                const next = fallbacks[fallbackAt++];
+                if (next && img.getAttribute('src') !== next) img.src = next;
+            };
+            img.src = src;
+        }
         
-        modal.classList.remove('hidden');
         void modal.offsetWidth; // Force Reflow
         if (img) {
             img.classList.remove('scale-95');
@@ -1822,9 +1894,12 @@ const Admin = {
         }
     },
 
-    closeLightbox: function() {
+    closeLightbox: function(fromPopState) {
+        if (!fromPopState && history.state && history.state.modal === 'admin-lightbox') {
+            history.back();
+            return;
+        }
         window._adminLightboxOpen = false;
-        if (location.hash === '#admin-lightbox') history.back();
         if (typeof unlockBackgroundScroll === 'function') unlockBackgroundScroll();
         const modal = document.getElementById('admin-lightbox-modal');
         if (!modal) return;
@@ -1836,6 +1911,7 @@ const Admin = {
         modal.classList.add('opacity-0');
         setTimeout(() => {
             modal.classList.add('hidden');
+            modal.style.removeProperty('display');
             modal.classList.remove('opacity-0');
             if (img) img.src = '';
         }, 300);
@@ -1887,7 +1963,7 @@ const Admin = {
             : '';
         if (!safe) return '';
         const js = typeof window.lightboxOnclickJs === 'function'
-            ? window.lightboxOnclickJs(safe, 'Admin.openLightbox')
+            ? window.lightboxOnclickJs(safe, 'window.openLightbox')
             : '';
         if (!js) return '';
         const href = typeof escapeHTML === 'function' ? escapeHTML(safe) : safe;
@@ -2158,7 +2234,6 @@ const Admin = {
             'auth-providers-body',
             'exp-features-body',
             'shadow-ban-default-body',
-            'promo-body',
             'deploy-live-body',
             'cf-purge-body',
             'nuke-body',
@@ -2168,7 +2243,6 @@ const Admin = {
             'auth-providers-chevron',
             'exp-features-chevron',
             'shadow-ban-default-chevron',
-            'promo-chevron',
             'deploy-live-chevron',
             'cf-purge-chevron',
             'nuke-chevron',
@@ -2230,9 +2304,227 @@ const Admin = {
         }
     },
 
+    /**
+     * Picture URL for a Dev Mode feedback photo. Prefer the image already on
+     * screen, then the stored attachment URL.
+     */
+    feedbackPreviewSrc: (src, poster) => {
+        const img = poster?.tagName === 'IMG' ? poster : poster?.querySelector?.('img');
+        const live = img && img.naturalWidth > 0 ? (img.currentSrc || img.src || '') : '';
+        const blob = poster?.getAttribute?.('data-alert-object-url') || '';
+        const attr = poster?.getAttribute?.('data-alert-lightbox') || '';
+        const tries = [live, blob, src, attr];
+        for (const candidate of tries) {
+            const s = String(candidate || '').trim();
+            if (!s) continue;
+            if (s.startsWith('blob:') || /^https:\/\//i.test(s)) return s;
+            if (typeof window.sanitizeAttachmentDisplayUrl === 'function') {
+                const safe = window.sanitizeAttachmentDisplayUrl(s);
+                if (safe) return safe;
+            }
+        }
+        return '';
+    },
+
+    /** Other photos in the same feedback bubble, so left/right can move between them. */
+    feedbackPreviewUrls: (poster, current) => {
+        const root = poster?.closest?.('.inbox-bubble') || poster;
+        const urls = [];
+        const push = (u) => {
+            const s = String(u || '').trim();
+            if (!s || urls.includes(s)) return;
+            if (s.startsWith('blob:') || /^https:\/\//i.test(s) || s.startsWith('/')) urls.push(s);
+        };
+        root?.querySelectorAll?.('[data-alert-lightbox]').forEach((el) => {
+            push(el.getAttribute('data-alert-lightbox'));
+        });
+        if (!urls.length) push(current);
+        else if (current && /^https:\/\//i.test(current) && !urls.includes(current)) urls.unshift(current);
+        return urls;
+    },
+
+    clearFeedbackPreviewChrome: (overlay) => {
+        if (!overlay) return;
+        overlay.querySelectorAll('[data-fb-preview-step]').forEach((node) => node.remove());
+        delete overlay.dataset.ntFeedbackGallery;
+        delete overlay.dataset.ntFeedbackIndex;
+        if (overlay.dataset.ntAdminLift) {
+            overlay.style.zIndex = '';
+            delete overlay.dataset.ntAdminLift;
+        }
+    },
+
+    paintFeedbackPreviewChrome: (overlay) => {
+        const stage = document.getElementById('alert-image-lightbox-stage');
+        if (!stage) return;
+        stage.querySelectorAll('[data-fb-preview-step]').forEach((node) => node.remove());
+        const urls = String(overlay?.dataset?.ntFeedbackGallery || '').split('\n').filter(Boolean);
+        if (urls.length < 2) return;
+        const make = (dir, label, side) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.setAttribute('data-fb-preview-step', String(dir));
+            btn.setAttribute('aria-label', label);
+            btn.className = `absolute top-1/2 -translate-y-1/2 ${side} z-20 w-11 h-11 rounded-full bg-black/50 text-white text-2xl leading-none`;
+            btn.textContent = dir < 0 ? '\u2039' : '\u203A';
+            return btn;
+        };
+        stage.appendChild(make(-1, 'Previous image', 'left-2'));
+        stage.appendChild(make(1, 'Next image', 'right-2'));
+    },
+
+    stepFeedbackPreview: (overlay, dir) => {
+        const urls = String(overlay?.dataset?.ntFeedbackGallery || '').split('\n').filter(Boolean);
+        if (urls.length < 2) return;
+        let index = Number(overlay.dataset.ntFeedbackIndex || 0) + dir;
+        if (index < 0) index = urls.length - 1;
+        if (index >= urls.length) index = 0;
+        overlay.dataset.ntFeedbackIndex = String(index);
+        const img = document.getElementById('alert-image-lightbox-img');
+        if (img) img.src = urls[index];
+    },
+
+    bindFeedbackPreviewChrome: (overlay) => {
+        if (!overlay || overlay.dataset.ntFbPreviewBound === '1') return;
+        overlay.dataset.ntFbPreviewBound = '1';
+        const closeBtn = document.getElementById('alert-image-lightbox-close');
+        closeBtn?.addEventListener('click', (e) => {
+            if (history.state?.modal !== 'feedback-preview') return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+            try { history.back(); } catch { Admin.dismissFeedbackPreview(overlay); }
+        }, true);
+        let startX = 0;
+        let startY = 0;
+        const stage = document.getElementById('alert-image-lightbox-stage');
+        stage?.addEventListener('touchstart', (e) => {
+            if (!overlay.dataset.ntFeedbackGallery) return;
+            if (!e.touches || e.touches.length !== 1) return;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+        }, { passive: true });
+        stage?.addEventListener('touchend', (e) => {
+            if (!overlay.dataset.ntFeedbackGallery) return;
+            const touch = e.changedTouches && e.changedTouches[0];
+            if (!touch) return;
+            const dx = touch.clientX - startX;
+            const dy = touch.clientY - startY;
+            if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) return;
+            Admin.stepFeedbackPreview(overlay, dx < 0 ? 1 : -1);
+        }, { passive: true });
+        overlay.addEventListener('click', (e) => {
+            const dirBtn = e.target?.closest?.('[data-fb-preview-step]');
+            if (!dirBtn || !overlay.contains(dirBtn)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            Admin.stepFeedbackPreview(overlay, Number(dirBtn.getAttribute('data-fb-preview-step')) || 0);
+        });
+        if (typeof MutationObserver === 'function') {
+            try {
+                const watch = new MutationObserver(() => {
+                    if (overlay.classList.contains('hidden')) Admin.clearFeedbackPreviewChrome(overlay);
+                });
+                watch.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+            } catch { /* non-element host */ }
+        }
+    },
+
+    dismissFeedbackPreview: (overlay) => {
+        const box = overlay || document.getElementById('alert-image-lightbox');
+        if (!box) return;
+        box.classList.add('hidden');
+        box.classList.remove('flex');
+        window._isLightboxMode = false;
+        Admin.clearFeedbackPreviewChrome(box);
+    },
+
+    /**
+     * Dev Mode feedback photos use the same full-screen preview as a service
+     * poster (#alert-image-lightbox). admin.js shows it directly so a stale
+     * hashed ui.js cannot refuse the open, and so the hash stays on the
+     * feedback panel.
+     */
+    openFeedbackAttachmentPreview: (src, poster) => {
+        const display = Admin.feedbackPreviewSrc(src, poster);
+        if (!display) return false;
+        const overlay = document.getElementById('alert-image-lightbox');
+        const img = document.getElementById('alert-image-lightbox-img');
+        if (!overlay || !img) {
+            if (typeof Admin.openLightbox === 'function') {
+                Admin.openLightbox(display, '', poster);
+                return true;
+            }
+            return false;
+        }
+        if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
+        const urls = Admin.feedbackPreviewUrls(poster, display);
+        const marked = poster?.getAttribute?.('data-alert-lightbox') || '';
+        let index = urls.indexOf(display);
+        if (index < 0) index = urls.indexOf(marked);
+        if (index < 0) index = 0;
+        overlay.dataset.ntAdminLift = '1';
+        overlay.dataset.ntFeedbackGallery = urls.join('\n');
+        overlay.dataset.ntFeedbackIndex = String(index);
+        overlay.style.zIndex = '10050';
+        img.alt = 'Image Preview';
+        if (img.getAttribute('src') !== display) img.src = display;
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        window._isLightboxMode = true;
+        try {
+            history.pushState({ modal: 'feedback-preview' }, '', location.href);
+        } catch { /* ignore */ }
+        Admin.bindFeedbackPreviewChrome(overlay);
+        Admin.paintFeedbackPreviewChrome(overlay);
+        return !overlay.classList.contains('hidden');
+    },
+
+    /** Capture taps on photos inside the Dev Mode feedback panel only. */
+    bindFeedbackPhotoPreview: (panel) => {
+        if (!panel || panel.dataset.fbPhotoBound === '1') return;
+        panel.dataset.fbPhotoBound = '1';
+        const inThread = (node) => !!(node && panel.contains(node) && node.closest?.('.feedback-thread-body, .inbox-bubble, .feedback-thread-chat'));
+        panel.addEventListener('click', (e) => {
+            const poster = e.target?.closest?.('[data-alert-lightbox]');
+            if (poster && inThread(poster)) {
+                e.preventDefault();
+                e.stopPropagation();
+                const original = poster.getAttribute('data-alert-lightbox') || '';
+                const blob = poster.getAttribute('data-alert-object-url') || '';
+                Admin.openFeedbackAttachmentPreview(original || blob, poster);
+                return;
+            }
+            const img = e.target?.closest?.('img');
+            if (!img || !inThread(img) || img.closest?.('#alert-image-lightbox')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            Admin.openFeedbackAttachmentPreview(img.currentSrc || img.getAttribute('src') || '', img);
+        }, true);
+    },
+
     bindFeedbackInboxReactions: (host) => {
         if (!host || host.dataset.inboxReactBound === '1') return;
         host.dataset.inboxReactBound = '1';
+        host.addEventListener('click', (e) => {
+            const poster = e.target.closest?.('[data-alert-lightbox]');
+            const link = !poster ? e.target.closest?.('a[href]') : null;
+            const href = link?.getAttribute?.('href') || '';
+            const storageLink = !!(link && host.contains(link) && /firebasestorage|googleusercontent|storage\.googleapis\.com/i.test(href));
+            if (!(poster && host.contains(poster)) && !storageLink) return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+            if (storageLink && typeof window.classifyAttachmentUrl === 'function' && window.classifyAttachmentUrl(href) === 'pdf') {
+                window.open(href, '_blank', 'noopener');
+                return;
+            }
+            const el = poster || link;
+            const original = poster?.getAttribute?.('data-alert-lightbox') || href || '';
+            const blob = poster?.getAttribute?.('data-alert-object-url') || '';
+            const src = original || blob;
+            if (src) Admin.openFeedbackAttachmentPreview(src, el);
+        }, true);
         let longTimer = null;
         const clearLong = () => {
             if (longTimer) clearTimeout(longTimer);
@@ -2258,10 +2550,10 @@ const Admin = {
             if (poster && host.contains(poster)) {
                 e.preventDefault();
                 e.stopPropagation();
-                const src = poster.getAttribute('data-alert-object-url')
-                    || poster.getAttribute('data-alert-lightbox');
-                if (src && Admin.openLightbox) Admin.openLightbox(src);
-                else if (src && typeof window.openLightbox === 'function') window.openLightbox(src, poster);
+                const original = poster.getAttribute('data-alert-lightbox') || '';
+                const blob = poster.getAttribute('data-alert-object-url') || '';
+                const src = original || blob;
+                if (src) Admin.openFeedbackAttachmentPreview(src, poster);
                 return;
             }
             const chip = e.target.closest?.('[data-inbox-react]');
@@ -2326,12 +2618,33 @@ const Admin = {
             }
         };
         const looksDevice = /^usr_/i.test(did);
-        const [tripNode, inboxNode, deviceNode, userNode] = await Promise.all([
+        const needFares = !(Admin._cachedFareVotes && typeof Admin._cachedFareVotes === 'object');
+        const needFails = !(Admin._cachedRoutingFails && typeof Admin._cachedRoutingFails === 'object');
+        const needTickets = !(Admin._cachedFareTicketPhotos && typeof Admin._cachedFareTicketPhotos === 'object');
+        const [tripNode, inboxNode, deviceNode, userNode, fareData, failData, ticketData] = await Promise.all([
             fetchJson(`sys_logs/trip_plan_users/${encodeURIComponent(did)}.json`),
             looksDevice ? fetchJson(`inbox/${encodeURIComponent(did)}.json`) : Promise.resolve(null),
             looksDevice ? fetchJson(`devices/${encodeURIComponent(did)}.json`) : Promise.resolve(null),
             fetchJson(`users/${encodeURIComponent(did)}.json`),
+            needFares ? fetchJson('sys_logs/fare_votes.json') : Promise.resolve(null),
+            needFails ? fetchJson('sys_logs/routing_fails.json') : Promise.resolve(null),
+            needTickets ? fetchJson('sys_logs/fare_ticket_photos.json') : Promise.resolve(null),
         ]);
+        let fareStatus = 'ready';
+        let failStatus = 'ready';
+        let ticketStatus = 'ready';
+        if (needFares) {
+            if (fareData && typeof fareData === 'object') Admin._cachedFareVotes = fareData;
+            else fareStatus = 'unavailable';
+        }
+        if (needFails) {
+            if (failData && typeof failData === 'object') Admin._cachedRoutingFails = failData;
+            else failStatus = 'unavailable';
+        }
+        if (needTickets) {
+            if (ticketData && typeof ticketData === 'object') Admin._cachedFareTicketPhotos = ticketData;
+            else ticketStatus = 'unavailable';
+        }
         const ids = Admin.commuterIdSet(did, deviceNode?.uid, userNode && looksDevice ? null : did);
         const feedbackItems = (Admin.cachedFeedbackData || []).filter((i) => {
             const fbDid = String(i?.deviceId || i?.device_id || '').trim();
@@ -2353,16 +2666,53 @@ const Admin = {
             tripRegion = tripRegion || tripIndex.region || '';
         }
         const inboxHas = !!(inboxNode && typeof inboxNode === 'object' && Object.keys(inboxNode).length);
+        const crashKnown = Array.isArray(Admin.cachedCrashData);
         const crashCount = (Admin.cachedCrashData || []).filter((c) => {
             const cDid = String(c?.deviceId || c?.device_id || '').trim();
             return ids.has(cDid) || cDid === did;
         }).length;
-        const fareCount = Admin._cachedFareVotes && typeof Admin._cachedFareVotes === 'object'
-            ? Object.values(Admin._cachedFareVotes).filter((v) => ids.has(String(v?.deviceId || v?.userId || '').trim())).length
-            : null;
-        const failCount = Admin._cachedRoutingFails && typeof Admin._cachedRoutingFails === 'object'
-            ? Object.values(Admin._cachedRoutingFails).filter((v) => ids.has(String(v?.userId || v?.deviceId || '').trim())).length
-            : null;
+        const matchesId = (row) => {
+            const rowId = String(row?.deviceId || row?.userId || '').trim();
+            const authUid = String(row?.authUid || '').trim();
+            return ids.has(rowId) || rowId === did || (authUid && ids.has(authUid));
+        };
+        const fareVotes = fareStatus === 'unavailable'
+            ? []
+            : Object.entries(Admin._cachedFareVotes || {}).map(([id, v]) => ({ id, ...(v || {}) })).filter(matchesId);
+        const fails = failStatus === 'unavailable'
+            ? []
+            : Object.values(Admin._cachedRoutingFails || {}).filter(matchesId);
+        const ticketPhotos = Admin._cachedFareTicketPhotos || {};
+        const ticketFromVotes = fareVotes.filter((v) => v.ticketUrl || (v.id && ticketPhotos[v.id]?.ticketUrl)).length;
+        const ticketFromCache = ticketStatus === 'unavailable' ? 0 : Object.values(ticketPhotos).filter(matchesId).length;
+        const ticketCount = Math.max(ticketFromVotes, ticketFromCache);
+        const formatRand = (n) => {
+            const num = Number(n);
+            if (!Number.isFinite(num)) return '';
+            return `R${Number.isInteger(num) ? num : num.toFixed(2)}`;
+        };
+        const interactionLine = (label, status, count, detail) => {
+            if (status === 'unavailable') return `${label}: unavailable`;
+            if (!count) return `${label}: none`;
+            return detail ? `${label}: ${count} · ${detail}` : `${label}: ${count}`;
+        };
+        let fareDetail = '';
+        if (fareVotes.length) {
+            const latest = [...fareVotes].sort((a, b) => (Number(b.at || b.timestamp) || 0) - (Number(a.at || a.timestamp) || 0))[0];
+            const from = String(latest.origin || '').trim();
+            const to = String(latest.destination || '').trim();
+            const od = from && to ? `${from} to ${to}` : (from || to);
+            const quoted = formatRand(latest.quotedPrice);
+            const reported = formatRand(latest.reportedPrice);
+            fareDetail = [od, quoted ? `quoted ${quoted}` : '', reported ? `reported ${reported}` : ''].filter(Boolean).join(' · ');
+        }
+        let ticketLine = interactionLine('Ticket photos', 'ready', ticketCount, '');
+        if (ticketStatus === 'unavailable' && !ticketCount) {
+            ticketLine = 'Ticket photos: unavailable';
+        }
+        const crashLine = crashKnown
+            ? (crashCount ? `Crashes: ${crashCount}` : 'Crashes: none')
+            : 'Crashes: unavailable';
         return {
             id: did,
             alias: Admin.commuterAlias(did),
@@ -2379,8 +2729,10 @@ const Admin = {
             contacts,
             defaultRoute: Admin.inferCommuterDefaultRoute(did, latestFeedback || {}),
             crashCount,
-            fareCount,
-            failCount,
+            fareLine: interactionLine('Fares', fareStatus, fareVotes.length, fareDetail),
+            failLine: interactionLine('Routing fails', failStatus, fails.length, ''),
+            ticketLine,
+            crashLine,
         };
     },
 
@@ -2425,10 +2777,6 @@ const Admin = {
                 ...(peek.contacts.phones || []).map((ph) => esc(ph)),
             ];
             const routeLabel = Admin.inboxRouteLabel(peek.defaultRoute) || peek.defaultRoute;
-            const extraCounts = [];
-            if (peek.fareCount != null) extraCounts.push(`Fares ${peek.fareCount}`);
-            if (peek.failCount != null) extraCounts.push(`Fails ${peek.failCount}`);
-            if (peek.crashCount) extraCounts.push(`Crashes ${peek.crashCount}`);
             body.innerHTML = `
                 <p class="font-black text-sm text-gray-900 dark:text-white break-words">${esc(heading)}</p>
                 ${peek.alias ? `<p>Alias: <b>${esc(peek.alias)}</b></p>` : '<p class="text-gray-400">No feedback alias.</p>'}
@@ -2440,7 +2788,10 @@ const Admin = {
                 <p>Feedback: <b>${peek.hasChat ? (peek.feedbackCount ? `${peek.feedbackCount} messages` : 'open thread') : 'none'}</b>${peek.latestFeedbackAt ? ` · last ${esc(Admin.formatDate(peek.latestFeedbackAt))}` : ''}</p>
                 ${contactBits.length ? `<p>Contacts: <b>${contactBits.join(', ')}</b></p>` : ''}
                 ${routeLabel ? `<p>Default route: <b>${esc(routeLabel)}</b></p>` : ''}
-                ${extraCounts.length ? `<p>${esc(extraCounts.join(' · '))}</p>` : ''}
+                <p>${esc(peek.fareLine)}</p>
+                <p>${esc(peek.failLine)}</p>
+                <p>${esc(peek.ticketLine)}</p>
+                <p>${esc(peek.crashLine)}</p>
             `;
             if (peek.hasChat) {
                 const actions = document.createElement('div');
@@ -2934,34 +3285,34 @@ const Admin = {
             
             const metricBoxes = telBody.querySelectorAll('.grid > div');
             metricBoxes.forEach(box => {
-                box.className = "bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center shadow-sm transition-colors";
+                box.className = "bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center shadow-sm transition-colors";
                 const label = box.querySelector('span:first-child');
                 const value = box.querySelector('span:last-child');
                 
                 // GUARDIAN: Identify the "Today" tile to make it interactive for Regional Breakdown
                 if (value && value.id === 'stat-today') {
-                    box.classList.add('cursor-pointer', 'hover:border-indigo-400', 'dark:hover:border-indigo-500', 'hover:shadow-md');
+                    box.classList.add('cursor-pointer', 'border-blue-300', 'dark:border-blue-400', 'hover:shadow-md');
                     box.title = "View Regional Breakdown";
                     box.onclick = () => Admin.openRegionalModal();
                 }
 
-                if (label) label.className = "text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1";
+                if (label) label.className = "text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider mb-1";
                 // No permanent pulse on Today / WAU - only refreshTelemetry adds a short loading pulse
-                if (value) value.className = "text-2xl font-black text-slate-800 dark:text-slate-200";
+                if (value) value.className = "text-2xl font-black text-gray-800 dark:text-gray-200";
             });
 
             const errorBox = telBody.querySelector('.bg-red-50') || telBody.querySelector('#stat-errors')?.closest('div');
             if (errorBox) {
-                errorBox.className = "bg-slate-50 dark:bg-slate-800/80 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-3 transition-colors cursor-pointer hover:border-red-400 dark:hover:border-red-500 hover:shadow-md";
+                errorBox.className = "bg-gray-50 dark:bg-gray-800/80 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between shadow-sm mt-3 transition-colors cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md";
                 errorBox.title = 'System / Sentry diagnostic errors (24h). Distress/help lives under Crash Analytics.';
                 errorBox.onclick = () => Admin.openDiagnosticErrorsModal();
                 const label = errorBox.querySelector('span:first-child');
                 const value = errorBox.querySelector('span:last-child');
                 if (label) {
-                    label.className = "text-[10px] text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center";
+                    label.className = "text-[10px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider flex items-center";
                     label.innerHTML = `<span class="mr-1.5 inline-flex text-amber-500">${Admin.icon('alert', 'w-4 h-4')}</span> SYSTEM ERRORS 24H`;
                 }
-                if (value) value.className = "text-lg font-black text-slate-800 dark:text-slate-200";
+                if (value) value.className = "text-lg font-black text-gray-800 dark:text-gray-200";
             }
             
             // GUARDIAN FIX: Removed the regex SVG-replacement block here to allow the native emoji to display.
@@ -2971,24 +3322,24 @@ const Admin = {
         if (telBody && !document.getElementById('tel-export-btn')) {
             // GROWTH SPRINT PHASE 6 & 8: Fully Dynamic SVG Line Graph & Range Toggles
             const trendWrapper = document.createElement('div');
-            trendWrapper.className = "mt-4 border-t border-slate-200 dark:border-slate-700 pt-3";
+            trendWrapper.className = "mt-4 border-t border-gray-200 dark:border-gray-700 pt-3";
             trendWrapper.innerHTML = `
                 <div class="flex items-center justify-between mb-2 px-1">
-                    <button id="trend-cycle-btn" class="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest focus:outline-none hover:text-blue-600 dark:hover:text-blue-400 transition-colors bg-slate-100 dark:bg-slate-800 px-2 py-1.5 rounded flex items-center shadow-sm border border-slate-200 dark:border-slate-700">
+                    <button id="trend-cycle-btn" class="text-[10px] font-bold text-gray-600 dark:text-gray-300 uppercase tracking-widest focus:outline-none hover:text-blue-600 dark:hover:text-blue-400 transition-colors bg-gray-100 dark:bg-gray-800 px-2 py-1.5 rounded flex items-center shadow-sm border border-gray-200 dark:border-gray-700">
                         <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
                         <span>${Admin.telemetryRange} Trend</span>
                     </button>
                     <div class="flex space-x-2">
-                        <button id="trend-expand-btn" class="text-sm text-slate-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Full Screen">
+                        <button id="trend-expand-btn" class="text-sm text-gray-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Full Screen">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
                         </button>
-                        <button id="trend-inline-export-btn" class="text-sm text-slate-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Export">
+                        <button id="trend-inline-export-btn" class="text-sm text-gray-400 hover:text-blue-500 transition-colors focus:outline-none px-1" title="Export">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                         </button>
                     </div>
                 </div>
-                <div id="tel-trend-container" class="h-28 bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-                    <span class="text-xs text-slate-400 italic">Loading Graph...</span>
+                <div id="tel-trend-container" class="h-28 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
+                    <span class="text-xs text-gray-400 italic">Loading Graph...</span>
                 </div>
             `;
             telBody.appendChild(trendWrapper);
@@ -3004,31 +3355,31 @@ const Admin = {
                 chartPanel.className = 'bg-gray-50 dark:bg-gray-900 min-h-[calc(100dvh-5.5rem)] h-[calc(100dvh-5.5rem)] landscape:min-h-[calc(100dvh-4.5rem)] landscape:h-[calc(100dvh-4.5rem)]';
                 chartPanel.innerHTML = `
                     <button id="telemetry-chart-header-btn" class="hidden" type="button"><span>Analytics Trends</span></button>
-                    <div id="telemetry-chart-body" class="h-full min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 rounded-xl">
-                        <div class="p-2 sm:p-3 border-b border-slate-200 dark:border-slate-700 flex flex-wrap justify-between items-center gap-2 bg-slate-50 dark:bg-slate-900 shrink-0">
-                            <button id="analytics-trend-cycle" class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none text-[10px] font-bold uppercase tracking-widest border border-slate-200 dark:border-slate-700 shadow-sm flex items-center">
+                    <div id="telemetry-chart-body" class="h-full min-h-0 flex flex-col overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+                        <div class="p-2 sm:p-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap justify-between items-center gap-2 bg-gray-50 dark:bg-gray-900 shrink-0">
+                            <button id="analytics-trend-cycle" class="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none text-[10px] font-bold uppercase tracking-widest border border-gray-200 dark:border-gray-700 shadow-sm flex items-center">
                                 <svg class="w-3.5 h-3.5 mr-1.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
                                 <span>${Admin.telemetryRange}</span>
                             </button>
                             <div class="flex items-center space-x-2">
-                                <button id="analytics-trend-compare-btn" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors focus:outline-none" title="Compare Previous Period" aria-label="Compare previous period">
+                                <button id="analytics-trend-compare-btn" class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors focus:outline-none" title="Compare Previous Period" aria-label="Compare previous period">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                                 </button>
-                                <button id="analytics-trend-export" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-slate-700 transition-colors focus:outline-none" title="Export Chart" aria-label="Export chart">
+                                <button id="analytics-trend-export" class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-gray-700 transition-colors focus:outline-none" title="Export Chart" aria-label="Export chart">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 </button>
                             </div>
                         </div>
-                        <div id="analytics-pagination-controls" class="p-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex justify-center items-center space-x-4 shrink-0 shadow-inner">
-                            <button id="analytics-trend-prev" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95" aria-label="Previous period"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></button>
-                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest w-24 text-center">Navigate</span>
-                            <button id="analytics-trend-next" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 focus:outline-none transition-transform active:scale-95 disabled:opacity-30" aria-label="Next period"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>
+                        <div id="analytics-pagination-controls" class="p-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-center items-center space-x-4 shrink-0 shadow-inner">
+                            <button id="analytics-trend-prev" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none transition-transform active:scale-95" aria-label="Previous period"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></button>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest w-24 text-center">Navigate</span>
+                            <button id="analytics-trend-next" class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 shadow border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none transition-transform active:scale-95 disabled:opacity-30" aria-label="Next period"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg></button>
                         </div>
                         <div class="flex-grow p-2 sm:p-4 landscape:p-2 flex flex-col items-center justify-center relative bg-white dark:bg-gray-800 min-h-0 overflow-hidden">
                             <div id="analytics-chart-svg-container" class="w-full flex-1 min-h-0 mb-2 landscape:mb-0"></div>
                             <div class="text-center shrink-0 pb-2 landscape:pb-0">
-                                <h3 class="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none" id="analytics-trend-title">Loading...</h3>
-                                <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-1">Live Analytics Engine</p>
+                                <h3 class="text-base sm:text-xl font-black text-gray-900 dark:text-white tracking-tight leading-none" id="analytics-trend-title">Loading...</h3>
+                                <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-1">Live Analytics Engine</p>
                             </div>
                         </div>
                     </div>
@@ -3046,11 +3397,11 @@ const Admin = {
                     compareBtn.onclick = () => {
                         Admin.isComparing = !Admin.isComparing;
                         if (Admin.isComparing) {
-                            compareBtn.classList.replace('text-slate-400', 'text-blue-600');
-                            compareBtn.classList.replace('dark:bg-slate-800', 'dark:bg-slate-700');
+                            compareBtn.classList.replace('text-gray-400', 'text-blue-600');
+                            compareBtn.classList.replace('dark:bg-gray-800', 'dark:bg-gray-700');
                         } else {
-                            compareBtn.classList.replace('text-blue-600', 'text-slate-400');
-                            compareBtn.classList.replace('dark:bg-slate-700', 'dark:bg-slate-800');
+                            compareBtn.classList.replace('text-blue-600', 'text-gray-400');
+                            compareBtn.classList.replace('dark:bg-gray-700', 'dark:bg-gray-800');
                         }
                         Admin.refreshTelemetry();
                     };
@@ -3063,19 +3414,19 @@ const Admin = {
                 regionModal.id = 'telemetry-region-modal';
                 regionModal.className = 'fixed inset-0 bg-black/90 z-[160] hidden flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300';
                 regionModal.innerHTML = `
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-all scale-95 border border-slate-200 dark:border-slate-700">
-                        <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900 rounded-t-2xl shrink-0">
-                            <h3 class="text-lg font-black text-slate-900 dark:text-white flex items-center tracking-tight">
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
+                        <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 rounded-t-2xl shrink-0">
+                            <h3 class="text-lg font-black text-gray-900 dark:text-white flex items-center tracking-tight">
                                 <span class="mr-2 inline-flex">${Admin.icon('globe', 'w-4 h-4')}</span> Regional Breakdown
                             </h3>
-                            <button onclick="closeSmoothModal('telemetry-region-modal'); if(location.hash === '#region-breakdown') history.replaceState({ adminPanel: 'telemetry-panel' }, '', '#dev-telemetry-panel');" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors focus:outline-none">
+                            <button onclick="closeSmoothModal('telemetry-region-modal'); if(location.hash === '#region-breakdown') history.replaceState({ adminPanel: 'telemetry-panel' }, '', '#dev-telemetry-panel');" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 transition-colors focus:outline-none">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                             </button>
                         </div>
                         <div class="p-5 flex-grow bg-white dark:bg-gray-800 rounded-b-2xl">
-                            <p id="region-metric-label" class="text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Users and sessions by region on the hit</p>
-                            <p id="region-today-total" class="text-center text-xs font-black text-slate-800 dark:text-slate-200 mb-1">People today: --</p>
-                            <p id="region-today-sessions" class="text-center text-[10px] font-bold text-slate-500 mb-4">Sessions today: --</p>
+                            <p id="region-metric-label" class="text-center text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Users and sessions by region on the hit</p>
+                            <p id="region-today-total" class="text-center text-xs font-black text-gray-800 dark:text-gray-200 mb-1">People today: --</p>
+                            <p id="region-today-sessions" class="text-center text-[10px] font-bold text-gray-500 mb-4">Sessions today: --</p>
                             <div class="grid grid-cols-2 gap-3 mb-3">
                                 <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">Gauteng</span>
@@ -3083,37 +3434,37 @@ const Admin = {
                                     <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">users</span>
                                     <span id="region-sess-gp" class="text-[9px] font-bold text-blue-500/80 dark:text-blue-300/70 mt-0.5">-- sessions</span>
                                 </div>
-                                <div class="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-100 dark:border-green-800/50 flex flex-col items-center justify-center shadow-sm">
-                                    <span class="text-[10px] text-green-600 dark:text-green-400 font-bold uppercase tracking-wider mb-1">Western Cape</span>
-                                    <span id="region-stat-wc" class="text-2xl font-black text-green-700 dark:text-green-300">--</span>
-                                    <span class="text-[9px] font-bold uppercase tracking-wider text-green-600/80 dark:text-green-300/70">users</span>
-                                    <span id="region-sess-wc" class="text-[9px] font-bold text-green-500/80 dark:text-green-300/70 mt-0.5">-- sessions</span>
+                                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50 flex flex-col items-center justify-center shadow-sm">
+                                    <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">Western Cape</span>
+                                    <span id="region-stat-wc" class="text-2xl font-black text-blue-700 dark:text-blue-300">--</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">users</span>
+                                    <span id="region-sess-wc" class="text-[9px] font-bold text-blue-500/80 dark:text-blue-300/70 mt-0.5">-- sessions</span>
                                 </div>
-                                <div class="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg border border-orange-100 dark:border-orange-800/50 flex flex-col items-center justify-center shadow-sm">
-                                    <span class="text-[10px] text-orange-600 dark:text-orange-400 font-bold uppercase tracking-wider mb-1">KwaZulu-Natal</span>
-                                    <span id="region-stat-kzn" class="text-2xl font-black text-orange-700 dark:text-orange-300">--</span>
-                                    <span class="text-[9px] font-bold uppercase tracking-wider text-orange-600/80 dark:text-orange-300/70">users</span>
-                                    <span id="region-sess-kzn" class="text-[9px] font-bold text-orange-500/80 dark:text-orange-300/70 mt-0.5">-- sessions</span>
+                                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50 flex flex-col items-center justify-center shadow-sm">
+                                    <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">KwaZulu-Natal</span>
+                                    <span id="region-stat-kzn" class="text-2xl font-black text-blue-700 dark:text-blue-300">--</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">users</span>
+                                    <span id="region-sess-kzn" class="text-[9px] font-bold text-blue-500/80 dark:text-blue-300/70 mt-0.5">-- sessions</span>
                                 </div>
-                                <div class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-100 dark:border-purple-800/50 flex flex-col items-center justify-center shadow-sm">
-                                    <span class="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase tracking-wider mb-1">Eastern Cape</span>
-                                    <span id="region-stat-ec" class="text-2xl font-black text-purple-700 dark:text-purple-300">--</span>
-                                    <span class="text-[9px] font-bold uppercase tracking-wider text-purple-600/80 dark:text-purple-300/70">users</span>
-                                    <span id="region-sess-ec" class="text-[9px] font-bold text-purple-500/80 dark:text-purple-300/70 mt-0.5">-- sessions</span>
+                                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50 flex flex-col items-center justify-center shadow-sm">
+                                    <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">Eastern Cape</span>
+                                    <span id="region-stat-ec" class="text-2xl font-black text-blue-700 dark:text-blue-300">--</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">users</span>
+                                    <span id="region-sess-ec" class="text-[9px] font-bold text-blue-500/80 dark:text-blue-300/70 mt-0.5">-- sessions</span>
                                 </div>
                             </div>
-                            <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-between shadow-sm mt-1 mb-3">
-                                <span id="region-stat-other-label" class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center">No region on the hit</span>
+                            <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between shadow-sm mt-1 mb-3">
+                                <span id="region-stat-other-label" class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider flex items-center">No region on the hit</span>
                                 <div class="text-right">
-                                    <span id="region-stat-other" class="text-lg font-black text-slate-700 dark:text-slate-300">--</span>
-                                    <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500">users</span>
-                                    <span id="region-sess-other" class="block text-[9px] font-bold text-slate-500">-- sessions</span>
+                                    <span id="region-stat-other" class="text-lg font-black text-gray-700 dark:text-gray-300">--</span>
+                                    <span class="block text-[9px] font-bold uppercase tracking-wider text-gray-500">users</span>
+                                    <span id="region-sess-other" class="block text-[9px] font-bold text-gray-500">-- sessions</span>
                                 </div>
                             </div>
-                            <p id="region-note" class="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 mb-4">People today and Sessions today are the totals. Each card counts a person, and their sessions, once for every region value on their hits. The cards are not a split of people today.</p>
+                            <p id="region-note" class="text-[10px] leading-relaxed text-gray-500 dark:text-gray-400 mb-4">People today and Sessions today are the totals. Each card counts a person, and their sessions, once for every region value on their hits. The cards are not a split of people today.</p>
                             
                             <!-- GROWTH SPRINT PHASE 12: Pivot to Graph CTA -->
-                            <button id="region-view-graph-btn" class="w-full bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-xs uppercase tracking-widest focus:outline-none flex items-center justify-center border border-slate-700 dark:border-slate-600">
+                            <button id="region-view-graph-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-xs uppercase tracking-widest focus:outline-none flex items-center justify-center">
                                 <svg class="w-4 h-4 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
                                 View Global Trends
                             </button>
@@ -3284,7 +3635,15 @@ const Admin = {
             : '';
         
         // Colors & Theme Independence (hardcoded hex for perfect exportability)
-        const lineColor = '#3b82f6';
+        const pack = (typeof document !== 'undefined' && document.documentElement.getAttribute('data-colour-pack')) || 'classic';
+        let lineColor = '#3b82f6';
+        if (typeof document !== 'undefined' && typeof getComputedStyle === 'function') {
+            const ink = getComputedStyle(document.documentElement);
+            lineColor = (pack === 'earthy'
+                ? ink.getPropertyValue('--nt-accent')
+                : ink.getPropertyValue('--nt-primary')
+            ).trim() || lineColor;
+        }
         const todayColor = '#f97316';
         const gridColor = '#e5e5ea';
         const labelColor = '#8e8e93';
@@ -5629,7 +5988,33 @@ const Admin = {
             }
             const tabLabel = tab === 'distress' ? 'Distress' : (tab === 'inbox' ? 'Inbox' : 'Archive');
             let txt = `NEXT TRAIN - CRASH ANALYTICS\nTab: ${tabLabel}\nExported: ${Admin.formatDate(Date.now())}\nRows: ${rows.length}\n${'='.repeat(48)}\n\n`;
+            const crashRecorded = (value) => {
+                const s = String(value ?? '').replace(/\r/g, '').trim();
+                if (!s || s === 'undefined' || s === 'null' || s === 'N/A' || s === 'undefined:undefined') return '';
+                return s;
+            };
+            const crashRawObject = (c) => {
+                if (!c || c.raw == null || c.raw === '') return null;
+                if (typeof c.raw === 'object') return c.raw;
+                const text = String(c.raw).replace(/\n\.\.\.\[truncated\]$/, '');
+                try {
+                    const parsed = JSON.parse(text);
+                    return parsed && typeof parsed === 'object' ? parsed : null;
+                } catch {
+                    return null;
+                }
+            };
+            const indentBlock = (value) => String(value || '(not recorded)').split('\n').map((l) => `    ${l}`).join('\n');
             rows.forEach((c, i) => {
+                const raw = crashRawObject(c);
+                let line = c.line ?? c.lineno;
+                if ((line == null || line === '') && raw) {
+                    if (raw.line != null && raw.col != null && !String(raw.line).includes(':')) line = `${raw.line}:${raw.col}`;
+                    else line = raw.line ?? raw.lineno;
+                }
+                const script = c.url || c.script || c.filename || (raw && (raw.url || raw.filename || raw.script)) || '';
+                const stack = c.stack || (raw && (raw.stack || (raw.error && raw.error.stack))) || '';
+                const msg = crashRecorded(c.message || c.error || (raw && raw.message));
                 txt += `#${i + 1}  ${Admin.formatDate(c.timestamp)}\n`;
                 txt += `  ID: ${c.id || '-'}\n`;
                 txt += `  Device: ${c.deviceId || c.device_id || '-'}\n`;
@@ -5638,8 +6023,10 @@ const Admin = {
                 if (c.contact) txt += `  Contact: ${c.contact}\n`;
                 if (c.reason) txt += `  Reason: ${c.reason}\n`;
                 if (c.note) txt += `  Note: ${c.note}\n`;
-                const msg = String(c.message || c.error || c.stack || '').replace(/\r/g, '');
-                if (msg) txt += `  Message:\n${msg.split('\n').map((l) => `    ${l}`).join('\n')}\n`;
+                txt += `  Message:\n${indentBlock(msg)}\n`;
+                txt += `  Line: ${crashRecorded(line) || '(not recorded)'}\n`;
+                txt += `  Script: ${crashRecorded(script) || '(not recorded)'}\n`;
+                txt += `  Stack:\n${indentBlock(crashRecorded(stack))}\n`;
                 txt += `\n`;
             });
             const dateStr = new Date().toISOString().slice(0, 10);
@@ -6411,57 +6798,6 @@ const Admin = {
                 Admin.closeDevModal();
             };
         }
-    },
-
-    // --- 2.9 GROWTH & PROMO MANAGER (QR CODE) ---
-    setupGrowthManager: () => {
-        const adminContainer = document.getElementById('admin-modules-container');
-        if (!adminContainer) return;
-
-        let growthPanel = document.getElementById('growth-panel');
-        if (!growthPanel) {
-            growthPanel = document.createElement('div');
-            growthPanel.id = 'growth-panel';
-            adminContainer.appendChild(growthPanel);
-        }
-
-        if (growthPanel.dataset.adminLoaded === "true") return;
-        growthPanel.dataset.adminLoaded = "true";
-
-        growthPanel.className = "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl shadow-md border border-blue-200 dark:border-indigo-800 p-4 mb-4 relative overflow-hidden transition-all duration-300";
-
-        growthPanel.innerHTML = `
-            <button id="growth-header-btn" class="w-full text-left text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
-                <span class="flex flex-col items-center">${Admin.tileIcon('rocket', 'text-violet-500 dark:text-violet-400')} <span>Growth & Promo</span></span>
-                <svg id="growth-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-            </button>
-            
-            <div id="growth-body" class="hidden mt-4">
-                <p class="text-[10px] text-indigo-800 dark:text-indigo-300 font-medium leading-snug mb-4 text-center px-2">Let commuters scan this to instantly open and install the app without typing the URL.</p>
-                <div class="flex flex-col items-center justify-center bg-white p-3 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-800 w-max mx-auto">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://nexttrain.co.za&color=1e3a8a&bgcolor=ffffff" alt="Next Train QR Code" class="w-40 h-40 object-contain rounded-lg">
-                </div>
-                <div class="text-center mt-4 mb-1">
-                    <span class="text-xs font-bold text-indigo-900 dark:text-indigo-100 bg-white/60 dark:bg-black/20 px-4 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-800 shadow-sm">nexttrain.co.za</span>
-                </div>
-            </div>
-        `;
-
-        const header = document.getElementById('growth-header-btn');
-        const body = document.getElementById('growth-body');
-        const chevron = document.getElementById('growth-chevron');
-
-        header.onclick = () => {
-            if (Admin.isGridMode) return; // Prevent accordion action when in grid
-            body.classList.toggle('hidden');
-            if (body.classList.contains('hidden')) {
-                chevron.classList.add('-rotate-90');
-                header.classList.remove('mb-4');
-            } else {
-                chevron.classList.remove('-rotate-90');
-                header.classList.add('mb-4');
-            }
-        };
     },
 
     // --- GROWTH SPRINT PHASE 5: SILENT ROUTING FAILURES TRACKER (DEAD ENDS) ---
@@ -8180,13 +8516,22 @@ const Admin = {
                 </div>
 
                 <!-- GUARDIAN UX FIX: Relocated Action Buttons -->
-                <div class="grid-hidden-actions flex space-x-2 mb-3 px-1 shrink-0">
+                <div id="fb-filter-wrap" class="grid-hidden-actions relative flex space-x-2 mb-3 px-1 shrink-0">
                     <button id="fb-export-global-btn" onclick="event.stopPropagation()" class="flex-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800 border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none flex items-center justify-center gap-1.5">
                         ${Admin.icon('download', 'w-3.5 h-3.5')} Export All
+                    </button>
+                    <button id="fb-filter-btn" type="button" onclick="event.stopPropagation()" class="flex-1 bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-800 border border-violet-200 dark:border-violet-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none flex items-center justify-center gap-1.5">
+                        ${Admin.icon('filter', 'w-3.5 h-3.5')} Filter
                     </button>
                     <button id="fb-refresh-btn" onclick="event.stopPropagation()" class="flex-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none flex items-center justify-center gap-1.5">
                         ${Admin.icon('refresh', 'w-3.5 h-3.5')} Refresh
                     </button>
+                    <div id="fb-filter-menu" class="hidden absolute left-0 top-full mt-1 z-50 w-max min-w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-2 space-y-1">
+                        <label class="flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-bold text-gray-800 dark:text-gray-100 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"><input type="checkbox" data-fb-filter="email" class="rounded border-gray-300 text-violet-600 focus:ring-violet-500"> Email</label>
+                        <label class="flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-bold text-gray-800 dark:text-gray-100 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"><input type="checkbox" data-fb-filter="whatsapp" class="rounded border-gray-300 text-violet-600 focus:ring-violet-500"> WhatsApp number</label>
+                        <label class="flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-bold text-gray-800 dark:text-gray-100 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"><input type="checkbox" data-fb-filter="attachments" class="rounded border-gray-300 text-violet-600 focus:ring-violet-500"> Attachments</label>
+                        <label class="flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-bold text-gray-800 dark:text-gray-100 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"><input type="checkbox" data-fb-filter="trips" class="rounded border-gray-300 text-violet-600 focus:ring-violet-500"> Trip plans</label>
+                    </div>
                 </div>
                 
                 <div id="fb-list" class="space-y-3 pr-1"></div>
@@ -8199,6 +8544,7 @@ const Admin = {
         const refreshBtn = document.getElementById('fb-refresh-btn');
         const exportGlobalBtn = document.getElementById('fb-export-global-btn');
         const listContainer = document.getElementById('fb-list');
+        Admin.bindFeedbackPhotoPreview(fbPanel);
         const tabInbox = document.getElementById('fb-tab-inbox');
         const tabArchive = document.getElementById('fb-tab-archive');
         const searchInput = document.getElementById('fb-search-input');
@@ -8222,6 +8568,35 @@ const Admin = {
 
         refreshBtn.onclick = () => Admin.fetchFeedback();
         if (exportGlobalBtn) exportGlobalBtn.onclick = () => Admin.exportGlobalThreadsForAI();
+        const filterBtn = document.getElementById('fb-filter-btn');
+        const filterMenu = document.getElementById('fb-filter-menu');
+        const paintFilterBtn = () => {
+            if (!filterBtn) return;
+            const on = Object.values(Admin.feedbackInboxFilters || {}).some(Boolean);
+            filterBtn.classList.toggle('ring-2', on);
+            filterBtn.classList.toggle('ring-violet-400', on);
+        };
+        filterMenu?.querySelectorAll('[data-fb-filter]').forEach((box) => {
+            const key = box.getAttribute('data-fb-filter');
+            box.checked = !!Admin.feedbackInboxFilters?.[key];
+            box.addEventListener('change', () => {
+                Admin.feedbackInboxFilters[key] = !!box.checked;
+                paintFilterBtn();
+                Admin.renderFeedbackList();
+            });
+        });
+        if (filterBtn && filterMenu) {
+            filterBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                filterMenu.classList.toggle('hidden');
+            });
+            document.addEventListener('click', (e) => {
+                if (e.target.closest?.('#fb-filter-btn') || e.target.closest?.('#fb-filter-menu')) return;
+                filterMenu.classList.add('hidden');
+            });
+        }
+        paintFilterBtn();
 
         // Dual-Tab Switcher Logic
         const switchTab = (tab) => {
@@ -8311,14 +8686,18 @@ const Admin = {
                     matchesSearch = alias.includes(searchQuery) || didLower.includes(searchQuery) || hasMatchingMsg;
                 }
 
-                if (matchesSearch) {
+                if (matchesSearch && Admin.feedbackThreadMatchesFilters(did, groupItems)) {
                     if (isInbox && isThreadActive) displayGroups.push({ did, items: groupItems });
                     if (!isInbox && !isThreadActive) displayGroups.push({ did, items: groupItems });
                 }
             });
 
             if (displayGroups.length === 0) {
-                listContainer.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${isInbox ? 'Inbox is completely clean.' : 'No archived threads yet.'}</div>`;
+                const filtersOn = Object.values(Admin.feedbackInboxFilters || {}).some(Boolean);
+                const emptyCopy = filtersOn
+                    ? 'No threads match these filters.'
+                    : (isInbox ? 'Inbox is completely clean.' : 'No archived threads yet.');
+                listContainer.innerHTML = `<div class="text-xs text-gray-500 italic text-center py-6">${emptyCopy}</div>`;
                 return;
             }
 
@@ -8509,6 +8888,14 @@ const Admin = {
 
             // GUARDIAN PHASE 1: The Auto-Collapse "Accordion Rule" & Delegated Listener
             listContainer.onclick = (e) => {
+                const poster = e.target.closest?.('[data-alert-lightbox]');
+                if (poster && listContainer.contains(poster)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const src = poster.getAttribute('data-alert-lightbox') || poster.getAttribute('data-alert-object-url') || '';
+                    if (src) Admin.openFeedbackAttachmentPreview(src, poster);
+                    return;
+                }
                 const clBtn = e.target.closest('[data-admin-changelog]');
                 if (clBtn && listContainer.contains(clBtn)) {
                     e.preventDefault();
@@ -8729,11 +9116,21 @@ const Admin = {
                     item.inboxMsgId = hit.msgKey;
                     item.reactions = hit.msg.reactions;
                     item.reactedBy = hit.msg.reactedBy;
+                    if (hit.msg.chatScope) item.chatScope = hit.msg.chatScope;
+                    if (hit.msg.accountUid) item.accountUid = hit.msg.accountUid;
+                    if (hit.msg.sentSignedOut) item.sentSignedOut = true;
+                    if (hit.msg.mergedIntoDevice) item.mergedIntoDevice = hit.msg.mergedIntoDevice;
+                    if (hit.msg.mergedIntoId) item.mergedIntoId = hit.msg.mergedIntoId;
                     if (!item.appVersion && hit.msg.appVersion) item.appVersion = hit.msg.appVersion;
                     if (Admin.isBlankInboxRoute(item.routeId) && hit.msg.routeId) item.routeId = hit.msg.routeId;
                     if (!item.attachmentUrl && hit.msg.attachmentUrl) item.attachmentUrl = hit.msg.attachmentUrl;
                     if (!item.attachmentUrls && hit.msg.attachmentUrls) item.attachmentUrls = hit.msg.attachmentUrls;
                     usedInboxKeys.add(`${did}/${hit.msgKey}`);
+                });
+                mergedData.forEach((item) => {
+                    if (item.isFromAdmin || !item.mergedIntoDevice) return;
+                    item.device_id = item.mergedIntoDevice;
+                    item.deviceId = item.mergedIntoDevice;
                 });
 
                 // Fold Admin Replies (and unmatched commuter inbox copies) into the Thread Matrix
@@ -8744,6 +9141,8 @@ const Admin = {
                         Object.keys(deviceMessages).forEach(msgKey => {
                             const msg = deviceMessages[msgKey];
                             if (usedInboxKeys.has(`${deviceId}/${msgKey}`)) return;
+                            if (msg.mergedIntoDevice) return;
+                            if (msg.mergedFromDevice && mergedData.some((item) => !item.isFromAdmin && String(item.mergedIntoId || '') === String(msgKey))) return;
                             const fromCommuter = String(msg.from || '') === 'commuter';
                             let parentStatus = 'unread';
                             // Inherit the archive status of the parent ticket so threads collapse together
@@ -8774,6 +9173,11 @@ const Admin = {
                                 editedAt: msg.editedAt,
                                 reactions: msg.reactions,
                                 reactedBy: msg.reactedBy,
+                                chatScope: msg.chatScope,
+                                accountUid: msg.accountUid,
+                                sentSignedOut: msg.sentSignedOut,
+                                mergedFromDevice: msg.mergedFromDevice,
+                                mergedIntoDevice: msg.mergedIntoDevice,
                             });
                         });
                     });
@@ -10150,34 +10554,7 @@ const Admin = {
                     };
                 }
 
-                Admin.deletePublishedCommunityMessage = async (routeId, postId, replyId) => {
-                    if (!routeId || !postId) throw new Error('Missing route/post id');
-                    const authQ = await communityAuthSuffix();
-                    const postPath = `route_community/${encodeURIComponent(routeId)}/posts/${encodeURIComponent(postId)}`;
-                    const deleteJson = async (path) => {
-                        const res = await fetch(`${dynamicEndpoint}${path}.json${authQ}`, { method: 'DELETE' });
-                        if (!res.ok && res.status !== 404) throw new Error(`Delete failed (${res.status})`);
-                        return res;
-                    };
-                    if (replyId) {
-                        await deleteJson(`${postPath}/replies/${encodeURIComponent(replyId)}`);
-                        await deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(replyId)}`).catch(() => {});
-                        return;
-                    }
-                    let replyIds = [];
-                    try {
-                        const postRes = await window.guardianFetch(`${dynamicEndpoint}${postPath}.json${authQ}`, {}, 6000);
-                        const post = postRes.ok ? await postRes.json() : null;
-                        replyIds = Object.keys(post?.replies || {});
-                    } catch (e) {
-                        console.warn('Community delete reply-index read failed', e);
-                    }
-                    await deleteJson(postPath);
-                    await deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(postId)}`).catch(() => {});
-                    await Promise.all(replyIds.map((id) =>
-                        deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(id)}`).catch(() => {})
-                    ));
-                };
+                Admin.deletePublishedCommunityMessage = ntAdminDeletePublishedCommunityMessage;
 
                 list.onclick = async (event) => {
                     const hide = event.target.closest?.('.cm-hide-message');
@@ -11088,10 +11465,52 @@ const Admin = {
     },
 
     // --- GROWTH SPRINT PHASE 8: ADMIN REPLY INBOX PROTOCOL ---
+    feedbackInboxFilters: { email: false, whatsapp: false, attachments: false, trips: false },
+
+    feedbackThreadContactSets: (groupItems) => {
+        const emails = new Set();
+        const phones = new Set();
+        (groupItems || []).forEach((msg) => {
+            const em = String(msg?.email || '').trim();
+            if (!em) return;
+            if (em.includes('@')) {
+                emails.add(em);
+                return;
+            }
+            const digitCount = (em.match(/\d/g) || []).length;
+            if (digitCount >= 9) phones.add(em);
+        });
+        return { emails, phones };
+    },
+
+    feedbackThreadMatchesFilters: (did, groupItems) => {
+        const filters = Admin.feedbackInboxFilters || {};
+        if (!filters.email && !filters.whatsapp && !filters.attachments && !filters.trips) return true;
+        const { emails, phones } = Admin.feedbackThreadContactSets(groupItems);
+        if (filters.email && !emails.size) return false;
+        if (filters.whatsapp && !phones.size) return false;
+        if (filters.attachments && !(groupItems || []).some((item) => Admin.feedbackItemHasAttachments(item))) return false;
+        if (filters.trips && !Admin.feedbackDeviceHasTripPlans(did)) return false;
+        return true;
+    },
+
+    feedbackAttachmentList: (item) => {
+        const out = [];
+        const push = (u) => {
+            const s = String(u || '').trim();
+            if (s && !out.includes(s)) out.push(s);
+        };
+        if (!item) return out;
+        push(item.attachmentUrl);
+        const many = item.attachmentUrls;
+        if (Array.isArray(many)) many.forEach(push);
+        else if (many && typeof many === 'object') Object.values(many).forEach(push);
+        return out;
+    },
+
     feedbackItemHasAttachments: (item) => {
         if (!item) return false;
-        if (item.attachmentUrl) return true;
-        if (Array.isArray(item.attachmentUrls) && item.attachmentUrls.length) return true;
+        if (Admin.feedbackAttachmentList(item).length) return true;
         const html = String(item.text || item.message || '');
         return /admin_attachments|View Attached PDF|<img[\s>/]|openLightbox/i.test(html);
     },
@@ -15111,7 +15530,7 @@ const Admin = {
     /** Body HTML for notice-modal (no outer padded card). */
     buildNoticeBodyHtml: (data) => {
         if (!data) return '<p class="text-sm text-gray-500">No alert data.</p>';
-        // Admin.openLightbox (z-300) — never window.openLightbox/map-modal (z-160 under archive preview z-260)
+        // Same full-screen preview as the alert panel. openLightbox lifts it above Dev Mode.
         const posterUrls = Admin.collectAlertImageUrls(data);
         let imgHtml = posterUrls.map((src) => Admin.wrapLightboxImgHtml(src) || '').join('');
         let parsedMessage = data.message || data.text || 'No details provided.';
@@ -17581,13 +18000,10 @@ const Admin = {
                             parsedAdminText = window.sanitizeRichHtml(parsedAdminText);
                         }
 
-                        const adminExtra = [];
-                        if (item.attachmentUrl) adminExtra.push(item.attachmentUrl);
-                        if (Array.isArray(item.attachmentUrls)) {
-                            item.attachmentUrls.forEach((u) => { if (u) adminExtra.push(u); });
-                        }
+                        const adminExtra = Admin.feedbackAttachmentList(item);
                         const adminMedia = Admin.layoutInboxMedia(parsedAdminText, adminExtra);
-                        parsedAdminText = `${adminMedia.media || ''}${adminMedia.body || ''}`;
+                        const adminAttachHtml = adminMedia.media || '';
+                        parsedAdminText = adminMedia.body || '';
 
                         // GUARDIAN UX FIX: Professional, high-contrast Admin message bubble
                         // id/data use raw inbox key (same as [REPLY TO ADMIN: key]) for quote jump
@@ -17618,6 +18034,7 @@ const Admin = {
                                         ${userRouteHtml}
                                         <div class="inbox-bubble-body">
                                             <div class="inbox-msg-text">${parsedAdminText}<span class="inbox-msg-time">${dateStr}${receiptHtml}${editedLabel}</span></div>
+                                            ${adminAttachHtml}
                                         </div>
                                     </div>
                                     ${reactChips}
@@ -17858,12 +18275,7 @@ const Admin = {
                         rawText = rawText.replace(/\n/g, '<br>');
 
                         const safeAppVersion = secureEscape(item.appVersion || 'Unknown');
-                        const rawAttach = [];
-                        if (item.attachmentUrl) rawAttach.push(item.attachmentUrl);
-                        if (item.attachmentUrls && Array.isArray(item.attachmentUrls)) {
-                            item.attachmentUrls.forEach((u) => { if (u) rawAttach.push(u); });
-                        }
-                        const uniqueAttach = [...new Set(rawAttach)];
+                        const uniqueAttach = Admin.feedbackAttachmentList(item);
 
                         // Safeguard rawText in case the replace cleared it completely
                         if (typeof rawText !== 'string') rawText = '';
@@ -17891,6 +18303,9 @@ const Admin = {
                         const commuterRouteHtml = commuterRouteLabel
                             ? `<div class="inbox-bubble-route-row">${secureEscape(commuterRouteLabel)}</div>`
                             : '';
+                        const signedOutHtml = (item.sentSignedOut || item.chatScope === 'guest')
+                            ? `<div class="text-[10px] font-semibold text-amber-700 dark:text-amber-300 mt-0.5">Sent while signed out</div>`
+                            : '';
                         const commuterVerBtn = /^V\d+_/i.test(verLabel)
                             ? `<button type="button" class="fb-version-chip relative z-[2] font-mono font-medium opacity-80 ml-2 shrink-0 underline decoration-dotted underline-offset-2 hover:opacity-100 focus:outline-none" data-admin-changelog="${verLabel}" onclick="event.preventDefault();event.stopPropagation();if(window.Admin&amp;&amp;Admin.openAdminChangelogLookup)Admin.openAdminChangelogLookup(this.getAttribute('data-admin-changelog')||this.textContent);">${verLabel}</button>`
                             : `<span class="font-mono font-medium opacity-60 ml-2 shrink-0">${verLabel}</span>`;
@@ -17900,6 +18315,7 @@ const Admin = {
                                 ${commuterVerBtn}
                             </div>
                             ${commuterRouteHtml}
+                            ${signedOutHtml}
                         `;
 
                         const inboxReactId = item.inboxMsgId || '';
@@ -17913,7 +18329,8 @@ const Admin = {
                                         ${integratedHeaderHtml}
                                         <div class="inbox-bubble-body">
                                             ${quoteBlockHtml}
-                                            <div class="inbox-msg-text">${rawText}${attachmentHtml}<span class="inbox-msg-time">${dateStr}</span></div>
+                                            <div class="inbox-msg-text">${rawText}<span class="inbox-msg-time">${dateStr}</span></div>
+                                            ${attachmentHtml}
                                         </div>
                                     </div>
                                     ${reactChips}
@@ -17980,6 +18397,7 @@ const Admin = {
             return {
                 enabled: 'exp-map-enabled',
                 routes: 'exp-map-routes',
+                regions: 'exp-map-regions',
                 all: 'exp-map-all',
                 header: 'exp-feat-mapTab-header',
                 body: 'exp-feat-mapTab-body',
@@ -17991,6 +18409,7 @@ const Admin = {
             return {
                 enabled: 'exp-community-enabled',
                 routes: 'exp-community-routes',
+                regions: 'exp-community-regions',
                 all: 'exp-community-all',
                 header: 'exp-feat-communityTab-header',
                 body: 'exp-feat-communityTab-body',
@@ -18001,6 +18420,7 @@ const Admin = {
         return {
             enabled: `exp-feat-${key}-enabled`,
             routes: `exp-feat-${key}-routes`,
+            regions: `exp-feat-${key}-regions`,
             all: `exp-feat-${key}-all`,
             header: `exp-feat-${key}-header`,
             body: `exp-feat-${key}-body`,
@@ -18031,6 +18451,8 @@ const Admin = {
                                     <input type="checkbox" id="${ids.all}" class="exp-feat-all rounded border-teal-400 text-teal-600 focus:ring-teal-500" data-exp-key="${f.key}">
                                     All routes
                                 </label>
+                                <p class="text-[9px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-300">Allowed regions</p>
+                                <div id="${ids.regions}" class="flex flex-wrap gap-x-3 gap-y-1"></div>
                                 <p class="text-[9px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-300">Allowed routes</p>
                                 <div id="${ids.routes}" class="max-h-36 overflow-y-auto custom-scrollbar space-y-1 rounded-lg border border-teal-200 dark:border-teal-800/60 bg-white/60 dark:bg-gray-900/30 p-2"></div>
                             </div>
@@ -20578,25 +21000,6 @@ const Admin = {
                     </div>
                 </div>
 
-                <!-- Transplanted Growth & Promo -->
-                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-indigo-800 overflow-hidden shadow-sm transition-all">
-                    <button id="promo-header-btn" class="w-full px-3 py-3 bg-blue-100/50 dark:bg-indigo-900/40 text-left text-[10px] font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-blue-200/50 dark:hover:bg-indigo-900/60">
-                        <span class="flex items-center gap-2">
-                            <span class="text-indigo-600 dark:text-indigo-300">${Admin.icon('rocket', 'w-4 h-4')}</span> Growth & Promo
-                        </span>
-                        <svg id="promo-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
-                    <div id="promo-body" class="hidden p-4">
-                        <p class="text-[10px] text-indigo-800 dark:text-indigo-300 font-medium leading-snug mb-4 text-center px-2">Let commuters scan this to instantly open and install the app without typing the URL.</p>
-                        <div class="flex flex-col items-center justify-center bg-white p-3 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-800 w-max mx-auto">
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://nexttrain.co.za&color=1e3a8a&bgcolor=ffffff" alt="Next Train QR Code" class="w-40 h-40 object-contain rounded-lg">
-                        </div>
-                        <div class="text-center mt-4 mb-1">
-                            <span class="text-xs font-bold text-indigo-900 dark:text-indigo-100 bg-white/60 dark:bg-black/20 px-4 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-800 shadow-sm">nexttrain.co.za</span>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Publish live (GitHub Actions → metrorail-app) -->
                 <div class="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800 overflow-hidden shadow-sm transition-all">
                     <button type="button" id="deploy-live-header-btn" class="w-full px-3 py-3 bg-emerald-100/50 dark:bg-emerald-900/40 text-left text-[10px] font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-widest flex items-center justify-between focus:outline-none transition-colors hover:bg-emerald-200/50 dark:hover:bg-emerald-900/60">
@@ -20939,9 +21342,6 @@ const Admin = {
         const deployRefreshBtn = document.getElementById('deploy-status-refresh-btn');
         const deployRunLink = document.getElementById('deploy-github-run-link');
 
-        const promoHeader = document.getElementById('promo-header-btn');
-        const promoBody = document.getElementById('promo-body');
-        const promoChevron = document.getElementById('promo-chevron');
         const banModeSelect = document.getElementById('shadow-ban-default-mode');
         const banModeSave = document.getElementById('shadow-ban-default-save');
         const banDefaultHeader = document.getElementById('shadow-ban-default-header');
@@ -20967,7 +21367,7 @@ const Admin = {
         const expFeatureState = {};
         let expFeaturesHydrated = false;
         Admin.grantableFeatures().forEach((f) => {
-            expFeatureState[f.key] = { enabled: false, routes: new Set(), allRoutes: false };
+            expFeatureState[f.key] = { enabled: false, routes: new Set(), regions: new Set(), allRoutes: false };
         });
 
         const listExpRoutes = () => {
@@ -20980,8 +21380,13 @@ const Admin = {
         const expFeatCountLabel = (state) => {
             if (!state?.enabled) return 'Off';
             if (state.allRoutes) return 'All routes';
-            const n = state.routes.size;
-            return n ? `${n} route${n === 1 ? '' : 's'}` : 'No routes';
+            const parts = [];
+            const regionCount = state.regions?.size || 0;
+            const routeCount = state.routes?.size || 0;
+            if (regionCount === 1) parts.push([...state.regions][0]);
+            else if (regionCount > 1) parts.push(`${regionCount} regions`);
+            if (routeCount) parts.push(`${routeCount} route${routeCount === 1 ? '' : 's'}`);
+            return parts.length ? parts.join(' · ') : 'Nothing selected';
         };
 
         const paintExpFeatCount = (key) => {
@@ -21021,6 +21426,33 @@ const Admin = {
             paintExpFeatCount(key);
         };
 
+        const EXP_REGION_LABELS = { GP: 'Gauteng', WC: 'Western Cape', KZN: 'KwaZulu-Natal', EC: 'Eastern Cape' };
+
+        const paintExpRegionBox = (key) => {
+            const ids = Admin.expFeatureControlIds(key);
+            const box = document.getElementById(ids.regions);
+            const state = expFeatureState[key];
+            if (!box || !state) return;
+            const disabled = state.allRoutes ? 'disabled' : '';
+            box.innerHTML = ['GP', 'WC', 'KZN', 'EC'].map((code) => {
+                const checked = state.allRoutes || state.regions.has(code) ? 'checked' : '';
+                return `<label class="inline-flex items-center gap-1.5 text-[10px] font-bold text-teal-900 dark:text-teal-100 cursor-pointer ${state.allRoutes ? 'opacity-60' : ''}">
+                    <input type="checkbox" class="exp-region-cb rounded border-teal-300 text-teal-600 focus:ring-teal-500" data-exp-key="${key}" value="${code}" ${checked} ${disabled}>
+                    ${EXP_REGION_LABELS[code]}
+                </label>`;
+            }).join('');
+            box.querySelectorAll('.exp-region-cb').forEach((cb) => {
+                cb.onchange = () => {
+                    const st = expFeatureState[cb.getAttribute('data-exp-key')];
+                    if (!st || st.allRoutes) return;
+                    if (cb.checked) st.regions.add(cb.value);
+                    else st.regions.delete(cb.value);
+                    paintExpFeatCount(cb.getAttribute('data-exp-key'));
+                };
+            });
+            paintExpFeatCount(key);
+        };
+
         const bindExpFeatureControls = (key) => {
             const ids = Admin.expFeatureControlIds(key);
             const header = document.getElementById(ids.header);
@@ -21044,9 +21476,11 @@ const Admin = {
             if (all) {
                 all.onchange = () => {
                     expFeatureState[key].allRoutes = !!all.checked;
+                    paintExpRegionBox(key);
                     paintExpRouteBox(key);
                 };
             }
+            paintExpRegionBox(key);
             paintExpRouteBox(key);
         };
 
@@ -21058,14 +21492,20 @@ const Admin = {
                 state.enabled = !!raw.enabled;
                 state.allRoutes = Array.isArray(raw.routeIds) && raw.routeIds.includes('*');
                 state.routes.clear();
+                state.regions.clear();
                 (Array.isArray(raw.routeIds) ? raw.routeIds : []).forEach((id) => {
                     if (id && id !== '*') state.routes.add(String(id));
+                });
+                (Array.isArray(raw.regionIds) ? raw.regionIds : []).forEach((id) => {
+                    const code = String(id || '').toUpperCase();
+                    if (code) state.regions.add(code);
                 });
                 const ids = Admin.expFeatureControlIds(f.key);
                 const enabled = document.getElementById(ids.enabled);
                 const all = document.getElementById(ids.all);
                 if (enabled) enabled.checked = state.enabled;
                 if (all) all.checked = state.allRoutes;
+                paintExpRegionBox(f.key);
                 paintExpRouteBox(f.key);
             });
             expFeaturesHydrated = true;
@@ -21140,14 +21580,6 @@ const Admin = {
                 deployLiveBody.classList.toggle('hidden');
                 if (deployLiveBody.classList.contains('hidden')) deployLiveChevron?.classList.add('-rotate-90');
                 else deployLiveChevron?.classList.remove('-rotate-90');
-            };
-        }
-
-        if (promoHeader) {
-            promoHeader.onclick = () => {
-                promoBody.classList.toggle('hidden');
-                if (promoBody.classList.contains('hidden')) promoChevron.classList.add('-rotate-90');
-                else promoChevron.classList.remove('-rotate-90');
             };
         }
 
@@ -21356,10 +21788,11 @@ const Admin = {
                         updatedBy: Admin.currentUser?.email || 'Admin',
                     };
                     Admin.grantableFeatures().forEach((f) => {
-                        const state = expFeatureState[f.key] || { enabled: false, routes: new Set(), allRoutes: false };
+                        const state = expFeatureState[f.key] || { enabled: false, routes: new Set(), regions: new Set(), allRoutes: false };
                         payload[f.key] = {
                             enabled: !!state.enabled,
                             routeIds: state.allRoutes ? ['*'] : [...state.routes],
+                            regionIds: state.allRoutes ? [] : [...state.regions],
                         };
                     });
                     const res = await window.guardianFetch(`${dynamicEndpoint}config/features.json?auth=${secret}`, {
