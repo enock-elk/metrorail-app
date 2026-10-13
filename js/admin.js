@@ -346,6 +346,7 @@ function ntAdminDevPanelIdFromHash(hash) {
 function ntAdminCanonicalPanelId(panelId) {
     const id = String(panelId || '');
     if (id === 'alert-panel--inapp') return 'alert-panel';
+    if (id === 'account-deletions-panel') return 'user-trust-panel';
     return id;
 }
 
@@ -2733,6 +2734,11 @@ const Admin = {
             failLine: interactionLine('Routing fails', failStatus, fails.length, ''),
             ticketLine,
             crashLine,
+            fareCount: fareStatus === 'unavailable' ? null : fareVotes.length,
+            fareDetail,
+            failCount: failStatus === 'unavailable' ? null : fails.length,
+            ticketCount: ticketStatus === 'unavailable' && !ticketCount ? null : ticketCount,
+            crashKnown,
         };
     },
 
@@ -2772,36 +2778,58 @@ const Admin = {
             const esc = Admin.commuterEsc;
             const heading = peek.alias || peek.displayName || did;
             const joinedLabel = peek.joinedMs ? Admin.formatDate(peek.joinedMs) : 'unknown';
-            const contactBits = [
-                ...(peek.contacts.emails || []).map((em) => esc(em)),
-                ...(peek.contacts.phones || []).map((ph) => esc(ph)),
-            ];
+            const emails = peek.contacts.emails || [];
+            const phones = peek.contacts.phones || [];
+            const contactParts = [];
+            if (emails.length) {
+                contactParts.push(`<span class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Email</span>${emails.map((em) => esc(em)).join('<br>')}`);
+            }
+            if (phones.length) {
+                contactParts.push(`<span class="block text-[9px] font-black uppercase tracking-wider text-gray-400${emails.length ? ' mt-1' : ''}">Phone</span>${phones.map((ph) => esc(ph)).join('<br>')}`);
+            }
             const routeLabel = Admin.inboxRouteLabel(peek.defaultRoute) || peek.defaultRoute;
+            const tile = (label, value, absent, actionId) => {
+                const tag = actionId ? 'button' : 'div';
+                const type = actionId ? ' type="button"' : '';
+                const idAttr = actionId ? ` id="${actionId}"` : '';
+                return `
+                <${tag}${type}${idAttr} class="rounded-xl border px-2 py-2 text-left ${absent ? 'opacity-55 border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900' : 'border-blue-100 dark:border-blue-900 bg-blue-50/70 dark:bg-blue-950/20'}${actionId ? ' cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 focus:outline-none' : ''}">
+                    <p class="text-[9px] font-black uppercase tracking-widest ${absent ? 'text-gray-400' : 'text-blue-700 dark:text-blue-300'}">${esc(label)}</p>
+                    <p class="mt-1 text-[11px] font-bold leading-snug break-words ${absent ? 'text-gray-400' : 'text-gray-900 dark:text-white'}">${value}</p>
+                </${tag}>`;
+            };
+            const countLabel = (count, noun) => {
+                if (count == null) return 'unavailable';
+                if (!count) return 'none';
+                return `${count} ${noun}`;
+            };
             body.innerHTML = `
                 <p class="font-black text-sm text-gray-900 dark:text-white break-words">${esc(heading)}</p>
-                ${peek.alias ? `<p>Alias: <b>${esc(peek.alias)}</b></p>` : '<p class="text-gray-400">No feedback alias.</p>'}
-                <p class="font-mono text-[10px] text-gray-400 break-all">${esc(did)}</p>
-                <p>Joined: <b>${esc(joinedLabel)}</b></p>
-                ${peek.email ? `<p>Email: <b>${esc(peek.email)}</b></p>` : ''}
-                ${peek.linkedUid ? `<p>Account: <span class="font-mono break-all">${esc(peek.linkedUid)}</span></p>` : ''}
-                <p>Trip plans: <b>${peek.tripLast ? 'yes' : 'none'}</b>${peek.tripRegion ? ` · ${esc(peek.tripRegion)}` : ''}${peek.tripLast ? ` · last ${esc(Admin.formatDate(peek.tripLast))}` : ''}</p>
-                <p>Feedback: <b>${peek.hasChat ? (peek.feedbackCount ? `${peek.feedbackCount} messages` : 'open thread') : 'none'}</b>${peek.latestFeedbackAt ? ` · last ${esc(Admin.formatDate(peek.latestFeedbackAt))}` : ''}</p>
-                ${contactBits.length ? `<p>Contacts: <b>${contactBits.join(', ')}</b></p>` : ''}
-                ${routeLabel ? `<p>Default route: <b>${esc(routeLabel)}</b></p>` : ''}
-                <p>${esc(peek.fareLine)}</p>
-                <p>${esc(peek.failLine)}</p>
-                <p>${esc(peek.ticketLine)}</p>
-                <p>${esc(peek.crashLine)}</p>
+                ${peek.alias ? `<p class="text-[11px]">Alias: <b>${esc(peek.alias)}</b></p>` : '<p class="text-[11px] text-gray-400">No feedback alias.</p>'}
+                ${peek.email ? `<p class="text-[11px]">Email: <b>${esc(peek.email)}</b></p>` : ''}
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    ${tile('Joined', esc(joinedLabel), joinedLabel === 'unknown')}
+                    ${tile('Trip plans', peek.tripLast ? esc(`yes${peek.tripRegion ? ` · ${peek.tripRegion}` : ''}`) : 'none', !peek.tripLast, peek.tripLast ? 'commuter-peek-trips' : '')}
+                    ${tile('Feedback', peek.hasChat ? esc(peek.feedbackCount ? `${peek.feedbackCount} messages` : 'open thread') : 'none', !peek.hasChat, peek.hasChat ? 'commuter-peek-feedback' : '')}
+                    ${tile('Contacts', contactParts.length ? contactParts.join('') : 'none', !contactParts.length)}
+                    ${tile('Route', routeLabel ? esc(routeLabel) : 'none', !routeLabel)}
+                    ${tile('Fares', peek.fareCount == null ? 'unavailable' : (peek.fareCount ? esc(`${peek.fareCount}${peek.fareDetail ? ` · ${peek.fareDetail}` : ''}`) : 'none'), !peek.fareCount)}
+                    ${tile('Routing fails', esc(countLabel(peek.failCount, peek.failCount === 1 ? 'fail' : 'fails')), !peek.failCount)}
+                    ${tile('Ticket photos', esc(countLabel(peek.ticketCount, peek.ticketCount === 1 ? 'photo' : 'photos')), !peek.ticketCount)}
+                    ${tile('Crashes', esc(peek.crashKnown ? countLabel(peek.crashCount, peek.crashCount === 1 ? 'crash' : 'crashes') : 'unavailable'), !(peek.crashKnown && peek.crashCount))}
+                </div>
             `;
             if (peek.hasChat) {
-                const actions = document.createElement('div');
-                actions.className = 'flex flex-wrap gap-2 pt-2';
-                actions.innerHTML = `<button type="button" id="commuter-peek-chat" class="text-[10px] font-black uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg">Open chat</button>`;
-                body.appendChild(actions);
-                document.getElementById('commuter-peek-chat').onclick = () => {
+                document.getElementById('commuter-peek-feedback')?.addEventListener('click', () => {
                     close();
                     Admin.openFeedbackForDevice(did, peek.latestFeedbackId);
-                };
+                });
+            }
+            if (peek.tripLast) {
+                document.getElementById('commuter-peek-trips')?.addEventListener('click', () => {
+                    close();
+                    Admin.openFeedbackTripPlans(did);
+                });
             }
         } catch (e) {
             if (body.isConnected) body.innerHTML = `<p class="text-red-500">Could not load this sheet: ${Admin.commuterEsc(e.message || e)}</p>`;
@@ -4191,7 +4219,7 @@ const Admin = {
             </div>`,
 
     exportTelemetry: async () => {
-        if (typeof showToast === 'function') showToast("Generating Snapshot...", "info", 2000);
+        if (typeof showToast === 'function') showToast('Preparing the image...', 'info', 2000);
         
         if (typeof html2canvas === 'undefined') {
             try {
@@ -4203,7 +4231,7 @@ const Admin = {
                     document.head.appendChild(script);
                 });
             } catch(e) {
-                if (typeof showToast === 'function') showToast("Failed to load snapshot engine.", "error");
+                if (typeof showToast === 'function') showToast('Could not prepare the image.', 'error');
                 return;
             }
         }
@@ -4353,7 +4381,7 @@ const Admin = {
 
     // GROWTH SPRINT PHASE 6: Dynamic 7-Day Chart Snapshot Engine (SVG Clone Method)
     exportTrendGraph: async () => {
-        if (typeof showToast === 'function') showToast("Generating Chart Snapshot...", "info", 2000);
+        if (typeof showToast === 'function') showToast('Preparing the chart image...', 'info', 2000);
         
         if (typeof html2canvas === 'undefined') {
             try {
@@ -4365,7 +4393,7 @@ const Admin = {
                     document.head.appendChild(script);
                 });
             } catch(e) {
-                if (typeof showToast === 'function') showToast("Failed to load snapshot engine.", "error");
+                if (typeof showToast === 'function') showToast('Could not prepare the image.', 'error');
                 return;
             }
         }
@@ -4779,6 +4807,7 @@ const Admin = {
         runAdminSetup('rideShare', () => Admin.setupRideShareManager());
         runAdminSetup('moderation', () => Admin.setupModerationQueueManager());
         runAdminSetup('userTrust', () => Admin.setupUserTrustManager());
+        runAdminSetup('accountDeletions', () => Admin.setupAccountDeletionsManager());
         runAdminSetup('deadEnds', () => Admin.setupDeadEndsManager());
         runAdminSetup('crashes', () => Admin.setupCrashReportsManager());
         runAdminSetup('serviceAlerts', () => Admin.setupServiceAlertsManager());
@@ -4850,7 +4879,7 @@ const Admin = {
                 <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                     <span class="flex flex-col items-center">
                         ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
-                        <span class="text-blue-600 dark:text-blue-400">Global State Monitor</span>
+                        <span class="text-blue-600 dark:text-blue-400">State Monitor</span>
                     </span>
                     <svg id="action-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
@@ -4874,6 +4903,14 @@ const Admin = {
         { id: 'maint', label: 'Maint', types: ['Maintenance'] },
     ],
 
+    _GSM_SORTS: [
+        { id: 'expiry', label: 'Expiry' },
+        { id: 'newest', label: 'Newest' },
+        { id: 'severity', label: 'Severity' },
+        { id: 'type', label: 'Type' },
+        { id: 'route', label: 'Route' },
+    ],
+
     gsmTabCounts: (items) => {
         const counts = { all: (items || []).length };
         (Admin._GSM_TABS || []).forEach((tab) => {
@@ -4885,8 +4922,46 @@ const Admin = {
 
     gsmFilteredItems: (items, tabId) => {
         const tab = (Admin._GSM_TABS || []).find((t) => t.id === tabId) || Admin._GSM_TABS[0];
-        if (!tab || !tab.types) return items || [];
-        return (items || []).filter((it) => tab.types.includes(it.type));
+        const filtered = (!tab || !tab.types) ? (items || []) : (items || []).filter((it) => tab.types.includes(it.type));
+        return Admin.gsmSortedItems(filtered, Admin._gsmSort || 'expiry');
+    },
+
+    gsmSortedItems: (items, sortId) => {
+        const list = [...(items || [])];
+        const sevRank = (it) => {
+            const s = String(it.severity || '').toLowerCase();
+            if (s === 'critical') return 0;
+            if (s === 'warning') return 1;
+            return 2;
+        };
+        const created = (it) => Number(it.createdAt || it.timestamp || 0);
+        if (sortId === 'newest') {
+            list.sort((a, b) => (created(b) - created(a)) || ((b.expiresAt || 0) - (a.expiresAt || 0)));
+        } else if (sortId === 'severity') {
+            list.sort((a, b) => sevRank(a) - sevRank(b));
+        } else if (sortId === 'type') {
+            list.sort((a, b) => String(a.type || '').localeCompare(String(b.type || '')));
+        } else if (sortId === 'route') {
+            list.sort((a, b) => String(a.routeId || '').localeCompare(String(b.routeId || '')));
+        } else {
+            list.sort((a, b) => {
+                if (!a.expiresAt && !b.expiresAt) return 0;
+                if (!a.expiresAt) return 1;
+                if (!b.expiresAt) return -1;
+                return a.expiresAt - b.expiresAt;
+            });
+        }
+        return list;
+    },
+
+    gsmSortBarHtml: () => {
+        const active = Admin._gsmSort || 'expiry';
+        return `<div class="flex items-center justify-between gap-2 mb-2">
+            <label class="text-[10px] font-black uppercase tracking-wider text-gray-500 shrink-0" for="gsm-sort">Sort</label>
+            <select id="gsm-sort" class="flex-1 h-8 px-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[11px] font-bold text-gray-800 dark:text-gray-100">
+                ${(Admin._GSM_SORTS || []).map((s) => `<option value="${s.id}" ${s.id === active ? 'selected' : ''}>${s.label}</option>`).join('')}
+            </select>
+        </div>`;
     },
 
     gsmRegionBadge: (rId) => {
@@ -4927,6 +5002,8 @@ const Admin = {
                 <span class="text-sm font-black text-slate-900 dark:text-white leading-tight break-words w-full mb-2">
                     ${item.label}
                 </span>
+                ${item.imageUrl ? `<div class="w-full mb-2 rounded-lg overflow-hidden border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"><img src="${String(item.imageUrl).replace(/"/g, '&quot;')}" alt="" class="w-full h-24 object-cover"></div>` : ''}
+                ${item.preview ? `<p class="text-[11px] text-gray-600 dark:text-gray-300 leading-snug break-words w-full mb-2">${String(item.preview).replace(/</g, '&lt;')}</p>` : ''}
                 <div class="flex gap-2 pt-2.5 border-t border-gray-100 dark:border-gray-700 mt-auto w-full">
                     <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${safeType}', '${safeId}', '${safeRoute}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-600 text-xs font-bold py-1.5 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center">
                         <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Resolve
@@ -4983,6 +5060,14 @@ const Admin = {
         bindGsmSwipe(document.getElementById('gsm-tabs'));
         bindGsmSwipe(document.getElementById('gsm-list'));
         bindGsmSwipe(document.getElementById('action-body'));
+        const sortEl = document.getElementById('gsm-sort');
+        if (sortEl) {
+            sortEl.onchange = (e) => {
+                e.stopPropagation();
+                Admin._gsmSort = sortEl.value || 'expiry';
+                Admin.renderGlobalStateMonitor(document.getElementById('action-required-panel'), Admin._gsmItems || [], { keepOpen: true });
+            };
+        }
     },
 
     renderGlobalStateMonitor: (actionBanner, activeItems, opts = {}) => {
@@ -5013,12 +5098,13 @@ const Admin = {
             <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
                     ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
-                    <span class="text-blue-600 dark:text-blue-400">Global State Monitor (${total})</span>
+                    <span class="text-blue-600 dark:text-blue-400">State Monitor (${total})</span>
                 </span>
                 <span class="admin-unread-badge ${total ? '' : 'hidden'}" aria-label="Active items">${total || ''}</span>
                 <svg id="action-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             <div id="action-body" class="${wasOpen ? 'mt-4 space-y-2' : 'hidden mt-4 space-y-2'}">
+                ${Admin.gsmSortBarHtml()}
                 ${Admin.gsmTabBarHtml(Admin._gsmItems)}
                 <div id="gsm-list">${listHtml}</div>
             </div>
@@ -5054,7 +5140,7 @@ const Admin = {
             <button id="action-header-btn" type="button" class="w-full text-left text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center justify-center focus:outline-none relative">
                 <span class="flex flex-col items-center">
                     ${Admin.tileIcon('activity', 'text-blue-600 dark:text-blue-400')}
-                    <span class="text-blue-600 dark:text-blue-400">Global State Monitor</span>
+                    <span class="text-blue-600 dark:text-blue-400">State Monitor</span>
                 </span>
                 <svg id="action-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>`;
@@ -5095,9 +5181,16 @@ const Admin = {
                             Admin.listNoticesInTarget(targetNotices).forEach((item) => {
                                 if (!item.expiresAt || item.expiresAt > now) {
                                     const sev = item.severity === 'critical' ? 'Critical' : (item.severity === 'warning' ? 'Warning' : 'Info');
+                                    const title = String(item.title || '').trim();
+                                    const rawBody = String(item.message || item.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                                    const img = (Array.isArray(item.imageUrls) && item.imageUrls[0]) || item.imageUrl || '';
                                     activeItems.push({
                                         type: 'Alert',
-                                        label: `${sev} channel post`,
+                                        label: title || rawBody.slice(0, 72) || `${sev} channel post`,
+                                        preview: rawBody && title ? rawBody.slice(0, 160) : (title ? '' : rawBody.slice(72, 232)),
+                                        imageUrl: img,
+                                        severity: item.severity || 'info',
+                                        createdAt: item.createdAt || item.timestamp || item.postedAt || 0,
                                         expiresAt: item.expiresAt,
                                         id: item.id || item._key,
                                         panelId: 'alert-panel',
@@ -5611,6 +5704,9 @@ const Admin = {
             }
         }
 
+        if (requestedId === 'account-deletions-panel' && typeof Admin.setUtTab === 'function') {
+            Admin.setUtTab('deletions');
+        }
         if (panelId === 'action-required-panel') {
             const banner = document.getElementById('action-required-panel');
             if (banner && typeof Admin.renderGlobalStateMonitor === 'function') {
@@ -5644,7 +5740,7 @@ const Admin = {
         if (panelId === 'delay-reports-panel' && typeof Admin.fetchDelayReports === 'function') Admin.fetchDelayReports();
         if (panelId === 'live-share-panel' && typeof Admin.fetchRideShareLog === 'function') Admin.fetchRideShareLog();
         if (panelId === 'moderation-queue-panel' && typeof Admin.fetchModerationQueue === 'function') Admin.fetchModerationQueue();
-        if (panelId === 'user-trust-panel' && typeof Admin.fetchActiveBans === 'function') Admin.fetchActiveBans();
+        if (panelId === 'user-trust-panel' && requestedId !== 'account-deletions-panel' && typeof Admin.fetchActiveBans === 'function') Admin.fetchActiveBans();
         if (panelId === 'deadends-panel' && typeof Admin.fetchDeadEnds === 'function') {
             Admin._deSortMode = Admin._deSortMode || 'recent';
             const sortBtn = document.getElementById('de-sort-btn');
@@ -7352,6 +7448,17 @@ const Admin = {
                         });
                     };
                     listDiv.innerHTML = '';
+                    const fareChecks = Object.values(Admin._cachedFareVotes || {}).filter((row) => typeof row?.agree === 'boolean');
+                    const fareMatches = fareChecks.filter((row) => row.agree === true).length;
+                    const fareAccuracy = document.createElement('div');
+                    fareAccuracy.className = 'mb-2 px-3 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700';
+                    if (!fareChecks.length) {
+                        fareAccuracy.innerHTML = '<p class="text-[11px] font-bold text-gray-500 dark:text-gray-400">No fare checks yet.</p>';
+                    } else {
+                        const pct = Math.round((fareMatches / fareChecks.length) * 100);
+                        fareAccuracy.innerHTML = `<p class="text-[10px] font-black uppercase tracking-widest text-gray-400">Fare quote accuracy</p><p class="text-lg font-black text-gray-900 dark:text-white tabular-nums">${pct}%</p><p class="text-[11px] text-gray-500 dark:text-gray-400">${fareMatches} of ${fareChecks.length} checks said the quote was right.</p>`;
+                    }
+                    listDiv.appendChild(fareAccuracy);
                     Admin.paintConfirmedCorridorFares(listDiv, liveRouteFares);
                     const fareDeviceFilter = String(Admin._deFareDeviceFilter || '').trim();
                     if (fareDeviceFilter) {
@@ -10057,10 +10164,14 @@ const Admin = {
             </div>
             <div id="mq-body" class="hidden mt-4 flex flex-col">
                 <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Routes are ordered by their latest published post, reply, or held item. Open a route to view its conversation and mark it seen for your operator account.</p>
-                <label class="px-1 mb-3">
+                <label class="px-1 mb-2">
                     <span class="sr-only">Search community routes and messages</span>
-                    <input id="mq-search" type="search" placeholder="Search routes or messages" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2.5 text-xs text-gray-900 dark:text-white"/>
+                    <input id="mq-search" type="search" placeholder="Search routes, messages, or user id" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2.5 text-xs text-gray-900 dark:text-white"/>
                 </label>
+                <div class="flex gap-2 px-1 mb-3">
+                    <input id="mq-lookup" type="search" placeholder="Look up uid, device, or email" class="flex-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2.5 text-xs text-gray-900 dark:text-white"/>
+                    <button type="button" id="mq-lookup-btn" class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-3 py-2.5 text-[10px] font-black uppercase tracking-wider">Look up</button>
+                </div>
                 <div class="grid-hidden-actions flex space-x-2 mb-3 px-1">
                     <button type="button" id="mq-refresh-btn" class="flex-1 bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none">Refresh</button>
                 </div>
@@ -10106,8 +10217,8 @@ const Admin = {
             }
 
             const allowedKeys = kind === 'community_post'
-                ? ['postId', 'routeId', 'region', 'body', 'category', 'uid', 'displayName', 'photoURL', 'email', 'deviceId', 'timestamp', 'hidden', 'replyCount', 'appVersion', 'via', 'replyTo']
-                : ['replyId', 'postId', 'routeId', 'body', 'uid', 'displayName', 'deviceId', 'timestamp', 'hidden', 'appVersion'];
+                ? ['postId', 'routeId', 'region', 'body', 'category', 'uid', 'displayName', 'photoURL', 'email', 'deviceId', 'timestamp', 'hidden', 'replyCount', 'appVersion', 'via', 'replyTo', 'marks']
+                : ['replyId', 'postId', 'routeId', 'body', 'uid', 'displayName', 'deviceId', 'timestamp', 'hidden', 'appVersion', 'marks'];
             if (Object.keys(payload).some((key) => !allowedKeys.includes(key))) {
                 throw new Error('Held community payload contains unsupported fields');
             }
@@ -10119,6 +10230,12 @@ const Admin = {
                 return optionalString(value.postId, 80)
                     && optionalString(value.displayName, 80)
                     && optionalString(value.body, 120);
+            };
+            const validMarks = (value) => {
+                if (value == null) return true;
+                if (typeof value !== 'object' || Array.isArray(value)) return false;
+                if (Object.keys(value).some((key) => !['points', 'tier'].includes(key))) return false;
+                return Number.isFinite(Number(value.points)) && optionalString(value.tier, 40);
             };
             if (
                 typeof payload.body !== 'string' || !payload.body.trim() || payload.body.length > 280
@@ -10136,6 +10253,7 @@ const Admin = {
                 || (kind === 'community_post' && !optionalString(payload.photoURL, 500))
                 || (kind === 'community_post' && !optionalString(payload.email, 120))
                 || (kind === 'community_post' && !validReplyTo(payload.replyTo))
+                || !validMarks(payload.marks)
             ) {
                 throw new Error('Invalid held community payload');
             }
@@ -10204,7 +10322,6 @@ const Admin = {
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
             const reportId = String(report?.reportId || report?._key || '');
             if (!reportId) throw new Error('Missing moderation report id');
-            validateHeldCommunityPublish(report);
             await markModerationStatus(dynamicEndpoint, secret, reportId, {
                 status: 'rejected',
                 resolution: 'rejected',
@@ -10344,6 +10461,10 @@ const Admin = {
                     const metaLine = isFeedbackHold
                         ? `source: ${String(sourceLabel).replace(/</g, '')} · device: ${Admin.commuterLabel(deviceId) || '-'} · contact: ${(contact || '-').toString().slice(0, 24)}`
                         : `target uid: ${Admin.commuterLabel(r.targetUid) || '-'} - post: ${(r.targetPostId || '-').toString().slice(0, 18)}`;
+                    const lookupUid = r.targetUid || r.publish?.payload?.uid || '';
+                    const lookupBtn = lookupUid
+                        ? `<button type="button" class="mq-lookup-uid text-[10px] font-bold text-blue-600 dark:text-blue-400 underline" data-uid="${esc(lookupUid)}">Look up</button>`
+                        : '';
                     const statusLabel = status === 'approved'
                         ? (isFeedbackHold ? 'Approved to Feedback Hub' : 'Approved')
                         : (status === 'rejected' ? 'Rejected' : (closed ? 'Closed' : ''));
@@ -10355,6 +10476,7 @@ const Admin = {
                             <div class="flex flex-wrap gap-2 mt-1">
                                 <button type="button" class="mq-approve-community text-[10px] font-bold text-emerald-700 dark:text-emerald-400 underline" data-id="${r.reportId || r._key}">Approve</button>
                                 <button type="button" class="mq-reject-community text-[10px] font-bold text-gray-600 dark:text-gray-300 underline" data-id="${r.reportId || r._key}">Reject</button>
+                                ${lookupBtn}
                             </div>` : `
                             <div class="flex flex-wrap gap-2 mt-1">
                                 <button type="button" class="mq-hide-post text-[10px] font-bold text-amber-700 dark:text-amber-400 underline" data-route="${r.routeId || ''}" data-post="${r.targetPostId || ''}">Hide post</button>
@@ -10387,7 +10509,7 @@ const Admin = {
                 };
                 const previews = await Promise.all(rows.map(fetchPreview));
                 list.innerHTML = rows.map((row, index) => `
-                    <details class="community-monitor-route border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden" data-community-route="${esc(row.routeId)}" data-community-search="${esc(`${row.routeName} ${row.routeId} ${previews[index]}`.toLowerCase())}">
+                    <details class="community-monitor-route border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden" data-community-route="${esc(row.routeId)}" data-community-search="${esc(`${row.routeName} ${row.routeId} ${previews[index]} ${(row.held || []).map((h) => `${h.targetUid || ''} ${h.publish?.payload?.uid || ''} ${h.publish?.payload?.email || ''} ${h.publish?.payload?.deviceId || ''}`).join(' ')}`.toLowerCase())}">
                         <summary class="cursor-pointer list-none p-3 flex items-start justify-between gap-3">
                             <span class="min-w-0">
                                 <span class="block text-xs font-black text-gray-900 dark:text-white truncate">${esc(row.routeName)}</span>
@@ -10538,6 +10660,21 @@ const Admin = {
                     });
                 });
 
+                const runMonitorLookup = (raw) => {
+                    const q = String(raw || '').trim();
+                    if (!q) return;
+                    if (typeof Admin.openUserTrustLookup === 'function') {
+                        Admin.openUserTrustLookup({ uid: q, email: q.includes('@') ? q : undefined });
+                    }
+                };
+                const lookupInput = document.getElementById('mq-lookup');
+                document.getElementById('mq-lookup-btn')?.addEventListener('click', () => runMonitorLookup(lookupInput?.value));
+                lookupInput?.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        runMonitorLookup(lookupInput.value);
+                    }
+                });
                 const search = document.getElementById('mq-search');
                 if (search) {
                     search.oninput = async () => {
@@ -10557,6 +10694,12 @@ const Admin = {
                 Admin.deletePublishedCommunityMessage = ntAdminDeletePublishedCommunityMessage;
 
                 list.onclick = async (event) => {
+                    const lookupUidBtn = event.target.closest?.('.mq-lookup-uid');
+                    if (lookupUidBtn) {
+                        event.preventDefault();
+                        runMonitorLookup(lookupUidBtn.getAttribute('data-uid'));
+                        return;
+                    }
                     const hide = event.target.closest?.('.cm-hide-message');
                     if (hide) {
                         event.preventDefault();
@@ -10673,6 +10816,14 @@ const Admin = {
                         try {
                             await Admin.rejectHeldCommunity(report);
                             if (typeof showToast === 'function') showToast('Community message rejected', 'success');
+                            const banUid = report.targetUid || report.publish?.payload?.uid || '';
+                            if (banUid && typeof Admin.applyShadowBan === 'function') {
+                                const alsoBan = await Admin.secureConfirm(
+                                    'Warn or shadow-ban?',
+                                    `Also warn or shadow-ban ${String(banUid).slice(0, 16)}? Choose Cancel to leave them as they are.`
+                                );
+                                if (alsoBan) await Admin.applyShadowBan(banUid, { deviceId: report.publish?.payload?.deviceId || report.deviceId || '' });
+                            }
                             Admin.fetchModerationQueue();
                         } catch (e) {
                             if (typeof showToast === 'function') showToast(e?.message || 'Reject failed', 'error');
@@ -10751,6 +10902,7 @@ const Admin = {
                 { id: 'freeze', label: 'Freeze / unresponsive' },
                 { id: 'fouc', label: 'True FOUC (unstyled)' },
                 { id: 'lost', label: '404 / End of the Line' },
+                { id: 'warning', label: 'Warning (visible)' },
             ];
 
         const choice = await new Promise((resolve) => {
@@ -10852,14 +11004,16 @@ const Admin = {
                 });
                 if (!banAtRes.ok) throw new Error(`Ban write failed (${banAtRes.status}) at devices/.../bannedAt`);
             }
-            if (typeof window.trustAddToBlockList === 'function') {
-                window.trustAddToBlockList(uid);
-                if (deviceId) window.trustAddToBlockList(deviceId);
-            } else if (window.trustLocalBlockList) {
-                window.trustLocalBlockList.add(uid);
-                if (deviceId) window.trustLocalBlockList.add(deviceId);
+            if (banMode !== 'warning') {
+                if (typeof window.trustAddToBlockList === 'function') {
+                    window.trustAddToBlockList(uid);
+                    if (deviceId) window.trustAddToBlockList(deviceId);
+                } else if (window.trustLocalBlockList) {
+                    window.trustLocalBlockList.add(uid);
+                    if (deviceId) window.trustLocalBlockList.add(deviceId);
+                }
             }
-            if (typeof showToast === 'function') showToast(`Shadow-banned (${choice.label}) - mode: ${modeLabel}`, 'success');
+            if (typeof showToast === 'function') showToast(`${banMode === 'warning' ? 'Warning set' : 'Shadow-banned'} (${choice.label}) - mode: ${modeLabel}`, 'success');
             if (typeof Admin.fetchActiveBans === 'function') Admin.fetchActiveBans();
             return true;
         } catch (e) {
@@ -10927,6 +11081,104 @@ const Admin = {
         if (typeof showToast === 'function') showToast(`Verified - trust score: ${score + 1}`, 'success');
     },
 
+    setupAccountDeletionsManager: () => {
+        document.getElementById('account-deletions-panel')?.remove();
+    },
+
+    fetchAccountDeletions: async () => {
+        const list = document.getElementById('ad-list');
+        if (!list) return;
+        const secret = await Admin.getAuthKey();
+        if (!secret) return;
+        list.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">Loading...</p>';
+        const base = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const esc = (str) => Admin.commuterEsc(str);
+        const pending = new Map();
+        const absorb = (uid, row) => {
+            if (!row || row.status === 'done' || row.deletionResolvedAt) return;
+            const requestedAt = Number(row.requestedAt || row.deletionRequestedAt) || 0;
+            if (!requestedAt) return;
+            pending.set(uid, {
+                uid,
+                email: row.email || row.deletionRequestedEmail || '',
+                displayName: row.displayName || '',
+                deviceId: row.deviceId || '',
+                requestedAt,
+            });
+        };
+        try {
+            const queueRes = await fetch(`${base}account_deletions.json?auth=${encodeURIComponent(secret)}`);
+            if (queueRes.ok) {
+                const queue = await queueRes.json();
+                if (queue && typeof queue === 'object') {
+                    Object.entries(queue).forEach(([uid, row]) => absorb(uid, row));
+                }
+            }
+        } catch { /* fall through to the profile flags */ }
+        let usersLoaded = false;
+        try {
+            const usersRes = await fetch(`${base}users.json?orderBy=${encodeURIComponent('"deletionRequestedAt"')}&startAt=1&auth=${encodeURIComponent(secret)}`);
+            if (usersRes.ok) {
+                const users = await usersRes.json();
+                if (users && typeof users === 'object') {
+                    Object.entries(users).forEach(([uid, row]) => absorb(uid, row));
+                }
+                usersLoaded = true;
+            }
+        } catch { /* index may not be live until rules deploy */ }
+        if (!usersLoaded) {
+            try {
+                const usersRes = await fetch(`${base}users.json?auth=${encodeURIComponent(secret)}`);
+                if (usersRes.ok) {
+                    const users = await usersRes.json();
+                    if (users && typeof users === 'object') {
+                        Object.entries(users).forEach(([uid, row]) => absorb(uid, row));
+                    }
+                }
+            } catch { /* profile flags stay on the queue list */ }
+        }
+        const rows = [...pending.values()].sort((a, b) => b.requestedAt - a.requestedAt);
+        if (!rows.length) {
+            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">No open deletion requests.</p>';
+            return;
+        }
+        list.innerHTML = rows.map((row) => `
+            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5">
+                <p class="text-sm font-black text-gray-900 dark:text-white break-words">${esc(row.displayName || row.email || row.uid)}</p>
+                <p class="text-[11px] text-gray-500 break-all">${esc(row.email || 'No email')}</p>
+                <p class="font-mono text-[10px] text-gray-400 break-all mt-0.5">${esc(row.uid)}</p>
+                <p class="text-[10px] text-gray-400 mt-1">${esc(Admin.formatDate(row.requestedAt))}</p>
+                <button type="button" data-ad-done="${esc(row.uid)}" class="mt-2 text-[10px] font-black uppercase tracking-wider text-white bg-gray-800 hover:bg-gray-900 px-3 py-1.5 rounded-lg">Mark done</button>
+            </div>
+        `).join('');
+        list.querySelectorAll('[data-ad-done]').forEach((btn) => {
+            btn.addEventListener('click', () => Admin.resolveAccountDeletion(btn.getAttribute('data-ad-done')));
+        });
+    },
+
+    resolveAccountDeletion: async (uid) => {
+        const id = String(uid || '').trim();
+        if (!id) return;
+        const secret = await Admin.getAuthKey();
+        if (!secret) return;
+        const base = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const now = Date.now();
+        try {
+            await fetch(`${base}users/${encodeURIComponent(id)}/deletionResolvedAt.json?auth=${encodeURIComponent(secret)}`, {
+                method: 'PUT',
+                body: JSON.stringify(now),
+            });
+            await fetch(`${base}account_deletions/${encodeURIComponent(id)}/status.json?auth=${encodeURIComponent(secret)}`, {
+                method: 'PUT',
+                body: JSON.stringify('done'),
+            });
+            if (typeof showToast === 'function') showToast('Deletion request marked done', 'success');
+            Admin.fetchAccountDeletions();
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Could not update that request', 'error');
+        }
+    },
+
     // --- PHASE 7: USER TRUST / SHADOW-BAN LOOKUP ---
     setupUserTrustManager: () => {
         const alertPanel = document.getElementById('alert-panel');
@@ -10953,10 +11205,11 @@ const Admin = {
                 <svg id="ut-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             <div id="ut-body" class="hidden mt-4 flex flex-col text-left">
-                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Ban list and lookup stay separate - switch tabs below.</p>
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Bans, lookup, and deletion requests are in this panel.</p>
                 <div class="flex gap-1 p-1 mb-3 rounded-xl bg-gray-100 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700" role="tablist" aria-label="User trust sections">
                     <button type="button" id="ut-tab-bans" role="tab" aria-selected="true" class="ut-tab flex-1 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-200 dark:border-indigo-800">Active bans</button>
                     <button type="button" id="ut-tab-lookup" role="tab" aria-selected="false" class="ut-tab flex-1 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">Lookup</button>
+                    <button type="button" id="ut-tab-deletions" role="tab" aria-selected="false" class="ut-tab flex-1 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">Deletions</button>
                 </div>
                 <div id="ut-pane-bans" role="tabpanel" class="ut-pane">
                     <div class="flex items-center justify-between gap-2 mb-2 px-1">
@@ -10974,44 +11227,49 @@ const Admin = {
                     </div>
                     <div id="ut-result" class="px-1 text-xs text-gray-500">Enter a UID to inspect.</div>
                 </div>
+                <div id="ut-pane-deletions" role="tabpanel" class="ut-pane hidden">
+                    <div class="flex items-center justify-between gap-2 mb-2 px-1">
+                        <p class="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">Requests sent from Account. Mark done after the account is removed.</p>
+                        <button type="button" id="ad-refresh-btn" class="shrink-0 text-[10px] font-bold text-blue-600 dark:text-blue-400 px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">Refresh</button>
+                    </div>
+                    <div id="ad-list" class="space-y-2 max-h-[320px] overflow-y-auto px-1 custom-scrollbar"><p class="text-xs text-gray-400 text-center py-3">Open this tab to load requests.</p></div>
+                </div>
             </div>
         `;
 
         const header = document.getElementById('ut-header-btn');
         const body = document.getElementById('ut-body');
         const chevron = document.getElementById('ut-chevron');
-        const tabBans = document.getElementById('ut-tab-bans');
-        const tabLookup = document.getElementById('ut-tab-lookup');
-        const paneBans = document.getElementById('ut-pane-bans');
-        const paneLookup = document.getElementById('ut-pane-lookup');
-        const setUtTab = (which) => {
-            const bans = which === 'bans';
-            tabBans?.setAttribute('aria-selected', bans ? 'true' : 'false');
-            tabLookup?.setAttribute('aria-selected', bans ? 'false' : 'true');
-            tabBans?.classList.toggle('bg-white', bans);
-            tabBans?.classList.toggle('dark:bg-gray-800', bans);
-            tabBans?.classList.toggle('text-indigo-600', bans);
-            tabBans?.classList.toggle('dark:text-indigo-400', bans);
-            tabBans?.classList.toggle('shadow-sm', bans);
-            tabBans?.classList.toggle('border', bans);
-            tabBans?.classList.toggle('border-indigo-200', bans);
-            tabBans?.classList.toggle('dark:border-indigo-800', bans);
-            tabBans?.classList.toggle('text-gray-500', !bans);
-            tabLookup?.classList.toggle('bg-white', !bans);
-            tabLookup?.classList.toggle('dark:bg-gray-800', !bans);
-            tabLookup?.classList.toggle('text-indigo-600', !bans);
-            tabLookup?.classList.toggle('dark:text-indigo-400', !bans);
-            tabLookup?.classList.toggle('shadow-sm', !bans);
-            tabLookup?.classList.toggle('border', !bans);
-            tabLookup?.classList.toggle('border-indigo-200', !bans);
-            tabLookup?.classList.toggle('dark:border-indigo-800', !bans);
-            tabLookup?.classList.toggle('text-gray-500', bans);
-            paneBans?.classList.toggle('hidden', !bans);
-            paneLookup?.classList.toggle('hidden', bans);
-            if (bans) Admin.fetchActiveBans();
+        const utTabs = [
+            { id: 'bans', btn: document.getElementById('ut-tab-bans'), pane: document.getElementById('ut-pane-bans') },
+            { id: 'lookup', btn: document.getElementById('ut-tab-lookup'), pane: document.getElementById('ut-pane-lookup') },
+            { id: 'deletions', btn: document.getElementById('ut-tab-deletions'), pane: document.getElementById('ut-pane-deletions') },
+        ];
+        const paintUtTab = (btn, on) => {
+            if (!btn) return;
+            btn.setAttribute('aria-selected', on ? 'true' : 'false');
+            btn.classList.toggle('bg-white', on);
+            btn.classList.toggle('dark:bg-gray-800', on);
+            btn.classList.toggle('text-indigo-600', on);
+            btn.classList.toggle('dark:text-indigo-400', on);
+            btn.classList.toggle('shadow-sm', on);
+            btn.classList.toggle('border', on);
+            btn.classList.toggle('border-indigo-200', on);
+            btn.classList.toggle('dark:border-indigo-800', on);
+            btn.classList.toggle('text-gray-500', !on);
+            btn.classList.toggle('dark:text-gray-400', !on);
         };
-        tabBans?.addEventListener('click', () => setUtTab('bans'));
-        tabLookup?.addEventListener('click', () => setUtTab('lookup'));
+        const setUtTab = (which) => {
+            const active = utTabs.some((tab) => tab.id === which) ? which : 'bans';
+            utTabs.forEach((tab) => {
+                const on = tab.id === active;
+                paintUtTab(tab.btn, on);
+                tab.pane?.classList.toggle('hidden', !on);
+            });
+            if (active === 'bans') Admin.fetchActiveBans();
+            if (active === 'deletions') Admin.fetchAccountDeletions();
+        };
+        utTabs.forEach((tab) => tab.btn?.addEventListener('click', () => setUtTab(tab.id)));
         Admin.setUtTab = setUtTab;
         Admin.openUserTrustLookup = ({ uid, email } = {}) => {
             const needle = String(uid || email || '').trim();
@@ -11046,6 +11304,7 @@ const Admin = {
 
         document.getElementById('ut-lookup-btn').onclick = () => Admin.lookupUserTrust();
         document.getElementById('ut-bans-refresh')?.addEventListener('click', () => Admin.fetchActiveBans());
+        document.getElementById('ad-refresh-btn')?.addEventListener('click', () => Admin.fetchAccountDeletions());
         document.getElementById('ut-uid-input')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') Admin.lookupUserTrust();
         });
@@ -20995,6 +21254,7 @@ const Admin = {
                             <option value="freeze">Freeze / unresponsive</option>
                             <option value="fouc">True FOUC (unstyled)</option>
                             <option value="lost">404 / End of the Line</option>
+                            <option value="warning">Warning (visible)</option>
                         </select>
                         <button type="button" id="shadow-ban-default-save" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wide focus:outline-none">Save default mode</button>
                     </div>
