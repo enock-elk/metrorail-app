@@ -2048,6 +2048,7 @@ const Admin = {
             return;
         }
         child.style.display = '';
+        if (child.id === 'operator-brief-slot') child.style.gridColumn = '1 / -1';
         if (child.dataset.originalClasses) {
             child.className = child.dataset.originalClasses;
         }
@@ -2646,7 +2647,13 @@ const Admin = {
             if (ticketData && typeof ticketData === 'object') Admin._cachedFareTicketPhotos = ticketData;
             else ticketStatus = 'unavailable';
         }
-        const ids = Admin.commuterIdSet(did, deviceNode?.uid, userNode && looksDevice ? null : did);
+        let accountNode = userNode && typeof userNode === 'object' ? userNode : null;
+        const linkedUid = String(deviceNode?.uid || '').trim();
+        if (linkedUid && linkedUid !== did) {
+            const linked = await fetchJson(`users/${encodeURIComponent(linkedUid)}.json`);
+            if (linked && typeof linked === 'object') accountNode = linked;
+        }
+        const ids = Admin.commuterIdSet(did, linkedUid || deviceNode?.uid, userNode && looksDevice ? null : did);
         const feedbackItems = (Admin.cachedFeedbackData || []).filter((i) => {
             const fbDid = String(i?.deviceId || i?.device_id || '').trim();
             return ids.has(fbDid) || fbDid === did;
@@ -2714,6 +2721,30 @@ const Admin = {
         const crashLine = crashKnown
             ? (crashCount ? `Crashes: ${crashCount}` : 'Crashes: none')
             : 'Crashes: unavailable';
+        const versionOf = (row) => String(row?.appVersion || '').split(' - ')[0].trim();
+        const timeOf = (row) => Number(row?.timestamp || row?.at || row?.time || 0) || 0;
+        const activity = [];
+        const pushActivity = (ms, label, version) => {
+            const t = Number(ms) || 0;
+            if (t > 0) activity.push({ ms: t, label, appVersion: String(version || '').trim() });
+        };
+        if (accountNode) pushActivity(accountNode.lastSeenAt, 'App open', versionOf(accountNode));
+        pushActivity(tripLast, 'Trip plan', '');
+        if (latestFeedback) pushActivity(latestFeedback.timestamp, 'Feedback', versionOf(latestFeedback));
+        const latestFare = fareVotes.reduce((best, row) => (timeOf(row) > timeOf(best) ? row : best), null);
+        if (latestFare) pushActivity(timeOf(latestFare), 'Fare vote', versionOf(latestFare));
+        const latestFail = fails.reduce((best, row) => (timeOf(row) > timeOf(best) ? row : best), null);
+        if (latestFail) pushActivity(timeOf(latestFail), 'Routing fail', versionOf(latestFail));
+        if (crashKnown) {
+            const crashRows = (Admin.cachedCrashData || []).filter((c) => {
+                const cDid = String(c?.deviceId || c?.device_id || '').trim();
+                return ids.has(cDid) || cDid === did;
+            });
+            const latestCrash = crashRows.reduce((best, row) => (timeOf(row) > timeOf(best) ? row : best), null);
+            if (latestCrash) pushActivity(timeOf(latestCrash), 'Crash report', versionOf(latestCrash));
+        }
+        activity.sort((a, b) => b.ms - a.ms);
+        const lastActivity = activity[0] || null;
         return {
             id: did,
             alias: Admin.commuterAlias(did),
@@ -2739,6 +2770,7 @@ const Admin = {
             failCount: failStatus === 'unavailable' ? null : fails.length,
             ticketCount: ticketStatus === 'unavailable' && !ticketCount ? null : ticketCount,
             crashKnown,
+            lastActivity,
         };
     },
 
@@ -2806,11 +2838,14 @@ const Admin = {
             body.innerHTML = `
                 <p class="font-black text-sm text-gray-900 dark:text-white break-words">${esc(heading)}</p>
                 ${peek.alias ? `<p class="text-[11px]">Alias: <b>${esc(peek.alias)}</b></p>` : '<p class="text-[11px] text-gray-400">No feedback alias.</p>'}
+                ${peek.lastActivity
+                    ? `<p class="text-[11px]">Last activity: <b>${esc(Admin.formatDate(peek.lastActivity.ms))}</b> · ${esc(peek.lastActivity.label)}${peek.lastActivity.appVersion ? ` · ${esc(peek.lastActivity.appVersion)}` : ''}</p>`
+                    : '<p class="text-[11px] text-gray-400">No activity on file.</p>'}
                 ${peek.email ? `<p class="text-[11px]">Email: <b>${esc(peek.email)}</b></p>` : ''}
                 <div class="grid grid-cols-2 gap-2 pt-1">
                     ${tile('Joined', esc(joinedLabel), joinedLabel === 'unknown')}
                     ${tile('Trip plans', peek.tripLast ? esc(`yes${peek.tripRegion ? ` · ${peek.tripRegion}` : ''}`) : 'none', !peek.tripLast, peek.tripLast ? 'commuter-peek-trips' : '')}
-                    ${tile('Feedback', peek.hasChat ? esc(peek.feedbackCount ? `${peek.feedbackCount} messages` : 'open thread') : 'none', !peek.hasChat, peek.hasChat ? 'commuter-peek-feedback' : '')}
+                    ${tile('Feedback', peek.hasChat ? esc(peek.feedbackCount ? `${peek.feedbackCount} messages` : 'open thread') : 'none', !peek.hasChat, 'commuter-peek-feedback')}
                     ${tile('Contacts', contactParts.length ? contactParts.join('') : 'none', !contactParts.length)}
                     ${tile('Route', routeLabel ? esc(routeLabel) : 'none', !routeLabel)}
                     ${tile('Fares', peek.fareCount == null ? 'unavailable' : (peek.fareCount ? esc(`${peek.fareCount}${peek.fareDetail ? ` · ${peek.fareDetail}` : ''}`) : 'none'), !peek.fareCount)}
@@ -2819,12 +2854,11 @@ const Admin = {
                     ${tile('Crashes', esc(peek.crashKnown ? countLabel(peek.crashCount, peek.crashCount === 1 ? 'crash' : 'crashes') : 'unavailable'), !(peek.crashKnown && peek.crashCount))}
                 </div>
             `;
-            if (peek.hasChat) {
-                document.getElementById('commuter-peek-feedback')?.addEventListener('click', () => {
-                    close();
-                    Admin.openFeedbackForDevice(did, peek.latestFeedbackId);
-                });
-            }
+            document.getElementById('commuter-peek-feedback')?.addEventListener('click', () => {
+                close();
+                if (peek.hasChat) Admin.openFeedbackForDevice(did, peek.latestFeedbackId);
+                else Admin.startFeedbackChat(did, '');
+            });
             if (peek.tripLast) {
                 document.getElementById('commuter-peek-trips')?.addEventListener('click', () => {
                     close();
@@ -3136,6 +3170,9 @@ const Admin = {
 
     // --- GUARDIAN PHASE 11 & 12: MASTER NOTIFICATION ENGINE (SEEN PROTOCOL) ---
     syncAllBadges: async () => {
+        if (Admin._badgeSyncInFlight) return;
+        Admin._badgeSyncInFlight = true;
+        try {
         const secret = await Admin.getAuthKey();
         if (!secret) return;
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -3269,7 +3306,13 @@ const Admin = {
                 else navigator.clearAppBadge();
             }
         } catch(e) {
-            console.warn("Guardian: Badge sync failed", e);
+            const badgeMsg = String((e && e.message) || e || '');
+            if (!/abort|offline|failed to fetch/i.test(badgeMsg)) {
+                console.warn("Guardian: Badge sync failed", e);
+            }
+        }
+        } finally {
+            Admin._badgeSyncInFlight = false;
         }
     },
 
@@ -4142,7 +4185,10 @@ const Admin = {
                 throw new Error("Worker returned status: " + res.status);
             }
         } catch(e) {
-            console.warn("Telemetry Fetch Failed:", e.message);
+            const telMsg = String((e && e.message) || e || '');
+            if (!/abort|offline|failed to fetch/i.test(telMsg)) {
+                console.warn("Telemetry Fetch Failed:", e.message);
+            }
             
             if(stat5m && stat5m.textContent === '--') stat5m.textContent = "Wait";
             if(stat30m && stat30m.textContent === '--') stat30m.textContent = "Wait";
@@ -4772,8 +4818,10 @@ const Admin = {
                 }
             } catch (e) { console.error('[Admin] alert rebuild failed:', e); }
             Admin.ensureGlobalStateMonitorTile();
+            Admin.ensureOperatorBriefSlot();
             Admin.initGridView(); // Ensure grid is bound if re-opened
             Admin.fetchActionRequired();
+            if (typeof Admin.armScheduledAlertPublisher === 'function') Admin.armScheduledAlertPublisher();
             return;
         }
         Admin._modulesRendered = true;
@@ -4824,6 +4872,7 @@ const Admin = {
 
         // Stub Global State Monitor before grid packs tiles (fetch fills body async)
         Admin.ensureGlobalStateMonitorTile();
+        Admin.ensureOperatorBriefSlot();
 
         // GROWTH SPRINT PHASE 5: Transform Dev Hub into native Grid / Drill-Down Dashboard
         Admin.initGridView();
@@ -4860,6 +4909,222 @@ const Admin = {
     },
 
 
+    ensureOperatorBriefSlot: () => {
+        const adminContainer = document.getElementById('admin-modules-container');
+        const api = window.ntOperatorBrief;
+        if (!adminContainer || !api?.briefLauncherHtml) return;
+        let slot = document.getElementById('operator-brief-slot');
+        if (!slot) {
+            slot = document.createElement('div');
+            slot.id = 'operator-brief-slot';
+            slot.className = 'mb-4';
+        }
+        slot.style.gridColumn = '1 / -1';
+        if (adminContainer.firstElementChild !== slot) {
+            adminContainer.insertBefore(slot, adminContainer.firstChild);
+        }
+        const hidden = api.briefDismissed(typeof safeStorage !== 'undefined' ? safeStorage : null);
+        slot.innerHTML = api.briefLauncherHtml({
+            hidden,
+            clock: api.johannesburgClock(Date.now()),
+        });
+        slot.querySelector('#operator-brief-open')?.addEventListener('click', () => Admin.openOperatorBrief());
+        slot.querySelector('#operator-brief-dismiss')?.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            api.dismissBrief(typeof safeStorage !== 'undefined' ? safeStorage : null);
+            Admin.ensureOperatorBriefSlot();
+        });
+        slot.querySelector('#operator-brief-restore')?.addEventListener('click', () => {
+            api.restoreBrief(typeof safeStorage !== 'undefined' ? safeStorage : null);
+            Admin.ensureOperatorBriefSlot();
+            Admin.openOperatorBrief();
+        });
+    },
+
+    ensureBriefOverlay: () => {
+        let overlay = document.getElementById('operator-brief-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'operator-brief-overlay';
+            overlay.className = 'fixed inset-0 z-[150] hidden overflow-y-auto';
+            document.body.appendChild(overlay);
+        }
+        return overlay;
+    },
+
+    fetchBriefNode: async (path, limit) => {
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const secret = await Admin.getAuthKey();
+        const auth = secret ? `&auth=${encodeURIComponent(secret)}` : '';
+        const limited = `${dynamicEndpoint}${path}.json?orderBy=%22%24key%22&limitToLast=${limit}${auth}`;
+        let res = await fetch(limited).catch(() => null);
+        if (!res || !res.ok) {
+            const plainAuth = secret ? `?auth=${encodeURIComponent(secret)}` : '';
+            res = await fetch(`${dynamicEndpoint}${path}.json${plainAuth}`).catch(() => null);
+        }
+        if (!res || !res.ok) return {};
+        const data = await res.json().catch(() => ({}));
+        return data && typeof data === 'object' ? data : {};
+    },
+
+    gatherOperatorBrief: async () => {
+        const api = window.ntOperatorBrief;
+        const [trips, pairs, users, fails, fares, crashes, featuresRes, sheetRes] = await Promise.all([
+            Admin.fetchBriefNode('sys_logs/trip_plans', 40).catch(() => ({})),
+            (async () => {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const secret = await Admin.getAuthKey();
+                const auth = secret ? `?auth=${encodeURIComponent(secret)}` : '';
+                const res = await fetch(`${dynamicEndpoint}sys_logs/trip_plan_pairs.json${auth}`).catch(() => null);
+                if (!res || !res.ok) return {};
+                const data = await res.json().catch(() => ({}));
+                return data && typeof data === 'object' ? data : {};
+            })(),
+            (async () => {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const secret = await Admin.getAuthKey();
+                const auth = secret ? `&auth=${encodeURIComponent(secret)}` : '';
+                const res = await fetch(`${dynamicEndpoint}sys_logs/trip_plan_users.json?shallow=true${auth}`).catch(() => null);
+                if (!res || !res.ok) return 0;
+                const data = await res.json().catch(() => ({}));
+                return data && typeof data === 'object' ? Object.keys(data).length : 0;
+            })(),
+            Admin.fetchBriefNode('sys_logs/routing_fails', 80).catch(() => ({})),
+            Admin.fetchBriefNode('sys_logs/fare_votes', 80).catch(() => ({})),
+            Admin.fetchBriefNode('sys_logs/crashes', 20).catch(() => ({})),
+            fetch(`${typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/'}config/features.json`).catch(() => null),
+            fetch(`${typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/'}config/schedule_override.json`).catch(() => null),
+        ]);
+        const tripRows = [];
+        Object.values(trips || {}).forEach((batch) => {
+            (batch?.trips || []).forEach((trip) => tripRows.push(trip));
+        });
+        const crashRows = Object.entries(crashes || {}).map(([id, row]) => ({ id, ...(row || {}) }));
+        Admin._briefCrashes = Object.fromEntries(crashRows.map((row) => [row.id, row]));
+        let features = {};
+        let scheduleOverride = {};
+        try { if (featuresRes && featuresRes.ok) features = await featuresRes.json(); } catch { /* optional */ }
+        try { if (sheetRes && sheetRes.ok) scheduleOverride = await sheetRes.json(); } catch { /* optional */ }
+        return api.buildOperatorBrief({
+            now: Date.now(),
+            appVersion: typeof APP_VERSION !== 'undefined' ? APP_VERSION : '',
+            trips: tripRows,
+            pairs,
+            usersEver: users,
+            fails,
+            fares,
+            crashes: crashRows,
+            features,
+            scheduleOverride,
+            expiring: Admin._gsmItems || [],
+        });
+    },
+
+    paintBriefNote: (text) => {
+        const note = document.getElementById('operator-brief-note');
+        if (note) note.textContent = text || '';
+    },
+
+    askBriefWriter: async (kind, body) => {
+        const secret = await Admin.getAuthKey();
+        if (!secret) throw new Error('Sign in as an operator first.');
+        const res = await fetch(`${Admin.replyWorkerUrl()}/brief`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${secret}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 404) {
+            throw new Error('The reply worker does not have the brief yet. From the workers/nexttrain-reply folder, run npx wrangler deploy.');
+        }
+        if (!res.ok) throw new Error(data.error || 'Could not write the brief.');
+        return String(data.text || '');
+    },
+
+    openOperatorBrief: async () => {
+        const api = window.ntOperatorBrief;
+        if (!api?.buildOperatorBrief || !api.briefReportHtml) {
+            if (typeof showToast === 'function') showToast('The brief is not loaded.', 'error');
+            return;
+        }
+        const overlay = Admin.ensureBriefOverlay();
+        overlay.classList.remove('hidden');
+        overlay.innerHTML = `<div class="min-h-full bg-slate-100 dark:bg-gray-950 px-4 pt-8"><div class="max-w-lg mx-auto rounded-3xl px-4 py-5 text-white" style="background: linear-gradient(145deg, #1e1b4b, #4338ca);"><p class="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-100">Brief</p><p id="operator-brief-note" class="mt-2 text-lg font-semibold">Reading plans, failures, fares, crashes, and what is about to expire.</p><button type="button" id="operator-brief-close" class="mt-4 text-sm font-bold underline focus:outline-none">Close</button></div></div>`;
+        overlay.querySelector('#operator-brief-close')?.addEventListener('click', () => overlay.classList.add('hidden'));
+        try {
+            const model = await Admin.gatherOperatorBrief();
+            overlay.innerHTML = api.briefReportHtml(model);
+            overlay.querySelector('#operator-brief-close')?.addEventListener('click', () => overlay.classList.add('hidden'));
+            overlay.querySelectorAll('.operator-brief-crash').forEach((button) => {
+                button.addEventListener('click', () => Admin.explainBriefCrash(button.getAttribute('data-crash-id') || '', button));
+            });
+            try {
+                const text = await Admin.askBriefWriter('report', { kind: 'report', digest: model.digest });
+                Admin.paintBriefNote(text || 'The note came back empty. The cards above are still the sample.');
+            } catch (err) {
+                Admin.paintBriefNote(err?.message || 'The note could not be written. The cards above are still the sample.');
+            }
+        } catch (err) {
+            Admin.paintBriefNote(err?.message || 'Could not read the logs.');
+            if (typeof showToast === 'function') showToast(err?.message || 'Could not open the brief.', 'error');
+        }
+    },
+
+    explainBriefCrash: async (id, button) => {
+        const row = (Admin._briefCrashes && Admin._briefCrashes[id]) || {};
+        const note = button?.parentElement?.querySelector('.operator-brief-crash-note');
+        if (note) {
+            note.classList.remove('hidden');
+            note.textContent = 'Reading this crash.';
+        }
+        if (button) button.disabled = true;
+        try {
+            let preview = row.preview || '';
+            let stack = row.stack || row.raw || '';
+            const blobPath = row.blobPath || (id ? `sys_logs/blackbox/${id}` : '');
+            if (!stack && blobPath) {
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const secret = await Admin.getAuthKey();
+                const auth = secret ? `?auth=${encodeURIComponent(secret)}` : '';
+                const res = await fetch(`${dynamicEndpoint}${blobPath}.json${auth}`).catch(() => null);
+                if (res && res.ok) {
+                    const blob = await res.json().catch(() => ({}));
+                    const logs = Array.isArray(blob?.logs) ? blob.logs.slice(-30) : [];
+                    stack = logs.map((line) => (typeof line === 'string' ? line : JSON.stringify(line))).join('\n');
+                }
+            }
+            const scrub = window.ntOperatorBrief?.scrubOperatorText || ((value) => String(value || ''));
+            const text = await Admin.askBriefWriter('crash', {
+                kind: 'crash',
+                crash: {
+                    error: scrub(row.error || '', 400),
+                    preview: scrub(preview, 1200),
+                    stack: scrub(stack, 1500),
+                    appVersion: row.appVersion || '',
+                    routeId: row.routeId || '',
+                },
+            });
+            if (note) note.textContent = text || 'The reading came back empty.';
+        } catch (err) {
+            if (note) note.textContent = err?.message || 'Could not read this crash.';
+            if (typeof showToast === 'function') showToast(err?.message || 'Could not read this crash.', 'error');
+        } finally {
+            if (button) button.disabled = false;
+        }
+    },
+
+    placeBelowBrief: (node) => {
+        const adminContainer = document.getElementById('admin-modules-container');
+        if (!adminContainer || !node) return;
+        const brief = document.getElementById('operator-brief-slot');
+        const before = (brief && brief.parentElement === adminContainer) ? brief.nextSibling : adminContainer.firstChild;
+        if (node !== before) adminContainer.insertBefore(node, before);
+    },
+
     ensureGlobalStateMonitorTile: () => {
         const adminContainer = document.getElementById('admin-modules-container');
         if (!adminContainer) return null;
@@ -4867,7 +5132,7 @@ const Admin = {
         if (!actionBanner) {
             actionBanner = document.createElement('div');
             actionBanner.id = 'action-required-panel';
-            adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
+            Admin.placeBelowBrief(actionBanner);
         }
         // Match other tiles: visible overflow so grid titles/icons are never clipped
         actionBanner.className = "bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-4 mb-4 relative overflow-visible transition-all duration-300";
@@ -4888,9 +5153,7 @@ const Admin = {
                 </div>
             `;
         }
-        if (adminContainer.firstElementChild !== actionBanner) {
-            adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
-        }
+        Admin.placeBelowBrief(actionBanner);
         return actionBanner;
     },
 
@@ -4977,6 +5240,22 @@ const Admin = {
         return '';
     },
 
+    gsmNoticeImageSrc: (raw) => {
+        const value = String(raw || '').trim();
+        if (!value) return '';
+        const safe = typeof window.sanitizeAttachmentDisplayUrl === 'function'
+            ? window.sanitizeAttachmentDisplayUrl(value)
+            : '';
+        return safe || '';
+    },
+
+    gsmNoticeImageHtml: (raw) => {
+        const src = Admin.gsmNoticeImageSrc(raw);
+        if (!src) return '';
+        const esc = String(src).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        return `<div class="w-full mb-2 rounded-lg overflow-hidden border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"><img src="${esc}" alt="" class="w-full max-h-32 object-contain" onerror="this.parentElement.remove()"></div>`;
+    },
+
     gsmItemCardHtml: (item, now) => {
         const isPermanent = !item.expiresAt;
         const hrsLeft = isPermanent ? null : Math.max(0, Math.floor((item.expiresAt - now) / (1000 * 60 * 60)));
@@ -5002,8 +5281,8 @@ const Admin = {
                 <span class="text-sm font-black text-slate-900 dark:text-white leading-tight break-words w-full mb-2">
                     ${item.label}
                 </span>
-                ${item.imageUrl ? `<div class="w-full mb-2 rounded-lg overflow-hidden border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"><img src="${String(item.imageUrl).replace(/"/g, '&quot;')}" alt="" class="w-full h-24 object-cover"></div>` : ''}
-                ${item.preview ? `<p class="text-[11px] text-gray-600 dark:text-gray-300 leading-snug break-words w-full mb-2">${String(item.preview).replace(/</g, '&lt;')}</p>` : ''}
+                ${Admin.gsmNoticeImageHtml(item.imageUrl)}
+                ${item.preview ? `<p class="text-[11px] text-gray-600 dark:text-gray-300 leading-snug break-words whitespace-pre-line w-full mb-2">${String(item.preview).replace(/</g, '&lt;')}</p>` : ''}
                 <div class="flex gap-2 pt-2.5 border-t border-gray-100 dark:border-gray-700 mt-auto w-full">
                     <button onclick="event.stopPropagation(); Admin.resolveActionRequired('${safeType}', '${safeId}', '${safeRoute}')" class="flex-1 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-600 text-xs font-bold py-1.5 rounded-lg shadow-sm transition-colors focus:outline-none flex items-center justify-center">
                         <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Resolve
@@ -5114,9 +5393,7 @@ const Admin = {
             actionBanner.querySelector('#action-header-btn')?.style.setProperty('display', 'none', 'important');
             document.getElementById('action-body')?.classList.remove('hidden');
         }
-        if (adminContainer && adminContainer.firstElementChild !== actionBanner) {
-            adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
-        }
+        Admin.placeBelowBrief(actionBanner);
     },
 
     fetchActionRequired: async () => {
@@ -5155,9 +5432,7 @@ const Admin = {
         } else if (actionBody) {
             actionBody.innerHTML = `<div class="animate-pulse text-xs text-center text-gray-500 py-3">Scanning for expiring entities...</div>`;
         }
-        if (adminContainer && adminContainer.firstElementChild !== actionBanner) {
-            adminContainer.insertBefore(actionBanner, adminContainer.firstChild);
-        }
+        Admin.placeBelowBrief(actionBanner);
 
         try {
             const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -5182,8 +5457,17 @@ const Admin = {
                                 if (!item.expiresAt || item.expiresAt > now) {
                                     const sev = item.severity === 'critical' ? 'Critical' : (item.severity === 'warning' ? 'Warning' : 'Info');
                                     const title = String(item.title || '').trim();
-                                    const rawBody = String(item.message || item.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-                                    const img = (Array.isArray(item.imageUrls) && item.imageUrls[0]) || item.imageUrl || '';
+                                    const msgHtml = String(item.message || item.text || '');
+                                    const rawBody = msgHtml
+                                        .replace(/<br\s*\/?>/gi, '\n')
+                                        .replace(/<\/(p|div|h[1-4]|li)>/gi, '\n')
+                                        .replace(/<[^>]+>/g, ' ')
+                                        .replace(/[ \t]+\n/g, '\n')
+                                        .replace(/\n{3,}/g, '\n\n')
+                                        .replace(/[ \t]{2,}/g, ' ')
+                                        .trim();
+                                    const imgTag = msgHtml.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
+                                    const img = (Array.isArray(item.imageUrls) && item.imageUrls[0]) || item.imageUrl || (imgTag && imgTag[1]) || '';
                                     activeItems.push({
                                         type: 'Alert',
                                         label: title || rawBody.slice(0, 72) || `${sev} channel post`,
@@ -6647,11 +6931,10 @@ const Admin = {
         const container = document.getElementById('admin-modules-container');
         if (!container) return;
 
-        // Ensure Telemetry is neatly packed inside the wrapper so it grids perfectly
+        // Pack Live Telemetry into the grid under the brief. Inserting it at the
+        // first child put the tile, and its sync time, on the row above the brief.
         const telPanel = document.getElementById('telemetry-panel');
-        if (telPanel && telPanel.parentNode !== container) {
-            container.insertBefore(telPanel, container.firstElementChild);
-        }
+        if (telPanel) Admin.placeBelowBrief(telPanel);
 
         // Re-open path: grid toggle already exists — still re-engage so tiles stay tappable.
         Admin.ensureGridViewEngaged();
@@ -6686,6 +6969,11 @@ const Admin = {
                     .admin-grid-view > div[data-admin-shell="empty"],
                     .admin-grid-view > [data-admin-subview="true"] { display: none !important; height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; pointer-events: none !important; }
                     .admin-grid-view > div:not(.hidden):not(:empty):not([data-admin-shell="empty"]):not([data-admin-subview="true"]) { margin-bottom: 0 !important; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; height: 110px; display: flex; flex-direction: column; justify-content: center; position: relative; overflow: visible !important; }
+                    .admin-grid-view > #operator-brief-slot { height: auto !important; grid-column: 1 / -1; cursor: default; display: block !important; justify-content: flex-start; overflow: visible !important; }
+                    .admin-grid-view > #operator-brief-slot:hover { transform: none; box-shadow: none; border-color: transparent; }
+                    .admin-grid-view > #telemetry-panel { overflow: hidden !important; }
+                    .admin-grid-view > #telemetry-panel [id$="-header-btn"] { overflow: hidden; }
+                    .admin-grid-view > #telemetry-panel #telemetry-last-sync { display: none !important; }
                     .admin-grid-view > div:not(.hidden):not(:empty):not([data-admin-shell="empty"]):not([data-admin-subview="true"]):hover { transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #3b82f6; }
                     .admin-grid-view > div [id$="-body"] { display: none !important; }
                     .admin-grid-view > div [id$="-header-btn"] { flex-direction: column; justify-content: center; height: 100%; align-items: center; text-align: center; margin-bottom: 0 !important; position: relative; overflow: visible; }
@@ -6866,7 +7154,7 @@ const Admin = {
                 }
                 
                 const card = e.target.closest('.admin-grid-view > div');
-                if (!card) return;
+                if (!card || card.id === 'operator-brief-slot') return;
                 
                 // Trigger Drill Down (push a history entry so Back can return to the grid)
                 Admin._drillStack = [card.id];
@@ -8339,7 +8627,7 @@ const Admin = {
                 const data = Admin._cachedTripPlans;
                 if (Admin._deActiveTab !== 'trips') return;
                 if (!data) {
-                    listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">No batched trip plans yet.<br><span class="text-[9px]">Clients flush every 10 successful plans.</span></div>';
+                    listDiv.innerHTML = '<div class="text-xs text-gray-500 italic text-center py-4">No batched trip plans yet.<br><span class="text-[9px]">Clients flush every 5 successful plans.</span></div>';
                     return;
                 }
 
@@ -8923,19 +9211,29 @@ const Admin = {
                     sourceTab: Admin.currentFeedbackTab === 'archive' ? 'archive' : 'inbox',
                 });
 
+                let replyPlain = '';
+                for (let ri = groupItems.length - 1; ri >= 0; ri--) {
+                    if (!groupItems[ri]?.isFromAdmin) continue;
+                    replyPlain = window.ntReplySuggest?.outreachPlainText
+                        ? window.ntReplySuggest.outreachPlainText(groupItems[ri].text || groupItems[ri].message || '')
+                        : '';
+                    break;
+                }
+
                 let contactHtml = '';
                 if (allEmails.size > 0 || allPhones.size > 0) {
                     contactHtml = '<div class="flex flex-wrap gap-1.5 min-w-0">';
                     allEmails.forEach(em => {
+                        const mailHref = Admin.outreachHref('email', em, replyPlain) || `mailto:${String(em).replace(/"/g, '')}`;
                         contactHtml += `
                             <div class="flex items-center min-w-0 max-w-full bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded px-1.5 py-0.5">
-                                <a href="mailto:${em}" onclick="event.stopPropagation()" class="text-[10px] text-blue-500 hover:underline font-mono tracking-tight lowercase break-all whitespace-normal inline-flex items-center gap-1 min-w-0">${Admin.icon('mail', 'w-3 h-3 shrink-0')} ${em}</a>
+                                <a href="${mailHref}" onclick="event.stopPropagation()" class="text-[10px] text-blue-500 hover:underline font-mono tracking-tight lowercase break-all whitespace-normal inline-flex items-center gap-1 min-w-0">${Admin.icon('mail', 'w-3 h-3 shrink-0')} ${em}</a>
                                 <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${em}'); if(typeof showToast === 'function') showToast('Copied!', 'success', 1000);" class="ml-1.5 text-gray-400 hover:text-blue-500 transition-colors focus:outline-none inline-flex shrink-0" title="Copy">${Admin.icon('copy', 'w-3 h-3')}</button>
                             </div>`;
                     });
                     allPhones.forEach(ph => {
                         const isNum = /^\d+$/.test(ph);
-                        const link = isNum ? `https://wa.me/${ph}` : '#';
+                        const link = isNum ? (Admin.outreachHref('whatsapp', ph, replyPlain) || `https://wa.me/${ph}`) : '#';
                         const target = isNum ? `target="_blank"` : '';
                         const aClass = isNum ? 'text-emerald-700 dark:text-emerald-300 hover:underline' : 'text-gray-500 dark:text-gray-400';
                         
@@ -10523,7 +10821,7 @@ const Admin = {
                         </summary>
                         <div class="community-monitor-route-body border-t border-gray-100 dark:border-gray-700 p-3 space-y-2">
                             ${row.held.map(renderHeld).join('')}
-                            <div class="community-route-conversation text-xs text-gray-400 text-center py-3">Open to load conversation.</div>
+                            <div class="community-route-conversation cm-chat text-left">Open to load conversation.</div>
                         </div>
                     </details>
                 `).join('');
@@ -10537,19 +10835,23 @@ const Admin = {
                     const quoteUid = message.replyTo?.uid || message.replyTo?.deviceId || '';
                     const quoteHint = quoteUid && typeof Admin.userIdJoinHintHtml === 'function' ? Admin.userIdJoinHintHtml(quoteUid) : '';
                     const quote = message.replyTo?.body
-                        ? `<div class="border-l-2 border-emerald-500 bg-gray-50 dark:bg-gray-900 rounded-r-lg px-2 py-1 mb-2 text-[10px] text-gray-500"><b>${esc(message.replyTo.displayName || 'Passenger')}</b>${quoteHint}<br>${esc(message.replyTo.body)}</div>`
+                        ? `<div class="cm-quote"><b>${esc(message.replyTo.displayName || 'Passenger')}</b>${quoteHint}<br>${esc(message.replyTo.body)}</div>`
                         : '';
                     const postId = message.postId || '';
-                    return `<div class="${isReply ? 'ml-6 bg-gray-50 dark:bg-gray-900/60' : 'bg-emerald-50/50 dark:bg-emerald-950/10'} border border-gray-200 dark:border-gray-700 rounded-xl p-3 ${message.hidden ? 'opacity-50 ring-1 ring-red-400' : ''}" data-community-message data-community-post="${esc(postId)}" ${isReply ? `data-community-reply="${esc(message.replyId || '')}"` : ''}>
-                        <div class="flex items-center justify-between gap-2 mb-1">
-                            <span class="text-[11px] font-black text-gray-900 dark:text-white">${esc(message.displayName || 'Passenger')} ${authorHint} ${category}</span>
-                            <span class="text-[9px] font-mono text-gray-400">${esc(formatWhen(message.timestamp))}</span>
-                        </div>
-                        ${quote}<p class="text-[12px] leading-relaxed text-gray-800 dark:text-gray-200 whitespace-pre-wrap">${esc(message.body || '')}</p>
-                        <div class="flex flex-wrap gap-2 mt-2">
-                            <button type="button" class="cm-hide-message text-[10px] font-bold text-amber-700 dark:text-amber-400 underline" data-route="${esc(routeId)}" data-post="${esc(postId)}" ${isReply ? `data-reply="${esc(message.replyId || '')}"` : ''}>Hide</button>
-                            <button type="button" class="cm-delete-message text-[10px] font-bold text-red-600 dark:text-red-400 underline" data-route="${esc(routeId)}" data-post="${esc(postId)}" ${isReply ? `data-reply="${esc(message.replyId || '')}"` : ''}>Delete</button>
-                            ${message.uid ? `<button type="button" class="cm-shadow-ban text-[10px] font-bold text-red-600 dark:text-red-400 underline" data-uid="${esc(message.uid)}">Shadow ban</button>` : ''}
+                    return `<div class="cm-row ${isReply ? 'cm-row-reply' : ''}" data-community-message data-community-post="${esc(postId)}" ${isReply ? `data-community-reply="${esc(message.replyId || '')}"` : ''}>
+                        <div class="cm-bubble ${message.hidden ? 'is-hidden' : ''}">
+                            <div class="cm-bubble-name">
+                                <span>${esc(message.displayName || 'Passenger')} ${authorHint} ${category}</span>
+                                <span class="cm-bubble-time">${esc(formatWhen(message.timestamp))}</span>
+                            </div>
+                            <div class="cm-bubble-body">
+                                ${quote}<p class="cm-bubble-text">${esc(message.body || '')}</p>
+                                <div class="cm-bubble-actions">
+                                    <button type="button" class="cm-hide-message" data-route="${esc(routeId)}" data-post="${esc(postId)}" ${isReply ? `data-reply="${esc(message.replyId || '')}"` : ''}>Hide</button>
+                                    <button type="button" class="cm-delete-message" data-route="${esc(routeId)}" data-post="${esc(postId)}" ${isReply ? `data-reply="${esc(message.replyId || '')}"` : ''}>Delete</button>
+                                    ${message.uid ? `<button type="button" class="cm-shadow-ban" data-uid="${esc(message.uid)}">Shadow ban</button>` : ''}
+                                </div>
+                            </div>
                         </div>
                     </div>`;
                 };
@@ -10622,7 +10924,8 @@ const Admin = {
                             postId: post.postId,
                         })).sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
                         return `${renderMessage(post, routeId)}${replies.map((reply) => renderMessage(reply, routeId, true)).join('')}`;
-                    }).join('') : '<p class="py-3">No published messages on this route.</p>';
+                    }).join('') : '<p class="cm-empty">No published messages on this route.</p>';
+                    target.scrollTop = target.scrollHeight;
                     details.dataset.loaded = 'true';
                     details.dataset.communitySearch += ` ${esc(posts.map((post) => [post.body, ...Object.values(post.replies || {}).map((reply) => reply.body)].join(' ')).join(' ').toLowerCase())}`;
                 };
@@ -11799,7 +12102,25 @@ const Admin = {
         return { emails: [...emails], phones: [...phones] };
     },
 
-    showOutreachModal: ({ emails = [], phones = [], commuterName = 'this commuter' } = {}) => {
+    outreachHref: (kind, address, message) => {
+        const api = window.ntReplySuggest || {};
+        let raw = '';
+        if (kind === 'whatsapp') {
+            const digits = String(address || '').replace(/\D/g, '');
+            raw = api.whatsappReplyUrl
+                ? api.whatsappReplyUrl(address, message)
+                : (digits ? `https://wa.me/${digits}` : '');
+        } else {
+            const addr = String(address || '').trim();
+            raw = api.mailtoReplyUrl
+                ? api.mailtoReplyUrl(address, message)
+                : (addr.includes('@') ? `mailto:${addr}` : '');
+        }
+        if (!raw) return '';
+        return api.htmlAttrUrl ? api.htmlAttrUrl(raw) : String(raw).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    },
+
+    showOutreachModal: ({ emails = [], phones = [], commuterName = 'this commuter', message = '' } = {}) => {
         if (!emails.length && !phones.length) return;
         document.getElementById('admin-outreach-modal')?.remove();
         const modal = document.createElement('div');
@@ -11808,13 +12129,15 @@ const Admin = {
         const safeName = String(commuterName).replace(/</g, '&lt;');
         const waButtons = phones.map((ph) => {
             const safe = String(ph).replace(/[^0-9]/g, '');
-            if (!safe) return '';
-            return `<a href="https://wa.me/${safe}" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-lg text-sm">${Admin.icon('message', 'w-4 h-4')} WhatsApp ${safe}</a>`;
+            const href = Admin.outreachHref('whatsapp', safe, message);
+            if (!safe || !href) return '';
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-lg text-sm">${Admin.icon('message', 'w-4 h-4')} WhatsApp ${safe}</a>`;
         }).join('');
         const mailButtons = emails.map((em) => {
-            const safeHref = String(em).replace(/"/g, '').replace(/</g, '');
             const label = String(em).replace(/</g, '&lt;');
-            return `<a href="mailto:${safeHref}" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-lg text-sm">${Admin.icon('mail', 'w-4 h-4')} Email ${label}</a>`;
+            const href = Admin.outreachHref('email', em, message);
+            if (!href) return '';
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-lg text-sm">${Admin.icon('mail', 'w-4 h-4')} Email ${label}</a>`;
         }).join('');
         modal.innerHTML = `
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-5 border border-gray-200 dark:border-gray-700" role="dialog" aria-labelledby="outreach-title">
@@ -11888,13 +12211,20 @@ const Admin = {
         const top = Math.max(0, Math.round(vv?.offsetTop || 0));
         modal.style.top = `${top}px`;
         modal.style.height = `${height}px`;
+        modal.style.left = '0';
+        modal.style.right = '0';
+        modal.style.width = '100%';
         modal.style.bottom = 'auto';
-        modal.style.alignItems = 'center';
+        modal.style.alignItems = 'flex-end';
         modal.style.justifyContent = 'center';
         const card = modal.firstElementChild;
         if (card) {
-            card.style.maxHeight = `${Math.max(240, height - 32)}px`;
-            card.style.height = '';
+            card.style.maxHeight = '92%';
+            card.style.height = '92%';
+            card.style.width = '100%';
+            card.style.marginTop = 'auto';
+            card.style.marginBottom = '0';
+            card.style.overflowY = 'auto';
         }
     },
 
@@ -11905,6 +12235,666 @@ const Admin = {
         window.addEventListener('resize', update, { passive: true });
         window.visualViewport?.addEventListener('resize', update, { passive: true });
         window.visualViewport?.addEventListener('scroll', update, { passive: true });
+    },
+
+    replySuggestMarkup: () => `
+                    <div id="admin-reply-suggest" class="mt-3 shrink-0">
+                        <div id="admin-reply-suggest-halt" class="hidden mb-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100 p-2">
+                            <div id="admin-reply-suggest-halt-text" class="text-xs whitespace-pre-wrap"></div>
+                            <label for="admin-reply-suggest-context" class="block text-[10px] font-bold mt-2 mb-1">Add the missing fact</label>
+                            <textarea id="admin-reply-suggest-context" rows="3" maxlength="2000" class="w-full rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-900 text-xs text-gray-900 dark:text-white p-2 focus:outline-none" placeholder="Type what the draft should use, then suggest again."></textarea>
+                            <button type="button" id="reply-suggest-again" class="mt-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 rounded-lg text-xs focus:outline-none">Suggest again</button>
+                        </div>
+                        <button type="button" id="reply-suggest" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-3 rounded-xl shadow-sm transition-colors focus:outline-none text-sm">Suggest reply</button>
+                        <div id="admin-reply-suggest-status" class="hidden mt-2 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 p-2" aria-live="polite">
+                            <p id="admin-reply-suggest-status-text" class="text-[11px] font-bold text-indigo-950 dark:text-indigo-100"></p>
+                            <ul id="admin-reply-suggest-status-steps" class="mt-1 space-y-0.5 text-[11px] text-indigo-900 dark:text-indigo-100"></ul>
+                        </div>
+                        <details class="mt-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40">
+                            <summary class="cursor-pointer px-3 py-2 text-[11px] font-bold text-gray-600 dark:text-gray-300 select-none">Instructions and images</summary>
+                            <p id="admin-reply-suggest-done" class="hidden px-3 pb-2 text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed"></p>
+                            <div class="px-3 pb-3">
+                                <textarea id="admin-reply-suggest-note" rows="3" maxlength="4000" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-xs text-gray-900 dark:text-white p-2 focus:outline-none" placeholder="Shared by both operators. Sent with the next draft. Does not let the draft invent a missing fact."></textarea>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <button type="button" id="reply-suggest-save-note" class="shrink-0 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-1.5 px-2.5 rounded-lg text-[11px] focus:outline-none">Save shared note</button>
+                                    <input id="reply-suggest-images" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple class="block w-full text-[11px] text-gray-600 dark:text-gray-300" />
+                                </div>
+                            </div>
+                        </details>
+                    </div>`,
+
+    replyWorkerUrl: () => String(window.REPLY_WORKER_URL || 'https://nexttrain-reply.enock.workers.dev').replace(/\/$/, ''),
+
+    readSuggestImages: async (fileList) => {
+        const maxImages = window.ntReplySuggest?.SUGGEST_MAX_IMAGES || 3;
+        const maxBytes = window.ntReplySuggest?.SUGGEST_MAX_IMAGE_BYTES || 1500000;
+        const files = Array.from(fileList || []).slice(0, maxImages);
+        const images = [];
+        for (const file of files) {
+            if (!file || !String(file.type || '').startsWith('image/')) continue;
+            if (file.size > maxBytes) throw new Error('Each image must be under 1.5 MB.');
+            const dataUrl = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.onerror = () => reject(new Error('Could not read that image.'));
+                reader.readAsDataURL(file);
+            });
+            const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+            if (!match) continue;
+            images.push({ mimeType: match[1], data: match[2] });
+        }
+        return images;
+    },
+
+    loadReplySuggestNote: async (modal) => {
+        const ta = document.getElementById('admin-reply-suggest-note');
+        if (!ta || !modal) return;
+        const gen = String(Date.now());
+        modal.dataset.noteGen = gen;
+        modal.dataset.noteReady = '0';
+        try {
+            const secret = await Admin.getAuthKey();
+            if (!secret) {
+                modal.dataset.noteReady = '1';
+                return;
+            }
+            const res = await fetch(`${Admin.replyWorkerUrl()}/context`, {
+                headers: { Authorization: `Bearer ${secret}` },
+            });
+            if (modal.dataset.noteGen !== gen) return;
+            if (!res.ok) {
+                modal.dataset.noteReady = 'error';
+                return;
+            }
+            const data = await res.json().catch(() => ({}));
+            if (modal.dataset.noteGen !== gen) return;
+            if (document.activeElement !== ta) ta.value = String(data.note || '');
+            modal.dataset.noteReady = '1';
+        } catch {
+            if (modal.dataset.noteGen === gen) modal.dataset.noteReady = 'error';
+        }
+    },
+
+    saveReplySuggestNote: async () => {
+        const ta = document.getElementById('admin-reply-suggest-note');
+        const btn = document.getElementById('reply-suggest-save-note');
+        const modal = document.getElementById('admin-reply-modal');
+        if (!ta) return;
+        const note = String(ta.value || '').trim();
+        if (!note) {
+            if (typeof showToast === 'function') showToast('Type a note before saving. A blank note is not saved.', 'error');
+            return;
+        }
+        if (modal && modal.dataset.noteReady === 'error') {
+            if (typeof showToast === 'function') showToast('Could not load the saved note, so it was not replaced.', 'error');
+            return;
+        }
+        if (modal && modal.dataset.noteReady !== '1') {
+            if (typeof showToast === 'function') showToast('The saved note is still loading.', 'error');
+            return;
+        }
+        if (btn) btn.disabled = true;
+        try {
+            const secret = await Admin.getAuthKey();
+            if (!secret) throw new Error('Sign in as an operator first.');
+            const res = await fetch(`${Admin.replyWorkerUrl()}/context`, {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${secret}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ note }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Could not save the shared note.');
+            if (typeof showToast === 'function') showToast('Shared note saved.', 'success');
+        } catch (err) {
+            if (typeof showToast === 'function') showToast(err.message || 'Could not save the shared note.', 'error');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    },
+
+    replyDraftStorageKey: 'nt_reply_drafts_v1',
+
+    readLocalReplyDraft: (messageId) => {
+        const id = String(messageId || '').trim();
+        if (!id) return null;
+        try {
+            const all = JSON.parse(localStorage.getItem(Admin.replyDraftStorageKey) || '{}');
+            const row = all[id];
+            if (!row?.html) return null;
+            return { html: String(row.html), at: Number(row.at) || 0 };
+        } catch {
+            return null;
+        }
+    },
+
+    writeLocalReplyDraft: (messageId, html, at = Date.now()) => {
+        const id = String(messageId || '').trim();
+        const body = String(html || '');
+        if (!id || !Admin.draftHasText(body)) return;
+        try {
+            const all = JSON.parse(localStorage.getItem(Admin.replyDraftStorageKey) || '{}');
+            all[id] = { html: body.slice(0, 20000), at: Number(at) || Date.now() };
+            const keys = Object.keys(all);
+            if (keys.length > 40) {
+                keys.sort((a, b) => Number(all[a]?.at || 0) - Number(all[b]?.at || 0));
+                keys.slice(0, keys.length - 40).forEach((key) => { delete all[key]; });
+            }
+            localStorage.setItem(Admin.replyDraftStorageKey, JSON.stringify(all));
+        } catch { /* the worker copy can still exist */ }
+    },
+
+    draftHasText: (html) => String(html || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').trim().length > 0,
+
+    draftMessageIdForDevice: (deviceId) => {
+        const items = (Admin.cachedFeedbackData || []).filter((item) => (item.device_id || item.deviceId) === deviceId);
+        return window.ntReplySuggest?.suggestDraftMessageId?.(items) || '';
+    },
+
+    restoreReplyDraft: async (messageId) => {
+        const id = String(messageId || '').trim();
+        const gen = `${Date.now()}-${Math.random()}`;
+        Admin._draftGen = gen;
+        const local = Admin.readLocalReplyDraft(id);
+        const editor = document.getElementById('admin-reply-text');
+        const editing = String(document.getElementById('admin-reply-modal')?.dataset.editMsgKey || '').trim();
+        if (editor && local?.html && !editing) editor.innerHTML = local.html;
+        let remote = null;
+        try {
+            const secret = await Admin.getAuthKey();
+            if (secret && id) {
+                const res = await fetch(`${Admin.replyWorkerUrl()}/draft?id=${encodeURIComponent(id)}`, {
+                    headers: { Authorization: `Bearer ${secret}` },
+                });
+                if (res.ok) remote = await res.json();
+            }
+        } catch { remote = null; }
+        if (Admin._draftGen !== gen) return local?.html || '';
+        const box = document.getElementById('admin-reply-text');
+        const remoteHtml = String(remote?.html || '');
+        const remoteAt = Number(remote?.at) || 0;
+        if (box && remoteHtml && !editing && !box.dataset.draftTouched && remoteAt >= Number(local?.at || 0)) {
+            box.innerHTML = remoteHtml;
+            Admin.writeLocalReplyDraft(id, remoteHtml, remoteAt);
+        }
+        return box?.innerHTML || local?.html || '';
+    },
+
+    persistReplyDraft: async () => {
+        const modal = document.getElementById('admin-reply-modal');
+        const id = String(modal?.dataset.draftMessageId || '').trim();
+        const html = document.getElementById('admin-reply-text')?.innerHTML || '';
+        if (!id || !Admin.draftHasText(html)) return;
+        const at = Date.now();
+        Admin.writeLocalReplyDraft(id, html, at);
+        try {
+            const secret = await Admin.getAuthKey();
+            if (!secret) return;
+            await fetch(`${Admin.replyWorkerUrl()}/draft`, {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${secret}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ id, html }),
+            });
+        } catch { /* this phone still has the draft */ }
+    },
+
+    suggestReplyForThread: async (did) => {
+        const deviceId = String(did || '').trim();
+        if (!deviceId || deviceId === 'Anonymous / Legacy') {
+            if (typeof showToast === 'function') showToast('This thread has no device to reply to.', 'error');
+            return;
+        }
+        const items = (Admin.cachedFeedbackData || [])
+            .filter((item) => (item.device_id || item.deviceId) === deviceId)
+            .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        const commuter = items.filter((item) => !item.isFromAdmin);
+        const feedbackId = commuter.length ? (commuter[commuter.length - 1].id || '') : '';
+        Admin.openReplyModal(feedbackId, deviceId);
+        const modal = document.getElementById('admin-reply-modal');
+        const html = modal?._draftRestore ? await modal._draftRestore : '';
+        if (!Admin.draftHasText(html)) Admin.runSuggestReply();
+    },
+
+    _suggestTicker: null,
+
+    setSuggestProgress: (state) => {
+        const box = document.getElementById('admin-reply-suggest-status');
+        const title = document.getElementById('admin-reply-suggest-status-text');
+        const list = document.getElementById('admin-reply-suggest-status-steps');
+        if (!box || !title || !list) return;
+        if (!state) {
+            box.classList.add('hidden');
+            title.textContent = '';
+            list.replaceChildren();
+            return;
+        }
+        box.classList.remove('hidden');
+        title.textContent = state.title || '';
+        list.replaceChildren();
+        (state.steps || []).forEach((step) => {
+            const li = document.createElement('li');
+            const mark = step.state === 'done' ? 'Done' : (step.state === 'active' ? 'Now' : 'Next');
+            li.textContent = `${mark}. ${step.label || ''}`;
+            list.appendChild(li);
+        });
+    },
+
+    showSuggestHalt: (result) => {
+        const panel = document.getElementById('admin-reply-suggest-halt');
+        const textEl = document.getElementById('admin-reply-suggest-halt-text');
+        const text = window.ntReplySuggest?.haltPanelText(result) || '';
+        if (!panel) {
+            if (text && typeof showToast === 'function') showToast(text, 'warning', 5000);
+            return;
+        }
+        if (!text) {
+            if (textEl) textEl.textContent = '';
+            panel.classList.add('hidden');
+            return;
+        }
+        if (textEl) textEl.textContent = text;
+        else panel.textContent = text;
+        panel.classList.remove('hidden');
+    },
+
+    quotedNoticesForSuggest: async (items) => {
+        const parse = typeof parseFeedbackAlertQuote === 'function' ? parseFeedbackAlertQuote : null;
+        const plain = window.ntReplySuggest?.noticeQuotePlain;
+        if (!parse || typeof plain !== 'function') return {};
+        const ids = [];
+        for (const item of items || []) {
+            const parsed = parse(item?.text || item?.message || '');
+            if (parsed?.alertId) ids.push(parsed.alertId);
+        }
+        const unique = [...new Set(ids)];
+        if (!unique.length) return {};
+        const records = new Map();
+        const consider = (node, extra) => {
+            if (!node || typeof node !== 'object') return;
+            const id = String(node.id || node._key || extra?.id || '').trim();
+            if (!id || !unique.includes(id) || records.has(id)) return;
+            records.set(id, { ...node, ...extra, id });
+        };
+        (Admin._cachedActiveAlerts || []).forEach((node) => consider(node));
+        const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined'
+            ? DYNAMIC_BASE_URL
+            : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const pull = async (path) => {
+            if (records.size >= unique.length) return;
+            try {
+                const res = await window.guardianFetch(`${dynamicEndpoint}${path}.json?t=${Date.now()}`, {}, 12000);
+                if (!res?.ok) return;
+                const data = await res.json();
+                if (!data || typeof data !== 'object') return;
+                if (path === 'notices' || path === 'disruptions') {
+                    Object.values(data).forEach((node) => {
+                        if (typeof Admin.listNoticesInTarget === 'function') {
+                            Admin.listNoticesInTarget(node).forEach((row) => consider(row));
+                        }
+                        consider(node);
+                    });
+                } else {
+                    Object.entries(data).forEach(([key, node]) => consider(node, { id: node?.id || key }));
+                }
+            } catch { /* the short quote still reaches the draft */ }
+        };
+        await pull('notices');
+        if (records.size < unique.length) await pull('notices_archive');
+        if (records.size < unique.length) await pull('disruptions');
+        const out = {};
+        let secret = '';
+        try { secret = await Admin.getAuthKey(); } catch { secret = ''; }
+        for (const [id, notice] of records) {
+            let row = notice;
+            if (row.poll && (row.poll.question || row.poll.optionA || row.poll.optionB)) {
+                const tallies = await Admin.fetchPollResultsSnapshot(id, secret);
+                if (tallies) row = { ...row, pollResults: tallies };
+            }
+            const text = plain(row);
+            if (text) out[id] = text;
+        }
+        return out;
+    },
+
+    runSuggestReply: async () => {
+        const modal = document.getElementById('admin-reply-modal');
+        const btn = document.getElementById('reply-suggest');
+        if (!modal || modal.classList.contains('hidden')) return;
+        if (String(modal.dataset.editMsgKey || '').trim()) return;
+        const deviceId = modal.dataset.replyDeviceId || '';
+        const api = window.ntReplySuggest;
+        if (!api?.buildSuggestPayload || !api.composerHtmlFromResult) {
+            if (typeof showToast === 'function') showToast('Suggest reply is not loaded.', 'error');
+            return;
+        }
+        const items = (Admin.cachedFeedbackData || []).filter((item) => (item.device_id || item.deviceId) === deviceId);
+        const alias = (Admin.cachedAliases && Admin.cachedAliases[deviceId]) || '';
+        const note = document.getElementById('admin-reply-suggest-note')?.value || '';
+        const draftContext = document.getElementById('admin-reply-suggest-context')?.value || '';
+        const quotedNotices = await Admin.quotedNoticesForSuggest(items);
+        const payload = api.buildSuggestPayload(items, {
+            deviceId,
+            alias,
+            note,
+            draftContext,
+            quotedNotices,
+            allItems: Admin.cachedFeedbackData || [],
+            routeRegionOf: (routeId) => (typeof ROUTES !== 'undefined' && ROUTES[routeId]?.region) || '',
+        });
+        if (!payload.thread.length) {
+            Admin.showSuggestHalt({ action: 'halt', reason: 'This thread has no message to answer.', questions: [] });
+            return;
+        }
+        const again = document.getElementById('reply-suggest-again');
+        const unanswered = typeof api.unansweredCommuterMessages === 'function'
+            ? api.unansweredCommuterMessages(payload.thread)
+            : [];
+        const fileCount = Array.isArray(payload.files) ? payload.files.length : 0;
+        const started = Date.now();
+        const paintProgress = (seconds) => {
+            const waiting = seconds == null ? 'Sending the prompt' : `Waiting for the draft, ${seconds}s`;
+            Admin.setSuggestProgress({
+                title: seconds == null ? 'Preparing the draft' : `Writing the draft, ${seconds}s`,
+                steps: [
+                    { state: 'done', label: `Read the whole thread, ${payload.thread.length} messages` },
+                    {
+                        state: 'done',
+                        label: unanswered.length > 1
+                            ? `${unanswered.length} messages still need a reply in this same draft`
+                            : 'Checked which messages still need a reply',
+                    },
+                    {
+                        state: fileCount ? 'active' : 'done',
+                        label: fileCount
+                            ? `Reading ${fileCount} photo or PDF from the chat`
+                            : 'No photos or PDFs on this thread',
+                    },
+                    { state: 'active', label: waiting },
+                ],
+            });
+            if (btn) btn.textContent = seconds == null ? 'Suggesting...' : `Writing draft, ${seconds}s`;
+        };
+        const setSuggestBusy = (busy) => {
+            if (btn) btn.disabled = busy;
+            if (again) {
+                again.disabled = busy;
+                again.textContent = busy ? 'Suggesting...' : 'Suggest again';
+            }
+            if (!busy && btn) btn.textContent = 'Suggest reply';
+        };
+        if (Admin._suggestTicker) {
+            clearInterval(Admin._suggestTicker);
+            Admin._suggestTicker = null;
+        }
+        const doneNote = document.getElementById('admin-reply-suggest-done');
+        if (doneNote) {
+            doneNote.textContent = '';
+            doneNote.classList.add('hidden');
+        }
+        setSuggestBusy(true);
+        paintProgress(null);
+        Admin._suggestTicker = setInterval(() => {
+            paintProgress(Math.max(1, Math.round((Date.now() - started) / 1000)));
+        }, 1000);
+        try {
+            const secret = await Admin.getAuthKey();
+            if (!secret) throw new Error('Sign in as an operator first.');
+            const images = await Admin.readSuggestImages(document.getElementById('reply-suggest-images')?.files);
+            const res = await fetch(`${Admin.replyWorkerUrl()}/suggest`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${secret}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ ...payload, images }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Could not draft a reply.');
+            const guarded = api.applyDraftGuard(data, payload.region);
+            const html = api.composerHtmlFromResult(guarded);
+            if (!html) {
+                Admin.showSuggestHalt(guarded);
+                Admin.setSuggestProgress({
+                    title: 'Needs a fact before it can draft',
+                    steps: [{ state: 'active', label: 'Add the missing fact below, then suggest again.' }],
+                });
+                return;
+            }
+            const editor = document.getElementById('admin-reply-text');
+            if (editor) {
+                editor.innerHTML = html;
+                delete editor.dataset.draftTouched;
+            }
+            Admin.persistReplyDraft();
+            Admin.showSuggestHalt(null);
+            Admin.setSuggestProgress(null);
+            const ready = document.getElementById('admin-reply-suggest-done');
+            if (ready) {
+                ready.textContent = `Draft ready. Used ${payload.thread.length} messages. The draft is in the box. Edit it, then send.`;
+                ready.classList.remove('hidden');
+            }
+            if (typeof showToast === 'function') showToast('Draft ready. Edit it, then send.', 'success');
+        } catch (err) {
+            const message = err.message || 'Could not draft a reply.';
+            Admin.setSuggestProgress({
+                title: 'Could not finish',
+                steps: [{ state: 'active', label: message }],
+            });
+            if (typeof showToast === 'function') showToast(message, 'error');
+        } finally {
+            if (Admin._suggestTicker) {
+                clearInterval(Admin._suggestTicker);
+                Admin._suggestTicker = null;
+            }
+            setSuggestBusy(false);
+        }
+    },
+
+    _writeTarget: null,
+
+    writeAssistRead: (el) => {
+        if (!el) return '';
+        if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return String(el.value || '');
+        return String(el.innerText || el.textContent || '').replace(/\u00a0/g, ' ');
+    },
+
+    writeAssistShow: (el, text, formatted) => {
+        if (!el) return;
+        const plain = String(text || '').replace(/\r\n/g, '\n');
+        if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+            el.value = plain;
+            return;
+        }
+        if (formatted) {
+            const asHtml = window.ntTextAssist?.assistHtmlFromText;
+            const html = typeof asHtml === 'function' ? asHtml(plain) : '';
+            if (html) {
+                el.innerHTML = html;
+                el.dataset.writeFormatted = '1';
+                return;
+            }
+        }
+        el.textContent = plain;
+        delete el.dataset.writeFormatted;
+    },
+
+    ensureWriteModal: () => {
+        let modal = document.getElementById('admin-write-modal');
+        if (modal && modal.dataset.writeRev === 'composer-v3') return modal;
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.id = 'admin-write-modal';
+        modal.dataset.writeRev = 'composer-v3';
+        modal.className = 'fixed inset-0 z-[280] hidden bg-white dark:bg-gray-900';
+        modal.innerHTML = `
+            <style>
+                #admin-write-text { white-space: pre-wrap; }
+                #admin-write-text[data-write-formatted="1"] { white-space: normal; }
+                #admin-write-text p { margin: 0 0 0.85rem; }
+                #admin-write-text p:last-child { margin: 0; }
+                #admin-write-text strong { font-weight: 800; letter-spacing: -0.01em; }
+                #admin-write-text ul { margin: 0.2rem 0 0.85rem; padding-left: 1.15rem; list-style: disc; }
+                #admin-write-text li { margin: 0.15rem 0; }
+            </style>
+            <div class="flex flex-col h-[100dvh] w-full min-h-0" role="dialog" aria-labelledby="admin-write-title">
+                <div class="flex items-center justify-between gap-3 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 shrink-0 border-b border-gray-200 dark:border-gray-800">
+                    <h3 id="admin-write-title" class="text-lg font-black text-gray-900 dark:text-white">Next Train Composer</h3>
+                    <button type="button" id="admin-write-close" class="p-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none" aria-label="Close">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+                <p class="text-[11px] text-gray-500 dark:text-gray-400 px-4 py-2 shrink-0">Uses the whole field. Replace puts it back. Nothing is posted until you save or send.</p>
+                <div id="admin-write-text" contenteditable="true" role="textbox" aria-multiline="true" class="mx-4 mb-2 min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 text-[15px] leading-relaxed text-gray-900 dark:text-white p-4 focus:outline-none"></div>
+                <div id="admin-write-actions" class="px-4 flex flex-wrap gap-1 shrink-0"></div>
+                <p id="admin-write-status" class="min-h-[1.1rem] text-[11px] text-gray-500 dark:text-gray-400 px-4 mt-2 shrink-0"></p>
+                <div class="grid grid-cols-2 gap-2 px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0">
+                    <button type="button" id="admin-write-copy" class="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold py-2 rounded-lg text-sm focus:outline-none">Copy</button>
+                    <button type="button" id="admin-write-replace" class="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 rounded-lg text-sm focus:outline-none">Replace</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        modal.querySelector('#admin-write-close').onclick = () => Admin.closeWriteAssist();
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) Admin.closeWriteAssist();
+        });
+        modal.querySelector('#admin-write-copy').onclick = async () => {
+            const text = Admin.writeAssistRead(document.getElementById('admin-write-text'));
+            if (!text.trim()) return;
+            try {
+                await navigator.clipboard.writeText(text);
+                if (typeof showToast === 'function') showToast('Copied', 'success');
+            } catch {
+                if (typeof showToast === 'function') showToast('Copy failed', 'error');
+            }
+        };
+        modal.querySelector('#admin-write-replace').onclick = () => Admin.applyWriteAssist();
+        const actions = modal.querySelector('#admin-write-actions');
+        const list = window.ntTextAssist?.TEXT_ASSIST_ACTIONS || [];
+        actions.innerHTML = list.map((action) =>
+            `<button type="button" data-write-action="${action.id}" class="h-7 px-2 rounded-md text-[11px] font-semibold leading-none bg-violet-50 dark:bg-violet-950/40 text-violet-800 dark:text-violet-100 border border-violet-200/80 dark:border-violet-800 focus:outline-none">${action.label}</button>`
+        ).join('');
+        actions.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-write-action]');
+            if (!button) return;
+            Admin.runWriteAssist(button.getAttribute('data-write-action'), button);
+        });
+        return modal;
+    },
+
+    readWriteField: (el) => {
+        if (!el) return { text: '', full: true };
+        const editable = el.getAttribute && el.getAttribute('contenteditable') === 'true';
+        if (!editable) {
+            const value = String(el.value || '');
+            return { text: value, full: true, start: 0, end: value.length };
+        }
+        return { text: el.innerText || el.textContent || '', full: true };
+    },
+
+    openWriteAssist: (targetId) => {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        const read = Admin.readWriteField(el);
+        const text = String(read.text || '').trim();
+        if (!text) {
+            if (typeof showToast === 'function') showToast('Type something in the field first.', 'error');
+            return;
+        }
+        if (!window.ntTextAssist?.TEXT_ASSIST_ACTIONS) {
+            if (typeof showToast === 'function') showToast('Next Train Composer is not loaded.', 'error');
+            return;
+        }
+        Admin._writeTarget = { id: targetId, full: true, start: 0, end: String(read.text || '').length };
+        const modal = Admin.ensureWriteModal();
+        const box = document.getElementById('admin-write-text');
+        Admin.writeAssistShow(box, read.text, false);
+        const status = document.getElementById('admin-write-status');
+        if (status) status.textContent = 'Using the whole field.';
+        modal.classList.remove('hidden');
+    },
+
+    closeWriteAssist: () => {
+        document.getElementById('admin-write-modal')?.classList.add('hidden');
+        Admin._writeTarget = null;
+    },
+
+    runWriteAssist: async (action, button) => {
+        const box = document.getElementById('admin-write-text');
+        const status = document.getElementById('admin-write-status');
+        const text = Admin.writeAssistRead(box);
+        if (!text.trim()) {
+            if (typeof showToast === 'function') showToast('Type something in the field first.', 'error');
+            return;
+        }
+        const buttons = document.querySelectorAll('#admin-write-actions button');
+        buttons.forEach((node) => { node.disabled = true; });
+        if (button) button.textContent = 'Working...';
+        if (status) status.textContent = '';
+        try {
+            const secret = await Admin.getAuthKey();
+            if (!secret) throw new Error('Sign in as an operator first.');
+            const res = await fetch(`${Admin.replyWorkerUrl()}/edit`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${secret}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text, action }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Could not rewrite that text.');
+            if (!data.text) throw new Error('The writer returned nothing.');
+            const comfort = window.ntTextAssist?.comfortAssistText;
+            const next = typeof comfort === 'function' ? comfort(data.text) : data.text;
+            Admin.writeAssistShow(box, next, true);
+            if (status) status.textContent = 'Review it, then Replace.';
+        } catch (err) {
+            if (typeof showToast === 'function') showToast(err.message || 'Could not rewrite that text.', 'error');
+        } finally {
+            buttons.forEach((node) => { node.disabled = false; });
+            const label = (window.ntTextAssist?.TEXT_ASSIST_ACTIONS || []).find((item) => item.id === action);
+            if (button && label) button.textContent = label.label;
+        }
+    },
+
+    applyWriteAssist: () => {
+        const target = Admin._writeTarget;
+        const text = Admin.writeAssistRead(document.getElementById('admin-write-text'));
+        const el = target && document.getElementById(target.id);
+        if (!el) {
+            if (typeof showToast === 'function') showToast('That field is no longer open.', 'error');
+            return;
+        }
+        const max = Number(el.getAttribute('maxlength')) || 0;
+        let next = text.replace(/\r\n/g, '\n');
+        let clipped = false;
+        const editable = el.getAttribute('contenteditable') === 'true';
+        if (!editable && !target.full && Number.isFinite(target.start) && Number.isFinite(target.end)) {
+            const value = String(el.value || '');
+            next = value.slice(0, target.start) + next + value.slice(target.end);
+        }
+        if (max && next.length > max) {
+            next = next.slice(0, max);
+            clipped = true;
+        }
+        if (editable) {
+            const asHtml = window.ntTextAssist?.assistHtmlFromText;
+            const html = typeof asHtml === 'function' ? asHtml(next) : '';
+            if (html) el.innerHTML = html;
+            else el.textContent = next;
+        } else {
+            el.value = next;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        Admin.closeWriteAssist();
+        if (typeof showToast === 'function') {
+            showToast(clipped ? `Replaced. Cut to ${max} characters.` : 'Replaced in the field.', 'success');
+        }
     },
 
     openReplyModal: (feedbackId, deviceId, editMsg) => {
@@ -11922,41 +12912,54 @@ const Admin = {
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'admin-reply-modal';
-            modal.className = 'fixed inset-0 bg-black/80 z-[200] hidden flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300';
+            modal.className = 'fixed inset-0 bg-black/60 z-[200] hidden flex items-end justify-center p-0 backdrop-blur-sm';
             modal.innerHTML = `
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90dvh] flex flex-col p-4 transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
-                    <h3 id="admin-reply-title" class="text-lg font-black text-gray-900 dark:text-white mb-0.5 tracking-tight flex items-center gap-2 shrink-0"><span class="text-sky-500">${Admin.icon('message', 'w-5 h-5')}</span> <span id="admin-reply-title-text">Reply to Commuter</span></h3>
+                <div class="bg-white dark:bg-gray-800 shadow-2xl w-full h-[92%] max-h-[92%] min-h-0 overflow-y-auto flex flex-col p-3 sm:p-4 border-0 rounded-t-3xl">
+                    <h3 id="admin-reply-title" class="text-xl font-black text-gray-900 dark:text-white mb-0.5 tracking-tight flex items-center gap-2 shrink-0"><span class="text-sky-500">${Admin.icon('message', 'w-5 h-5')}</span> <span id="admin-reply-title-text">Next Train Co-Pilot</span></h3>
                     <p id="admin-reply-recipient" class="text-[11px] text-gray-600 dark:text-gray-300 mb-1 break-all leading-snug shrink-0"></p>
                     <p id="admin-reply-hint" class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 shrink-0">Message will be delivered to their personal inbox upon next app launch.</p>
                     
-                    <div class="flex flex-col min-h-0 flex-1">
-                    <div class="rounded-t-lg overflow-hidden border border-gray-300 dark:border-gray-600 border-b-0">
+                    <div class="flex flex-col min-h-[14rem] flex-1">
+                    <div class="shrink-0 rounded-t-lg border border-gray-300 dark:border-gray-600 border-b-0">
                             ${Admin.wysiwygToolbarHtml('admin-reply-text', { fileInputId: 'admin-reply-upload-file', fileLabelId: 'admin-reply-upload-label' })}
                     </div>
-                        <div contenteditable="true" id="admin-reply-text" class="nt-rich-body w-full min-h-[240px] max-h-[50dvh] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 border border-t-0 border-gray-300 dark:border-gray-600 rounded-b-lg text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400 custom-scrollbar" placeholder="Type your response..."></div>
+                        <div contenteditable="true" id="admin-reply-text" class="nt-rich-body w-full flex-1 min-h-[12rem] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 border border-t-0 border-gray-300 dark:border-gray-600 rounded-b-lg text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400 custom-scrollbar" placeholder="Type your response..."></div>
                     </div>
 
-                    <div class="flex space-x-2 mt-3 shrink-0">
-                        <button id="reply-cancel" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2.5 px-3 rounded-lg transition-colors focus:outline-none text-sm">Cancel</button>
-                        <button id="reply-send" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-lg shadow-sm transition-colors focus:outline-none text-sm">Send Reply</button>
+                    ${Admin.replySuggestMarkup()}
+
+                    <div class="grid grid-cols-2 gap-2 mt-3 shrink-0">
+                        <button id="reply-cancel" class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-3.5 px-3 rounded-2xl transition-colors focus:outline-none text-base">Cancel</button>
+                        <button id="reply-send" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-3 rounded-2xl shadow-sm transition-colors focus:outline-none text-base">Send Reply</button>
                     </div>
                 </div>
             `;
             document.body.appendChild(modal);
         } else {
-            // Upgrade short modal from earlier session in this page load
+            modal.className = 'fixed inset-0 bg-black/60 z-[200] hidden flex items-end justify-center p-0 backdrop-blur-sm';
             const panel = modal.firstElementChild;
             if (panel) {
-                panel.className = 'bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90dvh] flex flex-col p-4 transform transition-all scale-95 border border-gray-200 dark:border-gray-700';
+                panel.className = 'bg-white dark:bg-gray-800 shadow-2xl w-full h-[92%] max-h-[92%] min-h-0 overflow-y-auto flex flex-col p-3 sm:p-4 border-0 rounded-t-3xl';
             }
             const editor = document.getElementById('admin-reply-text');
             if (editor) {
-                editor.classList.remove('min-h-[120px]', 'p-2.5');
-                editor.classList.add('nt-rich-body', 'min-h-[240px]', 'max-h-[50dvh]', 'overflow-y-auto', 'p-3', 'custom-scrollbar');
+                editor.classList.remove('min-h-[120px]', 'min-h-[240px]', 'max-h-[50dvh]', 'p-2.5', 'min-h-0');
+                editor.classList.add('nt-rich-body', 'flex-1', 'min-h-[12rem]', 'overflow-y-auto', 'p-3', 'custom-scrollbar');
                 const bar = editor.previousElementSibling;
-                if (bar && !bar.querySelector('[data-nt-font-select]')) {
-                    bar.outerHTML = `<div class="rounded-t-lg overflow-hidden border border-gray-300 dark:border-gray-600 border-b-0">${Admin.wysiwygToolbarHtml('admin-reply-text', { fileInputId: 'admin-reply-upload-file', fileLabelId: 'admin-reply-upload-label' })}</div>`;
+                if (bar) {
+                    bar.classList.add('shrink-0');
+                    bar.classList.remove('overflow-hidden');
                 }
+                if (bar && !bar.querySelector('[data-nt-font-select]')) {
+                    bar.outerHTML = `<div class="shrink-0 rounded-t-lg border border-gray-300 dark:border-gray-600 border-b-0">${Admin.wysiwygToolbarHtml('admin-reply-text', { fileInputId: 'admin-reply-upload-file', fileLabelId: 'admin-reply-upload-label' })}</div>`;
+                }
+                editor.parentElement?.classList.remove('min-h-0', 'overflow-hidden');
+                editor.parentElement?.classList.add('min-h-[14rem]', 'flex-1');
+            }
+            const sendRow = document.getElementById('reply-cancel')?.parentElement;
+            if (sendRow && !document.getElementById('admin-reply-suggest-context')) {
+                document.getElementById('admin-reply-suggest')?.remove();
+                sendRow.insertAdjacentHTML('beforebegin', Admin.replySuggestMarkup());
             }
             if (!document.getElementById('admin-reply-recipient')) {
                 const h3 = panel?.querySelector('h3');
@@ -11980,17 +12983,39 @@ const Admin = {
         const titleText = document.getElementById('admin-reply-title-text');
         const hintEl = document.getElementById('admin-reply-hint');
         const sendBtn = document.getElementById('reply-send');
-        if (titleText) titleText.textContent = editKey ? 'Edit reply' : 'Reply to Commuter';
+        if (titleText) titleText.textContent = editKey ? 'Edit reply' : 'Next Train Co-Pilot';
         if (hintEl) {
             hintEl.textContent = editKey
                 ? 'Saves over this reply. Does not post a new message or archive the thread.'
                 : 'Message will be delivered to their personal inbox upon next app launch.';
         }
         if (sendBtn) sendBtn.textContent = editKey ? 'Save' : 'Send Reply';
+        const suggestBox = document.getElementById('admin-reply-suggest');
+        if (suggestBox) suggestBox.classList.toggle('hidden', !!editKey);
+        Admin.showSuggestHalt(null);
 
+        const draftId = editKey ? '' : Admin.draftMessageIdForDevice(deviceId);
+        modal.dataset.draftMessageId = draftId;
         const editorEl = document.getElementById('admin-reply-text');
-        if (editorEl) editorEl.innerHTML = editKey ? String(editMsg.text || editMsg.message || '') : '';
+        if (editorEl) {
+            delete editorEl.dataset.draftTouched;
+            if (!editorEl.dataset.draftInputBound) {
+                editorEl.dataset.draftInputBound = '1';
+                editorEl.addEventListener('input', () => { editorEl.dataset.draftTouched = '1'; });
+            }
+            const kept = !editKey ? Admin.readLocalReplyDraft(draftId) : null;
+            editorEl.innerHTML = editKey ? String(editMsg.text || editMsg.message || '') : (kept?.html || '');
+        }
+        modal._draftRestore = editKey ? Promise.resolve('') : Admin.restoreReplyDraft(draftId);
+        if (!modal.dataset.scrimBound) {
+            modal.dataset.scrimBound = '1';
+            modal.addEventListener('click', (event) => {
+                if (event.target !== modal) return;
+                document.getElementById('reply-cancel')?.click();
+            });
+        }
         modal.classList.remove('hidden');
+        if (typeof lockBackgroundScroll === 'function') lockBackgroundScroll();
         void modal.offsetWidth; // Trigger reflow
         modal.firstElementChild.classList.remove('scale-95');
         modal.firstElementChild.classList.add('scale-100');
@@ -11998,9 +13023,14 @@ const Admin = {
         Admin.syncAdminReplyModalViewport();
 
         const cleanup = () => {
+            Admin.persistReplyDraft();
             modal.classList.add('hidden');
             modal.firstElementChild.classList.remove('scale-100');
             modal.firstElementChild.classList.add('scale-95');
+            const stillOpen = document.querySelector('div[id$="-modal"].fixed:not(.hidden), #alerts-channel:not(.hidden)');
+            if (!stillOpen && !document.body.classList.contains('sidenav-open') && typeof unlockBackgroundScroll === 'function') {
+                unlockBackgroundScroll();
+            }
         };
 
         // GUARDIAN PHASE 3: Inline WYSIWYG File Uploader (Admin Inbox Reply)
@@ -12090,6 +13120,16 @@ const Admin = {
         }
 
         document.getElementById('reply-cancel').onclick = cleanup;
+        const suggestBtn = document.getElementById('reply-suggest');
+        if (suggestBtn) suggestBtn.onclick = () => Admin.runSuggestReply();
+        const suggestAgain = document.getElementById('reply-suggest-again');
+        if (suggestAgain) suggestAgain.onclick = () => Admin.runSuggestReply();
+        const contextBox = document.getElementById('admin-reply-suggest-context');
+        if (contextBox) contextBox.value = '';
+        Admin.setSuggestProgress(null);
+        const saveNoteBtn = document.getElementById('reply-suggest-save-note');
+        if (saveNoteBtn) saveNoteBtn.onclick = () => Admin.saveReplySuggestNote();
+        if (!editKey) Admin.loadReplySuggestNote(modal);
         document.getElementById('reply-send').onclick = async () => {
             let text = document.getElementById('admin-reply-text').innerHTML.trim();
             if (!text || text === '<br>') {
@@ -12172,7 +13212,7 @@ const Admin = {
                 }
                 cleanup();
                 if (contacts.emails.length || contacts.phones.length) {
-                    Admin.showOutreachModal({ ...contacts, commuterName });
+                    Admin.showOutreachModal({ ...contacts, commuterName, message: text });
                 }
             } catch (e) {
                 if (typeof showToast === 'function') showToast(editingKey ? 'Failed to save reply.' : 'Failed to send reply.', 'error');
@@ -12283,7 +13323,7 @@ const Admin = {
         openSmoothModal('admin-context-modal');
 
         const showPreview = async (foundData) => {
-            if (foundData.poll && foundData.poll.active && !foundData.pollResults && foundData.id) {
+            if (foundData.poll && foundData.id && (foundData.poll.active || foundData.poll.question)) {
                 const liveTallies = await Admin.fetchPollResultsSnapshot(foundData.id, secret);
                 if (liveTallies) foundData = { ...foundData, pollResults: liveTallies };
             }
@@ -12342,6 +13382,92 @@ const Admin = {
         }
     },
 
+    writeAssistButtonHtml: (targetId) => {
+        const id = String(targetId || '').replace(/[^a-z0-9_-]/gi, '');
+        if (!id) return '';
+        return `<button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.openWriteAssist('${id}')" class="shrink-0 px-2 py-1 text-xs font-bold text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-gray-600 rounded focus:outline-none whitespace-nowrap" title="Grammar, summarise, tone">Write</button>`;
+    },
+
+    openMediaSourceSheet: (fileInputId, editorId) => {
+        const existing = document.getElementById('nt-media-source');
+        if (existing) existing.remove();
+        const inputId = String(fileInputId || '').replace(/[^a-z0-9_-]/gi, '');
+        const editId = String(editorId || '').replace(/[^a-z0-9_-]/gi, '');
+        const sheet = document.createElement('div');
+        sheet.id = 'nt-media-source';
+        sheet.className = 'fixed inset-0 z-[240] flex items-end sm:items-center justify-center bg-black/50 p-4';
+        sheet.innerHTML = `
+            <div class="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-xl" role="dialog" aria-modal="true" aria-label="Image source">
+                <p class="text-sm font-black text-gray-900 dark:text-white mb-1">Add an image</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">A file from this device can be a photo or a PDF. An internet image must be the file itself.</p>
+                <button type="button" data-media-choice="device" class="w-full mb-2 h-11 rounded-xl bg-blue-600 text-white text-sm font-bold">From this device</button>
+                <button type="button" data-media-choice="url" class="w-full mb-2 h-11 rounded-xl border border-gray-300 dark:border-gray-600 text-sm font-bold text-gray-800 dark:text-gray-100">From the internet</button>
+                <button type="button" data-media-choice="cancel" class="w-full h-10 text-sm font-bold text-gray-500">Cancel</button>
+            </div>`;
+        const close = () => sheet.remove();
+        sheet.addEventListener('click', (event) => {
+            const choice = event.target?.closest?.('[data-media-choice]')?.getAttribute('data-media-choice');
+            if (!choice) {
+                if (event.target === sheet) close();
+                return;
+            }
+            if (choice === 'device') {
+                close();
+                document.getElementById(inputId)?.click();
+                return;
+            }
+            if (choice === 'url') {
+                close();
+                Admin.insertInternetImage(editId);
+                return;
+            }
+            close();
+        });
+        document.body.appendChild(sheet);
+    },
+
+    insertInternetImage: (editorId) => {
+        const raw = window.prompt('Paste the image file link (https, ending in .jpg, .png, .gif, or .webp):', 'https://');
+        if (raw == null) return;
+        const typed = String(raw).trim();
+        if (!typed || typed === 'https://') return;
+        const safe = typeof window.sanitizeAttachmentDisplayUrl === 'function'
+            ? window.sanitizeAttachmentDisplayUrl(typed)
+            : '';
+        const kind = safe && typeof window.classifyAttachmentUrl === 'function'
+            ? window.classifyAttachmentUrl(safe)
+            : '';
+        if (!safe || kind !== 'image') {
+            if (typeof showToast === 'function') {
+                showToast('Use a link to the image file. It needs to start with https and end in .jpg, .png, .gif, or .webp.', 'error', 4500);
+            }
+            return;
+        }
+        const htmlToInsert = Admin.inlineAttachmentHtml(safe, false);
+        const editor = document.getElementById(editorId);
+        if (!htmlToInsert || !editor) {
+            if (typeof showToast === 'function') showToast('Could not use that image link.', 'error');
+            return;
+        }
+        editor.focus();
+        const savedRange = Admin._savedRange;
+        if (savedRange) {
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            try { sel.addRange(savedRange); } catch { /* range left the editor */ }
+        }
+        if (!document.execCommand('insertHTML', false, htmlToInsert)) {
+            editor.innerHTML += htmlToInsert;
+        }
+        Admin._savedRange = null;
+        if (typeof showToast === 'function') showToast('Image inserted.', 'success');
+    },
+
+    pickMediaSource: (fileInputId, editorId) => {
+        Admin.saveCursorRange();
+        Admin.openMediaSourceSheet(fileInputId, editorId);
+    },
+
     wysiwygToolbarHtml: (editorId, opts = {}) => {
         const id = String(editorId || 'alert-msg').replace(/[^a-z0-9_-]/gi, '');
         const fileInputId = opts.fileInputId ? String(opts.fileInputId).replace(/[^a-z0-9_-]/gi, '') : '';
@@ -12352,7 +13478,7 @@ const Admin = {
             `<button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('${tag}', '${id}')" class="px-1.5 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex justify-center items-center focus:outline-none" title="${title}">${svg}</button>`;
         const sep = `<div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto mx-0.5 shrink-0"></div>`;
         const media = fileInputId
-            ? `<label for="${fileInputId}" id="${fileLabelId}" onmousedown="Admin.saveCursorRange()" ontouchstart="Admin.saveCursorRange()" onclick="Admin.saveCursorRange()" class="shrink-0 px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center gap-1 focus:outline-none cursor-pointer whitespace-nowrap" title="Upload Image or PDF">${Admin.icon('paperclip', 'w-3.5 h-3.5')} Media</label>
+            ? `<button type="button" id="${fileLabelId}" onmousedown="event.preventDefault(); Admin.saveCursorRange();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.pickMediaSource('${fileInputId}', '${id}')" class="shrink-0 px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center gap-1 focus:outline-none cursor-pointer whitespace-nowrap" title="Add an image from this device or from the internet">${Admin.icon('paperclip', 'w-3.5 h-3.5')} Media</button>
                             <input type="file" id="${fileInputId}" class="hidden" accept="image/*,.pdf">`
             : '';
         const alignL = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path></svg>';
@@ -12391,6 +13517,7 @@ const Admin = {
                             ${btn('smaller', 'Decrease Size', 'A-')}
                             ${btn('larger', 'Increase Size', 'A+')}
                             </div>
+                            ${Admin.writeAssistButtonHtml(id)}
                             <button type="button" onmousedown="event.preventDefault();" ontouchstart="Admin.saveCursorRange()" onclick="Admin.formatAlertText('link', '${id}')" class="shrink-0 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex items-center justify-center gap-1 focus:outline-none whitespace-nowrap" title="Add Custom Link">URL ${Admin.icon('globe', 'w-3.5 h-3.5')}</button>
                         </div>
                     </div>`;
@@ -12621,12 +13748,20 @@ const Admin = {
     /** Tally votes from polls/{id} payload ? { A, B, C, total }. */
     tallyPollVotes: (pollData) => {
         let A = 0, B = 0, C = 0;
+        const keysOf = (vote) => {
+            const raw = vote.optionKeys || vote.optionKey;
+            const list = Array.isArray(raw) ? raw : String(raw || '').split(/[,|]/);
+            return list.map((key) => String(key || '').trim().toUpperCase()).filter((key) => key === 'A' || key === 'B' || key === 'C');
+        };
         if (pollData && typeof pollData === 'object') {
-            Object.values(pollData).forEach((vote) => {
+            Object.entries(pollData).forEach(([key, vote]) => {
                 if (!vote || typeof vote !== 'object') return;
-                if (vote.optionKey === 'A') A++;
-                else if (vote.optionKey === 'B') B++;
-                else if (vote.optionKey === 'C') C++;
+                if (key === '_meta' || String(key).startsWith('_')) return;
+                keysOf(vote).forEach((letter) => {
+                    if (letter === 'A') A += 1;
+                    else if (letter === 'B') B += 1;
+                    else if (letter === 'C') C += 1;
+                });
             });
         }
         return { A, B, C, total: A + B + C };
@@ -13077,10 +14212,24 @@ const Admin = {
         }
     },
 
+    attachLinkPreview: async (payload) => {
+        if (!payload || payload.linkPreview?.url) return payload;
+        const api = window.ntLinkPreview;
+        if (!api?.firstHttpUrl || !api.fetchLinkPreview) return payload;
+        const url = api.firstHttpUrl(payload);
+        if (!url) return payload;
+        try {
+            const preview = await api.fetchLinkPreview(url, Admin.replyWorkerUrl());
+            if (preview?.url) payload.linkPreview = preview;
+        } catch { /* the alert still posts; the feed can load the card itself */ }
+        return payload;
+    },
+
     publishNoticeToTarget: async (target, payload, secret) => {
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
         const id = String(payload.id || Date.now());
         payload.id = id;
+        await Admin.attachLinkPreview(payload);
         const fetchRes = await window.guardianFetch(`${dynamicEndpoint}notices/${target}.json`, {}, 6000);
         const existing = fetchRes.ok ? await fetchRes.json() : null;
         const listed = Admin.listNoticesInTarget(existing);
@@ -13564,10 +14713,16 @@ const Admin = {
             const plain = (() => {
                 try {
                     const d = document.createElement('div');
-                    d.innerHTML = job.notice?.message || '';
-                    return (d.textContent || '').trim().slice(0, 100) || '(empty)';
+                    d.innerHTML = String(job.notice?.message || '')
+                        .replace(/<br\s*\/?>/gi, '\n')
+                        .replace(/<\/(p|div|h[1-4]|li)>/gi, '\n');
+                    return (d.textContent || '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim().slice(0, 220) || '(empty)';
                 } catch { return '(empty)'; }
             })();
+            const schedImg = (Array.isArray(job.notice?.imageUrls) && job.notice.imageUrls[0])
+                || job.notice?.imageUrl
+                || ((job.notice?.message || '').match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i) || [])[1]
+                || '';
             const freqKey = job.frequency === 'weekly' && job.weekdays && job.weekdays.length
                 ? 'Weekly'
                 : (job.frequency === 'monthly' ? 'Monthly' : (job.frequency === 'once' ? 'Later' : String(job.frequency || 'once')));
@@ -13587,7 +14742,8 @@ const Admin = {
                         ${paused ? '<span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-100 text-amber-700">Paused</span>' : ''}
                     </div>
                     ${summary ? `<p class="text-[10px] text-indigo-700 dark:text-indigo-300 font-medium mb-1">${summary}</p>` : ''}
-                    <p class="text-xs text-gray-800 dark:text-gray-200 leading-snug line-clamp-2 mb-1">${escapeHTML(plain)}</p>
+                    ${Admin.gsmNoticeImageHtml(schedImg)}
+                    <p class="text-xs text-gray-800 dark:text-gray-200 leading-snug line-clamp-4 whitespace-pre-line mb-1">${escapeHTML(plain)}</p>
                     <p class="text-[9px] font-mono text-gray-400 mb-2">Next ${escapeHTML(nextStr)} - Last ${escapeHTML(lastStr)}</p>
                     <div class="grid grid-cols-3 gap-2">
                         <button type="button" class="alert-sched-edit min-h-[44px] px-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[11px] font-black uppercase tracking-wider border border-blue-200 dark:border-blue-800 focus:outline-none" data-sched-id="${idSafe}">Edit</button>
@@ -13635,27 +14791,35 @@ const Admin = {
     },
 
     armScheduledAlertPublisher: () => {
-        if (window.__ntSchedAlertArmed) return;
-        window.__ntSchedAlertArmed = true;
         const tick = () => {
-            Admin.publishDueScheduledAlerts()
-                .then((due) => {
-                    if (due && Number(due.published) > 0) return null;
-                    return Admin.fetchScheduledAlerts().then((items) => {
-                        const stillDue = (items || []).filter((job) => job && job.enabled !== false && Number(job.nextRunAt || 0) <= Date.now());
-                        if (!stillDue.length) return null;
-                        return Admin.publishDueScheduledAlertsDirect(null, stillDue);
-                    });
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+            Promise.resolve(typeof Admin.getAuthKey === 'function' ? Admin.getAuthKey() : null)
+                .then((secret) => {
+                    if (!secret) return null;
+                    return Admin.publishDueScheduledAlerts(secret)
+                        .then((due) => {
+                            if (due && Number(due.published) > 0) return null;
+                            return Admin.fetchScheduledAlerts().then((items) => {
+                                const stillDue = (items || []).filter((job) => job && job.enabled !== false && Number(job.nextRunAt || 0) <= Date.now());
+                                if (!stillDue.length) return null;
+                                return Admin.publishDueScheduledAlertsDirect(secret, stillDue);
+                            });
+                        });
                 })
                 .catch((err) => {
+                    const pubMsg = String((err && err.message) || err || '');
+                    if (/abort|offline|failed to fetch|authentication required/i.test(pubMsg)) return;
                     console.warn('armScheduledAlertPublisher optional', err);
                 });
         };
-        setTimeout(tick, 4000);
-        setInterval(tick, 60_000);
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') tick();
-        });
+        if (!window.__ntSchedAlertArmed) {
+            window.__ntSchedAlertArmed = true;
+            setInterval(tick, 60_000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') tick();
+            });
+        }
+        setTimeout(tick, 400);
     },
 
     refreshScheduledAlerts: async () => {
@@ -14889,11 +16053,16 @@ const Admin = {
         }
 
         // GUARDIAN WYSIWYG FIX: Strip formatting on paste to prevent CSS corruption
-        if (alertMsg) {
+        if (alertMsg && !alertMsg.dataset.ntPasteBound) {
+            alertMsg.dataset.ntPasteBound = '1';
             alertMsg.addEventListener('paste', (e) => {
                 e.preventDefault();
                 const text = (e.originalEvent || e).clipboardData.getData('text/plain');
-                document.execCommand('insertText', false, text);
+                const marked = typeof window.whatsappMarkupToHtml === 'function'
+                    ? window.whatsappMarkupToHtml(text)
+                    : '';
+                if (marked) document.execCommand('insertHTML', false, marked);
+                else document.execCommand('insertText', false, text);
             });
         }
 
@@ -16697,7 +17866,7 @@ const Admin = {
                 <svg id="grid-order-chevron" class="w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
             <div id="grid-order-body" class="hidden mt-4 space-y-3">
-                <p class="text-[10px] leading-snug text-gray-500 dark:text-gray-400">Choose a route, service day, and direction. Drag trains or use the accessible move buttons, then save the explicit array to RTDB.</p>
+                <p class="text-[10px] leading-snug text-gray-500 dark:text-gray-400">Choose a route, service day, and direction. Drag trains or use the move buttons, then save. Via marks the branch under that train number. Blank leaves the sheet note in charge.</p>
                 <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500">Route
                     <select id="grid-order-route" class="mt-1 w-full h-10 px-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-xs text-gray-900 dark:text-white"></select>
                 </label>
@@ -16735,6 +17904,8 @@ const Admin = {
         const actionsEl = panel.querySelector('#grid-order-actions');
         let currentOrder = [];
         let baseline = [];
+        let currentVia = {};
+        let baselineVia = {};
         let currentSheetKey = '';
         let currentRecord = null;
         let draggedIndex = -1;
@@ -16787,10 +17958,33 @@ const Admin = {
             return [...found];
         };
 
+        const viaSnapshot = (map) => JSON.stringify(Object.keys(map || {}).sort().map((id) => [id, map[id]]));
+
         const markDirty = () => {
-            Admin.gridOrderDirty = JSON.stringify(currentOrder) !== JSON.stringify(baseline);
+            Admin.gridOrderDirty = JSON.stringify(currentOrder) !== JSON.stringify(baseline)
+                || viaSnapshot(currentVia) !== viaSnapshot(baselineVia);
             panel.querySelector('#grid-order-save').disabled = !Admin.gridOrderDirty;
             panel.querySelector('#grid-order-save').classList.toggle('opacity-50', !Admin.gridOrderDirty);
+        };
+
+        const writeBody = (action) => {
+            const build = window.buildGridOrderWriteRecord;
+            const base = {
+                via: currentVia,
+                updatedAt: Date.now(),
+                updatedBy: Admin.currentUser?.email || 'unknown',
+                source: 'admin',
+            };
+            if (typeof build === 'function') {
+                return action === 'reset'
+                    ? build({ ...base, action: 'reset' })
+                    : build({ ...base, order: currentOrder.slice() });
+            }
+            const record = { ...base };
+            if (action === 'reset') record.action = 'reset';
+            else record.order = currentOrder.slice();
+            if (!Object.keys(currentVia).length) delete record.via;
+            return record;
         };
 
         const move = (from, to) => {
@@ -16803,14 +17997,38 @@ const Admin = {
         };
 
         const paintList = () => {
-            listEl.innerHTML = currentOrder.map((id, index) => `
-                <li draggable="true" data-grid-order-row="${index}" class="flex items-center gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                    <button type="button" data-grid-order-index="${index}" class="cursor-grab touch-none text-gray-400 px-1 focus:outline-none" aria-label="Drag train ${id}">⋮⋮</button>
-                    <span class="font-mono font-bold text-xs text-gray-800 dark:text-gray-100 flex-1">${ntAdminSecureEscape(id)}</span>
-                    <button type="button" data-grid-order-up="${index}" class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-xs disabled:opacity-30" aria-label="Move train ${id} up" ${index === 0 ? 'disabled' : ''}>↑</button>
-                    <button type="button" data-grid-order-down="${index}" class="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-xs disabled:opacity-30" aria-label="Move train ${id} down" ${index === currentOrder.length - 1 ? 'disabled' : ''}>↓</button>
-                </li>
-            `).join('');
+            listEl.innerHTML = currentOrder.map((id, index) => {
+                const via = currentVia[id] || '';
+                return `
+                <li draggable="true" data-grid-order-row="${index}" class="flex flex-col gap-1.5 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                    <div class="flex items-center gap-2">
+                        <button type="button" data-grid-order-index="${index}" class="cursor-grab touch-none text-gray-400 px-1 focus:outline-none" aria-label="Drag train ${id}">⋮⋮</button>
+                        <span class="font-mono font-bold text-xs text-gray-800 dark:text-gray-100 flex-1">${ntAdminSecureEscape(id)}</span>
+                        <button type="button" data-grid-order-up="${index}" class="min-h-10 min-w-10 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-xs disabled:opacity-30" aria-label="Move train ${id} up" ${index === 0 ? 'disabled' : ''}>↑</button>
+                        <button type="button" data-grid-order-down="${index}" class="min-h-10 min-w-10 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-xs disabled:opacity-30" aria-label="Move train ${id} down" ${index === currentOrder.length - 1 ? 'disabled' : ''}>↓</button>
+                    </div>
+                    <label class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        <span class="shrink-0 w-8">Via</span>
+                        <select data-grid-via="${ntAdminSecureEscape(id)}" class="min-w-0 flex-1 h-10 px-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-xs font-semibold normal-case text-gray-900 dark:text-white" aria-label="Via branch for train ${ntAdminSecureEscape(id)}">
+                            <option value="" ${via ? '' : 'selected'}>None</option>
+                            <option value="MONTE_VISTA" ${via === 'MONTE_VISTA' ? 'selected' : ''}>Monte Vista</option>
+                            <option value="MAITLAND" ${via === 'MAITLAND' ? 'selected' : ''}>Maitland</option>
+                        </select>
+                    </label>
+                </li>`;
+            }).join('');
+            listEl.querySelectorAll('[data-grid-via]').forEach((select) => {
+                const stopDrag = (event) => event.stopPropagation();
+                select.addEventListener('mousedown', stopDrag);
+                select.addEventListener('touchstart', stopDrag, { passive: true });
+                select.addEventListener('change', () => {
+                    const trainId = select.getAttribute('data-grid-via');
+                    if (!trainId) return;
+                    if (select.value === 'MONTE_VISTA' || select.value === 'MAITLAND') currentVia[trainId] = select.value;
+                    else delete currentVia[trainId];
+                    markDirty();
+                });
+            });
             listEl.querySelectorAll('[data-grid-order-up]').forEach((button) => {
                 button.onclick = () => move(Number(button.dataset.gridOrderUp), Number(button.dataset.gridOrderUp) - 1);
             });
@@ -16855,6 +18073,8 @@ const Admin = {
                 metaEl.textContent = `Could not load ${route?.region || ''} schedule dump.`;
                 currentOrder = [];
                 baseline = [];
+                currentVia = {};
+                baselineVia = {};
                 paintList();
                 actionsEl.classList.add('hidden');
                 Admin.gridOrderDirty = false;
@@ -16864,6 +18084,8 @@ const Admin = {
             if (!currentSheetKey || !ids.length) {
                 currentOrder = [];
                 baseline = [];
+                currentVia = {};
+                baselineVia = {};
                 paintList();
                 actionsEl.classList.add('hidden');
                 metaEl.classList.remove('hidden');
@@ -16891,6 +18113,10 @@ const Admin = {
                 manifestOrder,
             });
             baseline = currentOrder.slice();
+            currentVia = typeof window.viaCodesFromGridOrderRecord === 'function'
+                ? window.viaCodesFromGridOrderRecord(currentRecord)
+                : {};
+            baselineVia = { ...currentVia };
             loadedSelection = {
                 route: routeEl.value,
                 day: dayEl.value,
@@ -16916,6 +18142,7 @@ const Admin = {
             if (!response.ok) throw new Error(`RTDB write failed (${response.status})`);
             currentRecord = record;
             baseline = currentOrder.slice();
+            baselineVia = { ...currentVia };
             Admin.gridOrderDirty = false;
             markDirty();
             describeRecord(record);
@@ -16929,12 +18156,7 @@ const Admin = {
             const button = panel.querySelector('#grid-order-save');
             button.disabled = true;
             try {
-                await writeRecord({
-                    order: currentOrder.slice(),
-                    updatedAt: Date.now(),
-                    updatedBy: Admin.currentUser?.email || 'unknown',
-                    source: 'admin',
-                });
+                await writeRecord(writeBody());
                 if (typeof showToast === 'function') showToast('Grid order saved.', 'success');
             } catch (error) {
                 if (typeof showToast === 'function') showToast(error.message || 'Grid order save failed.', 'error');
@@ -16957,12 +18179,7 @@ const Admin = {
             paintList();
             markDirty();
             try {
-                await writeRecord({
-                    action: 'reset',
-                    updatedAt: Date.now(),
-                    updatedBy: Admin.currentUser?.email || 'unknown',
-                    source: 'admin',
-                });
+                await writeRecord(writeBody('reset'));
                 if (typeof showToast === 'function') showToast('Grid order reset to fallback.', 'success');
             } catch (error) {
                 if (typeof showToast === 'function') showToast(error.message || 'Grid order reset failed.', 'error');
@@ -17035,9 +18252,12 @@ const Admin = {
                 <details class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800 space-y-2">
                     <summary class="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 cursor-pointer">2. Timetable grid banner</summary>
                     <p class="text-[10px] text-blue-700 dark:text-blue-400 leading-snug">Route-wide banner inside the full timetable grid. Separate from the NO SVC / SPL train tag below.</p>
-                    <label class="block text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase mb-1">Banner text</label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase" for="excl-grid-notice">Banner text</label>
+                        ${Admin.writeAssistButtonHtml('excl-grid-notice')}
+                    </div>
                     <div class="flex space-x-2">
-                        <input type="text" id="excl-grid-notice" class="w-full h-10 px-3 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-xs text-gray-900 dark:text-white outline-none" placeholder="e.g. Trains 9116 & 9118 cancelled due to maintenance...">
+                        <input type="text" id="excl-grid-notice" class="flex-1 min-w-0 h-10 px-3 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-lg text-xs text-gray-900 dark:text-white outline-none" placeholder="e.g. Trains 9116 & 9118 cancelled due to maintenance...">
                         <button id="excl-save-notice-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 rounded-lg shadow-sm transition-colors text-xs whitespace-nowrap focus:outline-none">Save</button>
                     </div>
                     <div>
@@ -18187,6 +19407,7 @@ const Admin = {
                                     <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                                 </button>
                                 <div data-fb-more-menu class="hidden absolute right-0 top-full mt-1 z-[40] w-56 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl py-1 text-left">
+                                    ${did !== 'Anonymous / Legacy' ? `<button type="button" onclick="event.stopPropagation(); Admin.suggestReplyForThread('${safeDidAttr}')" class="w-full px-3 py-2 text-left text-[11px] font-bold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('reply', 'w-3.5 h-3.5')} Suggest reply</button>` : ''}
                                     <button type="button" onclick="event.stopPropagation(); Admin.exportThreadForAI('${safeDidAttr}')" class="w-full px-3 py-2 text-left text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('download', 'w-3.5 h-3.5')} Export</button>
                                     <button type="button" data-escalate="${escalateAttr}" onclick="event.stopPropagation(); Admin.escalateFromEl(this)" class="w-full px-3 py-2 text-left text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('alert', 'w-3.5 h-3.5')} Escalate</button>
                                     ${did !== 'Anonymous / Legacy' ? `<button type="button" onclick="event.stopPropagation(); Admin.openFeedbackBetaGrant('${safeDidAttr}')" class="w-full px-3 py-2 text-left text-[11px] font-bold text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/30 focus:outline-none flex items-center gap-2">${Admin.icon('star', 'w-3.5 h-3.5')} Add to beta</button>` : ''}
@@ -18562,9 +19783,6 @@ const Admin = {
                         const commuterRouteHtml = commuterRouteLabel
                             ? `<div class="inbox-bubble-route-row">${secureEscape(commuterRouteLabel)}</div>`
                             : '';
-                        const signedOutHtml = (item.sentSignedOut || item.chatScope === 'guest')
-                            ? `<div class="text-[10px] font-semibold text-amber-700 dark:text-amber-300 mt-0.5">Sent while signed out</div>`
-                            : '';
                         const commuterVerBtn = /^V\d+_/i.test(verLabel)
                             ? `<button type="button" class="fb-version-chip relative z-[2] font-mono font-medium opacity-80 ml-2 shrink-0 underline decoration-dotted underline-offset-2 hover:opacity-100 focus:outline-none" data-admin-changelog="${verLabel}" onclick="event.preventDefault();event.stopPropagation();if(window.Admin&amp;&amp;Admin.openAdminChangelogLookup)Admin.openAdminChangelogLookup(this.getAttribute('data-admin-changelog')||this.textContent);">${verLabel}</button>`
                             : `<span class="font-mono font-medium opacity-60 ml-2 shrink-0">${verLabel}</span>`;
@@ -18574,7 +19792,6 @@ const Admin = {
                                 ${commuterVerBtn}
                             </div>
                             ${commuterRouteHtml}
-                            ${signedOutHtml}
                         `;
 
                         const inboxReactId = item.inboxMsgId || '';
@@ -19100,13 +20317,19 @@ const Admin = {
                     <input id="push-notifications-user" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white" placeholder="Signed-in Account uid" autocomplete="off">
                 </div>
                 <div>
-                    <label class="block text-[9px] font-black uppercase tracking-wider text-gray-500 mb-1" for="push-notifications-title">Title</label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-[9px] font-black uppercase tracking-wider text-gray-500" for="push-notifications-title">Title</label>
+                        ${Admin.writeAssistButtonHtml('push-notifications-title')}
+                    </div>
                     <input id="push-notifications-title" maxlength="80" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white" placeholder="Next Train service update">
                 </div>
                 <div>
                     <div class="flex items-center justify-between mb-1">
                         <label class="text-[9px] font-black uppercase tracking-wider text-gray-500" for="push-notifications-message">Message</label>
-                        <span id="push-notifications-count" class="text-[9px] text-gray-400">0 / 180</span>
+                        <span class="inline-flex items-center gap-2">
+                            ${Admin.writeAssistButtonHtml('push-notifications-message')}
+                            <span id="push-notifications-count" class="text-[9px] text-gray-400">0 / 180</span>
+                        </span>
                     </div>
                     <textarea id="push-notifications-message" maxlength="180" rows="3" class="w-full px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white resize-none" placeholder="What commuters need to know"></textarea>
                 </div>
@@ -21813,8 +23036,16 @@ const Admin = {
                     <select class="sched-override-day w-full h-9 px-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none" data-region="${code}">
                         ${schedDayTypesForRegion(code).map((t) => `<option value="${t.value}">${t.label}</option>`).join('')}
                     </select>
-                    <input type="text" class="sched-override-title w-full h-9 px-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none" data-region="${code}" placeholder="Popup title (e.g. Public holiday today)" maxlength="120">
-                    <textarea class="sched-override-body w-full min-h-[56px] px-2 py-1.5 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none resize-y" data-region="${code}" placeholder="Popup message explaining the situation" maxlength="500"></textarea>
+                    <div class="flex items-center justify-between">
+                        <span class="text-[9px] font-bold uppercase tracking-wide text-gray-500">Title</span>
+                        ${Admin.writeAssistButtonHtml('sched-override-title-' + code)}
+                    </div>
+                    <input type="text" id="sched-override-title-${code}" class="sched-override-title w-full h-9 px-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none" data-region="${code}" placeholder="Popup title (e.g. Public holiday today)" maxlength="120">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[9px] font-bold uppercase tracking-wide text-gray-500">Message</span>
+                        ${Admin.writeAssistButtonHtml('sched-override-msg-' + code)}
+                    </div>
+                    <textarea id="sched-override-msg-${code}" class="sched-override-body w-full min-h-[56px] px-2 py-1.5 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none resize-y" data-region="${code}" placeholder="Popup message explaining the situation" maxlength="500"></textarea>
                 </div>
             `).join('');
         }
@@ -21989,7 +23220,7 @@ const Admin = {
                     }
                 } catch (ape) { /* keep safe defaults */ }
 
-                } catch(e) { console.warn("Failed to check system status"); }
+                } catch(e) { /* status check is optional when offline */ }
         }
         checkStatus();
 
