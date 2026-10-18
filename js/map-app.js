@@ -1519,14 +1519,34 @@
 
             // --- DYNAMIC ROUTE & STATION EXTRACTOR ---
             const colorMap = {
+                'text-[#937e3b]': '#937e3b',
+                'text-[#ec008c]': '#ec008c',
+                'text-[#f58220]': '#f58220',
+                'text-[#f5821f]': '#f5821f',
+                'text-[#00b9f1]': '#00b9f1',
+                'text-[#0071bb]': '#0071bb',
+                'text-[#ed262e]': '#ed262e',
+                'text-[#ee1a24]': '#ee1a24',
+                'text-[#ee2f33]': '#ee2f33',
+                'text-[#036630]': '#036630',
+                'text-[#00a651]': '#00a651',
+                'text-[#00a650]': '#00a650',
+                'text-[#a9cf41]': '#a9cf41',
+                'text-[#a6ce38]': '#a6ce38',
+                'text-[#8f5644]': '#8f5644',
+                'text-[#00b9f3]': '#00b9f3',
+                'text-[#2d88c7]': '#2d88c7',
+                'text-[#fad561]': '#fad561',
+                'text-[#0abcf2]': '#0abcf2',
+                'text-[#6f2729]': '#6f2729',
+                'text-yellow-500': '#eab308',
                 'text-green-500': '#22c55e',
-                'text-lime-500': '#84cc16', 
+                'text-lime-500': '#84cc16',
                 'text-orange-500': '#f97316',
                 'text-purple-500': '#a855f7',
                 'text-indigo-500': '#6366f1',
                 'text-blue-500': '#3b82f6',
-                'text-yellow-600': '#ca8a04', 
-                'text-yellow-500': '#eab308',
+                'text-yellow-600': '#ca8a04',
                 'text-red-500': '#ef4444'
             };
 
@@ -1859,7 +1879,7 @@
                     drawnRoutes.push({
                         routeId: 'wc-maitland-mutual',
                         name: 'Maitland ↔ Mutual',
-                        color: '#22c55e',
+                        color: '#00a650',
                         isActive: true,
                         coords: [mai, mut],
                         validStops: [
@@ -3587,7 +3607,19 @@
                         ? L.point(dir === 'right' ? 16 : -16, 0)
                         : L.point(0, -5);
                     var el = tip.getElement && tip.getElement();
-                    if (el) el.classList.toggle('nt-station-callout', close);
+                    if (el) {
+                        var wasCallout = el.classList.contains('nt-station-callout');
+                        if (wasCallout !== close) {
+                            el.style.transition = 'none';
+                            el.classList.toggle('nt-station-callout', close);
+                            if (!close) {
+                                var node = el;
+                                requestAnimationFrame(function () {
+                                    if (node && !node.classList.contains('nt-station-callout')) node.style.transition = '';
+                                });
+                            }
+                        }
+                    }
                     if (typeof tip._updatePosition === 'function') {
                         try { tip._updatePosition(); } catch (_) {}
                     }
@@ -3625,7 +3657,7 @@
                 var numHtml = (spec && spec.far)
                     ? ''
                     : '<span class="nt-live-train-num" style="font-size:' + numSize + ';transform:rotate(' + labelCounterYaw + 'deg)">' + id + '</span>';
-                return '<div class="' + wrapCls + '" title="Train ' + id + '">'
+                return '<div class="' + wrapCls + '">'
                     + '<span class="nt-live-train-ring" aria-hidden="true"></span>'
                     + '<span class="nt-live-train-ring nt-live-train-ring--delay" aria-hidden="true"></span>'
                     + '<span class="' + cls + '" style="transform:rotate(' + yaw + 'deg)">'
@@ -3693,6 +3725,19 @@
                     tickRidePopupFreshness();
                     applyRideTrainStalePause();
                 }, 1000);
+                setInterval(function () {
+                    if (document.hidden) return;
+                    var ids = Object.keys(rideTrainMarkers);
+                    if (!ids.length) return;
+                    var pts = [];
+                    ids.forEach(function (id) {
+                        var marker = rideTrainMarkers[id];
+                        var ll = marker && marker.getLatLng && marker.getLatLng();
+                        if (!ll) return;
+                        pts.push({ lat: ll.lat, lng: ll.lng });
+                    });
+                    updateStationCallouts(pts);
+                }, 200);
             }
             function applyRideTrainStalePause() {
                 var now = Date.now();
@@ -3731,8 +3776,8 @@
                 }
             }
             // Keep in sync with src/lib/gps-freshness.js (RIDE_GPS_STALE_MS / RIDE_INTERPOLATION_MAX_MS).
-            var RIDE_GPS_STALE_MS = 15000;
-            var RIDE_INTERPOLATION_MAX_MS = 15000;
+            var RIDE_GPS_STALE_MS = 18000;
+            var RIDE_INTERPOLATION_MAX_MS = 18000;
             var STATION_APPROACH_M = 160;
             var STATION_DWELL_SEC = 0.7;
             var STATION_CRAWL_SEC = 0.22;

@@ -1951,11 +1951,35 @@ const Admin = {
         if (isPdf) {
             return `&nbsp;<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-500 dark:text-blue-400 underline font-bold px-1 inline-flex items-center gap-1">${Admin.icon('file', 'w-3.5 h-3.5')} View Attached PDF</a>&nbsp;`;
         }
-        const js = typeof window.lightboxOnclickJs === 'function'
-            ? window.lightboxOnclickJs(safe, 'window.openLightbox')
-            : '';
-        if (!js) return '';
-        return `<br><button type="button" onclick='${js}' class="relative block w-full focus:outline-none my-2 cursor-zoom-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm active:scale-[0.98] transition-transform"><img src="${href}" class="w-full h-auto object-cover hover:opacity-90 transition-opacity" alt="Admin Attachment"><span class="nt-zoom-plus absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-black/40 text-white text-xs font-bold leading-none flex items-center justify-center border border-white/20 pointer-events-none select-none shadow-sm" aria-hidden="true">+</span></button><br>`;
+        return `<br><img src="${href}" data-nt-src="${href}" alt="" referrerpolicy="no-referrer" draggable="false" class="nt-composer-image" style="display:block;width:100%;max-width:100%;height:auto;min-height:4rem;white-space:normal;object-fit:contain;background:#f3f4f6;border-radius:12px;margin:8px 0"><br>`;
+    },
+
+    /** Contenteditable drops a picture that sits inside a button. Stamp the live image so the preview can still read it. */
+    stampComposerImages: (editor) => {
+        if (!editor?.querySelectorAll) return;
+        editor.querySelectorAll('img').forEach((img) => {
+            const src = img.getAttribute('data-nt-src') || img.getAttribute('src') || '';
+            if (!src) return;
+            if (img.getAttribute('src') !== src) img.setAttribute('src', src);
+            if (img.getAttribute('data-nt-src') !== src) img.setAttribute('data-nt-src', src);
+            img.referrerPolicy = 'no-referrer';
+            img.setAttribute('alt', '');
+            img.draggable = false;
+        });
+    },
+
+    ensureComposerImageOpen: () => {
+        if (Admin._composerImageOpenBound) return;
+        Admin._composerImageOpenBound = true;
+        document.addEventListener('click', (event) => {
+            const img = event.target?.closest?.('#alert-msg img, #admin-reply-text img, #disr-msg img, [data-nt-media-slot] img');
+            if (!img) return;
+            const src = img.getAttribute('data-nt-src') || img.getAttribute('src') || '';
+            if (!src || typeof window.openLightbox !== 'function') return;
+            event.preventDefault();
+            event.stopPropagation();
+            window.openLightbox(src);
+        });
     },
 
     wrapLightboxImgHtml: function(srcUrl, borderClass) {
@@ -2479,6 +2503,7 @@ const Admin = {
         } catch { /* ignore */ }
         Admin.bindFeedbackPreviewChrome(overlay);
         Admin.paintFeedbackPreviewChrome(overlay);
+        try { window.dispatchEvent(new CustomEvent('nt-alert-lightbox', { detail: null })); } catch { /* ignore */ }
         return !overlay.classList.contains('hidden');
     },
 
@@ -3176,7 +3201,8 @@ const Admin = {
         const secret = await Admin.getAuthKey();
         if (!secret) return;
         const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-        let totalUnread = 0; // GUARDIAN PHASE 11: Accumulator for PWA Badge
+        let totalUnread = 0; // GUARDIAN PHASE 11: Accumulator for in-panel tiles
+        let messageUnread = null; // Home-screen badge is new commuter messages only
 
         try {
             // Fetch Universal Cross-Device Admin State
@@ -3198,7 +3224,8 @@ const Admin = {
                 if (fbData && typeof fbData === 'object') {
                     Object.values(fbData).forEach(i => { if (i.timestamp > lastChecked) fbUnread++; });
                 }
-                
+
+                messageUnread = fbUnread;
                 totalUnread += fbUnread;
                 const fbBadge = document.getElementById('fb-unread-badge');
                 if (fbBadge) {
@@ -3300,9 +3327,9 @@ const Admin = {
                 }
             }
             
-            // GUARDIAN 2.4.1: Native PWA App Icon Badging
-            if ('setAppBadge' in navigator) {
-                if (totalUnread > 0) navigator.setAppBadge(totalUnread);
+            // Home-screen badge is unread commuter messages. Tiles above keep their own counts.
+            if (messageUnread != null && 'setAppBadge' in navigator) {
+                if (messageUnread > 0) navigator.setAppBadge(messageUnread);
                 else navigator.clearAppBadge();
             }
         } catch(e) {
@@ -4968,9 +4995,37 @@ const Admin = {
         return data && typeof data === 'object' ? data : {};
     },
 
+    liveBriefDisruptions: (data) => {
+        const now = Date.now();
+        const out = [];
+        if (!data || typeof data !== 'object') return out;
+        Object.entries(data).forEach(([rId, routeNode]) => {
+            if (!routeNode || typeof routeNode !== 'object') return;
+            const route = (typeof ROUTES !== 'undefined' && ROUTES[rId]) || null;
+            const routeName = route
+                ? (Admin.formatRouteLabelPlain ? Admin.formatRouteLabelPlain(route.name) : String(route.name || rId))
+                : rId;
+            Object.values(routeNode).forEach((item) => {
+                if (!item || typeof item !== 'object') return;
+                if (item.expiresAt && Number(item.expiresAt) < now) return;
+                const stretch = Array.isArray(item.stations) && item.stations.length
+                    ? item.stations.join(' - ').replace(/ STATION/g, '')
+                    : 'the whole route';
+                out.push({
+                    region: route?.region || '',
+                    route: routeName,
+                    stretch,
+                    tier: item.tier === 'CRITICAL' ? 'CRITICAL' : '',
+                });
+            });
+        });
+        return out.slice(0, 8);
+    },
+
     gatherOperatorBrief: async () => {
         const api = window.ntOperatorBrief;
-        const [trips, pairs, users, fails, fares, crashes, featuresRes, sheetRes] = await Promise.all([
+        const dynamicBase = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+        const [trips, pairs, users, fails, fares, crashes, featuresRes, sheetRes, disruptions] = await Promise.all([
             Admin.fetchBriefNode('sys_logs/trip_plans', 40).catch(() => ({})),
             (async () => {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
@@ -4993,12 +5048,24 @@ const Admin = {
             Admin.fetchBriefNode('sys_logs/routing_fails', 80).catch(() => ({})),
             Admin.fetchBriefNode('sys_logs/fare_votes', 80).catch(() => ({})),
             Admin.fetchBriefNode('sys_logs/crashes', 20).catch(() => ({})),
-            fetch(`${typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/'}config/features.json`).catch(() => null),
-            fetch(`${typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/'}config/schedule_override.json`).catch(() => null),
+            fetch(`${dynamicBase}config/features.json`).catch(() => null),
+            fetch(`${dynamicBase}config/schedule_override.json`).catch(() => null),
+            (async () => {
+                const secret = await Admin.getAuthKey();
+                const auth = secret ? `?auth=${encodeURIComponent(secret)}` : '';
+                const res = await fetch(`${dynamicBase}disruptions.json${auth}`).catch(() => null);
+                if (!res || !res.ok) return [];
+                const data = await res.json().catch(() => null);
+                return Admin.liveBriefDisruptions(data);
+            })(),
         ]);
         const tripRows = [];
         Object.values(trips || {}).forEach((batch) => {
-            (batch?.trips || []).forEach((trip) => tripRows.push(trip));
+            const flushed = Number(batch?.flushedAt || 0);
+            (batch?.trips || []).forEach((trip) => {
+                const stamped = Number(trip?.timestamp || trip?.at || 0);
+                tripRows.push(stamped ? trip : { ...trip, timestamp: flushed || undefined });
+            });
         });
         const crashRows = Object.entries(crashes || {}).map(([id, row]) => ({ id, ...(row || {}) }));
         Admin._briefCrashes = Object.fromEntries(crashRows.map((row) => [row.id, row]));
@@ -5018,6 +5085,7 @@ const Admin = {
             features,
             scheduleOverride,
             expiring: Admin._gsmItems || [],
+            disruptions,
         });
     },
 
@@ -5039,10 +5107,290 @@ const Admin = {
         });
         const data = await res.json().catch(() => ({}));
         if (res.status === 404) {
-            throw new Error('The reply worker does not have the brief yet. From the workers/nexttrain-reply folder, run npx wrangler deploy.');
+            const missing = new Error('The written note is not available.');
+            missing.localBrief = true;
+            throw missing;
         }
         if (!res.ok) throw new Error(data.error || 'Could not write the brief.');
         return String(data.text || '');
+    },
+
+    openBriefAlert: (index) => {
+        const card = (Admin._briefCards || [])[index];
+        const api = window.ntOperatorBrief;
+        if (!card || !api?.alertDraftFromBriefCard) return;
+        const draft = api.alertDraftFromBriefCard(card);
+        let sheet = document.getElementById('operator-brief-alert-sheet');
+        if (!sheet) {
+            sheet = document.createElement('div');
+            sheet.id = 'operator-brief-alert-sheet';
+            sheet.className = 'fixed inset-0 z-[320] hidden bg-black/50 flex items-end justify-center';
+            sheet.innerHTML = `
+                <form id="operator-brief-alert-form" class="w-full max-w-lg rounded-t-3xl bg-white dark:bg-gray-900 px-4 pt-4 pb-6 shadow-2xl">
+                    <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-rose-600">Add to alerts</p>
+                    <h3 id="operator-brief-alert-title" class="mt-1 text-base font-semibold text-slate-900 dark:text-white"></h3>
+                    <div id="operator-brief-alert-preview" class="mt-2 max-h-40 overflow-y-auto text-sm text-slate-700 dark:text-slate-200 leading-relaxed"></div>
+                    <label class="block mt-3 text-[11px] font-bold text-slate-500" for="operator-brief-alert-target">Who sees it</label>
+                    <select id="operator-brief-alert-target" class="mt-1 w-full h-10 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-gray-950 text-sm px-2"></select>
+                    <label class="block mt-3 text-[11px] font-bold text-slate-500" for="operator-brief-alert-severity">Severity</label>
+                    <select id="operator-brief-alert-severity" class="mt-1 w-full h-10 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-gray-950 text-sm px-2">
+                        <option value="info">Info</option>
+                        <option value="warning">Warning</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                    <label class="block mt-3 text-[11px] font-bold text-slate-500" for="operator-brief-alert-expiry">Expires</label>
+                    <input id="operator-brief-alert-expiry" type="datetime-local" class="mt-1 w-full h-10 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-gray-950 text-sm px-2">
+                    <div class="mt-4 flex gap-2">
+                        <button type="button" id="operator-brief-alert-cancel" class="flex-1 py-2 rounded-lg bg-slate-100 dark:bg-gray-800 text-sm font-bold">Cancel</button>
+                        <button type="submit" class="flex-1 py-2 rounded-lg bg-rose-600 text-white text-sm font-bold">Post alert</button>
+                    </div>
+                </form>`;
+            document.body.appendChild(sheet);
+            sheet.querySelector('#operator-brief-alert-cancel').onclick = () => Admin.closeBriefAlert();
+            sheet.addEventListener('click', (event) => {
+                if (event.target === sheet) Admin.closeBriefAlert();
+            });
+            sheet.querySelector('#operator-brief-alert-form').addEventListener('submit', (event) => {
+                event.preventDefault();
+                Admin.postBriefAlert();
+            });
+        }
+        Admin._briefAlertDraft = draft;
+        const title = sheet.querySelector('#operator-brief-alert-title');
+        const preview = sheet.querySelector('#operator-brief-alert-preview');
+        const target = sheet.querySelector('#operator-brief-alert-target');
+        const severity = sheet.querySelector('#operator-brief-alert-severity');
+        const expiry = sheet.querySelector('#operator-brief-alert-expiry');
+        if (title) title.textContent = draft.title || 'Alert';
+        if (preview) preview.innerHTML = draft.message || '';
+        if (target) {
+            const chips = Admin.ALERT_SCOPE_CHIPS || [];
+            target.innerHTML = chips.map((chip) => `<option value="${chip.value}">${chip.label}</option>`).join('');
+            if (draft.target && !chips.some((chip) => chip.value === draft.target)) {
+                target.insertAdjacentHTML('beforeend', `<option value="${draft.target}">${Admin.alertTargetLabel(draft.target)}</option>`);
+            }
+            target.value = draft.target || 'all';
+        }
+        if (severity) severity.value = draft.severity || 'info';
+        if (expiry) expiry.value = Admin.endOfTodayLocalValue();
+        sheet.classList.remove('hidden');
+        Admin.rememberBriefLayer('#brief-alert');
+    },
+
+    rememberBriefLayer: (hash) => {
+        try {
+            if ((location.hash || '') === hash) return;
+            history.pushState({ brief: hash }, '', hash);
+        } catch { /* ignore */ }
+    },
+
+    onBriefPopState: () => {
+        const sheet = document.getElementById('operator-brief-alert-sheet');
+        if (sheet && !sheet.classList.contains('hidden')) {
+            sheet.classList.add('hidden');
+            return true;
+        }
+        const overlay = document.getElementById('operator-brief-overlay');
+        if (overlay && !overlay.classList.contains('hidden')) {
+            overlay.classList.add('hidden');
+            return true;
+        }
+        return false;
+    },
+
+    closeBriefAlert: () => {
+        if ((location.hash || '') === '#brief-alert') {
+            history.back();
+            return;
+        }
+        document.getElementById('operator-brief-alert-sheet')?.classList.add('hidden');
+    },
+
+    closeOperatorBrief: () => {
+        const hash = location.hash || '';
+        if (hash === '#brief' || hash === '#brief-alert') {
+            history.back();
+            return;
+        }
+        document.getElementById('operator-brief-overlay')?.classList.add('hidden');
+        document.getElementById('operator-brief-card-menu')?.classList.add('hidden');
+    },
+
+    postBriefAlert: async () => {
+        const draft = Admin._briefAlertDraft;
+        const sheet = document.getElementById('operator-brief-alert-sheet');
+        if (!draft?.message) return;
+        const target = document.getElementById('operator-brief-alert-target')?.value || draft.target || 'all';
+        const severity = document.getElementById('operator-brief-alert-severity')?.value || 'info';
+        const expiryRaw = document.getElementById('operator-brief-alert-expiry')?.value || '';
+        const expiresAt = expiryRaw ? new Date(expiryRaw).getTime() : NaN;
+        if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+            if (typeof showToast === 'function') showToast('Pick an expiry that is still ahead.', 'error');
+            return;
+        }
+        const secret = await Admin.getAuthKey();
+        if (!secret) {
+            if (typeof showToast === 'function') showToast('Sign in as an operator first.', 'error');
+            return;
+        }
+        const signoff = 'Next Train Ops';
+        const message = /<span[^>]*>.*?<\/span>\s*$/i.test(draft.message)
+            ? draft.message
+            : `${draft.message}<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">- ${signoff}</span>`;
+        const nowTs = Date.now();
+        const payload = {
+            id: String(nowTs),
+            title: draft.title || '',
+            message,
+            authorName: signoff,
+            forcePopup: false,
+            pinned: false,
+            pinnedAt: null,
+            expiresAt,
+            severity,
+            imageUrls: [],
+            imageUrl: null,
+            ctaUrl: null,
+            ctaText: null,
+            sourceName: null,
+            sourceUrl: null,
+            postedAt: nowTs,
+            poll: { active: false },
+        };
+        try {
+            await Admin.publishNoticeToTarget(target, payload, secret);
+            Admin.closeBriefAlert();
+            if (typeof showToast === 'function') showToast(`Alert posted to ${Admin.alertTargetLabel(target)}.`, 'success');
+            if (typeof checkServiceAlerts === 'function') checkServiceAlerts();
+        } catch (err) {
+            if (typeof showToast === 'function') showToast(err?.message || 'Could not post that alert.', 'error');
+        }
+    },
+
+    briefCardPlainText: (card) => {
+        if (!card) return '';
+        const lines = [];
+        card.querySelectorAll('p, h3, dt, dd').forEach((el) => {
+            if (el.closest('button')) return;
+            const text = String(el.textContent || '').replace(/\s+/g, ' ').trim();
+            if (text) lines.push(text);
+        });
+        return lines.join('\n');
+    },
+
+    copyBriefText: async (text) => {
+        const value = String(text || '');
+        if (!value) return false;
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(value);
+                return true;
+            }
+        } catch { /* fall through */ }
+        try {
+            const area = document.createElement('textarea');
+            area.value = value;
+            area.setAttribute('readonly', '');
+            area.style.position = 'fixed';
+            area.style.left = '-9999px';
+            document.body.appendChild(area);
+            area.select();
+            const copied = document.execCommand('copy');
+            area.remove();
+            return !!copied;
+        } catch {
+            return false;
+        }
+    },
+
+    openBriefCardMenu: (card, x, y) => {
+        const text = Admin.briefCardPlainText(card);
+        if (!text) return;
+        Admin._briefCopyText = text;
+        let menu = document.getElementById('operator-brief-card-menu');
+        if (!menu) {
+            menu = document.createElement('div');
+            menu.id = 'operator-brief-card-menu';
+            menu.className = 'fixed z-[400] hidden';
+            document.body.appendChild(menu);
+            menu.addEventListener('click', async (event) => {
+                const copy = event.target.closest?.('[data-brief-copy]');
+                if (!copy) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const value = Admin._briefCopyText || '';
+                menu.classList.add('hidden');
+                const copied = await Admin.copyBriefText(value);
+                if (typeof showToast === 'function') {
+                    showToast(copied ? 'Copied' : 'Could not copy that card.', copied ? 'success' : 'error');
+                }
+            });
+            document.addEventListener('pointerdown', (event) => {
+                if (!menu || menu.classList.contains('hidden') || menu.contains(event.target)) return;
+                menu.classList.add('hidden');
+            }, true);
+        }
+        menu.innerHTML = '<div class="min-w-[9.5rem] rounded-2xl bg-white dark:bg-gray-900 text-slate-900 dark:text-white shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden"><button type="button" data-brief-copy class="block w-full text-left px-4 py-3 text-sm font-semibold focus:outline-none">Copy</button></div>';
+        menu.classList.remove('hidden');
+        const width = 160;
+        const height = 52;
+        const pad = 8;
+        const left = Math.max(pad, Math.min((Number(x) || 0) - 20, window.innerWidth - width - pad));
+        const top = Math.max(pad, Math.min((Number(y) || 0) - height - 6, window.innerHeight - height - pad));
+        menu.style.left = `${left}px`;
+        menu.style.top = `${top}px`;
+    },
+
+    bindBriefCardHold: (overlay) => {
+        if (!overlay || overlay.dataset.briefHoldBound === '1') return;
+        overlay.dataset.briefHoldBound = '1';
+        let holdTimer = null;
+        let holdCard = null;
+        let holdFired = false;
+        let holdX = 0;
+        let holdY = 0;
+        const clearHold = () => {
+            if (holdTimer) clearTimeout(holdTimer);
+            holdTimer = null;
+            holdCard = null;
+        };
+        overlay.addEventListener('pointerdown', (event) => {
+            if (event.pointerType === 'mouse' && event.button !== 0) return;
+            if (event.target.closest?.('button, summary, a, input, select, #operator-brief-card-menu')) return;
+            const card = event.target.closest?.('[data-brief-card]');
+            if (!card || !overlay.contains(card)) return;
+            holdFired = false;
+            holdCard = card;
+            holdX = event.clientX;
+            holdY = event.clientY;
+            clearTimeout(holdTimer);
+            holdTimer = setTimeout(() => {
+                holdFired = true;
+                holdTimer = null;
+                if (holdCard) Admin.openBriefCardMenu(holdCard, holdX, holdY);
+                holdCard = null;
+            }, 400);
+        });
+        overlay.addEventListener('pointermove', (event) => {
+            if (!holdCard) return;
+            if (Math.hypot(event.clientX - holdX, event.clientY - holdY) > 10) clearHold();
+        });
+        overlay.addEventListener('pointerup', clearHold);
+        overlay.addEventListener('pointercancel', clearHold);
+        overlay.addEventListener('contextmenu', (event) => {
+            const card = event.target.closest?.('[data-brief-card]');
+            if (!card || event.target.closest?.('button, summary, a, input, select')) return;
+            event.preventDefault();
+            clearHold();
+            Admin.openBriefCardMenu(card, event.clientX, event.clientY);
+        });
+        overlay.addEventListener('click', (event) => {
+            if (!holdFired) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+            holdFired = false;
+        }, true);
     },
 
     openOperatorBrief: async () => {
@@ -5052,21 +5400,38 @@ const Admin = {
             return;
         }
         const overlay = Admin.ensureBriefOverlay();
+        const sky = api.briefSky?.(api.johannesburgClock?.(Date.now())?.hour) || { background: '#e5f5ff', ink: '#0b2744', muted: '#0b2744' };
         overlay.classList.remove('hidden');
-        overlay.innerHTML = `<div class="min-h-full bg-slate-100 dark:bg-gray-950 px-4 pt-8"><div class="max-w-lg mx-auto rounded-3xl px-4 py-5 text-white" style="background: linear-gradient(145deg, #1e1b4b, #4338ca);"><p class="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-100">Brief</p><p id="operator-brief-note" class="mt-2 text-lg font-semibold">Reading plans, failures, fares, crashes, and what is about to expire.</p><button type="button" id="operator-brief-close" class="mt-4 text-sm font-bold underline focus:outline-none">Close</button></div></div>`;
-        overlay.querySelector('#operator-brief-close')?.addEventListener('click', () => overlay.classList.add('hidden'));
+        Admin.rememberBriefLayer('#brief');
+        overlay.innerHTML = `<div class="min-h-full px-4 pt-8" style="background: ${sky.background}; color: ${sky.ink};"><div class="max-w-lg mx-auto px-1 py-4"><p class="text-[11px] font-bold uppercase tracking-[0.18em]" style="color: ${sky.muted}">Brief</p><p id="operator-brief-note" class="mt-2 text-lg font-semibold">Reading plans, failures, fares, crashes, and what is about to expire.</p><button type="button" id="operator-brief-close" class="mt-4 text-sm font-bold underline focus:outline-none">Close</button></div></div>`;
+        overlay.querySelector('#operator-brief-close')?.addEventListener('click', () => Admin.closeOperatorBrief());
         try {
             const model = await Admin.gatherOperatorBrief();
+            Admin._briefCards = model.cards || [];
             overlay.innerHTML = api.briefReportHtml(model);
-            overlay.querySelector('#operator-brief-close')?.addEventListener('click', () => overlay.classList.add('hidden'));
+            overlay.querySelector('#operator-brief-close')?.addEventListener('click', () => Admin.closeOperatorBrief());
+            Admin.bindBriefCardHold(overlay);
+            overlay.addEventListener('click', (event) => {
+                if (event.target.closest('button, summary, a, input, select')) return;
+                const card = event.target.closest('[data-brief-card]');
+                if (!card) return;
+                card.querySelector('[data-brief-detail]')?.classList.toggle('hidden');
+            });
+            overlay.querySelectorAll('.operator-brief-alert').forEach((button) => {
+                button.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    Admin.openBriefAlert(Number(button.getAttribute('data-brief-index')));
+                });
+            });
             overlay.querySelectorAll('.operator-brief-crash').forEach((button) => {
                 button.addEventListener('click', () => Admin.explainBriefCrash(button.getAttribute('data-crash-id') || '', button));
             });
             try {
                 const text = await Admin.askBriefWriter('report', { kind: 'report', digest: model.digest });
-                Admin.paintBriefNote(text || 'The note came back empty. The cards above are still the sample.');
-            } catch (err) {
-                Admin.paintBriefNote(err?.message || 'The note could not be written. The cards above are still the sample.');
+                Admin.paintBriefNote(text || api.localBriefNote?.(model) || 'The cards below are the brief.');
+            } catch {
+                Admin.paintBriefNote(api.localBriefNote?.(model) || 'The cards below are the brief.');
             }
         } catch (err) {
             Admin.paintBriefNote(err?.message || 'Could not read the logs.');
@@ -5109,9 +5474,13 @@ const Admin = {
                 },
             });
             if (note) note.textContent = text || 'The reading came back empty.';
-        } catch (err) {
-            if (note) note.textContent = err?.message || 'Could not read this crash.';
-            if (typeof showToast === 'function') showToast(err?.message || 'Could not read this crash.', 'error');
+        } catch {
+            const read = window.ntOperatorBrief?.localCrashReading;
+            if (note) {
+                note.textContent = typeof read === 'function'
+                    ? read({ error: row.error || row.preview || '', appVersion: row.appVersion || '' })
+                    : 'A reading is not available for this log yet. The line above is the crash.';
+            }
         } finally {
             if (button) button.disabled = false;
         }
@@ -9211,12 +9580,10 @@ const Admin = {
                     sourceTab: Admin.currentFeedbackTab === 'archive' ? 'archive' : 'inbox',
                 });
 
-                let replyPlain = '';
+                let replyHtml = '';
                 for (let ri = groupItems.length - 1; ri >= 0; ri--) {
                     if (!groupItems[ri]?.isFromAdmin) continue;
-                    replyPlain = window.ntReplySuggest?.outreachPlainText
-                        ? window.ntReplySuggest.outreachPlainText(groupItems[ri].text || groupItems[ri].message || '')
-                        : '';
+                    replyHtml = groupItems[ri].text || groupItems[ri].message || '';
                     break;
                 }
 
@@ -9224,7 +9591,7 @@ const Admin = {
                 if (allEmails.size > 0 || allPhones.size > 0) {
                     contactHtml = '<div class="flex flex-wrap gap-1.5 min-w-0">';
                     allEmails.forEach(em => {
-                        const mailHref = Admin.outreachHref('email', em, replyPlain) || `mailto:${String(em).replace(/"/g, '')}`;
+                        const mailHref = Admin.outreachHref('email', em, replyHtml) || `mailto:${String(em).replace(/"/g, '')}`;
                         contactHtml += `
                             <div class="flex items-center min-w-0 max-w-full bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded px-1.5 py-0.5">
                                 <a href="${mailHref}" onclick="event.stopPropagation()" class="text-[10px] text-blue-500 hover:underline font-mono tracking-tight lowercase break-all whitespace-normal inline-flex items-center gap-1 min-w-0">${Admin.icon('mail', 'w-3 h-3 shrink-0')} ${em}</a>
@@ -9233,7 +9600,7 @@ const Admin = {
                     });
                     allPhones.forEach(ph => {
                         const isNum = /^\d+$/.test(ph);
-                        const link = isNum ? (Admin.outreachHref('whatsapp', ph, replyPlain) || `https://wa.me/${ph}`) : '#';
+                        const link = isNum ? (Admin.outreachHref('whatsapp', ph, replyHtml) || `https://wa.me/${ph}`) : '#';
                         const target = isNum ? `target="_blank"` : '';
                         const aClass = isNum ? 'text-emerald-700 dark:text-emerald-300 hover:underline' : 'text-gray-500 dark:text-gray-400';
                         
@@ -12120,7 +12487,87 @@ const Admin = {
         return api.htmlAttrUrl ? api.htmlAttrUrl(raw) : String(raw).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
     },
 
-    showOutreachModal: ({ emails = [], phones = [], commuterName = 'this commuter', message = '' } = {}) => {
+    outreachList: (value) => {
+        if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
+        if (value && typeof value === 'object') return Object.values(value).map((item) => String(item || '').trim()).filter(Boolean);
+        return [];
+    },
+
+    roadmapOutreachButtons: (ticket, { compact = false } = {}) => {
+        const emails = Admin.outreachList(ticket?.outreachEmails);
+        const phones = Admin.outreachList(ticket?.outreachPhones);
+        const message = ticket?.outreachMessage || '';
+        if (!emails.length && !phones.length) return '';
+        const wa = phones.map((ph) => {
+            const safe = String(ph).replace(/[^0-9]/g, '');
+            const href = Admin.outreachHref('whatsapp', safe, message);
+            if (!safe || !href) return '';
+            const cls = compact
+                ? 'inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-2 rounded-lg text-[10px]'
+                : 'w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-lg text-sm';
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="${cls}">${Admin.icon('message', 'w-3.5 h-3.5')} WhatsApp ${safe}</a>`;
+        }).join('');
+        const mail = emails.map((em) => {
+            const label = String(em).replace(/</g, '&lt;');
+            const href = Admin.outreachHref('email', em, message);
+            if (!href) return '';
+            const cls = compact
+                ? 'inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded-lg text-[10px]'
+                : 'w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-lg text-sm';
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="${cls}">${Admin.icon('mail', 'w-3.5 h-3.5')} Email ${label}</a>`;
+        }).join('');
+        if (!wa && !mail) return '';
+        const wrap = compact ? 'flex flex-wrap gap-1.5' : 'mt-3 space-y-2';
+        return `<div class="${wrap}" data-roadmap-outreach="1">${wa}${mail}</div>`;
+    },
+
+    saveOutreachLater: async ({ status = 'backlog', emails = [], phones = [], message = '', commuterName = 'commuter', deviceId = '', feedbackId = '' } = {}) => {
+        const secret = await Admin.getAuthKey();
+        if (!secret) {
+            if (typeof showToast === 'function') showToast('Sign in as an operator first.', 'error');
+            return false;
+        }
+        const column = status === 'progress' ? 'progress' : 'backlog';
+        const who = String(commuterName || 'commuter').replace(/\s+/g, ' ').trim() || 'commuter';
+        const plain = window.ntReplySuggest?.outreachPlainText
+            ? window.ntReplySuggest.outreachPlainText(message)
+            : String(message || '').replace(/<[^>]+>/g, ' ').trim();
+        const payload = {
+            title: `Reply to ${who}`.slice(0, 120),
+            description: plain || 'Reply later',
+            type: 'feature',
+            severity: 'low',
+            source: feedbackId ? `Feedback ${feedbackId}` : (deviceId ? `Feedback device ${deviceId}` : 'Feedback'),
+            status: column,
+            timestamp: Date.now(),
+            updatedAt: Date.now(),
+            sourceKind: 'feedback',
+            sourceId: String(feedbackId || ''),
+            deviceId: String(deviceId || ''),
+            sourceTab: 'archive',
+            outreachEmails: emails,
+            outreachPhones: phones,
+            outreachMessage: String(message || ''),
+        };
+        try {
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const res = await fetch(`${dynamicEndpoint}roadmap/${Date.now()}.json?auth=${secret}`, {
+                method: 'PUT',
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) throw new Error('Failed to save');
+            document.getElementById('admin-outreach-modal')?.remove();
+            if (typeof showToast === 'function') {
+                showToast(column === 'progress' ? 'Saved under In progress.' : 'Saved under To do.', 'success');
+            }
+            return true;
+        } catch {
+            if (typeof showToast === 'function') showToast('Could not save that reply for later.', 'error');
+            return false;
+        }
+    },
+
+    showOutreachModal: ({ emails = [], phones = [], commuterName = 'this commuter', message = '', deviceId = '', feedbackId = '' } = {}) => {
         if (!emails.length && !phones.length) return;
         document.getElementById('admin-outreach-modal')?.remove();
         const modal = document.createElement('div');
@@ -12144,12 +12591,27 @@ const Admin = {
                 <h3 id="outreach-title" class="text-lg font-black text-gray-900 dark:text-white mb-1">Also reach ${safeName}?</h3>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">The in-app reply is sent and the thread is archived. WhatsApp and email open in a new tab so this admin screen stays on the current list.</p>
                 <div class="space-y-2 mb-3">${waButtons}${mailButtons}</div>
+                <div class="mb-3">
+                    <p class="text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">Later</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" id="outreach-later-backlog" class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 font-bold py-2.5 rounded-lg text-sm">To do</button>
+                        <button type="button" id="outreach-later-progress" class="bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-100 font-bold py-2.5 rounded-lg text-sm border border-indigo-200 dark:border-indigo-800">In progress</button>
+                    </div>
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">Saves this reply on the roadmap. Open that card to send the WhatsApp or email.</p>
+                </div>
                 <button type="button" id="outreach-dismiss" class="w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2.5 rounded-lg text-sm">Not now</button>
             </div>
         `;
         document.body.appendChild(modal);
         const close = () => modal.remove();
+        const saveLater = async (status, btn) => {
+            if (btn) btn.disabled = true;
+            const ok = await Admin.saveOutreachLater({ status, emails, phones, message, commuterName, deviceId, feedbackId });
+            if (!ok && btn) btn.disabled = false;
+        };
         document.getElementById('outreach-dismiss').onclick = close;
+        document.getElementById('outreach-later-backlog').onclick = (e) => saveLater('backlog', e.currentTarget);
+        document.getElementById('outreach-later-progress').onclick = (e) => saveLater('progress', e.currentTarget);
         modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
     },
 
@@ -12215,16 +12677,20 @@ const Admin = {
         modal.style.right = '0';
         modal.style.width = '100%';
         modal.style.bottom = 'auto';
-        modal.style.alignItems = 'flex-end';
-        modal.style.justifyContent = 'center';
+        modal.style.alignItems = 'stretch';
+        modal.style.justifyContent = 'flex-start';
+        Admin.keepReplyCaretVisible();
         const card = modal.firstElementChild;
         if (card) {
-            card.style.maxHeight = '92%';
-            card.style.height = '92%';
+            card.style.position = 'absolute';
+            card.style.inset = '0';
+            card.style.maxHeight = 'none';
+            card.style.height = `${height}px`;
             card.style.width = '100%';
-            card.style.marginTop = 'auto';
+            card.style.marginTop = '0';
             card.style.marginBottom = '0';
-            card.style.overflowY = 'auto';
+            card.style.overflow = 'hidden';
+            card.style.borderRadius = '0';
         }
     },
 
@@ -12237,13 +12703,37 @@ const Admin = {
         window.visualViewport?.addEventListener('scroll', update, { passive: true });
     },
 
+    keepReplyCaretVisible: () => {
+        const editor = document.getElementById('admin-reply-text');
+        if (!editor) return;
+        const sel = window.getSelection?.();
+        if (!sel || sel.rangeCount < 1) return;
+        const node = sel.anchorNode;
+        if (!node || !editor.contains(node)) return;
+        const range = sel.getRangeAt(0);
+        const rects = range.getClientRects();
+        const rect = rects.length ? rects[rects.length - 1] : range.getBoundingClientRect();
+        if (!rect || (!rect.height && !rect.width)) return;
+        const box = editor.getBoundingClientRect();
+        const pad = 16;
+        if (rect.bottom > box.bottom - pad) editor.scrollTop += rect.bottom - (box.bottom - pad);
+        else if (rect.top < box.top + pad) editor.scrollTop -= (box.top + pad) - rect.top;
+    },
+
     replySuggestMarkup: () => `
                     <div id="admin-reply-suggest" class="mt-3 shrink-0">
-                        <div id="admin-reply-suggest-halt" class="hidden mb-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100 p-2">
-                            <div id="admin-reply-suggest-halt-text" class="text-xs whitespace-pre-wrap"></div>
-                            <label for="admin-reply-suggest-context" class="block text-[10px] font-bold mt-2 mb-1">Add the missing fact</label>
-                            <textarea id="admin-reply-suggest-context" rows="3" maxlength="2000" class="w-full rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-900 text-xs text-gray-900 dark:text-white p-2 focus:outline-none" placeholder="Type what the draft should use, then suggest again."></textarea>
-                            <button type="button" id="reply-suggest-again" class="mt-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 rounded-lg text-xs focus:outline-none">Suggest again</button>
+                        <div id="admin-reply-guide" class="hidden">
+                            <button type="button" id="admin-reply-guide-open" class="text-[11px] font-normal text-gray-500 dark:text-gray-400 underline focus:outline-none">Guide this reply</button>
+                            <div id="admin-reply-guide-box" class="hidden mt-1 flex gap-2">
+                                <input id="admin-reply-guide-text" maxlength="500" class="flex-1 h-9 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-xs text-gray-900 dark:text-white px-2 focus:outline-none" placeholder="One note for this draft">
+                                <button type="button" id="admin-reply-guide-go" class="shrink-0 px-3 rounded-lg bg-gray-900 dark:bg-white dark:text-gray-900 text-white text-[11px] font-bold focus:outline-none">Regenerate</button>
+                            </div>
+                        </div>
+                        <div id="admin-reply-suggest-halt" class="hidden mb-2 rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100 p-3">
+                            <div id="admin-reply-suggest-halt-text" class="text-sm leading-relaxed whitespace-pre-wrap"></div>
+                            <label for="admin-reply-suggest-context" class="block text-[11px] font-bold mt-3 mb-1">Add the missing fact</label>
+                            <textarea id="admin-reply-suggest-context" rows="4" maxlength="2000" class="w-full min-h-[5.5rem] rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white p-2.5 focus:outline-none" placeholder="Type what the draft should use, then suggest again."></textarea>
+                            <button type="button" id="reply-suggest-again" class="mt-3 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-3 rounded-xl text-sm focus:outline-none">Suggest again</button>
                         </div>
                         <button type="button" id="reply-suggest" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-3 rounded-xl shadow-sm transition-colors focus:outline-none text-sm">Suggest reply</button>
                         <div id="admin-reply-suggest-status" class="hidden mt-2 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 p-2" aria-live="polite">
@@ -12419,6 +12909,7 @@ const Admin = {
             box.innerHTML = remoteHtml;
             Admin.writeLocalReplyDraft(id, remoteHtml, remoteAt);
         }
+        Admin.syncReplyGuide();
         return box?.innerHTML || local?.html || '';
     },
 
@@ -12495,11 +12986,24 @@ const Admin = {
         if (!text) {
             if (textEl) textEl.textContent = '';
             panel.classList.add('hidden');
+            Admin.syncReplyGuide();
             return;
         }
         if (textEl) textEl.textContent = text;
         else panel.textContent = text;
         panel.classList.remove('hidden');
+        Admin.syncReplyGuide();
+    },
+
+    syncReplyGuide: () => {
+        const guide = document.getElementById('admin-reply-guide');
+        const editor = document.getElementById('admin-reply-text');
+        const halt = document.getElementById('admin-reply-suggest-halt');
+        const suggestBtn = document.getElementById('reply-suggest');
+        const halted = !!(halt && !halt.classList.contains('hidden'));
+        if (suggestBtn) suggestBtn.classList.toggle('hidden', halted);
+        if (!guide || !editor) return;
+        guide.classList.toggle('hidden', halted || !Admin.draftHasText(editor.innerHTML));
     },
 
     quotedNoticesForSuggest: async (items) => {
@@ -12575,7 +13079,12 @@ const Admin = {
         const items = (Admin.cachedFeedbackData || []).filter((item) => (item.device_id || item.deviceId) === deviceId);
         const alias = (Admin.cachedAliases && Admin.cachedAliases[deviceId]) || '';
         const note = document.getElementById('admin-reply-suggest-note')?.value || '';
-        const draftContext = document.getElementById('admin-reply-suggest-context')?.value || '';
+        const guideText = document.getElementById('admin-reply-guide-box') && !document.getElementById('admin-reply-guide-box').classList.contains('hidden')
+            ? (document.getElementById('admin-reply-guide-text')?.value || '')
+            : '';
+        const contextEl = document.getElementById('admin-reply-suggest-context');
+        if (guideText && contextEl) contextEl.value = guideText;
+        const draftContext = guideText || contextEl?.value || '';
         const quotedNotices = await Admin.quotedNoticesForSuggest(items);
         const payload = api.buildSuggestPayload(items, {
             deviceId,
@@ -12678,6 +13187,7 @@ const Admin = {
                 ready.textContent = `Draft ready. Used ${payload.thread.length} messages. The draft is in the box. Edit it, then send.`;
                 ready.classList.remove('hidden');
             }
+            Admin.syncReplyGuide();
             if (typeof showToast === 'function') showToast('Draft ready. Edit it, then send.', 'success');
         } catch (err) {
             const message = err.message || 'Could not draft a reply.';
@@ -12799,6 +13309,7 @@ const Admin = {
     openWriteAssist: (targetId) => {
         const el = document.getElementById(targetId);
         if (!el) return;
+        if (el.id === 'alert-msg') Admin.hoistEditorImages(el);
         const read = Admin.readWriteField(el);
         const text = String(read.text || '').trim();
         if (!text) {
@@ -12883,10 +13394,22 @@ const Admin = {
             clipped = true;
         }
         if (editable) {
+            const parked = [];
+            if (el.id === 'alert-msg') Admin.hoistEditorImages(el);
+            else {
+                el.querySelectorAll('img').forEach((img) => {
+                    parked.push(img.outerHTML);
+                    img.remove();
+                });
+            }
             const asHtml = window.ntTextAssist?.assistHtmlFromText;
             const html = typeof asHtml === 'function' ? asHtml(next) : '';
             if (html) el.innerHTML = html;
             else el.textContent = next;
+            if (parked.length) {
+                el.insertAdjacentHTML('beforeend', parked.join(''));
+                Admin.stampComposerImages(el);
+            }
         } else {
             el.value = next;
             el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -12912,18 +13435,19 @@ const Admin = {
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'admin-reply-modal';
-            modal.className = 'fixed inset-0 bg-black/60 z-[200] hidden flex items-end justify-center p-0 backdrop-blur-sm';
+            modal.className = 'fixed inset-0 bg-black/70 z-[200] hidden flex p-0 backdrop-blur-sm';
             modal.innerHTML = `
-                <div class="bg-white dark:bg-gray-800 shadow-2xl w-full h-[92%] max-h-[92%] min-h-0 overflow-y-auto flex flex-col p-3 sm:p-4 border-0 rounded-t-3xl">
+                <div class="bg-white dark:bg-gray-800 shadow-2xl w-full min-h-0 overflow-hidden flex flex-col px-3 sm:px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] border-0 rounded-none">
                     <h3 id="admin-reply-title" class="text-xl font-black text-gray-900 dark:text-white mb-0.5 tracking-tight flex items-center gap-2 shrink-0"><span class="text-sky-500">${Admin.icon('message', 'w-5 h-5')}</span> <span id="admin-reply-title-text">Next Train Co-Pilot</span></h3>
                     <p id="admin-reply-recipient" class="text-[11px] text-gray-600 dark:text-gray-300 mb-1 break-all leading-snug shrink-0"></p>
                     <p id="admin-reply-hint" class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 shrink-0">Message will be delivered to their personal inbox upon next app launch.</p>
-                    
-                    <div class="flex flex-col min-h-[14rem] flex-1">
+                    <div id="admin-reply-scroll" class="flex-1 min-h-0 overflow-hidden flex flex-col">
+                    <div class="flex flex-col min-h-0 flex-1">
                     <div class="shrink-0 rounded-t-lg border border-gray-300 dark:border-gray-600 border-b-0">
                             ${Admin.wysiwygToolbarHtml('admin-reply-text', { fileInputId: 'admin-reply-upload-file', fileLabelId: 'admin-reply-upload-label' })}
                     </div>
-                        <div contenteditable="true" id="admin-reply-text" class="nt-rich-body w-full flex-1 min-h-[12rem] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-900 border border-t-0 border-gray-300 dark:border-gray-600 rounded-b-lg text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400 custom-scrollbar" placeholder="Type your response..."></div>
+                        <div contenteditable="true" id="admin-reply-text" class="nt-rich-body w-full flex-1 min-h-0 overflow-y-auto p-3 pb-4 bg-gray-50 dark:bg-gray-900 border border-t-0 border-gray-300 dark:border-gray-600 rounded-b-lg text-sm text-gray-900 dark:text-white focus:outline-none empty:before:content-[attr(placeholder)] empty:before:text-gray-400 custom-scrollbar" placeholder="Type your response..."></div>
+                    </div>
                     </div>
 
                     ${Admin.replySuggestMarkup()}
@@ -12936,15 +13460,15 @@ const Admin = {
             `;
             document.body.appendChild(modal);
         } else {
-            modal.className = 'fixed inset-0 bg-black/60 z-[200] hidden flex items-end justify-center p-0 backdrop-blur-sm';
+            modal.className = 'fixed inset-0 bg-black/70 z-[200] hidden flex p-0 backdrop-blur-sm';
             const panel = modal.firstElementChild;
             if (panel) {
-                panel.className = 'bg-white dark:bg-gray-800 shadow-2xl w-full h-[92%] max-h-[92%] min-h-0 overflow-y-auto flex flex-col p-3 sm:p-4 border-0 rounded-t-3xl';
+                panel.className = 'bg-white dark:bg-gray-800 shadow-2xl w-full min-h-0 overflow-hidden flex flex-col px-3 sm:px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] border-0 rounded-none';
             }
             const editor = document.getElementById('admin-reply-text');
             if (editor) {
-                editor.classList.remove('min-h-[120px]', 'min-h-[240px]', 'max-h-[50dvh]', 'p-2.5', 'min-h-0');
-                editor.classList.add('nt-rich-body', 'flex-1', 'min-h-[12rem]', 'overflow-y-auto', 'p-3', 'custom-scrollbar');
+                editor.classList.remove('min-h-[120px]', 'min-h-[240px]', 'max-h-[50dvh]', 'p-2.5', 'min-h-[12rem]');
+                editor.classList.add('nt-rich-body', 'flex-1', 'min-h-0', 'overflow-y-auto', 'p-3', 'pb-4', 'custom-scrollbar');
                 const bar = editor.previousElementSibling;
                 if (bar) {
                     bar.classList.add('shrink-0');
@@ -12953,13 +13477,22 @@ const Admin = {
                 if (bar && !bar.querySelector('[data-nt-font-select]')) {
                     bar.outerHTML = `<div class="shrink-0 rounded-t-lg border border-gray-300 dark:border-gray-600 border-b-0">${Admin.wysiwygToolbarHtml('admin-reply-text', { fileInputId: 'admin-reply-upload-file', fileLabelId: 'admin-reply-upload-label' })}</div>`;
                 }
-                editor.parentElement?.classList.remove('min-h-0', 'overflow-hidden');
-                editor.parentElement?.classList.add('min-h-[14rem]', 'flex-1');
+                editor.parentElement?.classList.remove('min-h-[12rem]', 'min-h-[14rem]', 'overflow-hidden');
+                editor.parentElement?.classList.add('min-h-0', 'flex-1');
+                const scroll = document.getElementById('admin-reply-scroll');
+                if (scroll) {
+                    scroll.classList.add('overflow-hidden', 'min-h-0');
+                    scroll.classList.remove('overflow-y-auto');
+                }
             }
             const sendRow = document.getElementById('reply-cancel')?.parentElement;
             if (sendRow && !document.getElementById('admin-reply-suggest-context')) {
                 document.getElementById('admin-reply-suggest')?.remove();
                 sendRow.insertAdjacentHTML('beforebegin', Admin.replySuggestMarkup());
+            }
+            const parkedSuggest = document.getElementById('admin-reply-suggest');
+            if (sendRow && parkedSuggest && parkedSuggest.parentElement !== sendRow.parentElement) {
+                sendRow.before(parkedSuggest);
             }
             if (!document.getElementById('admin-reply-recipient')) {
                 const h3 = panel?.querySelector('h3');
@@ -13001,7 +13534,17 @@ const Admin = {
             delete editorEl.dataset.draftTouched;
             if (!editorEl.dataset.draftInputBound) {
                 editorEl.dataset.draftInputBound = '1';
-                editorEl.addEventListener('input', () => { editorEl.dataset.draftTouched = '1'; });
+                editorEl.addEventListener('input', () => {
+                    editorEl.dataset.draftTouched = '1';
+                    Admin.keepReplyCaretVisible();
+                });
+            }
+            if (!modal.dataset.caretBound) {
+                modal.dataset.caretBound = '1';
+                document.addEventListener('selectionchange', () => {
+                    if (modal.classList.contains('hidden')) return;
+                    Admin.keepReplyCaretVisible();
+                });
             }
             const kept = !editKey ? Admin.readLocalReplyDraft(draftId) : null;
             editorEl.innerHTML = editKey ? String(editMsg.text || editMsg.message || '') : (kept?.html || '');
@@ -13085,24 +13628,10 @@ const Admin = {
                                 if (labelEl) labelEl.innerHTML = originalLabel;
                                 try {
                                     const url = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
-                                    
-                                    const htmlToInsert = Admin.inlineAttachmentHtml(url, isPdf);
-                                    if (!htmlToInsert) {
+                                    if (!editor || !Admin.placeComposerAttachment(editor, url, isPdf, savedRange)) {
                                         if (typeof showToast === 'function') showToast("Failed to insert attachment link", "error");
                                         this.value = '';
                                         return;
-                                    }
-                                    
-                                    if (editor) {
-                                        editor.focus();
-                                        if (savedRange) {
-                                            const sel = window.getSelection();
-                                            sel.removeAllRanges();
-                                            sel.addRange(savedRange);
-                                        }
-                                        if (!document.execCommand('insertHTML', false, htmlToInsert)) {
-                                            editor.innerHTML += htmlToInsert;
-                                        }
                                     }
                                     if (typeof showToast === 'function') showToast("Attachment inserted!", "success");
                                 } catch(e) {
@@ -13126,6 +13655,21 @@ const Admin = {
         if (suggestAgain) suggestAgain.onclick = () => Admin.runSuggestReply();
         const contextBox = document.getElementById('admin-reply-suggest-context');
         if (contextBox) contextBox.value = '';
+        const guideBox = document.getElementById('admin-reply-guide-box');
+        const guideInput = document.getElementById('admin-reply-guide-text');
+        if (guideInput) guideInput.value = '';
+        if (guideBox) guideBox.classList.add('hidden');
+        const guideOpen = document.getElementById('admin-reply-guide-open');
+        if (guideOpen) guideOpen.onclick = () => guideBox?.classList.toggle('hidden');
+        const guideGo = document.getElementById('admin-reply-guide-go');
+        if (guideGo) {
+            guideGo.onclick = () => {
+                const text = guideInput?.value || '';
+                if (contextBox) contextBox.value = text;
+                Admin.runSuggestReply();
+            };
+        }
+        Admin.syncReplyGuide();
         Admin.setSuggestProgress(null);
         const saveNoteBtn = document.getElementById('reply-suggest-save-note');
         if (saveNoteBtn) saveNoteBtn.onclick = () => Admin.saveReplySuggestNote();
@@ -13212,7 +13756,13 @@ const Admin = {
                 }
                 cleanup();
                 if (contacts.emails.length || contacts.phones.length) {
-                    Admin.showOutreachModal({ ...contacts, commuterName, message: text });
+                    Admin.showOutreachModal({
+                        ...contacts,
+                        commuterName,
+                        message: text,
+                        deviceId: replyDeviceId,
+                        feedbackId: replyFeedbackId,
+                    });
                 }
             } catch (e) {
                 if (typeof showToast === 'function') showToast(editingKey ? 'Failed to save reply.' : 'Failed to send reply.', 'error');
@@ -13443,21 +13993,10 @@ const Admin = {
             }
             return;
         }
-        const htmlToInsert = Admin.inlineAttachmentHtml(safe, false);
         const editor = document.getElementById(editorId);
-        if (!htmlToInsert || !editor) {
+        if (!editor || !Admin.placeComposerAttachment(editor, safe, false, Admin._savedRange)) {
             if (typeof showToast === 'function') showToast('Could not use that image link.', 'error');
             return;
-        }
-        editor.focus();
-        const savedRange = Admin._savedRange;
-        if (savedRange) {
-            const sel = window.getSelection();
-            sel.removeAllRanges();
-            try { sel.addRange(savedRange); } catch { /* range left the editor */ }
-        }
-        if (!document.execCommand('insertHTML', false, htmlToInsert)) {
-            editor.innerHTML += htmlToInsert;
         }
         Admin._savedRange = null;
         if (typeof showToast === 'function') showToast('Image inserted.', 'success');
@@ -13621,6 +14160,398 @@ const Admin = {
         });
     },
 
+    composerXButton: (kind) => {
+        const label = kind === 'preview' ? 'Remove link preview' : 'Remove image';
+        return `<button type="button" class="nt-composer-x" data-nt-composer-x="${kind}" aria-label="${label}"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+    },
+
+    slotBeforeEditor: (editor, attr, className) => {
+        if (!editor?.parentElement) return null;
+        const parent = editor.parentElement;
+        let slot = parent.querySelector(`:scope > [${attr}]`);
+        if (slot) return slot;
+        slot = document.createElement('div');
+        slot.setAttribute(attr, '');
+        slot.className = className;
+        parent.insertBefore(slot, editor);
+        return slot;
+    },
+
+    titleSlotFor: (editor) => Admin.slotBeforeEditor(editor, 'data-nt-title-slot', 'hidden border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900'),
+
+    mediaSlotFor: (editor) => Admin.slotBeforeEditor(editor, 'data-nt-media-slot', 'hidden px-2.5 pt-2 space-y-2'),
+
+    previewSlotFor: (editor) => {
+        if (!editor || editor.id !== 'alert-msg') return null;
+        return Admin.slotBeforeEditor(editor, 'data-nt-preview-slot', 'hidden px-2.5 pt-2');
+    },
+
+    revealComposerTitle: (editor) => {
+        const slot = Admin.titleSlotFor(editor);
+        if (!slot) return;
+        if (!slot.querySelector('[data-nt-title]')) {
+            slot.innerHTML = '<div data-nt-title contenteditable="true" role="textbox" data-placeholder="Title" class="text-gray-900 dark:text-white"></div>';
+        }
+        const titleEl = slot.querySelector('[data-nt-title]');
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount && !sel.isCollapsed && editor.contains(sel.anchorNode)) {
+            const picked = sel.toString().replace(/\s+/g, ' ').trim();
+            if (picked) {
+                titleEl.textContent = picked;
+                sel.deleteFromDocument();
+                const first = editor.firstChild;
+                if (first && first.nodeType === 3) first.nodeValue = first.nodeValue.replace(/^\s+/, '');
+            }
+        }
+        slot.classList.remove('hidden');
+        if (titleEl) Admin.linkifyEditable(titleEl);
+        titleEl?.focus();
+        Admin.bindAlertComposeFields();
+    },
+
+    addComposerImage: (editor, url) => {
+        const safe = typeof window.sanitizeAttachmentDisplayUrl === 'function'
+            ? window.sanitizeAttachmentDisplayUrl(url)
+            : String(url || '').trim();
+        const slot = Admin.mediaSlotFor(editor);
+        if (!safe || !slot) return false;
+        const esc = typeof escapeHTML === 'function' ? escapeHTML(safe) : safe;
+        if ([...slot.querySelectorAll('img')].some((img) => (img.getAttribute('data-nt-src') || img.getAttribute('src')) === safe)) {
+            slot.classList.remove('hidden');
+            return true;
+        }
+        if (slot.querySelectorAll('img').length >= 4) {
+            if (typeof showToast === 'function') showToast('Maximum 4 images.', 'warning');
+            return false;
+        }
+        const fig = document.createElement('figure');
+        fig.className = 'nt-composer-media';
+        fig.innerHTML = `<img src="${esc}" data-nt-src="${esc}" alt="" referrerpolicy="no-referrer" draggable="false" class="nt-composer-image">${Admin.composerXButton('image')}`;
+        slot.appendChild(fig);
+        slot.classList.remove('hidden');
+        Admin.ensureComposerImageOpen();
+        return true;
+    },
+
+    hoistEditorImages: (editor) => {
+        if (!editor?.querySelectorAll) return;
+        editor.querySelectorAll('img').forEach((img) => {
+            const src = img.getAttribute('data-nt-src') || img.getAttribute('src') || '';
+            img.remove();
+            if (src) Admin.addComposerImage(editor, src);
+        });
+    },
+
+    placeComposerAttachment: (editor, url, isPdf, savedRange) => {
+        if (!editor) return false;
+        if (!isPdf && editor.id === 'alert-msg' && Admin.addComposerImage(editor, url)) return true;
+        const htmlToInsert = Admin.inlineAttachmentHtml(url, isPdf);
+        if (!htmlToInsert) return false;
+        editor.focus();
+        if (savedRange) {
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            try { sel.addRange(savedRange); } catch { /* range left the editor */ }
+        }
+        if (!document.execCommand('insertHTML', false, htmlToInsert)) editor.innerHTML += htmlToInsert;
+        Admin.stampComposerImages(editor);
+        Admin.ensureComposerImageOpen();
+        return true;
+    },
+
+    linkifyEditable: (root) => {
+        if (!root || typeof window.splitContactTokens !== 'function') return;
+        const sel = window.getSelection();
+        const caretNode = sel && sel.rangeCount && root.contains(sel.anchorNode) && sel.anchorNode.nodeType === 3
+            ? sel.anchorNode
+            : null;
+        const caretOff = caretNode ? sel.anchorOffset : -1;
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        let node = walker.nextNode();
+        while (node) {
+            nodes.push(node);
+            node = walker.nextNode();
+        }
+        nodes.forEach((textNode) => {
+            if (!textNode.parentNode || textNode.parentElement?.closest?.('a, button')) return;
+            const value = textNode.nodeValue || '';
+            const tokens = window.splitContactTokens(value);
+            if (!tokens.some((t) => t.type !== 'text')) return;
+            const frag = document.createDocumentFragment();
+            let consumed = 0;
+            let parked = null;
+            tokens.forEach((t, index) => {
+                const stillTyping = textNode === caretNode
+                    && t.type === 'url'
+                    && index === tokens.length - 1
+                    && caretOff >= consumed
+                    && caretOff <= consumed + t.value.length
+                    && !/\s$/.test(value);
+                if (t.type === 'text' || stillTyping) {
+                    const tn = document.createTextNode(t.value);
+                    frag.appendChild(tn);
+                    if (textNode === caretNode && caretOff >= consumed && caretOff <= consumed + t.value.length) {
+                        parked = { node: tn, off: Math.max(0, caretOff - consumed) };
+                    }
+                } else {
+                    const a = document.createElement('a');
+                    a.setAttribute('href', t.href);
+                    a.setAttribute('target', '_blank');
+                    a.setAttribute('rel', 'noopener');
+                    a.className = 'text-blue-600 dark:text-blue-400 underline underline-offset-2';
+                    a.textContent = t.value;
+                    frag.appendChild(a);
+                }
+                consumed += t.value.length;
+            });
+            textNode.parentNode.replaceChild(frag, textNode);
+            if (parked && sel) {
+                const range = document.createRange();
+                const off = Math.min(parked.off, parked.node.nodeValue.length);
+                range.setStart(parked.node, off);
+                range.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+        });
+    },
+
+    paintComposerPreview: (preview) => {
+        const editor = document.getElementById('alert-msg');
+        const slot = Admin.previewSlotFor(editor);
+        if (!slot || !preview?.url) return;
+        const esc = typeof escapeHTML === 'function' ? escapeHTML : (v) => String(v || '');
+        const image = preview.image
+            ? `<img class="nt-link-preview-media" alt="" src="${esc(preview.image)}" referrerpolicy="no-referrer">`
+            : '';
+        slot.dataset.cleared = '';
+        slot.dataset.previewUrl = preview.url;
+        slot.dataset.previewJson = JSON.stringify(preview);
+        slot.classList.remove('hidden');
+        slot.innerHTML = `<div class="nt-composer-preview"><a class="nt-link-preview" href="${esc(preview.url)}" target="_blank" rel="noopener noreferrer">${image}<div class="nt-link-preview-copy"><div class="nt-link-preview-title">${esc(preview.title || preview.url)}</div><div class="nt-link-preview-site">${esc(preview.site || '')}</div></div></a>${Admin.composerXButton('preview')}</div>`;
+    },
+
+    scheduleAlertPreview: () => {
+        clearTimeout(Admin._previewTimer);
+        Admin._previewTimer = setTimeout(() => Admin.refreshAlertLinkPreview(), 280);
+    },
+
+    refreshAlertLinkPreview: async () => {
+        const editor = document.getElementById('alert-msg');
+        const slot = Admin.previewSlotFor(editor);
+        if (!editor || !slot || !window.ntLinkPreview?.fetchLinkPreview) return;
+        const titleEl = editor.parentElement?.querySelector('[data-nt-title]');
+        const text = `${titleEl?.innerText || ''} ${editor.innerText || ''}`;
+        const anchors = [
+            ...(titleEl?.querySelectorAll('a[href]') || []),
+            ...editor.querySelectorAll('a[href]'),
+        ];
+        const fromAnchor = anchors
+            .map((a) => a.getAttribute('href') || '')
+            .find((href) => /^https?:\/\//i.test(href));
+        const found = text.match(/https?:\/\/[^\s<>"']+/i) || text.match(/\bwww\.[^\s<>"']+/i);
+        let url = fromAnchor || (found ? found[0].replace(/[.,;:!?)]+$/, '') : '');
+        if (/^www\./i.test(url)) url = `https://${url}`;
+        if (!url) {
+            if (slot.dataset.cleared !== '1') {
+                slot.innerHTML = '';
+                slot.classList.add('hidden');
+                delete slot.dataset.previewJson;
+            }
+            return;
+        }
+        if (slot.dataset.cleared === '1' && slot.dataset.clearedUrl === url) return;
+        if (slot.dataset.previewUrl === url && slot.querySelector('.nt-link-preview')) return;
+        try {
+            const preview = await window.ntLinkPreview.fetchLinkPreview(url, Admin.replyWorkerUrl());
+            if (!preview?.url) return;
+            if (slot.dataset.cleared === '1' && slot.dataset.clearedUrl === preview.url) return;
+            Admin.paintComposerPreview(preview);
+        } catch { /* the words stay a link even when the card cannot load */ }
+    },
+
+    readAlertCompose: () => {
+        const editor = document.getElementById('alert-msg');
+        const empty = { title: '', message: '', suppressLinkPreview: false, linkPreview: null, hasImage: false };
+        if (!editor) return empty;
+        Admin.linkifyEditable(editor);
+        const titleEl = editor.parentElement?.querySelector('[data-nt-title]');
+        if (titleEl) Admin.linkifyEditable(titleEl);
+        Admin.hoistEditorImages(editor);
+        const title = String(titleEl?.innerText || '').replace(/\s+/g, ' ').trim();
+        const slot = Admin.mediaSlotFor(editor);
+        const imgs = [...(slot?.querySelectorAll('img') || [])];
+        const esc = typeof escapeHTML === 'function' ? escapeHTML : (v) => String(v || '');
+        const imgHtml = imgs.map((img) => {
+            const src = img.getAttribute('data-nt-src') || img.getAttribute('src') || '';
+            const safe = esc(src);
+            return safe ? `<img src="${safe}" data-nt-src="${safe}" alt="">` : '';
+        }).join('');
+        const body = String(editor.innerHTML || '').trim();
+        const previewSlot = document.getElementById('alert-preview-slot') || editor.parentElement?.querySelector('[data-nt-preview-slot]');
+        let linkPreview = null;
+        try { linkPreview = previewSlot?.dataset.previewJson ? JSON.parse(previewSlot.dataset.previewJson) : null; } catch { linkPreview = null; }
+        const suppressLinkPreview = previewSlot?.dataset.cleared === '1';
+        const clearedUrl = previewSlot?.dataset.clearedUrl || '';
+        const keptPreview = suppressLinkPreview
+            ? (linkPreview || (clearedUrl ? { url: clearedUrl } : null))
+            : linkPreview;
+        return {
+            title,
+            message: `${imgHtml}${body}`.trim(),
+            suppressLinkPreview,
+            linkPreview: keptPreview,
+            hasImage: imgs.length > 0,
+        };
+    },
+
+    loadAlertCompose: (item) => {
+        const editor = document.getElementById('alert-msg');
+        if (!editor || !item) return;
+        Admin.titleSlotFor(editor);
+        Admin.mediaSlotFor(editor);
+        Admin.previewSlotFor(editor);
+        const media = editor.parentElement?.querySelector('[data-nt-media-slot]');
+        if (media) {
+            media.innerHTML = '';
+            media.classList.add('hidden');
+        }
+        const holder = document.createElement('div');
+        holder.innerHTML = Admin.repairMojibake(item.message || '');
+        let title = String(item.title || '').trim();
+        const first = holder.firstElementChild;
+        if (first && /^H[1-4]$/i.test(first.tagName)) {
+            const extracted = (first.textContent || '').replace(/\s+/g, ' ').trim();
+            if (!title) title = extracted;
+            if (extracted && (!item.title || title === extracted)) first.remove();
+        }
+        holder.querySelectorAll('img').forEach((img) => {
+            const src = img.getAttribute('data-nt-src') || img.getAttribute('src') || '';
+            img.remove();
+            if (src) Admin.addComposerImage(editor, src);
+        });
+        editor.innerHTML = holder.innerHTML.trim();
+        const titleSlot = editor.parentElement?.querySelector('[data-nt-title-slot]');
+        const titleEl = titleSlot?.querySelector('[data-nt-title]');
+        if (titleEl) {
+            titleEl.textContent = title;
+            if (title) Admin.linkifyEditable(titleEl);
+        }
+        titleSlot?.classList.toggle('hidden', !title);
+        const previewSlot = editor.parentElement?.querySelector('[data-nt-preview-slot]');
+        if (previewSlot) {
+            previewSlot.innerHTML = '';
+            previewSlot.classList.add('hidden');
+            delete previewSlot.dataset.previewJson;
+            if (item.suppressLinkPreview) {
+                previewSlot.dataset.cleared = '1';
+                previewSlot.dataset.clearedUrl = item.linkPreview?.url || '';
+            } else {
+                previewSlot.dataset.cleared = '';
+                previewSlot.dataset.clearedUrl = '';
+                if (item.linkPreview?.url) Admin.paintComposerPreview(item.linkPreview);
+                else Admin.scheduleAlertPreview();
+            }
+        }
+    },
+
+    bindComposerChrome: () => {
+        if (Admin._composerChromeBound) return;
+        Admin._composerChromeBound = true;
+        document.addEventListener('click', (event) => {
+            const x = event.target?.closest?.('[data-nt-composer-x]');
+            if (!x) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (x.getAttribute('data-nt-composer-x') === 'preview') {
+                const slot = x.closest('[data-nt-preview-slot]');
+                if (!slot) return;
+                slot.dataset.cleared = '1';
+                slot.dataset.clearedUrl = slot.dataset.previewUrl || '';
+                slot.innerHTML = '';
+                delete slot.dataset.previewJson;
+                slot.classList.add('hidden');
+                return;
+            }
+            const fig = x.closest('.nt-composer-media');
+            const slot = fig?.parentElement;
+            fig?.remove();
+            if (slot && !slot.querySelector('img')) slot.classList.add('hidden');
+        });
+    },
+
+    bindAlertComposeFields: () => {
+        const editor = document.getElementById('alert-msg');
+        if (!editor) return;
+        const onEdit = (event) => {
+            const root = event?.currentTarget;
+            if (!root) return;
+            const text = root.innerText || '';
+            if (event.type !== 'input' || /\s$/.test(text)) Admin.linkifyEditable(root);
+            const body = document.getElementById('alert-msg');
+            if (body) Admin.hoistEditorImages(body);
+            Admin.scheduleAlertPreview();
+        };
+        const bind = (el) => {
+            if (!el || el.dataset.ntLinkBound === '1') return;
+            el.dataset.ntLinkBound = '1';
+            el.addEventListener('keydown', () => {
+                if (el.id === 'alert-msg') Admin.hoistEditorImages(el);
+            });
+            el.addEventListener('input', onEdit);
+            el.addEventListener('blur', (event) => {
+                onEdit(event);
+                if (!(el.innerText || '').trim()) el.innerHTML = '';
+            });
+            el.addEventListener('paste', () => setTimeout(() => onEdit({ currentTarget: el, type: 'paste' }), 0));
+        };
+        bind(editor);
+        bind(editor.parentElement?.querySelector('[data-nt-title]'));
+    },
+
+    draftAlertNotice: (signoff) => {
+        const composed = Admin.readAlertCompose();
+        let message = String(composed.message || '').trim();
+        const hasText = Admin.alertComposeHasBody(message);
+        message = (hasText || composed.hasImage) ? Admin.repairMojibake(message) : '';
+        const name = String(signoff || '').trim() || 'Next Train Ops';
+        if (hasText && !/<span[^>]*>.*?<\/span>\s*$/i.test(message)) {
+            message += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">- ${name}</span>`;
+        }
+        return {
+            title: composed.title || null,
+            message,
+            suppressLinkPreview: !!composed.suppressLinkPreview,
+            linkPreview: composed.linkPreview || null,
+            hasContent: hasText || !!composed.title || composed.hasImage,
+        };
+    },
+
+    clearAlertComposeSlots: () => {
+        const editor = document.getElementById('alert-msg');
+        if (editor) editor.innerHTML = '';
+        const parent = editor?.parentElement;
+        const titleSlot = parent?.querySelector('[data-nt-title-slot]');
+        const titleEl = titleSlot?.querySelector('[data-nt-title]');
+        if (titleEl) titleEl.innerHTML = '';
+        titleSlot?.classList.add('hidden');
+        const media = parent?.querySelector('[data-nt-media-slot]');
+        if (media) {
+            media.innerHTML = '';
+            media.classList.add('hidden');
+        }
+        const preview = parent?.querySelector('[data-nt-preview-slot]');
+        if (preview) {
+            preview.innerHTML = '';
+            preview.classList.add('hidden');
+            preview.dataset.cleared = '';
+            preview.dataset.clearedUrl = '';
+            delete preview.dataset.previewJson;
+            delete preview.dataset.previewUrl;
+        }
+    },
+
 // RICH TEXT FORMATTING HELPER ---
     formatAlertText: (tag, targetId = 'alert-msg') => {
         const editor = document.getElementById(targetId);
@@ -13672,19 +14603,24 @@ const Admin = {
         } else if (tag === 'underline') {
             document.execCommand('underline', false, null);
         } else if (tag === 'title') {
-            let block = 'h3';
-            const sel = window.getSelection();
-            if (sel.rangeCount > 0) {
-                let node = sel.anchorNode;
-                while (node && node !== editor) {
-                    if (node.nodeType === 1 && /^H[1-4]$/.test(node.tagName)) {
-                        block = 'p';
-                        break;
+            if (editor.id === 'alert-msg') {
+                Admin.revealComposerTitle(editor);
+                Admin.bindAlertComposeFields();
+            } else {
+                let block = 'h3';
+                const sel = window.getSelection();
+                if (sel.rangeCount > 0) {
+                    let node = sel.anchorNode;
+                    while (node && node !== editor) {
+                        if (node.nodeType === 1 && /^H[1-4]$/.test(node.tagName)) {
+                            block = 'p';
+                            break;
+                        }
+                        node = node.parentNode;
                     }
-                    node = node.parentNode;
                 }
+                document.execCommand('formatBlock', false, block);
             }
-            document.execCommand('formatBlock', false, block);
         } else if (tag === 'fontDefault' || tag === 'fontVerdana' || tag === 'fontTimes') {
             Admin.applyWysiwygFont(editor, tag);
         } else if (tag === 'larger' || tag === 'smaller') {
@@ -13692,39 +14628,53 @@ const Admin = {
             // We manually traverse the DOM to find the exact font size tag applied to the cursor.
             let currentSize = 3; // Default to Normal
             const sel = window.getSelection();
-            
+            let foundFont = false;
+
             if (sel.rangeCount > 0) {
                 let node = sel.anchorNode;
-                while (node && node !== editor) {
+                const host = node && (node.nodeType === 1 ? node : node.parentElement);
+                const root = host?.closest?.('[contenteditable="true"]') || editor;
+                while (node && node !== root && node !== document.documentElement) {
                     if (node.nodeType === 1 && node.tagName.toLowerCase() === 'font' && node.hasAttribute('size')) {
                         const sizeAttr = parseInt(node.getAttribute('size'), 10);
                         if (!isNaN(sizeAttr)) {
                             currentSize = sizeAttr;
+                            foundFont = true;
                             break;
                         }
                     }
                     node = node.parentNode;
                 }
+                if (!foundFont && typeof window.fontStepFromPixels === 'function' && host && root) {
+                    const px = parseFloat(window.getComputedStyle(host).fontSize);
+                    const base = parseFloat(window.getComputedStyle(root).fontSize) || 12;
+                    if (px) currentSize = window.fontStepFromPixels(px, base);
+                }
             }
 
-            // Map any chaotic legacy sizes into 2 → 3 → 4 → 5
+            // One step from the size under the cursor: small, normal, medium, large.
             if (currentSize <= 2) currentSize = 2;
             else if (currentSize === 3) currentSize = 3;
             else if (currentSize === 4) currentSize = 4;
-            else currentSize = 5;
+            else if (currentSize >= 5) currentSize = 5;
+            else currentSize = 3;
 
-            let newSize = 3;
+            let newSize = currentSize;
             if (tag === 'larger') {
-                if (currentSize === 2) newSize = 3;
+                if (typeof window.nextRichFontSize === 'function') newSize = window.nextRichFontSize(currentSize, 'larger');
+                else if (currentSize === 2) newSize = 3;
                 else if (currentSize === 3) newSize = 4;
+                else if (currentSize === 4) newSize = 5;
                 else newSize = 5;
             } else if (tag === 'smaller') {
-                if (currentSize === 5) newSize = 4;
+                if (typeof window.nextRichFontSize === 'function') newSize = window.nextRichFontSize(currentSize, 'smaller');
+                else if (currentSize === 5) newSize = 4;
                 else if (currentSize === 4) newSize = 3;
                 else newSize = 2;
             }
 
-            document.execCommand('fontSize', false, newSize.toString());
+            try { document.execCommand('styleWithCSS', false, false); } catch { /* keep real font tags */ }
+            document.execCommand('fontSize', false, String(newSize));
         } else if (tag === 'justifyLeft') {
             document.execCommand('justifyLeft', false, null);
         } else if (tag === 'justifyCenter') {
@@ -14213,7 +15163,7 @@ const Admin = {
     },
 
     attachLinkPreview: async (payload) => {
-        if (!payload || payload.linkPreview?.url) return payload;
+        if (!payload || payload.suppressLinkPreview || payload.linkPreview?.url) return payload;
         const api = window.ntLinkPreview;
         if (!api?.firstHttpUrl || !api.fetchLinkPreview) return payload;
         const url = api.firstHttpUrl(payload);
@@ -14999,6 +15949,11 @@ const Admin = {
                     <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Message</label>
                     <div class="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden min-w-0 max-w-full focus-within:ring-2 focus-within:ring-blue-500">
                         ${Admin.wysiwygToolbarHtml('alert-msg', { fileInputId: 'alert-upload-file', fileLabelId: 'alert-upload-label' })}
+                        <div data-nt-title-slot class="hidden border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                            <div data-nt-title contenteditable="true" role="textbox" data-placeholder="Title" class="text-gray-900 dark:text-white"></div>
+                        </div>
+                        <div data-nt-media-slot class="hidden px-2.5 pt-2 space-y-2"></div>
+                        <div data-nt-preview-slot id="alert-preview-slot" class="hidden px-2.5 pt-2"></div>
                         <div contenteditable="true" id="alert-msg" class="nt-rich-body w-full max-w-full min-w-0 overflow-x-hidden min-h-[120px] p-2.5 bg-gray-50 dark:bg-gray-900 border-0 text-gray-900 dark:text-white text-xs focus:ring-0 outline-none whitespace-pre-wrap empty:before:content-[attr(placeholder)] empty:before:text-gray-400" placeholder="e.g. Delays of 45min due to cable theft..."></div>
                         <div id="alert-poster-preview" class="px-2.5 pb-2.5 empty:hidden"></div>
                     </div>
@@ -15358,6 +16313,8 @@ const Admin = {
         alertPanel.classList.remove('hidden');
         alertPanel.dataset.adminLoaded = ALERT_PANEL_REV;
         if (typeof window.injectRichTextStyles === 'function') window.injectRichTextStyles();
+        Admin.bindComposerChrome();
+        Admin.bindAlertComposeFields();
 
         // --- Logic Wiring ---
         const header = document.getElementById('alert-header-btn');
@@ -15783,11 +16740,10 @@ const Admin = {
         syncAlertWhenMode('now');
 
         document.getElementById('alert-schedule-save-btn')?.addEventListener('click', async () => {
-            let msg = (alertMsg?.innerHTML || '').trim();
+            const draft = Admin.draftAlertNotice(signoffInput?.value || '');
             const targets = Admin.getSelectedAlertTargets();
-            const hasBody = Admin.alertComposeHasBody(msg);
             const posters = Admin.getSelectedAlertPosters();
-            if (composeNeedsContentToast(hasBody, posters)) return;
+            if (composeNeedsContentToast(draft.hasContent, posters)) return;
             if (!composePollFieldsOk()) return;
             if (!targets.length) { if (typeof showToast === 'function') showToast('Pick a target audience.', 'error'); return; }
             const meta = readComposeScheduleMeta();
@@ -15797,10 +16753,6 @@ const Admin = {
             if (!secret) { if (typeof showToast === 'function') showToast('Authentication required.', 'error'); return; }
 
             const signoff = (signoffInput?.value || '').trim() || 'Next Train Ops';
-            msg = hasBody ? Admin.repairMojibake(msg) : '';
-            if (hasBody && !/<span[^>]*>.*?<\/span>\s*$/i.test(msg)) {
-                msg += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">- ${signoff}</span>`;
-            }
             const schedId = Admin._editingSchedId || `sched_${Date.now()}`;
             const alertExpiresAt = Number(meta.nextRunAt || 0) + Number(meta.expiresInMs || 0);
             const pollClosesAt = readPollClosesAt(alertExpiresAt);
@@ -15821,7 +16773,10 @@ const Admin = {
                 monthDay: meta.monthDay,
                 untilAt: meta.untilAt,
                 notice: {
-                    message: msg,
+                    title: draft.title,
+                    message: draft.message,
+                    suppressLinkPreview: draft.suppressLinkPreview,
+                    linkPreview: draft.linkPreview,
                     authorName: signoff,
                     forcePopup: !!(forcePopupToggle && forcePopupToggle.checked),
                     pinned: !!(pinToggle && pinToggle.checked),
@@ -15869,7 +16824,7 @@ const Admin = {
             let cleanedMsg = Admin.repairMojibake(item.message || '');
             cleanedMsg = cleanedMsg.replace(/(<br\s*\/?>\s*){1,2}<span[^>]*>.*?<\/span>\s*$/i, '');
             cleanedMsg = cleanedMsg.replace(/<span[^>]*>.*?<\/span>\s*$/i, '');
-            if (alertMsg) alertMsg.innerHTML = cleanedMsg.trim();
+            Admin.loadAlertCompose({ ...item, message: cleanedMsg.trim() });
 
             if (item.expiresAt && dateInput) {
                 const floor = mode === 'review' ? item.expiresAt : Math.max(item.expiresAt, Date.now() + 2 * 3600 * 1000);
@@ -16163,27 +17118,12 @@ const Admin = {
                                 if (labelEl) labelEl.innerHTML = originalLabel;
                                 try {
                                     const url = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
-                                    
-                                    const htmlToInsert = Admin.inlineAttachmentHtml(url, isPdf);
-                                    if (!htmlToInsert) {
+                                    if (!editor || !Admin.placeComposerAttachment(editor, url, isPdf, savedRange)) {
                                         if (typeof showToast === 'function') showToast("Failed to insert attachment link", "error");
                                         this.value = '';
                                         return;
                                     }
-                                    
-                                    if (editor) {
-                                        editor.focus();
-                                        if (savedRange) {
-                                            const sel = window.getSelection();
-                                            sel.removeAllRanges();
-                                            sel.addRange(savedRange);
-                                        }
-                                        // Use native execCommand for undo-stack support, fallback to manual append if strict sandboxed
-                                        if (!document.execCommand('insertHTML', false, htmlToInsert)) {
-                                            editor.innerHTML += htmlToInsert;
-                                        }
-                                        Admin._savedRange = null; // Clear lock
-                                    }
+                                    Admin._savedRange = null;
                                     if (typeof showToast === 'function') showToast("Attachment inserted!", "success");
                                 } catch(e) {
                                     if (typeof showToast === 'function') showToast("Failed to insert attachment link", "error");
@@ -16387,27 +17327,21 @@ const Admin = {
         if (dateInput) dateInput.value = Admin.endOfTodayLocalValue();
 
         sendBtn.onclick = async () => {
-            let msg = alertMsg.innerHTML.trim();
+            const signoff = signoffInput.value.trim() || "Next Train Ops";
+            const draft = Admin.draftAlertNotice(signoff);
             const targets = Admin.getSelectedAlertTargets();
             const severity = severitySelect.value;
             
-            const signoff = signoffInput.value.trim() || "Next Train Ops";
             const isForcePopup = forcePopupToggle.checked;
             const isPinned = !!(pinToggle && pinToggle.checked);
             
             const secret = await Admin.getAuthKey();
             
-            const hasBody = Admin.alertComposeHasBody(msg);
             const posters = Admin.getSelectedAlertPosters();
-            if (composeNeedsContentToast(hasBody, posters)) return;
+            if (composeNeedsContentToast(draft.hasContent, posters)) return;
             if (!composePollFieldsOk()) return;
             if (!targets.length) { if (typeof showToast === 'function') showToast("Pick at least one route or region.", "error"); return; }
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required! Sign in again.", "error"); return; }
-
-            msg = hasBody ? Admin.repairMojibake(msg) : '';
-            if (hasBody && !/<span[^>]*>.*?<\/span>\s*$/i.test(msg)) {
-                msg += `<br><br><span class="opacity-75 text-[10px] uppercase font-bold tracking-wider">- ${signoff}</span>`;
-            }
 
             let expiresAtVal = dateInput && dateInput.value ? new Date(dateInput.value).getTime() : new Date(Admin.endOfTodayLocalValue()).getTime();
 
@@ -16416,7 +17350,10 @@ const Admin = {
             const nowTs = Date.now();
             const payload = {
                 id: existingAlertId || nowTs.toString(),
-                message: msg,
+                title: draft.title,
+                message: draft.message,
+                suppressLinkPreview: draft.suppressLinkPreview,
+                linkPreview: draft.linkPreview,
                 authorName: signoff,
                 forcePopup: isForcePopup,
                 pinned: isPinned,
@@ -16460,7 +17397,7 @@ const Admin = {
                     const returnToActive = !!Admin._alertEditFromActive && isUpdate;
                     Admin._alertEditFromActive = false;
                     Admin.setSelectedAlertPosters([]);
-                    if (alertMsg) alertMsg.innerHTML = '';
+                    Admin.clearAlertComposeSlots();
                     if (sourceNameInput) sourceNameInput.value = '';
                     if (sourceUrlInput) sourceUrlInput.value = '';
                     renderSavedSourceDropdown('');
@@ -16533,7 +17470,7 @@ const Admin = {
                 if (typeof showToast === 'function') showToast("Cleared & Archived!", "info");
 
                 existingAlertId = null;
-                alertMsg.innerHTML = "";
+                Admin.clearAlertComposeSlots();
                 signoffInput.value = "Next Train Ops";
                 if (sourceNameInput) sourceNameInput.value = '';
                 if (sourceUrlInput) sourceUrlInput.value = '';
@@ -17388,24 +18325,12 @@ const Admin = {
                                 if (labelEl) labelEl.innerHTML = originalLabel;
                                 try {
                                     const url = await window.firebaseGetDownloadURL(uploadTask.snapshot.ref);
-                                    const htmlToInsert = Admin.inlineAttachmentHtml(url, isPdf);
-                                    if (!htmlToInsert) {
+                                    if (!editor || !Admin.placeComposerAttachment(editor, url, isPdf, savedRange)) {
                                         if (typeof showToast === 'function') showToast("Failed to insert attachment link", "error");
                                         this.value = '';
                                         return;
                                     }
-                                    if (editor) {
-                                        editor.focus();
-                                        if (savedRange) {
-                                            const sel = window.getSelection();
-                                            sel.removeAllRanges();
-                                            sel.addRange(savedRange);
-                                        }
-                                        if (!document.execCommand('insertHTML', false, htmlToInsert)) {
-                                            editor.innerHTML += htmlToInsert;
-                                        }
-                                        Admin._savedRange = null;
-                                    }
+                                    Admin._savedRange = null;
                                     if (typeof showToast === 'function') showToast("Attachment inserted!", "success");
                                 } catch (e) {
                                     if (typeof showToast === 'function') showToast("Failed to insert attachment link", "error");
@@ -19865,6 +20790,7 @@ const Admin = {
             { key: 'delayReportsUi', label: 'Delay reports' },
             { key: 'communityRealtime', label: 'Community realtime' },
             { key: 'pushNotify', label: 'Push notifications' },
+            { key: 'accounts', label: 'Accounts' },
         ];
     },
 
@@ -22413,7 +23339,7 @@ const Admin = {
                         <svg id="sched-override-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
                     <div id="sched-override-body" class="hidden p-4 space-y-3">
-                        <p class="text-[10px] text-blue-600 dark:text-blue-400 leading-snug">Override the live timetable per region. Commuters boot normally, then see your message and switch.</p>
+                        <p class="text-[10px] text-blue-600 dark:text-blue-400 leading-snug">Override the live timetable per region. Commuters boot normally, then see your message and switch. A message is required whenever a region is Active.</p>
                         <div id="sched-override-regions" class="space-y-3"></div>
                         <button type="button" id="sched-override-save" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wide focus:outline-none">Save schedule overrides</button>
                     </div>
@@ -23042,10 +23968,10 @@ const Admin = {
                     </div>
                     <input type="text" id="sched-override-title-${code}" class="sched-override-title w-full h-9 px-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none" data-region="${code}" placeholder="Popup title (e.g. Public holiday today)" maxlength="120">
                     <div class="flex items-center justify-between">
-                        <span class="text-[9px] font-bold uppercase tracking-wide text-gray-500">Message</span>
+                        <span class="text-[9px] font-bold uppercase tracking-wide text-gray-500">Message (required if active)</span>
                         ${Admin.writeAssistButtonHtml('sched-override-msg-' + code)}
                     </div>
-                    <textarea id="sched-override-msg-${code}" class="sched-override-body w-full min-h-[56px] px-2 py-1.5 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none resize-y" data-region="${code}" placeholder="Popup message explaining the situation" maxlength="500"></textarea>
+                    <textarea id="sched-override-msg-${code}" class="sched-override-body w-full min-h-[56px] px-2 py-1.5 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none resize-y" data-region="${code}" placeholder="Required when Active is on" maxlength="500"></textarea>
                 </div>
             `).join('');
         }
@@ -23338,17 +24264,29 @@ const Admin = {
                         return;
                     }
                     const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                    const missingMessage = [];
                     const regions = {};
                     SCHED_OVERRIDE_REGIONS.forEach((code) => {
+                        const active = !!schedOverrideRegions.querySelector(`.sched-override-active[data-region="${code}"]`)?.checked;
+                        const body = (schedOverrideRegions.querySelector(`.sched-override-body[data-region="${code}"]`)?.value || '').trim();
+                        if (active && !body) missingMessage.push(code);
                         regions[code] = {
-                            active: !!schedOverrideRegions.querySelector(`.sched-override-active[data-region="${code}"]`)?.checked,
+                            active,
                             dayType: schedOverrideRegions.querySelector(`.sched-override-day[data-region="${code}"]`)?.value
                                 || (code === 'WC' ? 'public_holiday' : 'saturday'),
                             title: (schedOverrideRegions.querySelector(`.sched-override-title[data-region="${code}"]`)?.value || '').trim(),
-                            body: (schedOverrideRegions.querySelector(`.sched-override-body[data-region="${code}"]`)?.value || '').trim(),
+                            body,
                             updatedAt: Date.now(),
                         };
                     });
+                    if (missingMessage.length) {
+                        const first = schedOverrideRegions.querySelector(`.sched-override-body[data-region="${missingMessage[0]}"]`);
+                        first?.focus();
+                        if (typeof showToast === 'function') {
+                            showToast(`Add a message for ${missingMessage.join(', ')} before forcing that schedule.`, 'error');
+                        }
+                        return;
+                    }
                     const payload = {
                         updatedAt: Date.now(),
                         updatedBy: Admin.currentUser?.email || 'Admin',
@@ -23986,6 +24924,7 @@ const Admin = {
                 const sourceBtn = srcMeta.canOpen
                     ? `<button type="button" class="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${sStyles.bg} ${sStyles.text} hover:underline focus:outline-none" onclick="event.stopPropagation(); Admin.openRoadmapOriginal('${safeTicketId}')">${safeHTML(sStyles.label)}</button>`
                     : `<span class="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${sStyles.bg} ${sStyles.text}">${safeHTML(sStyles.label)}</span>`;
+                const outreachHtml = Admin.roadmapOutreachButtons(ticket, { compact: true });
 
                 const cardHtml = `
                     <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 border-l-4 ${pStyles.stripe} p-3 rounded-xl shadow-sm hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer group flex flex-col gap-2 text-left overflow-hidden" onclick="Admin.openViewModal('${safeTicketId}')">
@@ -24000,6 +24939,7 @@ const Admin = {
                             <h4 class="font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug break-words text-left min-w-0 flex-1">${safeTitle}</h4>
                         </div>
                         <p class="text-[11px] text-slate-600 dark:text-slate-300 text-left break-words whitespace-normal leading-relaxed line-clamp-3">${shortDesc}</p>
+                        ${outreachHtml ? `<div onclick="event.stopPropagation()">${outreachHtml}</div>` : ''}
                         <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
                             <span class="text-[9px] text-slate-400 font-medium">${dateStr.split(',')[0]}</span>
                             <div class="flex items-center gap-0.5 shrink-0">
@@ -24165,6 +25105,7 @@ const Admin = {
             const originalBtn = srcMeta.canOpen
                 ? `<button type="button" id="roadmap-open-original" class="mt-3 w-full text-left px-3 py-2.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/50 focus:outline-none">Open original ${safeHTML(srcMeta.label)}</button>`
                 : '';
+            const outreachHtml = Admin.roadmapOutreachButtons(ticket, { compact: false });
 
             modal.innerHTML = `
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] transform transition-all scale-95 border border-gray-200 dark:border-gray-700">
@@ -24198,6 +25139,7 @@ const Admin = {
                     <div class="p-4 sm:p-6 overflow-y-auto flex-1 bg-white dark:bg-gray-800 custom-scrollbar text-left">
                         <h4 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 text-left">Description</h4>
                         <div id="roadmap-ticket-desc" class="text-left text-sm leading-relaxed text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-700 whitespace-pre-wrap break-words">${safeDesc}</div>
+                        ${outreachHtml}
                         ${originalBtn}
                     </div>
                 </div>
@@ -24375,6 +25317,9 @@ const Admin = {
                     sourceId: ticket.sourceId || inferred.sourceId || '',
                     deviceId: ticket.deviceId || inferred.deviceId || '',
                     sourceTab: ticket.sourceTab || inferred.tab || '',
+                    outreachEmails: Admin.outreachList(ticket.outreachEmails),
+                    outreachPhones: Admin.outreachList(ticket.outreachPhones),
+                    outreachMessage: String(ticket.outreachMessage || ''),
                 };
 
                 const targetId = ticketId || Date.now().toString();
