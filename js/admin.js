@@ -3295,6 +3295,28 @@ const Admin = {
                 }
             }
 
+            // 5b. Account deletion requests (User Trust tile)
+            try {
+                const delRes = await window.guardianFetch(`${dynamicEndpoint}account_deletions.json?auth=${secret}`, {}, 6000);
+                let delUnread = 0;
+                if (delRes.ok) {
+                    const delData = await delRes.json();
+                    if (delData && typeof delData === 'object') {
+                        Object.values(delData).forEach((row) => {
+                            if (!row || row.status === 'done' || row.deletionResolvedAt) return;
+                            if (Number(row.requestedAt || row.deletionRequestedAt) > 0) delUnread += 1;
+                        });
+                    }
+                }
+                totalUnread += delUnread;
+                const utBadge = document.getElementById('ut-unread-badge');
+                if (utBadge) {
+                    utBadge.textContent = Admin.formatBadgeCount(delUnread);
+                    utBadge.classList.toggle('hidden', delUnread === 0);
+                }
+                Admin._pendingDeletionCount = delUnread;
+            } catch { /* deletion badge is best-effort */ }
+
             // 5. Community activity, per operator and per route.
             const mqRes = await window.guardianFetch(`${dynamicEndpoint}community_activity.json?auth=${secret}`, {}, 6000);
             if (mqRes.ok) {
@@ -7890,6 +7912,48 @@ const Admin = {
             await Admin.fetchDeadEnds();
         };
 
+        Admin.reclassifyPlannerFare = async (vote, patchIn = {}) => {
+            const secret = await Admin.getAuthKey();
+            if (!secret) throw new Error('Not signed in');
+            const item = vote && typeof vote === 'object' ? vote : {};
+            const id = String(item.id || '').trim();
+            if (!id) throw new Error('Missing fare vote');
+            const ticketType = String(patchIn.ticketType || item.ticketType || 'single').toLowerCase();
+            const allowedTypes = new Set(['single', 'return', 'weekly_mon_fri', 'weekly_mon_sat', 'monthly']);
+            if (!allowedTypes.has(ticketType)) throw new Error('Unknown ticket type');
+            const isOffPeak = patchIn.isOffPeak != null ? !!patchIn.isOffPeak : !!item.isOffPeak;
+            let agree = patchIn.agree != null ? !!patchIn.agree : !!item.agree;
+            // Reclassifying a mistaken Single correction to another ticket type means the
+            // board Single quote was fine — count it as correct unless admin overrides.
+            if (patchIn.agree == null
+                && item.agree === false
+                && String(item.ticketType || 'single').toLowerCase() === 'single'
+                && ticketType !== 'single') {
+                agree = true;
+            }
+            const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+            const patch = {
+                ticketType,
+                isOffPeak,
+                agree,
+                reclassifiedAt: Date.now(),
+                reclassifiedBy: Admin.currentUser?.email || Admin.currentUser?.uid || 'Admin',
+            };
+            const res = await fetch(`${dynamicEndpoint}sys_logs/fare_votes/${encodeURIComponent(id)}.json?auth=${secret}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(patch),
+            });
+            if (!res.ok) throw new Error(`Reclassify failed (${res.status})`);
+            if (Admin._cachedFareVotes && Admin._cachedFareVotes[id]) {
+                Admin._cachedFareVotes[id] = { ...Admin._cachedFareVotes[id], ...patch };
+            }
+            if (typeof showToast === 'function') {
+                showToast(agree ? 'Classification saved · quote marked correct' : 'Classification saved', 'success');
+            }
+            await Admin.fetchDeadEnds();
+        };
+
         Admin.refutePlannerFare = async (vote) => {
             const secret = await Admin.getAuthKey();
             if (!secret) throw new Error('Not signed in');
@@ -8204,6 +8268,29 @@ const Admin = {
                         const typeWarn = item.agree === false && ticketTypeKey !== 'single'
                             ? `<p class="mt-1 text-[10px] leading-snug text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-md px-2 py-1">Collect-only for now. Do not Approve weekly/monthly into Single live fares. Peak/off-peak on this card is the board they viewed, not the ticket period.</p>`
                             : '';
+                        const reclassHtml = item.review !== 'refuted' ? `
+                            <div class="de-fare-reclass mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 space-y-1.5" onclick="event.stopPropagation()">
+                                <p class="text-[9px] font-black uppercase tracking-wider text-gray-400">Reclassify correction</p>
+                                <div class="flex flex-wrap gap-1.5 items-center">
+                                    <select class="de-fare-type h-8 px-1.5 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none">
+                                        <option value="single" ${ticketTypeKey === 'single' ? 'selected' : ''}>Single</option>
+                                        <option value="return" ${ticketTypeKey === 'return' ? 'selected' : ''}>Return</option>
+                                        <option value="weekly_mon_fri" ${ticketTypeKey === 'weekly_mon_fri' ? 'selected' : ''}>Weekly Mon-Fri</option>
+                                        <option value="weekly_mon_sat" ${ticketTypeKey === 'weekly_mon_sat' ? 'selected' : ''}>Weekly Mon-Sat</option>
+                                        <option value="monthly" ${ticketTypeKey === 'monthly' ? 'selected' : ''}>Monthly</option>
+                                    </select>
+                                    <select class="de-fare-peak h-8 px-1.5 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none">
+                                        <option value="peak" ${item.isOffPeak ? '' : 'selected'}>Peak</option>
+                                        <option value="off" ${item.isOffPeak ? 'selected' : ''}>Off-peak</option>
+                                    </select>
+                                    <label class="inline-flex items-center gap-1 text-[10px] text-gray-600 dark:text-gray-300">
+                                        <input type="checkbox" class="de-fare-agree rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" ${item.agree ? 'checked' : ''}>
+                                        Quote correct
+                                    </label>
+                                    <button type="button" class="de-fare-reclass-save text-[9px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 px-2.5 py-1.5 rounded focus:outline-none">Save</button>
+                                </div>
+                            </div>
+                        ` : '';
                         card.innerHTML = `
                             <div class="de-fare-card-btn p-3 flex items-start justify-between gap-2">
                                 <div class="min-w-0 flex-1">
@@ -8221,6 +8308,7 @@ const Admin = {
                                     ${peakHint}
                                     ${typeWarn}
                                     ${ticketHtml}
+                                    ${reclassHtml}
                                 </div>
                                 ${(canApprove && !isLive) || canRefute ? `<div class="shrink-0 flex flex-col gap-1.5">
                                     ${canApprove && !isLive ? `<button type="button" class="de-fare-approve text-emerald-700 dark:text-emerald-400 hover:text-white hover:bg-emerald-600 text-[9px] font-black bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded transition-colors focus:outline-none uppercase tracking-widest shadow-sm">Approve ${secureEscape(reported)}</button>` : ''}
@@ -8247,8 +8335,24 @@ const Admin = {
                                 if (typeof showToast === 'function') showToast(e.message || 'Refute failed', 'error');
                             }
                         });
+                        card.querySelector('.de-fare-reclass-save')?.addEventListener('click', async (ev) => {
+                            ev.stopPropagation();
+                            try {
+                                const typeEl = card.querySelector('.de-fare-type');
+                                const peakEl = card.querySelector('.de-fare-peak');
+                                const agreeEl = card.querySelector('.de-fare-agree');
+                                await Admin.reclassifyPlannerFare(item, {
+                                    ticketType: typeEl?.value || 'single',
+                                    isOffPeak: peakEl?.value === 'off',
+                                    agree: !!agreeEl?.checked,
+                                });
+                            } catch (e) {
+                                console.error('Reclassify planner fare failed', e);
+                                if (typeof showToast === 'function') showToast(e.message || 'Reclassify failed', 'error');
+                            }
+                        });
                         card.addEventListener('click', (ev) => {
-                            if (ev.target.closest('.de-fare-approve, .de-fare-refute, .de-fare-ticket, [data-alert-lightbox], a, button.de-fare-approve')) return;
+                            if (ev.target.closest('.de-fare-approve, .de-fare-refute, .de-fare-reclass, .de-fare-ticket, [data-alert-lightbox], a, button.de-fare-approve')) return;
                             const panel = card.querySelector('.de-fare-contributors');
                             if (!panel) return;
                             const open = panel.classList.toggle('hidden') === false;
@@ -8598,7 +8702,21 @@ const Admin = {
             const esc = Admin.secureDeEscape;
             panel.innerHTML = `
                 <p class="text-[9px] font-black uppercase tracking-wider text-gray-400 pt-2 mb-1">Hit history${hits.length > cap ? ` (latest ${cap} of ${hits.length})` : ''}</p>
-                ${slice.map((h) => Admin.stackedContributorRowHtml(h.userId, `${Admin.formatDate(h.timestamp)} · dep ${esc(h.depTime || '-')}`)).join('') || '<p class="text-[10px] text-gray-400 italic">No hit details.</p>'}
+                ${slice.map((h) => {
+                    const ver = String(h.appVersion || '').split(' - ')[0].trim();
+                    const station = String(h.station || '').trim();
+                    const auto = h.stationAutoLocated === true || h.stationAutoLocated === '1' || h.stationAutoLocated === 1;
+                    const verBtn = /^V\d+_/i.test(ver)
+                        ? ` · <button type="button" class="fb-version-chip font-mono underline decoration-dotted underline-offset-2 focus:outline-none" data-admin-changelog="${esc(ver)}" data-cl-route="" data-cl-station="${esc(station)}" data-cl-auto="${auto ? '1' : '0'}">${esc(ver)}</button>`
+                        : (ver ? ` · ${esc(ver)}` : '');
+                    const stationBit = station
+                        ? ` · ${esc(station)}${auto ? ' (auto)' : ' (manual)'}`
+                        : '';
+                    return Admin.stackedContributorRowHtml(
+                        h.userId,
+                        `${Admin.formatDate(h.timestamp)} · dep ${esc(h.depTime || '-')}${stationBit}${verBtn}`,
+                    );
+                }).join('') || '<p class="text-[10px] text-gray-400 italic">No hit details.</p>'}
             `;
         };
 
@@ -9091,7 +9209,7 @@ const Admin = {
                     return;
                 }
                 rows.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-                const headers = ['timestamp', 'region', 'userId', 'authUid', 'dayType', 'origin', 'destination', 'depTime', 'arrTime', 'transfers', 'appVersion', 'batchId'];
+                const headers = ['timestamp', 'region', 'userId', 'authUid', 'dayType', 'origin', 'destination', 'depTime', 'arrTime', 'transfers', 'appVersion', 'station', 'stationAutoLocated', 'batchId'];
                 if (format === 'csv') {
                     const esc = (v) => {
                         const s = String(v ?? '');
@@ -9126,7 +9244,7 @@ const Admin = {
                 }
                 entries.sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0));
                 const photos = Admin._cachedFareTicketPhotos || {};
-                const headers = ['at', 'origin', 'destination', 'quotedPrice', 'reportedPrice', 'agree', 'ticketType', 'quotedTicketType', 'isOffPeak', 'dayType', 'depTime', 'profile', 'km', 'crowKm', 'smoothKm', 'abKm', 'zone', 'region', 'deviceId', 'authUid', 'appVersion', 'routeIds', 'ticketUrl', 'id'];
+                const headers = ['at', 'origin', 'destination', 'quotedPrice', 'reportedPrice', 'agree', 'ticketType', 'quotedTicketType', 'isOffPeak', 'dayType', 'depTime', 'profile', 'km', 'crowKm', 'smoothKm', 'abKm', 'zone', 'region', 'deviceId', 'authUid', 'appVersion', 'station', 'stationAutoLocated', 'routeIds', 'ticketUrl', 'id'];
                 const cell = (r, h) => {
                     if (h === 'at') return Admin.formatDate(r.at);
                     if (h === 'routeIds') return Array.isArray(r.routeIds) ? r.routeIds.join('|') : (r.routeIds || '');
@@ -9170,7 +9288,7 @@ const Admin = {
                 return;
             }
             entries.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-            const headers = ['timestamp', 'region', 'userId', 'deviceId', 'dayType', 'origin', 'destination', 'reason', 'timeOfDay', 'appVersion', 'id'];
+            const headers = ['timestamp', 'region', 'userId', 'deviceId', 'dayType', 'origin', 'destination', 'reason', 'timeOfDay', 'appVersion', 'station', 'stationAutoLocated', 'id'];
             if (format === 'csv') {
                 const esc = (v) => {
                     const s = String(v ?? '');
@@ -9291,11 +9409,20 @@ const Admin = {
                     <button id="fb-refresh-btn" onclick="event.stopPropagation()" class="flex-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors shadow-sm focus:outline-none flex items-center justify-center gap-1.5">
                         ${Admin.icon('refresh', 'w-3.5 h-3.5')} Refresh
                     </button>
-                    <div id="fb-filter-menu" class="hidden absolute left-0 top-full mt-1 z-50 w-max min-w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-2 space-y-1">
-                        <label class="flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-bold text-gray-800 dark:text-gray-100 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"><input type="checkbox" data-fb-filter="email" class="rounded border-gray-300 text-violet-600 focus:ring-violet-500"> Email</label>
-                        <label class="flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-bold text-gray-800 dark:text-gray-100 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"><input type="checkbox" data-fb-filter="whatsapp" class="rounded border-gray-300 text-violet-600 focus:ring-violet-500"> WhatsApp number</label>
-                        <label class="flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-bold text-gray-800 dark:text-gray-100 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"><input type="checkbox" data-fb-filter="attachments" class="rounded border-gray-300 text-violet-600 focus:ring-violet-500"> Attachments</label>
-                        <label class="flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-bold text-gray-800 dark:text-gray-100 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap"><input type="checkbox" data-fb-filter="trips" class="rounded border-gray-300 text-violet-600 focus:ring-violet-500"> Trip plans</label>
+                    <div id="fb-filter-menu" class="hidden absolute left-0 top-full mt-1 z-50 w-max min-w-[16rem] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-2 space-y-2">
+                        <p class="px-2 pt-1 text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Show threads that</p>
+                        ${['email', 'whatsapp', 'attachments', 'trips'].map((key) => {
+                            const labels = { email: 'Email', whatsapp: 'WhatsApp number', attachments: 'Attachments', trips: 'Trip plans' };
+                            return `<div class="px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800" data-fb-filter-row="${key}">
+                                <div class="text-[11px] font-bold text-gray-800 dark:text-gray-100 mb-1">${labels[key]}</div>
+                                <div class="flex flex-wrap gap-1">
+                                    <label class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold text-gray-700 dark:text-gray-200 cursor-pointer border border-transparent has-[:checked]:border-violet-400 has-[:checked]:bg-violet-50 dark:has-[:checked]:bg-violet-950/40"><input type="radio" name="fb-filter-${key}" data-fb-filter="${key}" data-fb-filter-mode="any" class="text-violet-600 focus:ring-violet-500"> Any</label>
+                                    <label class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold text-gray-700 dark:text-gray-200 cursor-pointer border border-transparent has-[:checked]:border-violet-400 has-[:checked]:bg-violet-50 dark:has-[:checked]:bg-violet-950/40"><input type="radio" name="fb-filter-${key}" data-fb-filter="${key}" data-fb-filter-mode="has" class="text-violet-600 focus:ring-violet-500"> Has</label>
+                                    <label class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold text-gray-700 dark:text-gray-200 cursor-pointer border border-transparent has-[:checked]:border-violet-400 has-[:checked]:bg-violet-50 dark:has-[:checked]:bg-violet-950/40"><input type="radio" name="fb-filter-${key}" data-fb-filter="${key}" data-fb-filter-mode="missing" class="text-violet-600 focus:ring-violet-500"> Missing</label>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                        <button type="button" id="fb-filter-clear" class="w-full mt-1 px-2 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40">Clear filters</button>
                     </div>
                 </div>
                 
@@ -9337,23 +9464,42 @@ const Admin = {
         const filterMenu = document.getElementById('fb-filter-menu');
         const paintFilterBtn = () => {
             if (!filterBtn) return;
-            const on = Object.values(Admin.feedbackInboxFilters || {}).some(Boolean);
+            const on = Admin.feedbackFiltersActive();
             filterBtn.classList.toggle('ring-2', on);
             filterBtn.classList.toggle('ring-violet-400', on);
         };
-        filterMenu?.querySelectorAll('[data-fb-filter]').forEach((box) => {
-            const key = box.getAttribute('data-fb-filter');
-            box.checked = !!Admin.feedbackInboxFilters?.[key];
+        const syncFilterRadios = () => {
+            filterMenu?.querySelectorAll('[data-fb-filter][data-fb-filter-mode]').forEach((box) => {
+                const key = box.getAttribute('data-fb-filter');
+                const mode = box.getAttribute('data-fb-filter-mode') || 'any';
+                const current = Admin.feedbackInboxFilters?.[key] || 'any';
+                box.checked = current === mode;
+            });
+        };
+        filterMenu?.querySelectorAll('[data-fb-filter][data-fb-filter-mode]').forEach((box) => {
             box.addEventListener('change', () => {
-                Admin.feedbackInboxFilters[key] = !!box.checked;
+                if (!box.checked) return;
+                const key = box.getAttribute('data-fb-filter');
+                const mode = box.getAttribute('data-fb-filter-mode') || 'any';
+                if (!Admin.feedbackInboxFilters) Admin.feedbackInboxFilters = { email: 'any', whatsapp: 'any', attachments: 'any', trips: 'any' };
+                Admin.feedbackInboxFilters[key] = mode;
                 paintFilterBtn();
                 Admin.renderFeedbackList();
             });
+        });
+        document.getElementById('fb-filter-clear')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            Admin.feedbackInboxFilters = { email: 'any', whatsapp: 'any', attachments: 'any', trips: 'any' };
+            syncFilterRadios();
+            paintFilterBtn();
+            Admin.renderFeedbackList();
         });
         if (filterBtn && filterMenu) {
             filterBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                syncFilterRadios();
                 filterMenu.classList.toggle('hidden');
             });
             document.addEventListener('click', (e) => {
@@ -9361,6 +9507,7 @@ const Admin = {
                 filterMenu.classList.add('hidden');
             });
         }
+        syncFilterRadios();
         paintFilterBtn();
 
         // Dual-Tab Switcher Logic
@@ -9420,20 +9567,12 @@ const Admin = {
                 groups[did].push(item);
             });
 
-            // GUARDIAN UX FIX: Dynamic Tab Counters
-            let totalInbox = 0;
-            let totalArchive = 0;
-            Object.keys(groups).forEach(did => {
-                if (groups[did].some(i => !i.isFromAdmin && i.status !== 'resolved')) totalInbox++;
-                else totalArchive++;
-            });
-            if (tabInbox) tabInbox.innerHTML = `Inbox (${totalInbox})`;
-            if (tabArchive) tabArchive.innerHTML = `Archive (${totalArchive})`;
-
-            // 2. Filter groups based on Tab and Search String
+            // 2. Filter groups based on Tab, Search, and Has/Missing filters
             const displayGroups = [];
             const searchInputEl = document.getElementById('fb-search-input');
             const searchQuery = searchInputEl ? searchInputEl.value.toLowerCase().trim() : "";
+            let totalInbox = 0;
+            let totalArchive = 0;
 
             Object.keys(groups).forEach(did => {
                 const groupItems = groups[did];
@@ -9451,14 +9590,21 @@ const Admin = {
                     matchesSearch = alias.includes(searchQuery) || didLower.includes(searchQuery) || hasMatchingMsg;
                 }
 
-                if (matchesSearch && Admin.feedbackThreadMatchesFilters(did, groupItems)) {
-                    if (isInbox && isThreadActive) displayGroups.push({ did, items: groupItems });
-                    if (!isInbox && !isThreadActive) displayGroups.push({ did, items: groupItems });
-                }
+                if (!matchesSearch || !Admin.feedbackThreadMatchesFilters(did, groupItems)) return;
+
+                if (isThreadActive) totalInbox++;
+                else totalArchive++;
+
+                if (isInbox && isThreadActive) displayGroups.push({ did, items: groupItems });
+                if (!isInbox && !isThreadActive) displayGroups.push({ did, items: groupItems });
             });
 
+            // Dynamic tab counts = threads visible after search + filters
+            if (tabInbox) tabInbox.innerHTML = `Inbox (${totalInbox})`;
+            if (tabArchive) tabArchive.innerHTML = `Archive (${totalArchive})`;
+
             if (displayGroups.length === 0) {
-                const filtersOn = Object.values(Admin.feedbackInboxFilters || {}).some(Boolean);
+                const filtersOn = Admin.feedbackFiltersActive() || !!searchQuery;
                 const emptyCopy = filtersOn
                     ? 'No threads match these filters.'
                     : (isInbox ? 'Inbox is completely clean.' : 'No archived threads yet.');
@@ -9604,11 +9750,16 @@ const Admin = {
                         const link = isNum ? (Admin.outreachHref('whatsapp', ph, replyHtml) || `https://wa.me/${ph}`) : '#';
                         const target = isNum ? `target="_blank"` : '';
                         const aClass = isNum ? 'text-emerald-700 dark:text-emerald-300 hover:underline' : 'text-gray-500 dark:text-gray-400';
+                        const opened = isNum && Admin.wasOutreachClicked(did, 'whatsapp', ph);
+                        const openedChip = opened
+                            ? '<span class="text-[9px] font-bold uppercase tracking-wide text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/50 px-1.5 py-0.5 rounded-full shrink-0">Opened</span>'
+                            : '';
                         
                         contactHtml += `
-                            <div class="flex items-center min-w-0 max-w-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded px-2 py-1 shadow-sm">
-                                <a href="${link}" ${target} onclick="event.stopPropagation()" class="text-[10px] ${aClass} font-mono tracking-tight break-all whitespace-normal inline-flex items-center gap-1 min-w-0">${Admin.icon(isNum ? 'message' : 'phone', 'w-3 h-3 shrink-0')} ${ph}</a>
-                                <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${ph}'); if(typeof showToast === 'function') showToast('Copied!', 'success', 1000);" class="ml-1.5 text-gray-400 hover:text-emerald-500 transition-colors focus:outline-none inline-flex shrink-0" title="Copy">${Admin.icon('copy', 'w-3 h-3')}</button>
+                            <div class="flex items-center min-w-0 max-w-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded px-2 py-1 shadow-sm gap-1">
+                                <a href="${link}" ${target} onclick="event.stopPropagation(); if(${isNum ? 'true' : 'false'}){ Admin.markOutreachClicked('${String(did).replace(/'/g, "\\'")}', 'whatsapp', '${ph}'); }" class="text-[10px] ${aClass} font-mono tracking-tight break-all whitespace-normal inline-flex items-center gap-1 min-w-0">${Admin.icon(isNum ? 'message' : 'phone', 'w-3 h-3 shrink-0')} ${ph}</a>
+                                ${openedChip}
+                                <button onclick="event.stopPropagation(); navigator.clipboard.writeText('${ph}'); if(typeof showToast === 'function') showToast('Copied!', 'success', 1000);" class="ml-auto text-gray-400 hover:text-emerald-500 transition-colors focus:outline-none inline-flex shrink-0" title="Copy">${Admin.icon('copy', 'w-3 h-3')}</button>
                             </div>`;
                     });
                     contactHtml += '</div>';
@@ -9673,7 +9824,10 @@ const Admin = {
                 if (clBtn && listContainer.contains(clBtn)) {
                     e.preventDefault();
                     e.stopPropagation();
-                    Admin.openAdminChangelogLookup(clBtn.getAttribute('data-admin-changelog'));
+                    Admin.openAdminChangelogLookup(
+                        clBtn.getAttribute('data-admin-changelog'),
+                        Admin.changelogContextFromEl(clBtn),
+                    );
                     return;
                 }
 
@@ -11809,6 +11963,12 @@ const Admin = {
             } catch { /* profile flags stay on the queue list */ }
         }
         const rows = [...pending.values()].sort((a, b) => b.requestedAt - a.requestedAt);
+        const utBadge = document.getElementById('ut-unread-badge');
+        if (utBadge) {
+            utBadge.textContent = Admin.formatBadgeCount(rows.length);
+            utBadge.classList.toggle('hidden', rows.length === 0);
+        }
+        Admin._pendingDeletionCount = rows.length;
         if (!rows.length) {
             list.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">No open deletion requests.</p>';
             return;
@@ -11818,36 +11978,54 @@ const Admin = {
                 <p class="text-sm font-black text-gray-900 dark:text-white break-words">${esc(row.displayName || row.email || row.uid)}</p>
                 <p class="text-[11px] text-gray-500 break-all">${esc(row.email || 'No email')}</p>
                 <p class="font-mono text-[10px] text-gray-400 break-all mt-0.5">${esc(row.uid)}</p>
+                ${row.deviceId ? `<p class="font-mono text-[10px] text-gray-400 break-all">device ${esc(row.deviceId)}</p>` : ''}
                 <p class="text-[10px] text-gray-400 mt-1">${esc(Admin.formatDate(row.requestedAt))}</p>
-                <button type="button" data-ad-done="${esc(row.uid)}" class="mt-2 text-[10px] font-black uppercase tracking-wider text-white bg-gray-800 hover:bg-gray-900 px-3 py-1.5 rounded-lg">Mark done</button>
+                <button type="button" data-ad-delete="${esc(row.uid)}" data-ad-device="${esc(row.deviceId || '')}" class="mt-2 text-[10px] font-black uppercase tracking-wider text-white bg-rose-700 hover:bg-rose-800 px-3 py-1.5 rounded-lg">Delete data</button>
             </div>
         `).join('');
-        list.querySelectorAll('[data-ad-done]').forEach((btn) => {
-            btn.addEventListener('click', () => Admin.resolveAccountDeletion(btn.getAttribute('data-ad-done')));
+        list.querySelectorAll('[data-ad-delete]').forEach((btn) => {
+            btn.addEventListener('click', () => Admin.purgeAccountDeletion(
+                btn.getAttribute('data-ad-delete'),
+                btn.getAttribute('data-ad-device') || '',
+            ));
         });
     },
 
-    resolveAccountDeletion: async (uid) => {
+    purgeAccountDeletion: async (uid, deviceId = '') => {
         const id = String(uid || '').trim();
         if (!id) return;
         const secret = await Admin.getAuthKey();
         if (!secret) return;
         const base = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
-        const now = Date.now();
-        try {
-            await fetch(`${base}users/${encodeURIComponent(id)}/deletionResolvedAt.json?auth=${encodeURIComponent(secret)}`, {
-                method: 'PUT',
-                body: JSON.stringify(now),
-            });
-            await fetch(`${base}account_deletions/${encodeURIComponent(id)}/status.json?auth=${encodeURIComponent(secret)}`, {
-                method: 'PUT',
-                body: JSON.stringify('done'),
-            });
-            if (typeof showToast === 'function') showToast('Deletion request marked done', 'success');
-            Admin.fetchAccountDeletions();
-        } catch (e) {
-            if (typeof showToast === 'function') showToast('Could not update that request', 'error');
+        const auth = `?auth=${encodeURIComponent(secret)}`;
+        const did = String(deviceId || '').trim();
+        if (typeof window.confirm === 'function'
+            && !window.confirm(`Delete database data for ${id}? This cannot be undone.`)) {
+            return;
         }
+        try {
+            const jobs = [
+                fetch(`${base}users/${encodeURIComponent(id)}.json${auth}`, { method: 'DELETE' }),
+                fetch(`${base}account_deletions/${encodeURIComponent(id)}.json${auth}`, { method: 'DELETE' }),
+            ];
+            if (did) {
+                jobs.push(fetch(`${base}devices/${encodeURIComponent(did)}.json${auth}`, { method: 'DELETE' }));
+            }
+            const results = await Promise.all(jobs);
+            if (results.some((res) => !res.ok)) throw new Error('delete failed');
+            if (typeof showToast === 'function') {
+                showToast('User data deleted from the database', 'success');
+            }
+            Admin.fetchAccountDeletions();
+            if (typeof Admin.syncAllBadges === 'function') Admin.syncAllBadges();
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Could not delete that account data', 'error');
+        }
+    },
+
+    resolveAccountDeletion: async (uid) => {
+        // Kept for older deep-links; prefer purgeAccountDeletion.
+        return Admin.purgeAccountDeletion(uid);
     },
 
     // --- PHASE 7: USER TRUST / SHADOW-BAN LOOKUP ---
@@ -11873,6 +12051,7 @@ const Admin = {
                     ${Admin.tileIcon('user', 'text-indigo-500 dark:text-indigo-400')}
                     <span>User Trust &amp; Bans</span>
                 </span>
+                <span id="ut-unread-badge" class="admin-unread-badge hidden" aria-label="Pending deletion requests"></span>
                 <svg id="ut-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             <div id="ut-body" class="hidden mt-4 flex flex-col text-left">
@@ -11900,7 +12079,7 @@ const Admin = {
                 </div>
                 <div id="ut-pane-deletions" role="tabpanel" class="ut-pane hidden">
                     <div class="flex items-center justify-between gap-2 mb-2 px-1">
-                        <p class="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">Requests sent from Account. Mark done after the account is removed.</p>
+                        <p class="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">Requests sent from Account. Delete data removes the profile from the database.</p>
                         <button type="button" id="ad-refresh-btn" class="shrink-0 text-[10px] font-bold text-blue-600 dark:text-blue-400 px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">Refresh</button>
                     </div>
                     <div id="ad-list" class="space-y-2 max-h-[320px] overflow-y-auto px-1 custom-scrollbar"><p class="text-xs text-gray-400 text-center py-3">Open this tab to load requests.</p></div>
@@ -12395,7 +12574,16 @@ const Admin = {
     },
 
     // --- GROWTH SPRINT PHASE 8: ADMIN REPLY INBOX PROTOCOL ---
-    feedbackInboxFilters: { email: false, whatsapp: false, attachments: false, trips: false },
+    /** Per-facet mode: 'any' | 'has' | 'missing'. */
+    feedbackInboxFilters: { email: 'any', whatsapp: 'any', attachments: 'any', trips: 'any' },
+
+    feedbackFiltersActive: () => {
+        const filters = Admin.feedbackInboxFilters || {};
+        return ['email', 'whatsapp', 'attachments', 'trips'].some((key) => {
+            const mode = filters[key];
+            return mode === 'has' || mode === 'missing' || mode === true;
+        });
+    },
 
     feedbackThreadContactSets: (groupItems) => {
         const emails = new Set();
@@ -12415,12 +12603,26 @@ const Admin = {
 
     feedbackThreadMatchesFilters: (did, groupItems) => {
         const filters = Admin.feedbackInboxFilters || {};
-        if (!filters.email && !filters.whatsapp && !filters.attachments && !filters.trips) return true;
+        const modeOf = (key) => {
+            const raw = filters[key];
+            if (raw === true) return 'has';
+            if (raw === false || raw == null || raw === '') return 'any';
+            return String(raw);
+        };
+        if (!Admin.feedbackFiltersActive()) return true;
         const { emails, phones } = Admin.feedbackThreadContactSets(groupItems);
-        if (filters.email && !emails.size) return false;
-        if (filters.whatsapp && !phones.size) return false;
-        if (filters.attachments && !(groupItems || []).some((item) => Admin.feedbackItemHasAttachments(item))) return false;
-        if (filters.trips && !Admin.feedbackDeviceHasTripPlans(did)) return false;
+        const hasAttach = (groupItems || []).some((item) => Admin.feedbackItemHasAttachments(item));
+        const hasTrips = Admin.feedbackDeviceHasTripPlans(did);
+        const checks = [
+            [modeOf('email'), emails.size > 0],
+            [modeOf('whatsapp'), phones.size > 0],
+            [modeOf('attachments'), hasAttach],
+            [modeOf('trips'), hasTrips],
+        ];
+        for (const [mode, present] of checks) {
+            if (mode === 'has' && !present) return false;
+            if (mode === 'missing' && present) return false;
+        }
         return true;
     },
 
@@ -12568,29 +12770,63 @@ const Admin = {
         }
     },
 
-    showOutreachModal: ({ emails = [], phones = [], commuterName = 'this commuter', message = '', deviceId = '', feedbackId = '' } = {}) => {
+    outreachClickKey: (deviceId, channel, address) => {
+        const did = String(deviceId || '').trim() || 'anon';
+        const ch = String(channel || '').trim() || 'wa';
+        const addr = String(address || '').replace(/\D+/g, '') || String(address || '').trim().toLowerCase();
+        return `nt_outreach_clicked_${did}_${ch}_${addr}`;
+    },
+
+    markOutreachClicked: (deviceId, channel, address) => {
+        try { localStorage.setItem(Admin.outreachClickKey(deviceId, channel, address), String(Date.now())); } catch { /* ignore */ }
+    },
+
+    wasOutreachClicked: (deviceId, channel, address) => {
+        try { return !!localStorage.getItem(Admin.outreachClickKey(deviceId, channel, address)); } catch { return false; }
+    },
+
+    unresolvedFeedbackIdsForDevice: (deviceId) => {
+        const did = String(deviceId || '').trim();
+        if (!did) return '';
+        return (Admin.cachedFeedbackData || [])
+            .filter((i) => !i.isFromAdmin && i.status !== 'resolved' && String(i.device_id || i.deviceId || '') === did)
+            .map((i) => i.id)
+            .filter(Boolean)
+            .join(',');
+    },
+
+    showOutreachModal: ({ emails = [], phones = [], commuterName = 'this commuter', message = '', deviceId = '', feedbackId = '', unresolvedIds = '' } = {}) => {
         if (!emails.length && !phones.length) return;
         document.getElementById('admin-outreach-modal')?.remove();
         const modal = document.createElement('div');
         modal.id = 'admin-outreach-modal';
         modal.className = 'fixed inset-0 bg-black/80 z-[220] flex items-center justify-center p-4 backdrop-blur-sm';
         const safeName = String(commuterName).replace(/</g, '&lt;');
+        const resolveIds = unresolvedIds || Admin.unresolvedFeedbackIdsForDevice(deviceId) || String(feedbackId || '');
         const waButtons = phones.map((ph) => {
             const safe = String(ph).replace(/[^0-9]/g, '');
             const href = Admin.outreachHref('whatsapp', safe, message);
             if (!safe || !href) return '';
-            return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-lg text-sm">${Admin.icon('message', 'w-4 h-4')} WhatsApp ${safe}</a>`;
+            const opened = Admin.wasOutreachClicked(deviceId, 'whatsapp', safe);
+            const openedChip = opened
+                ? '<span data-outreach-opened class="ml-auto text-[10px] font-bold uppercase tracking-wide bg-white/20 text-white px-2 py-0.5 rounded-full">Opened</span>'
+                : '<span data-outreach-opened class="ml-auto hidden text-[10px] font-bold uppercase tracking-wide bg-white/20 text-white px-2 py-0.5 rounded-full">Opened</span>';
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" data-outreach-channel="whatsapp" data-outreach-address="${safe}" class="w-full inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-lg text-sm">${Admin.icon('message', 'w-4 h-4')} WhatsApp ${safe}${openedChip}</a>`;
         }).join('');
         const mailButtons = emails.map((em) => {
             const label = String(em).replace(/</g, '&lt;');
             const href = Admin.outreachHref('email', em, message);
             if (!href) return '';
-            return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-lg text-sm">${Admin.icon('mail', 'w-4 h-4')} Email ${label}</a>`;
+            const opened = Admin.wasOutreachClicked(deviceId, 'email', em);
+            const openedChip = opened
+                ? '<span data-outreach-opened class="ml-auto text-[10px] font-bold uppercase tracking-wide bg-white/20 text-white px-2 py-0.5 rounded-full">Opened</span>'
+                : '<span data-outreach-opened class="ml-auto hidden text-[10px] font-bold uppercase tracking-wide bg-white/20 text-white px-2 py-0.5 rounded-full">Opened</span>';
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" data-outreach-channel="email" data-outreach-address="${label}" class="w-full inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-3 rounded-lg text-sm">${Admin.icon('mail', 'w-4 h-4')} Email ${label}${openedChip}</a>`;
         }).join('');
         modal.innerHTML = `
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-5 border border-gray-200 dark:border-gray-700" role="dialog" aria-labelledby="outreach-title">
                 <h3 id="outreach-title" class="text-lg font-black text-gray-900 dark:text-white mb-1">Also reach ${safeName}?</h3>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">The in-app reply is sent and the thread is archived. WhatsApp and email open in a new tab so this admin screen stays on the current list.</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">The in-app reply is sent. Open WhatsApp or email in a new tab, then Resolve when you are done so the thread moves to Archive.</p>
                 <div class="space-y-2 mb-3">${waButtons}${mailButtons}</div>
                 <div class="mb-3">
                     <p class="text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">Later</p>
@@ -12600,7 +12836,10 @@ const Admin = {
                     </div>
                     <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">Saves this reply on the roadmap. Open that card to send the WhatsApp or email.</p>
                 </div>
-                <button type="button" id="outreach-dismiss" class="w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2.5 rounded-lg text-sm">Not now</button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="outreach-dismiss" class="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2.5 rounded-lg text-sm">Not now</button>
+                    <button type="button" id="outreach-resolve" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-lg text-sm"${resolveIds ? '' : ' disabled'}>Resolve</button>
+                </div>
             </div>
         `;
         document.body.appendChild(modal);
@@ -12610,9 +12849,26 @@ const Admin = {
             const ok = await Admin.saveOutreachLater({ status, emails, phones, message, commuterName, deviceId, feedbackId });
             if (!ok && btn) btn.disabled = false;
         };
+        modal.querySelectorAll('[data-outreach-channel]').forEach((link) => {
+            link.addEventListener('click', () => {
+                const channel = link.getAttribute('data-outreach-channel') || '';
+                const address = link.getAttribute('data-outreach-address') || '';
+                Admin.markOutreachClicked(deviceId, channel, address);
+                const chip = link.querySelector('[data-outreach-opened]');
+                if (chip) chip.classList.remove('hidden');
+            });
+        });
         document.getElementById('outreach-dismiss').onclick = close;
         document.getElementById('outreach-later-backlog').onclick = (e) => saveLater('backlog', e.currentTarget);
         document.getElementById('outreach-later-progress').onclick = (e) => saveLater('progress', e.currentTarget);
+        document.getElementById('outreach-resolve').onclick = async (e) => {
+            const btn = e.currentTarget;
+            if (!resolveIds) { close(); return; }
+            btn.disabled = true;
+            await Admin.resolveFeedback(resolveIds, true);
+            if (typeof showToast === 'function') showToast('Thread resolved and archived!', 'success');
+            close();
+        };
         modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
     },
 
@@ -13857,18 +14113,13 @@ const Admin = {
                     });
                 }
 
-                // Collect contacts before archive refresh replaces the cache
+                // Collect contacts + unresolved ids before any archive refresh replaces the cache
                 const contacts = Admin.collectFeedbackContacts(replyDeviceId);
                 const commuterName = (Admin.cachedAliases && Admin.cachedAliases[replyDeviceId]) || 'this commuter';
+                const unresolvedIds = Admin.unresolvedFeedbackIdsForDevice(replyDeviceId) || String(replyFeedbackId || '');
 
-                if (replyFeedbackId) {
-                    await Admin.resolveFeedback(replyFeedbackId, true);
-                } else if (typeof Admin.fetchFeedback === 'function') {
-                    Admin.fetchFeedback();
-                } 
-                
                 if (typeof showToast === 'function') {
-                    showToast(replyFeedbackId ? 'Reply sent & archived!' : 'Message sent to their inbox.', 'success');
+                    showToast(replyFeedbackId ? 'Reply sent.' : 'Message sent to their inbox.', 'success');
                 }
                 cleanup();
                 if (contacts.emails.length || contacts.phones.length) {
@@ -13878,7 +14129,13 @@ const Admin = {
                         message: text,
                         deviceId: replyDeviceId,
                         feedbackId: replyFeedbackId,
+                        unresolvedIds,
                     });
+                } else if (unresolvedIds) {
+                    await Admin.resolveFeedback(unresolvedIds, true);
+                    if (typeof showToast === 'function') showToast('Reply sent & archived!', 'success');
+                } else if (typeof Admin.fetchFeedback === 'function') {
+                    Admin.fetchFeedback();
                 }
             } catch (e) {
                 if (typeof showToast === 'function') showToast(editingKey ? 'Failed to save reply.' : 'Failed to send reply.', 'error');
@@ -20821,11 +21078,16 @@ const Admin = {
 
                         const verLabel = safeAppVersion.split(' - ')[0];
                         const commuterRouteLabel = Admin.inboxRouteLabel(item.routeId) || threadRouteLabel;
+                        const stationLabel = String(item.station || '').trim();
+                        const stationAuto = item.stationAutoLocated === true || item.stationAutoLocated === '1' || item.stationAutoLocated === 1;
                         const commuterRouteHtml = commuterRouteLabel
                             ? `<div class="inbox-bubble-route-row">${secureEscape(commuterRouteLabel)}</div>`
                             : '';
+                        const clRouteAttr = secureEscape(commuterRouteLabel || '');
+                        const clStationAttr = secureEscape(stationLabel);
+                        const clAutoAttr = stationAuto ? '1' : '0';
                         const commuterVerBtn = /^V\d+_/i.test(verLabel)
-                            ? `<button type="button" class="fb-version-chip relative z-[2] font-mono font-medium opacity-80 ml-2 shrink-0 underline decoration-dotted underline-offset-2 hover:opacity-100 focus:outline-none" data-admin-changelog="${verLabel}" onclick="event.preventDefault();event.stopPropagation();if(window.Admin&amp;&amp;Admin.openAdminChangelogLookup)Admin.openAdminChangelogLookup(this.getAttribute('data-admin-changelog')||this.textContent);">${verLabel}</button>`
+                            ? `<button type="button" class="fb-version-chip relative z-[2] font-mono font-medium opacity-80 ml-2 shrink-0 underline decoration-dotted underline-offset-2 hover:opacity-100 focus:outline-none" data-admin-changelog="${verLabel}" data-cl-route="${clRouteAttr}" data-cl-station="${clStationAttr}" data-cl-auto="${clAutoAttr}" onclick="event.preventDefault();event.stopPropagation();if(window.Admin&amp;&amp;Admin.openAdminChangelogLookup)Admin.openAdminChangelogLookup(this.getAttribute('data-admin-changelog')||this.textContent,window.Admin.changelogContextFromEl(this));">${verLabel}</button>`
                             : `<span class="font-mono font-medium opacity-60 ml-2 shrink-0">${verLabel}</span>`;
                         const integratedHeaderHtml = `
                             <div class="inbox-bubble-name-row">
@@ -20889,7 +21151,7 @@ const Admin = {
             e.stopPropagation();
             if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
             const key = btn.getAttribute('data-admin-changelog') || btn.textContent;
-            Admin.openAdminChangelogLookup(key);
+            Admin.openAdminChangelogLookup(key, Admin.changelogContextFromEl(btn));
         };
         document.addEventListener('click', openFromEvent, true);
         document.addEventListener('pointerup', openFromEvent, true);
@@ -21153,7 +21415,7 @@ const Admin = {
         else modal.classList.remove('hidden');
     },
 
-    openAdminChangelogLookup: (version) => {
+    openAdminChangelogLookup: (version, context = null) => {
         const now = Date.now();
         if (window.__ntAdminChangelogOpenAt && (now - window.__ntAdminChangelogOpenAt) < 450) return;
         window.__ntAdminChangelogOpenAt = now;
@@ -21163,6 +21425,7 @@ const Admin = {
         const notes = (typeof window.lookupAdminChangelog === 'function')
             ? window.lookupAdminChangelog(key)
             : ((window.ADMIN_CHANGELOG && window.ADMIN_CHANGELOG[key]) || null);
+        const ctx = (context && typeof context === 'object') ? context : {};
         let modal = document.getElementById('admin-changelog-modal');
         if (!modal) {
             modal = document.createElement('div');
@@ -21171,7 +21434,8 @@ const Admin = {
             modal.style.zIndex = '260';
             modal.innerHTML = `
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-5 border border-gray-200 dark:border-gray-700 transform transition-transform scale-95 flex flex-col overflow-hidden max-h-[min(85dvh,var(--nt-vv-h,85dvh))]">
-                    <h3 id="admin-changelog-title" class="text-base font-black text-gray-900 dark:text-white mb-2 shrink-0"></h3>
+                    <h3 id="admin-changelog-title" class="text-base font-black text-gray-900 dark:text-white mb-1 shrink-0"></h3>
+                    <p id="admin-changelog-meta" class="hidden text-[11px] text-gray-500 dark:text-gray-400 leading-snug mb-2 shrink-0"></p>
                     <div id="admin-changelog-notes" class="text-sm text-gray-700 dark:text-gray-300 space-y-1.5 mb-4 min-h-0 flex-1 overflow-y-auto custom-scrollbar overscroll-contain"></div>
                     <button type="button" id="admin-changelog-close" class="w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl shrink-0">Close</button>
                 </div>`;
@@ -21196,8 +21460,25 @@ const Admin = {
         modal.style.overscrollBehavior = 'none';
         modal.style.touchAction = 'none';
         const title = modal.querySelector('#admin-changelog-title');
+        const meta = modal.querySelector('#admin-changelog-meta');
         const body = modal.querySelector('#admin-changelog-notes');
         if (title) title.textContent = key || 'Unknown version';
+        if (meta) {
+            const routeLabel = String(ctx.routeLabel || ctx.route || '').trim();
+            const station = String(ctx.station || '').trim();
+            const autoFlag = ctx.stationAutoLocated === true || ctx.stationAutoLocated === '1' || ctx.stationAutoLocated === 1;
+            const bits = [];
+            if (routeLabel) bits.push(routeLabel);
+            if (station) bits.push(station);
+            if (station || routeLabel) bits.push(autoFlag ? 'Auto-locate' : 'Manual station');
+            if (bits.length) {
+                meta.textContent = bits.join(' · ');
+                meta.classList.remove('hidden');
+            } else {
+                meta.textContent = '';
+                meta.classList.add('hidden');
+            }
+        }
         if (body) {
             if (!notes || !notes.length) {
                 body.textContent = 'No notes for this build.';
@@ -21213,6 +21494,19 @@ const Admin = {
         } else {
             modal.classList.remove('hidden');
         }
+    },
+
+    changelogContextFromEl: (el) => {
+        if (!el) return null;
+        const routeLabel = el.getAttribute('data-cl-route') || '';
+        const station = el.getAttribute('data-cl-station') || '';
+        const auto = el.getAttribute('data-cl-auto');
+        if (!routeLabel && !station && auto == null) return null;
+        return {
+            routeLabel,
+            station,
+            stationAutoLocated: auto === '1',
+        };
     },
 
     openScheduleQaDeltaModal: (finding) => {
@@ -24082,7 +24376,7 @@ const Admin = {
                         <span class="text-[9px] font-bold uppercase tracking-wide text-gray-500">Title</span>
                         ${Admin.writeAssistButtonHtml('sched-override-title-' + code)}
                     </div>
-                    <input type="text" id="sched-override-title-${code}" class="sched-override-title w-full h-9 px-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none" data-region="${code}" placeholder="Popup title (e.g. Public holiday today)" maxlength="120">
+                    <input type="text" id="sched-override-title-${code}" class="sched-override-title w-full h-9 px-2 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[10px] text-gray-900 dark:text-white outline-none" data-region="${code}" placeholder="Day name on the chip (e.g. Election Day)" maxlength="120">
                     <div class="flex items-center justify-between">
                         <span class="text-[9px] font-bold uppercase tracking-wide text-gray-500">Message (required if active)</span>
                         ${Admin.writeAssistButtonHtml('sched-override-msg-' + code)}
