@@ -146,7 +146,106 @@
     });
   })();
   /* ]] */
-</script><title>Delete Account</title><meta name="description" content="How to delete a Next Train account and ask us to remove your data."><meta name="robots" content="index, follow"><link rel="canonical" href="https://nexttrain.co.za/account-delete.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/account-delete.html"><meta property="og:title" content="Delete Account"><meta property="og:description" content="How to delete a Next Train account and ask us to remove your data."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="Delete Account"><meta name="twitter:description" content="How to delete a Next Train account and ask us to remove your data."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>
+</script><title>Delete Account</title><meta name="description" content="How to delete a Next Train account and ask us to remove your data."><meta name="robots" content="index, follow"><link rel="canonical" href="https://nexttrain.co.za/account-delete.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="website"><meta property="og:url" content="https://nexttrain.co.za/account-delete.html"><meta property="og:title" content="Delete Account"><meta property="og:description" content="How to delete a Next Train account and ask us to remove your data."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="Delete Account"><meta name="twitter:description" content="How to delete a Next Train account and ask us to remove your data."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><!--
+  About black box. Inline on purpose: production terser sets drop_console, so
+  bundled console.log never runs. window.ntTrace is the path that still reaches
+  DevTools and localStorage. Tiers: noise 6h, info 36h, flow/warn 72h, fail 7d.
+--><script>
+  (function () {
+    var MAX_LOGS = 500;
+    var MAX_LINE = 240;
+    var MAX_ERROR_LINE = 800;
+    var LOG_KEY = 'nt_blackbox_logs';
+    var HOUR = 60 * 60 * 1000;
+    var TIER_MS = {
+      noise: 6 * HOUR,
+      info: 36 * HOUR,
+      flow: 72 * HOUR,
+      warn: 72 * HOUR,
+      fail: 7 * 24 * HOUR
+    };
+    function classify(type, msg) {
+      var low = String(msg || '').toLowerCase();
+      if (type === 'ERROR') return 'fail';
+      if (low.indexOf('tracker id not found') !== -1) return 'noise';
+      if (low.indexOf('admin authenticated') !== -1 || low.indexOf('admin logged out') !== -1) return 'noise';
+      if (low.indexOf('nt waterfall:') === 0 || low.indexOf('nt offlinechrome:') === 0) {
+        if (low.indexOf('fail') !== -1 || low.indexOf('timeout') !== -1 || low.indexOf('miss') !== -1
+          || low.indexOf('unavailable') !== -1 || low.indexOf('halt') !== -1
+          || low.indexOf('splash escape') !== -1 || low.indexOf('slow') !== -1
+          || low.indexOf('error') !== -1 || low.indexOf('kept-painted') !== -1)
+          return 'fail';
+        return 'flow';
+      }
+      if (type === 'WARN') return 'warn';
+      return 'info';
+    }
+    function skipLog(type, msg) {
+      if (type === 'ERROR') return false;
+      if (msg.indexOf('CLVR:') === 0) return true;
+      var low = msg.toLowerCase();
+      var optional = low.indexOf('telemetry fetch failed') !== -1
+        || low.indexOf('badge sync failed') !== -1
+        || low.indexOf('armscheduledalertpublisher') !== -1
+        || low.indexOf('publishduescheduledalerts') !== -1
+        || low.indexOf('failed to check system status') !== -1;
+      if (!optional) return false;
+      if (low.indexOf('failed to check system status') !== -1) return true;
+      return low.indexOf('abort') !== -1
+        || low.indexOf('offline') !== -1
+        || low.indexOf('failed to fetch') !== -1
+        || low.indexOf('authentication required') !== -1;
+    }
+    function saveLog(type, args) {
+      try {
+        var msg = Array.prototype.map.call(args, function (a) {
+          if (a instanceof Error) return a.message + ' ' + (a.stack || '');
+          return typeof a === 'object' ? JSON.stringify(a) : String(a);
+        }).join(' ');
+        var cap = type === 'ERROR' ? MAX_ERROR_LINE : MAX_LINE;
+        if (msg.indexOf('NT Waterfall:') !== -1 && cap < 480) cap = 480;
+        if (msg.length > cap) msg = msg.slice(0, cap);
+        if (skipLog(type, msg)) return;
+        var tier = classify(type, msg);
+        var logs = [];
+        try { logs = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch (e) {}
+        if (!Array.isArray(logs)) logs = [];
+        var now = Date.now();
+        logs.push({ t: now, type: type, tier: tier, msg: msg });
+        logs = logs.filter(function (entry) {
+          var life = TIER_MS[entry && entry.tier] || TIER_MS[classify(entry && entry.type, entry && entry.msg)];
+          return entry && entry.t > now - life;
+        });
+        if (logs.length > MAX_LOGS) {
+          var rank = { noise: 0, info: 1, flow: 2, warn: 3, fail: 4 };
+          var ranked = logs.map(function (entry, index) {
+            return { index: index, rank: rank[entry.tier] != null ? rank[entry.tier] : 1, t: entry.t || 0 };
+          });
+          ranked.sort(function (a, b) { return a.rank - b.rank || a.t - b.t; });
+          var drop = {};
+          var extra = logs.length - MAX_LOGS;
+          for (var n = 0; n < extra; n++) drop[ranked[n].index] = 1;
+          logs = logs.filter(function (_, index) { return !drop[index]; });
+        }
+        localStorage.setItem(LOG_KEY, JSON.stringify(logs));
+      } catch (e) { /* quota */ }
+    }
+    var origLog = console.log, origWarn = console.warn, origError = console.error;
+    console.log = function () { saveLog('LOG', arguments); return origLog.apply(console, arguments); };
+    console.warn = function () { saveLog('WARN', arguments); return origWarn.apply(console, arguments); };
+    console.error = function () { saveLog('ERROR', arguments); return origError.apply(console, arguments); };
+    window.ntTrace = function (level, msg) {
+      var text = String(msg == null ? '' : msg);
+      var type = level === 'error' ? 'ERROR' : (level === 'warn' ? 'WARN' : 'LOG');
+      saveLog(type, [text]);
+      try {
+        if (type === 'ERROR') origError.call(console, text);
+        else if (type === 'WARN') origWarn.call(console, text);
+        else origLog.call(console, text);
+      } catch (e) {}
+    };
+  })();
+</script><script>
       (function () {
         function atPolyfill(n) {
           n = Math.trunc(n) || 0;
@@ -418,7 +517,7 @@ const trackSeo = true;
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><link rel="stylesheet" href="/_astro/vendor.Cj_WKKzo.css">
+    </script><link rel="stylesheet" href="/_astro/vendor.CZZlT1m-.css">
 <link rel="stylesheet" href="/_astro/account-delete.b6cs3JHh.css">
 <style>.nt-legal-doc h4,.nt-legal-doc h2{font-size:15px;font-weight:700;letter-spacing:-.01em;margin:1.1rem 0 .4rem;color:inherit}.nt-legal-doc h4:first-child,.nt-legal-doc h2:first-child{margin-top:0}.nt-legal-doc p,.nt-legal-doc li{font-size:15px;line-height:1.45;font-weight:400}.nt-legal-doc ol{list-style:decimal;padding-left:1.25rem;margin:0 0 .75rem}.nt-legal-doc a{color:#2563eb;text-decoration:underline;text-underline-offset:2px}html.dark .nt-legal-doc a{color:#60a5fa}.seo-open-bar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;justify-content:center;min-height:3.25rem;padding:.85rem 1rem calc(.85rem + env(safe-area-inset-bottom));background:var(--nt-chrome-nav, #163d96);color:var(--nt-chrome-fg, #fff);font-weight:800;letter-spacing:-.01em;text-decoration:none}
 .nt-zoom-controls{display:none}@media(hover:hover)and (pointer:fine){.nt-zoom-controls{display:flex;flex-direction:column;gap:.4rem;position:absolute;right:.75rem;bottom:.75rem;z-index:30}.nt-zoom-btn{width:2.5rem;height:2.5rem;border:0;border-radius:999px;background:#fffffff0;color:#0f172a;box-shadow:0 1px 4px #0f172a47;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}.nt-zoom-btn svg{width:1.15rem;height:1.15rem;pointer-events:none}.nt-zoom-btn:hover{background:#fff}.nt-zoom-btn:focus-visible{outline:2px solid #2563eb;outline-offset:2px}}

@@ -146,7 +146,106 @@
     });
   })();
   /* ]] */
-</script><title>User Guide &amp; FAQ | Metrorail Next Train (Updated for 2026)</title><meta name="description" content="Updated for 2026. Learn how to use Metrorail Next Train to find train times near me. Check live timetables, ticket prices, and routes for Pretoria, Johannesburg, Cape Town, Durban, and East London."><meta name="robots" content="index, follow"><link rel="canonical" href="https://nexttrain.co.za/guide.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="article"><meta property="og:url" content="https://nexttrain.co.za/guide.html"><meta property="og:title" content="User Guide &#38; FAQ | Metrorail Next Train (Updated for 2026)"><meta property="og:description" content="Updated for 2026. Learn how to use Metrorail Next Train to find train times near me. Check live timetables, ticket prices, and routes for Pretoria, Johannesburg, Cape Town, Durban, and East London."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="User Guide &#38; FAQ | Metrorail Next Train (Updated for 2026)"><meta name="twitter:description" content="Updated for 2026. Learn how to use Metrorail Next Train to find train times near me. Check live timetables, ticket prices, and routes for Pretoria, Johannesburg, Cape Town, Durban, and East London."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><script>
+</script><title>User Guide &amp; FAQ | Metrorail Next Train (Updated for 2026)</title><meta name="description" content="Updated for 2026. Learn how to use Metrorail Next Train to find train times near me. Check live timetables, ticket prices, and routes for Pretoria, Johannesburg, Cape Town, Durban, and East London."><meta name="robots" content="index, follow"><link rel="canonical" href="https://nexttrain.co.za/guide.html"><meta name="theme-color" content="#1d4ed8"><meta property="og:type" content="article"><meta property="og:url" content="https://nexttrain.co.za/guide.html"><meta property="og:title" content="User Guide &#38; FAQ | Metrorail Next Train (Updated for 2026)"><meta property="og:description" content="Updated for 2026. Learn how to use Metrorail Next Train to find train times near me. Check live timetables, ticket prices, and routes for Pretoria, Johannesburg, Cape Town, Durban, and East London."><meta property="og:image" content="https://nexttrain.co.za/icons/loading-logo.png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:site_name" content="Metrorail Next Train"><meta property="og:locale" content="en_ZA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="User Guide &#38; FAQ | Metrorail Next Train (Updated for 2026)"><meta name="twitter:description" content="Updated for 2026. Learn how to use Metrorail Next Train to find train times near me. Check live timetables, ticket prices, and routes for Pretoria, Johannesburg, Cape Town, Durban, and East London."><meta name="twitter:image" content="https://nexttrain.co.za/icons/loading-logo.png"><link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png"><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"><link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48"><link rel="apple-touch-icon" href="/icons/icon-192.png"><link rel="manifest" href="/manifest.json"><!--
+  About black box. Inline on purpose: production terser sets drop_console, so
+  bundled console.log never runs. window.ntTrace is the path that still reaches
+  DevTools and localStorage. Tiers: noise 6h, info 36h, flow/warn 72h, fail 7d.
+--><script>
+  (function () {
+    var MAX_LOGS = 500;
+    var MAX_LINE = 240;
+    var MAX_ERROR_LINE = 800;
+    var LOG_KEY = 'nt_blackbox_logs';
+    var HOUR = 60 * 60 * 1000;
+    var TIER_MS = {
+      noise: 6 * HOUR,
+      info: 36 * HOUR,
+      flow: 72 * HOUR,
+      warn: 72 * HOUR,
+      fail: 7 * 24 * HOUR
+    };
+    function classify(type, msg) {
+      var low = String(msg || '').toLowerCase();
+      if (type === 'ERROR') return 'fail';
+      if (low.indexOf('tracker id not found') !== -1) return 'noise';
+      if (low.indexOf('admin authenticated') !== -1 || low.indexOf('admin logged out') !== -1) return 'noise';
+      if (low.indexOf('nt waterfall:') === 0 || low.indexOf('nt offlinechrome:') === 0) {
+        if (low.indexOf('fail') !== -1 || low.indexOf('timeout') !== -1 || low.indexOf('miss') !== -1
+          || low.indexOf('unavailable') !== -1 || low.indexOf('halt') !== -1
+          || low.indexOf('splash escape') !== -1 || low.indexOf('slow') !== -1
+          || low.indexOf('error') !== -1 || low.indexOf('kept-painted') !== -1)
+          return 'fail';
+        return 'flow';
+      }
+      if (type === 'WARN') return 'warn';
+      return 'info';
+    }
+    function skipLog(type, msg) {
+      if (type === 'ERROR') return false;
+      if (msg.indexOf('CLVR:') === 0) return true;
+      var low = msg.toLowerCase();
+      var optional = low.indexOf('telemetry fetch failed') !== -1
+        || low.indexOf('badge sync failed') !== -1
+        || low.indexOf('armscheduledalertpublisher') !== -1
+        || low.indexOf('publishduescheduledalerts') !== -1
+        || low.indexOf('failed to check system status') !== -1;
+      if (!optional) return false;
+      if (low.indexOf('failed to check system status') !== -1) return true;
+      return low.indexOf('abort') !== -1
+        || low.indexOf('offline') !== -1
+        || low.indexOf('failed to fetch') !== -1
+        || low.indexOf('authentication required') !== -1;
+    }
+    function saveLog(type, args) {
+      try {
+        var msg = Array.prototype.map.call(args, function (a) {
+          if (a instanceof Error) return a.message + ' ' + (a.stack || '');
+          return typeof a === 'object' ? JSON.stringify(a) : String(a);
+        }).join(' ');
+        var cap = type === 'ERROR' ? MAX_ERROR_LINE : MAX_LINE;
+        if (msg.indexOf('NT Waterfall:') !== -1 && cap < 480) cap = 480;
+        if (msg.length > cap) msg = msg.slice(0, cap);
+        if (skipLog(type, msg)) return;
+        var tier = classify(type, msg);
+        var logs = [];
+        try { logs = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch (e) {}
+        if (!Array.isArray(logs)) logs = [];
+        var now = Date.now();
+        logs.push({ t: now, type: type, tier: tier, msg: msg });
+        logs = logs.filter(function (entry) {
+          var life = TIER_MS[entry && entry.tier] || TIER_MS[classify(entry && entry.type, entry && entry.msg)];
+          return entry && entry.t > now - life;
+        });
+        if (logs.length > MAX_LOGS) {
+          var rank = { noise: 0, info: 1, flow: 2, warn: 3, fail: 4 };
+          var ranked = logs.map(function (entry, index) {
+            return { index: index, rank: rank[entry.tier] != null ? rank[entry.tier] : 1, t: entry.t || 0 };
+          });
+          ranked.sort(function (a, b) { return a.rank - b.rank || a.t - b.t; });
+          var drop = {};
+          var extra = logs.length - MAX_LOGS;
+          for (var n = 0; n < extra; n++) drop[ranked[n].index] = 1;
+          logs = logs.filter(function (_, index) { return !drop[index]; });
+        }
+        localStorage.setItem(LOG_KEY, JSON.stringify(logs));
+      } catch (e) { /* quota */ }
+    }
+    var origLog = console.log, origWarn = console.warn, origError = console.error;
+    console.log = function () { saveLog('LOG', arguments); return origLog.apply(console, arguments); };
+    console.warn = function () { saveLog('WARN', arguments); return origWarn.apply(console, arguments); };
+    console.error = function () { saveLog('ERROR', arguments); return origError.apply(console, arguments); };
+    window.ntTrace = function (level, msg) {
+      var text = String(msg == null ? '' : msg);
+      var type = level === 'error' ? 'ERROR' : (level === 'warn' ? 'WARN' : 'LOG');
+      saveLog(type, [text]);
+      try {
+        if (type === 'ERROR') origError.call(console, text);
+        else if (type === 'WARN') origWarn.call(console, text);
+        else origLog.call(console, text);
+      } catch (e) {}
+    };
+  })();
+</script><script>
       (function () {
         function atPolyfill(n) {
           n = Math.trunc(n) || 0;
@@ -418,7 +517,7 @@ const trackSeo = false;
           document.head.appendChild(sentryScript);
         }, 3500);
       });
-    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Does this app work offline during loadshedding?","acceptedAnswer":{"@type":"Answer","text":"Yes! Next Train is an Offline-First app. Once you open it with an internet connection, it saves the schedules to your device. You can check times while underground or during loadshedding without using data. Furthermore, Metrorail trains operate on a high-voltage network that is often shielded from municipal loadshedding, though station lighting may be affected."}},{"@type":"Question","name":"Do Metrorail trains run on Public Holidays and Sundays?","acceptedAnswer":{"@type":"Answer","text":"Metrorail generally does not operate train services on Sundays. Public holidays are not always the same as Saturday. In Gauteng, KZN, and Eastern Cape, some holidays follow a Saturday/holiday timetable; others (such as Christmas Day or National Women's Day in 2026) have no service. Western Cape public holidays may use a Public Holiday sheet or the Saturday timetable. PRASA announces which. Check Next Train: https://nexttrain.co.za/regions/western-cape-public-holidays.html. A few routes, including Hercules / Koedoespoort and Eastern Cape, also have no Saturday service. December is different again: most regions use a dedicated scaled-down festive timetable, not the usual weekday, Saturday, or public holiday sheet. That timetable typically starts in the week of the early 20s of December and runs through the first week of January. Next Train does not have the 21 December 2026 to 1 January 2027 sheets yet, and will update the schedules when PRASA releases them. Next Train's True Day Simulator applies the correct 2026 holiday and route rules automatically."}},{"@type":"Question","name":"How long is a Metrorail monthly ticket valid?","acceptedAnswer":{"@type":"Answer","text":"A monthly ticket bought during the month, for example on the 5th, is valid only for that calendar month. It does not last for the next 30 days. Monthly tickets for the current month stay on sale until about the 10th of that month."}},{"@type":"Question","name":"Is there a Metrorail festive season or December scaled-down timetable?","acceptedAnswer":{"@type":"Answer","text":"December schedules are not the usual weekday, Saturday, or public holiday sheets. Most regions have a dedicated scaled-down timetable for the festive season. It typically starts in the week of the early 20s of December and runs through the first week of January. Next Train does not have the 21 December 2026 to 1 January 2027 scaled-down timetables yet. The times published now stay the weekday, Saturday, and public holiday sheets. Next Train will update the schedules when PRASA releases the festive timetable."}},{"@type":"Question","name":"How do Metrorail off-peak discounts work?","acceptedAnswer":{"@type":"Answer","text":"Metrorail offers up to 40% off standard adult fares for off-peak travel on weekdays only, for trains departing strictly between 09:30 AM and 14:30 PM. There is no off-peak discount on weekends or public holidays. The Next Train app calculates this automatically."}},{"@type":"Question","name":"Are there Metrorail discounts for students or pensioners?","acceptedAnswer":{"@type":"Answer","text":"Scholars in uniform get 50% off single and return tickets. A scholar weekly or monthly pass is the same price as the adult pass. Pensioners and Military Veterans receive a flat 50% discount on standard fares. You can select your passenger type in the Next Train app settings to see the correct pricing."}},{"@type":"Question","name":"Can I buy Metrorail tickets online or on the app?","acceptedAnswer":{"@type":"Answer","text":"No. Standard Metrorail tickets must be bought in person with cash at the station ticket office. Next Train is a planning tool designed to help you calculate the exact cash fare needed before you leave your house."}},{"@type":"Question","name":"Which provinces and stations are supported?","acceptedAnswer":{"@type":"Answer","text":"Next Train maps active PRASA corridors in Gauteng (Pretoria, Johannesburg, Germiston, Kempton Park, Mabopane), Western Cape (Cape Town, Bellville, Simon's Town), KwaZulu-Natal (Durban, Umlazi, KwaMashu, Crossmoor), and Eastern Cape (East London)."}},{"@type":"Question","name":"How do I download the Metrorail Next Train app?","acceptedAnswer":{"@type":"Answer","text":"Next Train installs from nexttrain.co.za. On iPhone, open the site in Safari, tap Share, then Add to Home Screen. On Android, open the site in Chrome and tap Install App in The Background in the main menu. Android is also in Google Play testing."}}]}</script><link rel="stylesheet" href="/_astro/vendor.Cj_WKKzo.css">
+    </script><script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Does this app work offline during loadshedding?","acceptedAnswer":{"@type":"Answer","text":"Yes! Next Train is an Offline-First app. Once you open it with an internet connection, it saves the schedules to your device. You can check times while underground or during loadshedding without using data. Furthermore, Metrorail trains operate on a high-voltage network that is often shielded from municipal loadshedding, though station lighting may be affected."}},{"@type":"Question","name":"Do Metrorail trains run on Public Holidays and Sundays?","acceptedAnswer":{"@type":"Answer","text":"Metrorail generally does not operate train services on Sundays. Public holidays are not always the same as Saturday. In Gauteng, KZN, and Eastern Cape, some holidays follow a Saturday/holiday timetable; others (such as Christmas Day or National Women's Day in 2026) have no service. Western Cape public holidays may use a Public Holiday sheet or the Saturday timetable. PRASA announces which. Check Next Train: https://nexttrain.co.za/regions/western-cape-public-holidays.html. A few routes, including Hercules / Koedoespoort and Eastern Cape, also have no Saturday service. December is different again: most regions use a dedicated scaled-down festive timetable, not the usual weekday, Saturday, or public holiday sheet. That timetable typically starts in the week of the early 20s of December and runs through the first week of January. Next Train does not have the 21 December 2026 to 1 January 2027 sheets yet, and will update the schedules when PRASA releases them. Next Train's True Day Simulator applies the correct 2026 holiday and route rules automatically."}},{"@type":"Question","name":"How long is a Metrorail monthly ticket valid?","acceptedAnswer":{"@type":"Answer","text":"A monthly ticket bought during the month, for example on the 5th, is valid only for that calendar month. It does not last for the next 30 days. Monthly tickets for the current month stay on sale until about the 10th of that month."}},{"@type":"Question","name":"Is there a Metrorail festive season or December scaled-down timetable?","acceptedAnswer":{"@type":"Answer","text":"December schedules are not the usual weekday, Saturday, or public holiday sheets. Most regions have a dedicated scaled-down timetable for the festive season. It typically starts in the week of the early 20s of December and runs through the first week of January. Next Train does not have the 21 December 2026 to 1 January 2027 scaled-down timetables yet. The times published now stay the weekday, Saturday, and public holiday sheets. Next Train will update the schedules when PRASA releases the festive timetable."}},{"@type":"Question","name":"How do Metrorail off-peak discounts work?","acceptedAnswer":{"@type":"Answer","text":"Metrorail offers up to 40% off standard adult fares for off-peak travel on weekdays only, for trains departing strictly between 09:30 AM and 14:30 PM. There is no off-peak discount on weekends or public holidays. The Next Train app calculates this automatically."}},{"@type":"Question","name":"Are there Metrorail discounts for students or pensioners?","acceptedAnswer":{"@type":"Answer","text":"Scholars in uniform get 50% off single and return tickets. A scholar weekly or monthly pass is the same price as the adult pass. Pensioners and Military Veterans receive a flat 50% discount on standard fares. You can select your passenger type in the Next Train app settings to see the correct pricing."}},{"@type":"Question","name":"Can I buy Metrorail tickets online or on the app?","acceptedAnswer":{"@type":"Answer","text":"No. Standard Metrorail tickets must be bought in person with cash at the station ticket office. Next Train is a planning tool designed to help you calculate the exact cash fare needed before you leave your house."}},{"@type":"Question","name":"Which provinces and stations are supported?","acceptedAnswer":{"@type":"Answer","text":"Next Train maps active PRASA corridors in Gauteng (Pretoria, Johannesburg, Germiston, Kempton Park, Mabopane), Western Cape (Cape Town, Bellville, Simon's Town), KwaZulu-Natal (Durban, Umlazi, KwaMashu, Crossmoor), and Eastern Cape (East London)."}},{"@type":"Question","name":"How do I download the Metrorail Next Train app?","acceptedAnswer":{"@type":"Answer","text":"Next Train installs from nexttrain.co.za. On iPhone, open the site in Safari, tap Share, then Add to Home Screen. On Android, open the site in Chrome and tap Install App in The Background in the main menu. Android is also in Google Play testing."}}]}</script><link rel="stylesheet" href="/_astro/vendor.CZZlT1m-.css">
 <link rel="stylesheet" href="/_astro/account-delete.b6cs3JHh.css">
 <style>.prose-custom p{margin-bottom:1rem;line-height:1.6}.prose-custom ul{margin-bottom:1.5rem;list-style-type:disc;padding-left:1.25rem}.prose-custom li{margin-bottom:.5rem}.guide-ui-chip{display:inline;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#2563eb}.dark .guide-ui-chip{color:#60a5fa}.guide-ui-download{display:inline-flex;align-items:center;gap:.3em;vertical-align:middle;padding:.15em .45em;border-radius:.35rem;border:1px solid #e5e7eb;background:#f3f4f6;color:#374151;font-weight:700;font-size:inherit;line-height:inherit;text-transform:none;letter-spacing:normal}.guide-ui-download svg{width:.95em;height:.95em;flex-shrink:0;color:#4b5563}.dark .guide-ui-download{background:#374151;border-color:#4b5563;color:#d1d5db}.dark .guide-ui-download svg{color:#9ca3af}.guide-ui-pill{display:inline-block;font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:inherit;line-height:inherit;padding:.1em .45em;border-radius:.35rem;vertical-align:baseline}.guide-ui-pill-direct{color:#1d4ed8;background:#dbeafe;border:1px solid #93c5fd}.dark .guide-ui-pill-direct{color:#93c5fd;background:#1e3a8a59;border-color:#60a5fa59}.guide-ui-pill-transfer{color:#a16207;background:#fef9c3;border:1px solid #fde047}.dark .guide-ui-pill-transfer{color:#fde047;background:#713f1259;border-color:#facc1566}.guide-ui-pill-warn{color:#c2410c;background:#ffedd5;border:1px solid #fdba74}.dark .guide-ui-pill-warn{color:#fdba74;background:#7c2d1259;border-color:#fb923c59}.guide-ui-pill-danger{color:#b91c1c;background:#fee2e2;border:1px solid #fca5a5}.dark .guide-ui-pill-danger{color:#fca5a5;background:#7f1d1d66;border-color:#f8717159}.guide-ui-pill-muted{color:#4b5563;background:#e5e7eb;border:1px solid #d1d5db}.dark .guide-ui-pill-muted{color:#d1d5db;background:#37415199;border-color:#6b728080}.animate-fade-in-up{animation:fadeInUp .4s ease-out forwards}@keyframes fadeInUp{0%{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .nt-zoom-controls{display:none}@media(hover:hover)and (pointer:fine){.nt-zoom-controls{display:flex;flex-direction:column;gap:.4rem;position:absolute;right:.75rem;bottom:.75rem;z-index:30}.nt-zoom-btn{width:2.5rem;height:2.5rem;border:0;border-radius:999px;background:#fffffff0;color:#0f172a;box-shadow:0 1px 4px #0f172a47;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}.nt-zoom-btn svg{width:1.15rem;height:1.15rem;pointer-events:none}.nt-zoom-btn:hover{background:#fff}.nt-zoom-btn:focus-visible{outline:2px solid #2563eb;outline-offset:2px}}
