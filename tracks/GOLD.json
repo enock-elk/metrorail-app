@@ -1,28 +1,28 @@
 {
   "branch": "map-gold",
-  "frozenAt": "235f6756abd3d62688c60b65fbb32b27ec965021",
+  "frozenAt": "79cdf6d3c3c0b386523dc8a5df189606527db4fb",
   "version": "V9_09.20.11",
-  "note": "Gold snapshot: map-tab skips REST ride_pings poll while onValue is live (RTDB cost). Tracks, map-app, MapView, rail-tracks, map.astro, and advert handling otherwise unchanged. Fast-forward map-gold to the commit that records this lockfile. Never force-push map-gold.",
+  "note": "Gold snapshot: operator patch for kzn-winklespruit (Durban Yard to Winklespruit). The export started 631 m north of Durban Yard; the bake begins at the yard vertex and keeps the rest of that trace. Station pins that had left STATION_COORDINATES are back on that dictionary. Map markers prefer the dictionary over a moved sheet coordinate. Duff's Road, EC rail geometry, and advert handling are unchanged. frozenAt is the map-runtime commit. Fast-forward map-gold to the commit that records this lockfile. Never force-push map-gold.",
   "files": {
     "public/tracks/rail-tracks-EC.geojson": {
       "md5": "43409bfd05405205e596f0d03345ab18",
       "sha256": "ba0ae80e8c6955ae99288ac5c06e85ea3075383f13f813f40375b78395812108"
     },
     "public/tracks/rail-tracks-GP.geojson": {
-      "md5": "b002d127081715cb4121c663e2509f9f",
-      "sha256": "498efff3f9ee0aa0a6fcf838a891b9444c52148d778a82c24b51e432c5ec512c"
+      "md5": "0a968fa6640c6aeccda356fe89449c77",
+      "sha256": "46e1fefe08f4505cb95c8323f912a89f7796b023c6ca84cfe82af1b1b1ded6df"
     },
     "public/tracks/rail-tracks-KZN.geojson": {
-      "md5": "36e4df5f583f1dc663266cb4c2b0672f",
-      "sha256": "93135692b2be6b11a06bbef984927fe4b444a59a3d7195f8a9665f85a63044fb"
+      "md5": "9131d503e65e5c37d330b644c24306db",
+      "sha256": "9eab0adf3ccfa3fbc6fee1d44423f216cfa1635783132b8293492db0bdbed9e9"
     },
     "public/tracks/rail-tracks-WC.geojson": {
-      "md5": "eae7f554daf9a27ba4b2175cde2cc8f7",
-      "sha256": "090a5d7fc45cafb8c7b81dc583ae24978540f38278cab447953bc90c8821f01f"
+      "md5": "2397b16ece1046232fac56e1e5640c9e",
+      "sha256": "4baba3b7d507f1c3069f26126ddcd931fd94a5425edfb84ce42985a78741ba99"
     },
     "public/js/map-app.js": {
-      "md5": "590f84a4b8d15ba41e9d98fa0a4e49d4",
-      "sha256": "2036b35e382b3cb4c64f151dd2f69e5ab2e0867210b5320e7bc4779d96c0f6e5"
+      "md5": "7ce5cf9f05bd8413551fe37a8c0d260d",
+      "sha256": "83921b78048b8199763a055c327c217c116125526322473cf32c6016cfe28eb5"
     },
     "src/pages/map.astro": {
       "md5": "f02b01877f1468b541262a300c53bfae",

@@ -5052,7 +5052,7 @@ const Admin = {
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'operator-brief-overlay';
-            overlay.className = 'fixed inset-0 z-[150] hidden overflow-y-auto';
+            overlay.className = 'fixed inset-0 z-[150] hidden overflow-y-auto overflow-x-hidden max-w-full';
             document.body.appendChild(overlay);
         }
         return overlay;
@@ -5172,7 +5172,7 @@ const Admin = {
         if (note) note.textContent = text || '';
     },
 
-    askBriefWriter: async (kind, body) => {
+    askBriefWriter: async (kind, body, signal) => {
         const secret = await Admin.getAuthKey();
         if (!secret) throw new Error('Sign in as an operator first.');
         const res = await fetch(`${Admin.replyWorkerUrl()}/brief`, {
@@ -5182,6 +5182,7 @@ const Admin = {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(body),
+            signal,
         });
         const data = await res.json().catch(() => ({}));
         if (res.status === 404) {
@@ -5518,22 +5519,41 @@ const Admin = {
     },
 
     explainBriefCrash: async (id, button) => {
+        const EXPLAIN_CRASH_MS = 15000;
         const row = (Admin._briefCrashes && Admin._briefCrashes[id]) || {};
         const note = button?.parentElement?.querySelector('.operator-brief-crash-note');
+        const idleLabel = 'Explain this crash';
         if (note) {
             note.classList.remove('hidden');
+            note.classList.add('animate-pulse');
             note.textContent = 'Reading this crash.';
         }
-        if (button) button.disabled = true;
+        if (button) {
+            button.disabled = true;
+            button.setAttribute('aria-busy', 'true');
+            button.textContent = 'Reading…';
+        }
+        const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = setTimeout(() => { try { ctrl?.abort(); } catch { /* ignore */ } }, EXPLAIN_CRASH_MS);
+        let preview = row.preview || '';
+        let stack = row.stack || row.raw || '';
+        const localReading = () => {
+            const read = window.ntOperatorBrief?.localCrashReading;
+            if (typeof read !== 'function') return 'A reading is not available for this log yet. The line above is the crash.';
+            return read({
+                error: row.error || '',
+                preview: preview || row.preview || '',
+                stack: stack || row.stack || row.raw || '',
+                appVersion: row.appVersion || row.version || '',
+            });
+        };
         try {
-            let preview = row.preview || '';
-            let stack = row.stack || row.raw || '';
-            const blobPath = row.blobPath || (id ? `sys_logs/blackbox/${id}` : '');
+            const blobPath = row.blobPath || (id && String(id).startsWith('bb_') ? `sys_logs/blackbox/${id}` : '');
             if (!stack && blobPath) {
                 const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
                 const secret = await Admin.getAuthKey();
                 const auth = secret ? `?auth=${encodeURIComponent(secret)}` : '';
-                const res = await fetch(`${dynamicEndpoint}${blobPath}.json${auth}`).catch(() => null);
+                const res = await fetch(`${dynamicEndpoint}${blobPath}.json${auth}`, { signal: ctrl?.signal });
                 if (res && res.ok) {
                     const blob = await res.json().catch(() => ({}));
                     const logs = Array.isArray(blob?.logs) ? blob.logs.slice(-30) : [];
@@ -5550,17 +5570,24 @@ const Admin = {
                     appVersion: row.appVersion || '',
                     routeId: row.routeId || '',
                 },
-            });
+            }, ctrl?.signal);
             if (note) note.textContent = text || 'The reading came back empty.';
-        } catch {
-            const read = window.ntOperatorBrief?.localCrashReading;
+        } catch (err) {
+            const timedOut = err?.name === 'AbortError';
+            const local = localReading();
             if (note) {
-                note.textContent = typeof read === 'function'
-                    ? read({ error: row.error || row.preview || '', appVersion: row.appVersion || '' })
-                    : 'A reading is not available for this log yet. The line above is the crash.';
+                note.textContent = timedOut && /not available/i.test(local)
+                    ? 'The reading took too long. The line above is the crash.'
+                    : local;
             }
         } finally {
-            if (button) button.disabled = false;
+            clearTimeout(timer);
+            if (note) note.classList.remove('animate-pulse');
+            if (button) {
+                button.disabled = false;
+                button.removeAttribute('aria-busy');
+                button.textContent = idleLabel;
+            }
         }
     },
 
@@ -5968,7 +5995,7 @@ const Admin = {
                             
                             // Standard Exclusions
                             if (!item.expiresAt || item.expiresAt > now) {
-                                const typeStr = item.type === 'special' ? 'Marked Special' : 'Banned';
+                                const typeStr = item.type === 'special' ? 'Marked Special' : (item.type === 'provisional' ? 'Not guaranteed' : 'Banned');
                                 activeItems.push({ type: 'Exception', label: `Train #${tNum} ${typeStr}`, expiresAt: item.expiresAt, id: tNum, panelId: 'exclusion-panel', routeId: rId });
                             }
                         });
@@ -5988,7 +6015,7 @@ const Admin = {
                     if (item.expiresAt && item.expiresAt <= now) return;
                     const already = activeItems.some((it) => it.type === 'Exception' && it.routeId === rId && it.id === tNum);
                     if (already) return;
-                    const typeStr = item.type === 'special' ? 'Marked Special' : 'Banned';
+                    const typeStr = item.type === 'special' ? 'Marked Special' : (item.type === 'provisional' ? 'Not guaranteed' : 'Banned');
                     activeItems.push({
                         type: 'Exception',
                         label: `Train #${tNum} ${typeStr} (app default)`,
@@ -12375,9 +12402,10 @@ const Admin = {
                 <svg id="ut-chevron" class="absolute right-3 w-4 h-4 transform transition-transform -rotate-90 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </div>
             <div id="ut-body" class="hidden mt-4 flex flex-col text-left">
-                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Bans, lookup, and deletion requests are in this panel.</p>
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 mb-3 px-1 leading-snug">Bans, accounts, lookup, and deletion requests are in this panel.</p>
                 <div class="flex gap-1 p-1 mb-3 rounded-xl bg-gray-100 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700" role="tablist" aria-label="User trust sections">
-                    <button type="button" id="ut-tab-bans" role="tab" aria-selected="true" class="ut-tab flex-1 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-200 dark:border-indigo-800">Active bans</button>
+                    <button type="button" id="ut-tab-bans" role="tab" aria-selected="true" class="ut-tab flex-1 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-200 dark:border-indigo-800">Bans</button>
+                    <button type="button" id="ut-tab-accounts" role="tab" aria-selected="false" class="ut-tab flex-1 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">Accounts</button>
                     <button type="button" id="ut-tab-lookup" role="tab" aria-selected="false" class="ut-tab flex-1 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">Lookup</button>
                     <button type="button" id="ut-tab-deletions" role="tab" aria-selected="false" class="ut-tab flex-1 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">Deletions</button>
                 </div>
@@ -12388,6 +12416,15 @@ const Admin = {
                     </div>
                     <div id="ut-bans-list" class="space-y-2 max-h-[320px] overflow-y-auto px-1 custom-scrollbar">
                         <p class="text-xs text-gray-400 text-center py-3">Open panel to load bans...</p>
+                    </div>
+                </div>
+                <div id="ut-pane-accounts" role="tabpanel" class="ut-pane hidden">
+                    <div class="flex items-center justify-between gap-2 mb-2 px-1">
+                        <p class="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">People who created an account. This list does not include guests.</p>
+                        <button type="button" id="ut-accounts-refresh" class="shrink-0 text-[10px] font-bold text-blue-600 dark:text-blue-400 px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">Refresh</button>
+                    </div>
+                    <div id="ut-accounts-list" class="space-y-2 max-h-[320px] overflow-y-auto px-1 custom-scrollbar">
+                        <p class="text-xs text-gray-400 text-center py-3">Open this tab to load accounts.</p>
                     </div>
                 </div>
                 <div id="ut-pane-lookup" role="tabpanel" class="ut-pane hidden">
@@ -12412,6 +12449,7 @@ const Admin = {
         const chevron = document.getElementById('ut-chevron');
         const utTabs = [
             { id: 'bans', btn: document.getElementById('ut-tab-bans'), pane: document.getElementById('ut-pane-bans') },
+            { id: 'accounts', btn: document.getElementById('ut-tab-accounts'), pane: document.getElementById('ut-pane-accounts') },
             { id: 'lookup', btn: document.getElementById('ut-tab-lookup'), pane: document.getElementById('ut-pane-lookup') },
             { id: 'deletions', btn: document.getElementById('ut-tab-deletions'), pane: document.getElementById('ut-pane-deletions') },
         ];
@@ -12437,6 +12475,7 @@ const Admin = {
                 tab.pane?.classList.toggle('hidden', !on);
             });
             if (active === 'bans') Admin.fetchActiveBans();
+            if (active === 'accounts') Admin.fetchAccountDirectory();
             if (active === 'deletions') Admin.fetchAccountDeletions();
         };
         utTabs.forEach((tab) => tab.btn?.addEventListener('click', () => setUtTab(tab.id)));
@@ -12474,6 +12513,7 @@ const Admin = {
 
         document.getElementById('ut-lookup-btn').onclick = () => Admin.lookupUserTrust();
         document.getElementById('ut-bans-refresh')?.addEventListener('click', () => Admin.fetchActiveBans());
+        document.getElementById('ut-accounts-refresh')?.addEventListener('click', () => Admin.fetchAccountDirectory());
         document.getElementById('ad-refresh-btn')?.addEventListener('click', () => Admin.fetchAccountDeletions());
         document.getElementById('ut-uid-input')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') Admin.lookupUserTrust();
@@ -12492,6 +12532,90 @@ const Admin = {
                     { id: 'lost', label: '404 / End of the Line' },
                 ];
             return modes.find((m) => m.id === id)?.label || id;
+        };
+
+        Admin.fetchAccountDirectory = async () => {
+            const list = document.getElementById('ut-accounts-list');
+            if (!list) return;
+            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-3 animate-pulse">Loading accounts...</p>';
+            const accountsFromUsers = (users) => {
+                const out = {};
+                Object.entries(users || {}).forEach(([uid, row]) => {
+                    if (!row || typeof row !== 'object' || String(uid).startsWith('_')) return;
+                    const email = String(row.email || '').trim();
+                    const displayName = String(row.displayName || '').trim();
+                    if (!email && !displayName) return;
+                    if (String(row.provider || '') === 'anonymous') return;
+                    out[uid] = {
+                        displayName,
+                        email,
+                        createdAt: Number(row.createdAt) || Number(row.updatedAt) || 0,
+                        provider: row.provider || (email ? 'password' : ''),
+                    };
+                });
+                return out;
+            };
+            try {
+                const secret = await Admin.getAuthKey();
+                if (!secret) throw new Error('not signed in - open Admin while logged in as an admin account');
+                const dynamicEndpoint = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
+                const auth = `auth=${encodeURIComponent(secret)}`;
+                const readJson = async (url) => {
+                    const res = await fetch(url);
+                    if (!res.ok) {
+                        const err = new Error(`accounts HTTP ${res.status}`);
+                        err.status = res.status;
+                        throw err;
+                    }
+                    return (await res.json()) || {};
+                };
+                let data;
+                try {
+                    data = await readJson(`${dynamicEndpoint}account_directory.json?orderBy=%22createdAt%22&limitToLast=50&${auth}`);
+                } catch (err) {
+                    if (err.status !== 401 && err.status !== 400) throw err;
+                    try {
+                        data = await readJson(`${dynamicEndpoint}account_directory.json?${auth}`);
+                    } catch (err2) {
+                        if (err2.status !== 401 && err2.status !== 400) throw err2;
+                        data = accountsFromUsers(await readJson(`${dynamicEndpoint}users.json?${auth}`));
+                    }
+                }
+                const rows = Object.entries(data)
+                    .filter(([, row]) => row && typeof row === 'object')
+                    .map(([uid, row]) => ({ uid, ...row }))
+                    .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
+                if (!rows.length) {
+                    list.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">No accounts yet. Someone appears here after they create an account and open Next Train.</p>';
+                    return;
+                }
+                const esc = (value) => (typeof escapeHTML === 'function' ? escapeHTML(String(value || '')) : String(value || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
+                const providerLabel = (id) => {
+                    const key = String(id || '');
+                    if (key === 'google.com') return 'Google';
+                    if (key === 'facebook.com') return 'Facebook';
+                    if (key === 'password') return 'Email';
+                    return key || 'Account';
+                };
+                list.innerHTML = '';
+                rows.forEach((row) => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'w-full text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-3 py-2 focus:outline-none';
+                    const when = Number(row.createdAt) > 0 && typeof Admin.formatDate === 'function' ? Admin.formatDate(Number(row.createdAt)) : '';
+                    btn.innerHTML = `<span class="block text-xs font-bold text-gray-900 dark:text-white truncate">${esc(row.displayName || 'Passenger')}</span><span class="block text-[11px] text-gray-500 dark:text-gray-400 truncate">${esc(row.email || 'No email')}</span><span class="block text-[10px] text-gray-400 mt-0.5">${esc(providerLabel(row.provider))}${when ? ` · Joined ${esc(when)}` : ''}</span>`;
+                    btn.addEventListener('click', () => Admin.openUserTrustLookup?.({ uid: row.uid, email: row.email || '' }));
+                    list.appendChild(btn);
+                });
+                if (rows.length >= 50) {
+                    const more = document.createElement('p');
+                    more.className = 'text-[10px] text-gray-400 text-center py-2';
+                    more.textContent = 'Showing the latest 50. Use Lookup for anyone else.';
+                    list.appendChild(more);
+                }
+            } catch (e) {
+                list.innerHTML = `<p class="text-xs text-red-500 text-center py-3">${(typeof escapeHTML === 'function' ? escapeHTML(e?.message || 'Could not load accounts') : 'Could not load accounts')}</p>`;
+            }
         };
 
         Admin.fetchActiveBans = async () => {
@@ -13612,6 +13736,7 @@ const Admin = {
         const remoteAt = Number(remote?.at) || 0;
         if (box && remoteHtml && !editing && !box.dataset.draftTouched && remoteAt >= Number(local?.at || 0)) {
             box.innerHTML = remoteHtml;
+            Admin.hoistEditorImages(box);
             Admin.writeLocalReplyDraft(id, remoteHtml, remoteAt);
         }
         Admin.syncReplyGuide();
@@ -13621,7 +13746,7 @@ const Admin = {
     persistReplyDraft: async () => {
         const modal = document.getElementById('admin-reply-modal');
         const id = String(modal?.dataset.draftMessageId || '').trim();
-        const html = document.getElementById('admin-reply-text')?.innerHTML || '';
+        const html = Admin.composerOutgoingHtml(document.getElementById('admin-reply-text'));
         if (!id || !Admin.draftHasText(html)) return;
         const at = Date.now();
         Admin.writeLocalReplyDraft(id, html, at);
@@ -14335,6 +14460,7 @@ const Admin = {
             }
             const kept = !editKey ? Admin.readLocalReplyDraft(draftId) : null;
             editorEl.innerHTML = editKey ? String(editMsg.text || editMsg.message || '') : (kept?.html || '');
+            Admin.hoistEditorImages(editorEl);
         }
         modal._draftRestore = editKey ? Promise.resolve('') : Admin.restoreReplyDraft(draftId);
         if (!modal.dataset.scrimBound) {
@@ -14365,7 +14491,8 @@ const Admin = {
 
         // GUARDIAN PHASE 3: Inline WYSIWYG File Uploader (Admin Inbox Reply)
         const replyUploadFile = document.getElementById('admin-reply-upload-file');
-        if (replyUploadFile) {
+        if (replyUploadFile && replyUploadFile.dataset.ntUploadBound !== '1') {
+            replyUploadFile.dataset.ntUploadBound = '1';
             replyUploadFile.addEventListener('change', async function() {
                 const editor = document.getElementById('admin-reply-text');
                 // GUARDIAN UX FIX: Retrieve pre-upload cursor position locked via mousedown
@@ -14481,7 +14608,7 @@ const Admin = {
         Admin.closeCopilotSettings();
         if (!editKey) Admin.loadReplySuggestNote(modal);
         document.getElementById('reply-send').onclick = async () => {
-            let text = document.getElementById('admin-reply-text').innerHTML.trim();
+            let text = Admin.composerOutgoingHtml(document.getElementById('admin-reply-text')).trim();
             if (!text || text === '<br>') {
                 if (typeof showToast === 'function') showToast("Please enter a message.", "error");
                 return;
@@ -15011,7 +15138,7 @@ const Admin = {
 
     composerXButton: (kind) => {
         const label = kind === 'preview' ? 'Remove link preview' : 'Remove image';
-        return `<button type="button" class="nt-composer-x" data-nt-composer-x="${kind}" aria-label="${label}"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+        return `<button type="button" class="nt-composer-x" data-nt-composer-x="${kind}" aria-label="${label}">×</button>`;
     },
 
     slotBeforeEditor: (editor, attr, className) => {
@@ -15091,9 +15218,30 @@ const Admin = {
         });
     },
 
+    composerOutgoingHtml: (editor) => {
+        if (!editor) return '';
+        Admin.hoistEditorImages(editor);
+        const slot = editor.parentElement?.querySelector('[data-nt-media-slot]');
+        const esc = typeof escapeHTML === 'function' ? escapeHTML : (v) => String(v || '');
+        const imgHtml = [...(slot?.querySelectorAll('img') || [])].map((img) => {
+            const src = img.getAttribute('data-nt-src') || img.getAttribute('src') || '';
+            const safe = esc(src);
+            return safe ? `<img src="${safe}" data-nt-src="${safe}" alt="">` : '';
+        }).join('');
+        const body = String(editor.innerHTML || '').trim();
+        return `${imgHtml}${body}`.trim();
+    },
+
+    clearComposerMedia: (editor) => {
+        const slot = editor?.parentElement?.querySelector('[data-nt-media-slot]');
+        if (!slot) return;
+        slot.innerHTML = '';
+        slot.classList.add('hidden');
+    },
+
     placeComposerAttachment: (editor, url, isPdf, savedRange) => {
         if (!editor) return false;
-        if (!isPdf && editor.id === 'alert-msg' && Admin.addComposerImage(editor, url)) return true;
+        if (!isPdf && Admin.addComposerImage(editor, url)) return true;
         const htmlToInsert = Admin.inlineAttachmentHtml(url, isPdf);
         if (!htmlToInsert) return false;
         Admin.focusEditorSafely(editor);
@@ -15532,12 +15680,27 @@ const Admin = {
             document.execCommand('justifyRight', false, null);
         } else if (tag === 'ul') {
             document.execCommand('insertUnorderedList', false, null);
-        } else if (tag === 'link') { 
+        } else if (tag === 'link') {
+            const selection = window.getSelection();
+            const selectedText = selection ? selection.toString().trim() : '';
+            let highlighted = '';
+            if (selectedText && !/\s/.test(selectedText)) {
+                const withScheme = /^www\./i.test(selectedText) ? `https://${selectedText}` : selectedText;
+                try {
+                    const parsed = new URL(withScheme);
+                    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') highlighted = parsed.href;
+                } catch { /* not a url, so the prompt stays */ }
+            }
+            if (highlighted) {
+                const esc = typeof escapeHTML === 'function' ? escapeHTML : (v) => String(v || '');
+                const html = `<a href="${esc(highlighted)}" target="_blank" rel="noopener" class="text-blue-500 dark:text-blue-400 underline underline-offset-2">${esc(selectedText)}</a>`;
+                document.execCommand('insertHTML', false, html);
+                return;
+            }
             const url = prompt("Enter the full URL (e.g., https://nexttrain.co.za):", "https://");
             if (!url) return;
-            const selection = window.getSelection();
-            const selectedText = selection.toString() || "Link";
-            const html = `<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline underline-offset-2">${selectedText}</a>`;
+            const label = selectedText || "Link";
+            const html = `<a href="${url}" target="_blank" class="text-blue-500 dark:text-blue-400 underline underline-offset-2">${label}</a>`;
             document.execCommand('insertHTML', false, html);
         }
     },
@@ -17895,7 +18058,8 @@ const Admin = {
 
         // GUARDIAN PHASE 3: Inline WYSIWYG File Uploader (Service Alerts)
         const inlineUploadFile = document.getElementById('alert-upload-file');
-        if (inlineUploadFile) {
+        if (inlineUploadFile && inlineUploadFile.dataset.ntUploadBound !== '1') {
+            inlineUploadFile.dataset.ntUploadBound = '1';
             inlineUploadFile.addEventListener('change', async function() {
                 const editor = document.getElementById('alert-msg');
                 // GUARDIAN UX FIX: Retrieve pre-upload cursor position locked via mousedown
@@ -19105,7 +19269,8 @@ const Admin = {
         };
 
         const disrUploadFile = document.getElementById('disr-upload-file');
-        if (disrUploadFile) {
+        if (disrUploadFile && disrUploadFile.dataset.ntUploadBound !== '1') {
+            disrUploadFile.dataset.ntUploadBound = '1';
             disrUploadFile.addEventListener('change', async function() {
                 const editor = document.getElementById('disr-msg');
                 const savedRange = Admin._savedRange;
@@ -19439,7 +19604,7 @@ const Admin = {
             const statA = statASelect.value;
             const statB = statBSelect.value;
             const btnText = btnTextInput.value.trim() || (tier === 'CRITICAL' ? 'Severance Advisory' : 'Delay Advisory');
-            const msg = (msgInput?.innerHTML || '').trim();
+            const msg = Admin.composerOutgoingHtml(msgInput).trim();
             const expiryTs = expiryInput.value ? new Date(expiryInput.value).getTime() : Date.now() + (48 * 3600 * 1000);
             const applyDays = collectDisrApplyDays();
             const startTime = (document.getElementById('disr-from')?.value || '').trim();
@@ -19487,7 +19652,10 @@ const Admin = {
 
                 if (res.ok) {
                     if (typeof showToast === 'function') showToast(`Incident Deployed!`, "success");
-                    if (msgInput) msgInput.innerHTML = '';
+                    if (msgInput) {
+                        msgInput.innerHTML = '';
+                        Admin.clearComposerMedia(msgInput);
+                    }
                     btnTextInput.value = '';
                     statASelect.value = '';
                     statBSelect.value = '';
@@ -19535,7 +19703,10 @@ const Admin = {
                             }
                             document.getElementById('disr-btn-text').value = data.buttonText || '';
                             const reviveEditor = document.getElementById('disr-msg');
-                            if (reviveEditor) reviveEditor.innerHTML = data.message || data.longExplanation || '';
+                            if (reviveEditor) {
+                                reviveEditor.innerHTML = data.message || data.longExplanation || '';
+                                Admin.hoistEditorImages(reviveEditor);
+                            }
                             setDisrApplyDays(data.applyDays);
                             const fromEl = document.getElementById('disr-from');
                             const untilEl = document.getElementById('disr-until');
@@ -20207,6 +20378,10 @@ const Admin = {
                         <input type="radio" name="excl-type" value="special" class="form-radio h-3 w-3 text-green-600 bg-white border-gray-300 focus:ring-0">
                         <span class="text-[10px] font-bold text-green-700 dark:text-green-300 ml-1.5 uppercase tracking-wide">Mark Special</span>
                     </label>
+                    <label class="flex-1 flex items-center justify-center p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg cursor-pointer transition-colors">
+                        <input type="radio" name="excl-type" value="provisional" class="form-radio h-3 w-3 text-amber-600 bg-white border-gray-300 focus:ring-0">
+                        <span class="text-[10px] font-bold text-amber-800 dark:text-amber-300 ml-1.5 uppercase tracking-wide">Not guaranteed</span>
+                    </label>
                 </div>
 
                 <input id="excl-reason" type="text" placeholder="Reason (e.g. Testing, Easter)" class="w-full h-10 px-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs text-gray-900 dark:text-white outline-none">
@@ -20798,7 +20973,7 @@ const Admin = {
             daysContainer.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
                 cb.checked = Array.isArray(item.days) && item.days.includes(parseInt(cb.value, 10));
             });
-            const type = item.type === 'special' ? 'special' : 'banned';
+            const type = item.type === 'special' ? 'special' : (item.type === 'provisional' ? 'provisional' : 'banned');
             document.querySelectorAll('input[name="excl-type"]').forEach((r) => {
                 r.checked = r.value === type;
             });
@@ -20885,6 +21060,7 @@ const Admin = {
                     const dayLabels = (item.days || []).map(d => days[d]).join('');
                     
                     const isSpecial = item.type === 'special';
+                    const isProvisional = item.type === 'provisional';
                     
                     let expiryHtml = '';
                     let rowOpacityClass = '';
@@ -20903,9 +21079,11 @@ const Admin = {
                         }
                     }
 
-                    const badgeHtml = isSpecial 
+                    const badgeHtml = isSpecial
                         ? '<span class="bg-green-100 text-green-700 px-1 rounded text-[9px] font-black tracking-widest mr-1">SPL</span>'
-                        : '<span class="bg-red-100 text-red-700 px-1 rounded text-[9px] font-black tracking-widest mr-1">BAN</span>';
+                        : (isProvisional
+                            ? '<span class="bg-amber-100 text-amber-800 px-1 rounded text-[9px] font-black tracking-widest mr-1">MAY</span>'
+                            : '<span class="bg-red-100 text-red-700 px-1 rounded text-[9px] font-black tracking-widest mr-1">BAN</span>');
                     const surfaceLabel = item.surface === 'in_app'
                         ? 'IN APP'
                         : (item.surface === 'grid' ? 'GRID' : 'BOTH');
@@ -20918,7 +21096,7 @@ const Admin = {
                     row.innerHTML = `
                         <div>
                             ${badgeHtml}
-                            <span class="font-bold ${isSpecial ? 'text-green-600' : 'text-red-600'}">#${trainNum}</span>
+                            <span class="font-bold ${isSpecial ? 'text-green-600' : (isProvisional ? 'text-amber-700' : 'text-red-600')}">#${trainNum}</span>
                             <span class="text-gray-400 mx-1">|</span>
                             <span class="text-gray-700 dark:text-gray-300 font-mono tracking-widest">[${dayLabels}]</span>
                             <span class="ml-1 rounded bg-blue-50 dark:bg-blue-900/30 px-1 py-0.5 text-[8px] font-black tracking-wide text-blue-600 dark:text-blue-300">${surfaceLabel}</span>
@@ -21637,6 +21815,17 @@ const Admin = {
                         const commuterRouteHtml = routeStationBits.length
                             ? `<div class="inbox-bubble-route-row">${secureEscape(routeStationBits.join(' · '))}</div>`
                             : '';
+                        const diag = item.diagnostics && typeof item.diagnostics === 'object' ? item.diagnostics : null;
+                        const diagNet = diag?.network === 'mobile' ? 'Mobile' : (diag?.network === 'wifi' ? 'Wi-Fi' : (diag?.network === 'ethernet' ? 'Ethernet' : (diag?.network === 'offline' ? 'Offline' : (diag?.network && diag.network !== 'unknown' ? String(diag.network) : ''))));
+                        const diagBits = diag ? [
+                            diag.phone || '',
+                            diagNet ? `${diagNet}${diag.captive ? ', captive' : ''}` : (diag.captive ? 'Captive' : ''),
+                            diag.signal && diag.signal !== 'unknown' ? String(diag.signal) : '',
+                            diag.viewport || '',
+                        ].filter(Boolean) : [];
+                        const diagHtml = diagBits.length
+                            ? `<div class="text-[10px] leading-snug text-gray-400 break-words mt-0.5">${secureEscape(diagBits.join(' · '))}</div>`
+                            : '';
                         const clRouteAttr = secureEscape(commuterRouteLabel || '');
                         const clStationAttr = secureEscape(stationLabel);
                         const clAutoAttr = stationAuto ? '1' : '0';
@@ -21649,6 +21838,7 @@ const Admin = {
                                 ${commuterVerBtn}
                             </div>
                             ${commuterRouteHtml}
+                            ${diagHtml}
                         `;
 
                         const inboxReactId = item.inboxMsgId || '';
