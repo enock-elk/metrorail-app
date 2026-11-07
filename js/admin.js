@@ -1456,8 +1456,17 @@ const Admin = {
             }
         }
     },
+    sentryStatusLine: (sentry = Admin.currentSentry) => {
+        const status = String(sentry?.sentryStatus || '');
+        const detail = String(sentry?.sentryErrorDetail || '').trim();
+        const count = sentry?.todayErrors;
+        if (status === 'ok') return `Sentry received ${Admin.formatNumber(count)} events today.`;
+        if (status === 'zero') return 'Sentry received 0 events today.';
+        if (status === 'unconfigured') return detail || 'Sentry is not configured on the telemetry Worker.';
+        if (status === 'error') return detail || 'Sentry request failed.';
+        return 'Sentry has not reported in this session yet.';
+    },
     openDiagnosticErrorsModal: async () => {
-        const SENTRY_SAMPLE = 0.3;
         let modal = document.getElementById('admin-diag-errors-modal');
         if (!modal) {
             modal = document.createElement('div');
@@ -1469,14 +1478,20 @@ const Admin = {
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col border border-gray-200 dark:border-gray-700">
                 <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
                     <div>
-                        <h3 class="text-base font-black text-gray-900 dark:text-white">System Errors 24H</h3>
-                        <p id="diag-errors-meta" class="text-[10px] text-gray-500 mt-0.5">Loading...</p>
+                        <h3 class="text-base font-black text-gray-900 dark:text-white">Sentry today</h3>
+                        <p id="diag-sentry-meta" class="text-[10px] text-gray-500 mt-0.5 leading-snug"></p>
                     </div>
                     <button type="button" id="diag-errors-close" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300" aria-label="Close">${Admin.icon('x', 'w-4 h-4')}</button>
+                </div>
+                <div class="px-4 pt-3 shrink-0">
+                    <h4 class="text-[11px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-200">App diagnostics, last 24h</h4>
+                    <p id="diag-errors-meta" class="text-[10px] text-gray-500 mt-0.5 leading-snug">Loading app diagnostics...</p>
                 </div>
                 <div id="diag-errors-list" class="p-3 overflow-y-auto flex-grow space-y-2 custom-scrollbar text-sm">Loading...</div>
             </div>`;
         modal.classList.remove('hidden');
+        const sentryMeta = document.getElementById('diag-sentry-meta');
+        if (sentryMeta) sentryMeta.textContent = Admin.sentryStatusLine();
         document.getElementById('diag-errors-close').onclick = () => modal.classList.add('hidden');
 
         const list = document.getElementById('diag-errors-list');
@@ -1496,8 +1511,9 @@ const Admin = {
             const items = all.filter((c) => !isDistress(c));
             items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
             const n = items.length;
-            const est = Math.round(n / SENTRY_SAMPLE);
-            meta.textContent = `${n} JS/crash captures (~${est} est. @ sample ${SENTRY_SAMPLE}). Distress: use Crash Analytics.`;
+            meta.textContent = n
+                ? `${n} app diagnostic entries in the last 24h. These are Firebase runtime and black-box records, separate from Sentry.`
+                : 'No app diagnostic entries in the last 24h. Sentry is reported above. Distress: use Crash Analytics.';
             if (!n) {
                 list.innerHTML = `
                     <p class="text-xs text-gray-500 text-center py-4">No JS / black-box diagnostic entries in the last 24h.</p>
@@ -2830,13 +2846,13 @@ const Admin = {
         modal.className = 'fixed inset-0 bg-black/80 z-[220] flex items-center justify-center p-4 backdrop-blur-sm';
         const close = () => modal.remove();
         modal.innerHTML = `
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-5 border border-gray-200 dark:border-gray-700" role="dialog" aria-labelledby="commuter-peek-title" aria-modal="true">
-                <h3 id="commuter-peek-title" class="text-lg font-black text-gray-900 dark:text-white mb-1">User sheet</h3>
-                <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">Quick facts for this id. Search User Trust if you need the full profile.</p>
-                <div id="commuter-peek-body" class="space-y-1.5 text-[11px] text-gray-700 dark:text-gray-200">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[min(88dvh,40rem)] flex flex-col p-5 border border-gray-200 dark:border-gray-700" role="dialog" aria-labelledby="commuter-peek-title" aria-modal="true">
+                <h3 id="commuter-peek-title" class="text-lg font-black text-gray-900 dark:text-white mb-1 shrink-0">User sheet</h3>
+                <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-3 leading-relaxed shrink-0">Quick facts for this id. Search User Trust if you need the full profile.</p>
+                <div id="commuter-peek-body" class="space-y-1.5 text-[11px] text-gray-700 dark:text-gray-200 min-h-0 overflow-y-auto">
                     <p class="animate-pulse text-gray-400">Loading...</p>
                 </div>
-                <div class="flex flex-wrap gap-2 mt-4">
+                <div class="flex flex-wrap gap-2 mt-4 shrink-0">
                     <button type="button" id="commuter-peek-lookup" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm">Look up more</button>
                     <button type="button" id="commuter-peek-close" class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2.5 rounded-lg text-sm">Close</button>
                 </div>
@@ -2872,9 +2888,9 @@ const Admin = {
                 const type = actionId ? ' type="button"' : '';
                 const idAttr = actionId ? ` id="${actionId}"` : '';
                 return `
-                <${tag}${type}${idAttr} class="rounded-xl border px-2 py-2 text-left ${absent ? 'opacity-55 border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900' : 'border-blue-100 dark:border-blue-900 bg-blue-50/70 dark:bg-blue-950/20'}${actionId ? ' cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 focus:outline-none' : ''}">
-                    <p class="text-[9px] font-black uppercase tracking-widest ${absent ? 'text-gray-400' : 'text-blue-700 dark:text-blue-300'}">${esc(label)}</p>
-                    <p class="mt-1 text-[11px] font-bold leading-snug break-words ${absent ? 'text-gray-400' : 'text-gray-900 dark:text-white'}">${value}</p>
+                <${tag}${type}${idAttr} class="w-full rounded-xl border px-3 py-2 text-left flex items-start gap-3 ${absent ? 'border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/40' : 'border-blue-100 dark:border-blue-900 bg-blue-50/70 dark:bg-blue-950/20'}${actionId ? ' cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 focus:outline-none' : ''}">
+                    <span class="w-[5.5rem] shrink-0 pt-0.5 text-[9px] font-black uppercase tracking-widest ${absent ? 'text-gray-400' : 'text-blue-700 dark:text-blue-300'}">${esc(label)}</span>
+                    <span class="min-w-0 flex-1 text-[12px] font-bold leading-snug break-words ${absent ? 'text-gray-400 font-semibold' : 'text-gray-900 dark:text-white'}">${value}</span>
                 </${tag}>`;
             };
             const countLabel = (count, noun) => {
@@ -2889,7 +2905,7 @@ const Admin = {
                     ? `<p class="text-[11px]">Last activity: <b>${esc(Admin.formatDate(peek.lastActivity.ms))}</b> · ${esc(peek.lastActivity.label)}${peek.lastActivity.appVersion ? ` · ${esc(peek.lastActivity.appVersion)}` : ''}</p>`
                     : '<p class="text-[11px] text-gray-400">No activity on file.</p>'}
                 ${peek.email ? `<p class="text-[11px]">Email: <b>${esc(peek.email)}</b></p>` : ''}
-                <div class="grid grid-cols-2 gap-2 pt-1">
+                <div class="flex flex-col gap-1.5 pt-1">
                     ${tile('Joined', esc(joinedLabel), joinedLabel === 'unknown')}
                     ${tile('Trip plans', peek.tripLast ? esc(`yes${peek.tripRegion ? ` · ${peek.tripRegion}` : ''}`) : 'none', !peek.tripLast, peek.tripLast ? 'commuter-peek-trips' : '')}
                     ${tile('Feedback', peek.hasChat ? esc(peek.feedbackCount ? `${peek.feedbackCount} messages` : 'open thread') : 'none', !peek.hasChat, 'commuter-peek-feedback')}
@@ -3480,13 +3496,13 @@ const Admin = {
             const errorBox = telBody.querySelector('.bg-red-50') || telBody.querySelector('#stat-errors')?.closest('div');
             if (errorBox) {
                 errorBox.className = "bg-gray-50 dark:bg-gray-800/80 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between shadow-sm mt-3 transition-colors cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md";
-                errorBox.title = 'System / Sentry diagnostic errors (24h). Distress/help lives under Crash Analytics.';
+                errorBox.title = 'Sentry events today. Opens Sentry status and the separate 24h app diagnostic list.';
                 errorBox.onclick = () => Admin.openDiagnosticErrorsModal();
                 const label = errorBox.querySelector('span:first-child');
                 const value = errorBox.querySelector('span:last-child');
                 if (label) {
                     label.className = "text-[10px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-wider flex items-center";
-                    label.innerHTML = `<span class="mr-1.5 inline-flex text-amber-500">${Admin.icon('alert', 'w-4 h-4')}</span> SYSTEM ERRORS 24H`;
+                    label.innerHTML = `<span class="mr-1.5 inline-flex text-amber-500">${Admin.icon('alert', 'w-4 h-4')}</span> SENTRY TODAY`;
                 }
                 if (value) value.className = "text-lg font-black text-gray-800 dark:text-gray-200";
             }
@@ -3600,44 +3616,32 @@ const Admin = {
                             </button>
                         </div>
                         <div class="p-5 flex-grow bg-white dark:bg-gray-800 rounded-b-2xl">
-                            <p id="region-metric-label" class="text-center text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Users and sessions by region on the hit</p>
-                            <p id="region-today-total" class="text-center text-xs font-black text-gray-800 dark:text-gray-200 mb-1">People today: --</p>
-                            <p id="region-today-sessions" class="text-center text-[10px] font-bold text-gray-500 mb-4">Sessions today: --</p>
+                            <p id="region-metric-label" class="text-center text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Reporting devices by selected region</p>
+                            <p id="region-today-total" class="text-center text-xs font-black text-gray-800 dark:text-gray-200 mb-1">Reporting devices today: --</p>
+                            <p id="region-today-sessions" class="text-center text-[10px] font-bold text-gray-500 mb-4">People today (Analytics): --</p>
                             <div class="grid grid-cols-2 gap-3 mb-3">
                                 <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">Gauteng</span>
                                     <span id="region-stat-gp" class="text-2xl font-black text-blue-700 dark:text-blue-300">--</span>
-                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">users</span>
-                                    <span id="region-sess-gp" class="text-[9px] font-bold text-blue-500/80 dark:text-blue-300/70 mt-0.5">-- sessions</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">devices</span>
                                 </div>
                                 <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">Western Cape</span>
                                     <span id="region-stat-wc" class="text-2xl font-black text-blue-700 dark:text-blue-300">--</span>
-                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">users</span>
-                                    <span id="region-sess-wc" class="text-[9px] font-bold text-blue-500/80 dark:text-blue-300/70 mt-0.5">-- sessions</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">devices</span>
                                 </div>
                                 <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">KwaZulu-Natal</span>
                                     <span id="region-stat-kzn" class="text-2xl font-black text-blue-700 dark:text-blue-300">--</span>
-                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">users</span>
-                                    <span id="region-sess-kzn" class="text-[9px] font-bold text-blue-500/80 dark:text-blue-300/70 mt-0.5">-- sessions</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">devices</span>
                                 </div>
                                 <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50 flex flex-col items-center justify-center shadow-sm">
                                     <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider mb-1">Eastern Cape</span>
                                     <span id="region-stat-ec" class="text-2xl font-black text-blue-700 dark:text-blue-300">--</span>
-                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">users</span>
-                                    <span id="region-sess-ec" class="text-[9px] font-bold text-blue-500/80 dark:text-blue-300/70 mt-0.5">-- sessions</span>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-300/70">devices</span>
                                 </div>
                             </div>
-                            <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between shadow-sm mt-1 mb-3">
-                                <span id="region-stat-other-label" class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider flex items-center">No region on the hit</span>
-                                <div class="text-right">
-                                    <span id="region-stat-other" class="text-lg font-black text-gray-700 dark:text-gray-300">--</span>
-                                    <span class="block text-[9px] font-bold uppercase tracking-wider text-gray-500">users</span>
-                                    <span id="region-sess-other" class="block text-[9px] font-bold text-gray-500">-- sessions</span>
-                                </div>
-                            </div>
-                            <p id="region-note" class="text-[10px] leading-relaxed text-gray-500 dark:text-gray-400 mb-4">People today and Sessions today are the totals. Each card counts a person, and their sessions, once for every region value on their hits. The cards are not a split of people today.</p>
+                            <p id="region-note" class="text-[10px] leading-relaxed text-gray-500 dark:text-gray-400 mb-4">Each reporting device is counted once, under the region selected most recently today, Johannesburg time. The four cards add up to the reporting-device total.</p>
                             
                             <!-- GROWTH SPRINT PHASE 12: Pivot to Graph CTA -->
                             <button id="region-view-graph-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-xs uppercase tracking-widest focus:outline-none flex items-center justify-center">
@@ -3976,6 +3980,11 @@ const Admin = {
                 if(statErrors) statErrors.textContent = data.todayErrors !== undefined ? Admin.formatNumber(data.todayErrors) : '--';
                 Admin.currentTodayUsers = data.todayUsers;
                 Admin.currentTodaySessions = data.todaySessions;
+                Admin.currentSentry = {
+                    todayErrors: data.todayErrors,
+                    sentryStatus: data.sentryStatus || (data.todayErrors === 'ERR' ? 'error' : (data.todayErrors === '--' || data.todayErrors == null) ? 'unconfigured' : (Number(data.todayErrors) === 0 ? 'zero' : 'ok')),
+                    sentryErrorDetail: data.sentryErrorDetail || '',
+                };
                 
                 // GUARDIAN: Store and update regional breakdown seamlessly
                 if (data.regionalBreakdown) {
@@ -4293,6 +4302,11 @@ const Admin = {
             const telMsg = String((e && e.message) || e || '');
             if (!/abort|offline|failed to fetch|timeout/i.test(telMsg)) {
                 console.warn("Telemetry Fetch Failed:", e.message);
+                Admin.currentSentry = {
+                    todayErrors: '--',
+                    sentryStatus: 'error',
+                    sentryErrorDetail: 'Telemetry worker did not respond.',
+                };
             }
             
             if(stat5m && stat5m.textContent === '--') stat5m.textContent = "Wait";
@@ -4474,60 +4488,44 @@ const Admin = {
     updateRegionalModal: () => {
         const data = Admin.currentRegionalBreakdown;
         if (!data) return;
-        
+
         const gpEl = document.getElementById('region-stat-gp');
         const wcEl = document.getElementById('region-stat-wc');
         const kznEl = document.getElementById('region-stat-kzn');
         const ecEl = document.getElementById('region-stat-ec');
-        const otherEl = document.getElementById('region-stat-other');
-        const n = (v) => (v !== undefined && v !== null ? Admin.formatNumber(v) : '--');
-        const sess = data.sessions || {};
-        
+        const n = (v) => (v !== undefined && v !== null && v !== '--' && v !== 'ERR' ? Admin.formatNumber(v) : '--');
+
         if (gpEl) gpEl.textContent = n(data.GP);
         if (wcEl) wcEl.textContent = n(data.WC);
         if (kznEl) kznEl.textContent = n(data.KZN);
         if (ecEl) ecEl.textContent = n(data.EC);
-        if (otherEl) otherEl.textContent = n(data.OTHER);
-
-        const setSess = (id, value) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = `${n(value)} sessions`;
-        };
-        setSess('region-sess-gp', sess.GP);
-        setSess('region-sess-wc', sess.WC);
-        setSess('region-sess-kzn', sess.KZN);
-        setSess('region-sess-ec', sess.EC);
-        setSess('region-sess-other', sess.OTHER);
-
-        const todayUsers = data.todayUsers ?? Admin.currentTodayUsers;
-        const todaySessions = data.todaySessions ?? Admin.currentTodaySessions;
-        const todayEl = document.getElementById('region-today-total');
-        if (todayEl) todayEl.textContent = `People today: ${n(todayUsers)}`;
-        const sessEl = document.getElementById('region-today-sessions');
-        if (sessEl) sessEl.textContent = `Sessions today: ${n(todaySessions)}`;
-
-        const otherLabel = document.getElementById('region-stat-other-label');
-        if (otherLabel) {
-            const unset = Number(data.unsetUsers) || 0;
-            const unrecognised = Number(data.otherUsers) || 0;
-            otherLabel.textContent = unrecognised > 0 && unset === 0
-                ? 'Unrecognised region'
-                : unrecognised > 0
-                    ? 'No region on the hit, plus unrecognised'
-                    : 'No region on the hit';
-        }
 
         const assigned = (Number(data.GP) || 0) + (Number(data.WC) || 0) + (Number(data.KZN) || 0) + (Number(data.EC) || 0);
-        const other = Number(data.OTHER) || 0;
-        const people = Number(todayUsers) || 0;
-        const cardUsers = assigned + other;
-        const extra = Math.max(0, cardUsers - people);
+        const reporting = Number.isFinite(Number(data.reportingDevices)) ? Number(data.reportingDevices) : assigned;
+        const gaPeople = data.gaPeopleToday != null ? data.gaPeopleToday : Admin.currentTodayUsers;
+        const todayEl = document.getElementById('region-today-total');
+        const gaEl = document.getElementById('region-today-sessions');
         const note = document.getElementById('region-note');
-        if (note) {
-            note.textContent = extra > 0
-                ? `People today and Sessions today are the totals. Each card counts a person, and their sessions, once for every region value on their hits, so the user numbers add up to ${Admin.formatNumber(cardUsers)}, which is ${Admin.formatNumber(extra)} above the ${Admin.formatNumber(people)} people. The cards are not a split of people today.`
-                : 'People today and Sessions today are the totals. Each card is the users who had that region on a hit today, and the sessions on those hits.';
+        if (data.metric !== 'reportingDevices') {
+            if (todayEl) todayEl.textContent = `People today: ${n(data.todayUsers ?? Admin.currentTodayUsers)}`;
+            if (gaEl) gaEl.textContent = 'Exact device split is not on this telemetry Worker yet.';
+            if (note) note.textContent = 'These cards are the previous overlapping region report. Deploy the telemetry Worker before reading them as one device per region.';
+            return;
         }
+        if (todayEl) todayEl.textContent = `Reporting devices today: ${n(reporting)}`;
+        if (gaEl) gaEl.textContent = `People today (Analytics): ${n(gaPeople)}`;
+        if (!note) return;
+        if (data.status === 'unconfigured') {
+            note.textContent = 'The exact split is not available until the telemetry database is bound. Analytics people today stays the site-wide total.';
+            return;
+        }
+        if (data.status === 'error') {
+            note.textContent = data.detail
+                ? `Could not read the reporting-device split. ${data.detail}`
+                : 'Could not read the reporting-device split.';
+            return;
+        }
+        note.textContent = `Each reporting device is counted once, under the region selected most recently today, Johannesburg time. The four cards add up to ${Admin.formatNumber(assigned)}. Analytics people today is separate: visitors on an older build, and anyone who has not reported yet, are not in this split. Clearing the browser starts a new reporting device.`;
     },
 
     // GROWTH SPRINT PHASE 6: Dynamic 7-Day Chart Snapshot Engine (SVG Clone Method)
@@ -7955,13 +7953,16 @@ const Admin = {
 
         refreshBtn.onclick = () => Admin.fetchDeadEnds();
 
-        Admin.approvePlannerFare = async (vote) => {
+        Admin.approvePlannerFare = async (vote, patchIn = {}) => {
             const secret = await Admin.getAuthKey();
             if (!secret) throw new Error('Not signed in');
             if (typeof window.plannerFareOverrideKey !== 'function' || typeof window.buildPlannerFareOverrideRecord !== 'function') {
                 throw new Error('Planner fare helpers are not loaded');
             }
-            const item = vote && typeof vote === 'object' ? vote : {};
+            const item = vote && typeof vote === 'object' ? { ...vote } : {};
+            if (patchIn.ticketType) item.ticketType = String(patchIn.ticketType).toLowerCase();
+            if (patchIn.isOffPeak != null) item.isOffPeak = !!patchIn.isOffPeak;
+            if (patchIn.agree != null) item.agree = !!patchIn.agree;
             const reported = Number(item.reportedPrice);
             if (!Number.isFinite(reported) || reported < 1 || reported > 500) {
                 throw new Error('Correction needs a whole rand between 1 and 500');
@@ -7990,8 +7991,26 @@ const Admin = {
             if (typeof window.setPlannerFareOverridesCache === 'function') {
                 window.setPlannerFareOverridesCache(Admin._cachedPlannerFares);
             }
-            if (typeof showToast === 'function') showToast(`Planner will quote R${record.price}`, 'success');
-            await Admin.fetchDeadEnds();
+            if (!patchIn.skipVotePatch && item.id) {
+                const votePatch = {
+                    review: 'saved',
+                    reviewedAt: Date.now(),
+                    reviewedBy: Admin.currentUser?.email || Admin.currentUser?.uid || 'Admin',
+                    ticketType,
+                    isOffPeak: !!item.isOffPeak,
+                    agree: false,
+                };
+                const voteRes = await fetch(`${dynamicEndpoint}sys_logs/fare_votes/${encodeURIComponent(item.id)}.json?auth=${secret}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(votePatch),
+                });
+                if (voteRes.ok && Admin._cachedFareVotes && Admin._cachedFareVotes[item.id]) {
+                    Admin._cachedFareVotes[item.id] = { ...Admin._cachedFareVotes[item.id], ...votePatch };
+                }
+            }
+            if (!patchIn.quiet && typeof showToast === 'function') showToast(`Planner will quote R${record.price}`, 'success');
+            if (!patchIn.skipReload) await Admin.fetchDeadEnds();
         };
 
         Admin.reclassifyPlannerFare = async (vote, patchIn = {}) => {
@@ -8018,6 +8037,9 @@ const Admin = {
                 ticketType,
                 isOffPeak,
                 agree,
+                review: 'saved',
+                reviewedAt: Date.now(),
+                reviewedBy: Admin.currentUser?.email || Admin.currentUser?.uid || 'Admin',
                 reclassifiedAt: Date.now(),
                 reclassifiedBy: Admin.currentUser?.email || Admin.currentUser?.uid || 'Admin',
             };
@@ -8030,10 +8052,10 @@ const Admin = {
             if (Admin._cachedFareVotes && Admin._cachedFareVotes[id]) {
                 Admin._cachedFareVotes[id] = { ...Admin._cachedFareVotes[id], ...patch };
             }
-            if (typeof showToast === 'function') {
+            if (!patchIn.quiet && typeof showToast === 'function') {
                 showToast(agree ? 'Classification saved · quote marked correct' : 'Classification saved', 'success');
             }
-            await Admin.fetchDeadEnds();
+            if (!patchIn.skipReload) await Admin.fetchDeadEnds();
         };
 
         Admin.refutePlannerFare = async (vote) => {
@@ -8300,26 +8322,17 @@ const Admin = {
                         const livePrice = liveRow ? Number(liveRow.price) : NaN;
                         return Number.isFinite(livePrice) && livePrice === Number(item.reportedPrice);
                     };
-                    const fareGroups = [
-                        { title: 'Pending', items: entries.filter((item) => item.review !== 'refuted' && !fareIsLive(item)) },
-                        { title: 'Approved', items: entries.filter((item) => item.review !== 'refuted' && fareIsLive(item)) },
-                        { title: 'Refuted', items: entries.filter((item) => item.review === 'refuted') },
-                    ];
-                    fareGroups.forEach((group) => {
-                        if (!group.items.length) return;
-                        const heading = document.createElement('p');
-                        heading.className = 'text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 pt-2';
-                        heading.textContent = `${group.title} (${group.items.length})`;
-                        listDiv.appendChild(heading);
-                        group.items.forEach((item) => {
+                    const fareIsDecided = (item) => item.review === 'saved' || item.review === 'refuted' || !!item.reclassifiedAt || fareIsLive(item);
+                    const savedItems = entries.filter((item) => fareIsDecided(item));
+                    const pendingItems = entries.filter((item) => !fareIsDecided(item));
+                    const paintFareVoteCard = (item, host) => {
                         const card = document.createElement('div');
                         card.className = "de-fare-card bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden cursor-pointer transition-colors hover:border-amber-300";
                         const quoted = item.quotedPrice != null ? `R${item.quotedPrice}` : '-';
                         const reported = item.reportedPrice != null ? `R${item.reportedPrice}` : '-';
                         const peakLabel = item.isOffPeak ? 'Off-peak' : 'Peak';
                         const smoothKm = item.smoothKm ?? item.km;
-                        const abKm = item.abKm ?? item.crowKm;
-                        const kmLabel = `smooth ${smoothKm != null && smoothKm !== '' ? smoothKm : '-'} km · A-B ${abKm != null && abKm !== '' ? abKm : '-'} km`;
+                        const kmLabel = `smooth ${smoothKm != null && smoothKm !== '' ? smoothKm : '-'} km`;
                         const profileLabel = item.profile || 'Adult';
                         const vsLabel = item.agree ? `${quoted} (yes)` : `${quoted} → ${reported}`;
                         const fareDid = String(item.deviceId || item.userId || '').trim();
@@ -8402,10 +8415,33 @@ const Admin = {
                         card.querySelector('.de-fare-approve')?.addEventListener('click', async (ev) => {
                             ev.stopPropagation();
                             try {
-                                await Admin.approvePlannerFare(item);
+                                const typeEl = card.querySelector('.de-fare-type');
+                                const peakEl = card.querySelector('.de-fare-peak');
+                                const ticketType = typeEl?.value || 'single';
+                                const isOffPeak = peakEl?.value === 'off';
+                                if (ticketType !== 'single') {
+                                    await Admin.reclassifyPlannerFare(item, {
+                                        ticketType,
+                                        isOffPeak,
+                                        agree: false,
+                                        skipReload: true,
+                                        quiet: true,
+                                    });
+                                    if (typeof showToast === 'function') showToast('Saved. Only a single ticket updates the price everyone sees.', 'info');
+                                    await Admin.fetchDeadEnds();
+                                    return;
+                                }
+                                await Admin.approvePlannerFare({
+                                    ...item,
+                                    ticketType,
+                                    isOffPeak,
+                                    agree: false,
+                                }, { skipReload: true });
+                                await Admin.fetchDeadEnds();
                             } catch (e) {
                                 console.error('Approve planner fare failed', e);
                                 if (typeof showToast === 'function') showToast(e.message || 'Approve failed', 'error');
+                                await Admin.fetchDeadEnds();
                             }
                         });
                         card.querySelector('.de-fare-refute')?.addEventListener('click', async (ev) => {
@@ -8443,9 +8479,34 @@ const Admin = {
                                 Admin.expandFareContributor(panel, item);
                             }
                         });
-                        listDiv.appendChild(card);
-                        });
-                    });
+                        host.appendChild(card);
+                    };
+                    const savedWrap = document.createElement('div');
+                    savedWrap.className = 'mb-3';
+                    savedWrap.innerHTML = `
+                        <details class="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-950/40">
+                            <summary class="cursor-pointer list-none px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-500">Saved corrections (${savedItems.length})</summary>
+                            <div class="de-saved-fares px-3 pb-3 space-y-2"></div>
+                        </details>`;
+                    listDiv.appendChild(savedWrap);
+                    const savedHost = savedWrap.querySelector('.de-saved-fares');
+                    if (!savedItems.length) {
+                        savedHost.innerHTML = '<p class="text-[11px] text-gray-500 italic">None saved yet.</p>';
+                    } else {
+                        savedItems.forEach((item) => paintFareVoteCard(item, savedHost));
+                    }
+                    if (pendingItems.length) {
+                        const heading = document.createElement('p');
+                        heading.className = 'text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 pt-2';
+                        heading.textContent = `Pending (${pendingItems.length})`;
+                        listDiv.appendChild(heading);
+                        pendingItems.forEach((item) => paintFareVoteCard(item, listDiv));
+                    } else {
+                        const done = document.createElement('p');
+                        done.className = 'text-xs text-gray-500 italic text-center py-3';
+                        done.textContent = 'No pending corrections.';
+                        listDiv.appendChild(done);
+                    }
                     return;
                 }
 
@@ -8575,14 +8636,15 @@ const Admin = {
                     const timeLabel = secureEscape(item.timeOfDay || '-');
                     const countLabel = countMode === 'hits' ? 'Hits' : 'Users';
                     const versionEntries = Object.entries(item.versions || {}).sort((a, b) => (b[1].lastSeen || 0) - (a[1].lastSeen || 0));
+                    const versionChip = (ver) => {
+                        const safeVer = secureEscape(ver);
+                        if (/^V\d+_/i.test(ver)) {
+                            return `<button type="button" class="fb-version-chip inline-flex max-w-full shrink-0 text-left text-[9px] font-mono font-medium underline decoration-dotted underline-offset-2 text-gray-600 dark:text-gray-300 focus:outline-none" data-admin-changelog="${safeVer}" onclick="event.preventDefault();event.stopPropagation();if(window.Admin&&Admin.openAdminChangelogLookup)Admin.openAdminChangelogLookup(this.getAttribute('data-admin-changelog')||this.textContent);">${safeVer}</button>`;
+                        }
+                        return `<span class="inline-flex shrink-0 text-[9px] font-mono text-gray-500">${safeVer}</span>`;
+                    };
                     const versionChips = versionEntries.length
-                        ? versionEntries.slice(0, 3).map(([ver]) => {
-                            const safeVer = secureEscape(ver);
-                            if (/^V\d+_/i.test(ver)) {
-                                return `<button type="button" class="fb-version-chip inline max-w-full whitespace-normal break-all text-left text-[9px] font-mono font-medium underline decoration-dotted underline-offset-2 text-gray-600 dark:text-gray-300 focus:outline-none" data-admin-changelog="${safeVer}" onclick="event.preventDefault();event.stopPropagation();if(window.Admin&&Admin.openAdminChangelogLookup)Admin.openAdminChangelogLookup(this.getAttribute('data-admin-changelog')||this.textContent);">${safeVer}</button>`;
-                            }
-                            return `<span class="text-[9px] font-mono text-gray-500">${safeVer}</span>`;
-                        }).join('') + (versionEntries.length > 3 ? `<span class="text-[9px] font-mono text-gray-400">+${versionEntries.length - 3}</span>` : '')
+                        ? `${versionEntries.slice(0, 8).map(([ver]) => versionChip(ver)).join('')}${versionEntries.length > 8 ? `<span class="text-[9px] font-mono text-gray-400">+${versionEntries.length - 8}</span>` : ''}`
                         : '<span class="text-[9px] font-mono text-gray-400">No version</span>';
                     const versionList = versionEntries.map(([ver, info]) => `${ver} (${info.count})`).join(', ') || 'no version';
                     const corridorKey = Admin.failCorridorKey({
@@ -8612,8 +8674,8 @@ const Admin = {
                                     <span class="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">${dayLabel}</span>
                                     <span class="text-[9px] text-gray-400 font-mono">${timeLabel}</span>
                                     <span class="text-[9px] text-gray-400 font-mono">Last: ${dateStr}</span>
+                                    ${versionChips}
                                 </div>
-                                <div class="mt-1.5 max-w-full break-all">${versionChips}</div>
                             </div>
                             <div class="flex flex-col items-end shrink-0 gap-1.5 ml-2">
                                 <div class="flex items-center justify-center bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg px-2.5 py-1.5 shadow-sm min-w-[4.5rem]">
@@ -8995,6 +9057,45 @@ const Admin = {
             return { usersEver: Admin._deTripEverUsers, pairsEver: Admin._deTripEverPairs };
         };
 
+        Admin.corridorStopKey = (name) => {
+            if (typeof normalizeStationName === 'function') return normalizeStationName(name);
+            return String(name || '').toUpperCase().replace(/ STATION/g, '').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+        };
+
+        // One row per origin and destination. Day and region stay on the trip cards.
+        // Weekday and Saturday of the same pair, or "DENNEBOOM" and "DENNEBOOM STATION", merge.
+        // Users are a union. Hits add up.
+        Admin.rollupTopCorridors = (sorted) => {
+            const rolled = new Map();
+            (sorted || []).forEach((item) => {
+                const originKey = Admin.corridorStopKey(item?.origin);
+                const destKey = Admin.corridorStopKey(item?.dest);
+                if (!originKey || !destKey) return;
+                const key = `${originKey}|${destKey}`;
+                let row = rolled.get(key);
+                if (!row) {
+                    const tidy = (raw) => String(raw || '').replace(/\s+station\b/gi, '').replace(/\s+/g, ' ').trim();
+                    row = {
+                        origin: tidy(item.origin) || originKey,
+                        dest: tidy(item.dest) || destKey,
+                        uniqueKeys: new Set(),
+                        hitCount: 0,
+                    };
+                    rolled.set(key, row);
+                }
+                if (item.uniqueKeys && typeof item.uniqueKeys.forEach === 'function') {
+                    item.uniqueKeys.forEach((id) => row.uniqueKeys.add(id));
+                }
+                row.hitCount += Number(item.hitCount) || 0;
+            });
+            return [...rolled.values()].map((row) => ({
+                origin: row.origin,
+                dest: row.dest,
+                count: row.uniqueKeys.size,
+                hitCount: row.hitCount,
+            })).sort((a, b) => (b.hitCount - a.hitCount) || (b.count - a.count) || String(a.origin).localeCompare(String(b.origin)));
+        };
+
         Admin.buildTripInsightsHtml = (sorted, rows, esc) => {
             const regionCounts = { GP: 0, WC: 0, KZN: 0, EC: 0 };
             const dayCounts = {};
@@ -9003,6 +9104,8 @@ const Admin = {
             const xferCounts = { 0: 0, 1: 0, 2: 0, '3+': 0 };
             const originHits = {};
             const destHits = {};
+            const originLabels = {};
+            const destLabels = {};
             const pairHits = {};
             let direct = 0;
             let transfer = 0;
@@ -9032,16 +9135,25 @@ const Admin = {
                 if (searchH >= 0) searchHours[searchH] += 1;
                 const depH = parseHour(r.depTime);
                 if (depH >= 0) depHours[depH] += 1;
-                const origin = String(r.origin || '').trim();
-                const dest = String(r.destination || r.dest || '').trim();
-                if (origin) originHits[origin] = (originHits[origin] || 0) + 1;
-                if (dest) destHits[dest] = (destHits[dest] || 0) + 1;
+                const originRaw = String(r.origin || '').trim();
+                const destRaw = String(r.destination || r.dest || '').trim();
+                const origin = Admin.corridorStopKey(originRaw);
+                const dest = Admin.corridorStopKey(destRaw);
+                const tidy = (raw) => String(raw || '').replace(/\s+station\b/gi, '').replace(/\s+/g, ' ').trim();
+                if (origin) {
+                    originHits[origin] = (originHits[origin] || 0) + 1;
+                    if (!originLabels[origin]) originLabels[origin] = tidy(originRaw) || origin;
+                }
+                if (dest) {
+                    destHits[dest] = (destHits[dest] || 0) + 1;
+                    if (!destLabels[dest]) destLabels[dest] = tidy(destRaw) || dest;
+                }
                 if (origin && dest) {
                     const key = `${origin}|${dest}`;
                     pairHits[key] = (pairHits[key] || 0) + 1;
                 }
             });
-            const top = (sorted || []).slice(0, 5);
+            const top = Admin.rollupTopCorridors(sorted).slice(0, 5);
             const failReasons = {};
             Object.values(Admin._cachedRoutingFails || {}).forEach((f) => {
                 if (!f) return;
@@ -9095,6 +9207,8 @@ const Admin = {
             }).join('');
             const topOrigins = Object.entries(originHits).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name]) => name);
             const topDests = Object.entries(destHits).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name]) => name);
+            const originLabel = (key) => originLabels[key] || key;
+            const destLabel = (key) => destLabels[key] || key;
             const heatMax = Math.max(1, ...topOrigins.flatMap((o) => topDests.map((d) => pairHits[`${o}|${d}`] || 0)));
             const heatCell = (n) => {
                 const t = n / heatMax;
@@ -9103,11 +9217,11 @@ const Admin = {
             };
             const heatRows = topOrigins.map((origin) => `
                 <tr>
-                    <th class="text-left text-[8px] font-bold text-slate-500 pr-1 truncate max-w-[72px]">${esc(origin)}</th>
+                    <th class="text-left text-[8px] font-bold text-slate-500 pr-1 truncate max-w-[72px]">${esc(originLabel(origin))}</th>
                     ${topDests.map((dest) => heatCell(pairHits[`${origin}|${dest}`] || 0)).join('')}
                 </tr>
             `).join('');
-            const heatHead = topDests.map((dest) => `<th class="text-[7px] font-bold text-slate-400 w-8 truncate max-w-[32px]" title="${esc(dest)}">${esc(dest.slice(0, 4))}</th>`).join('');
+            const heatHead = topDests.map((dest) => `<th class="text-[7px] font-bold text-slate-400 w-8 truncate max-w-[32px]" title="${esc(destLabel(dest))}">${esc(destLabel(dest).slice(0, 4))}</th>`).join('');
             return `
                 <div id="de-trip-insights" class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-900/50 px-3 py-2.5 mb-2 space-y-3">
                     <p class="text-[10px] font-black uppercase tracking-widest text-slate-500">Insights (all time)</p>
@@ -21816,21 +21930,15 @@ const Admin = {
                             ? `<div class="inbox-bubble-route-row">${secureEscape(routeStationBits.join(' · '))}</div>`
                             : '';
                         const diag = item.diagnostics && typeof item.diagnostics === 'object' ? item.diagnostics : null;
-                        const diagNet = diag?.network === 'mobile' ? 'Mobile' : (diag?.network === 'wifi' ? 'Wi-Fi' : (diag?.network === 'ethernet' ? 'Ethernet' : (diag?.network === 'offline' ? 'Offline' : (diag?.network && diag.network !== 'unknown' ? String(diag.network) : ''))));
-                        const diagBits = diag ? [
-                            diag.phone || '',
-                            diagNet ? `${diagNet}${diag.captive ? ', captive' : ''}` : (diag.captive ? 'Captive' : ''),
-                            diag.signal && diag.signal !== 'unknown' ? String(diag.signal) : '',
-                            diag.viewport || '',
-                        ].filter(Boolean) : [];
-                        const diagHtml = diagBits.length
-                            ? `<div class="text-[10px] leading-snug text-gray-400 break-words mt-0.5">${secureEscape(diagBits.join(' · '))}</div>`
-                            : '';
+                        const diagLine = (typeof window.formatFeedbackDiagLine === 'function')
+                            ? window.formatFeedbackDiagLine(diag)
+                            : (typeof Admin.formatFeedbackDiagLine === 'function' ? Admin.formatFeedbackDiagLine(diag) : '');
                         const clRouteAttr = secureEscape(commuterRouteLabel || '');
                         const clStationAttr = secureEscape(stationLabel);
                         const clAutoAttr = stationAuto ? '1' : '0';
+                        const clDiagAttr = secureEscape(diagLine || '');
                         const commuterVerBtn = /^V\d+_/i.test(verLabel)
-                            ? `<button type="button" class="fb-version-chip relative z-[2] font-mono font-medium opacity-80 ml-2 shrink-0 underline decoration-dotted underline-offset-2 hover:opacity-100 focus:outline-none" data-admin-changelog="${verLabel}" data-cl-route="${clRouteAttr}" data-cl-station="${clStationAttr}" data-cl-auto="${clAutoAttr}" onclick="event.preventDefault();event.stopPropagation();if(window.Admin&amp;&amp;Admin.openAdminChangelogLookup)Admin.openAdminChangelogLookup(this.getAttribute('data-admin-changelog')||this.textContent,window.Admin.changelogContextFromEl(this));">${verLabel}</button>`
+                            ? `<button type="button" class="fb-version-chip relative z-[2] font-mono font-medium opacity-80 ml-2 shrink-0 underline decoration-dotted underline-offset-2 hover:opacity-100 focus:outline-none" data-admin-changelog="${verLabel}" data-cl-route="${clRouteAttr}" data-cl-station="${clStationAttr}" data-cl-auto="${clAutoAttr}" data-cl-diag="${clDiagAttr}" onclick="event.preventDefault();event.stopPropagation();if(window.Admin&amp;&amp;Admin.openAdminChangelogLookup)Admin.openAdminChangelogLookup(this.getAttribute('data-admin-changelog')||this.textContent,window.Admin.changelogContextFromEl(this));">${verLabel}</button>`
                             : `<span class="font-mono font-medium opacity-60 ml-2 shrink-0">${verLabel}</span>`;
                         const integratedHeaderHtml = `
                             <div class="inbox-bubble-name-row">
@@ -21838,7 +21946,6 @@ const Admin = {
                                 ${commuterVerBtn}
                             </div>
                             ${commuterRouteHtml}
-                            ${diagHtml}
                         `;
 
                         const inboxReactId = item.inboxMsgId || '';
@@ -22189,7 +22296,8 @@ const Admin = {
             modal.innerHTML = `
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm p-5 border border-gray-200 dark:border-gray-700 transform transition-transform scale-95 flex flex-col overflow-hidden max-h-[min(85dvh,var(--nt-vv-h,85dvh))]">
                     <h3 id="admin-changelog-title" class="text-base font-black text-gray-900 dark:text-white mb-1 shrink-0"></h3>
-                    <p id="admin-changelog-meta" class="hidden text-[11px] text-gray-500 dark:text-gray-400 leading-snug mb-2 shrink-0"></p>
+                    <p id="admin-changelog-meta" class="hidden text-[11px] text-gray-500 dark:text-gray-400 leading-snug mb-1 shrink-0"></p>
+                    <p id="admin-changelog-diag" class="hidden text-[11px] leading-snug text-gray-500 dark:text-gray-400 break-words mb-2 shrink-0"></p>
                     <div id="admin-changelog-notes" class="text-sm text-gray-700 dark:text-gray-300 space-y-1.5 mb-4 min-h-0 flex-1 overflow-y-auto custom-scrollbar overscroll-contain"></div>
                     <button type="button" id="admin-changelog-close" class="w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl shrink-0">Close</button>
                 </div>`;
@@ -22215,6 +22323,13 @@ const Admin = {
         modal.style.touchAction = 'none';
         const title = modal.querySelector('#admin-changelog-title');
         const meta = modal.querySelector('#admin-changelog-meta');
+        let diagEl = modal.querySelector('#admin-changelog-diag');
+        if (!diagEl) {
+            diagEl = document.createElement('p');
+            diagEl.id = 'admin-changelog-diag';
+            diagEl.className = 'hidden text-[11px] leading-snug text-gray-500 dark:text-gray-400 break-words mb-2 shrink-0';
+            if (meta) meta.insertAdjacentElement('afterend', diagEl);
+        }
         const body = modal.querySelector('#admin-changelog-notes');
         if (title) title.textContent = key || 'Unknown version';
         if (meta) {
@@ -22237,6 +22352,16 @@ const Admin = {
                 meta.classList.add('hidden');
             }
         }
+        if (diagEl) {
+            const diagLine = String(ctx.diagnostics || '').trim();
+            if (diagLine) {
+                diagEl.textContent = diagLine;
+                diagEl.classList.remove('hidden');
+            } else {
+                diagEl.textContent = '';
+                diagEl.classList.add('hidden');
+            }
+        }
         if (body) {
             if (!notes || !notes.length) {
                 body.textContent = 'No notes for this build.';
@@ -22254,16 +22379,21 @@ const Admin = {
         }
     },
 
+    formatFeedbackDiagLine: (diag) => (
+        typeof window.formatFeedbackDiagLine === 'function' ? window.formatFeedbackDiagLine(diag) : ''
+    ),
     changelogContextFromEl: (el) => {
         if (!el) return null;
         const routeLabel = el.getAttribute('data-cl-route') || '';
         const station = el.getAttribute('data-cl-station') || '';
         const auto = el.getAttribute('data-cl-auto');
-        if (!routeLabel && !station && auto == null) return null;
+        const diagnostics = el.getAttribute('data-cl-diag') || '';
+        if (!routeLabel && !station && auto == null && !diagnostics) return null;
         return {
             routeLabel,
             station,
             stationAutoLocated: auto === '1',
+            diagnostics,
         };
     },
 
@@ -24460,6 +24590,27 @@ const Admin = {
                             </div>
                         </div>
                         <input type="text" id="maint-message" class="w-full h-10 px-3 rounded-lg bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700/50 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-orange-500 outline-none shadow-sm" placeholder="Banner text (e.g. Cape Town Northern Line update...)">
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="block">
+                                <span class="text-[9px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-300 mb-1.5 block">Icon</span>
+                                <select id="maint-icon" class="w-full h-10 px-2 rounded-lg bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700/50 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-orange-500 outline-none">
+                                    <option value="wrench">Wrench</option>
+                                    <option value="info">Info</option>
+                                    <option value="bell">Bell</option>
+                                    <option value="alert">Alert</option>
+                                    <option value="check">Check</option>
+                                    <option value="none">No icon</option>
+                                </select>
+                            </label>
+                            <label class="block">
+                                <span class="text-[9px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-300 mb-1.5 block">Colour</span>
+                                <select id="maint-tone" class="w-full h-10 px-2 rounded-lg bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-700/50 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-orange-500 outline-none">
+                                    <option value="amber">Amber</option>
+                                    <option value="green">Green</option>
+                                    <option value="blue">Blue</option>
+                                </select>
+                            </label>
+                        </div>
                         <div>
                             <p class="text-[9px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-300 mb-1.5">Regions (optional)</p>
                             <div id="maint-region-checks" class="flex flex-wrap gap-2">
@@ -24661,6 +24812,8 @@ const Admin = {
         const chevron = document.getElementById('maint-chevron');
         const toggle = document.getElementById('maint-toggle');
         const maintMsg = document.getElementById('maint-message');
+        const maintIcon = document.getElementById('maint-icon');
+        const maintTone = document.getElementById('maint-tone');
         const maintExpires = document.getElementById('maint-expires');
         const maintEditId = document.getElementById('maint-edit-id');
         const maintRegionBox = document.getElementById('maint-region-checks');
@@ -24691,6 +24844,8 @@ const Admin = {
 
         const resetMaintComposer = () => {
             if (maintMsg) maintMsg.value = '';
+            if (maintIcon) maintIcon.value = 'wrench';
+            if (maintTone) maintTone.value = 'amber';
             if (maintEditId) maintEditId.value = '';
             if (maintExpires) maintExpires.value = defaultMaintExpiryValue();
             _maintSelectedRoutes = new Set();
@@ -24734,6 +24889,8 @@ const Admin = {
                 if (Array.isArray(it.regions) && it.regions.length) entry.regions = it.regions;
                 if (Array.isArray(it.routes) && it.routes.length) entry.routes = it.routes;
                 if (it.expiresAt) entry.expiresAt = Number(it.expiresAt);
+                if (it.icon) entry.icon = it.icon;
+                if (it.tone) entry.tone = it.tone;
                 items[id] = entry;
             });
 
@@ -24843,6 +25000,8 @@ const Admin = {
             if (!it) return;
             if (maintEditId) maintEditId.value = id;
             if (maintMsg) maintMsg.value = it.message || '';
+            if (maintIcon) maintIcon.value = it.icon || 'wrench';
+            if (maintTone) maintTone.value = it.tone || 'amber';
             if (maintExpires) maintExpires.value = it.expiresAt ? toLocalDatetimeValue(it.expiresAt) : '';
             const regions = Array.isArray(it.regions) ? it.regions : [];
             maintRegionBox?.querySelectorAll('.maint-region-cb').forEach((cb) => {
@@ -25363,6 +25522,8 @@ const Admin = {
                                 createdAt: it.createdAt || null,
                                 updatedAt: it.updatedAt || null,
                                 updatedBy: it.updatedBy || null,
+                                icon: it.icon || '',
+                                tone: it.tone || '',
                             };
                         });
                     } else if (maintData.active || maintData.message) {
@@ -25759,6 +25920,8 @@ const Admin = {
                 createdAt: prev.createdAt || Date.now(),
                 updatedAt: Date.now(),
                 updatedBy: Admin.currentUser?.email || 'Admin',
+                icon: maintIcon?.value || 'wrench',
+                tone: maintTone?.value || 'amber',
             };
         };
 
