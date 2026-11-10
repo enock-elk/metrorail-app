@@ -2105,6 +2105,7 @@ const Admin = {
                     continue;
                 }
                 const url = await Admin.uploadAlertImage(file, secret);
+                await Admin.captureAlertImageMeta(url, file);
                 const placed = editor ? Admin.addComposerImage(editor, url) : false;
                 if (!placed && editor) {
                     if (typeof showToast === 'function') showToast('Could not add that photo.', 'error');
@@ -6893,6 +6894,10 @@ const Admin = {
     /** Back/←: previous drilled panel when there is one, otherwise the Dev Mode grid. */
     stepDrillBack: (opts = {}) => {
         const fromPopState = !!opts.fromPopState;
+        if (document.getElementById('mq-body')?.classList.contains('mq-showing-thread')) {
+            Admin._mqCloseThread?.({ fromPop: fromPopState });
+            return true;
+        }
         if (window._adminLightboxOpen && typeof Admin.closeLightbox === 'function') {
             Admin.closeLightbox();
             return true;
@@ -11697,13 +11702,13 @@ const Admin = {
             else if (Admin.currentCommunityMonitorTab === 'reports' && Admin._mqCache) Admin.paintCommunityReports?.();
             else Admin.fetchModerationQueue?.();
         };
-        document.getElementById('mq-thread-back')?.addEventListener('click', () => Admin._mqCloseThread?.());
+        document.getElementById('mq-thread-back')?.addEventListener('click', () => Admin.stepDrillBack?.());
         document.getElementById('dev-modal')?.addEventListener('click', (event) => {
             if (!event.target.closest?.('#drill-back-btn')) return;
             if (!document.getElementById('mq-body')?.classList.contains('mq-showing-thread')) return;
             event.preventDefault();
             event.stopPropagation();
-            Admin._mqCloseThread?.();
+            Admin.stepDrillBack?.();
         }, true);
         ntBindAdminTabSwipe(body, {
             getOrder: () => ['chats', 'reports', 'reviews'],
@@ -12569,7 +12574,13 @@ const Admin = {
                         title.textContent = open ? (routeName || 'Community') : title.dataset.mqHomeTitle;
                     }
                 };
-                Admin._mqCloseThread = () => setMonitorThread(false);
+                Admin._mqCloseThread = (opts = {}) => {
+                    const pushed = Admin._mqThreadPushed === true;
+                    Admin._mqThreadPushed = false;
+                    setMonitorThread(false);
+                    if (opts.fromPop || !pushed) return;
+                    try { history.back(); } catch { /* the thread is already closed */ }
+                };
                 Admin._mqOpenThread = async (card) => {
                     if (!card) return;
                     const routeId = card.dataset.communityRoute;
@@ -12578,6 +12589,16 @@ const Admin = {
                     const routeLabel = card.dataset.communityName || row?.routeName || routeId;
                     if (threadTitle) threadTitle.textContent = routeLabel;
                     setMonitorThread(true, routeLabel);
+                    if (!Admin._mqThreadPushed) {
+                        try {
+                            history.pushState(
+                                { mqThread: routeId, adminPanel: 'moderation-queue-panel', drillStack: (Admin._drillStack || []).slice() },
+                                '',
+                                '#dev-moderation-queue-panel'
+                            );
+                            Admin._mqThreadPushed = true;
+                        } catch { /* back still closes the thread in stepDrillBack */ }
+                    }
                     const held = document.getElementById('mq-thread-held');
                     if (held) {
                         held.innerHTML = row ? (row.held || []).map(renderHeld).join('') : '';
@@ -13942,9 +13963,38 @@ const Admin = {
                 const lastActivityHtml = lastActivity
                     ? `<b>${Admin.formatDate(lastActivity.ms)}</b><span class="block text-[10px] text-gray-500 mt-0.5">${Admin.commuterEsc(lastActivity.label)}</span>`
                     : '<span class="text-gray-400">No activity on file</span>';
+                let authAccount = null;
+                try {
+                    const secret = await Admin.getAuthKey();
+                    const base = String(window.COMMUNITY_WORKER_URL || 'https://nexttrain-community.enock.workers.dev').replace(/\/$/, '');
+                    if (secret) {
+                        const nameRes = await fetch(`${base}/admin/account-name`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${secret}`,
+                            },
+                            body: JSON.stringify({ uid }),
+                            signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined,
+                        });
+                        if (nameRes.ok) authAccount = await nameRes.json();
+                    }
+                } catch { authAccount = null; }
                 const heading = profile.alias
                     ? Admin.commuterEsc(profile.alias)
                     : name;
+                const providerName = String(authAccount?.providerName || user.providerName || '').trim();
+                const providerId = String(authAccount?.providerId || user.provider || '').trim().toLowerCase();
+                const emailLocal = accountEmailRaw.includes('@')
+                    ? accountEmailRaw.split('@')[0].replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim()
+                    : '';
+                const legalLabel = providerName
+                    ? (providerId === 'facebook.com' ? 'Facebook name' : (providerId === 'password' ? 'Sign-in name' : 'Google name'))
+                    : 'Email name';
+                const legalValue = providerName || emailLocal;
+                const knownGender = String(user.gender || '').trim();
+                const knownAge = Number(user.age);
+                const knownBirthYear = Number(user.birthYear);
                 const chatDid = profile.chatDevice || deviceId || (/^usr_/i.test(uid) ? uid : '');
                 const defaultRouteLabel = Admin.inboxRouteLabel(profile.defaultRoute) || profile.defaultRoute;
                 const accountEmailRaw = String(user.email || '').trim();
@@ -14018,6 +14068,10 @@ const Admin = {
                             ${deviceId && deviceId !== uid ? infoRow('Device', `<span class="break-all">${Admin.commuterEsc(deviceId)}</span>`) : ''}
                             ${linkedIds.length ? `<details class="ut-devices"><summary class="ut-sheet-row"><span class="text-[15px] text-gray-500">Linked devices</span><span class="text-[15px] text-gray-400 shrink-0">${linkedIds.length}<span aria-hidden="true"> ›</span></span></summary><div class="ut-devices-list">${linkedIds.map((id) => `<p class="font-mono text-[12px] break-all text-gray-700 dark:text-gray-300">${Admin.commuterLabelHtml(id)}</p>`).join('')}</div></details>` : infoRow('Linked devices', 'none')}
                             ${contactHtml ? infoRow('Contacts', contactHtml) : ''}
+                            ${legalValue ? infoRow(legalLabel, `<b>${Admin.commuterEsc(legalValue)}</b>`) : ''}
+                            ${knownGender ? infoRow('Gender', `<b>${Admin.commuterEsc(knownGender)}</b>`) : ''}
+                            ${Number.isFinite(knownAge) && knownAge > 0 ? infoRow('Age', `<b>${Math.floor(knownAge)}</b>`) : ''}
+                            ${!(Number.isFinite(knownAge) && knownAge > 0) && Number.isFinite(knownBirthYear) && knownBirthYear > 1900 ? infoRow('Birth year', `<b>${Math.floor(knownBirthYear)}</b>`) : ''}
                             ${infoRow('Role', `<b>${flags.role || 'user'}</b> · ${score}`)}
                             ${infoRow('Ban', `<b class="${banned && !expired ? 'text-[#ff3b30]' : ''}">${banDetail}</b>${banned ? ` · ${Admin.commuterEsc(modeStr)}` : ''}${bannedAtMs ? `<span class="block text-[12px] text-gray-400">since ${Admin.formatDate(bannedAtMs)}</span>` : ''}${bannedBy ? `<span class="block text-[12px] text-gray-400">${bannedBy}</span>` : ''}`)}
                         </div>
@@ -14025,7 +14079,7 @@ const Admin = {
                             <p class="px-4 pb-1.5 text-[13px] text-gray-500">Activity</p>
                             <div class="ut-sheet-group">
                                 ${navRow('ut-open-bans-btn', 'Bans', banDetail)}
-                                ${profile.hasChat && chatDid ? navRow('ut-open-chat-btn', 'Feedback', profile.feedbackCount ? String(profile.feedbackCount) : 'Open') : infoRow('Feedback', profile.hasChat ? 'Open' : 'None')}
+                                ${profile.hasChat && chatDid ? navRow('ut-open-chat-btn', 'Feedback', profile.feedbackCount ? String(profile.feedbackCount) : 'Open') : `<div class="ut-sheet-row items-center"><span class="text-[17px]">Feedback</span><span class="flex items-center gap-2 shrink-0"><span class="text-[15px] text-gray-400">None</span>${chatDid ? '<button type="button" id="ut-feedback-plus" class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#007aff] text-white text-[18px] font-semibold leading-none" aria-label="Start a message">+</button>' : ''}</span></div>`}
                                 ${chatDid ? navRow('ut-open-trips-btn', 'Trip plans', profile.tripPresent ? 'Yes' : 'None') : ''}
                                 ${(chatDid || profile.fareVotes.length) ? navRow('ut-open-fares-btn', 'Fare votes', String(profile.fareVotes.length)) : ''}
                                 ${(chatDid || profile.fails.length) ? navRow('ut-open-fails-btn', 'Routing fails', String(profile.fails.length)) : ''}
@@ -14079,6 +14133,9 @@ const Admin = {
                     Admin.setUtTab?.('bans');
                 });
                 document.getElementById('ut-start-chat-btn')?.addEventListener('click', () => {
+                    Admin.startFeedbackChat(chatDid, profile.latestFeedbackId);
+                });
+                document.getElementById('ut-feedback-plus')?.addEventListener('click', () => {
                     Admin.startFeedbackChat(chatDid, profile.latestFeedbackId);
                 });
                 document.getElementById('ut-alias-btn')?.addEventListener('click', async () => {
@@ -17112,6 +17169,7 @@ const Admin = {
         return raw.filter((u) => {
             if (typeof u !== 'string') return false;
             if (u.startsWith('/images/alerts/')) return true;
+            if (/^\/images\/schedules\/[a-z0-9]+\/[A-Za-z0-9._-]+\.jpe?g$/i.test(u.split('?')[0])) return true;
             return /^https:\/\/nexttrain-community(?:\.[a-z0-9-]+)?\.workers\.dev\/alerts\/[A-Za-z0-9._-]+$/i.test(u.split('?')[0]);
         }).slice(0, 10);
     },
@@ -17119,7 +17177,10 @@ const Admin = {
     sanitizeAlertPosterPath: (url) => {
         if (typeof window.sanitizeAlertImageUrl === 'function') return window.sanitizeAlertImageUrl(url);
         const s = String(url || '').trim().split('?')[0];
-        return /^\/images\/alerts\/[A-Za-z0-9._-]+$/.test(s) ? s : null;
+        if (/^\/images\/alerts\/[A-Za-z0-9._-]+$/.test(s)) return s;
+        if (/^\/images\/schedules\/[a-z0-9]+\/[A-Za-z0-9._-]+\.jpe?g$/i.test(s)) return s;
+        if (/^https:\/\/nexttrain-community(?:\.[a-z0-9-]+)?\.workers\.dev\/alerts\/[A-Za-z0-9._-]+$/i.test(s)) return s;
+        return null;
     },
 
     getSelectedAlertPosters: () => (Array.isArray(Admin._alertPosterPaths) ? Admin._alertPosterPaths.slice(0, 10) : []),
@@ -17136,11 +17197,9 @@ const Admin = {
 
     alertPosterCatalog: () => {
         const fallback = [
-            { file: '2025-fare-adjustment.jpg', label: 'Fare adjustment' },
             { file: 'avoid_trouble_travel_ticket.jpg', label: 'Avoid trouble — travel with a ticket' },
             { file: 'be-rail-smart-pea.jpg', label: 'Be rail smart' },
             { file: 'considerate_seating.jpg', label: 'Considerate seating' },
-            { file: 'ger_leralla_ballast.jpg', label: 'Germiston–Leralla ballast' },
             { file: 'have_ticket_reminder.jpg', label: 'Have your ticket' },
             { file: 'inflation_rising_train_isnt.jpg', label: 'Inflation is rising, the train isn’t' },
             { file: 'level_crossing_warning.jpg', label: 'Level crossing warning' },
@@ -17148,7 +17207,6 @@ const Admin = {
             { file: 'monthly_tickets.jpg', label: 'Monthly tickets' },
             { file: 'no_eating.jpg', label: 'No eating' },
             { file: 'off_peak_discounts.jpg', label: 'Off-peak discounts' },
-            { file: 'phelophepa_health_train.jpg', label: 'Phelophepa health train' },
             { file: 'priority-seating.jpg', label: 'Priority seating' },
             { file: 'pta-kempton-0618-0619.jpg', label: 'Pretoria–Kempton 0618/0619' },
             { file: 'smoke_free_stations.jpg', label: 'Smoke-free stations' },
@@ -17194,7 +17252,17 @@ const Admin = {
             : (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         const labelFor = (path) => {
             const file = String(path || '').split('/').pop();
-            return catalog.find((item) => item.file === file)?.label || file;
+            const poster = catalog.find((item) => item.file === file);
+            if (poster?.label) return poster.label;
+            const sheet = (Admin._scheduleSheets || []).find((item) => String(item?.file || '').endsWith(file));
+            if (sheet && typeof window.scheduleSheetRowLabel === 'function') {
+                const routeName = (sheet.routeIds || []).map((id) => (
+                    typeof ROUTES !== 'undefined' && ROUTES[id] ? window.scheduleRouteTitle(ROUTES[id].name) : ''
+                )).find(Boolean);
+                const row = window.scheduleSheetRowLabel(sheet);
+                return routeName ? `${routeName}, ${row}` : row;
+            }
+            return file;
         };
         if (selectedEl) {
             selectedEl.innerHTML = selected.length
@@ -17222,19 +17290,42 @@ const Admin = {
             select.disabled = atLimit;
         }
         if (list) {
-            list.innerHTML = catalog.map((item) => {
+            const tab = Admin._posterListTab === 'timetables' ? 'timetables' : 'posters';
+            const tabBtn = (id, text) => {
+                const on = tab === id;
+                const cls = on
+                    ? 'flex-1 min-h-[40px] text-xs font-bold text-blue-700 dark:text-blue-300 border-b-2 border-blue-600'
+                    : 'flex-1 min-h-[40px] text-xs font-bold text-gray-500 dark:text-gray-400 border-b-2 border-transparent';
+                return `<button type="button" data-poster-tab="${id}" class="${cls}">${text}</button>`;
+            };
+            const posterRows = catalog.map((item) => {
                 const path = `/images/alerts/${item.file}`;
                 const taken = selected.includes(path);
                 const cls = taken
                     ? 'px-3 py-2.5 text-xs font-bold text-gray-400 dark:text-gray-500 opacity-50 pointer-events-none border-b border-gray-100 dark:border-gray-700'
                     : 'px-3 py-2.5 text-xs font-bold hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors border-b border-gray-100 dark:border-gray-700 cursor-pointer w-full text-left';
-                return `<li data-poster="${esc(path)}" class="${cls}">${esc(item.label)}</li>`;
+                return `<button type="button" data-poster="${esc(path)}" class="${cls}">${esc(item.label)}</button>`;
             }).join('');
-            list.querySelectorAll('li[data-poster]').forEach((li) => {
-                li.onclick = () => {
+            const timetableRows = Admin.timetablePosterListHtml(esc, selected);
+            list.innerHTML = `<div class="sticky top-0 z-10 flex bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">${tabBtn('posters', 'Posters')}${tabBtn('timetables', 'Timetables')}</div><div class="${tab === 'posters' ? '' : 'hidden'}">${posterRows}</div><div class="${tab === 'timetables' ? '' : 'hidden'}">${timetableRows}</div>`;
+            list.querySelectorAll('[data-poster-tab]').forEach((btn) => {
+                btn.onclick = (event) => {
+                    event.stopPropagation();
+                    Admin._posterListTab = btn.getAttribute('data-poster-tab') || 'posters';
+                    Admin.renderAlertPosterPicker();
+                };
+            });
+            list.querySelectorAll('[data-poster]').forEach((btn) => {
+                btn.onclick = () => {
                     list.classList.add('hidden');
                     document.getElementById('alert-poster-chevron')?.classList.remove('rotate-180');
-                    Admin.addAlertPoster(li.getAttribute('data-poster') || '');
+                    Admin.addAlertPoster(btn.getAttribute('data-poster') || '');
+                };
+            });
+            list.querySelectorAll('[data-sheet]').forEach((btn) => {
+                btn.onclick = (event) => {
+                    event.stopPropagation();
+                    Admin.openScheduleSheet(btn.getAttribute('data-sheet') || '', btn.getAttribute('data-sheet-label') || '');
                 };
             });
         }
@@ -17260,6 +17351,146 @@ const Admin = {
             return;
         }
         Admin.setSelectedAlertPosters(cur.concat(path));
+        const key = typeof window.imageMetaKey === 'function' ? window.imageMetaKey(path) : '';
+        if (!key || !Admin._alertImageMeta?.[key]) Admin.captureAlertImageMeta(path);
+    },
+
+    timetablePosterListHtml: (esc, selected) => {
+        const sheets = Admin._scheduleSheets;
+        if (!Array.isArray(sheets)) return '<p class="px-3 py-3 text-xs text-gray-400">Loading timetables…</p>';
+        if (!sheets.length) return '<p class="px-3 py-3 text-xs text-gray-400">No timetable images filed yet.</p>';
+        if (typeof window.groupScheduleSheets !== 'function' || typeof ROUTES === 'undefined') {
+            return '<p class="px-3 py-3 text-xs text-gray-400">Timetables are not ready yet.</p>';
+        }
+        const routes = Object.values(ROUTES).map((route) => ({ id: route.id, name: route.name, region: route.region }));
+        const groups = window.groupScheduleSheets(sheets, routes);
+        if (!groups.length) return '<p class="px-3 py-3 text-xs text-gray-400">No timetable images filed yet.</p>';
+        return groups.map((group) => {
+            const routesHtml = group.routes.map((route) => {
+                const rows = route.sheets.map((sheet) => {
+                    const taken = selected.includes(sheet.path);
+                    const cls = taken
+                        ? 'block w-full text-left pl-4 pr-3 py-2 text-xs text-gray-400 dark:text-gray-500 opacity-60 border-b border-gray-100 dark:border-gray-700'
+                        : 'block w-full text-left pl-4 pr-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700';
+                    return `<button type="button" data-sheet="${esc(sheet.path)}" data-sheet-label="${esc(`${route.name}, ${sheet.label}`)}" class="${cls}">${esc(sheet.label)}</button>`;
+                }).join('');
+                return `<p class="px-3 pt-2.5 pb-1 text-xs font-bold text-gray-900 dark:text-white">${esc(route.name)}</p>${rows}`;
+            }).join('');
+            return `<p class="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">${esc(group.label)}</p>${routesHtml}`;
+        }).join('');
+    },
+
+    openScheduleSheet: (path, label) => {
+        const clean = Admin.sanitizeAlertPosterPath(path);
+        if (!clean) return;
+        let view = document.getElementById('alert-sheet-view');
+        if (!view) {
+            view = document.createElement('div');
+            view.id = 'alert-sheet-view';
+            view.className = 'fixed inset-0 z-[500] hidden flex-col bg-black/80';
+            view.innerHTML = '<div class="flex items-center justify-between gap-2 p-3 text-white"><p data-sheet-label class="min-w-0 truncate text-sm font-bold"></p><button type="button" data-sheet-close class="min-h-[44px] shrink-0 px-3 text-sm font-bold">Close</button></div><div class="min-h-0 flex-1 overflow-auto px-3 pb-2"><img data-sheet-img alt="" class="h-auto w-full bg-white"></div><div class="p-3"><button type="button" data-sheet-add class="min-h-[48px] w-full rounded-xl bg-blue-600 text-sm font-bold text-white">Add to this alert</button></div>';
+            document.body.appendChild(view);
+            view.querySelector('[data-sheet-close]').onclick = () => {
+                view.classList.add('hidden');
+                view.classList.remove('flex');
+            };
+            view.addEventListener('click', (event) => {
+                if (event.target !== view) return;
+                view.classList.add('hidden');
+                view.classList.remove('flex');
+            });
+            view.querySelector('[data-sheet-add]').onclick = () => {
+                const chosen = view.dataset.path || '';
+                view.classList.add('hidden');
+                view.classList.remove('flex');
+                document.getElementById('alert-poster-list')?.classList.add('hidden');
+                document.getElementById('alert-poster-chevron')?.classList.remove('rotate-180');
+                Admin.addAlertPoster(chosen);
+            };
+        }
+        view.dataset.path = clean;
+        const name = view.querySelector('[data-sheet-label]');
+        if (name) name.textContent = label || clean.split('/').pop();
+        const img = view.querySelector('[data-sheet-img]');
+        if (img) img.src = typeof window.withBase === 'function' ? window.withBase(clean) : clean;
+        view.classList.remove('hidden');
+        view.classList.add('flex');
+    },
+
+    noteAlertImageMeta: (url, meta) => {
+        if (typeof window.imageMetaRow !== 'function') return;
+        const packed = window.imageMetaRow(url, meta || {});
+        if (!packed) return;
+        Admin._alertImageMeta = Admin._alertImageMeta || {};
+        Admin._alertImageMeta[packed.key] = packed.row;
+    },
+
+    adoptAlertImageMeta: (meta) => {
+        Admin._alertImageMeta = {};
+        if (!meta || typeof meta !== 'object') return;
+        Object.entries(meta).forEach(([key, row]) => {
+            if (!row || typeof row !== 'object') return;
+            const bytes = Number(row.bytes);
+            const preview = typeof window.sanitizePicturePreview === 'function' ? window.sanitizePicturePreview(row.preview) : '';
+            if (!(bytes > 0) && !preview) return;
+            const next = {};
+            if (bytes > 0) next.bytes = Math.round(bytes);
+            if (preview) next.preview = preview;
+            Admin._alertImageMeta[key] = next;
+        });
+    },
+
+    imageMetaForSelected: () => {
+        const meta = Admin._alertImageMeta || {};
+        const out = {};
+        const keep = (url) => {
+            if (typeof window.imageMetaKey !== 'function') return;
+            const key = window.imageMetaKey(url);
+            if (key && meta[key]) out[key] = meta[key];
+        };
+        Admin.getSelectedAlertPosters().forEach(keep);
+        document.querySelectorAll('#alert-msg img, #alert-body [data-nt-media-slot] img').forEach((img) => {
+            keep(img.getAttribute('data-nt-src') || img.getAttribute('src') || '');
+        });
+        return Object.keys(out).length ? out : null;
+    },
+
+    captureAlertImageMeta: (url, file) => {
+        const job = (async () => {
+            try {
+                if (file && typeof window.tinyJpegFromBlob === 'function') {
+                    const made = await window.tinyJpegFromBlob(file);
+                    Admin.noteAlertImageMeta(url, { preview: made?.preview, bytes: file.size });
+                    return;
+                }
+                const sameOrigin = String(url || '').startsWith('/') || (typeof location !== 'undefined' && String(url).startsWith(location.origin));
+                if (sameOrigin && typeof window.tinyJpegFromBlob === 'function') {
+                    const res = await fetch(url);
+                    if (!res.ok) return;
+                    const blob = await res.blob();
+                    const made = await window.tinyJpegFromBlob(blob);
+                    Admin.noteAlertImageMeta(url, { preview: made?.preview, bytes: blob.size });
+                    return;
+                }
+                if (typeof window.loadPicturePreview === 'function') {
+                    const made = await window.loadPicturePreview(url);
+                    Admin.noteAlertImageMeta(url, made || {});
+                }
+            } catch { /* the photo still posts */ }
+        })();
+        Admin._alertMetaJobs = Admin._alertMetaJobs || [];
+        Admin._alertMetaJobs.push(job);
+        return job;
+    },
+
+    flushAlertImageMeta: async () => {
+        const jobs = Admin._alertMetaJobs || [];
+        Admin._alertMetaJobs = [];
+        if (!jobs.length) return;
+        await Promise.race([
+            Promise.all(jobs),
+            new Promise((resolve) => setTimeout(resolve, 4000)),
+        ]);
     },
 
     loadAlertPosterManifest: async () => {
@@ -17269,6 +17500,13 @@ const Admin = {
             Admin._alertPosterManifest = Array.isArray(data?.posters) ? data.posters : [];
         } catch {
             Admin._alertPosterManifest = [];
+        }
+        try {
+            const res = await fetch(`/images/schedules/manifest.json?t=${Date.now()}`);
+            const data = res.ok ? await res.json() : null;
+            Admin._scheduleSheets = Array.isArray(data?.sheets) ? data.sheets : [];
+        } catch {
+            Admin._scheduleSheets = [];
         }
         Admin.renderAlertPosterPicker();
     },
@@ -18075,7 +18313,7 @@ const Admin = {
                             <span id="alert-poster-display" class="truncate text-left">Add a poster…</span>
                             <svg id="alert-poster-chevron" class="w-4 h-4 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </button>
-                        <ul id="alert-poster-list" class="absolute z-[200] left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 max-h-64 overflow-y-auto custom-scrollbar text-left"></ul>
+                        <div id="alert-poster-list" class="absolute z-[200] left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl hidden mt-1 max-h-[70vh] overflow-y-auto custom-scrollbar text-left"></div>
                         <label for="alert-poster-upload" class="mt-2 flex items-center justify-center min-h-[48px] px-3 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm font-bold text-gray-800 dark:text-gray-100 cursor-pointer hover:border-blue-400 dark:hover:border-blue-500">Upload a photo</label>
                         <input type="file" id="alert-poster-upload" accept="image/jpeg,image/png,image/webp,image/gif" multiple class="sr-only">
                     </div>
@@ -18845,6 +19083,7 @@ const Admin = {
         syncAlertWhenMode('now');
 
         document.getElementById('alert-schedule-save-btn')?.addEventListener('click', async () => {
+            await Admin.flushAlertImageMeta();
             const draft = Admin.draftAlertNotice(signoffInput?.value || '');
             const targets = Admin.getSelectedAlertTargets();
             const posters = Admin.getSelectedAlertPosters();
@@ -18888,6 +19127,7 @@ const Admin = {
                     pinnedAt: pinToggle?.checked ? Date.now() : null,
                     severity: severitySelect?.value || 'info',
                     imageUrls: Admin.getSelectedAlertPosters(),
+                    imageMeta: Admin.imageMetaForSelected(),
                     imageUrl: null,
                     ctaUrl: null,
                     ctaText: null,
@@ -18953,6 +19193,7 @@ const Admin = {
                 srcChevron?.classList.remove('-rotate-90');
             }
 
+            Admin.adoptAlertImageMeta(item.imageMeta);
             Admin.setSelectedAlertPosters(Admin.collectAlertImageUrls(item));
 
             if (item.poll && item.poll.active) {
@@ -19471,6 +19712,7 @@ const Admin = {
             if (!targets.length) { if (typeof showToast === 'function') showToast("Pick at least one route or region.", "error"); return; }
             if (!secret) { if (typeof showToast === 'function') showToast("Authentication required! Sign in again.", "error"); return; }
 
+            await Admin.flushAlertImageMeta();
             let expiresAtVal = dateInput && dateInput.value ? new Date(dateInput.value).getTime() : new Date(Admin.endOfTodayLocalValue()).getTime();
 
             const isRepost = !!Admin._alertRepostDraft;
@@ -19489,6 +19731,7 @@ const Admin = {
                 expiresAt: expiresAtVal,
                 severity: severity,
                 imageUrls: Admin.getSelectedAlertPosters(),
+                imageMeta: Admin.imageMetaForSelected(),
                 imageUrl: null,
                 ctaUrl: null,
                 ctaText: null,
@@ -19524,6 +19767,7 @@ const Admin = {
                     Admin._reviewPostedAt = null;
                     const returnToActive = !!Admin._alertEditFromActive && isUpdate;
                     Admin._alertEditFromActive = false;
+                    Admin._alertImageMeta = {};
                     Admin.setSelectedAlertPosters([]);
                     Admin.clearAlertComposeSlots();
                     if (sourceNameInput) sourceNameInput.value = '';
