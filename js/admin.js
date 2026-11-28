@@ -345,7 +345,7 @@ function ntAdminDevPanelIdFromHash(hash) {
 /** Hub child hashes (`alert-panel--inapp`) still mount the Service Alerts card. */
 function ntAdminCanonicalPanelId(panelId) {
     const id = String(panelId || '');
-    if (id === 'alert-panel--inapp') return 'alert-panel';
+    if (id === 'alert-panel--inapp' || id === 'alert-panel--speech') return 'alert-panel';
     if (id === 'account-deletions-panel') return 'user-trust-panel';
     if (id === 'route-sheet-panel') return 'event-panel';
     return id;
@@ -356,6 +356,7 @@ function ntAdminDrillPanelTitle(panelId, headerText) {
     const id = String(panelId || '');
     if (id === 'push-notifications-panel') return 'Notifications';
     if (id === 'alert-panel--inapp') return 'In-app alerts';
+    if (id === 'alert-panel--speech') return 'Read aloud';
     if (id === 'route-sheet-panel') return 'Route sheets';
     const fromHeader = String(headerText || '').replace(/\s+/g, ' ').trim();
     if (fromHeader) return fromHeader;
@@ -920,7 +921,33 @@ async function ntAdminTombstoneCommunityMessage(routeId, postId, replyId) {
         }
     }
     const path = `route_community/${encodeURIComponent(routeId)}/posts/${encodeURIComponent(postId)}${replyId ? `/replies/${encodeURIComponent(replyId)}` : ''}`;
-    const patch = await fetch(`${dynamicEndpoint}${path}.json?auth=${encodeURIComponent(token)}`, {
+    const authQ = `auth=${encodeURIComponent(token)}`;
+    const currentRes = await fetch(`${dynamicEndpoint}${path}.json?${authQ}`);
+    const current = currentRes.ok ? await currentRes.json() : null;
+    const kept = current && typeof current === 'object' ? String(current.body || '') : '';
+    if (kept && kept !== 'Deleted message' && kept !== 'Deleted by an Admin' && current.uid) {
+        const archiveId = replyId || postId;
+        const archive = {
+            body: kept.slice(0, 4000),
+            uid: String(current.uid).slice(0, 128),
+            timestamp: Number(current.timestamp) || Date.now(),
+            deletedAt: Date.now(),
+            deletedBy: 'admin',
+            routeId,
+            postId,
+        };
+        const name = String(current.displayName || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+        if (name) archive.displayName = name;
+        const link = String(current.linkUrl || '').trim().slice(0, 400);
+        if (link.startsWith('https://')) archive.linkUrl = link;
+        if (replyId) archive.replyId = replyId;
+        await fetch(`${dynamicEndpoint}community_deleted/${encodeURIComponent(routeId)}/${encodeURIComponent(archiveId)}.json?${authQ}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(archive),
+        }).catch(() => {});
+    }
+    const patch = await fetch(`${dynamicEndpoint}${path}.json?${authQ}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -952,6 +979,7 @@ async function ntAdminDeletePublishedCommunityMessage(routeId, postId, replyId) 
     if (replyId) {
         await deleteJson(`${postPath}/replies/${encodeURIComponent(replyId)}`);
         await deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(replyId)}`).catch(() => {});
+        await deleteJson(`community_deleted/${encodeURIComponent(routeId)}/${encodeURIComponent(replyId)}`).catch(() => {});
         return;
     }
     let replyIds = [];
@@ -964,9 +992,11 @@ async function ntAdminDeletePublishedCommunityMessage(routeId, postId, replyId) 
     }
     await deleteJson(postPath);
     await deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(postId)}`).catch(() => {});
-    await Promise.all(replyIds.map((id) =>
-        deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(id)}`).catch(() => {})
-    ));
+    await deleteJson(`community_deleted/${encodeURIComponent(routeId)}/${encodeURIComponent(postId)}`).catch(() => {});
+    await Promise.all(replyIds.flatMap((id) => [
+        deleteJson(`community_activity/${encodeURIComponent(routeId)}/${encodeURIComponent(id)}`).catch(() => {}),
+        deleteJson(`community_deleted/${encodeURIComponent(routeId)}/${encodeURIComponent(id)}`).catch(() => {}),
+    ]));
 }
 
 function ntBindAdminTabSwipe(el, { getOrder, getActive, setActive, ignoreTarget } = {}) {
@@ -2598,6 +2628,8 @@ const Admin = {
         }
         const body = child.querySelector('[id$="-body"]');
         if (body) body.classList.add('hidden');
+        child.querySelector('#alert-speech')?.classList.add('hidden');
+        child.querySelector('#alert-hub')?.classList.add('hidden');
         const header = child.querySelector('[id$="-header-btn"]');
         if (header) header.style.removeProperty('display');
     },
@@ -4389,22 +4421,15 @@ const Admin = {
         const rangeLabel = document.getElementById('trend-range-label');
         if (rangeLabel) rangeLabel.textContent = `${Admin.telemetryRange} trend`;
 
-        const drillCycleBtn = document.getElementById('analytics-trend-cycle');
-        if (drillCycleBtn) drillCycleBtn.textContent = Admin.telemetryRange;
-        
         Admin.telemetryWeeksAgo = 0; // Reset pagination context
         Admin.telemetryCumulative = false;
         Admin._paintCumulativeToggle?.();
         
+        const drillCycleLabel = document.getElementById('analytics-trend-cycle-label');
+        if (drillCycleLabel) drillCycleLabel.textContent = Admin.telemetryRange;
         const paginationControls = document.getElementById('analytics-pagination-controls');
         if (paginationControls) {
-            if (Admin.telemetryRange === 'DAU' || Admin.telemetryRange === 'WAU') {
-                paginationControls.classList.remove('hidden');
-                paginationControls.classList.add('flex');
-            } else {
-                paginationControls.classList.add('hidden');
-                paginationControls.classList.remove('flex');
-            }
+            paginationControls.classList.toggle('hidden', !(Admin.telemetryRange === 'DAU' || Admin.telemetryRange === 'WAU'));
         }
         
         Admin.refreshTelemetry();
@@ -4874,11 +4899,15 @@ const Admin = {
                         <input id="ad-revenue-start" type="date" class="${field}" aria-label="From">
                         <input id="ad-revenue-end" type="date" class="${field}" aria-label="To">
                     </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <button type="button" data-ad-preset="month" class="${pill}">This month</button>
-                        <button type="button" data-ad-preset="last" class="${pill}">Last month</button>
-                        <button type="button" data-ad-preset="all" class="${pill}">All</button>
-                        <button type="button" id="ad-revenue-search" class="${pill} ml-auto bg-blue-600 text-white border-blue-600">Search</button>
+                    <div class="flex items-center gap-2">
+                        <div class="relative min-w-0 flex-1" id="ad-revenue-range">
+                            <button type="button" id="ad-revenue-range-btn" class="w-full h-10 px-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[12px] font-semibold text-gray-800 dark:text-gray-100 flex items-center justify-between gap-2 focus:outline-none" aria-haspopup="listbox" aria-expanded="false" aria-controls="ad-revenue-range-list">
+                                <span id="ad-revenue-range-label" class="truncate">This month</span>
+                                <svg class="w-4 h-4 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </button>
+                            <ul id="ad-revenue-range-list" class="absolute z-[200] left-0 right-0 mt-1 hidden max-h-60 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl text-left" role="listbox"></ul>
+                        </div>
+                        <button type="button" id="ad-revenue-search" class="${pill} shrink-0 bg-blue-600 text-white border-blue-600">Search</button>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div id="ad-revenue-value-tile" role="button" tabindex="0" class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 text-center cursor-pointer hover:border-blue-400" title="Tap to convert to rands">
@@ -4912,26 +4941,76 @@ const Admin = {
                 const endInput = document.getElementById('ad-revenue-end');
                 if (startInput) startInput.value = `${today.slice(0, 8)}01`;
                 if (endInput) endInput.value = today;
-                adPanel.addEventListener('click', (event) => {
-                    const preset = event.target?.closest?.('[data-ad-preset]')?.getAttribute('data-ad-preset');
-                    if (!preset) return;
-                    const end = Admin.johannesburgDayOffset(0);
-                    if (preset === 'month') {
-                        if (startInput) startInput.value = `${end.slice(0, 8)}01`;
-                        if (endInput) endInput.value = end;
-                    } else if (preset === 'last') {
-                        const [y, m] = end.split('-').map(Number);
-                        const first = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 10);
-                        const last = new Date(Date.UTC(y, m - 1, 0)).toISOString().slice(0, 10);
-                        if (startInput) startInput.value = first;
-                        if (endInput) endInput.value = last;
-                    } else if (preset === 'all') {
-                        if (startInput) startInput.value = Admin._adFirstHit || '2026-01-01';
-                        if (endInput) endInput.value = end;
+                const rangeBtn = document.getElementById('ad-revenue-range-btn');
+                const rangeList = document.getElementById('ad-revenue-range-list');
+                const rangeLabel = document.getElementById('ad-revenue-range-label');
+                const paintAdRange = (selected) => {
+                    const today = Admin.johannesburgDayOffset(0);
+                    const choices = window.ntAdRange?.adRevenueRangeChoices?.(today) || [
+                        { id: 'all', label: 'All' },
+                        { id: 'month', label: 'This month' },
+                        { id: 'last', label: 'Last month' },
+                    ];
+                    if (rangeLabel) {
+                        rangeLabel.textContent = choices.find((row) => row.id === selected)?.label || 'Custom';
                     }
+                    if (!rangeList) return;
+                    rangeList.innerHTML = choices.map((row) => {
+                        const on = row.id === selected;
+                        return `<li><button type="button" class="w-full text-left px-3 py-2 text-[12px] font-semibold ${on ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200' : 'text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'}" role="option" aria-selected="${on ? 'true' : 'false'}" data-ad-range="${row.id}">${row.label}</button></li>`;
+                    }).join('');
+                };
+                const applyAdRange = (id) => {
+                    const today = Admin.johannesburgDayOffset(0);
+                    const bounds = window.ntAdRange?.adRevenueRangeBounds?.(id, today, Admin._adFirstHit || '');
+                    if (!bounds) return;
+                    Admin._adRangeId = id;
+                    if (startInput) startInput.value = bounds.start;
+                    if (endInput) endInput.value = bounds.end;
+                    paintAdRange(id);
+                    Admin.loadAdRevenue();
+                };
+                Admin._adRangeId = 'month';
+                paintAdRange('month');
+                rangeBtn?.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (!rangeList) return;
+                    const open = rangeList.classList.toggle('hidden') === false;
+                    rangeBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                });
+                rangeList?.addEventListener('click', (event) => {
+                    const id = event.target?.closest?.('[data-ad-range]')?.getAttribute('data-ad-range');
+                    if (!id) return;
+                    event.preventDefault();
+                    rangeList.classList.add('hidden');
+                    rangeBtn?.setAttribute('aria-expanded', 'false');
+                    applyAdRange(id);
+                });
+                if (!window.__ntAdRangeCloser) {
+                    window.__ntAdRangeCloser = true;
+                    document.addEventListener('click', (event) => {
+                        const box = document.getElementById('ad-revenue-range');
+                        const list = document.getElementById('ad-revenue-range-list');
+                        const btn = document.getElementById('ad-revenue-range-btn');
+                        if (!box || !list || list.classList.contains('hidden')) return;
+                        if (box.contains(event.target)) return;
+                        list.classList.add('hidden');
+                        btn?.setAttribute('aria-expanded', 'false');
+                    });
+                }
+                document.getElementById('ad-revenue-search')?.addEventListener('click', () => {
+                    const today = Admin.johannesburgDayOffset(0);
+                    const bounds = window.ntAdRange?.adRevenueRangeBounds?.(Admin._adRangeId || 'month', today, Admin._adFirstHit || '');
+                    const same = !!(bounds && startInput?.value === bounds.start && endInput?.value === bounds.end);
+                    if (!same) {
+                        Admin._adRangeId = 'custom';
+                        if (rangeLabel) rangeLabel.textContent = 'Custom';
+                    }
+                    rangeList?.classList.add('hidden');
+                    rangeBtn?.setAttribute('aria-expanded', 'false');
                     Admin.loadAdRevenue();
                 });
-                document.getElementById('ad-revenue-search')?.addEventListener('click', () => Admin.loadAdRevenue());
                 const bindMoney = (id, which) => {
                     const tile = document.getElementById(id);
                     if (!tile) return;
@@ -4971,21 +5050,50 @@ const Admin = {
                                 <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-1">Live Analytics Engine</p>
                             </div>
                         </div>
-                        <div class="nt-chart-toolbar">
+                        <div class="nt-chart-toolbar" role="toolbar" aria-label="Graph">
                             <div class="nt-chart-toolbar-top">
-                                <button type="button" id="analytics-trend-cycle" class="nt-chart-tool" data-chart-action="range">${Admin.telemetryRange}</button>
+                                <button type="button" id="analytics-trend-cycle" class="nt-chart-tool nt-chart-tool-primary" data-chart-action="range" aria-label="Change the range">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M4 19V5M4 19h16"/><path stroke-linecap="round" d="M8 16v-4M12 16V8M16 16v-6"/></svg>
+                                    <span id="analytics-trend-cycle-label">${Admin.telemetryRange}</span>
+                                </button>
                                 <div id="analytics-pagination-controls" class="nt-chart-nav">
-                                    <button type="button" id="analytics-trend-prev" class="nt-chart-tool" data-chart-action="prev" aria-label="Previous period">Earlier</button>
-                                    <button type="button" id="analytics-trend-next" class="nt-chart-tool" data-chart-action="next" aria-label="Next period">Later</button>
+                                    <button type="button" id="analytics-trend-prev" class="nt-chart-tool" data-chart-action="prev" aria-label="Earlier">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                                        <span>Earlier</span>
+                                    </button>
+                                    <button type="button" id="analytics-trend-next" class="nt-chart-tool" data-chart-action="next" aria-label="Later">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                        <span>Later</span>
+                                    </button>
                                 </div>
                             </div>
-                            <div class="nt-chart-toolbar-grid" role="toolbar" aria-label="Graph">
-                                <button type="button" id="analytics-trend-total" class="nt-chart-tool" data-chart-action="total" aria-pressed="false">Total</button>
-                                <button type="button" id="analytics-trend-ads" class="nt-chart-tool" data-chart-action="ads" aria-pressed="false">Ads</button>
-                                <button type="button" id="analytics-trend-stats" class="nt-chart-tool" data-chart-action="stats">Stats</button>
-                                <button type="button" id="analytics-trend-compare-btn" class="nt-chart-tool" data-chart-action="compare" aria-pressed="false">Compare</button>
-                                <button type="button" id="analytics-trend-landscape" class="nt-chart-tool" data-chart-action="landscape">Landscape</button>
-                                <button type="button" id="analytics-trend-export" class="nt-chart-tool" data-chart-action="export">Export</button>
+                            <div class="nt-chart-toolbar-grid">
+                                <button type="button" id="analytics-trend-total" class="nt-chart-tool" data-chart-action="total" aria-pressed="false" aria-label="Total">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M5 19V10M10 19V5M15 19v-7M20 19V8"/></svg>
+                                    <span>Total</span>
+                                </button>
+                                <button type="button" id="analytics-trend-ads" class="nt-chart-tool" data-chart-action="ads" aria-pressed="false" aria-label="Ads">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path stroke-linecap="round" d="M7 12h4M7 15h7"/></svg>
+                                    <span>Ads</span>
+                                </button>
+                                <button type="button" id="analytics-trend-stats" class="nt-chart-tool" data-chart-action="stats" aria-label="Stats">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M8 7h11M8 12h11M8 17h11"/><circle cx="4.5" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="17" r="1" fill="currentColor" stroke="none"/></svg>
+                                    <span>Stats</span>
+                                </button>
+                                <button type="button" id="analytics-trend-compare-btn" class="nt-chart-tool" data-chart-action="compare" aria-pressed="false" aria-label="Compare">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M4 16c2-6 4-6 6 0s4 6 6 0 4-6 4 0"/><path stroke-linecap="round" d="M4 10c2 4 4 4 6 0"/></svg>
+                                    <span>Compare</span>
+                                </button>
+                            </div>
+                            <div class="nt-chart-toolbar-pair">
+                                <button type="button" id="analytics-trend-landscape" class="nt-chart-tool" data-chart-action="landscape" aria-label="Landscape">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="7" width="18" height="10" rx="2"/></svg>
+                                    <span>Landscape</span>
+                                </button>
+                                <button type="button" id="analytics-trend-export" class="nt-chart-tool" data-chart-action="export" aria-label="Export">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v10M8 10l4 4 4-4M5 19h14"/></svg>
+                                    <span>Export</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -5043,6 +5151,7 @@ const Admin = {
                         else if (action === 'landscape') Admin.openGraphLandscape('users');
                         else if (action === 'export') Admin.offerChartExport('users');
                     });
+                    document.getElementById('analytics-pagination-controls')?.classList.toggle('hidden', !(Admin.telemetryRange === 'DAU' || Admin.telemetryRange === 'WAU'));
                 }
             }
 
@@ -8385,7 +8494,10 @@ const Admin = {
                 || Admin._pendingAdminRoute
                 || Admin._pendingReviewItemId
             );
-            Admin.applyAlertHubView(skipHub ? 'inapp' : 'hub');
+            const alertView = (opts.alertView === 'speech' || requestedId === 'alert-panel--speech')
+                ? 'speech'
+                : (skipHub ? 'inapp' : 'hub');
+            Admin.applyAlertHubView(alertView);
             if (skipHub && !quiet) {
                 if (typeof Admin.setAlertManagerTab === 'function' && Admin._pendingAdminRoute) {
                     Admin.setAlertManagerTab('compose');
@@ -8430,14 +8542,17 @@ const Admin = {
     },
 
     applyAlertHubView: (view) => {
-        const mode = view === 'inapp' ? 'inapp' : 'hub';
+        const mode = view === 'inapp' ? 'inapp' : (view === 'speech' ? 'speech' : 'hub');
         Admin._alertHubView = mode;
         const hub = document.getElementById('alert-hub');
         const body = document.getElementById('alert-body');
+        const speech = document.getElementById('alert-speech');
         if (hub) hub.classList.toggle('hidden', mode !== 'hub');
         if (body) body.classList.toggle('hidden', mode !== 'inapp');
-        if (mode !== 'hub') document.getElementById('alert-speech')?.classList.add('hidden');
-        Admin.paintDrillTitle(mode === 'inapp' ? 'In-app alerts' : 'Service Alerts');
+        if (speech) speech.classList.toggle('hidden', mode !== 'speech');
+        const title = mode === 'inapp' ? 'In-app alerts' : (mode === 'speech' ? 'Read aloud' : 'Service Alerts');
+        Admin.paintDrillTitle(title);
+        if (mode === 'speech') document.getElementById('alert-speech-text')?.focus();
         if (mode === 'inapp' && typeof window.injectRichTextStyles === 'function') {
             window.injectRichTextStyles();
         }
@@ -8454,6 +8569,19 @@ const Admin = {
             );
         } catch (_) { /* ignore */ }
         Admin.showDrilledPanel('alert-panel--inapp');
+    },
+
+    openAlertHubSpeech: () => {
+        const nextStack = ntAdminPushDrillPanel(Admin._drillStack, 'alert-panel--speech');
+        Admin._drillStack = nextStack;
+        try {
+            history.pushState(
+                { adminPanel: 'alert-panel--speech', drillStack: nextStack.slice() },
+                '',
+                '#dev-alert-panel--speech'
+            );
+        } catch (_) { /* ignore */ }
+        Admin.showDrilledPanel('alert-panel--speech');
     },
 
     /** Back/←: previous drilled panel when there is one, otherwise the Dev Mode grid. */
@@ -15261,13 +15389,19 @@ const Admin = {
             hello,
             '',
             'We received your request to delete your Next Train account.',
-            `The request is for ${email}.`,
             '',
-            'We will remove the live profile. Reply to this email if you did not ask for this.',
+            'The request is for:',
             '',
-            'Next Train',
+            `• ${email}`,
+            '',
+            'We have successfully removed the live profile.',
+            '',
+            'Thank you for trying out Next Train!',
         ].join('\n');
-        const href = `mailto:${email}?subject=${encodeURIComponent('Next Train account deletion')}&body=${encodeURIComponent(body)}`;
+        const subject = 'Next Train | Account Deletion';
+        const href = window.ntReplySuggest?.mailtoReplyUrl
+            ? window.ntReplySuggest.mailtoReplyUrl(email, body, subject)
+            : `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.replace(/\n/g, '<br>'))}`;
         try { window.location.href = href; } catch { /* ignore */ }
         return true;
     },
@@ -15306,17 +15440,29 @@ const Admin = {
         list.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">Loading...</p>';
         const base = typeof DYNAMIC_BASE_URL !== 'undefined' ? DYNAMIC_BASE_URL : 'https://metrorail-next-train-default-rtdb.firebaseio.com/';
         const esc = (str) => Admin.commuterEsc(str);
-        const pending = new Map();
+        const byUid = new Map();
         const absorb = (uid, row) => {
-            if (!row || row.status === 'done' || row.deletionResolvedAt) return;
+            if (!row || typeof row !== 'object') return;
             const requestedAt = Number(row.requestedAt || row.deletionRequestedAt) || 0;
-            if (!requestedAt) return;
-            pending.set(uid, {
+            const deletedAt = Number(row.deletedAt || row.retainedAt) || 0;
+            const done = row.status === 'done' || !!row.deletionResolvedAt;
+            if (!done && !requestedAt) return;
+            const prev = byUid.get(uid);
+            if (prev?.done && !done) return;
+            const deviceIds = row.deviceIds && typeof row.deviceIds === 'object' ? row.deviceIds : {};
+            byUid.set(uid, {
                 uid,
                 email: row.email || row.deletionRequestedEmail || '',
                 displayName: row.displayName || '',
-                deviceId: row.deviceId || '',
-                requestedAt,
+                deviceId: row.deviceId || Object.keys(deviceIds)[0] || '',
+                requestedAt: requestedAt || deletedAt,
+                deletedAt,
+                createdAt: Number(row.accountCreatedAt || row.createdAt) || 0,
+                region: row.region || '',
+                appVersion: row.appVersion || '',
+                points: Number(row.points) || 0,
+                returnedAt: Number(row.returnedAt) || 0,
+                done,
             });
         };
         try {
@@ -15350,30 +15496,41 @@ const Admin = {
                 }
             } catch { /* profile flags stay on the queue list */ }
         }
-        const rows = [...pending.values()].sort((a, b) => b.requestedAt - a.requestedAt);
+        const rows = [...byUid.values()].sort((a, b) => (b.deletedAt || b.requestedAt) - (a.deletedAt || a.requestedAt));
+        const openRows = rows.filter((row) => !row.done);
+        const deletedRows = rows.filter((row) => row.done);
         const utBadge = document.getElementById('ut-unread-badge');
         if (utBadge) {
-            utBadge.textContent = Admin.formatBadgeCount(rows.length);
-            utBadge.classList.toggle('hidden', rows.length === 0);
+            utBadge.textContent = Admin.formatBadgeCount(openRows.length);
+            utBadge.classList.toggle('hidden', openRows.length === 0);
         }
-        Admin._pendingDeletionCount = rows.length;
-        if (!rows.length) {
-            list.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">No open deletion requests.</p>';
-            return;
-        }
-        list.innerHTML = rows.map((row) => `
+        Admin._pendingDeletionCount = openRows.length;
+        const card = (row, actions) => `
             <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5">
                 <p class="text-sm font-black text-gray-900 dark:text-white break-words">${esc(row.displayName || row.email || row.uid)}</p>
                 <p class="text-[11px] text-gray-500 break-all">${esc(row.email || 'No email')}</p>
                 <p class="font-mono text-[10px] text-gray-400 break-all mt-0.5">${esc(row.uid)}</p>
                 ${row.deviceId ? `<p class="font-mono text-[10px] text-gray-400 break-all">device ${esc(row.deviceId)}</p>` : ''}
-                <p class="text-[10px] text-gray-400 mt-1">${esc(Admin.formatDate(row.requestedAt))}</p>
-                <div class="mt-2 flex flex-wrap gap-2">
-                    <button type="button" data-ad-email="${esc(row.email || '')}" data-ad-name="${esc(row.displayName || '')}" data-ad-uid="${esc(row.uid)}" class="text-[10px] font-black uppercase tracking-wider text-white bg-indigo-700 hover:bg-indigo-800 px-3 py-1.5 rounded-lg">Draft email</button>
-                    <button type="button" data-ad-delete="${esc(row.uid)}" data-ad-device="${esc(row.deviceId || '')}" class="text-[10px] font-black uppercase tracking-wider text-white bg-rose-700 hover:bg-rose-800 px-3 py-1.5 rounded-lg">Delete data</button>
-                </div>
+                ${row.createdAt ? `<p class="text-[10px] text-gray-400 mt-1">Created ${esc(Admin.formatDate(row.createdAt))}</p>` : ''}
+                <p class="text-[10px] text-gray-400">${row.done ? 'Deleted' : 'Requested'} ${esc(Admin.formatDate(row.deletedAt || row.requestedAt))}</p>
+                ${row.returnedAt ? `<p class="text-[10px] text-gray-400">Signed in again ${esc(Admin.formatDate(row.returnedAt))}</p>` : ''}
+                ${row.region || row.appVersion || row.points ? `<p class="text-[10px] text-gray-400">${esc([row.region, row.appVersion, row.points ? `${row.points} points` : ''].filter(Boolean).join(' · '))}</p>` : ''}
+                <div class="mt-2 flex flex-wrap gap-2">${actions}</div>
             </div>
-        `).join('');
+        `;
+        const emailBtn = (row) => `<button type="button" data-ad-email="${esc(row.email || '')}" data-ad-name="${esc(row.displayName || '')}" data-ad-uid="${esc(row.uid)}" class="text-[10px] font-black uppercase tracking-wider text-white bg-indigo-700 hover:bg-indigo-800 px-3 py-1.5 rounded-lg">Draft email</button>`;
+        const openHtml = openRows.length
+            ? openRows.map((row) => card(row, `${emailBtn(row)}<button type="button" data-ad-delete="${esc(row.uid)}" data-ad-device="${esc(row.deviceId || '')}" class="text-[10px] font-black uppercase tracking-wider text-white bg-rose-700 hover:bg-rose-800 px-3 py-1.5 rounded-lg">Delete data</button>`)).join('')
+            : '<p class="text-xs text-gray-400 text-center py-3">No open deletion requests.</p>';
+        const deletedHtml = deletedRows.length
+            ? deletedRows.map((row) => card(row, emailBtn(row))).join('')
+            : '<p class="text-xs text-gray-400 text-center py-3">No deleted accounts yet.</p>';
+        list.innerHTML = `
+            <p class="text-[10px] font-black uppercase tracking-wider text-gray-400 px-1 mb-1">Open requests</p>
+            ${openHtml}
+            <p class="text-[10px] font-black uppercase tracking-wider text-gray-400 px-1 mt-4 mb-1">Deleted accounts</p>
+            ${deletedHtml}
+        `;
         list.querySelectorAll('[data-ad-email]').forEach((btn) => {
             btn.addEventListener('click', () => Admin.openDeletionDraft({
                 email: btn.getAttribute('data-ad-email') || '',
@@ -15387,7 +15544,7 @@ const Admin = {
                 btn.getAttribute('data-ad-device') || '',
             ));
         });
-        Admin.promptDeletionDrafts(rows);
+        Admin.promptDeletionDrafts(openRows);
     },
 
     purgeAccountDeletion: async (uid, deviceId = '') => {
@@ -15439,15 +15596,27 @@ const Admin = {
                 const alias = Admin.commuterAlias(item);
                 if (item && alias) aliases[item] = alias;
             });
+            const createdCandidates = [user?.accountCreatedAt, user?.createdAt, prior?.accountCreatedAt, prior?.createdAt]
+                .map(Number)
+                .filter((n) => Number.isFinite(n) && n > 1e11);
+            const createdAt = createdCandidates.length ? Math.min(...createdCandidates) : Date.now();
             const tomb = {
                 uid: id,
                 email: user?.email || prior?.email || null,
                 displayName: user?.displayName || prior?.displayName || null,
+                provider: user?.provider || prior?.provider || null,
+                region: user?.region || prior?.region || null,
+                appVersion: user?.appVersion || prior?.appVersion || null,
                 deviceId: did || prior?.deviceId || Object.keys(deviceIds)[0] || null,
                 deviceIds,
                 aliases,
                 retainedNames: names,
+                points: Math.max(Number(user?.marks?.points) || 0, Number(prior?.points) || 0),
+                createdAt,
+                accountCreatedAt: createdAt,
+                joinedAt: Number(user?.joinedAt || prior?.joinedAt) || createdAt,
                 requestedAt: Number(prior?.requestedAt || user?.deletionRequestedAt) || Date.now(),
+                deletedAt: Date.now(),
                 status: 'done',
                 retainedAt: Date.now(),
                 reason: prior?.reason || user?.deletionRequestedReason || 'user_request',
@@ -15460,6 +15629,8 @@ const Admin = {
             if (!saved.ok) throw new Error('could not keep the name');
             const removed = await fetch(`${base}users/${encodeURIComponent(id)}.json${auth}`, { method: 'DELETE' });
             if (!removed.ok && removed.status !== 404) throw new Error('delete failed');
+            await fetch(`${base}account_directory/${encodeURIComponent(id)}.json${auth}`, { method: 'DELETE' }).catch(() => {});
+            await fetch(`${base}public_profile/${encodeURIComponent(id)}.json${auth}`, { method: 'DELETE' }).catch(() => {});
             if (Admin._identityCache) {
                 Admin._identityCache.delete(id);
                 Object.keys(deviceIds).forEach((item) => Admin._identityCache.delete(item));
@@ -15510,7 +15681,7 @@ const Admin = {
         },
         'account-deletions': {
             title: 'Deletion requests',
-            body: 'Requests sent from Account. Delete data removes the live profile. The name, earlier names, email, and alias stay on the deletion record.',
+            body: 'A person who deletes their own account leaves the active list and stays here, on the same user ID. Open requests are the ones still waiting. Deleted accounts keep the name, email, and the original created time. Draft email opens the same letter. Sending it from enock@nexttrain.co.za is the mailbox on this phone.',
         },
         'live-share': {
             title: 'Live sharing',
@@ -15987,6 +16158,14 @@ const Admin = {
                 if (!users) {
                     try { users = await readJson(`${dynamicEndpoint}users.json?${auth}`); } catch { users = null; }
                 }
+                let deletions = {};
+                try { deletions = await readJson(`${dynamicEndpoint}account_deletions.json?${auth}`); } catch { deletions = {}; }
+                const hidden = new Set();
+                Object.entries(deletions || {}).forEach(([uid, row]) => {
+                    const live = users && users[uid] && typeof users[uid] === 'object';
+                    if (users && row && row.status === 'done' && !row.returnedAt && !live) hidden.add(uid);
+                });
+                Admin._deletedAccountUids = hidden;
                 const rows = Object.entries(data)
                     .filter(([, row]) => row && typeof row === 'object')
                     .map(([uid, row]) => {
@@ -16020,10 +16199,14 @@ const Admin = {
                         };
                     })
                     .filter((row) => row.displayName || row.email)
-                    .filter((row) => String(row.provider || '') !== 'anonymous');
+                    .filter((row) => String(row.provider || '') !== 'anonymous')
+                    .filter((row) => !hidden.has(row.uid));
                 const keyCount = shallow && typeof shallow === 'object' ? Object.keys(shallow).length : null;
+                const hiddenInDirectory = shallow && typeof shallow === 'object'
+                    ? [...hidden].filter((uid) => Object.prototype.hasOwnProperty.call(shallow, uid)).length
+                    : 0;
                 Admin._accountRows = rows;
-                Admin._accountTotal = keyCount;
+                Admin._accountTotal = keyCount == null ? null : Math.max(0, keyCount - hiddenInDirectory);
                 Admin._accountHasMore = keyCount != null ? rows.length < keyCount : rows.length >= 200;
                 Admin._accountEndpoint = dynamicEndpoint;
                 Admin._accountAuth = auth;
@@ -16153,7 +16336,8 @@ const Admin = {
                         deviceIds: {},
                         chatDeviceId: '',
                     }))
-                    .filter((row) => (row.displayName || row.email) && String(row.provider || '') !== 'anonymous');
+                    .filter((row) => (row.displayName || row.email) && String(row.provider || '') !== 'anonymous')
+                    .filter((row) => !(Admin._deletedAccountUids && Admin._deletedAccountUids.has(row.uid)));
                 let data = await readPage(oldest);
                 let extra = mapPage(data);
                 if (!extra.length && Object.keys(data).length) {
@@ -16449,10 +16633,35 @@ const Admin = {
                 return res.json();
             };
 
+            const userFromDeletion = (tomb, id) => ({
+                displayName: tomb.displayName || '',
+                email: tomb.email || null,
+                provider: tomb.provider || '',
+                providerName: tomb.providerName || '',
+                region: tomb.region || '',
+                appVersion: tomb.appVersion || '',
+                createdAt: tomb.createdAt || tomb.accountCreatedAt || 0,
+                accountCreatedAt: tomb.accountCreatedAt || tomb.createdAt || 0,
+                joinedAt: tomb.joinedAt || tomb.createdAt || 0,
+                deviceIds: tomb.deviceIds && typeof tomb.deviceIds === 'object' ? tomb.deviceIds : {},
+                lastSeenAt: tomb.deletedAt || tomb.retainedAt || 0,
+                flags: { shadowBanned: false, shadowBannedUntil: 0, role: 'user' },
+                trustScore: 0,
+                _deletedAccount: true,
+                uid: tomb.uid || id,
+            });
+
             // 1) Direct users/{id}
             let user = await fetchJson(`users/${encodeURIComponent(resolvedQuery)}.json`);
             if (user) {
                 return { uid: resolvedQuery, user, via: viaHint || 'uid', deviceId: /^usr_/i.test(resolvedQuery) ? resolvedQuery : null };
+            }
+            if (!resolvedQuery.includes('@') && !/^usr_/i.test(resolvedQuery)) {
+                let tomb = null;
+                try { tomb = await fetchJson(`account_deletions/${encodeURIComponent(resolvedQuery)}.json`); } catch { tomb = null; }
+                if (tomb && typeof tomb === 'object' && (tomb.uid || tomb.email || tomb.displayName)) {
+                    return { uid: tomb.uid || resolvedQuery, user: userFromDeletion(tomb, resolvedQuery), via: 'deleted', deviceId: tomb.deviceId || null, deleted: true };
+                }
             }
 
             // 2) Device ID ? linked Firebase uid (devices/{deviceId}.uid)
@@ -16463,6 +16672,11 @@ const Admin = {
                     user = await fetchJson(`users/${encodeURIComponent(device.uid)}.json`);
                     if (user) {
                         return { uid: device.uid, user, via: viaHint || 'device?uid', deviceId: resolvedQuery, device };
+                    }
+                    let tomb = null;
+                    try { tomb = await fetchJson(`account_deletions/${encodeURIComponent(device.uid)}.json`); } catch { tomb = null; }
+                    if (tomb && typeof tomb === 'object') {
+                        return { uid: device.uid, user: userFromDeletion(tomb, device.uid), via: 'deleted', deviceId: resolvedQuery, device, deleted: true };
                     }
                 }
                 // Guest / pre-account: allow banning the device id itself
@@ -16494,6 +16708,16 @@ const Admin = {
                         }
                     }
                 }
+                let deletions = null;
+                try { deletions = await fetchJson('account_deletions.json'); } catch { deletions = null; }
+                if (deletions && typeof deletions === 'object') {
+                    const needleEmail = q.toLowerCase();
+                    for (const [uid, tomb] of Object.entries(deletions)) {
+                        if (tomb && String(tomb.email || '').toLowerCase() === needleEmail) {
+                            return { uid: tomb.uid || uid, user: userFromDeletion(tomb, uid), via: 'deleted', deviceId: tomb.deviceId || null, deleted: true };
+                        }
+                    }
+                }
             }
 
             return null;
@@ -16521,7 +16745,8 @@ const Admin = {
                 const score = typeof user.trustScore === 'number' ? user.trustScore : 0;
                 const name = (user.displayName || (user._isDeviceStub ? 'Device guest' : '-')).toString().replace(/</g, '&lt;');
                 const email = (user.email || '-').toString().replace(/</g, '&lt;');
-                const viaLabel = via === 'email' ? 'matched by email'
+                const viaLabel = via === 'deleted' ? 'deleted account'
+                    : via === 'email' ? 'matched by email'
                     : (via === 'alias' ? 'feedback alias'
                     : (via === 'device' ? 'device record'
                     : (via === 'device?uid' ? 'device → account' : 'user id')));
@@ -16706,7 +16931,7 @@ const Admin = {
                                 <span class="ut-k" style="margin-left:auto">${Admin.commuterEsc(viaLabel)}</span>
                             </div>
                             <div class="ut-chip-row">
-                                <span class="ut-chip ${banned && !expired ? 'ut-chip-hot' : 'ut-chip-ok'}">${banned ? (expired ? 'Ban expired' : 'Banned') : 'No ban'}</span>
+                                ${user._deletedAccount ? '<span class="ut-chip">Deleted account</span>' : `<span class="ut-chip ${banned && !expired ? 'ut-chip-hot' : 'ut-chip-ok'}">${banned ? (expired ? 'Ban expired' : 'Banned') : 'No ban'}</span>`}
                                 ${appOpen ? '<span class="ut-chip">App open now</span>' : ''}
                                 <span class="ut-chip">Role: ${Admin.commuterEsc(flags.role || 'user')} · ${score}</span>
                             </div>
@@ -18497,9 +18722,8 @@ const Admin = {
                         </div>
                         ${Admin.replySuggestMarkup()}
                         <div id="admin-reply-speech" class="mt-3 flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1.5 shadow-sm dark:border-gray-600 dark:bg-gray-900" role="group" aria-label="Listen to this draft">
-                            <button type="button" id="admin-reply-listen" data-speech="play" class="h-9 w-9 rounded-full text-gray-800 dark:text-gray-100 focus:outline-none" aria-label="Play"><svg class="mx-auto h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
-                            <button type="button" data-speech="pause" class="h-9 w-9 rounded-full text-gray-800 dark:text-gray-100 focus:outline-none" aria-label="Pause"><svg class="mx-auto h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg></button>
-                            <button type="button" data-speech="restart" class="h-9 w-9 rounded-full text-gray-800 dark:text-gray-100 focus:outline-none" aria-label="Restart"><svg class="mx-auto h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 109-9"/><path d="M3 4v5h5"/></svg></button>
+                            <button type="button" id="admin-reply-listen" data-speech="toggle" class="h-9 w-9 rounded-full text-gray-800 dark:text-gray-100 focus:outline-none" aria-label="Play"><svg data-speech-icon class="mx-auto h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>
+                            <button type="button" data-speech="stop" class="h-9 w-9 rounded-full text-gray-800 dark:text-gray-100 focus:outline-none" aria-label="Stop"><svg class="mx-auto h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg></button>
                             <span data-speech-status class="min-w-0 flex-1 px-1 text-xs font-semibold text-gray-700 dark:text-gray-200">Not playing</span>
                         </div>
                         <div class="grid grid-cols-2 gap-2 mt-3 pt-3 pb-1 border-t border-gray-100 dark:border-gray-700">
@@ -18748,30 +18972,21 @@ const Admin = {
                     if (!result || result.hidden || result.ok) return;
                     if (result.message && typeof showToast === 'function') showToast(result.message, 'error');
                 };
-                if (act === 'pause') {
-                    window.ntPauseOperatorSpeech?.();
+                if (act === 'stop') {
+                    window.ntStopOperatorSpeech?.();
                     return;
                 }
-                if (act === 'play') {
-                    if (state === 'paused' || state === 'playing') {
+                if (act === 'toggle') {
+                    if (state === 'playing') {
+                        window.ntPauseOperatorSpeech?.();
+                        return;
+                    }
+                    if (state === 'paused') {
                         window.ntResumeOperatorSpeech?.();
                         return;
                     }
                     const speak = window.ntSpeakOperatorCopy;
                     if (typeof speak === 'function') speak(words).then(report);
-                    return;
-                }
-                if (act === 'restart') {
-                    if (state === 'idle' || state === 'preparing') {
-                        const speak = window.ntSpeakOperatorCopy;
-                        if (typeof speak === 'function') speak(words, { fresh: true }).then(report);
-                        return;
-                    }
-                    const restarted = window.ntRestartOperatorSpeech?.();
-                    if (restarted && restarted.ok === false) {
-                        const speak = window.ntSpeakOperatorCopy;
-                        if (typeof speak === 'function') speak(words, { fresh: true }).then(report);
-                    }
                 }
             });
         }
@@ -21450,13 +21665,17 @@ const Admin = {
                     </span>
                 </button>
             </div>
-            <div id="alert-speech" class="hidden mt-3 space-y-2">
+            <div id="alert-speech" class="hidden mt-3 space-y-3">
                 <label class="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase" for="alert-speech-text">Paste any text</label>
-                <textarea id="alert-speech-text" rows="8" class="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white outline-none" placeholder="Paste the notice, the briefing, or any other words to read."></textarea>
-                <div class="grid grid-cols-3 gap-2">
-                    <button type="button" id="alert-speech-play" class="min-h-[44px] rounded-lg bg-violet-600 text-white text-[11px] font-black uppercase tracking-wider focus:outline-none">Play</button>
-                    <button type="button" id="alert-speech-pause" class="min-h-[44px] rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 text-[11px] font-black uppercase tracking-wider focus:outline-none">Pause</button>
-                    <button type="button" id="alert-speech-stop" class="min-h-[44px] rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100 text-[11px] font-black uppercase tracking-wider focus:outline-none">Stop</button>
+                <textarea id="alert-speech-text" rows="10" class="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white outline-none" placeholder="Paste the notice, the briefing, or any other words to read."></textarea>
+                <div class="flex gap-2">
+                    <button type="button" id="alert-speech-play" data-speech="toggle" class="inline-flex flex-1 min-h-[44px] items-center justify-center gap-2 rounded-xl bg-violet-600 text-white text-[12px] font-black uppercase tracking-wider focus:outline-none" aria-label="Play">
+                        <svg data-speech-icon class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                        <span data-speech-label>Play</span>
+                    </button>
+                    <button type="button" id="alert-speech-stop" class="inline-flex min-h-[44px] w-14 items-center justify-center rounded-xl border border-gray-300 bg-white text-gray-800 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" aria-label="Stop">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
+                    </button>
                 </div>
                 <p id="alert-speech-status" class="text-[11px] font-semibold text-gray-500 dark:text-gray-400">Not playing</p>
             </div>
@@ -22644,18 +22863,32 @@ const Admin = {
             hubSpeech.onclick = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                const panel = document.getElementById('alert-speech');
-                if (!panel) return;
-                const open = panel.classList.toggle('hidden') === false;
-                if (open) document.getElementById('alert-speech-text')?.focus();
+                Admin.openAlertHubSpeech();
             };
         }
         const speechText = document.getElementById('alert-speech-text');
         document.getElementById('alert-speech-play')?.addEventListener('click', () => {
-            Admin.playAdminSpeech(speechText?.value || '', { owner: 'paste', resume: true });
+            const words = speechText?.value || '';
+            const state = typeof window.ntOperatorSpeechState === 'function' ? window.ntOperatorSpeechState() : 'idle';
+            if (state === 'playing') {
+                window.ntPauseOperatorSpeech?.();
+                return;
+            }
+            if (state === 'paused') {
+                window.ntResumeOperatorSpeech?.();
+                return;
+            }
+            const speak = window.ntSpeakOperatorCopy;
+            if (typeof speak !== 'function') return;
+            speak(words).then((result) => {
+                if (result?.hidden) return;
+                if (!result?.ok && result?.message && typeof showToast === 'function') showToast(result.message, 'error');
+            });
         });
-        document.getElementById('alert-speech-pause')?.addEventListener('click', () => Admin.pauseAdminSpeech());
-        document.getElementById('alert-speech-stop')?.addEventListener('click', () => Admin.stopAdminSpeech());
+        document.getElementById('alert-speech-stop')?.addEventListener('click', () => {
+            if (typeof window.ntStopOperatorSpeech === 'function') window.ntStopOperatorSpeech();
+            else Admin.stopAdminSpeech();
+        });
 
         if (srcToggleBtn) {
             srcToggleBtn.onclick = () => {
@@ -28105,9 +28338,9 @@ const Admin = {
                         </span>
                         <svg id="sched-qa-chevron" class="w-4 h-4 transform transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
+                    <button type="button" id="sched-qa-count-btn" class="hidden mx-3 mb-3 min-h-[44px] w-[calc(100%-1.5rem)] rounded-xl border border-red-200 bg-white px-3 text-left text-[13px] font-black text-red-700 shadow-sm focus:outline-none dark:border-red-800 dark:bg-gray-900 dark:text-red-200"></button>
 
                     <div id="sched-qa-body" class="p-3 hidden space-y-3 overflow-visible">
-                        <div id="sched-qa-where" class="hidden rounded-lg border border-red-200 dark:border-red-800 bg-white/80 dark:bg-red-950/40 p-2.5 text-red-900 dark:text-red-100"></div>
                         <p class="text-[9px] text-violet-800 dark:text-violet-400 font-medium leading-snug">
                             Flags impossible or suspicious timetable cells: identical adjacent stops, time regressions,
                             delta variance, missing coordinates, junk leftover rows (a lone 12 or 7.20), day mismatches, and more.
@@ -29095,36 +29328,20 @@ const Admin = {
         qaPanel.dataset.loaded = 'true';
 
         const header = document.getElementById('sched-qa-header-btn');
+        const countBtn = document.getElementById('sched-qa-count-btn');
         const paintQaFlag = (status) => {
             const errors = Number(status?.errors) || 0;
             const warnings = Number(status?.warnings) || 0;
-            if (errors <= 0 || !header) return;
-            qaPanel.classList.remove('bg-violet-50', 'dark:bg-violet-900/20', 'border-violet-200', 'dark:border-violet-800');
-            qaPanel.classList.add('bg-red-50', 'dark:bg-red-900/20', 'border-red-300', 'dark:border-red-800');
-            header.classList.remove('bg-violet-100/50', 'dark:bg-violet-900/40', 'text-violet-800', 'dark:text-violet-300', 'hover:bg-violet-200/50', 'dark:hover:bg-violet-900/60');
-            header.classList.add('bg-red-100', 'dark:bg-red-900/50', 'text-red-800', 'dark:text-red-200', 'hover:bg-red-200/70');
-            const label = header.querySelector('span.flex');
-            let note = header.querySelector('[data-qa-flag]');
-            if (!note && label) {
-                note = document.createElement('span');
-                note.setAttribute('data-qa-flag', '1');
-                note.className = 'ml-2 normal-case tracking-normal text-[10px] font-bold';
-                label.appendChild(note);
-            }
-            const whereLines = String(status?.lines || '').split('\n').map((line) => line.trim()).filter(Boolean);
-            if (note) note.textContent = `${errors} error${errors === 1 ? '' : 's'} · ${warnings} warning${warnings === 1 ? '' : 's'}`;
-            const whereBox = document.getElementById('sched-qa-where');
-            if (whereBox) {
-                const when = status?.at && typeof Admin.formatDate === 'function' ? Admin.formatDate(status.at) : '';
-                const items = whereLines.length
-                    ? whereLines.map((line) => `<li class="${/^(Errors|Warnings)$/i.test(line) ? 'mt-1 font-black uppercase tracking-wider text-[9px]' : ''}">${escapeHTML(line)}</li>`).join('')
-                    : '<li>This scan stored the counts only. Run QA report to list each route.</li>';
-                whereBox.classList.remove('hidden');
-                whereBox.innerHTML = `<p class="text-[10px] font-black uppercase tracking-wider">Where this scan found them${when ? ` · ${escapeHTML(when)}` : ''}</p><ul class="mt-1 space-y-0.5 text-[11px] font-semibold leading-snug">${items}</ul>`;
-            }
-            if (errors > 0 && body) {
-                body.classList.remove('hidden');
-                chevron?.classList.remove('-rotate-90');
+            Admin._qaScanStatus = status || null;
+            if (!countBtn) return;
+            countBtn.classList.remove('hidden');
+            countBtn.textContent = `${errors} error${errors === 1 ? '' : 's'} & ${warnings} warning${warnings === 1 ? '' : 's'}`;
+            if (errors > 0) {
+                qaPanel.classList.remove('bg-violet-50', 'dark:bg-violet-900/20', 'border-violet-200', 'dark:border-violet-800');
+                qaPanel.classList.add('bg-red-50', 'dark:bg-red-900/20', 'border-red-300', 'dark:border-red-800');
+                header?.classList.remove('bg-violet-100/50', 'dark:bg-violet-900/40', 'text-violet-800', 'dark:text-violet-300', 'hover:bg-violet-200/50', 'dark:hover:bg-violet-900/60');
+                header?.classList.add('bg-red-100', 'dark:bg-red-900/50', 'text-red-800', 'dark:text-red-200', 'hover:bg-red-200/70');
+                countBtn.classList.add('border-red-200', 'text-red-700', 'dark:border-red-800', 'dark:text-red-200');
             }
         };
         (async () => {
@@ -29340,6 +29557,146 @@ const Admin = {
                 });
             });
         };
+
+        const qaIssueLabel = (code) => issueTypes.find((row) => row.code === code)?.label || code;
+
+        const paintQaModalFindings = (findings, note) => {
+            const list = document.getElementById('sched-qa-modal-list');
+            if (!list) return;
+            const rows = Array.isArray(findings) ? findings : [];
+            if (!rows.length) {
+                list.innerHTML = `<p class="rounded-xl border border-green-200 bg-green-50 px-3 py-3 text-sm font-bold text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200">${escapeHTML(note || 'This region looks clear.')}</p>`;
+                return;
+            }
+            const buckets = { error: new Map(), warn: new Map() };
+            rows.forEach((finding) => {
+                const severity = finding.severity === 'warn' ? 'warn' : (finding.severity === 'error' ? 'error' : '');
+                if (!severity) return;
+                const route = String(finding.routeName || finding.routeId || 'Route');
+                const code = String(finding.code || 'ISSUE');
+                const key = `${route}\n${code}`;
+                const prev = buckets[severity].get(key) || { route, code, count: 0, sample: finding };
+                prev.count += 1;
+                if (code === 'DELTA_VARIANCE' && Number(finding.spreadMin) > Number(prev.sample?.spreadMin || 0)) prev.sample = finding;
+                buckets[severity].set(key, prev);
+            });
+            const section = (title, bag, tone) => {
+                if (!bag.size) return '';
+                const items = [...bag.values()].sort((a, b) => b.count - a.count || a.route.localeCompare(b.route));
+                const total = items.reduce((sum, row) => sum + row.count, 0);
+                return `<section class="space-y-1.5">
+                    <h4 class="text-[11px] font-black uppercase tracking-wider ${tone}">${title} · ${total}</h4>
+                    <ul class="space-y-1.5">${items.map((row, index) => {
+                        const routeHtml = typeof Admin.formatRouteLabelHtml === 'function' ? Admin.formatRouteLabelHtml(row.route) : escapeHTML(row.route);
+                        const delta = row.code === 'DELTA_VARIANCE' ? ` data-qa-modal-delta="${index}" data-qa-modal-sev="${title}"` : '';
+                        return `<li><button type="button" class="flex w-full items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-left focus:outline-none dark:border-gray-700 dark:bg-gray-900"${delta}>
+                            <span class="min-w-0"><span class="block text-[13px] font-bold text-gray-900 dark:text-white">${routeHtml}</span><span class="block text-[11px] font-semibold text-gray-500 dark:text-gray-400">${escapeHTML(qaIssueLabel(row.code))}</span></span>
+                            <span class="shrink-0 text-[13px] font-black tabular-nums text-gray-800 dark:text-gray-100">×${row.count}</span>
+                        </button></li>`;
+                    }).join('')}</ul>
+                </section>`;
+            };
+            list.innerHTML = `${note ? `<p class="text-[12px] font-semibold leading-snug text-gray-600 dark:text-gray-300">${escapeHTML(note)}</p>` : ''}${section('Errors', buckets.error, 'text-red-700 dark:text-red-300')}${section('Warnings', buckets.warn, 'text-amber-700 dark:text-amber-300')}`;
+            const samples = new Map();
+            ['Errors', 'Warnings'].forEach((title) => {
+                const bag = title === 'Errors' ? buckets.error : buckets.warn;
+                [...bag.values()].sort((a, b) => b.count - a.count || a.route.localeCompare(b.route)).forEach((row, index) => {
+                    if (row.code === 'DELTA_VARIANCE') samples.set(`${title}:${index}`, row.sample);
+                });
+            });
+            list.querySelectorAll('[data-qa-modal-delta]').forEach((el) => {
+                el.addEventListener('click', () => {
+                    const sample = samples.get(`${el.getAttribute('data-qa-modal-sev')}:${el.getAttribute('data-qa-modal-delta')}`);
+                    if (sample && typeof Admin.openScheduleQaDeltaModal === 'function') Admin.openScheduleQaDeltaModal(sample);
+                });
+            });
+        };
+
+        Admin.openScheduleQaBoard = () => {
+            let modal = document.getElementById('sched-qa-modal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'sched-qa-modal';
+                modal.className = 'fixed inset-0 z-[170] hidden items-end justify-center bg-black/70 sm:items-center sm:p-4';
+                modal.innerHTML = `
+                    <div class="flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-2xl bg-white shadow-2xl dark:bg-gray-800 sm:rounded-2xl" role="dialog" aria-modal="true" aria-labelledby="sched-qa-modal-title">
+                        <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                            <h3 id="sched-qa-modal-title" class="text-base font-black text-gray-900 dark:text-white">Schedule QA</h3>
+                            <button type="button" id="sched-qa-modal-close" class="rounded-full p-2 text-gray-500 focus:outline-none" aria-label="Close">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+                            <p id="sched-qa-modal-when" class="text-[12px] font-semibold leading-snug text-gray-500 dark:text-gray-400"></p>
+                            <div id="sched-qa-modal-regions" class="grid grid-cols-2 gap-2"></div>
+                            <div id="sched-qa-modal-list" class="space-y-3"></div>
+                        </div>
+                    </div>`;
+                modal.addEventListener('click', (event) => {
+                    if (event.target === modal) {
+                        modal.classList.add('hidden');
+                        modal.style.display = '';
+                    }
+                });
+                document.body.appendChild(modal);
+                modal.querySelector('#sched-qa-modal-close')?.addEventListener('click', () => {
+                    modal.classList.add('hidden');
+                    modal.style.display = '';
+                });
+            }
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+            const status = Admin._qaScanStatus;
+            const when = status?.at && typeof Admin.formatDate === 'function' ? Admin.formatDate(status.at) : '';
+            const whenEl = document.getElementById('sched-qa-modal-when');
+            if (whenEl) {
+                whenEl.textContent = status
+                    ? `${Number(status.errors) || 0} errors and ${Number(status.warnings) || 0} warnings on the last network scan${when ? `, ${when}` : ''}. Run one region to list them.`
+                    : 'Run one region to list the timetable checks.';
+            }
+            const regionBox = document.getElementById('sched-qa-modal-regions');
+            if (regionBox && regionBox.dataset.ready !== '1') {
+                regionBox.dataset.ready = '1';
+                regionBox.innerHTML = [
+                    ['GP', 'Gauteng'],
+                    ['WC', 'Western Cape'],
+                    ['KZN', 'KwaZulu-Natal'],
+                    ['EC', 'Eastern Cape'],
+                ].map(([id, label]) => `<button type="button" class="min-h-[44px] rounded-xl border border-violet-200 bg-violet-50 px-2 text-[12px] font-black text-violet-900 focus:outline-none dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-100" data-qa-region="${id}">${label}</button>`).join('');
+                regionBox.addEventListener('click', async (event) => {
+                    const btn = event.target.closest?.('[data-qa-region]');
+                    if (!btn || !regionBox.contains(btn)) return;
+                    const region = btn.getAttribute('data-qa-region');
+                    const list = document.getElementById('sched-qa-modal-list');
+                    regionBox.querySelectorAll('[data-qa-region]').forEach((el) => {
+                        el.classList.toggle('ring-2', el === btn);
+                        el.classList.toggle('ring-violet-600', el === btn);
+                    });
+                    if (list) list.innerHTML = `<p class="py-6 text-center text-sm font-bold text-gray-500">Checking ${escapeHTML(btn.textContent || region)}…</p>`;
+                    try {
+                        if (typeof runScheduleQaReport !== 'function') throw new Error('QA engine not loaded.');
+                        const db = await fetchDbForQa(region, 'FIREBASE');
+                        const report = runScheduleQaReport(db, region, typeof parseJSONSchedule === 'function' ? parseJSONSchedule : null);
+                        report.meta = { region, source: 'FIREBASE', generatedAt: new Date().toISOString(), dataAge: db?.lastUpdated || null };
+                        renderReport(report);
+                        const label = btn.textContent || region;
+                        if (list) list.dataset.ran = '1';
+                        paintQaModalFindings(report.findings || [], `${label} from Firebase. ${report.summary?.errors || 0} errors, ${report.summary?.warnings || 0} warnings.`);
+                    } catch (err) {
+                        if (list) list.innerHTML = `<p class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">${escapeHTML(String(err?.message || err))}</p>`;
+                    }
+                });
+            }
+            const list = document.getElementById('sched-qa-modal-list');
+            if (list && list.dataset.ran !== '1') {
+                list.innerHTML = '<p class="text-[12px] leading-relaxed text-gray-500 dark:text-gray-400">Pick a region. This runs that region on Firebase and lists each route.</p>';
+            }
+        };
+        countBtn?.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            Admin.openScheduleQaBoard();
+        });
 
         if (runBtn) {
             runBtn.onclick = async () => {
@@ -32255,7 +32612,7 @@ const Admin = {
                     <div class="p-4 sm:p-6 overflow-y-auto flex-1 bg-white dark:bg-gray-800 custom-scrollbar text-left">
                         <div class="flex items-center justify-between gap-2 mb-2">
                             <h4 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-left">Description</h4>
-                            <button type="button" id="roadmap-desc-speak" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-600 text-white text-[10px] font-black uppercase tracking-wider focus:outline-none">Play</button>
+                            <button type="button" id="roadmap-desc-speak" data-speech="toggle" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-600 text-white text-[10px] font-black uppercase tracking-wider focus:outline-none" aria-label="Play"><svg data-speech-icon class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span data-speech-label>Play</span></button>
                         </div>
                         <div id="roadmap-ticket-desc" class="text-left text-sm leading-relaxed text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-700 whitespace-pre-wrap break-words">${safeDesc}</div>
                         ${outreachHtml}
@@ -32553,13 +32910,7 @@ Admin._speechChunksOf = (text) => {
 
 Admin._paintSpeechStatus = (text) => {
     const status = document.getElementById('alert-speech-status');
-    if (status && Admin._speechOwner === 'paste') status.textContent = text;
-    else if (status && !Admin._speechOwner) status.textContent = text === 'Stopped' || text === 'Finished' ? text : status.textContent;
-    const speakBtn = document.getElementById('roadmap-desc-speak');
-    if (speakBtn) {
-        const on = Admin._speechOwner.startsWith('roadmap:') && (window.speechSynthesis?.speaking || Admin._speechPaused);
-        speakBtn.textContent = on && !Admin._speechPaused ? 'Pause' : 'Play';
-    }
+    if (status && !document.getElementById('alert-speech')?.classList.contains('hidden')) status.textContent = text;
 };
 
 Admin.stopAdminSpeech = () => {
@@ -32612,39 +32963,26 @@ Admin.playAdminSpeech = (text, opts = {}) => {
         if (typeof showToast === 'function') showToast('Nothing to read.', 'info');
         return;
     }
-    if (!window.speechSynthesis) {
+    const state = typeof window.ntOperatorSpeechState === 'function' ? window.ntOperatorSpeechState() : 'idle';
+    if (opts.toggle || opts.resume) {
+        if (state === 'playing') {
+            window.ntPauseOperatorSpeech?.();
+            return;
+        }
+        if (state === 'paused') {
+            window.ntResumeOperatorSpeech?.();
+            return;
+        }
+    }
+    const speak = window.ntSpeakOperatorCopy;
+    if (typeof speak !== 'function') {
         if (typeof showToast === 'function') showToast('This browser cannot read aloud.', 'error');
         return;
     }
-    try { window.ntStopOperatorSpeech?.(); } catch { /* ignore */ }
-    const owner = String(opts.owner || 'paste');
-    const nextChunks = Admin._speechChunksOf(words);
-    const sameText = Admin._speechChunks.join('\n') === nextChunks.join('\n');
-    const same = Admin._speechOwner === owner && sameText && (window.speechSynthesis.speaking || Admin._speechPaused);
-    if (same && opts.resume && Admin._speechPaused) {
-        Admin._speechPaused = false;
-        try {
-            if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-            else Admin._speakNextChunk();
-        } catch { /* ignore */ }
-        Admin._paintSpeechStatus('Playing');
-        return;
-    }
-    if (same && opts.toggle) {
-        if (Admin._speechPaused) {
-            Admin.playAdminSpeech(text, { ...opts, resume: true, toggle: false });
-        } else {
-            Admin.pauseAdminSpeech();
-        }
-        return;
-    }
-    try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
-    Admin._speechGen += 1;
-    Admin._speechChunks = nextChunks;
-    Admin._speechIndex = 0;
-    Admin._speechPaused = false;
-    Admin._speechOwner = owner;
-    Admin._speakNextChunk();
+    speak(words).then((result) => {
+        if (result?.hidden) return;
+        if (!result?.ok && result?.message && typeof showToast === 'function') showToast(result.message, 'error');
+    });
 };
 
 Admin.toggleRoadmapSpeech = (ticketId) => {
